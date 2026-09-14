@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- C++ formatting now uses `std::format` instead of the bundled `{fmt}` library. Applications using the exported `fmt` headers or custom `fmt::formatter` specializations must migrate to the standard API; see [C++ formatting](https://microsoft.github.io/CCF/main/build_apps/logging.html#c-formatting) for enum, range, and custom-type migration guidance (#8368).
 - HTTP/1.x request targets, including query strings, are now bounded before accumulation by a new `max_request_target_size` setting (16 KB by default), independent of `max_header_size`. Oversized targets return HTTP 414 `RequestTargetTooLong`, increment the per-interface `request_target_too_long` error metric, and close the session. HTTP/2 limits are unchanged (#8333).
 
 ### Fixed

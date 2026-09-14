@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
 #include "ccf/tx_status.h"
 #include "consensus/aft/raft_types.h"
@@ -11,6 +12,7 @@
 
 #include <atomic>
 #include <deque>
+#include <format>
 #include <map>
 #include <set>
 
@@ -31,7 +33,7 @@ namespace aft
       {
         update(terms_[i], i + 1);
       }
-      LOG_DEBUG_FMT("Initialised views: {}", fmt::join(views, ", "));
+      LOG_DEBUG_FMT("Initialised views: {}", ccf::ds::join(views, ", "));
     }
 
     void update(ccf::kv::Version idx, ccf::View view)
@@ -42,7 +44,7 @@ namespace aft
         const auto current_latest_index = views.back();
         if (idx < current_latest_index)
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "version must not move backwards ({} < {})",
             idx,
             current_latest_index));
@@ -53,7 +55,7 @@ namespace aft
       {
         views.push_back(idx);
       }
-      LOG_DEBUG_FMT("Resulting views: {}", fmt::join(views, ", "));
+      LOG_DEBUG_FMT("Resulting views: {}", ccf::ds::join(views, ", "));
     }
 
     [[nodiscard]] ccf::View view_at(ccf::kv::Version idx) const
@@ -127,7 +129,7 @@ namespace aft
       auto it = upper_bound(views.begin(), views.end(), idx);
       views.erase(it, views.end());
       LOG_DEBUG_FMT(
-        "Resulting views from rollback: {}", fmt::join(views, ", "));
+        "Resulting views from rollback: {}", ccf::ds::join(views, ", "));
     }
   };
 

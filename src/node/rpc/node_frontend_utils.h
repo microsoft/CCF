@@ -5,6 +5,7 @@
 #include "ccf/http_status.h"
 #include "ccf/node/quote.h"
 
+#include <format>
 #include <stdexcept>
 #include <utility>
 
@@ -46,7 +47,7 @@ namespace ccf
         return std::make_pair(
           HTTP_STATUS_UNAUTHORIZED, "Quote TCB version is too low");
       default:
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unknown QuoteVerificationResult: {}", std::to_underlying(result)));
     }
   }

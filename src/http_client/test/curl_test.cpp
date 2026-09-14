@@ -8,6 +8,7 @@
 
 #include <cstdlib>
 #include <curl/header.h>
+#include <format>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -18,6 +19,7 @@
 #include <optional>
 #include <random>
 #include <span>
+#include <utility>
 #include <uv.h>
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -164,7 +166,7 @@ TEST_CASE("ResponseHeaders rejects oversized headers")
 
   std::string oversized_value(
     ccf::http::default_max_header_size.count_bytes() + 1, 'x');
-  std::string header = fmt::format("X-Large: {}\r\n", oversized_value);
+  std::string header = std::format("X-Large: {}\r\n", oversized_value);
   REQUIRE(
     ccf::http_client::ResponseHeaders::recv_header_line(
       header.data(), 1, header.size(), &headers) == 0);
@@ -180,7 +182,7 @@ TEST_CASE("ResponseHeaders rejects oversized header fields")
 
   std::string oversized_field(
     ccf::http::default_max_header_size.count_bytes() + 1, 'x');
-  std::string header = fmt::format("{}: value\r\n", oversized_field);
+  std::string header = std::format("{}: value\r\n", oversized_field);
   REQUIRE(
     ccf::http_client::ResponseHeaders::recv_header_line(
       header.data(), 1, header.size(), &headers) == 0);
@@ -196,7 +198,7 @@ TEST_CASE("ResponseHeaders rejects too many headers")
 
   for (size_t i = 0; i < ccf::http::default_max_headers_count; ++i)
   {
-    std::string header = fmt::format("X-Test-{}: value\r\n", i);
+    std::string header = std::format("X-Test-{}: value\r\n", i);
     REQUIRE(
       ccf::http_client::ResponseHeaders::recv_header_line(
         header.data(), 1, header.size(), &headers) == header.size());
@@ -256,7 +258,7 @@ TEST_CASE("Synchronous")
   for (size_t i = 0; i < sync_number_requests; ++i)
   {
     data.iter = i;
-    std::string url = fmt::format("http://{}/{}", server_address, i);
+    std::string url = std::format("http://{}/{}", server_address, i);
     auto body = std::make_unique<ccf::http_client::RequestBody>(data);
 
     auto headers = ccf::http_client::UniqueSlist();
@@ -310,7 +312,7 @@ TEST_CASE("Synchronous POST echoes body")
   headers.append("Content-Type", "application/json");
 
   auto curl_handle = ccf::http_client::UniqueCURL();
-  std::string url = fmt::format("http://{}/join", server_address);
+  std::string url = std::format("http://{}/join", server_address);
 
   CURLcode curl_code = CURLE_FAILED_INIT;
   long status_code = 0;
@@ -358,7 +360,7 @@ TEST_CASE("Synchronous POST replays body after redirect")
 
   auto curl_handle = ccf::http_client::UniqueCURL();
   curl_handle.set_opt(CURLOPT_FOLLOWLOCATION, 1L);
-  std::string url = fmt::format("http://{}/redirect", server_address);
+  std::string url = std::format("http://{}/redirect", server_address);
 
   CURLcode curl_code = CURLE_FAILED_INIT;
   long status_code = 0;
@@ -479,7 +481,7 @@ TEST_CASE("VERIFYHOST rejects a certificate SAN mismatch")
     // The certificate's only SAN is a dNSName, so dialing the loopback IP
     // directly must fail hostname verification.
     const auto result =
-      perform_get(fmt::format("https://{}/", tls_addr), 2L, std::nullopt);
+      perform_get(std::format("https://{}/", tls_addr), 2L, std::nullopt);
     REQUIRE(result == CURLE_PEER_FAILED_VERIFICATION);
   }
 
@@ -487,9 +489,9 @@ TEST_CASE("VERIFYHOST rejects a certificate SAN mismatch")
   {
     // Dial the SAN name, resolved to the server's loopback address.
     const auto result = perform_get(
-      fmt::format("https://{}:{}/", tls_san, tls_port),
+      std::format("https://{}:{}/", tls_san, tls_port),
       2L,
-      fmt::format("{}:{}:{}", tls_san, tls_port, tls_host));
+      std::format("{}:{}:{}", tls_san, tls_port, tls_host));
     REQUIRE(result == CURLE_OK);
   }
 
@@ -499,7 +501,7 @@ TEST_CASE("VERIFYHOST rejects a certificate SAN mismatch")
     // succeeds, proving the CA/cert/connection are otherwise valid and that
     // the hostname check is the sole discriminator.
     const auto result =
-      perform_get(fmt::format("https://{}/", tls_addr), 0L, std::nullopt);
+      perform_get(std::format("https://{}/", tls_addr), 0L, std::nullopt);
     REQUIRE(result == CURLE_OK);
   }
 }
@@ -521,7 +523,7 @@ TEST_CASE("CurlmLibuvContext")
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
 
       data.iter = i;
-      std::string url = fmt::format("http://{}/{}", server_address, i);
+      std::string url = std::format("http://{}/{}", server_address, i);
       auto body = std::make_unique<ccf::http_client::RequestBody>(data);
 
       auto headers = ccf::http_client::UniqueSlist();
@@ -586,7 +588,7 @@ TEST_CASE("CurlmLibuvContext slow")
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
 
       data.iter = i;
-      std::string url = fmt::format("http://{}/{}", server_address, i);
+      std::string url = std::format("http://{}/{}", server_address, i);
       auto body = std::make_unique<ccf::http_client::RequestBody>(data);
 
       auto headers = ccf::http_client::UniqueSlist();
@@ -657,7 +659,7 @@ TEST_CASE("CurlmLibuvContext timeouts")
       // 192.0.2.0/24 (TEST-NET-1) is reserved (RFC 5737) and should be
       // unroutable.
       const std::string unreachable_base = "http://192.0.2.1:65535";
-      std::string url = fmt::format("{}/{}", unreachable_base, i);
+      std::string url = std::format("{}/{}", unreachable_base, i);
       auto body = std::make_unique<ccf::http_client::RequestBody>(data);
 
       auto headers = ccf::http_client::UniqueSlist();
@@ -729,7 +731,7 @@ TEST_CASE("CurlmLibuvContext multiple init")
 
       data.iter = i;
 
-      std::string url = fmt::format("http://{}/{}", server_address, i);
+      std::string url = std::format("http://{}/{}", server_address, i);
       auto body = std::make_unique<ccf::http_client::RequestBody>(data);
 
       auto headers = ccf::http_client::UniqueSlist();
@@ -749,7 +751,7 @@ TEST_CASE("CurlmLibuvContext multiple init")
             "Request to {} completed: {} ({}) {}",
             request->get_url(),
             curl_easy_strerror(curl_response),
-            curl_response,
+            std::to_underlying(curl_response),
             status_code);
 
           // We expect all to fail to connect; count only unexpected successes.

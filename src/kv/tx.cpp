@@ -9,6 +9,8 @@
 #include "kv/tx_pimpl.h"
 #include "kv/untyped_map.h"
 
+#include <format>
+
 namespace ccf::kv
 {
   MapChanges::MapChanges(
@@ -31,7 +33,7 @@ namespace ccf::kv
     if (it != all_changes.end())
     {
       throw std::logic_error(
-        fmt::format("Re-creating change set for map {}", map_name));
+        std::format("Re-creating change set for map {}", map_name));
     }
     all_changes.emplace_hint(
       it,
@@ -89,7 +91,7 @@ namespace ccf::kv
     if (untyped_map == nullptr)
     {
       throw std::logic_error(
-        fmt::format("Map {} has unexpected type", map_name));
+        std::format("Map {} has unexpected type", map_name));
     }
 
     return {
@@ -119,9 +121,9 @@ namespace ccf::kv
     if (!read_txid.has_value())
     {
       throw std::logic_error(
-        fmt::format("read_txid should have already been set"));
+        std::format("read_txid should have already been set"));
     }
-    throw CompactedVersionConflict(fmt::format(
+    throw CompactedVersionConflict(std::format(
       "Unable to retrieve state over map {} at {}",
       map_name,
       read_txid->seqno));

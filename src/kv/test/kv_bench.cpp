@@ -7,6 +7,7 @@
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 
+#include <format>
 #include <picobench/picobench.hpp>
 #include <string>
 
@@ -44,7 +45,7 @@ std::string build_map_name(
 {
   if (sd == ccf::kv::SecurityDomain::PUBLIC)
   {
-    return fmt::format("{}{}", ccf::kv::public_domain_prefix, core_name);
+    return std::format("{}{}", ccf::kv::public_domain_prefix, core_name);
   }
 
   return core_name;
@@ -175,7 +176,7 @@ static void ser_snap(picobench::state& s)
   auto tx = kv_store.create_tx();
   for (int i = 0; i < s.iterations(); i++)
   {
-    auto handle = tx.rw<MapType>(fmt::format("map{}", i));
+    auto handle = tx.rw<MapType>(std::format("map{}", i));
     for (size_t j = 0; j < KEY_COUNT; j++)
     {
       const auto key = gen_key(j);
@@ -215,7 +216,7 @@ static void des_snap(picobench::state& s)
   auto tx = kv_store.create_tx();
   for (int i = 0; i < s.iterations(); i++)
   {
-    auto handle = tx.rw<MapType>(fmt::format("map{}", i));
+    auto handle = tx.rw<MapType>(std::format("map{}", i));
     for (size_t j = 0; j < KEY_COUNT; j++)
     {
       const auto key = gen_key(j);

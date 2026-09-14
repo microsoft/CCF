@@ -6,6 +6,8 @@
 #include "ccf/ds/json.h"
 #include "node/gov/api_version.h"
 
+#include <format>
+
 namespace ccf::gov::endpoints
 {
   namespace api
@@ -729,7 +731,7 @@ namespace ccf::gov::endpoints
                 ctx.rpc_ctx,
                 HTTP_STATUS_NOT_FOUND,
                 ccf::errors::ResourceNotFound,
-                fmt::format("Module {} does not exist.", module_name));
+                std::format("Module {} does not exist.", module_name));
               return;
             }
 
@@ -1013,7 +1015,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ResourceNotFound,
-              fmt::format("Member {} does not exist.", member_id));
+              std::format("Member {} does not exist.", member_id));
             return;
           }
 
@@ -1103,7 +1105,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ResourceNotFound,
-              fmt::format("User {} does not exist.", user_id));
+              std::format("User {} does not exist.", user_id));
             return;
           }
 
@@ -1187,7 +1189,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ResourceNotFound,
-              fmt::format("Node {} does not exist.", node_id));
+              std::format("Node {} does not exist.", node_id));
             return;
           }
 

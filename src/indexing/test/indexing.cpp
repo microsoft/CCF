@@ -14,6 +14,7 @@
 #include "indexing/test/common.h"
 #include "node/share_manager.h"
 
+#include <format>
 #include <thread>
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -518,12 +519,12 @@ TEST_CASE(
     while (i < multithread_tx_count)
     {
       auto tx = kv_store.create_tx();
-      tx.wo(map_a)->put(fmt::format("hello"), fmt::format("Value {}", i));
+      tx.wo(map_a)->put(std::format("hello"), std::format("Value {}", i));
       ++writes_to_hello;
       if (i % 2 == 0)
       {
         ++writes_to_saluton;
-        tx.wo(map_a)->put(fmt::format("saluton"), fmt::format("Value2 {}", i));
+        tx.wo(map_a)->put(std::format("saluton"), std::format("Value2 {}", i));
       }
       if (i % 3 == 0)
       {
@@ -811,12 +812,12 @@ TEST_CASE(
     while (i < tx_count)
     {
       auto tx = kv_store.create_tx();
-      tx.wo(map_a)->put(fmt::format("hello"), fmt::format("Value {}", i));
+      tx.wo(map_a)->put(std::format("hello"), std::format("Value {}", i));
       ++writes_to_hello;
       if (i % 2 == 0)
       {
         ++writes_to_saluton;
-        tx.wo(map_a)->put(fmt::format("saluton"), fmt::format("Value2 {}", i));
+        tx.wo(map_a)->put(std::format("saluton"), std::format("Value2 {}", i));
       }
       if (i % 3 == 0)
       {

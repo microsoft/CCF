@@ -8,6 +8,7 @@
 #include "node/historical_queries.h"
 
 #include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/locking.h"
 #include "ccf/receipt.h"
 #include "crypto/cbor_helpers.h"
@@ -23,6 +24,7 @@
 #include "node/signature_cache_subsystem.h"
 
 #include <algorithm>
+#include <format>
 #include <random>
 #include <tav/cbor.hpp>
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -483,13 +485,13 @@ TEST_CASE("StateCache point queries")
     cache.drop_cached_states(low_handle);
     cache.drop_cached_states(high_handle);
 
-    INFO(fmt::format(
+    INFO(std::format(
       "Signature transactions can be requested between {} and {}",
       low_signature_transaction,
       high_signature_transaction));
     for (const auto i : {low_signature_transaction, high_signature_transaction})
     {
-      INFO(fmt::format("Requesting signature at {}", i));
+      INFO(std::format("Requesting signature at {}", i));
       auto state_at_seqno = cache.get_state_at(default_handle, i);
 
       REQUIRE(state_at_seqno == nullptr);
@@ -498,7 +500,7 @@ TEST_CASE("StateCache point queries")
 
       state_at_seqno = cache.get_state_at(default_handle, i);
       REQUIRE(state_at_seqno != nullptr);
-      INFO(fmt::format("Receipt for transaction at {}", i));
+      INFO(std::format("Receipt for transaction at {}", i));
       REQUIRE(state_at_seqno->receipt.get() != nullptr);
     }
 
@@ -1408,13 +1410,13 @@ TEST_CASE("StateCache concurrent access")
       size_t handle,
       size_t i,
       const std::vector<std::string>& previously_requested) {
-      std::cout << fmt::format(
+      std::cout << std::format(
                      "Thread <{}>, i [{}]: {} - still no answer!",
                      handle,
                      i,
                      previously_requested.back())
                 << std::endl;
-      std::cout << fmt::format(
+      std::cout << std::format(
                      "I've previously used handle {} to request:", handle)
                 << std::endl;
       for (const auto& s : previously_requested)
@@ -1537,7 +1539,7 @@ TEST_CASE("StateCache concurrent access")
           // Fetch a single point
           const auto target_seqno = random_seqno();
           previously_requested.push_back(
-            fmt::format("Point {} [{}]", target_seqno, ss));
+            std::format("Point {} [{}]", target_seqno, ss));
           if (store_or_state)
           {
             query_random_point_store(target_seqno, handle, error_printer);
@@ -1558,7 +1560,7 @@ TEST_CASE("StateCache concurrent access")
             std::swap(range_start, range_end);
           }
           previously_requested.push_back(
-            fmt::format("Range {}->{} [{}]", range_start, range_end, ss));
+            std::format("Range {}->{} [{}]", range_start, range_end, ss));
           if (store_or_state)
           {
             query_random_range_stores(
@@ -1595,11 +1597,11 @@ TEST_CASE("StateCache concurrent access")
           for (const auto& [from, additional] : seqnos.get_ranges())
           {
             range_descriptions.push_back(
-              fmt::format("{}->{}", from, from + additional));
+              std::format("{}->{}", from, from + additional));
           }
 
-          previously_requested.push_back(fmt::format(
-            "Ranges {} [{}]", fmt::join(range_descriptions, ", "), ss));
+          previously_requested.push_back(std::format(
+            "Ranges {} [{}]", ccf::ds::join(range_descriptions, ", "), ss));
 
           if (store_or_state)
           {
@@ -1737,17 +1739,17 @@ TEST_CASE("StateCache concurrent access")
       }
     };
     {
-      messages.push_back(fmt::format(
+      messages.push_back(std::format(
         "Handle {} requested stores (no sigs) from 3 to 8", handle_a));
       query_random_range_stores(3, 8, handle_a, error_printer);
     }
     {
-      messages.push_back(fmt::format(
+      messages.push_back(std::format(
         "Handle {} requested states (with sigs) from 5 to 8", handle_b));
       query_random_range_states(5, 8, handle_b, error_printer);
     }
     {
-      messages.push_back(fmt::format(
+      messages.push_back(std::format(
         "Handle {} requested states (with sigs) from 3 to 8", handle_b));
       query_random_range_states(3, 8, handle_b, error_printer);
     }

@@ -5,6 +5,8 @@
 #include "ccf/http_consts.h"
 #include "ds/internal_logger.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
@@ -191,7 +193,7 @@ namespace aaa
 
   void to_json(nlohmann::json& j, const FriendlyName& fn)
   {
-    j = fmt::format("{} \"{}\" {}", fn.forename, fn.nickname, fn.surname);
+    j = std::format("{} \"{}\" {}", fn.forename, fn.nickname, fn.surname);
   }
 
   void from_json(const nlohmann::json& j, FriendlyName& fn)

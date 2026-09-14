@@ -7,8 +7,7 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ds/serialized.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 
 namespace ccf::crypto
 {
@@ -23,7 +22,7 @@ namespace ccf::crypto
     if (size != iv.size())
     {
       throw std::logic_error(
-        fmt::format("Specified IV is not of size {}", iv.size()));
+        std::format("Specified IV is not of size {}", iv.size()));
     }
 
     memcpy(iv.data(), data, size);

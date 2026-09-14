@@ -2,9 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/join.h"
 #include "ccf/http_header_map.h"
 #include "ds/nonstd.h"
 
+#include <format>
 #include <nghttp2/nghttp2.h>
 #include <optional>
 
@@ -45,9 +47,9 @@ namespace http2
     using HeaderKeysIt =
       ccf::nonstd::KeyIterator<ccf::http::HeaderMap::const_iterator>;
 
-    auto trailer_header_val = fmt::format(
+    auto trailer_header_val = std::format(
       "{}",
-      fmt::join(
+      ccf::ds::join(
         HeaderKeysIt(trailers.begin()), HeaderKeysIt(trailers.end()), ","));
 
     return trailer_header_val;

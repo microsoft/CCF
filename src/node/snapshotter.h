@@ -18,7 +18,9 @@
 
 #include <chrono>
 #include <deque>
+#include <format>
 #include <optional>
+#include <utility>
 
 namespace ccf
 {
@@ -181,7 +183,7 @@ namespace ccf
         generation_count(_generation_count),
         timestamp(_timestamp),
         serialised(std::move(_serialised)),
-        name(fmt::format(
+        name(std::format(
           "serialise-snapshot@{}[{}]",
           snapshot->get_version(),
           generation_count))
@@ -222,7 +224,7 @@ namespace ccf
         cose_sigs(std::move(_cose_sigs)),
         tree(std::move(_tree)),
         serialised(std::move(_serialised)),
-        name(fmt::format("persist-snapshot@{}", version))
+        name(std::format("persist-snapshot@{}", version))
       {}
 
       void do_action() override
@@ -283,7 +285,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "Could not commit snapshot evidence for seqno {}: {}",
           snapshot_version,
-          rc);
+          std::to_underlying(rc));
         return;
       }
 
@@ -620,7 +622,7 @@ namespace ccf
       info.serialised = std::make_shared<SnapshotSerialisation>();
       info.tasks = ccf::tasks::OrderedTasks::create(
         ccf::tasks::get_main_job_board(),
-        fmt::format("snapshot@{}[{}]", idx, generation));
+        std::format("snapshot@{}[{}]", idx, generation));
 
       info.tasks->add_action(std::make_shared<SerialiseSnapshotAction>(
         shared_from_this(),
@@ -647,7 +649,7 @@ namespace ccf
 
       if (idx < last_snapshot_idx)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot snapshot at seqno {} which is earlier than last snapshot "
           "seqno {}",
           idx,

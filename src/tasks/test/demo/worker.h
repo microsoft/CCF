@@ -4,6 +4,8 @@
 
 #include "./looping_thread.h"
 
+#include <format>
+
 struct WorkerState
 {
   ccf::tasks::JobBoard& job_board;
@@ -16,7 +18,7 @@ struct WorkerState
 struct Worker : public LoopingThread<WorkerState>
 {
   Worker(ccf::tasks::JobBoard& jb, size_t idx) :
-    LoopingThread<WorkerState>(fmt::format("w{}", idx), jb)
+    LoopingThread<WorkerState>(std::format("w{}", idx), jb)
   {}
 
   ~Worker() override

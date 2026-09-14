@@ -5,6 +5,7 @@
 #include "../state_machine.h"
 
 #include <doctest/doctest.h>
+#include <format>
 
 namespace
 {
@@ -18,7 +19,7 @@ namespace
 }
 
 template <>
-struct fmt::formatter<Example> : fmt::formatter<std::string_view>
+struct std::formatter<Example> : std::formatter<std::string_view>
 {
   template <typename FormatContext>
   auto format(Example e, FormatContext& ctx) const
@@ -39,7 +40,7 @@ struct fmt::formatter<Example> : fmt::formatter<std::string_view>
         name = "D";
         break;
     }
-    return fmt::formatter<std::string_view>::format(name, ctx);
+    return std::formatter<std::string_view>::format(name, ctx);
   }
 };
 

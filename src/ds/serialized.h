@@ -4,13 +4,11 @@
 
 #include <cstdint>
 #include <cstring>
+#include <format>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace serialized
 {
@@ -38,7 +36,7 @@ namespace serialized
     if (size < sizeof(T))
     {
       throw InsufficientSpaceException(
-        fmt::format("Insufficient space (peek<T>: {} < {})", size, sizeof(T)));
+        std::format("Insufficient space (peek<T>: {} < {})", size, sizeof(T)));
     }
 
     static constexpr auto alignment = alignof(T);
@@ -60,7 +58,7 @@ namespace serialized
     if (size < sizeof(T))
     {
       throw InsufficientSpaceException(
-        fmt::format("Insufficient space (read<T>: {} < {})", size, sizeof(T)));
+        std::format("Insufficient space (read<T>: {} < {})", size, sizeof(T)));
     }
 
     T v;
@@ -77,7 +75,7 @@ namespace serialized
     if (size < len)
     {
       throw InsufficientSpaceException(
-        fmt::format("Insufficient space (read string: {} < {})", size, len));
+        std::format("Insufficient space (read string: {} < {})", size, len));
     }
 
     std::string v(data, data + len);
@@ -91,7 +89,7 @@ namespace serialized
   {
     if (size < block_size)
     {
-      throw InsufficientSpaceException(fmt::format(
+      throw InsufficientSpaceException(std::format(
         "Insufficient space (read block: {} < {})", size, block_size));
     }
 
@@ -107,7 +105,7 @@ namespace serialized
     if (size < sizeof(T))
     {
       throw InsufficientSpaceException(
-        fmt::format("Insufficient space (write<T>: {} < {})", size, sizeof(T)));
+        std::format("Insufficient space (write<T>: {} < {})", size, sizeof(T)));
     }
 
     const auto* const src = reinterpret_cast<const uint8_t*>(&v);
@@ -121,7 +119,7 @@ namespace serialized
   {
     if (size < block_size)
     {
-      throw InsufficientSpaceException(fmt::format(
+      throw InsufficientSpaceException(std::format(
         "Insufficient space (write block: {} < {})", size, block_size));
     }
 
@@ -139,7 +137,7 @@ namespace serialized
     const auto string_size = sizeof(size_t) + v.size();
     if (size < string_size)
     {
-      throw InsufficientSpaceException(fmt::format(
+      throw InsufficientSpaceException(std::format(
         "Insufficient space (write string: {} < {})", size, string_size));
     }
 
@@ -152,7 +150,7 @@ namespace serialized
   {
     if (size < sizeof(T))
     {
-      throw InsufficientSpaceException(fmt::format(
+      throw InsufficientSpaceException(std::format(
         "Insufficient space (overlay<T>: {} < {})", size, sizeof(T)));
     }
 
@@ -167,7 +165,7 @@ namespace serialized
     if (size < skip)
     {
       throw InsufficientSpaceException(
-        fmt::format("Insufficient space (skip: {} < {})", size, skip));
+        std::format("Insufficient space (skip: {} < {})", size, skip));
     }
 
     data += skip;

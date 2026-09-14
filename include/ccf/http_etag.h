@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#define FMT_HEADER_ONLY
 #include <exception>
 #include <regex>
 #include <set>

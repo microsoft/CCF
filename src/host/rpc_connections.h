@@ -9,6 +9,7 @@
 #include "timer.h"
 #include "udp.h"
 
+#include <format>
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
@@ -505,14 +506,14 @@ namespace asynchost
       {
         LOG_FAIL_FMT(
           "Requested interface number {}, has {}", id, sockets.size());
-        throw std::logic_error(fmt::format("No socket with id {}", id));
+        throw std::logic_error(std::format("No socket with id {}", id));
       }
 
       auto listen_name = it->second->get_listen_name();
       if (!listen_name.has_value())
       {
         throw std::logic_error(
-          fmt::format("Interface {} has no listen name", id));
+          std::format("Interface {} has no listen name", id));
       }
 
       return listen_name.value();

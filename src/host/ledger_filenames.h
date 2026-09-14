@@ -3,7 +3,7 @@
 #pragma once
 
 #include <filesystem>
-#include <fmt/format.h>
+#include <format>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -25,7 +25,7 @@ namespace asynchost
     auto pos = file_name.find(ledger_start_idx_delimiter);
     if (pos == std::string::npos)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Ledger file name {} does not contain a start seqno", file_name));
     }
 

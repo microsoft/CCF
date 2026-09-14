@@ -14,8 +14,7 @@
 #include "ccf/tx_id.h"
 
 #include <charconv>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 
 namespace ccf::js
 {
@@ -166,9 +165,9 @@ namespace ccf::js
       ccf::AbstractNodeContext& context,
       const std::string& kv_prefix = default_js_registry_kv_prefix) :
       BaseDynamicJSEndpointRegistry(context, kv_prefix),
-      recent_actions_map(fmt::format("{}.recent_actions", kv_prefix)),
-      audit_input_map(fmt::format("{}.audit.input", kv_prefix)),
-      audit_info_map(fmt::format("{}.audit.info", kv_prefix))
+      recent_actions_map(std::format("{}.recent_actions", kv_prefix)),
+      audit_input_map(std::format("{}.audit.input", kv_prefix)),
+      audit_info_map(std::format("{}.audit.info", kv_prefix))
     {}
 
     /**

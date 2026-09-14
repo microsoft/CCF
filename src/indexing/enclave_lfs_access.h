@@ -11,9 +11,11 @@
 #include "indexing/lfs_interface.h"
 #include "indexing/lfs_ringbuffer_types.h"
 
+#include <format>
 #include <optional>
 #include <set>
 #include <unordered_map>
+#include <utility>
 
 // Uncomment to disable encryption and obfuscation, writing cache content
 // directly unencrypted to host disk
@@ -170,7 +172,7 @@ namespace ccf::indexing
                   "Retained result for {} (aka {}) in state {}",
                   obfuscated,
                   result->key,
-                  result->fetch_result);
+                  std::to_underlying(result->fetch_result.load()));
               }
             }
             else
@@ -217,7 +219,7 @@ namespace ccf::indexing
                   "Retained result for {} (aka {}) in state {}",
                   obfuscated,
                   result->key,
-                  result->fetch_result);
+                  std::to_underlying(result->fetch_result.load()));
               }
             }
             else
@@ -275,7 +277,7 @@ namespace ccf::indexing
         {
           if (key != result->key)
           {
-            throw std::runtime_error(fmt::format(
+            throw std::runtime_error(std::format(
               "Obfuscation collision for unique keys '{}' and '{}', both "
               "obfuscated to '{}'",
               key,

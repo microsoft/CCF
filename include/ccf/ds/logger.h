@@ -2,14 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/enum_formatter.h"
 #include "ccf/ds/logger_level.h"
 #include "ccf/threading/thread_ids.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/chrono.h>
-#include <fmt/format.h>
-#include <fmt/ranges.h>
+#include <ctime>
+#include <format>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -88,8 +85,15 @@ namespace ccf::logger
 #else
     // Sample: "2019-07-19 18:53:25.690267"
     constexpr size_t nano_per_micro = 1000;
-    return fmt::format(
-      "{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / nano_per_micro);
+    return std::format(
+      "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:06}Z",
+      tm.tm_year + 1900LL,
+      tm.tm_mon + 1,
+      tm.tm_mday,
+      tm.tm_hour,
+      tm.tm_min,
+      tm.tm_sec,
+      ts.tv_nsec / nano_per_micro);
 #endif
   }
 
@@ -136,7 +140,7 @@ namespace ccf::logger
 #endif
 
       std::string s;
-      s = fmt::format(
+      s = std::format(
         "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"tag\":\"{}"
         "\",\"file\":\"{}\",\"number\":\"{}\",\"msg\":{}}}\n",
         get_timestamp(host_tm, host_ts),
@@ -162,15 +166,15 @@ namespace ccf::logger
     std::tm host_tm{};
     ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
-    auto file_line = fmt::format("{}:{} ", ll.file_name, ll.line_number);
+    auto file_line = std::format("{}:{} ", ll.file_name, ll.line_number);
     auto* file_line_data = file_line.data();
 
     // The preamble is the level, then tag, then file line. If the file line is
     // too long, the final characters are retained.
-    auto preamble = fmt::format(
+    auto preamble = std::format(
                       "[{:<5}]{} ",
                       to_string(ll.log_level),
-                      (ll.tag.empty() ? "" : fmt::format("[{}]", ll.tag)))
+                      (ll.tag.empty() ? "" : std::format("[{}]", ll.tag)))
                       .substr(0, preamble_length);
     const auto max_file_line_len = preamble_length - preamble.size();
 
@@ -182,7 +186,7 @@ namespace ccf::logger
 
     preamble += file_line_data;
 
-    return fmt::format(
+    return std::format(
       "{} {:<3} {:<45}| {}\n",
       get_timestamp(host_tm, host_ts),
       ll.thread_id,
@@ -261,16 +265,6 @@ namespace ccf::logger
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 
-// Clang 12.0 and 13.0 fails to compile the FMT_STRING macro in certain
-// contexts. Error is: non-literal type '<dependent type>' cannot be used in a
-// constant expression. Since consteval is available in these compilers, format
-// should already use compile-time checks.
-#if defined(__clang__) && __clang_major__ >= 12
-#  define CCF_FMT_STRING(s) (s)
-#else
-#  define CCF_FMT_STRING(s) FMT_STRING(s)
-#endif
-
 // The == operator is being used to:
 // 1. Be a lower precedence than <<, such that using << on the LogLine will
 // happen before the LogLine is "equalitied" with the Out.
@@ -286,7 +280,7 @@ namespace ccf::logger
 // To avoid repeating the (s, ...) args for every macro, we cheat with a curried
 // macro here by ending the macro with another macro name, which then accepts
 // the trailing arguments
-#define CCF_LOG_FMT_2(s, ...) fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__)
+#define CCF_LOG_FMT_2(s, ...) std::format(s __VA_OPT__(, ) __VA_ARGS__)
 #define CCF_LOG_FMT(LVL, TAG) CCF_LOG_OUT(LVL, TAG) << CCF_LOG_FMT_2
 
 #define CCF_APP_TRACE CCF_LOG_FMT(TRACE, "app")

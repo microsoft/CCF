@@ -8,6 +8,7 @@
 #include "time_bound_logger.h"
 
 #include <filesystem>
+#include <format>
 
 namespace asynchost
 {
@@ -21,19 +22,21 @@ namespace asynchost
     {
       if (std::filesystem::is_directory(root_dir))
       {
-        LOG_INFO_FMT("Clearing contents from existing directory {}", root_dir);
-        TimeBoundLogger log_if_slow(fmt::format(
-          "Clearing LFS index directory - remove_all({})", root_dir));
+        LOG_INFO_FMT(
+          "Clearing contents from existing directory {}", root_dir.string());
+        TimeBoundLogger log_if_slow(std::format(
+          "Clearing LFS index directory - remove_all({})", root_dir.string()));
         std::filesystem::remove_all(root_dir);
       }
 
       {
-        TimeBoundLogger log_if_slow(fmt::format(
-          "Creating LFS index directory - create_directory({})", root_dir));
+        TimeBoundLogger log_if_slow(std::format(
+          "Creating LFS index directory - create_directory({})",
+          root_dir.string()));
         if (!std::filesystem::create_directory(root_dir))
         {
           throw std::logic_error(
-            fmt::format("Could not create directory: {}", root_dir));
+            std::format("Could not create directory: {}", root_dir.string()));
         }
       }
     }
@@ -49,12 +52,14 @@ namespace asynchost
 
           const auto target_path = root_dir / key;
           {
-            TimeBoundLogger log_if_slow(fmt::format(
+            TimeBoundLogger log_if_slow(std::format(
               "Writing LFS file ({} bytes) - {}",
               encrypted.size(),
-              target_path));
+              target_path.string()));
             LOG_TRACE_FMT(
-              "Writing {} byte file to {}", encrypted.size(), target_path);
+              "Writing {} byte file to {}",
+              encrypted.size(),
+              target_path.string());
             files::dump(encrypted, target_path);
           }
         });
@@ -69,15 +74,15 @@ namespace asynchost
           const auto target_path = root_dir / key;
           if (std::filesystem::is_regular_file(target_path))
           {
-            TimeBoundLogger log_if_slow(
-              fmt::format("Reading LFS file - ifstream({})", target_path));
+            TimeBoundLogger log_if_slow(std::format(
+              "Reading LFS file - ifstream({})", target_path.string()));
             std::ifstream f(target_path, std::ios::binary);
             f.seekg(0, f.end);
             const auto file_size = f.tellg();
             LOG_TRACE_FMT(
               "Reading {} byte file from {}",
               static_cast<size_t>(file_size),
-              target_path);
+              target_path.string());
             f.seekg(0, f.beg);
 
             ccf::indexing::LFSEncryptedContents blob(file_size);
@@ -88,7 +93,7 @@ namespace asynchost
           }
           else
           {
-            LOG_TRACE_FMT("File {} not found", target_path);
+            LOG_TRACE_FMT("File {} not found", target_path.string());
             RINGBUFFER_WRITE_MESSAGE(
               ccf::indexing::LFSMsg::not_found, writer, key);
           }

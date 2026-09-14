@@ -6,6 +6,8 @@
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
+#include <format>
+
 namespace ccf
 {
   class RetiredNodeCleanup
@@ -21,12 +23,12 @@ namespace ccf
     void send_cleanup_retired_nodes()
     {
       ::http::Request request(
-        fmt::format(
+        std::format(
           "/{}/{}",
           ccf::get_actor_prefix(ccf::ActorsType::nodes),
           "network/nodes/set_retired_committed"),
         HTTP_POST);
-      request.set_header(http::headers::CONTENT_LENGTH, fmt::format("{}", 0));
+      request.set_header(http::headers::CONTENT_LENGTH, std::format("{}", 0));
 
       node_client->make_request(request);
     }

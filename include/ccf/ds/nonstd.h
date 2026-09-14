@@ -14,9 +14,6 @@
 #include <unistd.h>
 #include <vector>
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
-
 /**
  * This file defines various type traits and utils that are not available in the
  * standard library. Some are added in future versions of the standard library,

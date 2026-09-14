@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <doctest/doctest.h>
+#include <format>
 #include <limits>
 
 using namespace ccf::ds;
@@ -114,7 +115,8 @@ TEST_CASE("Size string values" * doctest::test_suite("unit strings"))
   REQUIRE(schema["type"] == "string");
   REQUIRE(schema["pattern"] == "^[0-9]+(B|KB|MB|GB|TB|PB)?$");
 
-  REQUIRE(fmt::format(fmt::runtime("{}"), from_view) == "3MB");
+  REQUIRE(std::format("{}", from_view) == "3MB");
+  REQUIRE(std::vformat("{}", std::make_format_args(from_view)) == "3MB");
 }
 
 TEST_CASE("Time string values" * doctest::test_suite("unit strings"))

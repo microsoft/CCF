@@ -6,6 +6,8 @@
 #include "kv/encryptor.h"
 #include "ledger_secrets.h"
 
+#include <format>
+
 namespace ccf
 {
   // Extends 12-byte IV GcmHeader with interpretation of those bytes as term,
@@ -27,7 +29,7 @@ namespace ccf
     {
       if (term > 0x7FFFFFFF)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "term should fit in 31 bits of IV. Value is: 0x{0:x}", term));
       }
 

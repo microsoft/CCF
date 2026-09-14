@@ -8,14 +8,14 @@
 #include "http/http_digest.h"
 #include "http/http_parser.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include <algorithm>
 #include <doctest/doctest.h>
 #include <queue>
 #include <string>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 constexpr auto request_0 = "{\"a_json_key\": \"a_json_value\"}";
 constexpr auto request_1 = "{\"another_json_key\": \"another_json_value\"}";
@@ -205,7 +205,7 @@ DOCTEST_TEST_CASE("Body too large")
 
     const auto too_big = ccf::http::default_max_body_size.count_bytes() + 1;
     const auto res =
-      fmt::format("HTTP/1.1 200 OK\r\ncontent-length: {}\r\n\r\n", too_big);
+      std::format("HTTP/1.1 200 OK\r\ncontent-length: {}\r\n\r\n", too_big);
     const auto bytes = std::vector<uint8_t>(res.begin(), res.end());
 
     DOCTEST_CHECK_THROWS_AS(
@@ -279,7 +279,7 @@ DOCTEST_TEST_CASE("Body too large")
                                  size_t body_size,
                                  std::string_view additional_headers = {}) {
     const std::string chunk(body_size, 'a');
-    const std::string message = fmt::format(
+    const std::string message = std::format(
       "{}\r\n"
       "transfer-encoding: chunked\r\n"
       "{}"
@@ -354,7 +354,7 @@ DOCTEST_TEST_CASE("Body too large")
     LenientChunkedLengthResponseParser p(sp);
 
     const auto too_big = ccf::http::default_max_body_size.count_bytes() + 1;
-    const auto content_length = fmt::format("content-length: {}\r\n", too_big);
+    const auto content_length = std::format("content-length: {}\r\n", too_big);
     auto response = build_chunked_message("HTTP/1.1 200 OK", 4, content_length);
 
     p.execute(response.data(), response.size());
@@ -847,7 +847,7 @@ DOCTEST_TEST_CASE("Query component decoding")
       }
 
       const auto escaped =
-        fmt::format("%{:02X}", static_cast<unsigned char>(byte));
+        std::format("%{:02X}", static_cast<unsigned char>(byte));
       const auto decoded = ccf::http::decode_query_component(escaped);
       DOCTEST_REQUIRE(decoded.size() == 1);
       DOCTEST_REQUIRE(decoded[0] == c);

@@ -7,8 +7,7 @@
 #include "serializer.h"
 
 #include <atomic>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 #include <optional>
 #include <span>
 #include <string>
@@ -234,7 +233,7 @@ namespace ringbuffer
     }
     catch (const ringbuffer::message_error& ex)
     {
-      throw std::logic_error(fmt::format("[{}] {}", prefix, ex.what()));
+      throw std::logic_error(std::format("[{}] {}", prefix, ex.what()));
     }
   }
 
@@ -248,7 +247,7 @@ namespace ringbuffer
     }
     catch (const ringbuffer::message_error& ex)
     {
-      throw std::logic_error(fmt::format("[{}] {}", prefix, ex.what()));
+      throw std::logic_error(std::format("[{}] {}", prefix, ex.what()));
     }
 
     return false;

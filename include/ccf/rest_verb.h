@@ -4,6 +4,7 @@
 
 #include "ccf/ds/hash.h"
 
+#include <format>
 #include <llhttp/llhttp.h>
 #include <string>
 
@@ -25,7 +26,7 @@ namespace ccf
 
       default:
       {
-        throw std::logic_error(fmt::format("Unknown HTTP method '{}'", s));
+        throw std::logic_error(std::format("Unknown HTTP method '{}'", s));
       }
     }
 #undef XX
@@ -93,7 +94,7 @@ namespace ccf
   {
     if (!j.is_string())
     {
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Cannot parse RESTVerb from non-string JSON value: {}", j.dump()));
     }
 

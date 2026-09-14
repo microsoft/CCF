@@ -20,6 +20,7 @@
 #include "tls/server.h"
 #include "udp/msg_types.h"
 
+#include <format>
 #include <limits>
 #include <map>
 #include <stdexcept>
@@ -101,7 +102,7 @@ namespace ccf
       }
 
       throw std::logic_error(
-        fmt::format("No RPC interface for interface ID {}", id));
+        std::format("No RPC interface for interface ID {}", id));
     }
 
     std::shared_ptr<ccf::Session> make_server_session(
@@ -140,7 +141,7 @@ namespace ccf
           app_protocol, id, std::move(ctx));
       }
 
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "unknown protocol '{}' and custom protocol subsystem missing",
         app_protocol));
     }
@@ -307,13 +308,13 @@ namespace ccf
       if (sessions.find(id) != sessions.end())
       {
         throw std::logic_error(
-          fmt::format("Duplicate conn ID received inside enclave: {}", id));
+          std::format("Duplicate conn ID received inside enclave: {}", id));
       }
 
       auto it = listening_interfaces.find(listen_interface_id);
       if (it == listening_interfaces.end())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Can't accept new RPC session {} - comes from unknown listening "
           "interface {}",
           id,

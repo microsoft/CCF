@@ -21,6 +21,8 @@
 #include "node/rpc/test/node_stub.h"
 #include "node/tx_receipt_impl.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #include <random>
@@ -470,7 +472,7 @@ TEST_CASE("Check KV Map access")
       REQUIRE_THROWS_WITH_AS(
         explain_kv_map_access(
           static_cast<KVAccessPermissions>(permission_value), TxAccess::APP_RW),
-        fmt::format("Unexpected KV access permission: {}", permission_value),
+        std::format("Unexpected KV access permission: {}", permission_value),
         std::logic_error);
     }
   }
@@ -481,7 +483,7 @@ bool str_contains(const std::string& s, std::string_view sv)
   const auto b = s.contains(sv);
   if (!b)
   {
-    fmt::print("Didn't find\n {}\nin\n {}\n", sv, s);
+    std::cout << std::format("Didn't find\n {}\nin\n {}\n", sv, s);
   }
   return b;
 }
@@ -512,7 +514,7 @@ std::optional<std::string> run_kv_script(
   ccf::js::core::Context ctx(access);
   ctx.add_extension(std::make_shared<ccf::js::extensions::KvExtension>(&tx));
 
-  const auto module = fmt::format("export function run() {{\n{}\n}}", body);
+  const auto module = std::format("export function run() {{\n{}\n}}", body);
   auto func = ctx.get_exported_function(module, "run", "/test/kv_script");
 
   const auto result = ctx.call_with_rt_options(
@@ -543,7 +545,7 @@ TEST_CASE("KV handle permissions")
 
   // Every script below operates on a single key, and refers to tables by these
   // names rather than repeating the string literals
-  const auto js_prelude = fmt::format(
+  const auto js_prelude = std::format(
     R"JS(
 const key = new Uint8Array([107]).buffer;
 const value = new Uint8Array([118]).buffer;
@@ -816,7 +818,7 @@ std::optional<std::string> call_validate_constitution(
 
   const auto path = "/path/to/constitution";
 
-  auto module = fmt::format(
+  auto module = std::format(
                   "export function call_validate () {{\n"
                   "  {}\n"
                   "  let constitution = {};\n"
@@ -1225,7 +1227,7 @@ export function call_validate_catching () {
     ccf::js::core::Context ctx(TxAccess::GOV_RO);
     ctx.add_extension(std::make_shared<ccf::js::extensions::GovExtension>());
     const auto module =
-      fmt::format(
+      std::format(
         "export function call_validate () {{\n"
         "  let constitution = {};\n"
         "  return ccf.gov.validateConstitution(constitution);\n"
@@ -2339,7 +2341,7 @@ namespace
     ccf::js::CommonContext ctx(TxAccess::APP_RW);
     JS_UpdateStackTop(ctx.runtime());
     const auto module =
-      fmt::format("export function handler() {{\n{}\n}}", body);
+      std::format("export function handler() {{\n{}\n}}", body);
     auto handler =
       ctx.get_exported_function(module, "handler", "/test/crypto.js");
     const auto result = ctx.call_with_rt_options(

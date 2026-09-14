@@ -8,11 +8,8 @@
 #include "tasks/thread_manager.h"
 
 #include <doctest/doctest.h>
+#include <format>
 #include <thread>
-
-#define FMT_HEADER_ONLY
-#include <fmt/chrono.h>
-#include <fmt/format.h>
 
 ccf::tasks::JobBoard::Summary empty_board{};
 
@@ -154,7 +151,7 @@ TEST_CASE("DelayedCompletions" * doctest::test_suite("fan_in_tasks"))
     CalledInOrder(std::atomic<size_t>& c, size_t ev) :
       counter(c),
       expected_value(ev),
-      name(fmt::format("CalledInOrder {}", expected_value))
+      name(std::format("CalledInOrder {}", expected_value))
     {}
 
     void do_task_implementation() override
@@ -206,7 +203,7 @@ TEST_CASE("DelayedCompletions" * doctest::test_suite("fan_in_tasks"))
       if (now > end_time)
       {
         throw std::runtime_error(
-          fmt::format("Test did not complete after {}", max_run_time));
+          std::format("Test did not complete after {}s", max_run_time.count()));
       }
 
       std::this_thread::yield();

@@ -7,8 +7,10 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <format>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace snapshots
@@ -44,9 +46,9 @@ namespace snapshots
     }
 
     auto ignored_file_name =
-      fmt::format("{}.{}", file_name, snapshot_ignored_file_suffix);
+      std::format("{}.{}", file_name, snapshot_ignored_file_suffix);
     {
-      asynchost::TimeBoundLogger log_if_slow(fmt::format(
+      asynchost::TimeBoundLogger log_if_slow(std::format(
         "Ignoring snapshot file - rename({} to {})",
         file_name,
         ignored_file_name));
@@ -62,13 +64,15 @@ namespace snapshots
     auto res = std::from_chars(str.data(), end_ptr, idx);
     if (res.ec != std::errc())
     {
-      throw std::logic_error(
-        fmt::format("Could not read idx from string \"{}\": {}", str, res.ec));
+      throw std::logic_error(std::format(
+        "Could not read idx from string \"{}\": {}",
+        str,
+        std::to_underlying(res.ec)));
     }
 
     if (res.ptr != end_ptr)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         R"(Trailing characters in "{}" cannot be converted to idx: "{}")",
         str,
         std::string(res.ptr, end_ptr)));
@@ -87,7 +91,7 @@ namespace snapshots
     if (pos == std::string::npos)
     {
       throw std::logic_error(
-        fmt::format("Snapshot file \"{}\" is not committed", file_name));
+        std::format("Snapshot file \"{}\" is not committed", file_name));
     }
 
     pos = file_name.find(snapshot_idx_delimiter, pos);
@@ -105,13 +109,13 @@ namespace snapshots
     if (!is_snapshot_file(file_name))
     {
       throw std::logic_error(
-        fmt::format("File \"{}\" is not a valid snapshot file", file_name));
+        std::format("File \"{}\" is not a valid snapshot file", file_name));
     }
 
     auto idx_pos = file_name.find_first_of(snapshot_idx_delimiter);
     if (idx_pos == std::string::npos)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Snapshot file name {} does not contain snapshot seqno", file_name));
     }
 
@@ -119,7 +123,7 @@ namespace snapshots
       file_name.find_first_of(snapshot_idx_delimiter, idx_pos + 1);
     if (evidence_idx_pos == std::string::npos)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Snapshot file \"{}\" does not contain evidence index", file_name));
     }
 
@@ -133,21 +137,21 @@ namespace snapshots
     if (!is_snapshot_file(file_name))
     {
       throw std::logic_error(
-        fmt::format("File \"{}\" is not a valid snapshot file", file_name));
+        std::format("File \"{}\" is not a valid snapshot file", file_name));
     }
 
     auto idx_pos = file_name.find_first_of(snapshot_idx_delimiter);
     if (idx_pos == std::string::npos)
     {
       throw std::logic_error(
-        fmt::format("Snapshot file \"{}\" does not contain index", file_name));
+        std::format("Snapshot file \"{}\" does not contain index", file_name));
     }
 
     auto evidence_idx_pos =
       file_name.find_first_of(snapshot_idx_delimiter, idx_pos + 1);
     if (evidence_idx_pos == std::string::npos)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Snapshot file \"{}\" does not contain evidence index", file_name));
     }
 
@@ -177,19 +181,20 @@ namespace snapshots
         auto file_name = f.path().filename();
         if (!is_snapshot_file(file_name))
         {
-          LOG_DEBUG_FMT("Ignoring non-snapshot file {}", file_name);
+          LOG_DEBUG_FMT("Ignoring non-snapshot file {}", file_name.string());
           continue;
         }
 
         if (!is_snapshot_file_committed(file_name))
         {
-          LOG_DEBUG_FMT("Ignoring non-committed snapshot file {}", file_name);
+          LOG_DEBUG_FMT(
+            "Ignoring non-committed snapshot file {}", file_name.string());
           continue;
         }
 
         if (fs::exists(f.path()) && fs::is_empty(f.path()))
         {
-          LOG_INFO_FMT("Ignoring empty snapshot file {}", file_name);
+          LOG_INFO_FMT("Ignoring empty snapshot file {}", file_name.string());
           continue;
         }
 
@@ -198,7 +203,7 @@ namespace snapshots
         {
           LOG_DEBUG_FMT(
             "Ignoring snapshot file {} below minimum idx {}",
-            file_name,
+            file_name.string(),
             minimum_idx.value());
         }
         else

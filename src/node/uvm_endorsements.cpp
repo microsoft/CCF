@@ -9,7 +9,9 @@
 #include "crypto/cose_utils.h"
 #include "ds/internal_logger.h"
 
+#include <format>
 #include <tav/cbor.hpp>
+#include <utility>
 
 namespace ccf
 {
@@ -21,7 +23,7 @@ namespace ccf
     if (result.ec != std::errc())
     {
       throw std::runtime_error(
-        fmt::format("Unable to parse svn value {} to unsigned", svn_str));
+        std::format("Unable to parse svn value {} to unsigned", svn_str));
     }
     return svn;
   }
@@ -70,7 +72,7 @@ namespace ccf
             return parsed_phdr.map_at(tav::cbor::make_signed(header::iana::ALG))
               .as_signed();
           },
-          fmt::format(
+          std::format(
             "Parse alg ({}) in protected header in UVM endorsements",
             header::iana::ALG));
 
@@ -81,7 +83,7 @@ namespace ccf
                 .map_at(tav::cbor::make_signed(header::iana::CONTENT_TYPE))
                 .as_string());
           },
-          fmt::format(
+          std::format(
             "Parse content-type ({}) in protected header in UVM endorsements",
             header::iana::CONTENT_TYPE));
 
@@ -90,7 +92,7 @@ namespace ccf
             return utils::parse_x5chain(parsed_phdr.map_at(
               tav::cbor::make_signed(header::iana::X5CHAIN)));
           },
-          fmt::format(
+          std::format(
             "Parse x5chain ({}) in protected header in UVM endorsements",
             header::iana::X5CHAIN));
 
@@ -139,7 +141,7 @@ namespace ccf
             return parsed_phdr.map_at(tav::cbor::make_signed(header::iana::ALG))
               .as_signed();
           },
-          fmt::format(
+          std::format(
             "Parse alg ({}) in protected header in UVM endorsements",
             header::iana::ALG));
 
@@ -150,7 +152,7 @@ namespace ccf
                                    header::iana::PREIMAGE_CONTENT_TYPE))
                                  .as_string());
           },
-          fmt::format(
+          std::format(
             "Parse content-type ({}) in protected header in UVM endorsements",
             header::iana::PREIMAGE_CONTENT_TYPE));
 
@@ -159,7 +161,7 @@ namespace ccf
             return utils::parse_x5chain(parsed_phdr.map_at(
               tav::cbor::make_signed(header::iana::X5CHAIN)));
           },
-          fmt::format(
+          std::format(
             "Parse x5chain ({}) in protected header in UVM endorsements",
             header::iana::X5CHAIN));
 
@@ -221,7 +223,7 @@ namespace ccf
 
     if (!(cose::is_rsa_alg(phdr.alg) || cose::is_ecdsa_alg(phdr.alg)))
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Signature algorithm {} is not one of expected: RSA, ECDSA", phdr.alg));
     }
 
@@ -254,8 +256,10 @@ namespace ccf
       }
       case ccf::crypto::JsonWebKeyType::OKP:
       {
-        throw std::logic_error(fmt::format(
-          "Unsupported public key type ({}) for DID {}", generic_jwk.kty, did));
+        throw std::logic_error(std::format(
+          "Unsupported public key type ({}) for DID {}",
+          std::to_underlying(generic_jwk.kty),
+          did));
       }
     }
 
@@ -267,7 +271,7 @@ namespace ccf
     {
       if (phdr.content_type != cose::value::CT_JSON)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unexpected payload content type {}, expected {}",
           phdr.content_type,
           cose::value::CT_JSON));
@@ -287,7 +291,7 @@ namespace ccf
           uintval);
         if (result.ec != std::errc())
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM "
             "endorsements "
             "payload",
@@ -301,7 +305,7 @@ namespace ccf
       }
       else
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unexpected type {} for sevsnpvm_guest_svn in UVM endorsements "
           "payload, expected string or unsigned integer",
           sevsnpvm_guest_svn_obj.type_name()));
@@ -311,7 +315,7 @@ namespace ccf
     {
       if (phdr.content_type != cose::value::CT_OCTET_STREAM)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unexpected payload content type {}, expected {}",
           phdr.content_type,
           cose::value::CT_OCTET_STREAM));
@@ -323,7 +327,7 @@ namespace ccf
 
     if (sevsnpvm_launch_measurement != uvm_measurement.hex_str())
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Launch measurement in UVM endorsements payload {} is not equal "
         "to UVM attestation measurement {}",
         sevsnpvm_launch_measurement,
@@ -344,7 +348,7 @@ namespace ccf
       enforce_uvm_roots_of_trust &&
       !matches_uvm_roots_of_trust(end, uvm_roots_of_trust))
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "UVM endorsements did {}, feed {}, svn {} "
         "do not match any of the known UVM roots of trust",
         end.did,

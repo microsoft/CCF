@@ -9,10 +9,6 @@
 #define PICOBENCH_DONT_BIND_TO_ONE_CORE
 #include <picobench/picobench.hpp>
 
-#define FMT_HEADER_ONLY
-#include <fmt/chrono.h>
-#include <fmt/format.h>
-
 struct TrueSleep
 {
   static void sleep_for(std::chrono::milliseconds duration)

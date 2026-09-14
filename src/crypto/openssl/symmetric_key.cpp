@@ -8,6 +8,7 @@
 #include "ds/internal_logger.h"
 
 #include <climits>
+#include <format>
 #include <openssl/aes.h>
 #include <openssl/evp.h>
 
@@ -41,7 +42,7 @@ namespace ccf::crypto
     else
     {
       throw std::logic_error(
-        fmt::format("Need at least {} bits, only have {}", KEY_SIZE_128, n));
+        std::format("Need at least {} bits, only have {}", KEY_SIZE_128, n));
     }
   }
 

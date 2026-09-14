@@ -2,17 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-#include <span>
-
-#define FMT_HEADER_ONLY
 #include "ccf/crypto/hkdf.h"
 #include "ccf/crypto/sha256.h"
+#include "ccf/ds/join.h"
 #include "ds/serialized.h"
 #include "openssl/crypto.h"
 
-#include <fmt/format.h>
+#include <cstddef>
+#include <cstdint>
+#include <format>
+#include <span>
 
 namespace ccf::crypto::sharing
 {
@@ -87,7 +86,7 @@ namespace ccf::crypto::sharing
 
     [[nodiscard]] std::string to_str() const
     {
-      return fmt::format("x: {} y: {}", x, fmt::join(y, ", "));
+      return std::format("x: {} y: {}", x, ccf::ds::join(y, ", "));
     }
   };
 
