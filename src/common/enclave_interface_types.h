@@ -3,6 +3,10 @@
 #pragma once
 
 #include "ccf/ds/logger_level.h"
+#include "ccf/node/start_type.h"
+
+using ccf::start_type_to_str;
+using ccf::StartType;
 
 enum CreateNodeStatus : std::uint8_t
 {
@@ -85,27 +89,5 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
     {
       return "Unknown CreateNodeStatus";
     }
-  }
-}
-
-enum StartType : std::uint8_t
-{
-  Start = 1,
-  Join = 2,
-  Recover = 3,
-};
-
-constexpr char const* start_type_to_str(StartType type)
-{
-  switch (type)
-  {
-    case StartType::Start:
-      return "Start";
-    case StartType::Join:
-      return "Join";
-    case StartType::Recover:
-      return "Recover";
-    default:
-      return "Unknown StartType";
   }
 }

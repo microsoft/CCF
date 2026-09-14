@@ -6,7 +6,7 @@
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/unit_strings.h"
-#include "ccf/node/startup_config.h"
+#include "ccf/node/configuration.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/consensus_type.h"
 #include "ccf/service/node_info_network.h"
@@ -21,12 +21,6 @@
 #include <optional>
 #include <string>
 #include <vector>
-
-DECLARE_JSON_ENUM(
-  StartType,
-  {{StartType::Start, "Start"},
-   {StartType::Join, "Join"},
-   {StartType::Recover, "Recover"}});
 
 struct EnclaveConfig
 {
@@ -45,6 +39,12 @@ static constexpr auto node_to_node_interface_name = "node_to_node_interface";
 
 namespace ccf
 {
+  DECLARE_JSON_ENUM(
+    StartType,
+    {{StartType::Start, "Start"},
+     {StartType::Join, "Join"},
+     {StartType::Recover, "Recover"}});
+
   DECLARE_JSON_ENUM(
     LoggerLevel,
     {{LoggerLevel::TRACE, "Trace"},
@@ -132,8 +132,82 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig::IdentityHistoryFetch, max_attempts, retry_interval);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    RecoveryDecisionProtocolConfig, expected_locations);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    RecoveryDecisionProtocolConfig, message_retry_timeout, failover_timeout);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SealingRecoveryConfig);
+  DECLARE_JSON_REQUIRED_FIELDS(SealingRecoveryConfig, location);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    SealingRecoveryConfig, recovery_decision_protocol);
+
+  DECLARE_JSON_ENUM(
+    LogFormat, {{LogFormat::TEXT, "Text"}, {LogFormat::JSON, "Json"}});
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ParsedMemberInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(ParsedMemberInfo, certificate_file);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    ParsedMemberInfo,
+    encryption_public_key_file,
+    data_json_file,
+    recovery_role);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::OutputFiles);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::OutputFiles);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::OutputFiles,
+    node_certificate_file,
+    pid_file,
+    node_to_node_address_file,
+    rpc_addresses_file);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Logging);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Logging);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::Logging, format);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Memory);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Memory);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::Memory, circuit_size, max_msg_size, max_fragment_size);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Command::Start);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    CCFConfig::Command::Start, members, constitution_files);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::Command::Start,
+    service_configuration,
+    initial_service_certificate_validity_days,
+    service_subject_name,
+    cose_signatures);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Command::Join);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Command::Join, target_rpc_address);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::Command::Join,
+    retry_timeout,
+    follow_redirect,
+    fetch_recent_snapshot,
+    fetch_snapshot_max_attempts,
+    fetch_snapshot_retry_interval,
+    fetch_snapshot_max_size,
+    host_data_transparent_statement_path);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Command::Recover);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Command::Recover);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::Command::Recover,
+    initial_service_certificate_validity_days,
+    previous_service_identity_file);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Command);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Command, type);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::Command, service_certificate_file, start, join, recover);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network, command);
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig,
     worker_threads,
@@ -147,49 +221,17 @@ namespace ccf
     files_cleanup,
     node_to_node_message_limit,
     historical_cache_soft_limit,
-    identity_history_fetch);
-
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    RecoveryDecisionProtocolConfig, expected_locations);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    RecoveryDecisionProtocolConfig, message_retry_timeout, failover_timeout);
-
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SealingRecoveryConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(SealingRecoveryConfig, location);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    SealingRecoveryConfig, recovery_decision_protocol);
-
-  DECLARE_JSON_TYPE(StartupConfig::Start);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    StartupConfig::Start, members, constitution, service_configuration);
-
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(StartupConfig::Join);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    StartupConfig::Join,
-    target_rpc_address,
-    retry_timeout,
-    service_cert,
-    follow_redirect);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    StartupConfig::Join, host_data_transparent_statement_path);
-
-  DECLARE_JSON_TYPE(StartupConfig::Recover);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    StartupConfig::Recover, previous_service_identity);
-
-  DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    StartupConfig,
-    startup_host_time,
-    snapshot_tx_interval,
-    initial_service_certificate_validity_days,
-    service_subject_name,
-    cose_signatures,
-    service_data,
-    node_data,
-    start,
-    join,
-    recover,
-    sealing_recovery);
+    identity_history_fetch,
+    tick_interval,
+    slow_io_logging_threshold,
+    node_client_interface,
+    client_connection_timeout,
+    idle_connection_timeout,
+    node_data_json_file,
+    service_data_json_file,
+    ignore_first_sigterm,
+    sealing_recovery,
+    output_files,
+    logging,
+    memory);
 }
