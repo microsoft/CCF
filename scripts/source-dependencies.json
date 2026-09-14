@@ -35,6 +35,7 @@
     "udp": ["ds"],
     "uv": [],
     "http": ["ccf-api", "crypto", "ds"],
-    "http_client": ["ccf-api", "ds", "uv"]
+    "http_client": ["ccf-api", "ds", "uv"],
+    "snapshots": ["ccf-api", "ds", "http", "http_client"]
   }
 }
