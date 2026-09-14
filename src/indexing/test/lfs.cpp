@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
+#include "ds/serialized.h"
 #include "host/lfs_file_handler.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/test/common.h"
@@ -711,5 +712,130 @@ TEST_CASE("Sparse index" * doctest::test_suite("lfs"))
       "Testing sparse index with " << num_buckets << " buckets of size "
                                    << bucket_size);
     run_sparse_index_test(bucket_size, num_buckets);
+  }
+}
+
+// Stands in for the LFS by immediately loading the same contents for every
+// fetch, as if a file this node had written and encrypted did not contain a
+// well-formed bucket
+struct MalformedLFSAccess : public ccf::indexing::AbstractLFSAccess
+{
+  ccf::indexing::LFSContents contents;
+  size_t fetches = 0;
+
+  MalformedLFSAccess(ccf::indexing::LFSContents contents_) :
+    contents(std::move(contents_))
+  {}
+
+  void store(
+    const ccf::indexing::LFSKey&, ccf::indexing::LFSContents&&) override
+  {}
+
+  ccf::indexing::FetchResultPtr fetch(const ccf::indexing::LFSKey& key) override
+  {
+    ++fetches;
+    auto result = std::make_shared<ccf::indexing::FetchResult>();
+    result->fetch_result = ccf::indexing::FetchResult::FetchResultType::Loaded;
+    result->key = key;
+    result->contents = contents;
+    return result;
+  }
+};
+
+TEST_CASE("Malformed loaded bucket" * doctest::test_suite("lfs"))
+{
+  // A serialised bucket claiming seqno_count seqnos, followed by body_bytes
+  // bytes rather than the expected sizeof(ccf::SeqNo) * seqno_count
+  auto bucket_with_body = [](size_t seqno_count, size_t body_bytes) {
+    ccf::indexing::LFSContents contents(sizeof(size_t) + body_bytes, 0);
+    auto* data = contents.data();
+    auto size = contents.size();
+    serialized::write(data, size, seqno_count);
+    return contents;
+  };
+
+  const std::vector<std::pair<std::string, ccf::indexing::LFSContents>>
+    malformed = {
+      {"empty", {}},
+      {"truncated count", {0x01, 0x02, 0x03}},
+      {"missing seqnos", bucket_with_body(2, 0)},
+      {"truncated seqno", bucket_with_body(1, sizeof(ccf::SeqNo) - 1)},
+      {"trailing bytes", bucket_with_body(0, 1)},
+    };
+
+  for (const auto& [description, contents] : malformed)
+  {
+    INFO("Loaded bucket is " << description);
+
+    ccf::kv::Store kv_store;
+
+    auto consensus = std::make_shared<AllCommittableConsensus>();
+    kv_store.set_consensus(consensus);
+
+    auto fetcher = std::make_shared<TestTransactionFetcher>();
+    ccf::indexing::Indexer indexer(fetcher);
+
+    auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+    kv_store.set_encryptor(encryptor);
+
+    auto lfs_access = std::make_shared<MalformedLFSAccess>(contents);
+
+    ccf::AbstractNodeContext node_context;
+    node_context.install_subsystem(lfs_access);
+
+    constexpr size_t seqnos_per_bucket = 10;
+    using StratA =
+      ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_a)>;
+    auto index_a =
+      std::make_shared<StratA>(map_a, node_context, seqnos_per_bucket, 4);
+    REQUIRE(indexer.install_strategy(index_a));
+
+    // Write to a single key across several buckets, so that all but the most
+    // recent bucket are stored to the LFS
+    ExpectedSeqNos seqnos_hello;
+    std::vector<ActionDesc> actions;
+    actions.push_back({seqnos_hello, [](size_t, ccf::kv::Tx& tx) {
+                         tx.wo(map_a)->put("hello", "value");
+                         return true;
+                       }});
+    REQUIRE(create_transactions(kv_store, actions, seqnos_per_bucket * 3));
+
+    auto tick_until_caught_up = [&]() {
+      while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
+             !fetcher->requested.empty())
+      {
+        for (auto seqno : fetcher->requested)
+        {
+          REQUIRE(consensus->replica.size() >= seqno);
+          const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
+          fetcher->fetched_stores[seqno] = fetcher->deserialise_transaction(
+            seqno, entry->data(), entry->size());
+        }
+        fetcher->requested.clear();
+      }
+    };
+
+    tick_until_caught_up();
+    const auto current = kv_store.current_txid();
+    REQUIRE(index_a->get_indexed_watermark() == current);
+
+    // The first request for an old bucket begins fetching it
+    REQUIRE_FALSE(index_a->get_write_txs_in_range("hello", 1, 2).has_value());
+    REQUIRE(lfs_access->fetches == 1);
+
+    // The second finds the loaded bucket. Since its contents cannot be
+    // deserialised it must be treated as corrupt, triggering a re-index,
+    // rather than escaping as an exception
+    std::optional<ccf::SeqNoCollection> result;
+    REQUIRE_NOTHROW(result = index_a->get_write_txs_in_range("hello", 1, 2));
+    REQUIRE_FALSE(result.has_value());
+    REQUIRE(index_a->get_indexed_watermark() == ccf::TxID());
+
+    // The strategy is fully functional after re-indexing
+    tick_until_caught_up();
+    REQUIRE(index_a->get_indexed_watermark() == current);
+    result =
+      index_a->get_write_txs_in_range("hello", current.seqno, current.seqno);
+    REQUIRE(check_seqnos({current.seqno}, result));
   }
 }
