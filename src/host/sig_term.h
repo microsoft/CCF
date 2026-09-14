@@ -43,6 +43,6 @@ namespace asynchost
     }
   };
 
-  using Sigterm = proxy_ptr<Signal<SIGTERM, ShutdownSignalImpl>>;
-  using Sighup = proxy_ptr<Signal<SIGHUP, ShutdownSignalImpl>>;
+  using Sigterm = ccf::uv::proxy_ptr<Signal<SIGTERM, ShutdownSignalImpl>>;
+  using Sighup = ccf::uv::proxy_ptr<Signal<SIGHUP, ShutdownSignalImpl>>;
 }

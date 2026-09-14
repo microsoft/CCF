@@ -9,8 +9,11 @@
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/users.h"
-#include "crypto/cbor.h"
+#include "crypto/cbor_helpers.h"
+#include "crypto/cbor_tags.h"
 #include "node/cose_common.h"
+
+#include <tav/cbor.hpp>
 
 namespace
 {
@@ -42,46 +45,44 @@ namespace ccf
     extract_governance_protected_header_and_signature(
       const std::vector<uint8_t>& cose_sign1)
     {
-      using namespace ccf::cbor;
+      using namespace tav::cbor;
 
       auto cose_cbor = rethrow_with_msg(
-        [&]() { return parse(cose_sign1); }, "Parse COSE CBOR");
+        [&]() { return nondet_parse(cose_sign1); }, "Parse COSE CBOR");
 
-      const auto& cose_envelope = rethrow_with_msg(
-        [&]() -> auto& {
-          return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1);
-        },
+      const auto cose_envelope = rethrow_with_msg(
+        [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
         "Parse COSE tag");
 
-      const auto& phdr_raw = rethrow_with_msg(
-        [&]() -> auto& { return cose_envelope->array_at(0); },
+      const auto phdr_raw = rethrow_with_msg(
+        [&]() { return cose_envelope.array_at(0); },
         "Parse raw protected header");
 
       auto phdr = rethrow_with_msg(
-        [&]() { return parse(phdr_raw->as_bytes()); },
+        [&]() { return nondet_parse(phdr_raw.as_bytes()); },
         "Decode protected header");
 
       ccf::GovernanceProtectedHeader parsed;
 
       parsed.alg = rethrow_with_msg(
         [&]() {
-          return phdr->map_at(make_signed(header::iana::ALG))->as_signed();
+          return phdr.map_at(make_signed(header::iana::ALG)).as_signed();
         },
         "Parse alg in protected header");
 
       parsed.kid = buf_to_string(rethrow_with_msg(
         [&]() {
-          return phdr->map_at(make_signed(header::iana::KID))->as_bytes();
+          return phdr.map_at(make_signed(header::iana::KID)).as_bytes();
         },
         "Parse kid in protected header"));
 
       parsed.gov_msg_created_at = rethrow_with_msg(
         [&]() {
           const int64_t value =
-            phdr->map_at(make_string(HEADER_PARAM_MSG_CREATED_AT))->as_signed();
+            phdr.map_at(make_string(HEADER_PARAM_MSG_CREATED_AT)).as_signed();
           if (value < 0)
           {
-            throw CBORDecodeError(Error::TYPE_MISMATCH, "Must be non-negative");
+            throw DecodeError(Error::TYPE_MISMATCH, "Must be non-negative");
           }
           return value;
         },
@@ -90,10 +91,10 @@ namespace ccf
       try
       {
         parsed.gov_msg_type = rethrow_with_msg([&]() {
-          return phdr->map_at(make_string(HEADER_PARAM_MSG_TYPE))->as_string();
+          return phdr.map_at(make_string(HEADER_PARAM_MSG_TYPE)).as_string();
         });
       }
-      catch (const CBORDecodeError& err)
+      catch (const DecodeError& err)
       {
         if (err.error_code() != Error::KEY_NOT_FOUND)
         {
@@ -104,11 +105,11 @@ namespace ccf
       try
       {
         parsed.gov_msg_proposal_id = rethrow_with_msg([&]() {
-          return phdr->map_at(make_string(HEADER_PARAM_MSG_PROPOSAL_ID))
-            ->as_string();
+          return phdr.map_at(make_string(HEADER_PARAM_MSG_PROPOSAL_ID))
+            .as_string();
         });
       }
-      catch (const CBORDecodeError& err)
+      catch (const DecodeError& err)
       {
         if (err.error_code() != Error::KEY_NOT_FOUND)
         {
@@ -117,15 +118,15 @@ namespace ccf
       }
 
       auto signature = rethrow_with_msg(
-        [&]() { return cose_envelope->array_at(3)->as_bytes(); },
+        [&]() { return cose_envelope.array_at(3).as_bytes(); },
         "Parse COSE signature");
 
       auto payload = rethrow_with_msg(
-        [&]() { return cose_envelope->array_at(2)->as_bytes(); },
+        [&]() { return cose_envelope.array_at(2).as_bytes(); },
         "Parse COSE payload");
 
       DecomposedCoseSign1 decomposed{
-        phdr_raw->as_bytes(), payload, signature, parsed.alg};
+        phdr_raw.as_bytes(), payload, signature, parsed.alg};
       return {parsed, decomposed};
     }
 
@@ -135,36 +136,34 @@ namespace ccf
       const std::string& msg_type_name,
       const std::string& created_at_name)
     {
-      using namespace ccf::cbor;
+      using namespace tav::cbor;
 
       auto cose_cbor = rethrow_with_msg(
-        [&]() { return parse(cose_sign1); }, "Parse COSE CBOR");
+        [&]() { return nondet_parse(cose_sign1); }, "Parse COSE CBOR");
 
-      const auto& cose_envelope = rethrow_with_msg(
-        [&]() -> auto& {
-          return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1);
-        },
+      const auto cose_envelope = rethrow_with_msg(
+        [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
         "Parse COSE tag");
 
-      const auto& phdr_raw = rethrow_with_msg(
-        [&]() -> auto& { return cose_envelope->array_at(0); },
+      const auto phdr_raw = rethrow_with_msg(
+        [&]() { return cose_envelope.array_at(0); },
         "Parse raw protected header");
 
       auto phdr = rethrow_with_msg(
-        [&]() { return parse(phdr_raw->as_bytes()); },
+        [&]() { return nondet_parse(phdr_raw.as_bytes()); },
         "Decode protected header");
 
       ccf::TimestampedProtectedHeader parsed;
 
       parsed.alg = rethrow_with_msg(
         [&]() {
-          return phdr->map_at(make_signed(header::iana::ALG))->as_signed();
+          return phdr.map_at(make_signed(header::iana::ALG)).as_signed();
         },
         "Parse alg in protected header");
 
       parsed.kid = buf_to_string(rethrow_with_msg(
         [&]() {
-          return phdr->map_at(make_signed(header::iana::KID))->as_bytes();
+          return phdr.map_at(make_signed(header::iana::KID)).as_bytes();
         },
         "Parse kid in protected header"));
 
@@ -173,11 +172,11 @@ namespace ccf
         parsed.msg_type = rethrow_with_msg(
           [&]() {
             return std::string(
-              phdr->map_at(make_string(msg_type_name))->as_string());
+              phdr.map_at(make_string(msg_type_name)).as_string());
           },
           "Parse msg type in protected header");
       }
-      catch (const CBORDecodeError& err)
+      catch (const DecodeError& err)
       {
         if (err.error_code() != Error::KEY_NOT_FOUND)
         {
@@ -189,18 +188,18 @@ namespace ccf
       {
         auto val = rethrow_with_msg(
           [&]() {
-            return phdr->map_at(make_string(created_at_name))->as_signed();
+            return phdr.map_at(make_string(created_at_name)).as_signed();
           },
           "Parse created_at in protected header");
         if (val < 0)
         {
-          throw CBORDecodeError(
+          throw DecodeError(
             Error::TYPE_MISMATCH,
             "Header parameter created_at must be positive");
         }
         parsed.msg_created_at = val;
       }
-      catch (const CBORDecodeError& err)
+      catch (const DecodeError& err)
       {
         if (err.error_code() != Error::KEY_NOT_FOUND)
         {
@@ -209,15 +208,15 @@ namespace ccf
       }
 
       auto signature = rethrow_with_msg(
-        [&]() { return cose_envelope->array_at(3)->as_bytes(); },
+        [&]() { return cose_envelope.array_at(3).as_bytes(); },
         "Parse COSE signature");
 
       auto payload = rethrow_with_msg(
-        [&]() { return cose_envelope->array_at(2)->as_bytes(); },
+        [&]() { return cose_envelope.array_at(2).as_bytes(); },
         "Parse COSE payload");
 
       DecomposedCoseSign1 decomposed{
-        phdr_raw->as_bytes(), payload, signature, parsed.alg};
+        phdr_raw.as_bytes(), payload, signature, parsed.alg};
       return {parsed, decomposed};
     }
   }

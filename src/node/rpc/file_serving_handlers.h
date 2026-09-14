@@ -299,17 +299,20 @@ namespace ccf::node
               }
             }
 
-            range_end = inclusive_range_end + 1;
-
-            if (range_end > total_size)
+            // Clamp the inclusive end _before_ converting to an exclusive end,
+            // so that an end of SIZE_MAX cannot overflow to 0. total_size is
+            // known to be non-zero here.
+            if (inclusive_range_end >= total_size)
             {
               LOG_DEBUG_FMT(
-                "Requested ledger chunk range ending at {}, but file size is "
+                "Requested range ending at {}, but file size is "
                 "only {} - shrinking range end",
-                range_end,
+                inclusive_range_end,
                 total_size);
-              range_end = total_size;
+              inclusive_range_end = total_size - 1;
             }
+
+            range_end = inclusive_range_end + 1;
 
             if (range_end < range_start)
             {
@@ -349,6 +352,20 @@ namespace ccf::node
               return;
             }
 
+            // A suffix range asks for the last `offset` bytes. If the file is
+            // shorter than that, the entire file is returned (RFC 9110
+            // 14.1.2). Clamping here also prevents the subtraction below from
+            // underflowing.
+            if (offset > total_size)
+            {
+              LOG_DEBUG_FMT(
+                "Requested last {} bytes, but file size is only {} - "
+                "shrinking range to whole file",
+                offset,
+                total_size);
+              offset = total_size;
+            }
+
             range_end = total_size;
             range_start = range_end - offset;
           }
@@ -362,6 +379,22 @@ namespace ccf::node
           }
         }
       }
+    }
+
+    // A 206 response must describe a non-empty range in its Content-Range
+    // header, so an empty range cannot be satisfied. This catches ranges which
+    // are individually in-bounds but select no bytes, such as "bytes=-0",
+    // "bytes=50-49", or a range starting exactly at the end of the file.
+    if (range_start == range_end)
+    {
+      ctx.rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidHeaderValue,
+        fmt::format(
+          "Invalid range: Start ({}) and end ({}) out of order",
+          range_start,
+          range_end));
+      return;
     }
 
     const auto range_size = range_end - range_start;

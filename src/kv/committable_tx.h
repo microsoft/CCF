@@ -65,8 +65,7 @@ namespace ccf::kv
     TxFlags flags = 0;
     SerialisedEntryFlags entry_flags = 0;
 
-    void serialise_all_changes(
-      KvStoreSerialiser& serialiser, bool include_reads)
+    void serialise_all_changes(KvStoreSerialiser& serialiser)
     {
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -77,7 +76,7 @@ namespace ccf::kv
           const auto& changeset = it.second.changeset;
           if (map->get_security_domain() == domain && changeset->has_writes())
           {
-            map->serialise_changes(changeset.get(), serialiser, include_reads);
+            map->serialise_changes(changeset.get(), serialiser);
           }
         }
       }
@@ -91,8 +90,7 @@ namespace ccf::kv
         });
     }
 
-    size_t projected_serialised_size(
-      const ccf::ClaimsDigest& claims_digest_, bool include_reads = false)
+    size_t projected_serialised_size(const ccf::ClaimsDigest& claims_digest_)
     {
       if (claims_digest_.empty())
       {
@@ -115,7 +113,7 @@ namespace ccf::kv
         ccf::crypto::Sha256Hash{},
         claims_digest_);
 
-      serialise_all_changes(size_serialiser, include_reads);
+      serialise_all_changes(size_serialiser);
 
       return size_serialiser.get_serialised_size();
     }
@@ -124,8 +122,7 @@ namespace ccf::kv
       ccf::crypto::Sha256Hash& commit_evidence_digest,
       std::string& commit_evidence,
       const ccf::ClaimsDigest& claims_digest_,
-      size_t max_transaction_size,
-      bool include_reads = false)
+      size_t max_transaction_size)
     {
       if (!committed)
       {
@@ -173,7 +170,7 @@ namespace ccf::kv
         false /* historical_hint */,
         max_transaction_size);
 
-      serialise_all_changes(serialiser, include_reads);
+      serialise_all_changes(serialiser);
       return serialiser.get_raw_data();
     }
 

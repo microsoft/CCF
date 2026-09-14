@@ -112,6 +112,7 @@ all_tests_suite = [
     # recovery:
     recovery.test_recover_service,
     recovery.test_recover_service_aborted,
+    recovery.test_recover_service_with_ledger_after_snapshot,
     # rekey:
     e2e_logging.test_rekey,
     # election:
@@ -141,6 +142,12 @@ all_tests_suite = [
     governance_history.test_tables_doc,
 ]
 suites["all"] = all_tests_suite
+
+# Keep a minimal ordering for the local-ledger watermark regression.
+suites["recovery_ledger"] = [
+    recovery.test_recover_service_with_ledger_after_snapshot,
+    governance_history.test_ledger_is_readable,
+]
 
 
 # https://github.com/microsoft/CCF/issues/5236

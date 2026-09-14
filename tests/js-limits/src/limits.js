@@ -29,3 +29,72 @@ export function sleep(request) {
   }
   return {};
 }
+
+export function nestedEval() {
+  eval("while (true) {}");
+  return {};
+}
+
+export function nestedFunction() {
+  Function("while (true) {}")();
+  return {};
+}
+
+export function responseBodyGetter() {
+  return {
+    get body() {
+      while (true) {}
+    },
+  };
+}
+
+export function responseHeadersGetter() {
+  return {
+    get headers() {
+      while (true) {}
+    },
+  };
+}
+
+export function responseHeaderValueGetter() {
+  return {
+    headers: {
+      get value() {
+        while (true) {}
+      },
+    },
+  };
+}
+
+export function responseHeadersProxy() {
+  return {
+    headers: new Proxy(
+      {},
+      {
+        ownKeys() {
+          while (true) {}
+        },
+      },
+    ),
+  };
+}
+
+export function responseStatusCodeGetter() {
+  return {
+    get statusCode() {
+      while (true) {}
+    },
+  };
+}
+
+export function responseGetterThrows() {
+  return {
+    get body() {
+      throw new Error("boom");
+    },
+  };
+}
+
+export function handlerThrows() {
+  throw new Error("boom");
+}

@@ -380,7 +380,8 @@ bool record_signature(
     "b96881e8c6f9265af8");
 
   bool requires_snapshot = snapshotter->record_committable(idx);
-  snapshotter->record_cose_signature(idx, dummy_cose_sig);
+  snapshotter->record_cose_signatures(
+    idx, {{ccf::IdentityType::CLASSICAL, dummy_cose_sig}});
   snapshotter->record_serialised_tree(idx, history->serialise_tree(idx));
 
   return requires_snapshot;

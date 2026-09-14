@@ -29,16 +29,15 @@ namespace ccf::js::extensions
 
   namespace
   {
-    kvhelpers::KVMap::Handle* get_map_handle(
-      js::core::Context& jsctx, JSValueConst _this_val)
+    kvhelpers::KVMap::Handle* get_map_handle_for(
+      js::core::Context& jsctx,
+      JSValueConst this_val,
+      KVAccessPermissions required_permission)
     {
-      auto this_val = jsctx.duplicate_value(_this_val);
-      auto map_name_val = this_val["_map_name"];
-      auto map_name = jsctx.to_str(map_name_val);
-
-      if (!map_name.has_value())
+      auto* state = kvhelpers::get_checked_handle_state(
+        jsctx, this_val, required_permission, kvhelpers::KVSource::CurrentTx);
+      if (state == nullptr)
       {
-        LOG_FAIL_FMT("No map name stored on handle");
         return nullptr;
       }
 
@@ -50,10 +49,10 @@ namespace ccf::js::extensions
       }
 
       auto& handles = extension->impl->kv_handles;
-      auto it = handles.find(map_name.value());
+      auto it = handles.find(state->map_name);
       if (it == handles.end())
       {
-        it = handles.emplace_hint(it, map_name.value(), nullptr);
+        it = handles.emplace_hint(it, state->map_name, nullptr);
       }
 
       if (it->second == nullptr)
@@ -67,7 +66,7 @@ namespace ccf::js::extensions
 
         try
         {
-          it->second = tx->rw<kvhelpers::KVMap>(map_name.value());
+          it->second = tx->rw<kvhelpers::KVMap>(state->map_name);
         }
         catch (const ccf::kv::CompactedVersionConflict& e)
         {
@@ -81,6 +80,13 @@ namespace ccf::js::extensions
       return it->second;
     }
 
+    kvhelpers::KVMap::Handle* get_map_handle(
+      js::core::Context& jsctx, JSValueConst this_val)
+    {
+      return get_map_handle_for(
+        jsctx, this_val, KVAccessPermissions::WRITE_ONLY);
+    }
+
     kvhelpers::KVMap::ReadOnlyHandle* get_ro_map_handle(
       js::core::Context& jsctx, JSValueConst this_val)
     {
@@ -88,7 +94,8 @@ namespace ccf::js::extensions
       // converts to the (subtype) ReadOnlyHandle* in return here. This means
       // that if we call has() and then put(), we'll correctly have a writeable
       // handle for the put() despite reading initially.
-      return get_map_handle(jsctx, this_val);
+      return get_map_handle_for(
+        jsctx, this_val, KVAccessPermissions::READ_ONLY);
     }
 
     int js_kv_lookup(
@@ -114,26 +121,19 @@ namespace ccf::js::extensions
       std::string explanation =
         ccf::js::explain_kv_map_access(access_permission, jsctx.access);
 
-      if (extension->namespace_restriction != nullptr)
-      {
-        std::string proposed_explanation;
-        const auto proposed_permission =
-          extension->namespace_restriction(map_name, proposed_explanation);
-
-        // Name-based policy cannot grant more access (eg - cannot change
-        // Read-Only to Read-Write), can only make it more restricted
-        const auto combined_permission = ccf::js::intersect_access_permissions(
-          proposed_permission, access_permission);
-        if (combined_permission != access_permission)
-        {
-          access_permission = combined_permission;
-          explanation = proposed_explanation;
-        }
-      }
+      kvhelpers::apply_namespace_restriction(
+        extension->namespace_restriction,
+        map_name,
+        access_permission,
+        explanation);
 
       auto handle_val =
         kvhelpers::create_kv_map_handle<get_ro_map_handle, get_map_handle>(
-          jsctx, map_name, access_permission, explanation);
+          jsctx,
+          {.map_name = map_name,
+           .access_permission = access_permission,
+           .permission_explanation = explanation,
+           .source = kvhelpers::KVSource::CurrentTx});
 
       if (JS_IsException(handle_val) != 0)
       {

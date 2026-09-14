@@ -1,4 +1,3 @@
-mod cbor;
 mod cose;
 mod ossl_wrappers;
 mod sign;

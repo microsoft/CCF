@@ -49,56 +49,50 @@ unsafe fn str_from_raw(ptr: *const u8, len: usize) -> &'static str {
     std::str::from_utf8(bytes).unwrap_or("")
 }
 
-fn build_ledger_phdr(kid: &[u8], iat: i64, issuer: &str, subject: &str, txid: &str) -> CborValue {
+fn build_ledger_phdr<'a>(
+    kid: &'a [u8],
+    iat: i64,
+    issuer: &'a str,
+    subject: &'a str,
+    txid: &'a str,
+) -> CborValue<'a> {
     let cwt = CborValue::Map(vec![
         (CborValue::Int(IAT), CborValue::Int(iat)),
-        (
-            CborValue::Int(ISS),
-            CborValue::TextString(issuer.to_string()),
-        ),
-        (
-            CborValue::Int(SUB),
-            CborValue::TextString(subject.to_string()),
-        ),
+        (CborValue::Int(ISS), CborValue::text(issuer)),
+        (CborValue::Int(SUB), CborValue::text(subject)),
     ]);
 
-    let ccf = CborValue::Map(vec![(
-        CborValue::TextString(TX_ID.to_string()),
-        CborValue::TextString(txid.to_string()),
-    )]);
+    let ccf = CborValue::Map(vec![(CborValue::text(TX_ID), CborValue::text(txid))]);
 
     CborValue::Map(vec![
-        (CborValue::Int(KID), CborValue::ByteString(kid.to_vec())),
+        (CborValue::Int(KID), CborValue::bytes(kid)),
         (CborValue::Int(VDS), CborValue::Int(CCF_LEDGER_SHA256)),
         (CborValue::Int(CWT_CLAIMS), cwt),
-        (CborValue::TextString(CCF_V1.to_string()), ccf),
+        (CborValue::text(CCF_V1), ccf),
     ])
 }
 
-fn build_endorsement_phdr(
+fn build_endorsement_phdr<'a>(
     iat: i64,
-    epoch_begin: &str,
-    epoch_end: &str,
-    previous_merkle_root: &[u8],
-) -> CborValue {
+    epoch_begin: &'a str,
+    epoch_end: &'a str,
+    previous_merkle_root: &'a [u8],
+) -> CborValue<'a> {
     let cwt = CborValue::Map(vec![(CborValue::Int(IAT), CborValue::Int(iat))]);
 
     let mut ccf_entries = vec![(
-        CborValue::TextString(TX_RANGE_BEGIN.to_string()),
-        CborValue::TextString(epoch_begin.to_string()),
+        CborValue::text(TX_RANGE_BEGIN),
+        CborValue::text(epoch_begin),
     )];
 
     if !epoch_end.is_empty() {
-        ccf_entries.push((
-            CborValue::TextString(TX_RANGE_END.to_string()),
-            CborValue::TextString(epoch_end.to_string()),
-        ));
+        ccf_entries.push((CborValue::text(TX_RANGE_END), CborValue::text(epoch_end)));
     }
 
     if !previous_merkle_root.is_empty() {
         ccf_entries.push((
-            CborValue::TextString(EPOCH_LAST_MERKLE_ROOT.to_string()),
-            CborValue::ByteString(previous_merkle_root.to_vec()),
+            CborValue::text(EPOCH_LAST_MERKLE_ROOT),
+            CborValue::bytes(previous_merkle_root),
         ));
     }
 
@@ -106,7 +100,7 @@ fn build_endorsement_phdr(
 
     CborValue::Map(vec![
         (CborValue::Int(CWT_CLAIMS), cwt),
-        (CborValue::TextString(CCF_V1.to_string()), ccf),
+        (CborValue::text(CCF_V1), ccf),
     ])
 }
 

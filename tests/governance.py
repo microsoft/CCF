@@ -321,6 +321,17 @@ def test_ack_state_digest_update(network, args):
             r = c.get(f"/gov/members/state-digests/{member.service_id}")
             assert r.status_code == http.HTTPStatus.OK, r
             assert r.body.json() == updated_digest
+
+        for invalid_body in ({}, {"stateDigest": 42}):
+            with node.api_versioned_client(
+                *member.auth(write=True), api_version=args.gov_api_version
+            ) as c:
+                r = c.post(
+                    f"/gov/members/state-digests/{member.service_id}:ack",
+                    body=invalid_body,
+                )
+                assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+                assert r.body.json()["error"]["code"] == "InvalidInput", r
     return network
 
 
@@ -692,6 +703,16 @@ def single_node(args):
                     assert apply_error in e.response.body.text()
                 else:
                     assert False, "Expected to throw"
+
+            # Stalls the node for the default JS execution time limit, which
+            # would trigger an election in a multi-node network
+            test_desc("Execution time limit on evaluation of proposed constitution")
+            governance_js.test_set_constitution_evaluation_timeout(network, args)
+
+            # Same reasoning: module-scope loop in a ballot stalls the primary
+            # for at least the default execution time limit.
+            test_desc("Module-scope runtime limits on ballots")
+            governance_js.test_ballot_module_scope_restrictions(network, args)
 
             LOG.info("Stopping network to read node logs")
 

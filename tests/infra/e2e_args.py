@@ -77,6 +77,9 @@ CLI_ARGUMENT_CONFIG_PATHS = {
     "max_http_header_size": (
         "network.rpc_interfaces.*.http_configuration.max_header_size"
     ),
+    "max_http_request_target_size": (
+        "network.rpc_interfaces.*.http_configuration.max_request_target_size"
+    ),
     "max_http_headers_count": (
         "network.rpc_interfaces.*.http_configuration.max_headers_count"
     ),
@@ -143,6 +146,7 @@ _CONFIG_DEFAULT_CONVERTERS = {
     "curve_id": _convert_curve_id,
     "max_http_body_size": _convert_size_string_to_bytes,
     "max_http_header_size": _convert_size_string_to_bytes,
+    "max_http_request_target_size": _convert_size_string_to_bytes,
     "http2": lambda value: value == "HTTP2",
     "tick_ms": lambda value: _convert_time_string(value, "ms"),
 }
@@ -641,6 +645,12 @@ def cli_args(
         "--max-http-header-size",
         help="Maximum allowed size of single header in single HTTP request",
         default=1024 * 16,  # 16KB
+    )
+    parser.add_argument(
+        "--max-http-request-target-size",
+        help="Maximum allowed size of an HTTP/1.x request target, including the query",
+        default=infra.interfaces.DEFAULT_MAX_HTTP_REQUEST_TARGET_SIZE,
+        type=int,
     )
     parser.add_argument(
         "--max-http-headers-count",

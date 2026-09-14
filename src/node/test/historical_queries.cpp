@@ -10,17 +10,21 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/locking.h"
 #include "ccf/receipt.h"
-#include "crypto/cbor.h"
+#include "crypto/cbor_helpers.h"
+#include "crypto/cbor_tags.h"
 #include "crypto/openssl/hash.h"
+#include "crypto/test/cbor_printer.h"
 #include "ds/messaging.h"
 #include "ds/test/stub_writer.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
 #include "node/share_manager.h"
+#include "node/signature_cache_subsystem.h"
 
 #include <algorithm>
 #include <random>
+#include <tav/cbor.hpp>
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
@@ -268,32 +272,32 @@ MerkleProofData decode_merkle_proof(const std::vector<uint8_t>& encoded)
 {
   MerkleProofData data;
 
-  auto decoded = ccf::cbor::parse(encoded);
+  auto decoded = tav::cbor::nondet_parse(encoded);
 
-  const auto& leaf = decoded->map_at(
-    ccf::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL));
+  const auto& leaf = decoded.map_at(
+    tav::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL));
 
-  REQUIRE_EQ(leaf->size(), 3);
+  REQUIRE_EQ(leaf.size(), 3);
 
-  const auto& wsd = leaf->array_at(0)->as_bytes();
+  const auto& wsd = leaf.array_at(0).as_bytes();
   data.write_set_digest.assign(wsd.begin(), wsd.end());
 
-  data.commit_evidence = leaf->array_at(1)->as_string();
+  data.commit_evidence = leaf.array_at(1).as_string();
 
-  const auto& cd = leaf->array_at(2)->as_bytes();
+  const auto& cd = leaf.array_at(2).as_bytes();
   data.claims_digest.assign(cd.begin(), cd.end());
 
-  const auto& path = decoded->map_at(
-    ccf::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL));
+  const auto& path = decoded.map_at(
+    tav::cbor::make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL));
 
-  for (size_t i = 0; i < path->size(); i++)
+  for (size_t i = 0; i < path.size(); i++)
   {
-    const auto& node = path->array_at(i);
-    const auto& dir = node->array_at(0)->as_simple();
-    const auto& hash = node->array_at(1)->as_bytes();
+    const auto& node = path.array_at(i);
+    const auto& dir = node.array_at(0).as_simple();
+    const auto& hash = node.array_at(1).as_bytes();
 
     MerkleProofData::PathItem item;
-    item.first = ccf::cbor::simple_to_boolean(dir);
+    item.first = tav::cbor::simple_to_boolean(dir);
     item.second.assign(hash.begin(), hash.end());
     data.path.push_back(item);
   }
@@ -885,6 +889,55 @@ TEST_CASE("StateCache range queries")
       }
     }
   }
+}
+
+TEST_CASE("Ledger entry bounds")
+{
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+  const auto begin_seqno = kv_store.current_version() + 1;
+  const auto end_seqno = write_transactions_and_signature(kv_store, 2);
+  const auto ledger = construct_host_ledger(kv_store.get_consensus());
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, std::make_shared<StubWriter>());
+
+  constexpr auto handle = 0;
+  REQUIRE(cache.get_store_range(handle, begin_seqno, end_seqno).empty());
+
+  std::vector<uint8_t> combined;
+  auto invalid_seqno = begin_seqno;
+  SUBCASE("Invalid first entry") {}
+  SUBCASE("Invalid entry after a valid entry")
+  {
+    // Check against the remaining bytes, not the original batch size.
+    combined = ledger.at(begin_seqno);
+    ++invalid_seqno;
+  }
+
+  // Claim a one-byte body, but supply only the header.
+  ccf::kv::SerialisedEntryHeader header;
+  header.set_size(1);
+  const auto offset = combined.size();
+  combined.resize(offset + ccf::kv::serialised_entry_header_size);
+  auto* data = combined.data() + offset;
+  auto size = ccf::kv::serialised_entry_header_size;
+  serialized::write(data, size, header);
+
+  REQUIRE_FALSE(
+    cache.handle_ledger_entries(begin_seqno, invalid_seqno, combined));
+  REQUIRE(cache.get_store_range(handle, begin_seqno, end_seqno).empty());
+
+  // Retry from the rejected entry. Any valid prefix must remain cached.
+  combined.clear();
+  for (auto seqno = invalid_seqno; seqno <= end_seqno; ++seqno)
+  {
+    const auto& entry = ledger.at(seqno);
+    combined.insert(combined.end(), entry.begin(), entry.end());
+  }
+  REQUIRE(cache.handle_ledger_entries(invalid_seqno, end_seqno, combined));
+  REQUIRE(
+    cache.get_store_range(handle, begin_seqno, end_seqno).size() ==
+    end_seqno - begin_seqno + 1);
 }
 
 TEST_CASE("Incremental progress")
@@ -2142,6 +2195,93 @@ TEST_CASE("adjust_ranges")
       REQUIRE(actual_removed == expected_removed);
     }
   }
+}
+
+TEST_CASE(
+  "Historical and cached COSE signatures belong to the same transaction")
+{
+  auto state = create_and_init_state();
+  auto& store = *state.kv_store;
+  ccf::SignatureCacheSubsystem signature_cache;
+  signature_cache.register_hooks(store);
+  ccf::historical::StateCache historical_cache(
+    store, state.ledger_secrets, std::make_shared<StubWriter>());
+
+  const std::vector<ccf::CoseSignatureMap> signature_transactions{
+    {{ccf::IdentityType::CLASSICAL, {1, 2}}, {ccf::IdentityType::PQ, {3, 4}}},
+    {{ccf::IdentityType::CLASSICAL, {5, 6}}},
+    {{ccf::IdentityType::PQ, {7, 8}}}};
+
+  for (const auto& written_signatures : signature_transactions)
+  {
+    auto tx = store.create_tx();
+    auto* signatures = tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+    for (const auto& [identity_type, signature] : written_signatures)
+    {
+      signatures->put(identity_type, signature);
+    }
+    tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->put({});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    const auto txid = store.current_txid();
+    INFO("Signature transaction: ", txid.to_str());
+    {
+      auto read_tx = store.create_read_only_tx();
+      REQUIRE(
+        read_tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)->size() ==
+        2);
+    }
+    store.compact(txid.seqno);
+    const auto cached = signature_cache.get_signature_for(txid.seqno - 1);
+    REQUIRE(cached.has_value());
+    REQUIRE(cached->sig_seqno == txid.seqno);
+    REQUIRE(cached->cose_signatures == written_signatures);
+
+    const auto ledger = construct_host_ledger(store.get_consensus());
+    const auto& entry = ledger.at(txid.seqno);
+    auto result = ccf::kv::ApplyResult::FAIL;
+    ccf::ClaimsDigest claims_digest;
+    bool has_commit_evidence = false;
+    const auto historical_store = historical_cache.deserialise_ledger_entry(
+      txid.seqno,
+      entry.data(),
+      entry.size(),
+      result,
+      claims_digest,
+      has_commit_evidence);
+    REQUIRE(historical_store != nullptr);
+    REQUIRE(result == ccf::kv::ApplyResult::PASS_SIGNATURE);
+    REQUIRE(historical_store->current_txid() == txid);
+    REQUIRE(
+      ccf::historical::get_cose_signatures(historical_store) ==
+      cached->cose_signatures);
+  }
+}
+
+TEST_CASE("Legacy COSE receipt descriptions select CLASSICAL, not PQ")
+{
+  const ccf::CoseSignature classical_signature{1, 2, 3};
+  const ccf::CoseSignature pq_signature{4, 5, 6};
+  ccf::TxReceiptImpl receipt(
+    std::nullopt,
+    {{ccf::IdentityType::CLASSICAL, classical_signature},
+     {ccf::IdentityType::PQ, pq_signature}},
+    std::nullopt,
+    nullptr,
+    ccf::NodeId{},
+    std::nullopt);
+
+  REQUIRE(ccf::describe_cose_signature_v1(receipt) == classical_signature);
+  REQUIRE(
+    ccf::historical::select_described_cose_signature(receipt.cose_signatures) ==
+    classical_signature);
+
+  receipt.cose_signatures.erase(ccf::IdentityType::CLASSICAL);
+  REQUIRE_FALSE(ccf::describe_cose_signature_v1(receipt).has_value());
+  REQUIRE_FALSE(
+    ccf::historical::select_described_cose_signature(receipt.cose_signatures)
+      .has_value());
 }
 
 int main(int argc, char** argv)
