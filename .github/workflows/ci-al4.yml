@@ -46,6 +46,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -DCCF_BINARY_DIR="$PWD" -P ../tests/cmake/check_stacktrace_backend.cmake
           ninja
         shell: bash
 
@@ -55,6 +56,33 @@ jobs:
           cd build
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
         shell: bash
+
+      - name: "Check stacktraces without standalone libbacktrace"
+        shell: bash
+        run: |
+          set -exo pipefail
+          if rpm -q libbacktrace-static; then
+            echo "AL4 must not install standalone libbacktrace"
+            exit 1
+          fi
+          standalone_backtrace="$(find /usr/include /usr/lib /usr/lib64 -name backtrace.h -o -name 'libbacktrace.*')"
+          test -z "$standalone_backtrace"
+          cmake -S . -B build-stacktrace-release -GNinja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCCF_STACKTRACE_BACKEND=STD
+          cmake --build build-stacktrace-release --target task_system_test
+          ctest --test-dir build-stacktrace-release --output-on-failure \
+            -R '^task_system_test$' --no-tests=error
+
+      - name: "Check installed task target"
+        shell: bash
+        run: |
+          set -exo pipefail
+          cmake --install build
+          cmake -S tests/cmake/stacktrace_consumer -B build-stacktrace-consumer -GNinja \
+            -Dccf_DIR=/opt/ccf/cmake -DEXPECT_BACKEND=STD \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          cmake --build build-stacktrace-consumer
+          ctest --test-dir build-stacktrace-consumer --output-on-failure --no-tests=error
 
       - name: "Run e2e tests (bucket_a)"
         run: |
@@ -122,6 +150,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -DCCF_BINARY_DIR="$PWD" -P ../tests/cmake/check_stacktrace_backend.cmake
           ninja
         shell: bash
 
@@ -183,6 +212,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -DCCF_BINARY_DIR="$PWD" -P ../tests/cmake/check_stacktrace_backend.cmake
           ninja
         shell: bash
 

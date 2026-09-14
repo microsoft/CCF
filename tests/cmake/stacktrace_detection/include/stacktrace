@@ -1,0 +1,63 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+#pragma once
+
+// Test-only symbol absent from the host's standard-library archives.
+extern int ccf_stacktrace_fixture_support();
+
+#if defined(CCF_FIXTURE_NO_HEADER)
+#  error stacktrace is unavailable
+#endif
+#if !defined(CCF_FIXTURE_NO_FEATURE)
+#  define __cpp_lib_stacktrace 202011L
+#endif
+
+namespace std
+{
+  struct ccf_fixture_text
+  {
+    bool empty() const
+    {
+      return ccf_stacktrace_fixture_support() == 0;
+    }
+  };
+
+  struct stacktrace_entry
+  {
+    ccf_fixture_text description() const
+    {
+      return {};
+    }
+    ccf_fixture_text source_file() const
+    {
+      return {};
+    }
+    unsigned int source_line() const
+    {
+      return 0;
+    }
+#if !defined(CCF_FIXTURE_NO_NATIVE_HANDLE)
+    unsigned long native_handle() const
+    {
+      return 0;
+    }
+#endif
+  };
+
+  struct stacktrace
+  {
+    stacktrace_entry entry;
+    static stacktrace current(unsigned long, unsigned long)
+    {
+      return {};
+    }
+    const stacktrace_entry* begin() const
+    {
+      return &entry;
+    }
+    const stacktrace_entry* end() const
+    {
+      return &entry + 1;
+    }
+  };
+}
