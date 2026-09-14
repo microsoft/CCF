@@ -59,6 +59,8 @@ int main()
       if(NOT candidate STREQUAL "default")
         list(APPEND CMAKE_REQUIRED_LIBRARIES "${candidate}")
       endif()
+      # Match ccf_tasks' link order, with loader libraries after the archive.
+      list(APPEND CMAKE_REQUIRED_LIBRARIES ${CMAKE_DL_LIBS})
       # Recheck on reconfigure, including when the selected mode changes.
       unset(CCF_STACKTRACE_STD_LINKS CACHE)
       check_cxx_source_compiles("${std_source}" CCF_STACKTRACE_STD_LINKS)
@@ -94,6 +96,7 @@ int main()
     endif()
     list(APPEND CMAKE_REQUIRED_INCLUDES "${BACKTRACE_INCLUDE_DIR}")
     set(CMAKE_REQUIRED_LIBRARIES ${required_libraries} "${BACKTRACE_LIBRARY}")
+    list(APPEND CMAKE_REQUIRED_LIBRARIES ${CMAKE_DL_LIBS})
     unset(CCF_STACKTRACE_LIBBACKTRACE_LINKS CACHE)
     check_cxx_source_compiles(
       [=[
