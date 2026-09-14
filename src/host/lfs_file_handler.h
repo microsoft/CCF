@@ -4,8 +4,8 @@
 
 #include "ds/files.h"
 #include "ds/messaging.h"
+#include "ds/time_bound_logger.h"
 #include "indexing/lfs_ringbuffer_types.h"
-#include "time_bound_logger.h"
 
 #include <filesystem>
 
@@ -22,13 +22,13 @@ namespace asynchost
       if (std::filesystem::is_directory(root_dir))
       {
         LOG_INFO_FMT("Clearing contents from existing directory {}", root_dir);
-        TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
           "Clearing LFS index directory - remove_all({})", root_dir));
         std::filesystem::remove_all(root_dir);
       }
 
       {
-        TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
           "Creating LFS index directory - create_directory({})", root_dir));
         if (!std::filesystem::create_directory(root_dir))
         {
@@ -49,7 +49,7 @@ namespace asynchost
 
           const auto target_path = root_dir / key;
           {
-            TimeBoundLogger log_if_slow(fmt::format(
+            ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
               "Writing LFS file ({} bytes) - {}",
               encrypted.size(),
               target_path));
@@ -69,7 +69,7 @@ namespace asynchost
           const auto target_path = root_dir / key;
           if (std::filesystem::is_regular_file(target_path))
           {
-            TimeBoundLogger log_if_slow(
+            ccf::ds::TimeBoundLogger log_if_slow(
               fmt::format("Reading LFS file - ifstream({})", target_path));
             std::ifstream f(target_path, std::ios::binary);
             f.seekg(0, f.end);
