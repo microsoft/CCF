@@ -9,6 +9,7 @@
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"
+#include "node/http_node_client.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/self_cert_auth.h"
 #include "node_stub.h"
@@ -59,6 +60,14 @@ class TestNodeRpcFrontend : public NodeRpcFrontend
 {
 public:
   using NodeRpcFrontend::NodeRpcFrontend;
+
+  std::shared_ptr<ccf::RpcContextImpl> last_request;
+
+  void process(std::shared_ptr<ccf::RpcContextImpl> ctx) override
+  {
+    NodeRpcFrontend::process(ctx);
+    last_request = std::move(ctx);
+  }
 
   ccf::endpoints::EndpointRegistry& get_node_endpoints()
   {
@@ -161,6 +170,59 @@ TEST_CASE("Self certificate authentication")
     ccf::crypto::compute_cert_valid_to_string(future_from, 1));
   CHECK(authenticate(future_cert.raw()) == nullptr);
   CHECK(error_reason.contains("before certificate's Not Before"));
+}
+
+TEST_CASE("Pending-node cleanup uses renewed client certificates")
+{
+  NetworkState network;
+  network.tables->set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  StubNodeContext context;
+  context.install_subsystem(std::make_shared<StubNodeConfiguration>());
+
+  const auto self_kp = ccf::crypto::make_ec_key_pair();
+  context.node_id = ccf::compute_node_id_from_kp(self_kp);
+  auto node_cert =
+    self_kp->self_sign("CN=Self", "20200101000000Z", "20200102000000Z");
+
+  const auto pending_node_id =
+    ccf::compute_node_id_from_kp(ccf::crypto::make_ec_key_pair());
+  {
+    auto tx = network.tables->create_tx();
+    NodeInfo pending_node;
+    pending_node.encryption_pub_key = dummy_enc_pubk;
+    pending_node.status = NodeStatus::PENDING;
+    pending_node.pending_last_seen = 0;
+    tx.rw(network.nodes)->put(pending_node_id, pending_node);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  auto frontend = std::make_shared<TestNodeRpcFrontend>(network, context);
+  frontend->open();
+  auto rpc_map = std::make_shared<ccf::RPCMap>();
+  rpc_map->register_frontend<ccf::ActorsType::nodes>(frontend);
+  HTTPNodeClient client(rpc_map, self_kp, [&]() { return node_cert; });
+
+  ::http::Request request(
+    "/node/network/nodes/remove_expired_pending", HTTP_POST);
+  request.set_header(ccf::http::headers::CONTENT_LENGTH, "0");
+  CHECK_FALSE(client.make_request(request));
+  REQUIRE(frontend->last_request != nullptr);
+  CHECK(
+    frontend->last_request->get_response_status() == HTTP_STATUS_UNAUTHORIZED);
+  {
+    auto tx = network.tables->create_tx();
+    CHECK(tx.ro(network.nodes)->has(pending_node_id));
+  }
+
+  node_cert = self_kp->self_sign("CN=Self", valid_from, valid_to);
+  const auto success = client.make_request(request);
+  const auto response = frontend->last_request->serialise_response();
+  INFO(std::string(response.begin(), response.end()));
+  REQUIRE(success);
+  {
+    auto tx = network.tables->create_tx();
+    CHECK_FALSE(tx.ro(network.nodes)->has(pending_node_id));
+  }
 }
 
 TEST_CASE("Add a node to an opening service")

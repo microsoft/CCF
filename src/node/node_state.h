@@ -3591,11 +3591,11 @@ namespace ccf
 
       auto shared_state = std::make_shared<aft::State>(self);
 
-      auto node_client = std::make_shared<HTTPNodeClient>(
-        rpc_map,
-        node_sign_kp,
-        get_self_signed_certificate(),
-        endorsed_node_certificate_);
+      auto node_client =
+        std::make_shared<HTTPNodeClient>(rpc_map, node_sign_kp, [this]() {
+          std::lock_guard<ds::Mutex> guard(node_certificates_lock);
+          return endorsed_node_cert.value_or(self_signed_node_cert);
+        });
 
       consensus = std::make_shared<RaftType>(
         consensus_config,
