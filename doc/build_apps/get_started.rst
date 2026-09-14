@@ -6,7 +6,7 @@ Application Development using CCF Overview
 
 -  :ref:`What is Confidential Consortium Framework (CCF) <overview/what_is_ccf:What is CCF?>`
 -  Read the :doc:`CCF overview </overview/index>` and get familiar with :ref:`overview/what_is_ccf:Core Concepts` and `Azure confidential computing <https://learn.microsoft.com/en-us/azure/confidential-computing/>`__
--  :doc:`Build new CCF applications </build_apps/index>` in TypeScript/JavaScript or C++
+-  :doc:`Build new CCF applications </build_apps/index>` in TypeScript/JavaScript, C++, or Rust
 -  CCF `JavaScript module API reference <https://ccf.dev/main/js/ccf-app/>`__
 -  CCF application get started repos `CCF application template <https://github.com/microsoft/ccf-app-template>`__ and  `CCF application samples <https://github.com/microsoft/ccf-app-samples>`__
 
@@ -90,6 +90,13 @@ Packaging your C++ app
 ~~~~~~~~~~~~~~~~~~~~~~
 
 To create distributable packages for your CCF application, create a ``cpack.cmake`` file that includes CCF's packaging configuration and add it to your ``CMakeLists.txt``. See :ccf_repo:`tests/ccfapp/CMakeLists.txt` and :ccf_repo:`tests/ccfapp/cpack.cmake` for a complete working example.
+
+Rust Applications
+-----------------
+
+Rust applications are native CCF executables with the same deployment model as
+C++ applications. See :doc:`example_rust` for the supported API and build
+instructions.
 
 Network Governance
 ------------------
