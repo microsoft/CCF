@@ -43,39 +43,20 @@ TEST_CASE("basic macro parser generation")
 TEST_CASE("parse errors do not include field values")
 {
   {
-    // Missing required field: message does not include the object's values
     nlohmann::json j;
     j["b"] = "SECRET_VALUE";
     j["c"] = 12345;
 
-    try
-    {
-      j.get<Bar>();
-      FAIL("Expected JsonParseError");
-    }
-    catch (const ccf::JsonParseError& jpe)
-    {
-      const std::string msg = jpe.what();
-      REQUIRE(msg.find("Missing required field 'a'") != std::string::npos);
-      REQUIRE(msg.find("SECRET_VALUE") == std::string::npos);
-      REQUIRE(msg.find("12345") == std::string::npos);
-    }
+    REQUIRE_THROWS_WITH_AS(
+      j.get<Bar>(),
+      "Missing required field 'a' in object",
+      ccf::JsonParseError);
   }
 
   {
-    // Not an object: message does not include the value
     const nlohmann::json j = "SECRET_VALUE";
-    try
-    {
-      j.get<Bar>();
-      FAIL("Expected JsonParseError");
-    }
-    catch (const ccf::JsonParseError& jpe)
-    {
-      const std::string msg = jpe.what();
-      REQUIRE(msg.find("Expected object") != std::string::npos);
-      REQUIRE(msg.find("SECRET_VALUE") == std::string::npos);
-    }
+    REQUIRE_THROWS_WITH_AS(
+      j.get<Bar>(), "Expected object", ccf::JsonParseError);
   }
 }
 
@@ -734,37 +715,18 @@ TEST_CASE("JSON with different field names")
   REQUIRE(foo2.c == foo.c);
 
   {
-    // Missing required renamed field: message does not include the object's
-    // values
     nlohmann::json j_missing;
     j_missing["X"] = 987654;
-    try
-    {
-      j_missing.get<renamed::Foo>();
-      FAIL("Expected JsonParseError");
-    }
-    catch (const ccf::JsonParseError& jpe)
-    {
-      const std::string msg = jpe.what();
-      REQUIRE(
-        msg.find("Missing required field 'SOMETHING_ELSE'") !=
-        std::string::npos);
-      REQUIRE(msg.find("987654") == std::string::npos);
-    }
+    REQUIRE_THROWS_WITH_AS(
+      j_missing.get<renamed::Foo>(),
+      "Missing required field 'SOMETHING_ELSE' in object",
+      ccf::JsonParseError);
   }
 
   {
     const nlohmann::json j_scalar = "SECRET_VALUE";
-    try
-    {
-      j_scalar.get<renamed::Foo>();
-      FAIL("Expected JsonParseError");
-    }
-    catch (const ccf::JsonParseError& jpe)
-    {
-      const std::string msg = jpe.what();
-      REQUIRE(msg == "Expected object");
-    }
+    REQUIRE_THROWS_WITH_AS(
+      j_scalar.get<renamed::Foo>(), "Expected object", ccf::JsonParseError);
   }
 }
 
