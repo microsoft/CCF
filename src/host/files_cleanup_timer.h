@@ -570,5 +570,5 @@ namespace asynchost
     }
   };
 
-  using FilesCleanupTimer = proxy_ptr<Timer<FilesCleanupImpl>>;
+  using FilesCleanupTimer = ccf::uv::proxy_ptr<Timer<FilesCleanupImpl>>;
 }

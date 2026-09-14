@@ -2,14 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/crypto/pem.h"
 
+#include <openssl/crypto.h>
+
 namespace ccf::crypto
 {
   void Pem::check_pem_format()
   {
     if (!s.contains("-----BEGIN"))
     {
-      throw std::runtime_error(
-        fmt::format("PEM constructed with non-PEM data: {}", s));
+      // Construction has not completed, so a caller's guard cannot run yet.
+      OPENSSL_cleanse(s.data(), s.size());
+      throw std::runtime_error("PEM constructed with non-PEM data");
     }
   }
 

@@ -22,6 +22,7 @@
 #include <set>
 #include <stop_token>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -58,6 +59,112 @@ TEST_CASE("Map name parsing")
 
   REQUIRE(parse("ccf_foo") == mp(SD::PRIVATE, AC::APPLICATION));
   REQUIRE(parse("public:ccf_foo") == mp(SD::PUBLIC, AC::APPLICATION));
+}
+
+TEST_CASE("Zero-revision whole-map dependencies")
+{
+  using Result = ccf::kv::CommitResult;
+  for (const std::string_view observation :
+       {"foreach", "range", "size", "clear"})
+  {
+    INFO("Map-wide observation: ", observation);
+    ccf::kv::Store store;
+    store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    MapTypes::StringString empty("public:empty");
+    MapTypes::StringString other("public:other");
+    {
+      auto tx = store.create_tx();
+      // Register an empty map without advancing its initial revision.
+      tx.rw(empty)->remove("missing");
+      REQUIRE(tx.commit() == Result::SUCCESS);
+      REQUIRE(tx.commit_version() == 1);
+    }
+
+    auto pending = store.create_tx();
+    if (observation == "foreach")
+    {
+      auto* handle = pending.rw(empty);
+      handle->put("own", "pending");
+      size_t visited = 0;
+      handle->foreach([&](const auto&, const auto&) {
+        ++visited;
+        return true;
+      });
+      REQUIRE(visited == 1);
+    }
+    else if (observation == "range")
+    {
+      auto* handle = pending.rw<MapTypes::UntypedMap>("public:empty");
+      handle->put(
+        ccf::kv::serialisers::JsonSerialiser<std::string>::to_serialised("own"),
+        ccf::kv::serialisers::JsonSerialiser<std::string>::to_serialised(
+          "pending"));
+      size_t visited = 0;
+      pending.rw<MapTypes::UntypedMap>(empty.get_name())
+        ->range(
+          [&](const auto&, const auto&) { ++visited; },
+          std::nullopt,
+          std::nullopt);
+      REQUIRE(visited == 1);
+    }
+    else if (observation == "size")
+    {
+      auto* handle = pending.rw(empty);
+      REQUIRE(handle->size() == 0);
+    }
+    else
+    {
+      auto* handle = pending.rw(empty);
+      handle->clear();
+    }
+    pending.rw(other)->put("must_not_apply", "pending");
+    {
+      auto tx = store.create_tx();
+      tx.rw(empty)->put("concurrent", "committed");
+      REQUIRE(tx.commit() == Result::SUCCESS);
+    }
+    CHECK(pending.commit() == Result::FAIL_CONFLICT);
+    auto check = store.create_tx();
+    CHECK_FALSE(check.ro(other)->has("must_not_apply"));
+    CHECK_FALSE(check.ro(empty)->has("own"));
+    REQUIRE(check.ro(empty)->get("concurrent") == "committed");
+  }
+}
+
+TEST_CASE("Zero-revision whole-map non-conflicts")
+{
+  using Result = ccf::kv::CommitResult;
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  MapTypes::StringString empty("public:empty");
+  MapTypes::StringString other("public:other");
+  {
+    auto tx = store.create_tx();
+    tx.rw(empty)->remove("missing");
+    REQUIRE(tx.commit() == Result::SUCCESS);
+  }
+  {
+    auto tx = store.create_tx();
+    REQUIRE(tx.ro(empty)->size() == 0);
+    tx.rw(other)->put("unchanged", "accepted");
+    REQUIRE(tx.commit() == Result::SUCCESS);
+  }
+  {
+    auto reader = store.create_tx();
+    REQUIRE(reader.ro(empty)->size() == 0);
+    auto writer = store.create_tx();
+    writer.wo(empty)->put("key", "value");
+    auto blind = store.create_tx();
+    blind.wo(empty)->put("blind", "value");
+    REQUIRE(writer.commit() == Result::SUCCESS);
+    REQUIRE(reader.commit() == Result::SUCCESS);
+    REQUIRE(reader.commit_version() == ccf::kv::NoVersion);
+    REQUIRE(blind.commit() == Result::SUCCESS);
+  }
+  auto check = store.create_tx();
+  REQUIRE(check.ro(other)->get("unchanged") == "accepted");
+  REQUIRE(check.ro(empty)->get("key") == "value");
+  REQUIRE(check.ro(empty)->get("blind") == "value");
 }
 
 TEST_CASE("Reads/writes and deletions")
@@ -3046,6 +3153,119 @@ TEST_CASE("Stale-view writes are rejected before local application")
   fresh_dynamic_map_tx.rw<MapTypes::StringString>("public:new_map")
     ->put(key, "fresh");
   REQUIRE(fresh_dynamic_map_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+}
+
+TEST_CASE("Stale-view writes which took their version early are rejected")
+{
+  bool reuse_versions = false;
+  SUBCASE("No versions allocated after rollback")
+  {
+    reuse_versions = false;
+  }
+  SUBCASE("Versions allocated again after rollback")
+  {
+    reuse_versions = true;
+  }
+
+  for (const auto state :
+       {ccf::kv::test::StubConsensus::Primary,
+        ccf::kv::test::StubConsensus::Backup,
+        ccf::kv::test::StubConsensus::Candidate})
+  {
+    CAPTURE(state);
+
+    ccf::kv::Store store;
+    store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+    consensus->state = ccf::kv::test::StubConsensus::Primary;
+    store.set_consensus(consensus);
+
+    constexpr ccf::kv::Term initial_term = 2;
+    constexpr ccf::kv::Term new_term = initial_term + 1;
+    constexpr ccf::SeqNo rollback_seqno = 2;
+    MapTypes::StringString map("public:map");
+    store.initialise_term(initial_term);
+
+    auto write = [&](const std::string& key, const std::string& value) {
+      auto tx = store.create_tx();
+      tx.rw(map)->put(key, value);
+      return tx.commit();
+    };
+
+    auto read = [&](const std::string& key) {
+      auto tx = store.create_read_only_tx();
+      return tx.ro(map)->get(key);
+    };
+
+    auto replicated_to = [&]() {
+      return std::get<0>(consensus->replica.back());
+    };
+
+    REQUIRE(write("first", "1") == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(write("second", "2") == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(write("truncated", "3") == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(store.current_version() == 3);
+    REQUIRE(consensus->replica.size() == 3);
+
+    INFO("Reject a transaction whose writes were rolled back mid-commit");
+    {
+      auto stale_tx = store.create_tx();
+      stale_tx.rw(map)->put("stale", "4");
+
+      // The observer runs after local application, before Store::commit().
+      auto lose_view = [&](const ccf::crypto::Sha256Hash&, const std::string&) {
+        REQUIRE(store.current_version() == 4);
+        consensus->state = state;
+        consensus->replica.resize(rollback_seqno);
+        store.rollback({initial_term, rollback_seqno}, new_term);
+
+        if (reuse_versions)
+        {
+          // New reservations must not make the old-view transaction valid.
+          REQUIRE(store.next_txid() == ccf::TxID(new_term, 3));
+          REQUIRE(store.next_txid() == ccf::TxID(new_term, 4));
+        }
+      };
+
+      CHECK(
+        stale_tx.commit(ccf::empty_claims(), lose_view) ==
+        ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+      const auto expected_txid = reuse_versions ?
+        ccf::TxID(new_term, 4) :
+        ccf::TxID(initial_term, rollback_seqno);
+      CHECK(store.current_txid() == expected_txid);
+      CHECK(!read("stale").has_value());
+      CHECK(!read("truncated").has_value());
+      CHECK(replicated_to() == rollback_seqno);
+    }
+
+    INFO("Become primary, rolling back any new reservations");
+    {
+      store.rollback({initial_term, rollback_seqno}, new_term + 1);
+      consensus->state = ccf::kv::test::StubConsensus::Primary;
+    }
+
+    INFO("The first write after election replicates only itself");
+    {
+      const auto replicated_before = consensus->replica.size();
+      REQUIRE(write("fresh", "3") == ccf::kv::CommitResult::SUCCESS);
+      CHECK(read("fresh") == "3");
+      CHECK(store.current_txid() == ccf::TxID(new_term + 1, 3));
+      CHECK(consensus->replica.size() == replicated_before + 1);
+      CHECK(replicated_to() == 3);
+      CHECK(store.current_version() == replicated_to());
+    }
+
+    INFO("Subsequent writes continue to replicate");
+    {
+      const auto replicated_before = consensus->replica.size();
+      REQUIRE(write("next", "4") == ccf::kv::CommitResult::SUCCESS);
+      CHECK(read("next") == "4");
+      CHECK(!read("stale").has_value());
+      CHECK(consensus->replica.size() == replicated_before + 1);
+      CHECK(store.current_version() == replicated_to());
+    }
+  }
 }
 
 TEST_CASE("Reported TxID after commit")

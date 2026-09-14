@@ -332,12 +332,6 @@ namespace aft
         state->retirement_phase == ccf::kv::RetirementPhase::RetiredCommitted;
     }
 
-    bool is_retired_completed() const
-    {
-      return state->membership_state == ccf::kv::MembershipState::Retired &&
-        state->retirement_phase == ccf::kv::RetirementPhase::Completed;
-    }
-
     void set_retired_committed(
       ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {
@@ -1478,15 +1472,6 @@ namespace aft
           case ccf::kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET:
           {
             break;
-          }
-
-          case ccf::kv::ApplyResult::PASS_BACKUP_SIGNATURE:
-          case ccf::kv::ApplyResult::PASS_BACKUP_SIGNATURE_SEND_ACK:
-          case ccf::kv::ApplyResult::PASS_NONCES:
-          case ccf::kv::ApplyResult::PASS_NEW_VIEW:
-          case ccf::kv::ApplyResult::PASS_APPLY:
-          {
-            throw std::logic_error("Unknown ApplyResult value");
           }
         }
       }
@@ -2847,16 +2832,13 @@ namespace aft
 
         if (all_other_nodes.find(node_info.first) == all_other_nodes.end())
         {
-          if (!channels->have_channel(node_info.first))
-          {
-            RAFT_DEBUG_FMT(
-              "Configurations: create node channel with {}", node_info.first);
+          RAFT_DEBUG_FMT(
+            "Configurations: associate node address for {}", node_info.first);
 
-            channels->associate_node_address(
-              node_info.first,
-              node_info.second.hostname,
-              node_info.second.port);
-          }
+          // An incoming channel may predate this configuration. The host still
+          // needs the peer's address to reconnect after that channel closes.
+          channels->associate_node_address(
+            node_info.first, node_info.second.hostname, node_info.second.port);
 
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.

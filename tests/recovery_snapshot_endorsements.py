@@ -111,14 +111,21 @@ def _copy_ledger_prefix(source_dirs, destination, first_excluded_seqno):
     assert copied > 0
 
 
-def _assert_node_snapshot_unchanged(
-    network, node, snapshot_name, expected_snapshot_digest
-):
-    snapshots_dir = network.get_committed_snapshots(node, force_txs=False)
-    snapshot_path = os.path.join(snapshots_dir, snapshot_name)
-    assert os.path.isfile(snapshot_path), snapshot_path
-    with open(snapshot_path, "rb") as snapshot_file:
-        assert hashlib.sha256(snapshot_file.read()).digest() == expected_snapshot_digest
+def _assert_node_snapshot_unchanged(node, snapshot_name, expected_snapshot_digest):
+    snapshot_paths = [
+        path
+        for path in node.get_snapshots(include_read_only=True)
+        if os.path.basename(path) == snapshot_name
+    ]
+    assert (
+        snapshot_paths
+    ), f"Snapshot {snapshot_name} not found on node {node.local_node_id}"
+    for snapshot_path in snapshot_paths:
+        with open(snapshot_path, "rb") as snapshot_file:
+            assert (
+                hashlib.sha256(snapshot_file.read()).digest()
+                == expected_snapshot_digest
+            ), snapshot_path
 
 
 def run_recovery_snapshot_endorsements(args):
@@ -131,19 +138,15 @@ def run_recovery_snapshot_endorsements(args):
         initial_network.start_and_open(args)
         primary, _ = initial_network.find_primary()
 
-        app.LoggingTxs("user0").issue(
+        target = app.LoggingTxs("user0").issue(
             initial_network,
             number_txs=2,
             send_private=False,
             send_public=True,
             wait_for_sync=True,
         )
-        snapshot_trigger = primary.trigger_snapshot()
-        initial_network.get_committed_snapshots(
-            primary,
-            target_seqno=snapshot_trigger.seqno,
-            wait_for_target_seqno=True,
-        )
+        primary.trigger_snapshot()
+        primary.wait_for_snapshot(target.seqno)
         app.LoggingTxs("user0").issue(
             initial_network,
             number_txs=2,
@@ -237,7 +240,7 @@ def run_recovery_snapshot_endorsements(args):
                 < logs.index(public_recovery_log)
             )
             _assert_node_snapshot_unchanged(
-                valid_attempt, valid_primary, snapshot_name, snapshot_digest
+                valid_primary, snapshot_name, snapshot_digest
             )
         finally:
             _stop_incomplete_recovery(valid_attempt)
@@ -272,7 +275,7 @@ def run_recovery_snapshot_endorsements(args):
             assert "No usable local snapshot found" in logs
             assert "Setting startup snapshot seqno" not in logs
             _assert_node_snapshot_unchanged(
-                fallback_attempt, fallback_primary, snapshot_name, snapshot_digest
+                fallback_primary, snapshot_name, snapshot_digest
             )
         finally:
             _stop_incomplete_recovery(fallback_attempt)

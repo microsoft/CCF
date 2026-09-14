@@ -219,20 +219,5 @@ namespace ccf::kv
     {
       return version;
     }
-
-    bool support_async_execution() override
-    {
-      return false;
-    }
-
-    bool is_public_only() override
-    {
-      return public_only;
-    }
-
-    bool should_rollback_to_last_committed() override
-    {
-      return false;
-    }
   };
 }

@@ -4,12 +4,15 @@
 
 #include "ccf/crypto/verifier.h"
 #include "cose/cose_rs_ffi.h"
-#include "crypto/cbor.h"
+#include "crypto/cbor_helpers.h"
+#include "crypto/cbor_tags.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
+#include "crypto/test/cbor_printer.h"
 
 #include <doctest/doctest.h>
 #include <string>
+#include <tav/cbor.hpp>
 #include <vector>
 
 namespace
@@ -37,29 +40,29 @@ namespace
 
   CoseSign1Components decompose(const std::vector<uint8_t>& envelope)
   {
-    using namespace ccf::cbor;
-    auto cose = parse(envelope);
-    const auto& env = cose->tag_at(ccf::cbor::tag::COSE_SIGN_1);
-    auto phdr = env->array_at(0)->as_bytes();
+    using namespace tav::cbor;
+    auto cose = nondet_parse(envelope);
+    const auto& env = cose.tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    auto phdr = env.array_at(0).as_bytes();
 
     std::optional<std::span<const uint8_t>> payload;
     try
     {
-      payload = env->array_at(2)->as_bytes();
+      payload = env.array_at(2).as_bytes();
     }
-    catch (const CBORDecodeError&)
+    catch (const DecodeError&)
     {
-      if (env->array_at(2)->as_simple() != ccf::cbor::SimpleValue::Null)
+      if (env.array_at(2).as_simple() != tav::cbor::SimpleValue::Null)
       {
         throw;
       }
     }
 
-    auto sig = env->array_at(3)->as_bytes();
+    auto sig = env.array_at(3).as_bytes();
 
-    auto phdr_parsed = parse({phdr.data(), phdr.size()});
-    auto alg = phdr_parsed->map_at(make_signed(ccf::cose::header::iana::ALG))
-                 ->as_signed();
+    auto phdr_parsed = nondet_parse({phdr.data(), phdr.size()});
+    auto alg =
+      phdr_parsed.map_at(make_signed(ccf::cose::header::iana::ALG)).as_signed();
 
     return {phdr, payload, sig, alg};
   }

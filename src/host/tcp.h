@@ -8,8 +8,8 @@
 #include "dns.h"
 #include "ds/internal_logger.h"
 #include "ds/pending_io.h"
-#include "proxy.h"
 #include "socket.h"
+#include "uv/proxy.h"
 
 #include <netinet/in.h>
 #include <optional>
@@ -19,12 +19,12 @@ namespace asynchost
 {
   // NOLINTBEGIN(cppcoreguidelines-virtual-class-destructor)
   class TCPImpl;
-  using TCP = proxy_ptr<TCPImpl>;
+  using TCP = ccf::uv::proxy_ptr<TCPImpl>;
 
-  class TCPImpl : public with_uv_handle<uv_tcp_t>
+  class TCPImpl : public ccf::uv::with_uv_handle<uv_tcp_t>
   {
   private:
-    friend class close_ptr<TCPImpl>;
+    friend class ccf::uv::close_ptr<TCPImpl>;
 
     static constexpr int backlog = 128;
     static constexpr size_t max_read_size = 16384;
@@ -1106,5 +1106,5 @@ namespace asynchost
     }
   };
 
-  using ResetTCPReadQuota = proxy_ptr<BeforeIO<ResetTCPReadQuotaImpl>>;
+  using ResetTCPReadQuota = ccf::uv::proxy_ptr<BeforeIO<ResetTCPReadQuotaImpl>>;
 }

@@ -66,11 +66,6 @@ namespace ringbuffer
       inbound_work_beacon(std::make_shared<ccf::ds::WorkBeacon>())
     {}
 
-    ccf::ds::WorkBeaconPtr get_outbound_work_beacon()
-    {
-      return outbound_work_beacon;
-    }
-
     ccf::ds::WorkBeaconPtr get_inbound_work_beacon()
     {
       return inbound_work_beacon;

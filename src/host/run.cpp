@@ -29,7 +29,7 @@
 #include "enclave/entry_points.h"
 #include "handle_ring_buffer.h"
 #include "host/files_cleanup_timer.h"
-#include "http/curl.h"
+#include "http_client/curl.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
 #include "node_connections.h"
@@ -537,7 +537,7 @@ namespace ccf
     // Initialise the curlm singleton
     curl_global_init(CURL_GLOBAL_DEFAULT);
     auto curl_libuv_context =
-      curl::CurlmLibuvContextSingleton(uv_default_loop());
+      http_client::CurlmLibuvContextSingleton(uv_default_loop());
 
     // Setup RPC interfaces
     setup_rpc_interfaces(config, rpc, rpc_udp);

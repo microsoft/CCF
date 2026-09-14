@@ -5,9 +5,9 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/service/tables/jwt.h"
-#include "http/curl.h"
+#include "enclave/http_rpc_context.h"
 #include "http/http_builder.h"
-#include "http/http_rpc_context.h"
+#include "http_client/curl.h"
 #include "node/rpc/node_frontend.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
@@ -40,9 +40,9 @@ namespace ccf
     void send_curl_get(
       const std::string& url,
       const std::string& ca_bundle_pem,
-      ccf::curl::CurlRequest::ResponseCallback callback)
+      ccf::http_client::CurlRequest::ResponseCallback callback)
     {
-      ccf::curl::UniqueCURL curl_handle;
+      ccf::http_client::UniqueCURL curl_handle;
       curl_handle.set_opt(CURLOPT_HTTPGET, 1L);
       curl_handle.set_opt(CURLOPT_CONNECTTIMEOUT, request_connection_timeout_s);
       curl_handle.set_opt(CURLOPT_TIMEOUT, request_response_timeout_s);
@@ -60,19 +60,19 @@ namespace ccf
         ca_bundle_pem.size());
       curl_handle.set_opt(CURLOPT_CAPATH, nullptr);
 
-      ccf::curl::UniqueSlist headers;
+      ccf::http_client::UniqueSlist headers;
 
-      auto request = std::make_unique<ccf::curl::CurlRequest>(
+      auto request = std::make_unique<ccf::http_client::CurlRequest>(
         std::move(curl_handle),
         HTTP_GET,
         url,
         std::move(headers),
         nullptr,
-        std::make_unique<ccf::curl::ResponseBody>(max_response_size),
+        std::make_unique<ccf::http_client::ResponseBody>(max_response_size),
         std::move(callback));
 
-      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-        std::move(request));
+      ccf::http_client::CurlmLibuvContextSingleton::get_instance()
+        ->attach_request(std::move(request));
     }
 
   public:
@@ -336,7 +336,7 @@ namespace ccf
       const auto self = weak_from_this();
       auto response_callback =
         [self, issuer, issuer_constraint](
-          std::unique_ptr<ccf::curl::CurlRequest>&& request,
+          std::unique_ptr<ccf::http_client::CurlRequest>&& request,
           CURLcode curl_response,
           long status_code) {
           auto http_status = static_cast<ccf::http_status>(status_code);
@@ -436,7 +436,7 @@ namespace ccf
         const auto self = weak_from_this();
         auto response_callback =
           [self, issuer, ca_bundle_pem](
-            std::unique_ptr<ccf::curl::CurlRequest>&& request,
+            std::unique_ptr<ccf::http_client::CurlRequest>&& request,
             CURLcode curl_response,
             long status_code) {
             auto http_status = static_cast<ccf::http_status>(status_code);

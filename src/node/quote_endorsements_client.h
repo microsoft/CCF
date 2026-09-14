@@ -8,7 +8,7 @@
 #include "ccf/http_consts.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
-#include "http/curl.h"
+#include "http_client/curl.h"
 #include "tasks/basic_task.h"
 #include "tasks/task.h"
 #include "tasks/task_system.h"
@@ -143,13 +143,13 @@ namespace ccf
     struct HandleResponseTask : public ccf::tasks::BaseTask
     {
       std::shared_ptr<QuoteEndorsementsClient> self;
-      std::unique_ptr<curl::CurlRequest> request;
+      std::unique_ptr<http_client::CurlRequest> request;
       CURLcode curl_response;
       long status_code;
 
       HandleResponseTask(
         std::shared_ptr<QuoteEndorsementsClient> self_,
-        std::unique_ptr<curl::CurlRequest>&& request_,
+        std::unique_ptr<http_client::CurlRequest>&& request_,
         CURLcode curl_response_,
         long status_code_) :
         self(std::move(self_)),
@@ -272,7 +272,7 @@ namespace ccf
       const auto& server = servers.front();
       const auto& endpoint = server.front();
 
-      curl::UniqueCURL curl_handle;
+      http_client::UniqueCURL curl_handle;
 
       // Set curl get
       curl_handle.set_opt(CURLOPT_HTTPGET, 1L);
@@ -300,37 +300,38 @@ namespace ccf
         curl_handle.set_opt(CURLOPT_SSL_VERIFYSTATUS, 0L);
       }
 
-      auto headers = ccf::curl::UniqueSlist();
+      auto headers = ccf::http_client::UniqueSlist();
       for (auto const& [k, v] : endpoint.headers)
       {
         headers.append(k, v);
       }
       headers.append(http::headers::HOST, endpoint.host);
 
-      auto response_callback = ([self = shared_from_this()](
-                                  std::unique_ptr<curl::CurlRequest>&& request,
-                                  CURLcode curl_response,
-                                  long status_code) {
-        std::shared_ptr<HandleResponseTask> response_task =
-          std::make_shared<HandleResponseTask>(
-            self, std::move(request), curl_response, status_code);
-        ccf::tasks::add_task(response_task);
-      });
+      auto response_callback =
+        ([self = shared_from_this()](
+           std::unique_ptr<http_client::CurlRequest>&& request,
+           CURLcode curl_response,
+           long status_code) {
+          std::shared_ptr<HandleResponseTask> response_task =
+            std::make_shared<HandleResponseTask>(
+              self, std::move(request), curl_response, status_code);
+          ccf::tasks::add_task(response_task);
+        });
 
-      auto request = std::make_unique<curl::CurlRequest>(
+      auto request = std::make_unique<http_client::CurlRequest>(
         std::move(curl_handle),
         HTTP_GET,
         std::move(url),
         std::move(headers),
         nullptr,
-        std::make_unique<ccf::curl::ResponseBody>(
+        std::make_unique<ccf::http_client::ResponseBody>(
           endpoint.max_client_response_size),
         std::move(response_callback));
 
       LOG_INFO_FMT(
         "Fetching endorsements for attestation report at {}",
         request->get_url());
-      curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+      http_client::CurlmLibuvContextSingleton::get_instance()->attach_request(
         std::move(request));
     }
 

@@ -58,26 +58,6 @@ def probably_free_local_port(host):
     raise RuntimeError(f"Couldn't get a free port after {tries} tries!")
 
 
-def probably_free_remote_port(host):
-    tries = 1000
-    for _ in range(tries):
-        port = rr(*EPHEMERAL_RANGE)
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            s.connect((host, port))
-            s.close()
-        except OSError:
-            return port
-    raise RuntimeError(f"Couldn't get a free port after {tries} tries!")
-
-
-def two_different(finder, *args, **kwargs):
-    one, two = finder(*args, **kwargs), finder(*args, **kwargs)
-    while two == one:
-        two = finder(*args, **kwargs)
-    return (one, two)
-
-
 def expand_localhost(ipv6=False):
     if ipv6:
         return "::1"

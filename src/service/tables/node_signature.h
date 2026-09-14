@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "ds/serialized.h"
 
 #include <vector>
 
@@ -39,39 +38,6 @@ namespace ccf
     bool operator==(const NodeSignature& o) const
     {
       return sig == o.sig && hashed_nonce == o.hashed_nonce;
-    }
-
-    [[nodiscard]] size_t get_serialized_size() const
-    {
-      return sizeof(size_t) + sig.size() + sizeof(size_t) + node.size() +
-        sizeof(hashed_nonce);
-    }
-
-    void serialize(uint8_t*& data, size_t& size) const
-    {
-      size_t sig_size = sig.size();
-      serialized::write(
-        data, size, reinterpret_cast<uint8_t*>(&sig_size), sizeof(sig_size));
-      serialized::write(data, size, sig.data(), sig_size);
-
-      serialized::write(data, size, node.value());
-      serialized::write(
-        data,
-        size,
-        reinterpret_cast<const uint8_t*>(&hashed_nonce),
-        sizeof(hashed_nonce));
-    }
-
-    static NodeSignature deserialize(const uint8_t*& data, size_t& size)
-    {
-      NodeSignature n;
-
-      auto sig_size = serialized::read<size_t>(data, size);
-      n.sig = serialized::read(data, size, sig_size);
-      n.node = serialized::read<NodeId::Value>(data, size);
-      n.hashed_nonce = serialized::read<Nonce>(data, size);
-
-      return n;
     }
   };
   DECLARE_JSON_TYPE(NodeSignature);

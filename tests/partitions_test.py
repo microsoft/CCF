@@ -190,28 +190,21 @@ def test_isolate_primary_from_one_backup(network, args):
             }, f"Primary {p.local_node_id} is no longer follower"
         time.sleep(0.1)
 
+    LOG.info("A stable majority is not enough while a backup is still isolated")
+    try:
+        network.wait_for_stability(timeout_multiplier=3)
+    except TimeoutError:
+        pass
+    else:
+        assert False, "Partitioned network reported full stability"
+
     # Explicitly drop rules before continuing
     rules.drop()
 
     # primary should now observe partitioned backup as primary
     network.wait_for_new_primary_in({b_0}, nodes=[p])
 
-    LOG.info(f"Check that new primary {b_0.local_node_id} reports stable acks")
-    last_ack = 0
-    end_time = time.time() + 2 * network.args.election_timeout_ms // 1000
-    while time.time() < end_time:
-        with b_0.client() as c:
-            acks = c.get("/node/consensus", log_capture=[]).body.json()["details"][
-                "acks"
-            ]
-            delayed_acks = [
-                ack
-                for ack in acks.values()
-                if ack["last_received_ms"] > args.election_timeout_ms
-            ]
-            if delayed_acks:
-                raise RuntimeError(f"New primary reported some delayed acks: {acks}")
-        time.sleep(0.1)
+    network.wait_for_stability()
 
     return network
 
@@ -397,11 +390,7 @@ def test_expired_certs(network, args):
         check_can_progress(backup_a)
 
     # Restore connectivity with primary, an election may or may not happen
-    network.wait_for_primary_unanimity(min_view=r.view + 1)
-
-    # Dropped partition, and even primary unanimity, do not mean node connectivity has been instantaneously restored.
-    # Sleep through potential delays in reconnection.
-    time.sleep(3)
+    network.wait_for_stability(min_view=r.view + 1)
 
     # Set valid node certs so that future clients can speak to these nodes
     set_certs(from_days_diff=-1, validity_period_days=7, nodes=(primary, backup_a))
@@ -498,8 +487,6 @@ def test_election_reconfiguration(network, args):
     # Note: this test makes use of node-endorsed secondary RPC interface since
     # new nodes never observe commit of their configuration and thus never
     # open their service-endorsed primary RPC interface.
-    primary, backups = network.find_nodes()
-
     LOG.info("Join new nodes without trusting them just yet")
     new_nodes = []
     # Start N+1 new nodes to make sure they cannot elect one of them as a primary
@@ -518,6 +505,11 @@ def test_election_reconfiguration(network, args):
     # Wait until all backups know about these joins, so they have an equal chance of
     # becoming primary afterwards
     network.wait_for_node_commit_sync()
+
+    # An election may have occurred while the new nodes were joining. Use the
+    # current roles so the partition does not isolate the actual primary.
+    primary = network.wait_for_primary_unanimity()
+    backups = network.find_backups(primary=primary)
 
     LOG.info("Isolate original backups and issue reconfiguration of another quorum")
     # Partition backups _from each other_
@@ -609,7 +601,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         network.wait_for_new_primary(primary, nodes=backups)
 
     LOG.info("Check the pending join is retried after rollback")
-    primary = network.wait_for_primary_unanimity(nodes=backups)
+    primary = network.wait_for_stability()
     network.wait_for_node_in_store(
         primary,
         pending_node.node_id,
@@ -631,7 +623,8 @@ def test_join_rollback_on_primary_isolation(network, args):
     check_can_progress(primary)
 
     LOG.info("Trust a pending node on an isolated primary")
-    primary, backups = network.find_nodes()
+    primary = network.wait_for_stability()
+    backups = network.find_backups(primary=primary)
     host_spec = infra.interfaces.HostSpec()
     host_spec.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
     trusted_node = network.create_node(host_spec)
@@ -667,7 +660,8 @@ def test_join_rollback_on_primary_isolation(network, args):
         network.wait_for_new_primary(primary, nodes=backups)
 
     LOG.info("Check the trusted transition is rolled back and can be retried")
-    primary = network.wait_for_primary_unanimity(nodes=backups)
+    # The rolled-back joiner is not yet a member of the stable configuration.
+    primary = network.wait_for_stability(nodes=[primary, *backups])
     network.wait_for_node_in_store(
         primary,
         trusted_node.node_id,
@@ -687,6 +681,7 @@ def test_join_rollback_on_primary_isolation(network, args):
     )
     network.wait_for_all_nodes_to_commit(primary=primary)
     check_can_progress(primary)
+    network.wait_for_stability()
 
     return network
 

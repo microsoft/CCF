@@ -159,10 +159,11 @@ namespace ccf::kv::untyped
         // Check each key in our read set.
         auto* current = map_roll.commits->get_tail();
         if (
-          (change_set.read_version != NoVersion) &&
-          (change_set.read_version != current->version))
+          change_set.read_version.has_value() &&
+          (change_set.read_version.value() != current->version))
         {
-          LOG_DEBUG_FMT("Read version {} is invalid", change_set.read_version);
+          LOG_DEBUG_FMT(
+            "Read version {} is invalid", change_set.read_version.value());
           return false;
         }
 
@@ -254,11 +255,6 @@ namespace ccf::kv::untyped
         // have been applied before map hooks are run. The maps in the Tx
         // are still locked when post_commit is run.
         return map.trigger_map_hook(commit_version, change_set.writes);
-      }
-
-      void set_commit_version(Version v)
-      {
-        commit_version = v;
       }
     };
 

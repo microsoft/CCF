@@ -140,7 +140,8 @@ def run_locust(
     cmd += ["--processes", str(args.locust_processes)]
 
     # Avoid colliding with another Locust master on its default port.
-    master_host = "localhost"
+    # Match the IPv4 port probe and workers, without resolving localhost to IPv6.
+    master_host = "127.0.0.1"
     master_port = infra.net.probably_free_local_port(master_host)
     cmd += [
         "--master-bind-host",
