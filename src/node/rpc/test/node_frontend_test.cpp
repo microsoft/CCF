@@ -10,6 +10,7 @@
 #include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"
 #include "node/rpc/node_frontend.h"
+#include "node/rpc/self_cert_auth.h"
 #include "node_stub.h"
 #include "service/internal_tables_access.h"
 

@@ -7,8 +7,6 @@
 
 namespace ccf
 {
-  struct AbstractNodeContext;
-
   inline std::optional<OpenAPISecuritySchema> get_cert_based_security_schema()
   {
     // There is currently no OpenAPI-compliant way to describe cert-based TLS
@@ -146,32 +144,5 @@ namespace ccf
     {
       return SECURITY_SCHEME_NAME;
     };
-  };
-
-  /** Authenticate the receiving node's certificate identity without requiring a
-   * nodes-table entry. Returns an AnyCertAuthnIdentity on success.
-   */
-  class SelfCertAuthnPolicy : public AnyCertAuthnPolicy
-  {
-  private:
-    const AbstractNodeContext& node_context;
-
-  public:
-    static constexpr auto SECURITY_SCHEME_NAME = "self_cert";
-
-    /** The context must outlive this policy. Its node ID is read at
-     * authentication time, so the policy may be created before node startup.
-     */
-    explicit SelfCertAuthnPolicy(const AbstractNodeContext& node_context_);
-
-    std::unique_ptr<AuthnIdentity> authenticate(
-      ccf::kv::ReadOnlyTx& tx,
-      const std::shared_ptr<ccf::RpcContext>& ctx,
-      std::string& error_reason) override;
-
-    std::string get_security_scheme_name() override
-    {
-      return SECURITY_SCHEME_NAME;
-    }
   };
 }
