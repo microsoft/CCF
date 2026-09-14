@@ -45,11 +45,9 @@ The most common build switches include:
 Task Stacktraces
 ~~~~~~~~~~~~~~~~
 
-``AUTO`` prefers C++23 ``std::stacktrace`` when the active compiler and standard library can compile and link all required capture and symbolisation operations. Configuration tries the default libraries first, then ``stdc++exp``, then ``stdc++_libbacktrace``. It does not change the compiler or standard library. If none works, ``AUTO`` requires standalone libbacktrace headers and a usable library. ``STD`` and ``LIBBACKTRACE`` require the selected implementation and fail configuration if it is unavailable.
+``AUTO`` prefers C++23 ``std::stacktrace`` when the active compiler and standard library can compile and link its required operations, trying the default libraries, ``stdc++exp``, then ``stdc++_libbacktrace``. Otherwise it requires standalone libbacktrace headers and a library. ``STD`` and ``LIBBACKTRACE`` fail configuration if the requested backend is unavailable.
 
-The configure output and CMake cache report ``CCF_STACKTRACE_BACKEND_RESOLVED`` and ``CCF_STACKTRACE_SUPPORT_LIBRARY``. Azure Linux 4 uses the standard backend with its matching ``libstdc++-devel`` package; Azure Linux 3 retains the ``libbacktrace-static`` dependency for the fallback.
-
-Consumers of the installed ``ccf_tasks`` static target inherit its support-library and dynamic-loader link requirements through the exported CMake target. Keep the matching standard-library development package installed when a separate support archive is required. Support libraries are exported by link name, not by the build machine's absolute path. Consumers linking the archive manually must also link the reported support library (if any) and the platform's dynamic-loader library.
+Configuration reports the selected backend and support library. The installed ``ccf_tasks`` target propagates its support-library and dynamic-loader dependencies by link name. Azure Linux 4's standard support archive requires the matching ``libstdc++-devel`` package; Azure Linux 3's fallback requires ``libbacktrace-static``.
 
 Run Tests
 ---------

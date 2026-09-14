@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 include(CheckCXXSourceCompiles)
-include(CMakePushCheckState)
 
 set(
   CCF_STACKTRACE_BACKEND
@@ -15,7 +14,7 @@ set_property(
   PROPERTY STRINGS AUTO STD LIBBACKTRACE
 )
 
-# Function scope also restores the caller's language and try_compile settings.
+# Function scope restores the caller's probe settings on return.
 function(ccf_detect_stacktrace)
   if(NOT CCF_STACKTRACE_BACKEND MATCHES "^(AUTO|STD|LIBBACKTRACE)$")
     message(
@@ -24,9 +23,6 @@ function(ccf_detect_stacktrace)
     )
   endif()
 
-  cmake_push_check_state()
-  set(CMAKE_CXX_STANDARD 23)
-  set(CMAKE_CXX_STANDARD_REQUIRED ON)
   # A static-library probe would incorrectly accept missing support symbols.
   set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
   set(required_libraries ${CMAKE_REQUIRED_LIBRARIES})
@@ -126,7 +122,6 @@ int main()
     set(support_library backtrace)
   endif()
 
-  cmake_pop_check_state()
   set(
     CCF_STACKTRACE_BACKEND_RESOLVED
     "${backend}"
