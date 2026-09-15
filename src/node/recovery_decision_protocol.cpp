@@ -1094,7 +1094,7 @@ namespace ccf
 
   void RecoveryDecisionProtocolSubsystem::send_gossip_unsafe(
     recovery_decision_protocol::GossipRequest request,
-    recovery_decision_protocol::StateMachine state,
+    [[maybe_unused]] recovery_decision_protocol::StateMachine state,
     const crypto::Pem& self_signed_node_cert,
     const crypto::Pem& node_private_key)
   {
