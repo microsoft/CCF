@@ -9,7 +9,8 @@ Mathlib `v4.33.1`.
 `DisasterRecovery.Protocol.Model` models one protocol node. Its state machine
 covers Gossiping, Voting, Opening, Joining, and Open, including the separate
 timeout lane, retries, duplicate receives, strict-majority voting, failover,
-restart, and completion.
+restart, and completion. Joining emits its restart effect only on first entry;
+duplicate IAmOpen receives and later Joining timeouts do not emit it again.
 
 `DisasterRecovery.Protocol.Global` lifts the local transition function to a
 system with active nodes, in-flight messages, immutable send history, and
