@@ -191,6 +191,7 @@ class Network:
         "log_format_json",
         "constitution",
         "join_timer_s",
+        "pending_node_timeout",
         "worker_threads",
         "ledger_chunk_bytes",
         "ledger_max_transaction_bytes",

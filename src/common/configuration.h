@@ -145,6 +145,7 @@ namespace ccf
     attestation,
     snapshots,
     files_cleanup,
+    pending_node_timeout,
     node_to_node_message_limit,
     historical_cache_soft_limit,
     identity_history_fetch);
