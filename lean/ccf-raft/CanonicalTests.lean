@@ -1,7 +1,7 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft
+import CCFRaft.Protocol.Model
 import CCFRaft.Replay
 import Mathlib.Data.Fintype.Basic
 
@@ -121,6 +121,29 @@ private def batchesAndDrops : IO Unit := do
   let mixed := { written with nodes := updateNode written.nodes source mixedNode }
   check (!(decide (Enabled mixed (.appendEntries source destination 2))))
     "native AppendEntries batches cannot span terms"
+
+private def committedLeaderCanHeartbeatBehindCommit : IO Unit := do
+  let source : Node := ⟨0, by decide⟩
+  let laggard : Node := ⟨3, by decide⟩
+  let mut state : State Node Nat := initialState
+  state ← apply state (.initializeConfiguration source)
+  state ← apply state (.signCommittableMessages source)
+  for peer in ([⟨1, by decide⟩, ⟨2, by decide⟩] : List Node) do
+    state ← apply state (.appendEntries source peer 2)
+    state ← apply state (.receive source peer)
+    state ← apply state (.receive peer source)
+  state ← apply state (.advanceCommitIndex source)
+  check ((state.nodes source).commitIndex == 2)
+    "leader should have quorum-committed the bootstrap signature"
+  state ← apply state (.appendEntries source laggard 0)
+  let some (.appendEntriesRequest heartbeat) := (state.network laggard).head?
+    | throw (IO.userError "missing lagging heartbeat")
+  check (heartbeat.entries.isEmpty && heartbeat.prevLogIndex == 0 &&
+      heartbeat.leaderCommit == 2)
+    "empty heartbeat may advertise a commit beyond its verified frontier"
+  state ← apply state (.receive source laggard)
+  check ((state.nodes laggard).commitIndex == 0)
+    "a lagging heartbeat must not commit an unverified prefix"
 
 private def networkSnapshots : IO Unit := do
   let started ← IO.monoMsNow
@@ -454,6 +477,7 @@ private def retirementCommitFrontiers : IO Unit := do
 def main : IO Unit := do
   nominationTerms
   batchesAndDrops
+  committedLeaderCanHeartbeatBehindCommit
   networkSnapshots
   repliesAfterStepDown
   jsonReplay

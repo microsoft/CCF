@@ -3,6 +3,18 @@
   "packagesDir": ".lake/packages",
   "packages": [
     {
+      "url": "https://github.com/leanprover-community/axiom-audit.git",
+      "type": "git",
+      "subDir": null,
+      "scope": "",
+      "rev": "46024e005996495c65ef609368e11ab39c4222e3",
+      "name": "axiomAudit",
+      "manifestFile": "lake-manifest.json",
+      "inputRev": "46024e005996495c65ef609368e11ab39c4222e3",
+      "inherited": false,
+      "configFile": "lakefile.toml"
+    },
+    {
       "url": "https://github.com/leanprover-community/mathlib4.git",
       "type": "git",
       "subDir": null,

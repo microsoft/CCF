@@ -1,47 +1,44 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-
-import CCFRaft.Protocol.Model
+import CCFRaft.Proofs.ReconfigurationPreservation
 
 set_option autoImplicit false
 
-namespace CCFRaft.Properties
+/-!
+Review these statements with their definitions in `CCFRaft.Protocol`.
+The supporting invariant and preservation proofs are implementation details
+under `CCFRaft.Proofs`, not premises of the public safety statements.
+-/
 
-open Protocol.Model
+namespace CCFRaft.Properties
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId]
+variable [Protocol.Model.Bootstrap Node]
 
-/-- Every positive node commit frontier points to a signature entry. -/
-def CommittedFrontierIsSignature (state : State Node TxId) : Prop :=
-  forall node,
-    0 < (state.nodes node).commitIndex ->
-      isSignatureAt
-        (state.nodes node).log
-        (state.nodes node).commitIndex = true
+theorem reachable_committed_logs_prefix
+    {state : Protocol.Model.State Node TxId}
+    (reachable : Protocol.Model.Reachable state) :
+    Protocol.Safety.CommittedLogsPrefix state :=
+  Proofs.ReconfigurationPreservation.reachableCommittedLogsPrefix reachable
 
-/-- No two distinct nodes lead in the same term. -/
-def ElectionSafety (state : State Node TxId) : Prop :=
-  forall left right,
-    (state.nodes left).role = .leader ->
-      (state.nodes right).role = .leader ->
-        (state.nodes left).currentTerm =
-          (state.nodes right).currentTerm ->
-          left = right
+theorem reachable_committed_frontier_is_signature
+    {state : Protocol.Model.State Node TxId}
+    (reachable : Protocol.Model.Reachable state) :
+    Protocol.Safety.CommittedFrontierIsSignature state :=
+  Proofs.ReconfigurationPreservation.reachableCommittedFrontierIsSignature reachable
 
-/-- Any two node-local committed logs are prefix-comparable. -/
-def CommittedLogsPrefix (state : State Node TxId) : Prop :=
-  forall left right,
-    (state.nodes left).committedLog <+:
-        (state.nodes right).committedLog \/
-      (state.nodes right).committedLog <+:
-        (state.nodes left).committedLog
+theorem reachable_election_safety
+    {state : Protocol.Model.State Node TxId}
+    (reachable : Protocol.Model.Reachable state) :
+    Protocol.Safety.ElectionSafety state :=
+  Proofs.ReconfigurationPreservation.reachableElectionSafety reachable
 
-/-- Core public safety mirrors committed-log, signature, and election safety. -/
-structure ConsensusSafety (state : State Node TxId) : Prop where
-  committedLogsPrefix : CommittedLogsPrefix state
-  committedFrontierIsSignature : CommittedFrontierIsSignature state
-  electionSafety : ElectionSafety state
+theorem reachable_consensus_safety
+    {state : Protocol.Model.State Node TxId}
+    (reachable : Protocol.Model.Reachable state) :
+    Protocol.Safety.ConsensusSafety state :=
+  Proofs.ReconfigurationPreservation.reachableConsensusSafety reachable
 
 end CCFRaft.Properties

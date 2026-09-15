@@ -34,14 +34,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          lake exe cache get Mathlib.Data.Finmap Mathlib.Data.Fintype.Basic
+          lake exe cache get
 
       - name: Build canonical model and replayer
         working-directory: lean/ccf-raft
         shell: bash
         run: |
           set -euo pipefail
+          lake exe mk_all --check --lib CCFRaft
           lake build CCFRaft canonical-checks ccfraft-replay
+          lake lint
           lake exe canonical-checks
 
       - name: Check deterministic reduction
