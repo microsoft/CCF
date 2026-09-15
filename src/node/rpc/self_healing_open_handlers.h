@@ -57,16 +57,13 @@ namespace ccf::node
       auto in = params.get<Input>();
       recovery_decision_protocol::RequestNodeInfo info = in.info;
 
-#ifdef CCF_RECOVERY_TRACE
-      if (!in.trace_message_id.has_value() || in.trace_message_id->empty())
+      if (in.message_id.empty())
       {
         return make_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidInput,
-          "A nonempty recovery trace message ID is required in trace-enabled "
-          "builds");
+          "A nonempty recovery protocol message ID is required");
       }
-#endif
 
       // ---- Validate the quote against our store and store the node info ----
 
@@ -168,7 +165,7 @@ namespace ccf::node
         protocol.record_trace_receive(
           args.tx,
           trace_kind,
-          in.trace_message_id,
+          in.message_id,
           info.location.name,
           trace_txid,
           trace_pre.value());
@@ -268,10 +265,10 @@ namespace ccf::node
     auto recovery_decision_protocol_iamopen =
       [&node_context](auto& args, recovery_decision_protocol::IAmOpenRequest in)
       -> std::optional<ErrorDetails> {
-      auto sm_state = args.tx
-                        .template ro<recovery_decision_protocol::SMState>(
-                          Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
-                        ->get();
+      auto* sm_state_handle =
+        args.tx.template rw<recovery_decision_protocol::SMState>(
+          Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE);
+      auto sm_state = sm_state_handle->get();
       if (!sm_state.has_value())
       {
         throw std::logic_error(
@@ -315,10 +312,10 @@ namespace ccf::node
       LOG_TRACE_FMT(
         "Recovery-decision-protocol: receive IAmOpen from {}",
         in.info.location.name);
-      args.tx
-        .template rw<recovery_decision_protocol::SMState>(
-          Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
-        ->put(recovery_decision_protocol::StateMachine::JOINING);
+      if (sm_state.value() != recovery_decision_protocol::StateMachine::JOINING)
+      {
+        sm_state_handle->put(recovery_decision_protocol::StateMachine::JOINING);
+      }
       args.tx
         .template rw<recovery_decision_protocol::ChosenNode>(
           Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)

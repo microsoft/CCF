@@ -16,18 +16,10 @@ namespace ccf::recovery_decision_protocol
   {
   public:
     RequestNodeInfo info;
-#ifdef CCF_RECOVERY_TRACE
-    std::optional<std::string> trace_message_id = std::nullopt;
-#endif
+    std::string message_id;
   };
-#ifdef CCF_RECOVERY_TRACE
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TaggedWithNodeInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(TaggedWithNodeInfo, info);
-  DECLARE_JSON_OPTIONAL_FIELDS(TaggedWithNodeInfo, trace_message_id);
-#else
   DECLARE_JSON_TYPE(TaggedWithNodeInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(TaggedWithNodeInfo, info);
-#endif
+  DECLARE_JSON_REQUIRED_FIELDS(TaggedWithNodeInfo, info, message_id);
 
   struct GossipRequest : public TaggedWithNodeInfo
   {
@@ -65,15 +57,26 @@ namespace ccf
     std::optional<recovery_decision_protocol::IAmOpenRequest>
       iamopen_request_cache;
 
+    ds::Mutex message_id_lock;
+    uint64_t next_message_number = 0;
+    std::string recovery_instance_id;
+    std::string recovery_node;
+
 #ifdef CCF_RECOVERY_TRACE
+    struct PendingTraceSend
+    {
+      recovery_decision_protocol::TraceEvent event;
+      recovery_decision_protocol::StateMachine state;
+    };
+
     ds::Mutex trace_lock;
     uint64_t next_trace_record_id = 0;
     uint64_t next_trace_sequence = 0;
     uint64_t next_trace_message_number = 0;
-    std::string trace_instance_id;
     std::vector<std::string> trace_expected_locations;
-    std::string trace_node;
-    std::string trace_committed_state;
+    recovery_decision_protocol::StateMachine trace_committed_state =
+      recovery_decision_protocol::StateMachine::GOSSIPING;
+    std::vector<PendingTraceSend> pending_trace_sends;
 #endif
 
   public:
@@ -91,7 +94,7 @@ namespace ccf
     void record_trace_receive(
       ccf::kv::Tx& tx,
       const std::string& kind,
-      const std::optional<std::string>& caused_by,
+      const std::string& caused_by,
       const std::string& source,
       const std::optional<ccf::TxID>& txid,
       recovery_decision_protocol::StateMachine pre);
@@ -113,6 +116,7 @@ namespace ccf
       kv::ReadOnlyTx& tx);
     void send_gossip_unsafe(
       recovery_decision_protocol::GossipRequest request,
+      recovery_decision_protocol::StateMachine state,
       const crypto::Pem& self_signed_node_cert,
       const crypto::Pem& node_private_key);
     void send_vote_unsafe(
@@ -129,8 +133,11 @@ namespace ccf
     sealing_recovery::Location& get_location();
     ccf::TxID get_last_recovered_signed_txid();
 
+    void initialise_protocol_instance(ccf::kv::ReadOnlyTx& tx);
+    std::string new_message_id();
+
 #ifdef CCF_RECOVERY_TRACE
-    void initialise_trace(ccf::kv::Tx& tx);
+    void initialise_trace();
     void record_trace_event(
       ccf::kv::Tx& tx, recovery_decision_protocol::TraceEvent event);
     void record_trace_effects(
@@ -139,11 +146,12 @@ namespace ccf
       recovery_decision_protocol::StateMachine post);
     void emit_trace_event(recovery_decision_protocol::TraceEvent event);
     void emit_trace_event_unsafe(recovery_decision_protocol::TraceEvent event);
+    void flush_pending_trace_sends_unsafe();
     std::string new_trace_message_id();
-    std::string new_trace_message_id_unsafe();
     void emit_trace_send_unsafe(
       const std::string& message_id,
       const std::string& description,
+      recovery_decision_protocol::StateMachine state,
       const std::optional<ccf::TxID>& txid = std::nullopt);
 #endif
   };

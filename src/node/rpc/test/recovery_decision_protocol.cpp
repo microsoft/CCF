@@ -235,9 +235,7 @@ namespace
         recovery_decision_protocol::service_fingerprint_from_pem(
           environment.service_cert);
       request.txid = {1, 1};
-#ifdef CCF_RECOVERY_TRACE
-      request.trace_message_id = "opener:1";
-#endif
+      request.message_id = "opener:1";
       return request;
     }
 
@@ -258,34 +256,50 @@ namespace
   };
 }
 
-TEST_CASE("Recovery request trace IDs are nonempty")
+TEST_CASE("Recovery protocol message IDs are required")
 {
   RecoveryProtocolFixture fixture;
   auto iamopen = fixture.iamopen_request();
   recovery_decision_protocol::GossipRequest gossip;
   gossip.info = iamopen.info;
   gossip.txid = iamopen.txid;
-  recovery_decision_protocol::TaggedWithNodeInfo vote{.info = iamopen.info};
+  recovery_decision_protocol::TaggedWithNodeInfo vote{
+    .info = iamopen.info, .message_id = "opener:1"};
   const std::array<std::pair<std::string, json>, 3> requests = {
     {{"gossip", gossip}, {"vote", vote}, {"iamopen", iamopen}}};
-  const std::array<std::optional<std::string>, 3> ids = {
-    std::nullopt, "", "opener:1"};
+
+  {
+    auto params = json(gossip);
+    params.erase("message_id");
+    CHECK_THROWS_AS(
+      params.get<recovery_decision_protocol::GossipRequest>(),
+      ccf::JsonParseError);
+  }
+  {
+    auto params = json(vote);
+    params.erase("message_id");
+    CHECK_THROWS_AS(
+      params.get<recovery_decision_protocol::TaggedWithNodeInfo>(),
+      ccf::JsonParseError);
+  }
+  {
+    auto params = json(iamopen);
+    params.erase("message_id");
+    CHECK_THROWS_AS(
+      params.get<recovery_decision_protocol::IAmOpenRequest>(),
+      ccf::JsonParseError);
+  }
 
   for (const auto& [kind, request] : requests)
   {
-    for (const auto& id : ids)
+    for (const auto& id : {"", "opener:1"})
     {
-      INFO(kind, ": ", id.value_or("<missing>"));
+      INFO(kind, ": ", id);
       json params = request;
-      params.erase("trace_message_id");
-      if (id.has_value())
-      {
-        params["trace_message_id"] = id.value();
-      }
+      params["message_id"] = id;
       const auto verified_before = fixture.operation->quote_verifications;
       auto args = fixture.prepare("recovery_decision_protocol/" + kind, params);
-#ifdef CCF_RECOVERY_TRACE
-      if (!id.has_value() || id->empty())
+      if (std::string_view(id).empty())
       {
         CHECK(args->rpc_ctx->get_response_status() == HTTP_STATUS_BAD_REQUEST);
         if (args->rpc_ctx->get_response_status() == HTTP_STATUS_BAD_REQUEST)
@@ -296,7 +310,6 @@ TEST_CASE("Recovery request trace IDs are nonempty")
         CHECK(fixture.operation->quote_verifications == verified_before);
       }
       else
-#endif
       {
         CHECK(args->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
         CHECK(fixture.operation->quote_verifications == verified_before + 1);
@@ -368,6 +381,25 @@ TEST_CASE("Recovery restart waits for global commit and occurs once")
   {
     CHECK_FALSE(event.contains("version"));
   }
+#endif
+
+  fixture.environment.events.clear();
+  auto duplicate_request = fixture.iamopen_request();
+  duplicate_request.message_id = "opener:2";
+  auto duplicate =
+    fixture.prepare("recovery_decision_protocol/iamopen", duplicate_request);
+  REQUIRE(duplicate->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
+  REQUIRE(duplicate->owned_tx->commit() == ccf::kv::CommitResult::SUCCESS);
+  fixture.network.tables->compact(fixture.network.tables->current_version());
+  CHECK(fixture.read_restarts() == 1);
+#ifdef CCF_RECOVERY_TRACE
+  REQUIRE(fixture.environment.events.size() == 1);
+  CHECK(fixture.environment.events[0]["kind"] == "iamopen_accepted");
+  CHECK(fixture.environment.events[0]["caused_by"] == "opener:2");
+  CHECK(fixture.environment.events[0]["pre"] == "JOINING");
+  CHECK(fixture.environment.events[0]["post"] == "JOINING");
+#else
+  CHECK(fixture.environment.events.empty());
 #endif
 
   fixture.environment.events.clear();
