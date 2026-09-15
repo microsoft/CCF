@@ -10,7 +10,7 @@
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
-#include "host/time_bound_logger.h"
+#include "ds/time_bound_logger.h"
 #include "indexing/lfs_interface.h"
 #include "tasks/ordered_tasks.h"
 
@@ -161,7 +161,7 @@ namespace ccf::indexing
       const LFSKey& obfuscated, const LFSEncryptedContents& encrypted)
     {
       const auto target_path = root_dir / obfuscated;
-      asynchost::TimeBoundLogger log_if_slow(fmt::format(
+      ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
         "Writing LFS file ({} bytes) - {}",
         encrypted.size(),
         target_path.string()));
@@ -208,7 +208,7 @@ namespace ccf::indexing
         };
       }
 
-      asynchost::TimeBoundLogger log_if_slow(
+      ccf::ds::TimeBoundLogger log_if_slow(
         fmt::format("Reading LFS file - ifstream({})", target_path.string()));
       std::ifstream f(target_path, std::ios::binary | std::ios::ate);
       if (!f)
@@ -296,13 +296,13 @@ namespace ccf::indexing
       {
         LOG_INFO_FMT(
           "Clearing contents from existing directory {}", root_dir.string());
-        asynchost::TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
           "Clearing LFS index directory - remove_all({})", root_dir.string()));
         std::filesystem::remove_all(root_dir);
       }
 
       {
-        asynchost::TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
           "Creating LFS index directory - create_directory({})",
           root_dir.string()));
         if (!std::filesystem::create_directory(root_dir))

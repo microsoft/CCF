@@ -44,6 +44,7 @@
 #include "node/local_sealing.h"
 #include "node/node_inbound_message.h"
 #include "node/node_to_node_channel_manager.h"
+#include "node/pending_node_cleanup.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
 #include "node/signature_cache_subsystem.h"
@@ -486,6 +487,7 @@ namespace ccf
     // JWT key auto-refresh
     //
     std::shared_ptr<JwtKeyAutoRefresh> jwt_key_auto_refresh;
+    std::shared_ptr<PendingNodeCleanup> pending_node_cleanup;
 
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
     // Set to the snapshot seqno when a node starts from one and remembered for
@@ -3589,11 +3591,11 @@ namespace ccf
 
       auto shared_state = std::make_shared<aft::State>(self);
 
-      auto node_client = std::make_shared<HTTPNodeClient>(
-        rpc_map,
-        node_sign_kp,
-        get_self_signed_certificate(),
-        endorsed_node_certificate_);
+      auto node_client =
+        std::make_shared<HTTPNodeClient>(rpc_map, node_sign_kp, [this]() {
+          std::lock_guard<ds::Mutex> guard(node_certificates_lock);
+          return endorsed_node_cert.value_or(self_signed_node_cert);
+        });
 
       consensus = std::make_shared<RaftType>(
         consensus_config,
@@ -3604,6 +3606,12 @@ namespace ccf
         node_client,
         commit_callbacks,
         public_only);
+
+      pending_node_cleanup = std::make_shared<PendingNodeCleanup>(
+        node_client,
+        consensus,
+        std::chrono::milliseconds(config.pending_node_timeout));
+      pending_node_cleanup->start();
 
       network.tables->set_consensus(consensus);
       network.tables->set_snapshotter(snapshotter);
