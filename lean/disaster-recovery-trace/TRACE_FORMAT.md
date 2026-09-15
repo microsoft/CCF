@@ -28,6 +28,7 @@ These fields are optional unless the event requires them:
 | `source`     | string           | Sender location name                                                      |
 | `view`       | natural number   | Gossip payload or transaction lifecycle TxID view                         |
 | `seqno`      | natural number   | Gossip payload or transaction lifecycle TxID sequence number              |
+| `batch`      | natural number   | Per-node retry invocation identifier for a send                           |
 | `pre`        | phase string     | Observable phase before a semantic event                                  |
 | `post`       | phase string     | Observable phase after a semantic event                                   |
 | `open_kind`  | open-kind string | `QUORUM` or `FAILOVER` for an `open` observation                          |
@@ -39,26 +40,27 @@ All integers must be nonnegative Lean `Nat` values.
 
 ## Event kinds
 
-| Kind                 | Required event fields                                                                                 | Meaning                                     |
-| -------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| `start`              | `pre`, `post`                                                                                         | Directly committed protocol initialization  |
-| `send`               | `send` in `class:destination` form, `message_id`, `pre`, `post`; gossip also requires `view`, `seqno` | Immediate permanent transport observation   |
-| `gossip_accepted`    | `attempt`, `message_id`, `caused_by`, `source`, `view`, `seqno`, `pre`, `post`                        | Speculative accepted gossip                 |
-| `vote_accepted`      | `attempt`, `message_id`, `caused_by`, `source`, `pre`, `post`                                         | Speculative accepted vote                   |
-| `iamopen_accepted`   | `attempt`, `message_id`, `caused_by`, `source`, `pre`, `post`                                         | Speculative accepted IAmOpen                |
-| `timeout`            | `attempt`, `pre`, `post`                                                                              | Speculative timeout                         |
-| `open`               | `attempt`, `open_kind`, `pre`, `post`                                                                 | Speculative service-open observation        |
-| `join_restart`       | `attempt`, `pre`, `post`                                                                              | Speculative Joining/restart observation     |
-| `complete`           | `attempt`, `pre`, `post`                                                                              | Speculative Opening-to-Open completion      |
-| `locally_committed`  | `attempt`, `view`, `seqno`                                                                            | Mark the attempt as locally visible         |
-| `globally_committed` | `attempt`, `view`, `seqno`                                                                            | Apply the buffered attempt                  |
-| `rolled_back`        | `attempt`, `view`, `seqno`                                                                            | Discard a locally committed attempt         |
-| `aborted`            | `attempt`                                                                                             | Discard a superseded conflict-retry attempt |
+| Kind                 | Required event fields                                                                                          | Meaning                                     |
+| -------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `start`              | `pre`, `post`                                                                                                  | Directly committed protocol initialization  |
+| `send`               | `batch`, `send` in `class:destination` form, `message_id`, `pre`, `post`; gossip also requires `view`, `seqno` | Immediate permanent transport observation   |
+| `gossip_accepted`    | `attempt`, `message_id`, `caused_by`, `source`, `view`, `seqno`, `pre`, `post`                                 | Speculative accepted gossip                 |
+| `vote_accepted`      | `attempt`, `message_id`, `caused_by`, `source`, `pre`, `post`                                                  | Speculative accepted vote                   |
+| `iamopen_accepted`   | `attempt`, `message_id`, `caused_by`, `source`, `pre`, `post`                                                  | Speculative accepted IAmOpen                |
+| `timeout`            | `attempt`, `pre`, `post`                                                                                       | Speculative timeout                         |
+| `open`               | `attempt`, `open_kind`, `pre`, `post`                                                                          | Speculative service-open observation        |
+| `join_restart`       | `attempt`, `pre`, `post`                                                                                       | Speculative Joining/restart observation     |
+| `complete`           | `attempt`, `pre`, `post`                                                                                       | Speculative Opening-to-Open completion      |
+| `locally_committed`  | `attempt`, `view`, `seqno`                                                                                     | Mark the attempt as locally visible         |
+| `globally_committed` | `attempt`, `view`, `seqno`                                                                                     | Apply the buffered attempt                  |
+| `rolled_back`        | `attempt`, `view`, `seqno`                                                                                     | Discard a locally committed attempt         |
+| `aborted`            | `attempt`                                                                                                      | Discard a superseded conflict-retry attempt |
 
 `start` and `send` must omit `attempt`. Every speculative semantic event must
 have one. Transaction lifecycle records have no `pre` or `post`;
 `locally_committed`, `globally_committed`, and `rolled_back` carry the
-transaction TxID, while `aborted` must not carry a TxID.
+transaction TxID, while `aborted` must not carry a TxID. Every send has a
+`batch`; non-send records must omit it.
 
 Every receive uses `caused_by` to identify an earlier `send`. The validator
 checks the sender, destination, message class, and gossip TxID payload. A
@@ -115,12 +117,12 @@ Final callbacks may be logged out of transaction order. The validator retains
 all globally committed buffers and rebuilds canonical state in per-node TxID
 order whenever another final callback arrives. Buffers that still cannot be
 applied remain pending and prevent terminal validation.
-If lifecycle resolution races ahead of a task's first traced send, the
-pre-resolution projections with enabled sends remain available until that first
-send chooses a batch. That choice expires the alternatives; the selected
-batch's phase remains fixed until its remaining sends are observed.
-Ordered retry-send batches remain valid when speculative or lifecycle records
-interleave with their individual sends.
+If lifecycle resolution races ahead of a task's first traced send, its
+pre-resolution projections with enabled sends remain available to independently
+prepared batches. The validator tracks each `batch` separately, fixes its phase
+on the first send, and checks its remaining sends in order. Concurrent periodic
+retry invocations may interleave their individual sends without merging their
+batch cursors.
 
 The validator rejects the first event that is not enabled by the canonical
 model or whose recorded pre/post state, cause, or effect does not match. It
@@ -140,10 +142,11 @@ outcome is known. The local-commit callback emits `locally_committed` before
 registering the final transaction callback, which later emits
 `globally_committed` or `rolled_back`; a conflict retry instead emits `aborted`
 for the superseded attempt. Transport sends are emitted immediately and carry
-`message_id` in the protocol request in both traced and default builds. A
-receive records that value as `caused_by`. The `join_restart` effect is recorded
-only on entry into `JOINING`, not for later timeouts that leave the node in
-`JOINING`.
+`message_id` in the protocol request in both traced and default builds. Each
+periodic retry invocation allocates a trace-only `batch` ID shared by all of its
+sends. A receive records the protocol message ID as `caused_by`. The
+`join_restart` effect is recorded only on entry into `JOINING`, not for later
+timeouts that leave the node in `JOINING`.
 
 Each log record contains `RDP_TRACE ` followed by the event object.
 `../../tests/infra/recovery_trace.py` passes the original participating node log

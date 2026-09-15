@@ -24,6 +24,7 @@ deriving Repr, BEq
 
 structure PendingSendBatch where
   node : Location
+  batch : Nat
   phase : Phase
   remaining : List String
 deriving Repr, BEq
@@ -66,6 +67,7 @@ structure ActiveReplay where
   sendProofs : List SendProof := []
   pendingEffects : List PendingEffect := []
   pendingSendBatches : List PendingSendBatch := []
+  completedSendBatches : List (Location × Nat) := []
   terminalNodes : List Location := []
   completedNodes : List Location := []
   committedAttempts : List (Location × Nat) := []
@@ -135,8 +137,10 @@ private def shapeError (event : TraceEvent) : Option String :=
   else if event.kind == .gossipAccepted && event.txid.isNone then
     some "view and seqno are required for gossip"
   else if event.kind == .send &&
-      (event.messageId.isNone || event.send.isNone) then
-    some "message_id and send are required for sends"
+      (event.messageId.isNone || event.send.isNone || event.batch.isNone) then
+    some "message_id, send, and batch are required for sends"
+  else if event.kind != .send && event.batch.isSome then
+    some "batch is only valid for send events"
   else if event.kind == .send &&
       (event.send.getD "").startsWith "gossip:" && event.txid.isNone then
     some "view and seqno are required for gossip sends"
@@ -190,15 +194,17 @@ private def sendBatch (config : Config) (state : NodeState) : List String :=
 
 private def setPendingSendBatch
     (node : Location)
+    (batch : Nat)
     (phase : Phase)
     (remaining : List String)
     (batches : List PendingSendBatch) :
     List PendingSendBatch :=
-  let others := batches.filter (fun batch => batch.node != node)
+  let others := batches.filter fun pending =>
+    pending.node != node || pending.batch != batch
   if remaining.isEmpty then
     others
   else
-    { node, phase, remaining } :: others
+    { node, batch, phase, remaining } :: others
 
 private def receiveDescription (event : TraceEvent) : Option String :=
   match event.kind with
@@ -320,11 +326,15 @@ private def applyReceive
 private def applySend
     (active : ActiveReplay)
     (event : TraceEvent) : Except String ActiveReplay := do
+  let batchId := event.batch.getD 0
+  let batchKey := (event.node, batchId)
+  if active.completedSendBatches.contains batchKey then
+    throw s!"send batch {batchId} was already completed"
   let state <- match nodeState active.system event.node with
     | none => throw s!"unknown node {event.node}"
     | some state => pure state
   let pending := active.pendingSendBatches.find?
-    (fun batch => batch.node == event.node)
+    (fun batch => batch.node == event.node && batch.batch == batchId)
   let phase := pending.map (fun batch => batch.phase) |>.getD state.phase
   if !phaseMatches event.pre phase || !phaseMatches event.post phase then
     throw s!"send phase does not match {phaseName phase}"
@@ -345,7 +355,12 @@ private def applySend
       txid := event.txid
     } :: active.sends
     pendingSendBatches :=
-      setPendingSendBatch event.node phase batch.tail active.pendingSendBatches
+      setPendingSendBatch event.node batchId phase batch.tail
+        active.pendingSendBatches
+    completedSendBatches := if batch.tail.isEmpty then
+      batchKey :: active.completedSendBatches
+    else
+      active.completedSendBatches
   }
 
 private def applyObservation
@@ -493,14 +508,7 @@ private def applyImmediateSend
     (attempts : List BufferedAttempt)
     (locallyCommitted : List (Location × Nat))
     (event : TraceEvent) : Except String ActiveReplay := do
-  let continuingBatch := active.pendingSendBatches.any fun batch =>
-    batch.node == event.node
-  let remainingProjections :=
-    if continuingBatch then
-      active.sendProjections
-    else
-      active.sendProjections.filter fun projection =>
-        projection.node != event.node
+  let remainingProjections := active.sendProjections
   let direct := applySend active event
   if let .ok next := direct then
     return { next with sendProjections := remainingProjections }
@@ -714,21 +722,17 @@ private def resolveAttempt
         else
           "unknown"
         throw s!"{status} attempt ({event.node}, {attempt})"
-  let projections :=
-    if active.pendingSendBatches.any fun batch => batch.node == event.node then
-      []
-    else
-      let pendingAttempts := active.pendingCommits.map
-        fun commit => commit.attempt
-      let pendingLocals := active.pendingCommits.map fun commit => {
-        node := commit.attempt.node
-        attempt := commit.attempt.attempt
-        txid := commit.txid
-      }
-      let visibleCommits := localCommits ++ pendingLocals
-      retainedSendProjections active
-        (orderAttempts visibleCommits (attempts ++ pendingAttempts))
-        (localCommitKeys visibleCommits) event.node
+  let pendingAttempts := active.pendingCommits.map
+    fun commit => commit.attempt
+  let pendingLocals := active.pendingCommits.map fun commit => {
+    node := commit.attempt.node
+    attempt := commit.attempt.attempt
+    txid := commit.txid
+  }
+  let visibleCommits := localCommits ++ pendingLocals
+  let projections := retainedSendProjections active
+    (orderAttempts visibleCommits (attempts ++ pendingAttempts))
+    (localCommitKeys visibleCommits) event.node
   let mut next := active
   if event.kind == .globallyCommitted then
     next := rebuildCommittedState {

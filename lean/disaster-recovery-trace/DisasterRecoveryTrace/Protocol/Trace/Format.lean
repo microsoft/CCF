@@ -35,6 +35,7 @@ structure TraceEvent where
   causedBy : Option String
   source : Option Location
   txid : Option TxID
+  batch : Option Nat
   pre : Option Phase
   post : Option Phase
   openKind : Option OpenKind
@@ -109,6 +110,7 @@ def parseEvent (line : String) : Except String TraceEvent := do
   let messageId <- optionalString json "message_id"
   let causedBy <- optionalString json "caused_by"
   let source <- optionalString json "source"
+  let batch <- optionalNat json "batch"
   let pre <- optionalParsed json "pre" parsePhase
   let post <- optionalParsed json "post" parsePhase
   let openKind <- optionalParsed json "open_kind" parseOpenKind
@@ -126,6 +128,7 @@ def parseEvent (line : String) : Except String TraceEvent := do
     txid := match view, seqno with
       | some view, some seqno => some { view, seqno }
       | _, _ => none
+    batch
     pre
     post
     openKind

@@ -21,6 +21,7 @@ private def baseEvent
   causedBy := none
   source := none
   txid := none
+  batch := none
   pre := none
   post := none
   openKind := none
@@ -39,7 +40,8 @@ private def sendEvent
     (locations : List Location)
     (sequence : Nat)
     (messageId description : String)
-    (phase : Phase) : TraceEvent := {
+    (phase : Phase)
+    (batch : Nat := sequence) : TraceEvent := {
   baseEvent locations "A" sequence .send with
   messageId := some messageId
   pre := some phase
@@ -48,6 +50,7 @@ private def sendEvent
     some { view := 1, seqno := 1 }
   else
     none
+  batch := some batch
   send := some description
 }
 
@@ -150,7 +153,7 @@ private def quorumTrace : List TraceEvent :=
       attempt := some 0 },
     lifecycleEvent locations "A" 3 0 .globallyCommitted,
     sendEvent locations 4 "send-vote" "vote:A" .voting,
-    sendEvent locations 5 "send-voting-gossip" "gossip:A" .voting,
+    sendEvent locations 5 "send-voting-gossip" "gossip:A" .voting 4,
     { voteEvent locations 6 "receive-vote" "send-vote" .opening with
       attempt := some 1 },
     { openEvent locations 7 .quorum with attempt := some 1 },
@@ -192,6 +195,7 @@ private def eventJson (event : TraceEvent) : Lean.Json :=
     (event.source.toList.map fun value => ("source", Lean.toJson value)) ++
     (event.txid.toList.flatMap fun value =>
       [("view", Lean.toJson value.view), ("seqno", Lean.toJson value.seqno)]) ++
+    (event.batch.toList.map fun value => ("batch", Lean.toJson value)) ++
     (event.pre.toList.map fun value => ("pre", Lean.toJson (phaseName value))) ++
     (event.post.toList.map fun value => ("post", Lean.toJson (phaseName value))) ++
     (event.openKind.toList.map fun value => ("open_kind", Lean.toJson (openKindName value))) ++
@@ -391,7 +395,7 @@ private def checkAttempts : IO Unit := do
   let earlyVote :=
     sendEvent locations 3 "early-vote" "vote:A" .voting
   let earlyGossip :=
-    sendEvent locations 4 "early-gossip" "gossip:A" .voting
+    sendEvent locations 4 "early-gossip" "gossip:A" .voting 3
   let delayedCommit :=
     lifecycleEvent locations "A" 5 0 .globallyCommitted
   match replay [
@@ -437,7 +441,7 @@ private def checkAttempts : IO Unit := do
     let lateVote :=
       sendEvent locations 4 s!"late-vote-{repr lifecycle}" "vote:A" .voting
     let lateGossip :=
-      sendEvent locations 5 s!"late-gossip-{repr lifecycle}" "gossip:A" .voting
+      sendEvent locations 5 s!"late-gossip-{repr lifecycle}" "gossip:A" .voting 4
     match replay [start, send, receive, resolution, lateVote, lateGossip] with
     | .ok state =>
         let active <- activeState state
@@ -451,8 +455,6 @@ private def checkAttempts : IO Unit := do
           "first post-lifecycle send lost its prepared local projection"
         expect active.pendingSendBatches.isEmpty
           "post-lifecycle send batch did not finish"
-        expect active.sendProjections.isEmpty
-          "chosen post-lifecycle projection remained available"
     | .error failure =>
         throw (IO.userError
           s!"first send after {repr lifecycle} was rejected: {repr failure}")
@@ -525,7 +527,7 @@ private def checkAttempts : IO Unit := do
     receive,
     local0,
     sendEvent locations 4 "ordered-vote" "vote:A" .voting,
-    sendEvent locations 5 "ordered-gossip" "gossip:A" .voting,
+    sendEvent locations 5 "ordered-gossip" "gossip:A" .voting 4,
     { voteEvent locations 6 "ordered-receive" "ordered-vote" .opening with
       attempt := some 1 },
     { openEvent locations 7 .quorum with attempt := some 1 },
@@ -551,7 +553,7 @@ private def checkAttempts : IO Unit := do
       txid := some { view := 2, seqno := 1 }
   }
   let repeatedGossipB :=
-    sendEvent repeatedLocations 2 "repeated-gossip-b" "gossip:B" .gossiping
+    sendEvent repeatedLocations 2 "repeated-gossip-b" "gossip:B" .gossiping 1
   let repeatedReceiveA := {
     gossipEvent repeatedLocations 3 "repeated-receive-a" "repeated-gossip-a"
       .gossiping with
@@ -564,8 +566,10 @@ private def checkAttempts : IO Unit := do
   }
   let repeatedVote :=
     sendEvent repeatedLocations 7 "repeated-vote" "vote:A" .voting
+  let concurrentVote :=
+    sendEvent repeatedLocations 8 "concurrent-vote" "vote:A" .voting
   let repeatedVoteReceive := {
-    voteEvent repeatedLocations 10 "repeated-vote-receive" "repeated-vote"
+    voteEvent repeatedLocations 13 "repeated-vote-receive" "repeated-vote"
       .voting with
         attempt := some 2
   }
@@ -580,20 +584,23 @@ private def checkAttempts : IO Unit := do
     repeatedGossipTimeout,
     lifecycleEvent repeatedLocations "A" 6 1 .globallyCommitted,
     repeatedVote,
-    sendEvent repeatedLocations 8 "repeated-voting-gossip-a" "gossip:A" .voting,
-    sendEvent repeatedLocations 9 "repeated-voting-gossip-b" "gossip:B" .voting,
+    concurrentVote,
+    sendEvent repeatedLocations 9 "repeated-voting-gossip-a" "gossip:A" .voting 7,
+    sendEvent repeatedLocations 10 "concurrent-voting-gossip-a" "gossip:A" .voting 8,
+    sendEvent repeatedLocations 11 "repeated-voting-gossip-b" "gossip:B" .voting 7,
+    sendEvent repeatedLocations 12 "concurrent-voting-gossip-b" "gossip:B" .voting 8,
     repeatedVoteReceive,
-    { lifecycleEvent repeatedLocations "A" 11 2 .locallyCommitted with
+    { lifecycleEvent repeatedLocations "A" 14 2 .locallyCommitted with
       txid := some repeatedVoteTxid },
-    { timeoutEvent repeatedLocations 12 .voting .opening with attempt := some 3 },
-    { openEvent repeatedLocations 13 .failover with attempt := some 3 },
-    { lifecycleEvent repeatedLocations "A" 14 3 .locallyCommitted with
+    { timeoutEvent repeatedLocations 15 .voting .opening with attempt := some 3 },
+    { openEvent repeatedLocations 16 .failover with attempt := some 3 },
+    { lifecycleEvent repeatedLocations "A" 17 3 .locallyCommitted with
       txid := some repeatedTimeoutTxid },
-    { lifecycleEvent repeatedLocations "A" 15 3 .globallyCommitted with
+    { lifecycleEvent repeatedLocations "A" 18 3 .globallyCommitted with
       txid := some repeatedTimeoutTxid },
-    sendEvent repeatedLocations 16 "first-pending-iamopen" "iamopen:B" .opening,
-    sendEvent repeatedLocations 17 "second-pending-iamopen" "iamopen:B" .opening,
-    { lifecycleEvent repeatedLocations "A" 18 2 .globallyCommitted with
+    sendEvent repeatedLocations 19 "first-pending-iamopen" "iamopen:B" .opening,
+    sendEvent repeatedLocations 20 "second-pending-iamopen" "iamopen:B" .opening,
+    { lifecycleEvent repeatedLocations "A" 21 2 .globallyCommitted with
       txid := some repeatedVoteTxid }
   ]
   match replay repeatedTrace with
@@ -625,7 +632,7 @@ private def checkAttempts : IO Unit := do
   let firstGossipA :=
     sendEvent reuseLocations 1 "first-gossip-a" "gossip:A" .gossiping
   let firstGossipB :=
-    sendEvent reuseLocations 2 "first-gossip-b" "gossip:B" .gossiping
+    sendEvent reuseLocations 2 "first-gossip-b" "gossip:B" .gossiping 1
   let firstReceive := {
     gossipEvent reuseLocations 3 "first-receive" "first-gossip-a" .gossiping with
       attempt := some 0
@@ -638,7 +645,7 @@ private def checkAttempts : IO Unit := do
   let secondGossipA :=
     sendEvent reuseLocations 6 "second-gossip-a" "gossip:A" .gossiping
   let secondGossipB :=
-    sendEvent reuseLocations 7 "second-gossip-b" "gossip:B" .gossiping
+    sendEvent reuseLocations 7 "second-gossip-b" "gossip:B" .gossiping 6
   let duplicateReceive := {
     gossipEvent reuseLocations 8 "duplicate-receive" "second-gossip-a"
       .gossiping with
@@ -690,7 +697,7 @@ private def checkAttempts : IO Unit := do
   let completedVote :=
     sendEvent locations 4 "completed-vote" "vote:A" .voting
   let completedGossip :=
-    sendEvent locations 5 "completed-gossip" "gossip:A" .voting
+    sendEvent locations 5 "completed-gossip" "gossip:A" .voting 4
   let committedOpeningVote := {
     voteEvent locations 6 "committed-opening-vote" "completed-vote" .opening with
     attempt := some 1
@@ -703,7 +710,7 @@ private def checkAttempts : IO Unit := do
   let postCommitVote :=
     sendEvent locations 9 "post-commit-vote" "vote:A" .voting
   let postCommitGossip :=
-    sendEvent locations 10 "post-commit-gossip" "gossip:A" .voting
+    sendEvent locations 10 "post-commit-gossip" "gossip:A" .voting 9
   match replay [
     start,
     send,
@@ -732,16 +739,24 @@ private def checkAttempts : IO Unit := do
     sendEvent locations 4 "canonical-after-rollback" "gossip:A" .gossiping
   let staleAfterChoice :=
     sendEvent locations 5 "stale-after-choice" "vote:A" .voting
-  expect
-    (replayFailedAt [
-      start,
-      send,
-      receive,
-      rollback,
-      canonicalAfterRollback,
-      staleAfterChoice
-    ] 6)
-    "resolved projection survived after a later batch chose canonical state"
+  match replay [
+    start,
+    send,
+    receive,
+    rollback,
+    canonicalAfterRollback,
+    staleAfterChoice,
+    sendEvent locations 6 "stale-after-choice-gossip" "gossip:A" .voting 5
+  ] with
+  | .ok state =>
+      let active <- activeState state
+      expect (phaseAt active "A" == some .gossiping)
+        "delayed rolled-back batch changed canonical state"
+      expect active.pendingSendBatches.isEmpty
+        "delayed rolled-back batch did not finish"
+  | .error failure =>
+      throw (IO.userError
+        s!"delayed rolled-back batch was rejected: {repr failure}")
 
   let votingSend :=
     sendEvent locations 4 "send-vote" "vote:A" .voting
@@ -753,7 +768,7 @@ private def checkAttempts : IO Unit := do
   let openingCommit :=
     lifecycleEvent locations "A" 7 1 .globallyCommitted
   let remainingSend :=
-    sendEvent locations 8 "send-voting-gossip" "gossip:A" .voting
+    sendEvent locations 8 "send-voting-gossip" "gossip:A" .voting 4
   match replay [
     start,
     send,
@@ -771,24 +786,30 @@ private def checkAttempts : IO Unit := do
         "interleaved lifecycle was not applied"
       expect active.pendingSendBatches.isEmpty
         "lifecycle interleaving broke an immediate send batch"
-      expect active.sendProjections.isEmpty
-        "lifecycle interleaving retained a stale send projection"
   | .error failure =>
       throw (IO.userError s!"interleaved send batch was rejected: {repr failure}")
-  expect
-    (replayFailedAt [
-      start,
-      send,
-      receive,
-      committed,
-      votingSend,
-      openingVote,
-      opening,
-      openingCommit,
-      remainingSend,
-      sendEvent locations 9 "stale-vote" "vote:A" .voting
-    ] 10)
-    "lifecycle interleaving allowed a stale later send batch"
+  match replay [
+    start,
+    send,
+    receive,
+    committed,
+    votingSend,
+    openingVote,
+    opening,
+    openingCommit,
+    remainingSend,
+    sendEvent locations 9 "delayed-vote" "vote:A" .voting,
+    sendEvent locations 10 "delayed-gossip" "gossip:A" .voting 9
+  ] with
+  | .ok state =>
+      let active <- activeState state
+      expect (phaseAt active "A" == some .opening)
+        "delayed pre-commit batch changed canonical state"
+      expect active.pendingSendBatches.isEmpty
+        "delayed pre-commit batch did not finish"
+  | .error failure =>
+      throw (IO.userError
+        s!"delayed pre-commit batch was rejected: {repr failure}")
 
   for lifecycle in [.rolledBack, .aborted] do
     let discarded := if lifecycle == .aborted then
@@ -865,6 +886,20 @@ private def checkAttempts : IO Unit := do
   expect
     (replayFailedAt [start, { send with attempt := some 0 }] 2)
     "attempt on send was accepted"
+  expect
+    (replayFailedAt [start, { send with batch := none }] 2)
+    "send without a batch was accepted"
+  expect
+    (replayFailedAt [{ start with batch := some 0 }] 1)
+    "batch on a non-send event was accepted"
+  expect
+    (replayFailedAt [
+      start,
+      send,
+      { sendEvent locations 2 "reused-batch" "gossip:A" .gossiping with
+        batch := send.batch }
+    ] 3)
+    "completed send batch was reused"
 
   let lifecycle := lifecycleEvent locations "A" 1 0 .globallyCommitted
   expect
@@ -905,15 +940,15 @@ private def failoverTrace : List TraceEvent :=
   [
     startEvent locations "A",
     sendEvent locations 1 "gossip-a" "gossip:A" .gossiping,
-    sendEvent locations 2 "gossip-b" "gossip:B" .gossiping,
+    sendEvent locations 2 "gossip-b" "gossip:B" .gossiping 1,
     { gossipEvent locations 3 "receive-gossip" "gossip-a" .gossiping with
       attempt := some 0 },
     lifecycleEvent locations "A" 4 0 .globallyCommitted,
     { timeoutEvent locations 5 .gossiping .voting with attempt := some 1 },
     lifecycleEvent locations "A" 6 1 .globallyCommitted,
     sendEvent locations 7 "vote-a" "vote:A" .voting,
-    sendEvent locations 8 "voting-gossip-a" "gossip:A" .voting,
-    sendEvent locations 9 "voting-gossip-b" "gossip:B" .voting,
+    sendEvent locations 8 "voting-gossip-a" "gossip:A" .voting 7,
+    sendEvent locations 9 "voting-gossip-b" "gossip:B" .voting 7,
     { voteEvent locations 10 "receive-vote" "vote-a" .voting with
       attempt := some 2 },
     lifecycleEvent locations "A" 11 2 .globallyCommitted,

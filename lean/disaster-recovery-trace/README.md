@@ -16,12 +16,13 @@ records prove which speculative states were visible to retry sends; sends
 observed before that proof remain conditional and are rejected if every
 possible attempt aborts. Starts and sends are replayed immediately. A first send
 racing after lifecycle resolution may select a retained pre-resolution local
-projection; that choice expires the alternatives and fixes the phase for the
-rest of its batch. Globally committed buffers are replayed in per-node TxID
-order rather than callback-log order. Local and final TxIDs must match, and
-terminal validation rejects locally committed attempts with no final status.
-The validator rejects the first incompatible record and reports its original
-file/line location and shortest failing ordered prefix.
+projection. Trace-only batch IDs let replay track multiple concurrent retry
+invocations independently when their sends interleave. Globally committed
+buffers are replayed in per-node TxID order rather than callback-log order.
+Local and final TxIDs must match, and terminal validation rejects locally
+committed attempts with no final status. The validator rejects the first
+incompatible record and reports its original file/line location and shortest
+failing ordered prefix.
 
 ## Build and test
 
