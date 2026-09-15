@@ -10,6 +10,8 @@
 #include "ccf/tx_id.h"
 #include "tasks/task.h"
 
+#include <atomic>
+
 namespace ccf::recovery_decision_protocol
 {
   struct TaggedWithNodeInfo
@@ -60,6 +62,7 @@ namespace ccf::recovery_decision_protocol
     std::optional<sealing_recovery::Name> source = std::nullopt;
     std::optional<ccf::View> view = std::nullopt;
     std::optional<ccf::SeqNo> seqno = std::nullopt;
+    std::optional<uint64_t> batch = std::nullopt;
     std::optional<std::string> pre = std::nullopt;
     std::optional<std::string> post = std::nullopt;
     std::optional<std::string> open_kind = std::nullopt;
@@ -75,6 +78,7 @@ namespace ccf::recovery_decision_protocol
     source,
     view,
     seqno,
+    batch,
     pre,
     post,
     open_kind,
@@ -115,6 +119,7 @@ namespace ccf
     uint64_t next_trace_sequence = 0;
     uint64_t next_trace_message_number = 0;
     uint64_t next_trace_attempt = 0;
+    std::atomic<uint64_t> next_trace_batch = 0;
     std::vector<std::string> trace_expected_locations;
 #endif
 
@@ -171,16 +176,31 @@ namespace ccf
       recovery_decision_protocol::GossipRequest request,
       recovery_decision_protocol::StateMachine state,
       const crypto::Pem& self_signed_node_cert,
-      const crypto::Pem& node_private_key);
+      const crypto::Pem& node_private_key
+#ifdef CCF_RECOVERY_TRACE
+      ,
+      uint64_t trace_batch
+#endif
+    );
     void send_vote_unsafe(
       recovery_decision_protocol::TaggedWithNodeInfo request,
       const recovery_decision_protocol::NodeInfo& node_info,
       const crypto::Pem& self_signed_node_cert,
-      const crypto::Pem& node_private_key);
+      const crypto::Pem& node_private_key
+#ifdef CCF_RECOVERY_TRACE
+      ,
+      uint64_t trace_batch
+#endif
+    );
     void send_iamopen_unsafe(
       recovery_decision_protocol::IAmOpenRequest request,
       const crypto::Pem& self_signed_node_cert,
-      const crypto::Pem& node_private_key);
+      const crypto::Pem& node_private_key
+#ifdef CCF_RECOVERY_TRACE
+      ,
+      uint64_t trace_batch
+#endif
+    );
 
     RecoveryDecisionProtocolConfig& get_config();
     sealing_recovery::Location& get_location();
@@ -206,6 +226,7 @@ namespace ccf
       const std::string& message_kind,
       const sealing_recovery::Name& target,
       recovery_decision_protocol::StateMachine state,
+      uint64_t batch,
       const std::optional<ccf::TxID>& txid = std::nullopt) noexcept;
 #endif
   };
