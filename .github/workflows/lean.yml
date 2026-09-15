@@ -13,6 +13,41 @@ concurrency:
 permissions: read-all
 
 jobs:
+  ccf-raft:
+    name: CCF Raft model and deterministic replay
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Lean
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y elan
+          elan toolchain install "$(cat lean/ccf-raft/lean-toolchain)"
+
+      - name: Restore canonical model dependencies
+        working-directory: lean/ccf-raft
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake exe cache get Mathlib.Data.Finmap Mathlib.Data.Fintype.Basic
+
+      - name: Build canonical model and replayer
+        working-directory: lean/ccf-raft
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake build CCFRaft canonical-checks ccfraft-replay
+          lake exe canonical-checks
+
+      - name: Check deterministic reduction
+        working-directory: lean/ccf-raft
+        run: python3 -m unittest discover -s tests -v
+
   disaster-recovery:
     name: Disaster recovery model and proofs
     runs-on: ubuntu-26.04

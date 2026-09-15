@@ -23,7 +23,7 @@ if [ ! -x "$(command -v uv)" ]; then
 fi
 
 if [ $FIX -ne 0 ]; then
-  uvx ruff check --fix python/ tests/
+  uvx ruff check --fix python/ tests/ lean/
 else
-  uvx ruff check python/ tests/
+  uvx ruff check python/ tests/ lean/
 fi

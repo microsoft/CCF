@@ -1,0 +1,217 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
+"""Negative wire-contract tests against the actual canonical executable."""
+
+import copy
+import json
+import subprocess
+import sys
+import unittest
+from pathlib import Path
+
+PACKAGE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PACKAGE))
+
+from reduction import reduce_trace
+from trace_io import read_trace
+
+REPLAYER = PACKAGE / ".lake/build/bin/ccfraft-replay"
+FIXTURE = Path(__file__).parent / "fixtures/bootstrap.ndjson"
+
+
+class CanonicalReplayTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        if not REPLAYER.is_file():
+            raise RuntimeError(
+                f"Build the canonical ccfraft-replay target before running {__file__}"
+            )
+
+    def replay(self, document):
+        return subprocess.run(
+            [str(REPLAYER), "-"],
+            input=json.dumps(document, sort_keys=True),
+            text=True,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+
+    def bootstrap(self):
+        return reduce_trace(read_trace(FIXTURE))
+
+    def test_source_bootstrap_is_accepted(self):
+        document = self.bootstrap()
+        result = self.replay(document)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout),
+            {
+                "status": "ok",
+                "instructions": 10,
+                "actions": 3,
+                "observations": 7,
+            },
+        )
+
+    def test_startup_retains_physical_prefix_before_next_signature(self):
+        document = reduce_trace(read_trace(FIXTURE.with_name("startup.ndjson")))
+        signature = next(
+            n
+            for n, i in enumerate(document["instructions"])
+            if i.get("action") == "signCommittableMessages"
+            and i["origin"][0]["rule"] == "write-pre"
+        )
+        preceding = document["instructions"][signature - 1]
+        self.assertEqual(preceding["fields"]["logLength"], 2)
+        self.assertEqual(preceding["fields"]["commitIndex"], 2)
+        self.assertEqual(preceding["fields"]["currentTerm"], 1)
+        result = self.replay(document)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout),
+            {
+                "status": "ok",
+                "instructions": 16,
+                "actions": 5,
+                "observations": 11,
+            },
+        )
+        preceding["fields"]["logLength"] = 0
+        negative = self.replay(document)
+        self.assertNotEqual(negative.returncode, 0)
+        self.assertIn("logLength: observed 0, canonical 2", negative.stderr)
+
+    def test_recorded_signature_marker_must_point_to_a_signature(self):
+        records = read_trace(FIXTURE.with_name("startup.ndjson"))
+        post_bootstrap_write = next(
+            row.value["msg"]
+            for row in records
+            if row.value.get("msg", {}).get("function") == "replicate"
+            and row.value["msg"]["seqno"] == 3
+        )
+        post_bootstrap_write["state"]["committable_indices"] = [1]
+        result = self.replay(reduce_trace(records))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("signature-marker", result.stderr)
+        self.assertIn("signature", result.stderr)
+        self.assertIn("configuration", result.stderr)
+
+    def test_terminal_retirement_and_nomination_match_driver(self):
+        document = reduce_trace(
+            read_trace(FIXTURE.with_name("terminal_retirement.stdout"))
+        )
+        result = self.replay(document)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout)["instructions"], len(document["instructions"])
+        )
+
+    def test_recorded_missing_bootstrap_prefix_produces_nack(self):
+        records = read_trace(FIXTURE)
+        records += read_trace(FIXTURE.with_name("configuration_callback.ndjson"))
+        records += read_trace(FIXTURE.with_name("missing_prefix_response.ndjson"))
+        document = reduce_trace(records)
+        packets = [
+            i["packet"]
+            for i in document["instructions"]
+            if i.get("observation") == "message"
+        ]
+        self.assertTrue(any(p.get("prev_idx") == 2 for p in packets))
+        self.assertTrue(
+            any(p.get("success") == "FAIL" and p["last_log_idx"] == 0 for p in packets)
+        )
+        result = self.replay(document)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout)["instructions"], len(document["instructions"])
+        )
+
+    def test_falsified_observation_is_rejected_with_origin(self):
+        document = self.bootstrap()
+        document["instructions"][0]["fields"]["currentTerm"] = 999
+        result = self.replay(document)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("instruction 1", result.stderr)
+        self.assertIn("bootstrap.ndjson:3 [bootstrap]", result.stderr)
+        self.assertIn("currentTerm", result.stderr)
+        self.assertIn("999", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_erased_index_schema_is_rejected(self):
+        document = self.bootstrap()
+        document["schema"] = "ccfraft-replay/v1"
+        result = self.replay(document)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("physical ledger indices", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_empty_instruction_array_is_rejected(self):
+        document = self.bootstrap()
+        document["instructions"] = []
+        result = self.replay(document)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must not be empty", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_disabled_action_is_rejected_with_origin(self):
+        document = self.bootstrap()
+        origin = document["instructions"][0]["origin"]
+        document["instructions"] = [
+            {
+                "kind": "action",
+                "action": "receive",
+                "source": "0",
+                "destination": "0",
+                "origin": origin,
+            }
+        ]
+        result = self.replay(document)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("disabled canonical action 'receive'", result.stderr)
+        self.assertIn("bootstrap.ndjson:3 [bootstrap]", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_malformed_packet_rejected_after_valid_canonical_send(self):
+        document = self.bootstrap()
+        document["bootstrap"]["pre_vote_enabled"]["1"] = False
+        origin = document["instructions"][0]["origin"]
+        document["instructions"] = [
+            {
+                "kind": "action",
+                "action": "changeConfiguration",
+                "source": "0",
+                "configuration": ["0", "1"],
+                "origin": origin,
+            },
+            {
+                "kind": "action",
+                "action": "appendEntries",
+                "source": "0",
+                "destination": "1",
+                "batchEnd": 1,
+                "origin": origin,
+            },
+            {
+                "kind": "observation",
+                "observation": "message",
+                "source": "0",
+                "destination": "1",
+                "origin": origin,
+                "packet": {"msg": "raft_append_entries", "term": 1},
+            },
+        ]
+        positive = self.replay(document)
+        self.assertEqual(positive.returncode, 0, positive.stderr)
+        malformed = copy.deepcopy(document)
+        malformed["instructions"][-1]["packet"]["term"] = "not-a-term"
+        result = self.replay(malformed)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("instruction 3", result.stderr)
+        self.assertIn("not-a-term", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+
+if __name__ == "__main__":
+    unittest.main()
