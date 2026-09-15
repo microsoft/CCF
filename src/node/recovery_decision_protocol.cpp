@@ -116,6 +116,7 @@ namespace ccf
       next_trace_sequence = 0;
       next_trace_message_number = 0;
       next_trace_attempt = 0;
+      next_trace_batch.store(0, std::memory_order_relaxed);
       trace_expected_locations = std::move(expected_locations);
     }
     catch (const std::exception& e)
@@ -182,6 +183,7 @@ namespace ccf
     const std::string& message_kind,
     const sealing_recovery::Name& target,
     recovery_decision_protocol::StateMachine state,
+    uint64_t batch,
     const std::optional<ccf::TxID>& txid) noexcept
   {
     try
@@ -189,6 +191,7 @@ namespace ccf
       recovery_decision_protocol::TraceEvent event{
         .kind = "send",
         .message_id = message_id,
+        .batch = batch,
         .pre = trace_state_name(state),
         .post = trace_state_name(state),
         .send = fmt::format("{}:{}", message_kind, target),
@@ -860,6 +863,10 @@ namespace ccf
           node_state->get_self_signed_certificate();
         const auto node_private_key =
           node_state->node_sign_kp->private_key_pem();
+#ifdef CCF_RECOVERY_TRACE
+        const auto trace_batch =
+          next_trace_batch.fetch_add(1, std::memory_order_relaxed);
+#endif
 
         switch (sm_state)
         {
@@ -868,24 +875,46 @@ namespace ccf
               gossip_request.value(),
               sm_state,
               self_signed_node_cert,
-              node_private_key);
+              node_private_key
+#ifdef CCF_RECOVERY_TRACE
+              ,
+              trace_batch
+#endif
+            );
             break;
           case recovery_decision_protocol::StateMachine::VOTING:
             send_vote_unsafe(
               vote_request.value(),
               chosen_node_info.value(),
               self_signed_node_cert,
-              node_private_key);
+              node_private_key
+#ifdef CCF_RECOVERY_TRACE
+              ,
+              trace_batch
+#endif
+            );
             // Keep gossiping to allow lagging nodes to eventually vote.
             send_gossip_unsafe(
               gossip_request.value(),
               sm_state,
               self_signed_node_cert,
-              node_private_key);
+              node_private_key
+#ifdef CCF_RECOVERY_TRACE
+              ,
+              trace_batch
+#endif
+            );
             break;
           case recovery_decision_protocol::StateMachine::OPENING:
             send_iamopen_unsafe(
-              iamopen_request.value(), self_signed_node_cert, node_private_key);
+              iamopen_request.value(),
+              self_signed_node_cert,
+              node_private_key
+#ifdef CCF_RECOVERY_TRACE
+              ,
+              trace_batch
+#endif
+            );
             break;
           case recovery_decision_protocol::StateMachine::JOINING:
           case recovery_decision_protocol::StateMachine::OPEN:
@@ -1103,7 +1132,12 @@ namespace ccf
     recovery_decision_protocol::GossipRequest request,
     [[maybe_unused]] recovery_decision_protocol::StateMachine state,
     const crypto::Pem& self_signed_node_cert,
-    const crypto::Pem& node_private_key)
+    const crypto::Pem& node_private_key
+#ifdef CCF_RECOVERY_TRACE
+    ,
+    uint64_t trace_batch
+#endif
+  )
   {
     auto& config = get_config();
 
@@ -1122,7 +1156,12 @@ namespace ccf
         node_private_key);
 #ifdef CCF_RECOVERY_TRACE
       emit_trace_send(
-        request.message_id, "gossip", target.name, state, request.txid);
+        request.message_id,
+        "gossip",
+        target.name,
+        state,
+        trace_batch,
+        request.txid);
 #endif
     }
   }
@@ -1131,7 +1170,12 @@ namespace ccf
     recovery_decision_protocol::TaggedWithNodeInfo request,
     const recovery_decision_protocol::NodeInfo& node_info,
     const crypto::Pem& self_signed_node_cert,
-    const crypto::Pem& node_private_key)
+    const crypto::Pem& node_private_key
+#ifdef CCF_RECOVERY_TRACE
+    ,
+    uint64_t trace_batch
+#endif
+  )
   {
     LOG_TRACE_FMT(
       "Sending recovery-decision-protocol vote to {} at {}",
@@ -1151,7 +1195,8 @@ namespace ccf
       request.message_id,
       "vote",
       node_info.location.name,
-      recovery_decision_protocol::StateMachine::VOTING);
+      recovery_decision_protocol::StateMachine::VOTING,
+      trace_batch);
 #endif
   }
 
@@ -1195,7 +1240,12 @@ namespace ccf
   void RecoveryDecisionProtocolSubsystem::send_iamopen_unsafe(
     recovery_decision_protocol::IAmOpenRequest request,
     const crypto::Pem& self_signed_node_cert,
-    const crypto::Pem& node_private_key)
+    const crypto::Pem& node_private_key
+#ifdef CCF_RECOVERY_TRACE
+    ,
+    uint64_t trace_batch
+#endif
+  )
   {
     auto& config = get_config();
     auto& location = get_location();
@@ -1221,7 +1271,8 @@ namespace ccf
         request.message_id,
         "iamopen",
         target.name,
-        recovery_decision_protocol::StateMachine::OPENING);
+        recovery_decision_protocol::StateMachine::OPENING,
+        trace_batch);
 #endif
     }
   }
