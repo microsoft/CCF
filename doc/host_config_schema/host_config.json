@@ -6,11 +6,11 @@
   "properties": {
     "observability": {
       "type": "object",
-      "description": "Startup-only observability settings. Absent fluentd configuration disables Raft export.",
+      "description": "Startup-only observability settings. Absent fluentd configuration disables trace export.",
       "properties": {
         "fluentd": {
           "type": "object",
-          "description": "Tracing integration proof of concept. Exports [tag, EventTime, {'process_id': string, 'h_ts': process sequence, 'msg': event}] to a trusted local in_forward listener over plaintext TCP, without authentication or acknowledgements. Raft is the first example: CCF_RAFT_TRACING=ON enables its instrumentation, using the ccf.raft_trace tag and retaining node IDs. Sequence numbers are assigned before enqueue; delivery can be out of order or lossy. The consumer logs each 65536 dropped records and drains for at most two seconds at shutdown. One preallocated ring per producer feeds one TCP connection.",
+          "description": "Exports [tag, EventTime, {'process_id': string, 'h_ts': process sequence, 'msg': event}] to a trusted local in_forward listener over plaintext TCP, without authentication or acknowledgements. Generic tracing is independent of CCF_RAFT_TRACING. Setting CCF_RAFT_TRACING=ON enables Raft instrumentation, using the ccf.raft_trace tag and retaining node IDs. Sequence numbers are assigned before enqueue; delivery can be out of order or lossy. The consumer logs each 65536 dropped records and drains for at most two seconds at shutdown. One preallocated ring per producer feeds one TCP connection. Nodes do not wait for a collector before starting.",
           "properties": {
             "host": {
               "type": "string",

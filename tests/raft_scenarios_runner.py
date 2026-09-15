@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import subprocess
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
@@ -133,6 +134,11 @@ if __name__ == "__main__":
 
     parser.add_argument("driver", type=str, help="Path to raft_driver binary")
     parser.add_argument("--gen-scenarios", action="store_true")
+    parser.add_argument(
+        "--raft-tracing",
+        action="store_true",
+        help="Capture traces from a driver built with CCF_RAFT_TRACING=ON",
+    )
     parser.add_argument("files", nargs="*", type=str, help="Path to scenario files")
     parser.add_argument(
         "-o",
@@ -154,7 +160,7 @@ if __name__ == "__main__":
 
     ostream = sys.stdout
 
-    if files:
+    if args.raft_tracing and files:
         check_connection_timeout(args.driver, files[0])
 
     # Create consensus-specific output directory
@@ -164,7 +170,16 @@ if __name__ == "__main__":
         ostream.write(f"## {os.path.basename(scenario)}\n\n")
         with block(ostream, "steps", 3), open(scenario, "r", encoding="utf-8") as scen:
             ostream.write(scen.read())
-        proc, records = run_driver(args.driver, scenario)
+        records = []
+        if args.raft_tracing:
+            proc, records = run_driver(args.driver, scenario)
+        else:
+            proc = subprocess.run(
+                [args.driver, os.path.realpath(scenario)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
         out, err = proc.stdout, proc.stderr
         test_result = test_result and proc.returncode == 0
 

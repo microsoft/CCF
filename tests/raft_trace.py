@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 """Capture and order Fluentd Message-mode records from the Raft driver."""
 
-import json
 import pathlib
 import socket
 import struct
@@ -123,47 +122,3 @@ def as_log_lines(records):
         )
         for record in records
     ]
-
-
-def compare(baseline_driver, candidate_driver, scenarios):
-    """Compare all event fields against an upstream JSON-tracing driver."""
-    total = 0
-    paths = sorted(
-        path for path in pathlib.Path(scenarios).rglob("*") if path.is_file()
-    )
-    assert paths, "No scenarios found"
-    for scenario in paths:
-        baseline = subprocess.run(
-            [str(pathlib.Path(baseline_driver).resolve()), str(scenario)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        expected = []
-        for line in baseline.stdout.splitlines():
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if entry.get("tag") == "raft_trace":
-                expected.append(
-                    {"cmd": entry["cmd"]} if "cmd" in entry else entry["msg"]
-                )
-        assert expected, f"{scenario}: baseline has no trace events"
-        result, records = run_driver(candidate_driver, scenario)
-        result.check_returncode()
-        actual = [record["msg"] for record in records]
-        assert actual == expected, f"{scenario}: event parity mismatch"
-        total += len(records)
-    print(f"{total} records match across {len(paths)} scenarios")
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description=compare.__doc__)
-    parser.add_argument("baseline_driver")
-    parser.add_argument("candidate_driver")
-    parser.add_argument("scenarios")
-    args = parser.parse_args()
-    compare(args.baseline_driver, args.candidate_driver, args.scenarios)

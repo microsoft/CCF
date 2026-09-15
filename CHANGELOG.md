@@ -11,8 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Generic tracing integration proof of concept exports tagged events to a trusted, local Fluentd `in_forward` listener over plaintext TCP. Raft instrumentation is the first example and requires `CCF_RAFT_TRACING=ON`, which remains off by default. Startup `observability.fluentd` configuration enables export; absent configuration disables it. Each producer has a bounded ring, defaulting to 1MB, and drops rather than waits when full. Records include EventTime, a process identifier, and a process sequence assigned before enqueue. Delivery order is not guaranteed. The consumer logs every 65,536 dropped records and limits shutdown draining to two seconds. Authentication, TLS, acknowledgements, and durable delivery are not provided.
-  The Raft test driver waits up to five seconds for a configured collector before processing its scenario and fails on connection timeout or exporter drops, including shutdown drain failures. Production nodes do not wait for a collector. Connection readiness does not guarantee remote receipt.
+- Added generic tracing over plaintext TCP to a trusted, local Fluentd `in_forward` listener, enabled by startup `observability.fluentd` configuration. Export is best-effort, without authentication, TLS, acknowledgements, or durable delivery. See the [host configuration schema](doc/host_config_schema/host_config.json) for record fields, buffer limits, and shutdown behaviour. Raft instrumentation requires `CCF_RAFT_TRACING=ON`, which remains off by default. The Raft test driver waits up to five seconds for a configured collector and fails on connection timeout or exporter drops.
 
 ### Fixed
 

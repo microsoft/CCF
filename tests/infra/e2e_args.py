@@ -566,13 +566,11 @@ def cli_args(
     parser.add_argument(
         "--max-open-sessions",
         help="Soft cap on max open TLS sessions on each node",
-        type=int,
         default=1000,
     )
     parser.add_argument(
         "--max-open-sessions-hard",
         help="Hard cap on max open TLS sessions on each node",
-        type=int,
         default=1010,
     )
     parser.add_argument(

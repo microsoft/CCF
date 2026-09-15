@@ -1062,11 +1062,16 @@ if(BUILD_TESTS)
     target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
     target_include_directories(raft_driver PRIVATE src/aft)
 
+    set(RAFT_SCENARIO_ARGS)
+    if(CCF_RAFT_TRACING)
+      list(APPEND RAFT_SCENARIO_ARGS --raft-tracing)
+    endif()
     add_test(
       NAME raft_scenario_test
       COMMAND
         ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
         ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
+        ${RAFT_SCENARIO_ARGS}
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
     set_property(TEST raft_scenario_test APPEND PROPERTY LABELS bucket_c)
