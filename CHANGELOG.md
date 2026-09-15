@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- JS registry tables and their configured namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. The governance-driven registry uses `public:ccf.gov.*` and leaves application namespaces unchanged. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`; platform permissions still apply (#8359).
 - Temporary native PEM buffers, string copies, private JWK fields and JSON values owned by the `ccf.crypto.generateRsaKeyPair`, `ccf.crypto.generateEcdsaKeyPair`, `ccf.crypto.generateEddsaKeyPair`, `ccf.crypto.pemToJwk` (and its RSA/EdDSA variants), `ccf.crypto.jwkToPem` (and its RSA/EdDSA variants), and `ccf.crypto.sign` bindings are now scrubbed on scope exit. Previously these copies were scrubbed only on success or not at all. JavaScript-owned strings and internal library temporaries are not covered by this change (#8354).
 - Fixed a double free when setting a property on a JavaScript object fails, which application script could trigger while the request object was being built. Such failures are now reported as a failed request (#8356).
 - Historical states retrieved by JavaScript endpoints, through `ccf.historicalState` or `ccf.historical.getStateRange`, remain available through response conversion and are released when the request completes, rather than being retained for the lifetime of the node (#8355).
