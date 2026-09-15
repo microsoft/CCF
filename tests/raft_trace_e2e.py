@@ -42,7 +42,9 @@ def run(args):
     try:
         for endpoint in (
             {"host": "127.0.0.1", "port": "0"},
-            {"host": "127.0.0.1", "port": "24224", "ring_buffer_size": "3KB"},
+            {"host": "127.0.0.1", "port": "24224", "queue_capacity": 0},
+            {"host": "127.0.0.1", "port": "24224", "queue_capacity": -1},
+            {"host": "127.0.0.1", "port": "24224", "queue_capacity": 1048577},
         ):
             baseline["observability"] = {"fluentd": endpoint}
             invalid_path.write_text(json.dumps(baseline), encoding="utf-8")
@@ -59,7 +61,11 @@ def run(args):
                 check=False,
             )
             assert result.returncode != 0, result.stdout
-            assert "Fluentd" in result.stdout or "Trace ring size" in result.stdout
+            output = result.stdout + result.stderr
+            assert any(
+                text in output
+                for text in ("Fluentd", "Trace queue capacity", "queue_capacity")
+            ), output
     finally:
         invalid_path.unlink(missing_ok=True)
     with socket.socket() as reservation:

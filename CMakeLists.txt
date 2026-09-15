@@ -1587,6 +1587,32 @@ if(BUILD_TESTS)
       100
   )
 
+  if(CCF_RAFT_TRACING)
+    add_e2e_test(
+      NAME fluentd_emission
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fluentd_benchmark.py
+      LABEL perf
+      CONFIGURATIONS perf
+      ADDITIONAL_ARGS
+        --package
+        "samples/apps/basic/basic"
+        --worker-threads
+        2
+        --snapshot-tx-interval
+        1000000000
+        --users
+        320
+        --spawn-rate
+        320
+        --locust-processes
+        4
+        --measure-time-s
+        20
+        --sig-ms-intervals
+        100
+    )
+  endif()
+
   # JWT-authenticated blocking logging workload, driven by locust so that the
   # number of concurrent clients can be varied.
   add_e2e_test(

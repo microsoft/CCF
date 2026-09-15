@@ -267,7 +267,6 @@ namespace ringbuffer
   protected:
     BufferDef bd; // copy of reader's buffer definition
     const size_t rmax;
-    const bool single_producer;
 
     struct Reservation
     {
@@ -280,32 +279,14 @@ namespace ringbuffer
     };
 
   public:
-    // single_producer requires exclusive producer ownership for this buffer.
-    Writer(const Reader& r, bool single_producer_ = false) :
+    Writer(const Reader& r) :
       bd(r.bd),
-      rmax(Const::max_reservation_size(bd.size)),
-      single_producer(single_producer_)
+      rmax(Const::max_reservation_size(bd.size))
     {}
 
-    Writer(const Writer& that) :
-      bd(that.bd),
-      rmax(that.rmax),
-      single_producer(that.single_producer)
-    {}
+    Writer(const Writer& that) : bd(that.bd), rmax(that.rmax) {}
 
     ~Writer() override = default;
-
-    bool try_write_raw(Message message, std::span<const uint8_t> bytes)
-    {
-      const auto marker = prepare(message, bytes.size(), false);
-      if (!marker.has_value())
-      {
-        return false;
-      }
-      write_bytes(marker, bytes.data(), bytes.size());
-      finish(marker);
-      return true;
-    }
 
     std::optional<size_t> prepare(
       Message m,
@@ -475,11 +456,6 @@ namespace ringbuffer
           // guaranteed to fail and update tl.
           if (greater_with_wraparound(hd, tl))
           {
-            if (single_producer)
-            {
-              throw std::logic_error(
-                "Single-producer ring has head ahead of tail");
-            }
             continue;
           }
 
@@ -526,12 +502,6 @@ namespace ringbuffer
           // Pad the back-space and reserve front-space for our message in a
           // single tail update.
           padding = block;
-        }
-        if (single_producer)
-        {
-          bd.offsets->tail.store(
-            tl + size + padding, std::memory_order_relaxed);
-          break;
         }
       } while (!bd.offsets->tail.compare_exchange_weak(
         tl, tl + size + padding, std::memory_order_seq_cst));

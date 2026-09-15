@@ -15,6 +15,21 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 ## Bencher
 
 Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
+
+After the virtual baselines, the job rebuilds `basic` with `CCF_RAFT_TRACING=ON`
+and runs `fluentd_emission`. This pairs export off and on in the same executable,
+using two nodes, two worker threads, and the existing blocking-write Locust
+workload. A local Fluentd-compatible TCP drain decodes and counts messages without
+retaining them. Export uses 4096 owning record slots per producer, with a
+separate 1MiB record limit and no aggregate byte budget. Queue synchronization
+is lock-free; record allocation may lock. This measures emission cost, not
+Fluentd processing or storage.
+Each producer has a 1MB ring. Throughput and latency use the existing
+`bencher.json` format; `*_received.json` artifacts count records and bytes over
+each network's full lifetime. The enabled run requires Raft events from both nodes.
+To run locally after building `basic` with tracing enabled, use
+`cd build && ./tests.sh -VV -C perf -R '^fluentd_emission$' --no-tests=error`.
+
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
 Tests are run on two different testbeds for comparison: gha-vmss-d16av6-ci (d16av6 VMs) and gha-c-aci-ci (C-ACI with 16 cores and 32Gb RAM).

@@ -4,7 +4,7 @@
 
 #include "ccf/node/startup_config.h"
 #include "ds/internal_logger.h"
-#include "ds/ring_buffer.h"
+#include "tracing/spsc_queue.h"
 
 #include <atomic>
 #include <cerrno>
@@ -35,13 +35,14 @@ namespace ccf::tracing
 
     static size_t validate(const Endpoint& endpoint, size_t producers = 1)
     {
-      const auto size = endpoint.ring_buffer_size.count_bytes();
+      const auto size = endpoint.queue_capacity;
       if (
-        producers == 0 || producers > 65535 || size < 1024 ||
-        size > 64 * 1024 * 1024 || !ringbuffer::Const::is_power_of_2(size))
+        producers == 0 || producers > 65535 || size == 0 ||
+        size > SPSCQueue::MAX_CAPACITY)
       {
         throw std::invalid_argument(
-          "Trace ring size must be a power of two between 1KB and 64MB");
+          "Trace queue capacity must be between 1 and 1048576 slots, with "
+          "between 1 and 65535 producers");
       }
       unsigned port = 0;
       const auto* end = endpoint.port.data() + endpoint.port.size();
@@ -58,22 +59,13 @@ namespace ccf::tracing
     }
 
   private:
-    static constexpr ringbuffer::Message TRACE_MESSAGE =
-      ccf::ds::fnv_1a<ringbuffer::Message>("trace");
     struct Queue
     {
-      std::vector<uint64_t> storage;
-      ringbuffer::Offsets offsets;
-      ringbuffer::Reader reader;
-      ringbuffer::Writer writer;
+      SPSCQueue records;
       size_t enqueued = 0;
       size_t consumed = 0;
 
-      explicit Queue(size_t size) :
-        storage(size / sizeof(uint64_t)),
-        reader({reinterpret_cast<uint8_t*>(storage.data()), size, &offsets}),
-        writer(reader, true)
-      {}
+      explicit Queue(size_t capacity) : records(capacity) {}
     };
 
     struct Transport
@@ -81,7 +73,6 @@ namespace ccf::tracing
       sockaddr_storage address = {};
       socklen_t address_size = 0;
       std::vector<std::unique_ptr<Queue>> queues;
-      size_t max_payload;
       std::atomic<uint64_t> dropped = 0;
       std::atomic<bool> stopping = false;
       std::atomic<bool> connected = false;
@@ -109,8 +100,6 @@ namespace ccf::tracing
         std::memcpy(&address, addresses->ai_addr, addresses->ai_addrlen);
         address_size = addresses->ai_addrlen;
         freeaddrinfo(addresses);
-        max_payload = ringbuffer::Const::max_reservation_size(size) -
-          ringbuffer::Const::header_size();
         for (size_t i = 0; i < producers; ++i)
         {
           queues.push_back(std::make_unique<Queue>(size));
@@ -268,13 +257,11 @@ namespace ccf::tracing
               disconnect();
               return;
             }
-            const auto before = queue->offsets.head.load();
-            queue->reader.read(
-              64, [this, &queue](auto, const uint8_t* data, size_t size) {
-                write({data, size});
-                ++queue->consumed;
-              });
-            progress |= before != queue->offsets.head.load();
+            progress |= queue->records.read(
+                          64, [this, &queue](std::span<const uint8_t> bytes) {
+                            write(bytes);
+                            ++queue->consumed;
+                          }) != 0;
           }
           report_drops();
           if (!progress)
@@ -376,9 +363,7 @@ namespace ccf::tracing
         return false;
       }
       auto* q = bound_queue();
-      if (
-        !q || bytes.size() > t->max_payload ||
-        !q->writer.try_write_raw(TRACE_MESSAGE, bytes))
+      if (!q || !q->records.push(bytes))
       {
         t->dropped.fetch_add(1, std::memory_order_relaxed);
         return false;

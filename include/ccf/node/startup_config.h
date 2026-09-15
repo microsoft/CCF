@@ -146,7 +146,7 @@ namespace ccf
         // listener.
         std::string host;
         std::string port;
-        ccf::ds::SizeString ring_buffer_size = {"1MB"};
+        size_t queue_capacity = 4096;
 
         bool operator==(const Fluentd&) const = default;
       };

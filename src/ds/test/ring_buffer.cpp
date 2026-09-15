@@ -60,69 +60,6 @@ void handle_message(Message m, const uint8_t* data, size_t size)
 
 void nop_handler(ringbuffer::Message, const uint8_t*, size_t) {}
 
-TEST_CASE("Single-producer raw writes wrap and reject full buffers")
-{
-  ringbuffer::TestBuffer buffer(128);
-  Reader reader(buffer.bd);
-  Writer writer(reader, true);
-  std::vector<uint8_t> payload(37);
-  for (uint8_t i = 0; i < 64; ++i)
-  {
-    std::fill(payload.begin(), payload.end(), i);
-    REQUIRE(writer.try_write_raw(small_message, payload));
-    size_t seen = 0;
-    while (buffer.bd.offsets->head.load() != buffer.bd.offsets->tail.load())
-    {
-      reader.read(16, [&](auto, const uint8_t* data, size_t size) {
-        CHECK(size == payload.size());
-        CHECK(std::equal(payload.begin(), payload.end(), data));
-        ++seen;
-      });
-    }
-    CHECK(seen == 1);
-  }
-  while (writer.try_write_raw(small_message, payload))
-  {
-  }
-  const auto tail = buffer.bd.offsets->tail.load();
-  CHECK_FALSE(writer.try_write_raw(small_message, payload));
-  CHECK(buffer.bd.offsets->tail.load() == tail);
-}
-
-TEST_CASE("Single-producer raw writes publish complete records concurrently")
-{
-  ringbuffer::TestBuffer buffer(1024);
-  Reader reader(buffer.bd);
-  Writer writer(reader, true);
-  constexpr uint64_t count = 10000;
-  std::thread producer([&] {
-    std::vector<uint8_t> payload(37);
-    for (uint64_t i = 0; i < count; ++i)
-    {
-      std::fill(payload.begin(), payload.end(), i % 251);
-      std::memcpy(payload.data(), &i, sizeof(i));
-      while (!writer.try_write_raw(small_message, payload))
-        std::this_thread::yield();
-    }
-  });
-  uint64_t expected = 0;
-  while (expected < count)
-  {
-    reader.read(64, [&](auto message, const uint8_t* data, size_t size) {
-      CHECK(message == small_message);
-      CHECK(size == 37);
-      uint64_t sequence;
-      std::memcpy(&sequence, data, sizeof(sequence));
-      CHECK(sequence == expected);
-      for (size_t i = sizeof(sequence); i < size; ++i)
-        CHECK(data[i] == expected % 251);
-      ++expected;
-    });
-    std::this_thread::yield();
-  }
-  producer.join();
-}
-
 TEST_CASE("Basic ringbuffer" * doctest::test_suite("ringbuffer"))
 {
   constexpr uint8_t size = 32;

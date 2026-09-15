@@ -10,7 +10,7 @@
       "properties": {
         "fluentd": {
           "type": "object",
-          "description": "Exports [tag, EventTime, {'process_id': string, 'h_ts': process sequence, 'msg': event}] to a trusted local in_forward listener over plaintext TCP, without authentication or acknowledgements. Generic tracing is independent of CCF_RAFT_TRACING. Setting CCF_RAFT_TRACING=ON enables Raft instrumentation, using the ccf.raft_trace tag and retaining node IDs. Sequence numbers are assigned before enqueue; delivery can be out of order or lossy. The consumer logs each 65536 dropped records and drains for at most two seconds at shutdown. One preallocated ring per producer feeds one TCP connection. Nodes do not wait for a collector before starting.",
+          "description": "Exports [tag, EventTime, {'process_id': string, 'h_ts': process sequence, 'msg': event}] to a trusted local in_forward listener over plaintext TCP, without authentication or acknowledgements. Generic tracing is independent of CCF_RAFT_TRACING. Setting CCF_RAFT_TRACING=ON enables Raft instrumentation, using the ccf.raft_trace tag and retaining node IDs. Sequence numbers are assigned before enqueue; delivery can be out of order or lossy. The consumer logs each 65536 dropped records and drains for at most two seconds at shutdown. One owning record queue per producer feeds one TCP connection. Queue synchronization is lock-free, but record allocation may lock. Nodes do not wait for a collector before starting.",
           "properties": {
             "host": {
               "type": "string",
@@ -23,10 +23,12 @@
               "description": "Decimal TCP port in the range 1 to 65535.",
               "examples": ["24224"]
             },
-            "ring_buffer_size": {
-              "type": "string",
-              "default": "1MB",
-              "description": "Per-producer ring size. Must be a power of two between 1KB and 64MB. Full and oversized records are dropped without waiting. The maximum record size is half the ring size minus its 8-byte header."
+            "queue_capacity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1048576,
+              "default": 4096,
+              "description": "Per-producer record slots, not a byte budget. Full queues and records over 1MiB are rejected before allocation. Allocation failure also drops the record. Accepted records own their bytes until the consumer finishes sending or drops them. There is no aggregate byte limit."
             }
           },
           "required": ["host", "port"]

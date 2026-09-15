@@ -12,12 +12,22 @@ TEST_CASE("Fluentd configuration round trips")
   ccf::CCFConfig::Observability config;
   CHECK(nlohmann::json(config) == nlohmann::json::object());
   config.fluentd = {"::1", "24224"};
+  CHECK(config.fluentd->queue_capacity == 4096);
+  config.fluentd->queue_capacity = 3;
   CHECK(nlohmann::json(config).get<ccf::CCFConfig::Observability>() == config);
+  auto json = nlohmann::json(config);
+  json["fluentd"]["queue_capacity"] = -1;
+  CHECK_THROWS_AS(
+    ccf::tracing::FluentdSink::validate(
+      json.get<ccf::CCFConfig::Observability>().fluentd.value()),
+    std::invalid_argument);
 }
 
 namespace
 {
   thread_local bool forbid_allocation = false;
+  thread_local size_t allocations = 0;
+  thread_local size_t allocation_failure = 0;
   std::atomic<bool> stalled = false;
   std::atomic<size_t> calls = 0;
   std::atomic<size_t> fail_at = 0;
@@ -38,7 +48,8 @@ extern "C" ssize_t __real_send(int, const void*, size_t, int);
 extern "C" void* __real__Znwm(size_t);
 extern "C" void* __wrap__Znwm(size_t size)
 {
-  if (forbid_allocation)
+  ++allocations;
+  if (forbid_allocation || allocations == allocation_failure)
     throw std::bad_alloc();
   return __real__Znwm(size);
 }
@@ -61,7 +72,130 @@ extern "C" ssize_t __wrap_send(int fd, const void* data, size_t size, int flags)
   return __real_send(fd, data, std::min(size, size_t(7)), flags);
 }
 
-TEST_CASE("SPSC export: framing, allocation-free enqueue, drops and shutdown")
+TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
+{
+  using Queue = ccf::tracing::SPSCQueue;
+  CHECK_THROWS_AS(Queue(0), std::invalid_argument);
+  CHECK_THROWS_AS(Queue(Queue::MAX_CAPACITY + 1), std::invalid_argument);
+  Queue queue(3);
+  auto ignore = [](auto) {};
+  CHECK(queue.read(1, ignore) == 0);
+  std::array<uint8_t, 37> payload = {};
+  for (size_t round = 0; round < 64; ++round)
+  {
+    for (uint8_t i = 0; i < 3; ++i)
+    {
+      payload.fill(i);
+      REQUIRE(queue.push(payload));
+    }
+    const auto before = allocations;
+    const auto full = queue.push(payload);
+    const auto after = allocations;
+    CHECK_FALSE(full);
+    CHECK(after == before);
+    size_t expected = 0;
+    CHECK(queue.read(3, [&](auto bytes) {
+      CHECK(bytes.size() == payload.size());
+      for (auto byte : bytes)
+        CHECK(byte == expected);
+      ++expected;
+    }) == 3);
+    CHECK(expected == 3);
+    CHECK(queue.read(1, ignore) == 0);
+  }
+  for (size_t failure = 1; failure <= 2; ++failure)
+  {
+    allocation_failure = allocations + failure;
+    const auto pushed = queue.push(payload);
+    allocation_failure = 0;
+    CHECK_FALSE(pushed);
+    CHECK(queue.read(1, ignore) == 0);
+    REQUIRE(queue.push(payload));
+    CHECK(queue.read(1, ignore) == 1);
+  }
+  std::vector<uint8_t> large(Queue::MAX_RECORD_SIZE + 1);
+  const auto before = allocations;
+  const auto oversized = queue.push(large);
+  const auto after = allocations;
+  CHECK_FALSE(oversized);
+  CHECK(before == after);
+  large.pop_back();
+  REQUIRE(queue.push(large));
+  CHECK(queue.read(1, [&](auto bytes) {
+    CHECK(bytes.size() == Queue::MAX_RECORD_SIZE);
+  }) == 1);
+}
+
+TEST_CASE("SPSC callback retains ownership until it returns")
+{
+  ccf::tracing::SPSCQueue queue(1);
+  std::array<uint8_t, 1> payload = {42};
+  REQUIRE(queue.push(payload));
+  std::promise<void> entered;
+  std::promise<void> release;
+  auto released = release.get_future();
+  std::thread consumer([&] {
+    CHECK(queue.read(1, [&](auto bytes) {
+      entered.set_value();
+      released.wait();
+      CHECK(bytes[0] == 42);
+    }) == 1);
+  });
+  entered.get_future().wait();
+  payload[0] = 17;
+  const auto before = allocations;
+  const auto pushed = queue.push(payload);
+  const auto after = allocations;
+  CHECK_FALSE(pushed);
+  CHECK(before == after);
+  release.set_value();
+  consumer.join();
+  REQUIRE(queue.push(payload));
+  CHECK(queue.read(1, [](auto bytes) { CHECK(bytes[0] == 17); }) == 1);
+}
+
+TEST_CASE("SPSC default capacity counts records, including empty records")
+{
+  ccf::tracing::SPSCQueue queue;
+  for (size_t i = 0; i < 4096; ++i)
+    REQUIRE(queue.push({}));
+  CHECK_FALSE(queue.push({}));
+  CHECK(queue.read(4096, [](auto bytes) { CHECK(bytes.empty()); }) == 4096);
+  CHECK(queue.read(1, [](auto) {}) == 0);
+}
+
+TEST_CASE("SPSC records are published in order concurrently")
+{
+  ccf::tracing::SPSCQueue queue(3);
+  constexpr uint64_t count = 10000;
+  std::thread writer([&] {
+    std::array<uint8_t, 37> payload;
+    for (uint64_t i = 0; i < count; ++i)
+    {
+      payload.fill(i % 251);
+      std::memcpy(payload.data(), &i, sizeof(i));
+      while (!queue.push(payload))
+        std::this_thread::yield();
+    }
+  });
+  uint64_t expected = 0;
+  while (expected < count)
+  {
+    queue.read(64, [&](auto bytes) {
+      REQUIRE(bytes.size() == 37);
+      uint64_t sequence;
+      std::memcpy(&sequence, bytes.data(), sizeof(sequence));
+      CHECK(sequence == expected);
+      for (size_t i = sizeof(sequence); i < bytes.size(); ++i)
+        CHECK(bytes[i] == expected % 251);
+      ++expected;
+    });
+    std::this_thread::yield();
+  }
+  writer.join();
+}
+
+TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
 {
   using Sink = ccf::tracing::FluentdSink;
   producer = std::this_thread::get_id();
@@ -79,7 +213,7 @@ TEST_CASE("SPSC export: framing, allocation-free enqueue, drops and shutdown")
     Sink::configure(Sink::Endpoint{"127.0.0.1", "42extra"}),
     std::invalid_argument);
   auto invalid = Sink::Endpoint{"127.0.0.1", "24224"};
-  invalid.ring_buffer_size = "3KB";
+  invalid.queue_capacity = 0;
   CHECK_THROWS_AS(Sink::configure(invalid), std::invalid_argument);
   const int listener = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
   REQUIRE(listener >= 0);
@@ -90,7 +224,7 @@ TEST_CASE("SPSC export: framing, allocation-free enqueue, drops and shutdown")
   socklen_t size = sizeof(address);
   REQUIRE(getsockname(listener, (sockaddr*)&address, &size) == 0);
   Sink::Endpoint endpoint{"127.0.0.1", std::to_string(ntohs(address.sin_port))};
-  endpoint.ring_buffer_size = "1KB";
+  endpoint.queue_capacity = 3;
   Sink::configure(endpoint, 2);
   Sink::bind_producer(0);
   const auto waiting = std::chrono::steady_clock::now();
@@ -157,6 +291,16 @@ TEST_CASE("SPSC export: framing, allocation-free enqueue, drops and shutdown")
     static_cast<ssize_t>(received.size()));
   CHECK(received == bytes);
 
+  const auto drops_before_allocation_failures = Sink::dropped_count();
+  for (size_t failure = 1; failure <= 2; ++failure)
+  {
+    allocation_failure = allocations + failure;
+    const auto pushed = Sink::enqueue(bytes);
+    allocation_failure = 0;
+    CHECK_FALSE(pushed);
+  }
+  CHECK(Sink::dropped_count() == drops_before_allocation_failures + 2);
+
   auto logger = std::make_unique<DropLogger>();
   auto* logs = logger.get();
   ccf::logger::config::loggers().push_back(std::move(logger));
@@ -166,7 +310,14 @@ TEST_CASE("SPSC export: framing, allocation-free enqueue, drops and shutdown")
   REQUIRE(Sink::enqueue(payload));
   while (calls == previous)
     std::this_thread::yield();
-  std::array<uint8_t, 1024> oversize = {};
+  REQUIRE(Sink::enqueue(payload));
+  REQUIRE(Sink::enqueue(payload));
+  const auto full_before = allocations;
+  const auto full = Sink::enqueue(payload);
+  const auto full_after = allocations;
+  CHECK_FALSE(full);
+  CHECK(full_before == full_after);
+  std::vector<uint8_t> oversize(ccf::tracing::SPSCQueue::MAX_RECORD_SIZE + 1);
   forbid_allocation = true;
   bool allocation_failed = false;
   try
@@ -189,10 +340,12 @@ TEST_CASE("SPSC export: framing, allocation-free enqueue, drops and shutdown")
          std::chrono::steady_clock::now() < report_deadline)
     std::this_thread::yield();
   CHECK(logs->reports == 2);
+  const auto drops_before_shutdown = Sink::dropped_count();
   const auto start = std::chrono::steady_clock::now();
   Sink::shutdown();
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::seconds(1)));
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(3));
+  CHECK(Sink::dropped_count() == drops_before_shutdown + 3);
   CHECK(logs->reports == 2);
   CHECK_FALSE(wrong_thread);
   close(peer);
