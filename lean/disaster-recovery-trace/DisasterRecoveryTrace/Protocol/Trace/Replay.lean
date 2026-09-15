@@ -24,7 +24,20 @@ deriving Repr, BEq
 
 structure PendingSendBatch where
   node : Location
+  phase : Phase
   remaining : List String
+deriving Repr, BEq
+
+structure BufferedAttempt where
+  node : Location
+  attempt : Nat
+  events : List TraceEvent
+  isOpen : Bool := true
+deriving Repr, BEq
+
+structure SendProjection where
+  node : Location
+  state : NodeState
 deriving Repr, BEq
 
 structure ActiveReplay where
@@ -33,14 +46,18 @@ structure ActiveReplay where
   startedNodes : List Location
   sends : List ObservedSend := []
   consumedSendIds : List String := []
+  sendProjections : List SendProjection := []
   pendingEffects : List PendingEffect := []
   pendingSendBatches : List PendingSendBatch := []
   terminalNodes : List Location := []
   completedNodes : List Location := []
+  committedAttempts : List (Location × Nat) := []
 deriving Repr, BEq
 
 structure ReplayState where
   active : Option ActiveReplay := none
+  attempts : List BufferedAttempt := []
+  seenAttempts : List (Location × Nat) := []
   nextSequence : List (Prod Location Nat) := []
   seenMessageIds : List String := []
 deriving Repr, BEq, Inhabited
@@ -55,8 +72,40 @@ private def isReceive : Kind -> Bool
   | .gossipAccepted | .voteAccepted | .iAmOpenAccepted => true
   | _ => false
 
+private def isSemantic : Kind -> Bool
+  | .gossipAccepted | .voteAccepted | .iAmOpenAccepted
+  | .timeout | .open | .joinRestart | .complete => true
+  | _ => false
+
+private def isTransactionSemantic : Kind -> Bool
+  | .gossipAccepted | .voteAccepted | .iAmOpenAccepted | .timeout => true
+  | _ => false
+
+private def isLifecycle : Kind -> Bool
+  | .globallyCommitted | .rolledBack | .aborted => true
+  | _ => false
+
 private def shapeError (event : TraceEvent) : Option String :=
-  if event.pre.isNone || event.post.isNone then
+  if isLifecycle event.kind && (event.pre.isSome || event.post.isSome) then
+    some "pre and post are not valid on lifecycle events"
+  else if isLifecycle event.kind &&
+      (event.messageId.isSome || event.causedBy.isSome ||
+        event.source.isSome || event.openKind.isSome || event.send.isSome) then
+    some "semantic fields are not valid on lifecycle events"
+  else if isLifecycle event.kind && event.attempt.isNone then
+    some "attempt is required for lifecycle events"
+  else if (event.kind == .globallyCommitted || event.kind == .rolledBack) &&
+      event.txid.isNone then
+    some "view and seqno are required for transaction lifecycle events"
+  else if event.kind == .aborted && event.txid.isSome then
+    some "view and seqno are not valid for aborted attempts"
+  else if isSemantic event.kind && event.attempt.isNone then
+    some "attempt is required for speculative semantic events"
+  else if (event.kind == .start || event.kind == .send) &&
+      event.attempt.isSome then
+    some "attempt is not valid for start or send events"
+  else if !isLifecycle event.kind &&
+      (event.pre.isNone || event.post.isNone) then
     some "pre and post are required"
   else if isReceive event.kind &&
       (event.messageId.isNone || event.causedBy.isNone || event.source.isNone) then
@@ -119,6 +168,7 @@ private def sendBatch (config : Config) (state : NodeState) : List String :=
 
 private def setPendingSendBatch
     (node : Location)
+    (phase : Phase)
     (remaining : List String)
     (batches : List PendingSendBatch) :
     List PendingSendBatch :=
@@ -126,7 +176,7 @@ private def setPendingSendBatch
   if remaining.isEmpty then
     others
   else
-    { node, remaining } :: others
+    { node, phase, remaining } :: others
 
 private def receiveDescription (event : TraceEvent) : Option String :=
   match event.kind with
@@ -200,6 +250,20 @@ private def consumeCause
     consumedSendIds := cause :: active.consumedSendIds
   }
 
+private def validateCause
+    (active : ActiveReplay)
+    (event : TraceEvent) : Except String Unit := do
+  let cause := event.causedBy.getD ""
+  let send <- match active.sends.find? (fun send => send.messageId == cause) with
+    | none => throw s!"caused_by '{cause}' has no prior send"
+    | some send => pure send
+  let source := event.source.getD ""
+  let description := receiveDescription event |>.getD ""
+  if send.source != source || send.description != description then
+    throw s!"caused_by '{cause}' has the wrong source, class, or destination"
+  if event.kind == .gossipAccepted && send.txid != event.txid then
+    throw s!"caused_by '{cause}' has the wrong gossip TxID"
+
 private def applyTransition
     (active : ActiveReplay)
     (event : TraceEvent) : Except String ActiveReplay := do
@@ -237,11 +301,13 @@ private def applySend
   let state <- match nodeState active.system event.node with
     | none => throw s!"unknown node {event.node}"
     | some state => pure state
-  if !phaseMatches event.pre state.phase || !phaseMatches event.post state.phase then
-    throw s!"send phase does not match {phaseName state.phase}"
+  let pending := active.pendingSendBatches.find?
+    (fun batch => batch.node == event.node)
+  let phase := pending.map (fun batch => batch.phase) |>.getD state.phase
+  if !phaseMatches event.pre phase || !phaseMatches event.post phase then
+    throw s!"send phase does not match {phaseName phase}"
   let description := event.send.getD ""
-  let batch := (active.pendingSendBatches.find?
-    (fun batch => batch.node == event.node)).map (fun batch => batch.remaining)
+  let batch := pending.map (fun pending => pending.remaining)
     |>.getD (sendBatch active.config state)
   let expected <- match batch with
     | [] => throw "no retry send batch is enabled"
@@ -257,7 +323,7 @@ private def applySend
       txid := event.txid
     } :: active.sends
     pendingSendBatches :=
-      setPendingSendBatch event.node batch.tail active.pendingSendBatches
+      setPendingSendBatch event.node phase batch.tail active.pendingSendBatches
   }
 
 private def applyObservation
@@ -308,7 +374,8 @@ private def expectedEvents (active : ActiveReplay) (node : Location) :
   let phase := nodeState active.system node |>.map
     (fun state => phaseName state.phase) |>.getD "UNKNOWN"
   [s!"state={phase}", "send", "gossip_accepted", "vote_accepted",
-    "iamopen_accepted", "timeout", "open", "join_restart", "complete"]
+    "iamopen_accepted", "timeout", "open", "join_restart", "complete",
+    "globally_committed", "rolled_back", "aborted"]
 
 private def start
     (active : Option ActiveReplay)
@@ -343,9 +410,6 @@ private def processActive
     throw "instance or expected_locations changed"
   if !active.startedNodes.contains event.node then
     throw s!"node {event.node} has no start event"
-  if event.kind != .send &&
-      active.pendingSendBatches.any (fun batch => batch.node == event.node) then
-    throw s!"node {event.node} has an incomplete retry send batch"
   match event.kind with
   | .gossipAccepted | .voteAccepted | .iAmOpenAccepted =>
       applyReceive active event
@@ -353,6 +417,174 @@ private def processActive
   | .send => applySend active event
   | .open | .joinRestart | .complete => applyObservation active event
   | .start => throw "unexpected start event"
+  | .globallyCommitted | .rolledBack | .aborted =>
+      throw "unexpected lifecycle event"
+
+private def applySemanticEvents
+    (active : ActiveReplay)
+    (events : List TraceEvent) : Except String ActiveReplay := do
+  let mut next := active
+  for event in events do
+    next <- processActive next event
+  pure next
+
+private def applySendProjection
+    (active : ActiveReplay)
+    (projection : SendProjection) : ActiveReplay :=
+  {
+    active with
+    system := {
+      nodes := replaceNode projection.node projection.state active.system.nodes
+    }
+  }
+
+private def speculativeStates
+    (active : ActiveReplay)
+    (attempts : List BufferedAttempt)
+    (node : Location) : List ActiveReplay := Id.run do
+  let retained := (active.sendProjections.filter fun projection =>
+    projection.node == node).map (applySendProjection active)
+  let mut candidates := active :: retained
+  for buffered in attempts.reverse do
+    if buffered.node == node then
+      let mut added := []
+      for candidate in candidates do
+        if let .ok applied := applySemanticEvents candidate buffered.events then
+          added := applied :: added
+      candidates := candidates ++ added.reverse
+  pure candidates
+
+private def applyImmediateSend
+    (active : ActiveReplay)
+    (attempts : List BufferedAttempt)
+    (event : TraceEvent) : Except String ActiveReplay := do
+  let continuingBatch := active.pendingSendBatches.any fun batch =>
+    batch.node == event.node
+  let remainingProjections :=
+    if continuingBatch then
+      active.sendProjections
+    else
+      active.sendProjections.filter fun projection =>
+        projection.node != event.node
+  let direct := applySend active event
+  if let .ok next := direct then
+    return { next with sendProjections := remainingProjections }
+  for candidate in speculativeStates active attempts event.node do
+    if let .ok observed := applySend candidate event then
+      return {
+        active with
+        sends := observed.sends
+        sendProjections := remainingProjections
+        pendingSendBatches := observed.pendingSendBatches
+      }
+  direct
+
+private def retainedSendProjections
+    (active : ActiveReplay)
+    (attempts : List BufferedAttempt)
+    (node : Location) : List SendProjection :=
+  (speculativeStates active attempts node).filterMap fun candidate => do
+    let state <- nodeState candidate.system node
+    if (sendBatch active.config state).isEmpty then
+      none
+    else
+      some { node, state }
+
+private def addSendProjections
+    (active : ActiveReplay)
+    (projections : List SendProjection) : ActiveReplay :=
+  {
+    active with
+    sendProjections := projections.foldl (fun retained projection =>
+      if retained.contains projection then retained else projection :: retained)
+      active.sendProjections
+  }
+
+private def validateActiveContext
+    (active : ActiveReplay)
+    (event : TraceEvent) : Except String Unit := do
+  if active.config.instanceId != event.instanceId ||
+      active.config.expectedLocations != event.expectedLocations then
+    throw "instance or expected_locations changed"
+  if !active.startedNodes.contains event.node then
+    throw s!"node {event.node} has no start event"
+
+private def closeAttemptGroups
+    (node : Location)
+    (attempts : List BufferedAttempt) : List BufferedAttempt :=
+  attempts.map fun buffered =>
+    if buffered.node == node then
+      { buffered with isOpen := false }
+    else
+      buffered
+
+private def bufferSemantic
+    (attempts : List BufferedAttempt)
+    (seen : List (Location × Nat))
+    (event : TraceEvent) :
+    Except String (List BufferedAttempt × List (Location × Nat)) := do
+  let attempt := event.attempt.getD 0
+  let key := (event.node, attempt)
+  let current := attempts.find? fun buffered =>
+    buffered.node == event.node && buffered.attempt == attempt
+  match current with
+  | some buffered =>
+      if !buffered.isOpen then
+        throw s!"duplicate active attempt ({event.node}, {attempt})"
+      if isTransactionSemantic event.kind then
+        throw s!"duplicate active attempt ({event.node}, {attempt})"
+      let next := attempts.map fun candidate =>
+        if candidate.node == event.node && candidate.attempt == attempt then
+          { candidate with events := candidate.events ++ [event] }
+        else if candidate.node == event.node then
+          { candidate with isOpen := false }
+        else
+          candidate
+      pure (next, seen)
+  | none =>
+      if seen.contains key then
+        throw s!"duplicate attempt ({event.node}, {attempt})"
+      if !isTransactionSemantic event.kind then
+        throw s!"correlated event for unknown attempt ({event.node}, {attempt})"
+      pure ({
+        node := event.node
+        attempt
+        events := [event]
+      } :: closeAttemptGroups event.node attempts, key :: seen)
+
+private def resolveAttempt
+    (active : ActiveReplay)
+    (attempts : List BufferedAttempt)
+    (seen : List (Location × Nat))
+    (event : TraceEvent) :
+    Except String (ActiveReplay × List BufferedAttempt) := do
+  let attempt := event.attempt.getD 0
+  let buffered <- match attempts.find? fun candidate =>
+      candidate.node == event.node && candidate.attempt == attempt with
+    | some candidate => pure candidate
+    | none =>
+        let status := if seen.contains (event.node, attempt) then
+          "already resolved"
+        else
+          "unknown"
+        throw s!"{status} attempt ({event.node}, {attempt})"
+  let projections :=
+    if active.pendingSendBatches.any fun batch => batch.node == event.node then
+      []
+    else
+      retainedSendProjections active attempts event.node
+  let mut next := active
+  if event.kind == .globallyCommitted then
+    for semantic in buffered.events do
+      next <- processActive next semantic
+    next := {
+      next with
+      committedAttempts :=
+        (event.node, attempt) :: next.committedAttempts
+    }
+  next := addSendProjections next projections
+  pure (next, attempts.filter fun candidate =>
+    candidate.node != event.node || candidate.attempt != attempt)
 
 private def fail
     (index : Nat)
@@ -382,21 +614,49 @@ private def process
     if event.causedBy == some messageId then
       fail index "message_id and caused_by must identify distinct observations"
 
-  let nextActive <- match event.kind with
+  let processed : Except String
+      (ActiveReplay × List BufferedAttempt × List (Location × Nat)) := do
+    match event.kind with
     | .start =>
-        match start state.active config event with
-        | .ok active => pure active
-        | .error message => fail index message
-    | _ =>
-        match state.active with
-        | none => fail index "trace must begin with start" ["start"]
-        | some active =>
-            match processActive active event with
-            | .ok next => pure next
-            | .error message => fail index message (expectedEvents active event.node)
+        let active <- start state.active config event
+        pure (active, closeAttemptGroups event.node state.attempts,
+          state.seenAttempts)
+    | .send =>
+        let some active := state.active
+          | throw "trace must begin with start"
+        validateActiveContext active event
+        let next <- applyImmediateSend active state.attempts event
+        pure (next, closeAttemptGroups event.node state.attempts,
+          state.seenAttempts)
+    | .gossipAccepted | .voteAccepted | .iAmOpenAccepted
+    | .timeout | .open | .joinRestart | .complete =>
+        let some active := state.active
+          | throw "trace must begin with start"
+        validateActiveContext active event
+        if isReceive event.kind then
+          validateCause active event
+        let (attempts, seen) <-
+          bufferSemantic state.attempts state.seenAttempts event
+        pure (active, attempts, seen)
+    | .globallyCommitted | .rolledBack | .aborted =>
+        let some active := state.active
+          | throw "trace must begin with start"
+        validateActiveContext active event
+        let attempts := closeAttemptGroups event.node state.attempts
+        let (next, remaining) <-
+          resolveAttempt active attempts state.seenAttempts event
+        pure (next, remaining, state.seenAttempts)
+  let (nextActive, nextAttempts, nextSeen) <- match processed with
+    | .ok result => pure result
+    | .error message =>
+        let expected := state.active.map
+          (fun active => expectedEvents active event.node) |>.getD ["start"]
+        fail index message expected
 
   pure {
     active := some nextActive
+    attempts := nextAttempts
+    seenAttempts := nextSeen
     nextSequence :=
       setSequence state.nextSequence event.node (expectedSeq + 1)
     seenMessageIds := event.messageId.toList ++ state.seenMessageIds

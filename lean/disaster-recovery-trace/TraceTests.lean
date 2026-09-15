@@ -16,6 +16,7 @@ private def baseEvent
   node
   sequence
   kind
+  attempt := none
   messageId := none
   causedBy := none
   source := none
@@ -56,6 +57,7 @@ private def gossipEvent
     (messageId cause : String)
     (post : Phase) : TraceEvent := {
   baseEvent locations "A" sequence .gossipAccepted with
+  attempt := some sequence
   messageId := some messageId
   causedBy := some cause
   source := some "A"
@@ -70,6 +72,7 @@ private def voteEvent
     (messageId cause : String)
     (post : Phase) : TraceEvent := {
   baseEvent locations "A" sequence .voteAccepted with
+  attempt := some sequence
   messageId := some messageId
   causedBy := some cause
   source := some "A"
@@ -82,6 +85,7 @@ private def timeoutEvent
     (sequence : Nat)
     (pre post : Phase) : TraceEvent := {
   baseEvent locations "A" sequence .timeout with
+  attempt := some sequence
   pre := some pre
   post := some post
 }
@@ -91,6 +95,7 @@ private def openEvent
     (sequence : Nat)
     (kind : OpenKind) : TraceEvent := {
   baseEvent locations "A" sequence .open with
+  attempt := some sequence
   pre := some .opening
   post := some .opening
   openKind := some kind
@@ -100,8 +105,20 @@ private def completeEvent
     (locations : List Location)
     (sequence : Nat) : TraceEvent := {
   baseEvent locations "A" sequence .complete with
+  attempt := some sequence
   pre := some .open
   post := some .open
+}
+
+private def lifecycleEvent
+    (locations : List Location)
+    (node : Location)
+    (sequence attempt : Nat)
+    (kind : Kind) : TraceEvent := {
+  baseEvent locations node sequence kind with
+  attempt := some attempt
+  txid := if kind == .aborted then none else
+    some { view := 1, seqno := sequence }
 }
 
 private def validationSucceeds (events : List TraceEvent) : Bool :=
@@ -114,6 +131,11 @@ private def failedAt (events : List TraceEvent) (expectedPrefix : Nat) : Bool :=
   | .error failure => failure.prefixLength == expectedPrefix
   | .ok () => false
 
+private def replayFailedAt (events : List TraceEvent) (expectedPrefix : Nat) : Bool :=
+  match replay events with
+  | .error failure => failure.prefixLength == expectedPrefix
+  | .ok _ => false
+
 private def parseFails (value : String) : Bool :=
   match parseEvent value with
   | .error _ => true
@@ -124,15 +146,22 @@ private def quorumTrace : List TraceEvent :=
   [
     startEvent locations "A",
     sendEvent locations 1 "send-gossip" "gossip:A" .gossiping,
-    gossipEvent locations 2 "receive-gossip" "send-gossip" .voting,
-    sendEvent locations 3 "send-vote" "vote:A" .voting,
-    sendEvent locations 4 "send-voting-gossip" "gossip:A" .voting,
-    voteEvent locations 5 "receive-vote" "send-vote" .opening,
-    openEvent locations 6 .quorum,
-    timeoutEvent locations 7 .opening .opening,
-    timeoutEvent locations 8 .opening .opening,
-    timeoutEvent locations 9 .opening .open,
-    completeEvent locations 10
+    { gossipEvent locations 2 "receive-gossip" "send-gossip" .voting with
+      attempt := some 0 },
+    lifecycleEvent locations "A" 3 0 .globallyCommitted,
+    sendEvent locations 4 "send-vote" "vote:A" .voting,
+    sendEvent locations 5 "send-voting-gossip" "gossip:A" .voting,
+    { voteEvent locations 6 "receive-vote" "send-vote" .opening with
+      attempt := some 1 },
+    { openEvent locations 7 .quorum with attempt := some 1 },
+    lifecycleEvent locations "A" 8 1 .globallyCommitted,
+    { timeoutEvent locations 9 .opening .opening with attempt := some 2 },
+    lifecycleEvent locations "A" 10 2 .globallyCommitted,
+    { timeoutEvent locations 11 .opening .opening with attempt := some 3 },
+    lifecycleEvent locations "A" 12 3 .globallyCommitted,
+    { timeoutEvent locations 13 .opening .open with attempt := some 4 },
+    { completeEvent locations 14 with attempt := some 4 },
+    lifecycleEvent locations "A" 15 4 .globallyCommitted
   ]
 
 private def eventJson (event : TraceEvent) : Lean.Json :=
@@ -146,6 +175,9 @@ private def eventJson (event : TraceEvent) : Lean.Json :=
     | .open => "open"
     | .joinRestart => "join_restart"
     | .complete => "complete"
+    | .globallyCommitted => "globally_committed"
+    | .rolledBack => "rolled_back"
+    | .aborted => "aborted"
   Lean.Json.mkObj ([
     ("instance", Lean.toJson event.instanceId),
     ("expected_locations", Lean.toJson event.expectedLocations),
@@ -153,6 +185,7 @@ private def eventJson (event : TraceEvent) : Lean.Json :=
     ("sequence", Lean.toJson event.sequence),
     ("kind", Lean.toJson kind)
   ] ++
+    (event.attempt.toList.map fun value => ("attempt", Lean.toJson value)) ++
     (event.messageId.toList.map fun value => ("message_id", Lean.toJson value)) ++
     (event.causedBy.toList.map fun value => ("caused_by", Lean.toJson value)) ++
     (event.source.toList.map fun value => ("source", Lean.toJson value)) ++
@@ -188,6 +221,15 @@ private def accepted [BEq α] (result : Except LogError α) (expected : α) : Bo
   match result with
   | .ok value => value == expected
   | .error _ => false
+
+private def phaseAt (active : ActiveReplay) (node : Location) : Option Phase :=
+  (active.system.nodes.find? fun entry => entry.1 == node).map
+    (fun entry => entry.2.phase)
+
+private def activeState (state : ReplayState) : IO ActiveReplay :=
+  match state.active with
+  | some active => pure active
+  | none => throw (IO.userError "replay did not create active state")
 
 private def validateTextLogs (logs : List (String × String)) (scenario : Scenario) :
     Except LogError Nat :=
@@ -275,6 +317,21 @@ private def checkLogs : IO Unit := do
   expectInvalid (validateLogs [("node.out", partialUTF8.push 10)] scenario)
     "malformed UTF-8 in a complete line was accepted"
 
+  let discarded := quorumTrace ++ [
+    { timeoutEvent ["A"] 16 .opening .opening with attempt := some 5 },
+    { openEvent ["A"] 17 .failover with attempt := some 5 },
+    lifecycleEvent ["A"] "A" 18 5 .rolledBack
+  ]
+  expect
+    (accepted (validateTextLogs [("node.out", textLog discarded)] scenario)
+      discarded.length)
+    "discarded records changed scenario validation or raw event count"
+  let rolledBackCompletion :=
+    quorumTrace.dropLast ++ [lifecycleEvent ["A"] "A" 15 4 .rolledBack]
+  expectIncomplete
+    (validateTextLogs [("node.out", textLog rolledBackCompletion)] scenario)
+    "speculative terminal evidence was treated as committed"
+
   let locations := ["A", "B"]
   let aStart := startEvent locations "A"
   let bStart := startEvent locations "B"
@@ -300,112 +357,450 @@ private def checkLogs : IO Unit := do
         "ordering depends on log argument order"
   | _, _ => throw (IO.userError "causal ordering failed")
 
+private def checkAttempts : IO Unit := do
+  let locations := ["A"]
+  let start := startEvent locations "A"
+  let send := sendEvent locations 1 "send-gossip" "gossip:A" .gossiping
+  let receive := {
+    gossipEvent locations 2 "receive-gossip" "send-gossip" .voting with
+    attempt := some 0
+  }
+  let committed := lifecycleEvent locations "A" 3 0 .globallyCommitted
+
+  match replay [start, send, receive] with
+  | .ok state =>
+      let active <- activeState state
+      expect (phaseAt active "A" == some .gossiping)
+        "speculative event changed canonical state before commit"
+      expect active.consumedSendIds.isEmpty
+        "speculative receive consumed its send before commit"
+  | .error failure =>
+      throw (IO.userError s!"buffered attempt was rejected: {repr failure}")
+
+  match replay [start, send, receive, committed] with
+  | .ok state =>
+      let active <- activeState state
+      expect (phaseAt active "A" == some .voting)
+        "globally committed attempt was not applied"
+      expect (active.consumedSendIds == ["send-gossip"])
+        "globally committed receive did not consume its send"
+  | .error failure =>
+      throw (IO.userError s!"committed attempt was rejected: {repr failure}")
+
+  let earlyVote :=
+    sendEvent locations 3 "early-vote" "vote:A" .voting
+  let earlyGossip :=
+    sendEvent locations 4 "early-gossip" "gossip:A" .voting
+  let delayedCommit :=
+    lifecycleEvent locations "A" 5 0 .globallyCommitted
+  match replay [
+    start,
+    send,
+    receive,
+    earlyVote,
+    earlyGossip,
+    delayedCommit
+  ] with
+  | .ok state =>
+      let active <- activeState state
+      expect (phaseAt active "A" == some .voting)
+        "delayed lifecycle did not commit after speculative-state sends"
+      expect (active.sends.length == 3)
+        "immediate sends before lifecycle were not retained"
+  | .error failure =>
+      throw (IO.userError s!"pre-lifecycle send was rejected: {repr failure}")
+
+  let delayedRollback :=
+    lifecycleEvent locations "A" 5 0 .rolledBack
+  match replay [
+    start,
+    send,
+    receive,
+    earlyVote,
+    earlyGossip,
+    delayedRollback
+  ] with
+  | .ok state =>
+      let active <- activeState state
+      expect (phaseAt active "A" == some .gossiping)
+        "rolled-back local projection changed canonical state"
+      expect (active.sends.length == 3)
+        "rollback discarded sends emitted from a local projection"
+      expect active.pendingSendBatches.isEmpty
+        "completed pre-rollback send batch remained pending"
+  | .error failure =>
+      throw (IO.userError s!"pre-rollback sends were rejected: {repr failure}")
+
+  for lifecycle in [.globallyCommitted, .rolledBack, .aborted] do
+    let resolution := if lifecycle == .aborted then
+      { lifecycleEvent locations "A" 3 0 lifecycle with txid := none }
+    else
+      lifecycleEvent locations "A" 3 0 lifecycle
+    let lateVote :=
+      sendEvent locations 4 s!"late-vote-{repr lifecycle}" "vote:A" .voting
+    let lateGossip :=
+      sendEvent locations 5 s!"late-gossip-{repr lifecycle}" "gossip:A" .voting
+    match replay [start, send, receive, resolution, lateVote, lateGossip] with
+    | .ok state =>
+        let active <- activeState state
+        let expectedPhase := if lifecycle == .globallyCommitted then
+          Phase.voting
+        else
+          Phase.gossiping
+        expect (phaseAt active "A" == some expectedPhase)
+          "post-lifecycle send changed canonical state"
+        expect (active.sends.length == 3)
+          "first post-lifecycle send lost its prepared local projection"
+        expect active.pendingSendBatches.isEmpty
+          "post-lifecycle send batch did not finish"
+        expect active.sendProjections.isEmpty
+          "chosen post-lifecycle projection remained available"
+    | .error failure =>
+        throw (IO.userError
+          s!"first send after {repr lifecycle} was rejected: {repr failure}")
+
+  let completedVote :=
+    sendEvent locations 4 "completed-vote" "vote:A" .voting
+  let completedGossip :=
+    sendEvent locations 5 "completed-gossip" "gossip:A" .voting
+  let committedOpeningVote := {
+    voteEvent locations 6 "committed-opening-vote" "completed-vote" .opening with
+    attempt := some 1
+  }
+  let committedOpening := {
+    openEvent locations 7 .quorum with attempt := some 1
+  }
+  let committedOpeningLifecycle :=
+    lifecycleEvent locations "A" 8 1 .globallyCommitted
+  let postCommitVote :=
+    sendEvent locations 9 "post-commit-vote" "vote:A" .voting
+  let postCommitGossip :=
+    sendEvent locations 10 "post-commit-gossip" "gossip:A" .voting
+  match replay [
+    start,
+    send,
+    receive,
+    committed,
+    completedVote,
+    completedGossip,
+    committedOpeningVote,
+    committedOpening,
+    committedOpeningLifecycle,
+    postCommitVote,
+    postCommitGossip
+  ] with
+  | .ok state =>
+      let active <- activeState state
+      expect (phaseAt active "A" == some .opening)
+        "post-commit prepared batch changed canonical state"
+      expect active.pendingSendBatches.isEmpty
+        "post-commit prepared batch did not finish"
+  | .error failure =>
+      throw (IO.userError
+        s!"first send after state-changing commit was rejected: {repr failure}")
+
+  let rollback := lifecycleEvent locations "A" 3 0 .rolledBack
+  let canonicalAfterRollback :=
+    sendEvent locations 4 "canonical-after-rollback" "gossip:A" .gossiping
+  let staleAfterChoice :=
+    sendEvent locations 5 "stale-after-choice" "vote:A" .voting
+  expect
+    (replayFailedAt [
+      start,
+      send,
+      receive,
+      rollback,
+      canonicalAfterRollback,
+      staleAfterChoice
+    ] 6)
+    "resolved projection survived after a later batch chose canonical state"
+
+  let votingSend :=
+    sendEvent locations 4 "send-vote" "vote:A" .voting
+  let openingVote := {
+    voteEvent locations 5 "receive-vote" "send-vote" .opening with
+    attempt := some 1
+  }
+  let opening := { openEvent locations 6 .quorum with attempt := some 1 }
+  let openingCommit :=
+    lifecycleEvent locations "A" 7 1 .globallyCommitted
+  let remainingSend :=
+    sendEvent locations 8 "send-voting-gossip" "gossip:A" .voting
+  match replay [
+    start,
+    send,
+    receive,
+    committed,
+    votingSend,
+    openingVote,
+    opening,
+    openingCommit,
+    remainingSend
+  ] with
+  | .ok state =>
+      let active <- activeState state
+      expect (phaseAt active "A" == some .opening)
+        "interleaved lifecycle was not applied"
+      expect active.pendingSendBatches.isEmpty
+        "lifecycle interleaving broke an immediate send batch"
+      expect active.sendProjections.isEmpty
+        "lifecycle interleaving retained a stale send projection"
+  | .error failure =>
+      throw (IO.userError s!"interleaved send batch was rejected: {repr failure}")
+  expect
+    (replayFailedAt [
+      start,
+      send,
+      receive,
+      committed,
+      votingSend,
+      openingVote,
+      opening,
+      openingCommit,
+      remainingSend,
+      sendEvent locations 9 "stale-vote" "vote:A" .voting
+    ] 10)
+    "lifecycle interleaving allowed a stale later send batch"
+
+  for lifecycle in [.rolledBack, .aborted] do
+    let discarded := if lifecycle == .aborted then
+      { lifecycleEvent locations "A" 3 0 lifecycle with txid := none }
+    else
+      lifecycleEvent locations "A" 3 0 lifecycle
+    let retry := {
+      gossipEvent locations 4 "receive-retry" "send-gossip" .voting with
+      attempt := some 1
+    }
+    let retryCommit := lifecycleEvent locations "A" 5 1 .globallyCommitted
+    match replay [start, send, receive, discarded, retry, retryCommit] with
+    | .ok state =>
+        let active <- activeState state
+        expect (phaseAt active "A" == some .voting)
+          "discarded attempt changed canonical state"
+        expect (active.consumedSendIds == ["send-gossip"])
+          "discarded attempt consumed a send needed by its committed retry"
+    | .error failure =>
+        throw (IO.userError s!"discarded attempt retry failed: {repr failure}")
+
+  let unresolved := quorumTrace ++ [
+    { timeoutEvent locations 16 .open .open with attempt := some 5 }
+  ]
+  expect (validationSucceeds unresolved)
+    "unresolved end-of-log attempt was rejected"
+
+  expect
+    (replayFailedAt
+      [start, lifecycleEvent locations "A" 1 99 .globallyCommitted] 2)
+    "lifecycle for an unknown attempt was accepted"
+  let aborted := {
+    lifecycleEvent locations "A" 2 0 .aborted with txid := none
+  }
+  expect
+    (replayFailedAt [
+      start,
+      { timeoutEvent locations 1 .gossiping .gossiping with attempt := some 0 },
+      aborted,
+      { aborted with sequence := 3 }
+    ] 4)
+    "second lifecycle for a resolved attempt was accepted"
+  expect
+    (replayFailedAt [
+      start,
+      { timeoutEvent locations 1 .gossiping .gossiping with attempt := some 0 },
+      { timeoutEvent locations 2 .gossiping .gossiping with attempt := some 0 }
+    ] 3)
+    "duplicate active attempt key was accepted"
+  expect
+    (replayFailedAt [
+      start,
+      { timeoutEvent locations 1 .gossiping .gossiping with attempt := some 0 },
+      { timeoutEvent locations 2 .gossiping .gossiping with attempt := some 1 },
+      { timeoutEvent locations 3 .gossiping .gossiping with attempt := some 0 }
+    ] 4)
+    "closed active attempt key was reused"
+  expect
+    (replayFailedAt [
+      start,
+      { openEvent locations 1 .quorum with attempt := some 0 }
+    ] 2)
+    "correlated event without a transaction attempt was accepted"
+
+  expect
+    (replayFailedAt [
+      start,
+      { timeoutEvent locations 1 .gossiping .gossiping with attempt := none }
+    ] 2)
+    "attempt-less speculative event was accepted"
+  expect
+    (replayFailedAt [{ start with attempt := some 0 }] 1)
+    "attempt on start was accepted"
+  expect
+    (replayFailedAt [start, { send with attempt := some 0 }] 2)
+    "attempt on send was accepted"
+
+  let lifecycle := lifecycleEvent locations "A" 1 0 .globallyCommitted
+  expect
+    (replayFailedAt [start, { lifecycle with attempt := none }] 2)
+    "attempt-less lifecycle was accepted"
+  expect
+    (replayFailedAt [start, { lifecycle with txid := none }] 2)
+    "transaction lifecycle without TxID was accepted"
+  expect
+    (replayFailedAt [start, {
+      lifecycleEvent locations "A" 1 0 .aborted with
+      txid := some { view := 1, seqno := 1 }
+    }] 2)
+    "aborted lifecycle with TxID was accepted"
+  expect
+    (replayFailedAt [start, { lifecycle with
+      pre := some .gossiping
+      post := some .gossiping
+    }] 2)
+    "lifecycle with pre/post was accepted"
+
+  let rolled := lifecycleEvent locations "A" 3 0 .rolledBack
+  let duplicateReceive := {
+    gossipEvent locations 4 "receive-gossip" "send-gossip" .voting with
+    attempt := some 1
+  }
+  expect
+    (replayFailedAt [start, send, receive, rolled, duplicateReceive] 5)
+    "discarded receive message_id was allowed to repeat"
+
 private def failoverTrace : List TraceEvent :=
   let locations := ["A", "B"]
   [
     startEvent locations "A",
     sendEvent locations 1 "gossip-a" "gossip:A" .gossiping,
     sendEvent locations 2 "gossip-b" "gossip:B" .gossiping,
-    gossipEvent locations 3 "receive-gossip" "gossip-a" .gossiping,
-    timeoutEvent locations 4 .gossiping .voting,
-    sendEvent locations 5 "vote-a" "vote:A" .voting,
-    sendEvent locations 6 "voting-gossip-a" "gossip:A" .voting,
-    sendEvent locations 7 "voting-gossip-b" "gossip:B" .voting,
-    voteEvent locations 8 "receive-vote" "vote-a" .voting,
-    timeoutEvent locations 9 .voting .opening,
-    openEvent locations 10 .failover,
-    timeoutEvent locations 11 .opening .open,
-    completeEvent locations 12
+    { gossipEvent locations 3 "receive-gossip" "gossip-a" .gossiping with
+      attempt := some 0 },
+    lifecycleEvent locations "A" 4 0 .globallyCommitted,
+    { timeoutEvent locations 5 .gossiping .voting with attempt := some 1 },
+    lifecycleEvent locations "A" 6 1 .globallyCommitted,
+    sendEvent locations 7 "vote-a" "vote:A" .voting,
+    sendEvent locations 8 "voting-gossip-a" "gossip:A" .voting,
+    sendEvent locations 9 "voting-gossip-b" "gossip:B" .voting,
+    { voteEvent locations 10 "receive-vote" "vote-a" .voting with
+      attempt := some 2 },
+    lifecycleEvent locations "A" 11 2 .globallyCommitted,
+    { timeoutEvent locations 12 .voting .opening with attempt := some 3 },
+    { openEvent locations 13 .failover with attempt := some 3 },
+    lifecycleEvent locations "A" 14 3 .globallyCommitted,
+    { timeoutEvent locations 15 .opening .open with attempt := some 4 },
+    { completeEvent locations 16 with attempt := some 4 },
+    lifecycleEvent locations "A" 17 4 .globallyCommitted
   ]
 
 private def checkMultiNodeLogs : IO Unit := do
   let locations := ["A", "B"]
-  let opener := failoverTrace.take 11 ++ [
-    sendEvent locations 11 "send-open-b" "iamopen:B" .opening,
-    timeoutEvent locations 12 .opening .open,
-    completeEvent locations 13
+  let opener := failoverTrace.take 15 ++ [
+    sendEvent locations 15 "send-open-b" "iamopen:B" .opening,
+    sendEvent locations 16 "send-open-b-duplicate" "iamopen:B" .opening,
+    { timeoutEvent locations 17 .opening .open with attempt := some 4 },
+    { completeEvent locations 18 with attempt := some 4 },
+    lifecycleEvent locations "A" 19 4 .globallyCommitted
   ]
   let joiner := [
     startEvent locations "B",
     { baseEvent locations "B" 1 .iAmOpenAccepted with
+      attempt := some 0
       messageId := some "receive-open-b"
       causedBy := some "send-open-b"
       source := some "A"
       pre := some .gossiping
       post := some .joining },
     { baseEvent locations "B" 2 .joinRestart with
+      attempt := some 0
       pre := some .joining
-      post := some .joining }
+      post := some .joining },
+    lifecycleEvent locations "B" 3 0 .globallyCommitted,
+    { baseEvent locations "B" 4 .iAmOpenAccepted with
+      attempt := some 1
+      messageId := some "receive-open-b-duplicate"
+      causedBy := some "send-open-b-duplicate"
+      source := some "A"
+      pre := some .joining
+      post := some .joining },
+    lifecycleEvent locations "B" 5 1 .globallyCommitted,
+    { baseEvent locations "B" 6 .timeout with
+      attempt := some 2
+      pre := some .joining
+      post := some .joining },
+    lifecycleEvent locations "B" 7 2 .globallyCommitted
   ]
   let logs := [("b.out", jsonLog joiner), ("a.out", textLog opener)]
   let scenario : Scenario := { participatingNodes := 2, openKind := .failover }
   expect (accepted (validateTextLogs logs scenario) (opener.length + joiner.length))
-    "distributed opener/joiner logs were rejected"
+    "producer-shaped duplicate IAmOpen or Joining timeout was rejected"
   expect (accepted (validateTextLogs logs.reverse scenario) (opener.length + joiner.length))
     "log path order changed distributed validation"
   expectIncomplete
-    (validateTextLogs [("b.out", jsonLog joiner.dropLast), ("a.out", textLog opener)] scenario)
+    (validateTextLogs [("b.out", jsonLog (joiner.take 3)), ("a.out", textLog opener)] scenario)
     "unterminated joiner was accepted"
   expectInvalid (validateTextLogs logs { scenario with participatingNodes := 1 })
     "extra participating node was accepted"
 
 private def checkLogCLI : IO Unit := do
-  IO.FS.withTempDir fun directory => do
-    let path := directory / "node log.out"
-    let validator := ".lake/build/bin/trace-validator"
-    let run := fun (kind : String) (timeout : String) => IO.Process.output {
-      cmd := validator
-      args := #["--logs", "1", kind, timeout, path.toString]
-    }
-    IO.FS.writeFile path (textLog quorumTrace)
-    let accepted <- run "QUORUM" "0"
-    expect (accepted.exitCode == 0) s!"raw log CLI failed: {accepted.stderr}"
-    IO.FS.writeFile path (jsonLog failoverTrace)
-    let failover <- run "FAILOVER" "0"
-    expect (failover.exitCode == 0) s!"failover log CLI failed: {failover.stderr}"
-    let wrongKind <- run "QUORUM" "0"
-    expect (wrongKind.exitCode == 1) "CLI accepted wrong scenario"
-    IO.FS.writeFile path (textLog quorumTrace.dropLast)
-    let incomplete <- run "QUORUM" "0"
-    expect (incomplete.exitCode == 1) "CLI accepted missing completion"
-    let child <- IO.Process.spawn {
-      cmd := validator
-      args := #["--logs", "1", "QUORUM", "2000", path.toString]
-      stdout := .piped
-      stderr := .piped
-    }
-    IO.sleep 100
-    IO.FS.withFile path .append fun handle =>
-      handle.putStr (textLog [quorumTrace.getLast!])
-    let code <- child.wait
-    let error <- child.stderr.readToEnd
-    expect (code == 0) s!"CLI did not wait for appended completion: {error}"
-    IO.FS.writeFile path "RDP_TRACE {broken}\n"
-    let before <- IO.monoMsNow
-    let invalid <- run "QUORUM" "30000"
-    expect (invalid.exitCode == 1) "CLI accepted malformed trace JSON"
-    expect ((← IO.monoMsNow) - before < 5000) "CLI retried malformed input"
-    let missing <- IO.Process.output {
-      cmd := validator
-      args := #["--logs", "1", "QUORUM", "0", (directory / "missing").toString]
-    }
-    expect (missing.exitCode != 0) "CLI ignored unreadable log"
-    for args in [
-        #["--logs", "0", "QUORUM", "0", path.toString],
-        #["--logs", "1", "WRONG", "0", path.toString],
-        #["--logs", "1", "QUORUM", "-1", path.toString],
-        #["--logs", "1", "QUORUM", "0"]] do
-      let badArgs <- IO.Process.output { cmd := validator, args }
-      expect (badArgs.exitCode == 2) "CLI accepted invalid arguments"
-    IO.FS.writeFile path (String.join (quorumTrace.map fun event =>
-      (eventJson event).compress ++ "\n"))
-    let ndjson <- IO.Process.output { cmd := validator, args := #[path.toString] }
-    expect (ndjson.exitCode == 0) "existing ordered NDJSON interface was broken"
+  let directory := System.FilePath.mk ".lake/trace-checks"
+  IO.FS.createDirAll directory
+  let path := directory / "node log.out"
+  let validator := ".lake/build/bin/trace-validator"
+  let run := fun (kind : String) (timeout : String) => IO.Process.output {
+    cmd := validator
+    args := #["--logs", "1", kind, timeout, path.toString]
+  }
+  IO.FS.writeFile path (textLog quorumTrace)
+  let accepted <- run "QUORUM" "0"
+  expect (accepted.exitCode == 0) s!"raw log CLI failed: {accepted.stderr}"
+  IO.FS.writeFile path (jsonLog failoverTrace)
+  let failover <- run "FAILOVER" "0"
+  expect (failover.exitCode == 0) s!"failover log CLI failed: {failover.stderr}"
+  let wrongKind <- run "QUORUM" "0"
+  expect (wrongKind.exitCode == 1) "CLI accepted wrong scenario"
+  IO.FS.writeFile path (textLog quorumTrace.dropLast)
+  let incomplete <- run "QUORUM" "0"
+  expect (incomplete.exitCode == 1) "CLI accepted missing completion"
+  let child <- IO.Process.spawn {
+    cmd := validator
+    args := #["--logs", "1", "QUORUM", "2000", path.toString]
+    stdout := .piped
+    stderr := .piped
+  }
+  IO.sleep 100
+  IO.FS.withFile path .append fun handle =>
+    handle.putStr (textLog [quorumTrace.getLast!])
+  let code <- child.wait
+  let error <- child.stderr.readToEnd
+  expect (code == 0) s!"CLI did not wait for appended completion: {error}"
+  IO.FS.writeFile path "RDP_TRACE {broken}\n"
+  let before <- IO.monoMsNow
+  let invalid <- run "QUORUM" "30000"
+  expect (invalid.exitCode == 1) "CLI accepted malformed trace JSON"
+  expect ((← IO.monoMsNow) - before < 5000) "CLI retried malformed input"
+  let missing <- IO.Process.output {
+    cmd := validator
+    args := #["--logs", "1", "QUORUM", "0", (directory / "missing").toString]
+  }
+  expect (missing.exitCode != 0) "CLI ignored unreadable log"
+  for args in [
+      #["--logs", "0", "QUORUM", "0", path.toString],
+      #["--logs", "1", "WRONG", "0", path.toString],
+      #["--logs", "1", "QUORUM", "-1", path.toString],
+      #["--logs", "1", "QUORUM", "0"]] do
+    let badArgs <- IO.Process.output { cmd := validator, args }
+    expect (badArgs.exitCode == 2) "CLI accepted invalid arguments"
+  IO.FS.writeFile path (String.join (quorumTrace.map fun event =>
+    (eventJson event).compress ++ "\n"))
+  let ndjson <- IO.Process.output { cmd := validator, args := #[path.toString] }
+  expect (ndjson.exitCode == 0) "existing ordered NDJSON interface was broken"
+  IO.FS.removeFile path
 
 def main : IO UInt32 := do
   checkLogs
   checkMultiNodeLogs
   checkLogCLI
+  checkAttempts
   expect (validationSucceeds quorumTrace) "complete quorum trace was rejected"
 
   let locations := ["A", "B"]
@@ -452,18 +847,37 @@ def main : IO UInt32 := do
     (failedAt [start, gossipSend, wrongTxid] 3)
     "gossip received a different TxID than its send"
 
-  let wrongPost := gossipEvent single 2 "receive-gossip" "send-gossip" .open
+  let wrongPost := {
+    gossipEvent single 2 "receive-gossip" "send-gossip" .open with
+    attempt := some 0
+  }
   expect
-    (failedAt [start, gossipSend, wrongPost] 3)
+    (replayFailedAt [
+      start,
+      gossipSend,
+      wrongPost,
+      lifecycleEvent single "A" 3 0 .globallyCommitted
+    ] 4)
     "invalid gossip post-state was accepted"
 
-  let received := gossipEvent single 2 "receive-gossip" "send-gossip" .voting
+  let received := {
+    gossipEvent single 2 "receive-gossip" "send-gossip" .voting with
+    attempt := some 0
+  }
   let reusedCause := {
-    voteEvent single 3 "receive-vote" "send-gossip" .voting with
+    gossipEvent single 4 "receive-gossip-again" "send-gossip" .voting with
+    attempt := some 1
     pre := some .voting
   }
   expect
-    (failedAt [start, gossipSend, received, reusedCause] 4)
+    (replayFailedAt [
+      start,
+      gossipSend,
+      received,
+      lifecycleEvent single "A" 3 0 .globallyCommitted,
+      reusedCause,
+      lifecycleEvent single "A" 5 1 .globallyCommitted
+    ] 6)
     "one send caused multiple receives"
 
   let badSend := sendEvent single 1 "send-vote" "vote:A" .gossiping
@@ -471,17 +885,29 @@ def main : IO UInt32 := do
     (failedAt [start, badSend] 2)
     "Voting send was accepted while Gossiping"
 
-  let abortedTimeout := timeoutEvent single 1 .gossiping .gossiping
+  let abortedTimeout := {
+    timeoutEvent single 1 .gossiping .gossiping with attempt := some 0
+  }
   expect
-    (failedAt [start, abortedTimeout] 2)
-    "aborted empty-gossip timeout was accepted"
+    (replayFailedAt [
+      start,
+      abortedTimeout,
+      lifecycleEvent single "A" 2 0 .globallyCommitted
+    ] 3)
+    "committed empty-gossip timeout was accepted"
 
-  let throughOpen := quorumTrace.take 7
+  let throughVote := quorumTrace.take 7
   expect
-    (failedAt (throughOpen ++ [openEvent single 7 .quorum]) 8)
+    (replayFailedAt (throughVote ++ [
+      { openEvent single 7 .quorum with attempt := some 1 },
+      { openEvent single 8 .quorum with attempt := some 1 },
+      lifecycleEvent single "A" 9 1 .globallyCommitted
+    ]) 10)
     "one opening transition produced multiple open observations"
   expect
-    (failedAt (quorumTrace.take 6) 6)
+    (failedAt (quorumTrace.take 7 ++ [
+      lifecycleEvent single "A" 7 1 .globallyCommitted
+    ]) 8)
     "trace with an unobserved opening effect was accepted"
 
   let rejectedJson :=
@@ -490,6 +916,19 @@ def main : IO UInt32 := do
       ++ "\"pre\":\"GOSSIPING\",\"post\":\"GOSSIPING\"}"
   expect (parseFails rejectedJson)
     "unused rejection event remains in the trace format"
+
+  let lifecycleJson :=
+    "{\"instance\":\"x\",\"expected_locations\":[\"A\"],"
+      ++ "\"node\":\"A\",\"sequence\":1,\"kind\":\"globally_committed\","
+      ++ "\"attempt\":7,\"view\":2,\"seqno\":3}"
+  match parseEvent lifecycleJson with
+  | .ok event =>
+      expect
+        (event.kind == .globallyCommitted && event.attempt == some 7 &&
+          event.txid == some { view := 2, seqno := 3 })
+        "lifecycle fields were not parsed"
+  | .error message =>
+      throw (IO.userError s!"valid lifecycle JSON was rejected: {message}")
 
   IO.println "all raw log, CLI, and strict trace replay checks passed"
   pure 0

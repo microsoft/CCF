@@ -120,6 +120,16 @@ def main : IO UInt32 := do
     (.receiveIAmOpen "B" .accepted)
   expect (joining.state.phase == .joining && joining.state.restartRequested)
     "IAmOpen did not request joining restart"
+  expect (joining.effects == [.restart "B"])
+    "first IAmOpen did not emit one restart"
+  let duplicateIAmOpen := step config joining.state
+    (.receiveIAmOpen "B" .accepted)
+  expect (duplicateIAmOpen.effects.isEmpty)
+    "duplicate IAmOpen emitted another restart"
+  let joiningTimeout := step config joining.state .timeout
+  expect (joiningTimeout.state.phase == .joining &&
+      joiningTimeout.state.restartRequested && joiningTimeout.effects.isEmpty)
+    "Joining timeout emitted another restart"
 
   let retry := step config second.state .retry
   expect

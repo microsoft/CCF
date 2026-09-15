@@ -188,7 +188,8 @@ def advance (config : Config) (state : NodeState) (timeout : Bool) :
           some {
             state := advanceTimeoutLane
               { state with restartRequested := true } timeout
-            effects := [.restart chosen]
+            effects :=
+              if state.restartRequested then [] else [.restart chosen]
           }
   | .opening =>
       if aligned then

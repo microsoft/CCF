@@ -18,6 +18,9 @@ inductive Kind where
   | open
   | joinRestart
   | complete
+  | globallyCommitted
+  | rolledBack
+  | aborted
 deriving Repr, BEq, Inhabited
 
 structure TraceEvent where
@@ -26,6 +29,7 @@ structure TraceEvent where
   node : Location
   sequence : Nat
   kind : Kind
+  attempt : Option Nat
   messageId : Option String
   causedBy : Option String
   source : Option Location
@@ -46,6 +50,9 @@ private def parseKind : String -> Except String Kind
   | "open" => pure .open
   | "join_restart" => pure .joinRestart
   | "complete" => pure .complete
+  | "globally_committed" => pure .globallyCommitted
+  | "rolled_back" => pure .rolledBack
+  | "aborted" => pure .aborted
   | value => throw s!"unknown kind '{value}'"
 
 private def parsePhase : String -> Except String Phase
@@ -96,6 +103,7 @@ def parseEvent (line : String) : Except String TraceEvent := do
   let sequence <- json.getObjValAs? Nat "sequence"
   let kindName <- json.getObjValAs? String "kind"
   let kind <- parseKind kindName
+  let attempt <- optionalNat json "attempt"
   let messageId <- optionalString json "message_id"
   let causedBy <- optionalString json "caused_by"
   let source <- optionalString json "source"
@@ -109,6 +117,7 @@ def parseEvent (line : String) : Except String TraceEvent := do
     node
     sequence
     kind
+    attempt
     messageId
     causedBy
     source

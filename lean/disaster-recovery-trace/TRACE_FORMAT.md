@@ -1,8 +1,10 @@
 # Recovery decision protocol trace format
 
-The media type is newline-delimited JSON. Each nonempty line is one committed
-semantic observation. This format is used by CI with the producer and validator
-from the same source revision; it is not a versioned compatibility contract.
+The media type is newline-delimited JSON. Each nonempty line is one raw trace
+record. Transaction semantics are emitted speculatively and become canonical
+only when a later lifecycle record commits their attempt. This format is used
+by CI with the producer and validator from the same source revision; it is not
+a versioned compatibility contract.
 
 ## Record
 
@@ -20,13 +22,14 @@ These fields are optional unless the event requires them:
 
 | Field        | Type             | Meaning                                                                   |
 | ------------ | ---------------- | ------------------------------------------------------------------------- |
+| `attempt`    | natural number   | Per-node speculative execution identifier                                 |
 | `message_id` | string           | Globally unique ID for an observed send or receive                        |
 | `caused_by`  | string           | `message_id` of the send that caused a receive                            |
 | `source`     | string           | Sender location name                                                      |
-| `view`       | natural number   | Gossip TxID view                                                          |
-| `seqno`      | natural number   | Gossip TxID sequence number                                               |
-| `pre`        | phase string     | Observable phase before the event                                         |
-| `post`       | phase string     | Observable phase after the event                                          |
+| `view`       | natural number   | Gossip payload or transaction lifecycle TxID view                         |
+| `seqno`      | natural number   | Gossip payload or transaction lifecycle TxID sequence number              |
+| `pre`        | phase string     | Observable phase before a semantic event                                  |
+| `post`       | phase string     | Observable phase after a semantic event                                   |
 | `open_kind`  | open-kind string | `QUORUM` or `FAILOVER` for an `open` observation                          |
 | `send`       | string           | Send class and destination: `gossip:NAME`, `vote:NAME`, or `iamopen:NAME` |
 
@@ -36,22 +39,32 @@ All integers must be nonnegative Lean `Nat` values.
 
 ## Event kinds
 
-| Kind               | Required event fields                                                                                 | Canonical boundary                          |
-| ------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| `start`            | `pre`, `post`                                                                                         | Protocol state initialized                  |
-| `gossip_accepted`  | `message_id`, `caused_by`, `source`, `view`, `seqno`, `pre`, `post`                                   | Validated gossip callback committed         |
-| `vote_accepted`    | `message_id`, `caused_by`, `source`, `pre`, `post`                                                    | Validated vote callback committed           |
-| `iamopen_accepted` | `message_id`, `caused_by`, `source`, `pre`, `post`                                                    | IAmOpen selected peer and Joining committed |
-| `timeout`          | `pre`, `post`                                                                                         | Timeout transaction committed               |
-| `send`             | `send` in `class:destination` form, `message_id`, `pre`, `post`; gossip also requires `view`, `seqno` | Transport send observed                     |
-| `open`             | `open_kind`, `pre`, `post`                                                                            | Service-open transition committed           |
-| `join_restart`     | `pre`, `post`                                                                                         | Joining/restart side effect committed       |
-| `complete`         | `pre`, `post`                                                                                         | Opening-to-Open completion committed        |
+| Kind                 | Required event fields                                                                                 | Meaning                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `start`              | `pre`, `post`                                                                                         | Directly committed protocol initialization  |
+| `send`               | `send` in `class:destination` form, `message_id`, `pre`, `post`; gossip also requires `view`, `seqno` | Immediate permanent transport observation   |
+| `gossip_accepted`    | `attempt`, `message_id`, `caused_by`, `source`, `view`, `seqno`, `pre`, `post`                        | Speculative accepted gossip                 |
+| `vote_accepted`      | `attempt`, `message_id`, `caused_by`, `source`, `pre`, `post`                                         | Speculative accepted vote                   |
+| `iamopen_accepted`   | `attempt`, `message_id`, `caused_by`, `source`, `pre`, `post`                                         | Speculative accepted IAmOpen                |
+| `timeout`            | `attempt`, `pre`, `post`                                                                              | Speculative timeout                         |
+| `open`               | `attempt`, `open_kind`, `pre`, `post`                                                                 | Speculative service-open observation        |
+| `join_restart`       | `attempt`, `pre`, `post`                                                                              | Speculative Joining/restart observation     |
+| `complete`           | `attempt`, `pre`, `post`                                                                              | Speculative Opening-to-Open completion      |
+| `globally_committed` | `attempt`, `view`, `seqno`                                                                            | Apply the buffered attempt                  |
+| `rolled_back`        | `attempt`, `view`, `seqno`                                                                            | Discard a locally committed attempt         |
+| `aborted`            | `attempt`                                                                                             | Discard a superseded conflict-retry attempt |
+
+`start` and `send` must omit `attempt`. Every speculative semantic event must
+have one. Transaction lifecycle records have no `pre` or `post`;
+`globally_committed` and `rolled_back` carry the final transaction TxID, while
+`aborted` must not carry a TxID.
 
 Every receive uses `caused_by` to identify an earlier `send`. The validator
-checks the sender, destination, message class, gossip TxID payload, and single
-consumption of that send. Message IDs, causal IDs, and source names must be
-nonempty, and message IDs cannot be reused. Non-receive events must omit
+checks the sender, destination, message class, and gossip TxID payload. A
+committed receive consumes the send once. Rolling back or aborting an attempt
+does not consume it, so a committed retry may use the same cause. Message IDs,
+causal IDs, and source names must be nonempty, and message IDs cannot be reused,
+including IDs on discarded speculative receives. Non-receive events must omit
 `caused_by`.
 
 Each participating configured node has one `start` event at sequence zero. The
@@ -67,48 +80,53 @@ The NDJSON record order is a topological linearization of the distributed
 trace. Per-node `sequence` and `caused_by` edges define the ordering; wall-clock
 timestamps do not.
 
+All semantic records from one execution have the same `(node, attempt)` and
+are contiguous in that node's sequence. Other nodes' records may appear between
+them in the topological order. Each group starts with one accepted receive or
+timeout and may contain its correlated `open`, `join_restart`, or `complete`
+observation. A later lifecycle record for the same key either applies the
+buffered records in emitted order or discards them. Reusing an attempt key,
+returning to a closed active attempt group, or resolving an unknown or already
+resolved attempt is invalid. An attempt may remain unresolved at the end of the
+available logs; it is ignored for canonical and terminal checks.
+
 ## Strict replay
 
-A trace describes a complete successful execution: every transport send,
-accepted receive, committed timeout, and one-shot effect is explicit.
+A valid terminal trace describes a complete successful committed execution:
+every observed transport send and transaction lifecycle record is explicit.
 `DisasterRecoveryTrace/Protocol/Trace/Replay.lean` folds these events over one deterministic `SystemState`.
-It retains only observed sends, consumed causal IDs, per-node sequences, and
-pending ordered retry-send batches and `open`, `join_restart`, or `complete`
-effects.
+It buffers speculative semantic records by attempt. A `globally_committed`
+record applies the whole buffer; `rolled_back` and `aborted` discard it.
+Unresolved buffers remain inert. Sends and starts are handled immediately.
+Sends validated against a locally visible speculative projection remain
+permanent even if that attempt later rolls back.
+If lifecycle resolution races ahead of a task's first traced send, the
+pre-resolution projections with enabled sends remain available until that first
+send chooses a batch. That choice expires the alternatives; the selected
+batch's phase remains fixed until its remaining sends are observed.
+Ordered retry-send batches remain valid when speculative or lifecycle records
+interleave with their individual sends.
 
 The validator rejects the first event that is not enabled by the canonical
 model or whose recorded pre/post state, cause, or effect does not match. It
 reports this shortest failing prefix with the current phase and expected event
 classes.
 
-Rejected HTTP/validation inputs do not mutate the modeled state and are not
-part of this trace format. Supporting rejection behavior or incomplete traces
-would require explicit changes to the instrumentation and deterministic replay.
+Rejected HTTP or validation inputs do not mutate the modeled state and are not
+part of this trace format.
 
 ## C++ instrumentation
 
 Configure CCF with `-DCCF_RECOVERY_TRACE=ON` to enable implementation tracing.
-Accepted receive and timeout events are written to
-`public:ccf.internal.recovery_decision_protocol.trace_events` in the same
-transaction as the modeled state change. A global commit hook emits them only
-after commit, followed by any `open`, `join_restart`, or `complete` effect from
-that transition. Aborted transactions therefore emit nothing.
-In trace-enabled builds the joiner restart request is issued by the trace hook
-after the committed receive and `join_restart` records are emitted. Default
-builds issue the restart from the committed state hook. Both modes therefore
-wait for global commit before requesting restart.
-The `join_restart` effect is recorded only on entry into `JOINING`, not for
-later timeout transactions that leave the node in `JOINING`.
-
-The committed start hook emits `start` before scheduling retry and failover
-tasks. Transport sends are emitted immediately before dispatch and propagate
-their generated `message_id` in the internal request as `trace_message_id`;
-the committed receive records it as `caused_by`.
-Trace-enabled receive handlers reject missing or empty `trace_message_id`
-values before quote verification or protocol state changes.
-If a retry observes a locally committed phase that is not yet globally visible
-to the trace hook, tracing defers that retry invocation. Once phases match, the
-trace lock serializes the complete send batch against later commit publication.
+Tracing observes normal protocol execution without changing transaction,
+restart, or retry behavior. Accepted receive, timeout, and correlated effect
+records are emitted together under a fresh attempt before the transaction
+outcome is known. The final transaction callback emits `globally_committed` or
+`rolled_back`; a conflict retry first emits `aborted` for the superseded
+attempt. Transport sends are emitted immediately and carry `message_id` in the
+protocol request in both traced and default builds. A receive records that value
+as `caused_by`. The `join_restart` effect is recorded only on entry into
+`JOINING`, not for later timeouts that leave the node in `JOINING`.
 
 Each log record contains `RDP_TRACE ` followed by the event object.
 `../../tests/infra/recovery_trace.py` passes the original participating node log
@@ -119,13 +137,16 @@ edges, and replays them. The quorum, failover, and multiple-timeout SNP e2e
 scenarios call this helper. The original logs are retained with the SNP job's
 uploaded artifacts, so a failed replay can be reproduced locally.
 
-Lean additionally requires scenario-specific terminal evidence before accepting
-the trace: the expected number of participating nodes and open kind, at least
-one completed opener, and a `complete` or `join_restart` event for every
-participating node. While logs are growing, it waits for missing records and
-terminal evidence up to the supplied deadline. Contradictory or malformed
-complete records fail immediately; an unterminated final line remains
-incomplete and cannot be accepted.
+Lean additionally requires committed scenario-specific terminal evidence before
+accepting the trace: the expected number of participating nodes and open kind,
+at least one completed opener, and a committed `complete` or `join_restart`
+event for every participating node. Speculative discarded or unresolved
+records do not supply open-kind or terminal evidence. While logs are growing,
+the validator waits for missing records and terminal evidence up to the
+supplied deadline. Contradictory or malformed committed records fail
+immediately; an unterminated final line remains incomplete and cannot be
+accepted. The accepted count is the number of raw ordered records, including
+lifecycle and discarded records.
 
 ## Example
 

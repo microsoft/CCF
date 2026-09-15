@@ -9,9 +9,14 @@ deliberately separate from the canonical model and depends only on
 NDJSON contract. `DisasterRecoveryTrace.Protocol.Trace.Logs` extracts records
 directly from text or JSON node logs and orders them using per-node sequences
 and causal send edges, not timestamps.
-`DisasterRecoveryTrace.Protocol.Trace.Replay` replays each event against the
-canonical transition system. The validator rejects the first incompatible event
-and reports its original file/line location and shortest failing ordered prefix.
+`DisasterRecoveryTrace.Protocol.Trace.Replay` buffers speculative semantic
+events by `(node, attempt)`, applies globally committed attempts to the canonical
+transition system, and discards rolled-back or aborted attempts. Starts and
+sends are replayed immediately. A first send racing after lifecycle resolution
+may select a retained pre-resolution local projection; that choice expires the
+alternatives and fixes the phase for the rest of its batch. The validator rejects
+the first incompatible record and reports its original file/line location and
+shortest failing ordered prefix.
 
 ## Build and test
 
@@ -31,12 +36,15 @@ lake exe trace-validator --logs 3 QUORUM 20000 node0/out node1/out node2/out
 
 The arguments are the expected participating-node count, expected open kind
 (`QUORUM` or `FAILOVER`), timeout in milliseconds, and raw log paths. Lean waits
-for complete newline-terminated records and scenario terminal evidence. Missing
-sequences, send causes, or terminal effects are incomplete input; if they do not
+for complete newline-terminated records and committed scenario terminal
+evidence. Missing sequences, send causes, or terminal effects are incomplete
+input; unresolved attempts are legal and ignored. If required evidence does not
 arrive before the deadline, validation fails. Malformed records, causal cycles,
-duplicate identifiers, wrong outcomes, and invalid replay transitions fail
-without retrying. File read errors also fail rather than silently skipping logs.
-Python only supplies log paths and scenario expectations and reports the result.
+duplicate identifiers or attempt keys, invalid lifecycle references, wrong
+outcomes, and invalid committed replay transitions fail without retrying. File
+read errors also fail rather than silently skipping logs. The reported event
+count includes raw lifecycle and discarded records. Python only supplies log
+paths and scenario expectations and reports the result.
 
 The original node logs are the reproduction artifact uploaded by SNP CI. For
 an offline check use a timeout of `0`. Already ordered NDJSON remains supported

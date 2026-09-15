@@ -142,9 +142,6 @@ def validateLogs (logs : List (String × ByteArray)) (scenario : Scenario) :
     let snapshot <- extractLogBytes path input
     events := events ++ snapshot.events
     partialLines := partialLines ++ snapshot.partialLines
-  for record in events do
-    if record.event.kind == .open && record.event.openKind != some scenario.openKind then
-      throw (.invalid s!"{record.origin}: unexpected scenario open kind")
   let ordered <- linearize events
   let state <- match replay (ordered.map LocatedEvent.event) with
     | .ok state => pure state
@@ -157,6 +154,13 @@ def validateLogs (logs : List (String × ByteArray)) (scenario : Scenario) :
     throw (.invalid s!"started {started} nodes, expected {scenario.participatingNodes}")
   if started < scenario.participatingNodes then
     throw (.incomplete s!"started {started} nodes, expected {scenario.participatingNodes}")
+  let committedAttempts :=
+    state.active.map (fun active => active.committedAttempts) |>.getD []
+  for record in ordered do
+    if record.event.kind == .open &&
+        committedAttempts.contains (record.event.node, record.event.attempt.getD 0) &&
+        record.event.openKind != some scenario.openKind then
+      throw (.invalid s!"{record.origin}: unexpected scenario open kind")
   match finish state ordered.length with
   | .error failure => throw (.incomplete (renderFailure failure))
   | .ok () => pure ()
