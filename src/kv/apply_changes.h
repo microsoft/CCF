@@ -159,6 +159,11 @@ namespace ccf::kv
       }
     }
 
+    KV_TRACE(
+      if (!ok) { trace::local_result("conflict", 0); } else if (!has_writes) {
+        trace::local_result("success", 0);
+      });
+
     for (auto& [map_name, mc] : changes)
     {
       mc.map->unlock();

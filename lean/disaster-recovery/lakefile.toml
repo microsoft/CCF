@@ -1,9 +1,10 @@
 name = "disaster_recovery"
 version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true"]
-# Quote the hyphenated executable name for Lean's name parser.
+# Quote the hyphenated executable names for Lean's name parser.
 lintDriver = "axiomAudit/\u00abaxiom-audit\u00bb"
 lintDriverArgs = ["--root", "DisasterRecovery"]
+testDriver = "\u00abcanonical-checks\u00bb"
 defaultTargets = [
   "DisasterRecovery",
   "canonical-checks",

@@ -10,6 +10,19 @@ At a weekly rollover, restore keys first reuse the latest cache for the same dep
 
 The action also assigns uv a writable cache directory outside `/github/home/.cache`, because some tests clear that directory. A weekly cache persists uv's content-addressed package cache, keyed on the pinned uv installer, `python/pyproject.toml`, and the `python-requirements` input, which each workflow sets to the requirements files it installs so unrelated jobs do not invalidate each other's cache; jobs that do not install Python packages disable this cache entirely with `cache-python-packages: false`. CI dependency setup uses `uv pip` so cached packages remain reusable, with workflows configuring the package index through `UV_INDEX_URL`. Pip is not used for package installation because the PyPI proxy redirects artifacts to short-lived URLs that pip cannot reuse across jobs.
 
+## Lean package checks
+
+The local composite action in `.github/actions/lean-checks/action.yml` restores
+the Mathlib cache, checks the generated library import root, builds with warnings
+as errors, and runs the package's configured axiom audit and test driver through
+`lake lint` and `lake test`. Each caller supplies a `working-directory` and
+`library`, and installs the package's pinned Lean toolchain before invoking the
+action. Callers whose Lean toolchain is not already an elan-managed shim on the
+runner's persistent `PATH` also supply `lean-bin-path`, which the action adds to
+`PATH` only for its own steps, so later steps in the same job that build
+unrelated native code are not exposed to the Lean distribution's bundled
+`clang`.
+
 # Maintained
 
 ## Bencher
@@ -106,9 +119,13 @@ File: `tla-shallow.yml`
 Runs all Lean verification for the repository. Future Lean checks should be
 added as jobs to this workflow.
 
-The disaster recovery job builds the canonical model with `lake build --wfail`,
-audits its transitive axiom dependencies with `lake lint`, and runs its
-executable canonical behavior checks on Ubuntu 26.04 on relevant pull requests.
+The disaster recovery and KV jobs both use the shared
+[Lean package checks](#lean-package-checks) action on relevant pull requests.
+Disaster recovery runs its canonical behavior checks on Ubuntu 26.04. KV runs
+in Azure Linux 3, then builds the instrumented C++ KV unit tests and checks their
+generated traces against the Lean model. The KV job uploads trace diagnostics
+as artifacts.
+
 The build and audit include both the human-reviewed model and system properties
 and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every

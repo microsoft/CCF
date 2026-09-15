@@ -72,6 +72,7 @@ namespace ccf::kv
   public:
     void clear()
     {
+      KV_TRACE(trace::unsupported(nullptr, "store clear"));
       std::scoped_lock<ccf::ds::Mutex, ccf::ds::Mutex> mguard(
         maps_lock, version_lock);
 
@@ -133,6 +134,7 @@ namespace ccf::kv
       ccf::kv::ConsensusHookPtrs& hooks,
       bool track_deletes_on_missing_keys) override
     {
+      KV_TRACE(trace::unsupported(this, "commit deserialised"));
       std::unique_lock<ccf::ds::Mutex> maps_guard(maps_lock, std::defer_lock);
       if (!new_maps.empty())
       {
@@ -189,7 +191,14 @@ namespace ccf::kv
     Store(bool strict_versions_ = true, bool is_historical_ = false) :
       strict_versions(strict_versions_),
       is_historical(is_historical_)
-    {}
+    {
+      KV_TRACE(trace::store_create(static_cast<AbstractStore*>(this)));
+    }
+
+    ~Store() override
+    {
+      KV_TRACE(trace::store_end(static_cast<AbstractStore*>(this)));
+    }
 
     Store(const Store& that) = delete;
 
@@ -225,6 +234,9 @@ namespace ccf::kv
 
     void set_history(const std::shared_ptr<TxHistory>& history_)
     {
+      KV_TRACE(if (history_) {
+        trace::unsupported(this, "transaction history machinery");
+      });
       history = history_;
     }
 
@@ -235,6 +247,8 @@ namespace ccf::kv
 
     void set_chunker(const std::shared_ptr<ILedgerChunker>& chunker_)
     {
+      KV_TRACE(
+        if (chunker_) { trace::unsupported(this, "ledger chunk machinery"); });
       chunker = chunker_;
     }
 
@@ -274,6 +288,8 @@ namespace ccf::kv
 
     void set_snapshotter(const SnapshotterPtr& snapshotter_)
     {
+      KV_TRACE(
+        if (snapshotter_) { trace::unsupported(this, "snapshot machinery"); });
       snapshotter = snapshotter_;
     }
 
@@ -332,6 +348,9 @@ namespace ccf::kv
     void add_dynamic_map(
       ccf::kv::Version v, const std::shared_ptr<AbstractMap>& map_) override
     {
+      KV_TRACE(if (trace::context().tx == 0) {
+        trace::unsupported(this, "map publication outside transaction");
+      });
       auto map = std::dynamic_pointer_cast<ccf::kv::untyped::Map>(map_);
       if (map == nullptr)
       {
@@ -449,6 +468,7 @@ namespace ccf::kv
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) override
     {
+      KV_TRACE(trace::unsupported(this, "snapshot import"));
       auto e = get_encryptor();
       auto d = RawKvStoreDeserialiser(
         e,
@@ -589,6 +609,9 @@ namespace ccf::kv
 
     void compact(Version v) override
     {
+#ifdef CCF_KV_TRACING
+      trace::Environment trace_environment;
+#endif
       // This is called when the store will never be rolled back to any
       // state before the specified version.
       // No transactions can be prepared or committed during compaction.
@@ -609,6 +632,11 @@ namespace ccf::kv
 
       if (v > current_version())
       {
+        KV_TRACE(std::lock_guard<ccf::ds::Mutex> trace_vguard(version_lock);
+                 if (v <= version) {
+                   trace::unsupported(
+                     this, "above-head compaction overlaps version allocation");
+                 } trace::compact(this, compacted, v));
         return;
       }
 
@@ -624,6 +652,7 @@ namespace ccf::kv
         map->compact(v);
       }
 
+      KV_TRACE(trace::compact(this, v, v));
       for (auto& it : maps)
       {
         auto& [_, map] = it.second;
@@ -650,16 +679,23 @@ namespace ccf::kv
 
     void rollback(const TxID& tx_id, Term term_of_next_version_) override
     {
+#ifdef CCF_KV_TRACING
+      trace::Environment trace_environment;
+#endif
       // This is called to roll the store back to the state it was in
       // at the specified version.
       // No transactions can be prepared or committed during rollback.
 
       std::lock_guard<ccf::ds::Mutex> mguard(maps_lock);
 
+#ifdef CCF_KV_TRACING
+      trace::Rollback trace_rollback(this);
+#endif
       {
         std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
         if (tx_id.seqno < compacted)
         {
+          KV_TRACE(trace_rollback.rejected(tx_id.seqno, term_of_next_version_));
           throw std::logic_error(fmt::format(
             "Attempting rollback to {}, earlier than commit version {}",
             tx_id.seqno,
@@ -692,6 +728,8 @@ namespace ccf::kv
             // move chunk metadata forward past the Store.
             chunker->rolled_back_to(std::min<Version>(tx_id.seqno, version));
           }
+          KV_TRACE(
+            trace_rollback.result(version, tx_id.seqno, term_of_next_version_));
           return;
         }
 
@@ -746,6 +784,8 @@ namespace ccf::kv
         }
       }
 
+      KV_TRACE(
+        trace_rollback.result(tx_id.seqno, tx_id.seqno, term_of_next_version_));
       for (auto& map_it : maps)
       {
         auto& [_, map] = map_it.second;
@@ -758,6 +798,7 @@ namespace ccf::kv
       // Note: This should only be called once, when the store is first
       // initialised. term_of_next_version is later updated via rollback.
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      KV_TRACE(trace::initialise_term(this));
       if (term_of_next_version != 0)
       {
         throw std::logic_error("term_of_next_version is already initialised");
@@ -783,6 +824,7 @@ namespace ccf::kv
       std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest,
       bool ignore_strict_versions = false) override
     {
+      KV_TRACE(trace::unsupported(this, "deserialisation"));
       // This will return FAILED if the serialised transaction is being
       // applied out of order.
       // Processing transactions locally and also deserialising to the
@@ -949,6 +991,7 @@ namespace ccf::kv
     {
       // Must lock in case the version or commit term is being incremented.
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      KV_TRACE(trace::snapshot(this, version, term_of_next_version));
       return {current_txid_unsafe(), term_of_next_version};
     }
 
@@ -1225,6 +1268,7 @@ namespace ccf::kv
       // the race, rollback observes the new version and truncates those writes.
       if (term_of_next_version != expected_commit_term)
       {
+        KV_TRACE(trace::local_result("no_replicate", 0));
         LOG_DEBUG_FMT(
           "Refusing to assign a version to a transaction from term {} because "
           "the current term is {}",
@@ -1234,6 +1278,7 @@ namespace ccf::kv
       }
 
       Version v = next_version_unsafe();
+      KV_TRACE(trace::apply(this, v, term_of_next_version));
 
       auto previous_last_new_map = last_new_map;
       if (commit_new_map)
@@ -1246,6 +1291,7 @@ namespace ccf::kv
 
     TxID next_txid() override
     {
+      KV_TRACE(trace::unsupported(this, "reserved transaction ID"));
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       next_version_unsafe();
 
@@ -1272,6 +1318,8 @@ namespace ccf::kv
      **/
     void swap_private_maps(Store& store)
     {
+      KV_TRACE(trace::unsupported(this, "swap private maps"));
+      KV_TRACE(trace::unsupported(&store, "swap private maps"));
       {
         const auto source_version = store.current_version();
         const auto target_version = current_version();

@@ -203,10 +203,14 @@ namespace ccf::kv
         throw std::logic_error("Transaction already committed");
       }
 
+#ifdef CCF_KV_TRACING
+      trace::Commit trace_commit(pimpl->trace_attempt.id);
+#endif
       if (all_changes.empty())
       {
         committed = true;
         success = true;
+        KV_TRACE(trace_commit.result("success", 0));
         return CommitResult::SUCCESS;
       }
 
@@ -239,8 +243,25 @@ namespace ccf::kv
       bool commit_term_changed = false;
       std::optional<Version> c;
       std::optional<Version> expected_rollback_count;
+#ifdef CCF_KV_TRACING
+      auto trace_writes = trace::Json::array();
+      KV_TRACE(for (const auto& [map_name, mc]
+                    : all_changes) {
+        for (const auto& [key, value] : mc.changeset->writes)
+        {
+          trace_writes.push_back(
+            {{"map", map_name},
+             {"key", ccf::ds::to_hex(key)},
+             {"value", trace::bytes(value.has_value() ? &*value : nullptr)}});
+        }
+      });
+#endif
       {
         MapSetLockGuard map_set_guard(*pimpl->store, maps_created);
+#ifdef CCF_KV_TRACING
+        trace::Context trace_context(
+          pimpl->trace_attempt.id, &trace_writes, &trace_commit);
+#endif
         c = apply_changes(
           all_changes,
           [&](bool has_new_map) {
@@ -275,10 +296,12 @@ namespace ccf::kv
         {
           LOG_TRACE_FMT(
             "Could not commit transaction because its commit term changed");
+          KV_TRACE(trace_commit.result("no_replicate", 0));
           return CommitResult::FAIL_NO_REPLICATE;
         }
 
         LOG_TRACE_FMT("Could not commit transaction due to conflict");
+        KV_TRACE(trace_commit.result("conflict", 0));
         return CommitResult::FAIL_CONFLICT;
       }
 
@@ -301,6 +324,7 @@ namespace ccf::kv
             AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
           unset_tx_flag(TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         }
+        KV_TRACE(trace_commit.result("success", 0));
         return CommitResult::SUCCESS;
       }
 
@@ -321,6 +345,7 @@ namespace ccf::kv
               force_ledger_chunk,
               snapshot_at_next_signature))
         {
+          KV_TRACE(trace_commit.result("no_replicate", version));
           return CommitResult::FAIL_NO_REPLICATE;
         }
       }
@@ -346,13 +371,14 @@ namespace ccf::kv
 
         if (write_set_observer != nullptr)
         {
+          KV_TRACE(trace::unsupported(pimpl->store, "write set observer"));
           ccf::crypto::Sha256Hash ws_digest({data.data(), data.size()});
           write_set_observer(ws_digest, commit_evidence);
         }
 
         auto claims_ = claims;
 
-        return pimpl->store->commit(
+        auto result = pimpl->store->commit(
           {pimpl->commit_view, version},
           std::make_unique<MovePendingTx>(
             std::move(data),
@@ -360,6 +386,12 @@ namespace ccf::kv
             std::move(commit_evidence_digest),
             std::move(hooks)),
           false);
+        KV_TRACE(trace_commit.result(
+          result == CommitResult::SUCCESS         ? "success" :
+            result == CommitResult::FAIL_CONFLICT ? "conflict" :
+                                                    "no_replicate",
+          version));
+        return result;
       }
       catch (const std::exception& e)
       {
@@ -445,6 +477,8 @@ namespace ccf::kv
 
     void set_read_txid(const TxID& tx_id, Term commit_view_)
     {
+      KV_TRACE(
+        trace::unsupported(pimpl->store, "explicit read transaction ID"));
       if (pimpl->read_txid.has_value())
       {
         throw std::logic_error("Read TxID already set");
@@ -460,6 +494,7 @@ namespace ccf::kv
 
     virtual void set_tx_flag(TxFlag flag)
     {
+      KV_TRACE(trace::unsupported(pimpl->store, "transaction ledger flags"));
       flags |= static_cast<TxFlags>(flag);
     }
 
@@ -496,6 +531,7 @@ namespace ccf::kv
       rollback_count(rollback_count_)
     {
       version = reserved_tx_id.seqno;
+      KV_TRACE(trace::unsupported(pimpl->store, "reserved transaction"));
       pimpl->commit_view = reserved_tx_id.view;
       pimpl->read_txid = TxID(read_term, reserved_tx_id.seqno - 1);
     }
