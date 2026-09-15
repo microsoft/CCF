@@ -97,11 +97,15 @@ In trace-enabled builds the joiner restart request is issued by the trace hook
 after the committed receive and `join_restart` records are emitted. Default
 builds issue the restart from the committed state hook. Both modes therefore
 wait for global commit before requesting restart.
+The `join_restart` effect is recorded only on entry into `JOINING`, not for
+later timeout transactions that leave the node in `JOINING`.
 
 The committed start hook emits `start` before scheduling retry and failover
 tasks. Transport sends are emitted immediately before dispatch and propagate
 their generated `message_id` in the internal request as `trace_message_id`;
 the committed receive records it as `caused_by`.
+Trace-enabled receive handlers reject missing or empty `trace_message_id`
+values before quote verification or protocol state changes.
 If a retry observes a locally committed phase that is not yet globally visible
 to the trace hook, tracing defers that retry invocation. Once phases match, the
 trace lock serializes the complete send batch against later commit publication.
