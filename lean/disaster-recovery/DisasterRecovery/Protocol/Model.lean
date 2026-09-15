@@ -276,9 +276,6 @@ def systemStep
     nodes := replaceNode target output.state state.nodes
   }, output)
 
-def expectedSource (config : Config) (source : Location) : Bool :=
-  config.expectedLocations.contains source
-
 def stateKey (state : NodeState) : String :=
   let gossips := String.intercalate "," (state.gossips.map fun entry =>
     s!"{entry.1}@{entry.2.view}.{entry.2.seqno}")

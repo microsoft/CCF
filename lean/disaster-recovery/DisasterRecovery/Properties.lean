@@ -1,7 +1,5 @@
 import DisasterRecovery.Proofs.Committed
-import DisasterRecovery.Proofs.Invariants
 import DisasterRecovery.Proofs.Model
-import DisasterRecovery.Proofs.Quorum
 
 /-!
 # Human-reviewed system properties
@@ -71,21 +69,7 @@ section Global
 open Protocol.Model hiding Config
 open Protocol.Global Protocol.Invariants Protocol.Quorum Protocol.Committed
 
-/-! ## Reachability and quorum safety -/
-
-theorem reachable_well_formed
-    {config : Config}
-    {state : State}
-    (reachable : Reachable config state) :
-    WellFormed config state :=
-  Proofs.Invariants.reachable_well_formed reachable
-
-theorem reachable_quorum_invariant
-    {config : Config}
-    {state : State}
-    (reachable : Reachable config state) :
-    QuorumInvariant config state :=
-  Proofs.Quorum.reachable_quorum_invariant reachable
+/-! ## Quorum safety -/
 
 theorem quorum_opener_unique
     {config : Config}
@@ -113,21 +97,6 @@ theorem full_gossip_selection_preserves_commit
         TxID.EarlierThan committed recovered :=
   Proofs.Committed.full_gossip_selection_preserves_commit
     reachable full durable
-
-theorem quorum_open_preserves_commit
-    {config : Config}
-    {state : State}
-    {opener : Location}
-    {committed : TxID}
-    (reachable : Reachable config state)
-    (opened : QuorumOpened state opener)
-    (full : FullGossipSelection config state opener)
-    (durable : DurableCommit config committed) :
-    exists recovered,
-      recoveredTxID config opener = some recovered /\
-        TxID.EarlierThan committed recovered :=
-  Proofs.Committed.quorum_open_preserves_commit
-    reachable opened full durable
 
 end Global
 

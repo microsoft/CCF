@@ -29,7 +29,7 @@ does not formalize or prove the cryptography that produces that result.
 
 ## Review guide
 
-Start with `DisasterRecovery/Properties.lean`: it exposes 9 system-level
+Start with `DisasterRecovery/Properties.lean`: it exposes 6 system-level
 `theorem` statements, each with an explicit application of its checked proof.
 Review those statements and every definition or assumption they use in
 `DisasterRecovery/Protocol/`. Machine checking does not establish that the
@@ -45,7 +45,7 @@ specifications.
 
 Declaration namespaces follow the module paths. Model definitions live under
 `DisasterRecovery.Protocol.<Module>`, supporting lemmas under
-`DisasterRecovery.Proofs.<Module>`, and the 9 reviewed theorems under
+`DisasterRecovery.Proofs.<Module>`, and the 6 reviewed theorems under
 `DisasterRecovery.Properties`. For example,
 `DisasterRecovery.Properties.gossip_freezes_after_choice` explicitly applies
 `DisasterRecovery.Proofs.Model.gossip_freezes_after_choice` from
@@ -64,14 +64,15 @@ and the CI workflow are part of that review surface.
 
 `DisasterRecovery.Proofs.Model` proves local transition-safety properties.
 
-`DisasterRecovery.Proofs.Invariants` proves global well-formedness,
+`DisasterRecovery.Proofs.Invariants` proves supporting global well-formedness,
 message provenance, locality of transitions, append-only send history, and
 monotonic terminal histories for reachable states.
 
-`DisasterRecovery.Proofs.Quorum` proves that votes are unique and backed by
-prior sends, strict-majority quorums intersect, and any two quorum openings in
-a reachable execution select the same opener. This safety result is independent
-of scheduling assumptions.
+`DisasterRecovery.Proofs.Quorum` proves supporting vote and quorum invariants,
+including that votes are unique and backed by prior sends and that
+strict-majority quorums intersect. The reviewed property states that any two
+quorum openings in a reachable execution select the same opener. This safety
+result is independent of scheduling assumptions.
 
 `DisasterRecovery.Proofs.Committed` proves TxID maximum properties and
 committed-prefix preservation under two explicit premises:
