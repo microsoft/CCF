@@ -40,6 +40,26 @@ TEST_CASE("basic macro parser generation")
   REQUIRE(bar_1.c == j["c"]);
 }
 
+TEST_CASE("parse errors do not include field values")
+{
+  {
+    nlohmann::json j;
+    j["b"] = "SECRET_VALUE";
+    j["c"] = 12345;
+
+    REQUIRE_THROWS_WITH_AS(
+      j.get<Bar>(),
+      "Missing required field 'a' in object",
+      ccf::JsonParseError);
+  }
+
+  {
+    const nlohmann::json j = "SECRET_VALUE";
+    REQUIRE_THROWS_WITH_AS(
+      j.get<Bar>(), "Expected object", ccf::JsonParseError);
+  }
+}
+
 struct Biz : public Bar
 {
   size_t f = {};
@@ -693,6 +713,21 @@ TEST_CASE("JSON with different field names")
   REQUIRE(foo2.a == foo.a);
   REQUIRE(foo2.b == foo.b);
   REQUIRE(foo2.c == foo.c);
+
+  {
+    nlohmann::json j_missing;
+    j_missing["X"] = 987654;
+    REQUIRE_THROWS_WITH_AS(
+      j_missing.get<renamed::Foo>(),
+      "Missing required field 'SOMETHING_ELSE' in object",
+      ccf::JsonParseError);
+  }
+
+  {
+    const nlohmann::json j_scalar = "SECRET_VALUE";
+    REQUIRE_THROWS_WITH_AS(
+      j_scalar.get<renamed::Foo>(), "Expected object", ccf::JsonParseError);
+  }
 }
 
 TEST_CASE("example validation")

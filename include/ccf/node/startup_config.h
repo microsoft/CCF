@@ -34,6 +34,7 @@ namespace ccf
     // being idle).
     std::optional<ccf::ds::TimeString> idle_connection_timeout =
       ccf::ds::TimeString("60s");
+    ccf::ds::TimeString pending_node_timeout = {"1h"};
 
     ccf::consensus::Configuration consensus = {};
     ccf::NodeInfoNetwork network;
