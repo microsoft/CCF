@@ -132,6 +132,15 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig::IdentityHistoryFetch, max_attempts, retry_interval);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability::Fluentd);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability::Fluentd, host, port);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::Observability::Fluentd, ring_buffer_size);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::Observability, fluentd);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -147,7 +156,8 @@ namespace ccf
     files_cleanup,
     node_to_node_message_limit,
     historical_cache_soft_limit,
-    identity_history_fetch);
+    identity_history_fetch,
+    observability);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
   DECLARE_JSON_REQUIRED_FIELDS(

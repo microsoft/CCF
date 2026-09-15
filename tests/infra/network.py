@@ -192,6 +192,7 @@ class Network:
         "constitution",
         "join_timer_s",
         "worker_threads",
+        "observability",
         "ledger_chunk_bytes",
         "ledger_max_transaction_bytes",
         "subject_alt_names",

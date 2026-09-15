@@ -33,6 +33,7 @@ CLI_ARGUMENT_CONFIG_PATHS = {
     "election_timeout_ms": "consensus.election_timeout",
     "consensus_update_timeout_ms": "consensus.message_timeout",
     "worker_threads": "worker_threads",
+    "observability": "observability",
     "pdb": None,
     "workspace": None,
     "label": None,
@@ -432,6 +433,11 @@ def cli_args(
         default=0,
     )
     parser.add_argument(
+        "--observability",
+        help="Node observability configuration as a JSON object",
+        type=json.loads,
+    )
+    parser.add_argument(
         "--pdb", help="Break to debugger on exception", action="store_true"
     )
     parser.add_argument(
@@ -560,11 +566,13 @@ def cli_args(
     parser.add_argument(
         "--max-open-sessions",
         help="Soft cap on max open TLS sessions on each node",
+        type=int,
         default=1000,
     )
     parser.add_argument(
         "--max-open-sessions-hard",
         help="Hard cap on max open TLS sessions on each node",
+        type=int,
         default=1010,
     )
     parser.add_argument(

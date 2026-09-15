@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.15
 
+### Added
+
+- Generic tracing integration proof of concept exports tagged events to a trusted, local Fluentd `in_forward` listener over plaintext TCP. Raft instrumentation is the first example and requires `CCF_RAFT_TRACING=ON`, which remains off by default. Startup `observability.fluentd` configuration enables export; absent configuration disables it. Each producer has a bounded ring, defaulting to 1MB, and drops rather than waits when full. Records include EventTime, a process identifier, and a process sequence assigned before enqueue. Delivery order is not guaranteed. The consumer logs every 65,536 dropped records and limits shutdown draining to two seconds. Authentication, TLS, acknowledgements, and durable delivery are not provided.
+  The Raft test driver waits up to five seconds for a configured collector before processing its scenario and fails on connection timeout or exporter drops, including shutdown drain failures. Production nodes do not wait for a collector. Connection readiness does not guarantee remote receipt.
+
 ### Fixed
 
 - Strengthened access checks on JavaScript KV handles, including namespace restrictions in the historical KV (#8318).

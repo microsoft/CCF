@@ -738,6 +738,21 @@ if(BUILD_TESTS)
     target_link_libraries(raft_test PRIVATE ccfcrypto ccf_tasks)
 
     add_unit_test(
+      raft_trace_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/raft_trace.cpp
+    )
+    add_unit_test(
+      tracing_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tracing/test/fluentd.cpp
+    )
+    target_compile_options(tracing_test PRIVATE -UCCF_RAFT_TRACING)
+    target_link_options(
+      tracing_test
+      PRIVATE "LINKER:--wrap=send" "LINKER:--wrap=_Znwm"
+    )
+    set_tests_properties(tracing_test PROPERTIES TIMEOUT 30)
+
+    add_unit_test(
       raft_enclave_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/enclave.cpp
     )
@@ -1310,6 +1325,23 @@ if(BUILD_TESTS)
     TSAN_SUPPRESSIONS ${CCF_DIR}/tsan_e2e_logging_suppressions
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
+
+  if(CCF_RAFT_TRACING)
+    find_program(FLUENTD_EXECUTABLE fluentd)
+    set(FLUENTD_TEST_ARGS)
+    if(FLUENTD_EXECUTABLE)
+      list(APPEND FLUENTD_TEST_ARGS --fluentd ${FLUENTD_EXECUTABLE})
+    endif()
+    add_e2e_test(
+      NAME raft_trace_e2e
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/raft_trace_e2e.py
+      BUCKET bucket_c
+      ADDITIONAL_ARGS
+        --package
+        samples/apps/logging/logging
+        ${FLUENTD_TEST_ARGS}
+    )
+  endif()
 
   set(
     RBAC_CONSTITUTION_ARGS
