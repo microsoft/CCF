@@ -5,8 +5,12 @@
 #include "ds/internal_logger.h"
 #include "ds/ring_buffer.h"
 #include "kv/test/null_encryptor.h"
+#ifdef CCF_RECOVERY_TRACE
+#  include "node/commit_callback_interface.h"
+#endif
 #include "node/node_state.h"
 #include "node/rpc/node_frontend.h"
+#include "node/rpc_context_impl.h"
 #include "node_stub.h"
 #include "tasks/task_system.h"
 
@@ -120,6 +124,53 @@ namespace
     }
   };
 
+#ifdef CCF_RECOVERY_TRACE
+  class RecoveryTestCommitCallbacks : public CommitCallbackInterface
+  {
+    struct PendingCallback
+    {
+      ccf::TxID txid;
+      ccf::CommitCallback callback;
+    };
+
+    std::vector<PendingCallback> callbacks;
+
+  public:
+    bool fail_registration = false;
+
+    void add_callback(ccf::TxID txid, ccf::CommitCallback&& callback) override
+    {
+      if (fail_registration)
+      {
+        throw std::logic_error("Trace callback registration failed");
+      }
+      callbacks.push_back({txid, std::move(callback)});
+    }
+
+    size_t size() const
+    {
+      return callbacks.size();
+    }
+
+    void resolve(const ccf::TxID& txid, ccf::FinalTxStatus status)
+    {
+      const auto it = std::find_if(
+        callbacks.begin(), callbacks.end(), [&](const auto& entry) {
+          return entry.txid == txid;
+        });
+      if (it == callbacks.end())
+      {
+        throw std::logic_error(
+          fmt::format("No commit callback registered for {}", txid.to_str()));
+      }
+
+      auto callback = std::move(it->callback);
+      callbacks.erase(it);
+      callback(txid, status);
+    }
+  };
+#endif
+
   struct RecoveryTestContext : public AbstractNodeContext
   {
     ccf::NodeId get_node_id() const override
@@ -150,12 +201,19 @@ namespace
     std::shared_ptr<RecoveryTestNodeOperation> operation =
       std::make_shared<RecoveryTestNodeOperation>(
         node.get_recovery_decision_protocol());
+#ifdef CCF_RECOVERY_TRACE
+    std::shared_ptr<RecoveryTestCommitCallbacks> commit_callbacks =
+      std::make_shared<RecoveryTestCommitCallbacks>();
+#endif
     std::shared_ptr<RecoveryTestFrontend> frontend;
     size_t restart_count = 0;
 
     RecoveryProtocolFixture()
     {
       context.install_subsystem(operation);
+#ifdef CCF_RECOVERY_TRACE
+      context.install_subsystem(commit_callbacks);
+#endif
       context.install_subsystem(std::make_shared<StubGovernanceEffects>());
       context.install_subsystem(std::make_shared<StubNodeStateCache>());
       context.install_subsystem(
@@ -224,6 +282,44 @@ namespace
       registry.execute_endpoint(endpoint, *args);
       return args;
     }
+
+    std::unique_ptr<EndpointContextImpl> retry(EndpointContextImpl& previous)
+    {
+      auto* rpc_ctx =
+        dynamic_cast<ccf::RpcContextImpl*>(previous.rpc_ctx.get());
+      REQUIRE(rpc_ctx != nullptr);
+      rpc_ctx->reset_response();
+
+      auto args = std::make_unique<EndpointContextImpl>(
+        previous.rpc_ctx, network.tables->create_tx_ptr());
+      auto caller = std::make_unique<NodeCertAuthnIdentity>();
+      caller->node_id = ccf::kv::test::PrimaryNodeId;
+      args->caller = std::move(caller);
+      auto& registry = frontend->get_node_endpoints();
+      auto endpoint = registry.find_endpoint(args->tx, *previous.rpc_ctx);
+      REQUIRE(endpoint != nullptr);
+      registry.execute_endpoint(endpoint, *args);
+      return args;
+    }
+
+    ccf::TxID locally_commit(EndpointContextImpl& args)
+    {
+      auto& registry = frontend->get_node_endpoints();
+      auto endpoint = registry.find_endpoint(args.tx, *args.rpc_ctx);
+      REQUIRE(endpoint != nullptr);
+      REQUIRE(args.owned_tx->commit() == ccf::kv::CommitResult::SUCCESS);
+      const auto txid = args.owned_tx->get_txid();
+      REQUIRE(txid.has_value());
+      registry.execute_endpoint_locally_committed(endpoint, args, txid.value());
+      return txid.value();
+    }
+
+#ifdef CCF_RECOVERY_TRACE
+    void resolve(const ccf::TxID& txid, ccf::FinalTxStatus status)
+    {
+      commit_callbacks->resolve(txid, status);
+    }
+#endif
 
     recovery_decision_protocol::IAmOpenRequest iamopen_request()
     {
@@ -315,23 +411,61 @@ TEST_CASE("Recovery protocol message IDs are required")
         CHECK(fixture.operation->quote_verifications == verified_before + 1);
       }
       CHECK(fixture.read_restarts() == 0);
+#ifdef CCF_RECOVERY_TRACE
+      if (std::string_view(id).empty())
+      {
+        CHECK(fixture.environment.events.empty());
+      }
+      else
+      {
+        REQUIRE_FALSE(fixture.environment.events.empty());
+        CHECK(fixture.environment.events.front()["kind"] == kind + "_accepted");
+        CHECK(fixture.environment.events.front().contains("attempt"));
+        if (kind == "iamopen")
+        {
+          REQUIRE(fixture.environment.events.size() == 2);
+          CHECK(fixture.environment.events.back()["kind"] == "join_restart");
+          CHECK(
+            fixture.environment.events.back()["attempt"] ==
+            fixture.environment.events.front()["attempt"]);
+        }
+        else
+        {
+          CHECK(fixture.environment.events.size() == 1);
+        }
+      }
+#else
       CHECK(fixture.environment.events.empty());
+#endif
+      fixture.environment.events.clear();
     }
   }
 }
 
-TEST_CASE("Recovery restart waits for global commit and occurs once")
+TEST_CASE("Recovery attempts are resolved without changing restart behaviour")
 {
   using State = recovery_decision_protocol::StateMachine;
   RecoveryProtocolFixture fixture;
   const auto before = fixture.network.tables->current_txid_and_commit_term();
+  size_t events_before_accepted = 0;
 
   {
-    auto aborted = fixture.prepare(
+    auto incomplete = fixture.prepare(
       "recovery_decision_protocol/iamopen", fixture.iamopen_request());
-    REQUIRE(aborted->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
+    REQUIRE(
+      incomplete->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
     CHECK(fixture.read_restarts() == 0);
+#ifdef CCF_RECOVERY_TRACE
+    REQUIRE(fixture.environment.events.size() == 2);
+    CHECK(fixture.environment.events[0]["kind"] == "iamopen_accepted");
+    CHECK(fixture.environment.events[1]["kind"] == "join_restart");
+    CHECK(
+      fixture.environment.events[0]["attempt"] ==
+      fixture.environment.events[1]["attempt"]);
+    events_before_accepted = 2;
+#else
     CHECK(fixture.environment.events.empty());
+#endif
 
     SUBCASE("Discarded transaction") {}
     SUBCASE("Conflicting transaction")
@@ -343,19 +477,35 @@ TEST_CASE("Recovery restart waits for global commit and occurs once")
         ->put(State::VOTING);
       REQUIRE(conflict.commit() == ccf::kv::CommitResult::SUCCESS);
       CHECK(
-        aborted->owned_tx->commit() == ccf::kv::CommitResult::FAIL_CONFLICT);
+        incomplete->owned_tx->commit() == ccf::kv::CommitResult::FAIL_CONFLICT);
     }
     SUBCASE("Locally committed transaction rolled back before global commit")
     {
-      REQUIRE(aborted->owned_tx->commit() == ccf::kv::CommitResult::SUCCESS);
+      [[maybe_unused]] const auto txid = fixture.locally_commit(*incomplete);
       CHECK(fixture.read_restarts() == 0);
-      CHECK(fixture.environment.events.empty());
+#ifdef CCF_RECOVERY_TRACE
+      CHECK(fixture.commit_callbacks->size() == 1);
+#endif
+      CHECK(fixture.environment.events.size() == events_before_accepted);
       fixture.network.tables->rollback(before.first, before.second);
+#ifdef CCF_RECOVERY_TRACE
+      fixture.resolve(txid, ccf::FinalTxStatus::Invalid);
+      REQUIRE(fixture.environment.events.size() == 3);
+      CHECK(fixture.environment.events.back()["kind"] == "rolled_back");
+      CHECK(
+        fixture.environment.events.back()["attempt"] ==
+        fixture.environment.events.front()["attempt"]);
+      CHECK(fixture.environment.events.back()["view"] == txid.view);
+      CHECK(fixture.environment.events.back()["seqno"] == txid.seqno);
+      events_before_accepted = 3;
+#else
+      CHECK(fixture.environment.events.empty());
+#endif
     }
   }
   fixture.network.tables->compact(fixture.network.tables->current_version());
   CHECK(fixture.read_restarts() == 0);
-  CHECK(fixture.environment.events.empty());
+  CHECK(fixture.environment.events.size() == events_before_accepted);
   {
     auto tx = fixture.network.tables->create_read_only_tx();
     CHECK(
@@ -367,16 +517,31 @@ TEST_CASE("Recovery restart waits for global commit and occurs once")
   auto accepted = fixture.prepare(
     "recovery_decision_protocol/iamopen", fixture.iamopen_request());
   REQUIRE(accepted->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
-  REQUIRE(accepted->owned_tx->commit() == ccf::kv::CommitResult::SUCCESS);
+  [[maybe_unused]] const auto accepted_txid = fixture.locally_commit(*accepted);
   CHECK(fixture.read_restarts() == 0);
+#ifdef CCF_RECOVERY_TRACE
+  REQUIRE(fixture.environment.events.size() == events_before_accepted + 2);
+  CHECK(fixture.commit_callbacks->size() == 1);
+#else
   CHECK(fixture.environment.events.empty());
+#endif
   fixture.network.tables->compact(fixture.network.tables->current_version());
   CHECK(fixture.read_restarts() == 1);
 #ifdef CCF_RECOVERY_TRACE
-  REQUIRE(fixture.environment.events.size() == 2);
-  CHECK(fixture.environment.events[0]["kind"] == "iamopen_accepted");
-  CHECK(fixture.environment.events[0]["caused_by"] == "opener:1");
-  CHECK(fixture.environment.events[1]["kind"] == "join_restart");
+  fixture.resolve(accepted_txid, ccf::FinalTxStatus::Committed);
+  REQUIRE(fixture.environment.events.size() == events_before_accepted + 3);
+  const auto accepted_event = events_before_accepted;
+  CHECK(
+    fixture.environment.events[accepted_event]["kind"] == "iamopen_accepted");
+  CHECK(fixture.environment.events[accepted_event]["caused_by"] == "opener:1");
+  CHECK(
+    fixture.environment.events[accepted_event + 1]["kind"] == "join_restart");
+  CHECK(
+    fixture.environment.events[accepted_event + 2]["kind"] ==
+    "globally_committed");
+  CHECK(
+    fixture.environment.events[accepted_event + 2]["attempt"] ==
+    fixture.environment.events[accepted_event]["attempt"]);
   for (const auto& event : fixture.environment.events)
   {
     CHECK_FALSE(event.contains("version"));
@@ -389,15 +554,21 @@ TEST_CASE("Recovery restart waits for global commit and occurs once")
   auto duplicate =
     fixture.prepare("recovery_decision_protocol/iamopen", duplicate_request);
   REQUIRE(duplicate->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
-  REQUIRE(duplicate->owned_tx->commit() == ccf::kv::CommitResult::SUCCESS);
+  [[maybe_unused]] const auto duplicate_txid =
+    fixture.locally_commit(*duplicate);
   fixture.network.tables->compact(fixture.network.tables->current_version());
   CHECK(fixture.read_restarts() == 1);
 #ifdef CCF_RECOVERY_TRACE
-  REQUIRE(fixture.environment.events.size() == 1);
+  fixture.resolve(duplicate_txid, ccf::FinalTxStatus::Committed);
+  REQUIRE(fixture.environment.events.size() == 2);
   CHECK(fixture.environment.events[0]["kind"] == "iamopen_accepted");
   CHECK(fixture.environment.events[0]["caused_by"] == "opener:2");
   CHECK(fixture.environment.events[0]["pre"] == "JOINING");
   CHECK(fixture.environment.events[0]["post"] == "JOINING");
+  CHECK(fixture.environment.events[1]["kind"] == "globally_committed");
+  CHECK(
+    fixture.environment.events[1]["attempt"] ==
+    fixture.environment.events[0]["attempt"]);
 #else
   CHECK(fixture.environment.events.empty());
 #endif
@@ -406,16 +577,120 @@ TEST_CASE("Recovery restart waits for global commit and occurs once")
   auto timeout =
     fixture.prepare("recovery_decision_protocol/timeout", json::object());
   REQUIRE(timeout->rpc_ctx->get_response_status() == HTTP_STATUS_OK);
-  REQUIRE(timeout->owned_tx->commit() == ccf::kv::CommitResult::SUCCESS);
+  [[maybe_unused]] const auto timeout_txid = fixture.locally_commit(*timeout);
   CHECK(fixture.read_restarts() == 1);
-  CHECK(fixture.environment.events.empty());
   fixture.network.tables->compact(fixture.network.tables->current_version());
   CHECK(fixture.read_restarts() == 1);
 #ifdef CCF_RECOVERY_TRACE
-  REQUIRE(fixture.environment.events.size() == 1);
+  fixture.resolve(timeout_txid, ccf::FinalTxStatus::Committed);
+  REQUIRE(fixture.environment.events.size() == 2);
   CHECK(fixture.environment.events[0]["kind"] == "timeout");
   CHECK(fixture.environment.events[0]["pre"] == "JOINING");
   CHECK(fixture.environment.events[0]["post"] == "JOINING");
   CHECK_FALSE(fixture.environment.events[0].contains("version"));
+  CHECK(fixture.environment.events[1]["kind"] == "globally_committed");
+  CHECK(
+    fixture.environment.events[1]["attempt"] ==
+    fixture.environment.events[0]["attempt"]);
+#else
+  CHECK(fixture.environment.events.empty());
 #endif
 }
+
+TEST_CASE("Recovery tracing does not add KV writes")
+{
+  RecoveryProtocolFixture fixture;
+  auto gossip = fixture.iamopen_request();
+  const auto gossip_json = json(recovery_decision_protocol::GossipRequest{
+    {.info = gossip.info, .message_id = "opener:1"}, gossip.txid});
+
+  auto initial =
+    fixture.prepare("recovery_decision_protocol/gossip", gossip_json);
+  REQUIRE(initial->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
+  [[maybe_unused]] const auto initial_txid = fixture.locally_commit(*initial);
+  fixture.network.tables->compact(fixture.network.tables->current_version());
+#ifdef CCF_RECOVERY_TRACE
+  fixture.resolve(initial_txid, ccf::FinalTxStatus::Committed);
+#endif
+  fixture.environment.events.clear();
+
+  auto duplicate_json = gossip_json;
+  duplicate_json["message_id"] = "opener:2";
+  const auto version_before = fixture.network.tables->current_version();
+  auto duplicate =
+    fixture.prepare("recovery_decision_protocol/gossip", duplicate_json);
+  REQUIRE(duplicate->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
+  const auto duplicate_txid = fixture.locally_commit(*duplicate);
+
+  CHECK(fixture.network.tables->current_version() == version_before);
+  CHECK(duplicate_txid.seqno == version_before);
+#ifdef CCF_RECOVERY_TRACE
+  fixture.resolve(duplicate_txid, ccf::FinalTxStatus::Committed);
+  REQUIRE(fixture.environment.events.size() == 2);
+  CHECK(fixture.environment.events[0]["kind"] == "gossip_accepted");
+  CHECK(fixture.environment.events[1]["kind"] == "globally_committed");
+#else
+  CHECK(fixture.environment.events.empty());
+#endif
+}
+
+TEST_CASE("Recovery retries supersede incomplete attempts")
+{
+  RecoveryProtocolFixture fixture;
+  const auto iamopen = fixture.iamopen_request();
+  recovery_decision_protocol::GossipRequest gossip;
+  gossip.info = iamopen.info;
+  gossip.txid = iamopen.txid;
+  gossip.message_id = "opener:1";
+
+  auto first =
+    fixture.prepare("recovery_decision_protocol/gossip", json(gossip));
+  REQUIRE(first->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
+
+  auto conflict = fixture.network.tables->create_tx();
+  conflict
+    .rw<recovery_decision_protocol::Gossips>(
+      Tables::RECOVERY_DECISION_PROTOCOL_GOSSIPS)
+    ->put(gossip.info.location.name, gossip.txid);
+  REQUIRE(conflict.commit() == ccf::kv::CommitResult::SUCCESS);
+  REQUIRE(first->owned_tx->commit() == ccf::kv::CommitResult::FAIL_CONFLICT);
+
+  auto retry = fixture.retry(*first);
+  REQUIRE(retry->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
+  [[maybe_unused]] const auto retry_txid = fixture.locally_commit(*retry);
+  fixture.network.tables->compact(fixture.network.tables->current_version());
+  CHECK(fixture.read_restarts() == 0);
+
+#ifdef CCF_RECOVERY_TRACE
+  fixture.resolve(retry_txid, ccf::FinalTxStatus::Committed);
+  REQUIRE(fixture.environment.events.size() == 4);
+  CHECK(fixture.environment.events[0]["kind"] == "gossip_accepted");
+  CHECK(fixture.environment.events[1]["kind"] == "aborted");
+  CHECK(
+    fixture.environment.events[1]["attempt"] ==
+    fixture.environment.events[0]["attempt"]);
+  CHECK(fixture.environment.events[2]["kind"] == "gossip_accepted");
+  CHECK(
+    fixture.environment.events[2]["attempt"] !=
+    fixture.environment.events[0]["attempt"]);
+  CHECK(fixture.environment.events[3]["kind"] == "globally_committed");
+  CHECK(
+    fixture.environment.events[3]["attempt"] ==
+    fixture.environment.events[2]["attempt"]);
+#else
+  CHECK(fixture.environment.events.empty());
+#endif
+}
+
+#ifdef CCF_RECOVERY_TRACE
+TEST_CASE("Trace callback failures do not fail recovery requests")
+{
+  RecoveryProtocolFixture fixture;
+  fixture.commit_callbacks->fail_registration = true;
+  auto request = fixture.prepare(
+    "recovery_decision_protocol/iamopen", fixture.iamopen_request());
+  REQUIRE(request->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
+  CHECK_NOTHROW(fixture.locally_commit(*request));
+  CHECK(fixture.commit_callbacks->size() == 0);
+}
+#endif

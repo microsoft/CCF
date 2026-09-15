@@ -5,11 +5,15 @@
 
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/locking.h"
+#include "ccf/rpc_context.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
 #include "http_client/curl.h"
+#ifdef CCF_RECOVERY_TRACE
+#  include "node/commit_callback_interface.h"
+#endif
 #include "node_state.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
@@ -40,33 +44,6 @@ namespace ccf
       default:
         throw std::logic_error("Unknown recovery-decision-protocol state");
     }
-  }
-
-  static recovery_decision_protocol::StateMachine trace_state_from_name(
-    const std::string& state)
-  {
-    if (state == "GOSSIPING")
-    {
-      return recovery_decision_protocol::StateMachine::GOSSIPING;
-    }
-    if (state == "VOTING")
-    {
-      return recovery_decision_protocol::StateMachine::VOTING;
-    }
-    if (state == "OPENING")
-    {
-      return recovery_decision_protocol::StateMachine::OPENING;
-    }
-    if (state == "JOINING")
-    {
-      return recovery_decision_protocol::StateMachine::JOINING;
-    }
-    if (state == "OPEN")
-    {
-      return recovery_decision_protocol::StateMachine::OPEN;
-    }
-    throw std::logic_error(
-      fmt::format("Unknown recovery-decision-protocol state: {}", state));
   }
 
   static std::string trace_open_kind_name(
@@ -125,108 +102,74 @@ namespace ccf
   }
 
 #ifdef CCF_RECOVERY_TRACE
-  void RecoveryDecisionProtocolSubsystem::initialise_trace()
+  void RecoveryDecisionProtocolSubsystem::initialise_trace() noexcept
   {
+    try
     {
-      std::lock_guard<ds::Mutex> guard(trace_lock);
-      next_trace_record_id = 0;
-      next_trace_sequence = 0;
-      next_trace_message_number = 0;
-      trace_committed_state =
-        recovery_decision_protocol::StateMachine::GOSSIPING;
-      trace_expected_locations.clear();
-      pending_trace_sends.clear();
+      std::vector<std::string> expected_locations;
       for (const auto& location : get_config().expected_locations)
       {
-        trace_expected_locations.push_back(location.name);
+        expected_locations.push_back(location.name);
       }
-    }
 
-    node_state->network.tables->set_global_hook(
-      Tables::RECOVERY_DECISION_PROTOCOL_TRACE_EVENTS,
-      recovery_decision_protocol::TraceEvents::wrap_commit_hook(
-        [this](
-          ccf::kv::Version,
-          const recovery_decision_protocol::TraceEvents::Write& writes) {
-          for (const auto& [_, event] : writes)
-          {
-            if (event.has_value())
-            {
-              emit_trace_event(event.value());
-            }
-          }
-        }));
+      std::lock_guard<ds::Mutex> guard(trace_lock);
+      next_trace_sequence = 0;
+      next_trace_message_number = 0;
+      next_trace_attempt = 0;
+      trace_expected_locations = std::move(expected_locations);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT(
+        "Failed to initialise recovery-decision-protocol tracing: {}",
+        e.what());
+    }
+    catch (...)
+    {
+      LOG_FAIL_FMT(
+        "Failed to initialise recovery-decision-protocol tracing: unknown "
+        "error");
+    }
   }
 
   void RecoveryDecisionProtocolSubsystem::emit_trace_event(
-    recovery_decision_protocol::TraceEvent event)
+    recovery_decision_protocol::TraceEvent event) noexcept
   {
-    std::lock_guard<ds::Mutex> guard(trace_lock);
-    emit_trace_event_unsafe(std::move(event));
+    try
+    {
+      std::lock_guard<ds::Mutex> guard(trace_lock);
+      emit_trace_event_unsafe(std::move(event));
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT(
+        "Failed to emit recovery-decision-protocol trace event: {}", e.what());
+    }
+    catch (...)
+    {
+      LOG_FAIL_FMT(
+        "Failed to emit recovery-decision-protocol trace event: unknown error");
+    }
   }
 
   void RecoveryDecisionProtocolSubsystem::emit_trace_event_unsafe(
     recovery_decision_protocol::TraceEvent event)
   {
-    const auto is_send = event.kind == "send";
-    if (is_send)
-    {
-      event.pre = trace_state_name(trace_committed_state);
-      event.post = trace_state_name(trace_committed_state);
-    }
-    else
-    {
-      trace_committed_state = trace_state_from_name(event.post);
-    }
     nlohmann::json trace = event;
     trace["instance"] = recovery_instance_id;
     trace["expected_locations"] = trace_expected_locations;
     trace["node"] = recovery_node;
     trace["sequence"] = next_trace_sequence++;
     LOG_INFO_FMT("{} {}", RECOVERY_TRACE_MARKER, trace.dump());
-
-    if (!is_send)
-    {
-      flush_pending_trace_sends_unsafe();
-    }
   }
 
-  void RecoveryDecisionProtocolSubsystem::flush_pending_trace_sends_unsafe()
+  uint64_t RecoveryDecisionProtocolSubsystem::new_trace_attempt_unsafe()
   {
-    auto send = pending_trace_sends.begin();
-    while (send != pending_trace_sends.end())
-    {
-      if (
-        static_cast<uint8_t>(send->state) <=
-        static_cast<uint8_t>(trace_committed_state))
-      {
-        auto event = std::move(send->event);
-        send = pending_trace_sends.erase(send);
-        emit_trace_event_unsafe(std::move(event));
-      }
-      else
-      {
-        ++send;
-      }
-    }
+    return next_trace_attempt++;
   }
 
-  void RecoveryDecisionProtocolSubsystem::record_trace_event(
-    ccf::kv::Tx& tx, recovery_decision_protocol::TraceEvent event)
+  std::string RecoveryDecisionProtocolSubsystem::new_trace_message_id_unsafe()
   {
-    uint64_t record_id = 0;
-    {
-      std::lock_guard<ds::Mutex> guard(trace_lock);
-      record_id = next_trace_record_id++;
-    }
-    tx.rw<recovery_decision_protocol::TraceEvents>(
-        Tables::RECOVERY_DECISION_PROTOCOL_TRACE_EVENTS)
-      ->put(record_id, std::move(event));
-  }
-
-  std::string RecoveryDecisionProtocolSubsystem::new_trace_message_id()
-  {
-    std::lock_guard<ds::Mutex> guard(trace_lock);
     return fmt::format(
       "{}:{}:receive:{}",
       recovery_instance_id,
@@ -234,142 +177,264 @@ namespace ccf
       next_trace_message_number++);
   }
 
-  recovery_decision_protocol::StateMachine RecoveryDecisionProtocolSubsystem::
-    get_trace_state(kv::ReadOnlyTx& tx)
-  {
-    const auto state = tx.ro<recovery_decision_protocol::SMState>(
-                           Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
-                         ->get();
-    if (!state.has_value())
-    {
-      throw std::logic_error(
-        "Recovery-decision-protocol state not set while tracing");
-    }
-    return state.value();
-  }
-
-  void RecoveryDecisionProtocolSubsystem::emit_trace_send_unsafe(
+  void RecoveryDecisionProtocolSubsystem::emit_trace_send(
     const std::string& message_id,
-    const std::string& description,
+    const std::string& message_kind,
+    const sealing_recovery::Name& target,
     recovery_decision_protocol::StateMachine state,
-    const std::optional<ccf::TxID>& txid)
+    const std::optional<ccf::TxID>& txid) noexcept
   {
-    recovery_decision_protocol::TraceEvent event{
-      .kind = "send",
-      .message_id = message_id,
-      .pre = "",
-      .post = "",
-      .send = description,
-    };
-    if (txid.has_value())
+    try
     {
-      event.view = txid->view;
-      event.seqno = txid->seqno;
+      recovery_decision_protocol::TraceEvent event{
+        .kind = "send",
+        .message_id = message_id,
+        .pre = trace_state_name(state),
+        .post = trace_state_name(state),
+        .send = fmt::format("{}:{}", message_kind, target),
+      };
+      if (txid.has_value())
+      {
+        event.view = txid->view;
+        event.seqno = txid->seqno;
+      }
+      emit_trace_event(std::move(event));
     }
-    if (
-      static_cast<uint8_t>(state) <=
-      static_cast<uint8_t>(trace_committed_state))
+    catch (const std::exception& e)
     {
-      emit_trace_event_unsafe(std::move(event));
+      LOG_FAIL_FMT(
+        "Failed to emit recovery-decision-protocol send trace: {}", e.what());
     }
-    else
+    catch (...)
     {
-      pending_trace_sends.push_back({std::move(event), state});
+      LOG_FAIL_FMT(
+        "Failed to emit recovery-decision-protocol send trace: unknown error");
     }
   }
 
   void RecoveryDecisionProtocolSubsystem::record_trace_effects(
-    ccf::kv::Tx& tx,
+    std::vector<recovery_decision_protocol::TraceEvent>& events,
+    uint64_t attempt,
     recovery_decision_protocol::StateMachine pre,
-    recovery_decision_protocol::StateMachine post)
+    const recovery_decision_protocol::AdvanceResult& result)
   {
     if (
-      post == recovery_decision_protocol::StateMachine::OPENING &&
+      result.post == recovery_decision_protocol::StateMachine::OPENING &&
       pre != recovery_decision_protocol::StateMachine::OPENING)
     {
-      const auto open_kind = tx.ro<recovery_decision_protocol::OpenKind>(
-                                 Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
-                               ->get();
-      if (!open_kind.has_value())
+      if (!result.open_kind.has_value())
       {
         throw std::logic_error(
           "Recovery-decision-protocol open kind not set while tracing");
       }
-      record_trace_event(
-        tx,
-        {
-          .kind = "open",
-          .pre = "OPENING",
-          .post = "OPENING",
-          .open_kind = trace_open_kind_name(open_kind.value()),
-        });
+      events.push_back({
+        .kind = "open",
+        .attempt = attempt,
+        .pre = "OPENING",
+        .post = "OPENING",
+        .open_kind = trace_open_kind_name(result.open_kind.value()),
+      });
     }
 
     if (
-      post == recovery_decision_protocol::StateMachine::JOINING &&
+      result.post == recovery_decision_protocol::StateMachine::JOINING &&
       pre != recovery_decision_protocol::StateMachine::JOINING)
     {
-      record_trace_event(
-        tx,
-        {
-          .kind = "join_restart",
-          .pre = "JOINING",
-          .post = "JOINING",
-        });
+      events.push_back({
+        .kind = "join_restart",
+        .attempt = attempt,
+        .pre = "JOINING",
+        .post = "JOINING",
+      });
     }
 
     if (
       pre == recovery_decision_protocol::StateMachine::OPENING &&
-      post == recovery_decision_protocol::StateMachine::OPEN)
+      result.post == recovery_decision_protocol::StateMachine::OPEN)
     {
-      record_trace_event(
-        tx,
-        {
-          .kind = "complete",
-          .pre = "OPEN",
-          .post = "OPEN",
-        });
+      events.push_back({
+        .kind = "complete",
+        .attempt = attempt,
+        .pre = "OPEN",
+        .post = "OPEN",
+      });
     }
   }
 
   void RecoveryDecisionProtocolSubsystem::record_trace_receive(
-    ccf::kv::Tx& tx,
+    recovery_decision_protocol::Execution& execution,
     const std::string& kind,
     const std::string& caused_by,
     const std::string& source,
     const std::optional<ccf::TxID>& txid,
-    recovery_decision_protocol::StateMachine pre)
+    recovery_decision_protocol::StateMachine pre,
+    const recovery_decision_protocol::AdvanceResult& result) noexcept
   {
-    const auto post = get_trace_state(tx);
-    recovery_decision_protocol::TraceEvent event{
-      .kind = kind,
-      .message_id = new_trace_message_id(),
-      .caused_by = caused_by,
-      .source = source,
-      .pre = trace_state_name(pre),
-      .post = trace_state_name(post),
-    };
-    if (txid.has_value())
+    try
     {
-      event.view = txid->view;
-      event.seqno = txid->seqno;
+      std::lock_guard<ds::Mutex> guard(trace_lock);
+      const auto attempt = new_trace_attempt_unsafe();
+      execution.trace_attempt = attempt;
+      std::vector<recovery_decision_protocol::TraceEvent> events;
+      events.push_back({
+        .kind = kind,
+        .attempt = attempt,
+        .message_id = new_trace_message_id_unsafe(),
+        .caused_by = caused_by,
+        .source = source,
+        .view =
+          txid.has_value() ? std::make_optional(txid->view) : std::nullopt,
+        .seqno =
+          txid.has_value() ? std::make_optional(txid->seqno) : std::nullopt,
+        .pre = trace_state_name(pre),
+        .post = trace_state_name(result.post),
+      });
+      record_trace_effects(events, attempt, pre, result);
+      for (auto& event : events)
+      {
+        emit_trace_event_unsafe(std::move(event));
+      }
     }
-    record_trace_event(tx, std::move(event));
-    record_trace_effects(tx, pre, post);
+    catch (const std::exception& e)
+    {
+      execution.trace_attempt = std::nullopt;
+      LOG_FAIL_FMT(
+        "Failed to record recovery-decision-protocol receive trace: {}",
+        e.what());
+    }
+    catch (...)
+    {
+      execution.trace_attempt = std::nullopt;
+      LOG_FAIL_FMT(
+        "Failed to record recovery-decision-protocol receive trace: unknown "
+        "error");
+    }
   }
 
   void RecoveryDecisionProtocolSubsystem::record_trace_timeout(
-    ccf::kv::Tx& tx, recovery_decision_protocol::StateMachine pre)
+    recovery_decision_protocol::Execution& execution,
+    const recovery_decision_protocol::AdvanceResult& result) noexcept
   {
-    const auto post = get_trace_state(tx);
-    record_trace_event(
-      tx,
-      {
+    try
+    {
+      std::lock_guard<ds::Mutex> guard(trace_lock);
+      const auto attempt = new_trace_attempt_unsafe();
+      execution.trace_attempt = attempt;
+      std::vector<recovery_decision_protocol::TraceEvent> events;
+      events.push_back({
         .kind = "timeout",
-        .pre = trace_state_name(pre),
-        .post = trace_state_name(post),
+        .attempt = attempt,
+        .pre = trace_state_name(result.pre),
+        .post = trace_state_name(result.post),
       });
-    record_trace_effects(tx, pre, post);
+      record_trace_effects(events, attempt, result.pre, result);
+      for (auto& event : events)
+      {
+        emit_trace_event_unsafe(std::move(event));
+      }
+    }
+    catch (const std::exception& e)
+    {
+      execution.trace_attempt = std::nullopt;
+      LOG_FAIL_FMT(
+        "Failed to record recovery-decision-protocol timeout trace: {}",
+        e.what());
+    }
+    catch (...)
+    {
+      execution.trace_attempt = std::nullopt;
+      LOG_FAIL_FMT(
+        "Failed to record recovery-decision-protocol timeout trace: unknown "
+        "error");
+    }
+  }
+
+  void RecoveryDecisionProtocolSubsystem::abort_previous_trace_attempt(
+    RpcContext& rpc_ctx) noexcept
+  {
+    auto* execution = static_cast<recovery_decision_protocol::Execution*>(
+      rpc_ctx.get_user_data());
+    if (execution != nullptr && execution->trace_attempt.has_value())
+    {
+      emit_trace_event({
+        .kind = "aborted",
+        .attempt = execution->trace_attempt,
+      });
+    }
+    rpc_ctx.set_user_data(nullptr);
+  }
+  std::shared_ptr<recovery_decision_protocol::Execution>
+  RecoveryDecisionProtocolSubsystem::prepare_trace_execution(
+    RpcContext& rpc_ctx) noexcept
+  {
+    try
+    {
+      auto execution =
+        std::make_shared<recovery_decision_protocol::Execution>();
+      rpc_ctx.set_user_data(execution);
+      return execution;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT(
+        "Failed to prepare recovery-decision-protocol trace execution: {}",
+        e.what());
+    }
+    catch (...)
+    {
+      LOG_FAIL_FMT(
+        "Failed to prepare recovery-decision-protocol trace execution: unknown "
+        "error");
+    }
+    return nullptr;
+  }
+
+  void RecoveryDecisionProtocolSubsystem::complete_trace_execution_locally(
+    RpcContext& rpc_ctx,
+    const ccf::TxID& txid,
+    CommitCallbackInterface& commit_callbacks) noexcept
+  {
+    auto* execution = static_cast<recovery_decision_protocol::Execution*>(
+      rpc_ctx.get_user_data());
+    if (execution == nullptr)
+    {
+      return;
+    }
+
+    const auto trace_attempt = execution->trace_attempt;
+    rpc_ctx.set_user_data(nullptr);
+
+    if (!trace_attempt.has_value())
+    {
+      return;
+    }
+
+    try
+    {
+      commit_callbacks.add_callback(
+        txid, [this, trace_attempt](ccf::TxID final_txid, auto status) {
+          emit_trace_event({
+            .kind = status == ccf::FinalTxStatus::Committed ?
+              "globally_committed" :
+              "rolled_back",
+            .attempt = trace_attempt,
+            .view = final_txid.view,
+            .seqno = final_txid.seqno,
+          });
+        });
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT(
+        "Failed to register recovery-decision-protocol trace callback: {}",
+        e.what());
+    }
+    catch (...)
+    {
+      LOG_FAIL_FMT(
+        "Failed to register recovery-decision-protocol trace callback: unknown "
+        "error");
+    }
   }
 #endif
 
@@ -397,11 +462,6 @@ namespace ccf
     tx.rw<recovery_decision_protocol::OpenKind>(
         Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
       ->clear();
-#ifdef CCF_RECOVERY_TRACE
-    tx.rw<recovery_decision_protocol::TraceEvents>(
-        Tables::RECOVERY_DECISION_PROTOCOL_TRACE_EVENTS)
-      ->clear();
-#endif
   }
 
   void RecoveryDecisionProtocolSubsystem::try_start(
@@ -464,7 +524,14 @@ namespace ccf
         }));
   }
 
-  void RecoveryDecisionProtocolSubsystem::advance(ccf::kv::Tx& tx, bool timeout)
+  void RecoveryDecisionProtocolSubsystem::advance(
+    ccf::kv::Tx& tx,
+    bool timeout
+#ifdef CCF_RECOVERY_TRACE
+    ,
+    recovery_decision_protocol::AdvanceResult& trace_result
+#endif
+  )
   {
     auto& config = get_config();
 
@@ -483,6 +550,12 @@ namespace ccf
     }
     auto& sm_state = sm_state_opt.value();
     auto& timeout_state = timeout_state_opt.value();
+#ifdef CCF_RECOVERY_TRACE
+    trace_result = {
+      .pre = sm_state,
+      .post = sm_state,
+    };
+#endif
 
     bool valid_timeout = timeout && sm_state == timeout_state;
 
@@ -523,6 +596,9 @@ namespace ccf
 
           sm_state_handle->put(
             recovery_decision_protocol::StateMachine::VOTING);
+#ifdef CCF_RECOVERY_TRACE
+          trace_result.post = recovery_decision_protocol::StateMachine::VOTING;
+#endif
         }
         break;
       }
@@ -553,6 +629,10 @@ namespace ccf
             tx.rw<recovery_decision_protocol::OpenKind>(
                 Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
               ->put(recovery_decision_protocol::OpenKinds::FAILOVER);
+#ifdef CCF_RECOVERY_TRACE
+            trace_result.open_kind =
+              recovery_decision_protocol::OpenKinds::FAILOVER;
+#endif
             LOG_INFO_FMT(
               "Recovery-decision-protocol succeeded on the failover path");
           }
@@ -561,6 +641,10 @@ namespace ccf
             tx.rw<recovery_decision_protocol::OpenKind>(
                 Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
               ->put(recovery_decision_protocol::OpenKinds::QUORUM);
+#ifdef CCF_RECOVERY_TRACE
+            trace_result.open_kind =
+              recovery_decision_protocol::OpenKinds::QUORUM;
+#endif
             LOG_INFO_FMT(
               "Recovery-decision-protocol succeeded on the quorum path");
           }
@@ -581,6 +665,9 @@ namespace ccf
 
           sm_state_handle->put(
             recovery_decision_protocol::StateMachine::OPENING);
+#ifdef CCF_RECOVERY_TRACE
+          trace_result.post = recovery_decision_protocol::StateMachine::OPENING;
+#endif
 
           node_state->transition_service_to_open(tx, identities);
         }
@@ -622,6 +709,9 @@ namespace ccf
         if (valid_timeout)
         {
           sm_state_handle->put(recovery_decision_protocol::StateMachine::OPEN);
+#ifdef CCF_RECOVERY_TRACE
+          trace_result.post = recovery_decision_protocol::StateMachine::OPEN;
+#endif
         }
         break;
       }
@@ -693,15 +783,6 @@ namespace ccf
         }
         auto& sm_state = sm_state_opt.value();
 
-        const auto committed_sm_state =
-          sm_state_handle->get_globally_committed();
-        if (
-          !committed_sm_state.has_value() ||
-          committed_sm_state.value() != sm_state)
-        {
-          return;
-        }
-
         // Stop if recovery-decision-protocol is complete
         if (sm_state == recovery_decision_protocol::StateMachine::OPEN)
         {
@@ -772,10 +853,6 @@ namespace ccf
           node_state->get_self_signed_certificate();
         const auto node_private_key =
           node_state->node_sign_kp->private_key_pem();
-
-#ifdef CCF_RECOVERY_TRACE
-        std::lock_guard<ds::Mutex> trace_guard(trace_lock);
-#endif
 
         switch (sm_state)
         {
@@ -1030,19 +1107,16 @@ namespace ccf
       auto target_address = target.address;
       request.message_id = new_message_id();
       nlohmann::json request_json = request;
-#ifdef CCF_RECOVERY_TRACE
-      emit_trace_send_unsafe(
-        request.message_id,
-        fmt::format("gossip:{}", target.name),
-        state,
-        request.txid);
-#endif
       dispatch_authenticated_message(
         request_json,
         target_address,
         "gossip",
         self_signed_node_cert,
         node_private_key);
+#ifdef CCF_RECOVERY_TRACE
+      emit_trace_send(
+        request.message_id, "gossip", target.name, state, request.txid);
+#endif
     }
   }
 
@@ -1059,18 +1133,19 @@ namespace ccf
 
     request.message_id = new_message_id();
     nlohmann::json request_json = request;
-#ifdef CCF_RECOVERY_TRACE
-    emit_trace_send_unsafe(
-      request.message_id,
-      fmt::format("vote:{}", node_info.location.name),
-      recovery_decision_protocol::StateMachine::VOTING);
-#endif
     dispatch_authenticated_message(
       request_json,
       node_info.location.address,
       "vote",
       self_signed_node_cert,
       node_private_key);
+#ifdef CCF_RECOVERY_TRACE
+    emit_trace_send(
+      request.message_id,
+      "vote",
+      node_info.location.name,
+      recovery_decision_protocol::StateMachine::VOTING);
+#endif
   }
 
   recovery_decision_protocol::IAmOpenRequest&
@@ -1128,18 +1203,19 @@ namespace ccf
       }
       request.message_id = new_message_id();
       nlohmann::json request_json = request;
-#ifdef CCF_RECOVERY_TRACE
-      emit_trace_send_unsafe(
-        request.message_id,
-        fmt::format("iamopen:{}", target.name),
-        recovery_decision_protocol::StateMachine::OPENING);
-#endif
       dispatch_authenticated_message(
         request_json,
         target.address,
         "iamopen",
         self_signed_node_cert,
         node_private_key);
+#ifdef CCF_RECOVERY_TRACE
+      emit_trace_send(
+        request.message_id,
+        "iamopen",
+        target.name,
+        recovery_decision_protocol::StateMachine::OPENING);
+#endif
     }
   }
 

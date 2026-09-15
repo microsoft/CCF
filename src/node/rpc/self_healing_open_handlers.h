@@ -11,6 +11,9 @@
 #include "ccf/service/operator_feature.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/self_healing_open.h"
+#ifdef CCF_RECOVERY_TRACE
+#  include "node/commit_callback_interface.h"
+#endif
 #include "node/node_configuration_subsystem.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/rpc/node_frontend_utils.h"
@@ -19,6 +22,33 @@
 
 namespace ccf::node
 {
+#ifdef CCF_RECOVERY_TRACE
+  static endpoints::LocallyCommittedEndpointFunction
+  recovery_decision_protocol_locally_committed(
+    ccf::AbstractNodeContext& node_context)
+  {
+    return [&node_context](
+             endpoints::CommandEndpointContext& args, const ccf::TxID& txid) {
+      endpoints::default_locally_committed_func(args, txid);
+
+      auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
+      auto commit_callbacks =
+        node_context.get_subsystem<CommitCallbackInterface>();
+      if (node_operation == nullptr || commit_callbacks == nullptr)
+      {
+        args.rpc_ctx->set_user_data(nullptr);
+        LOG_FAIL_FMT(
+          "Unable to complete recovery-decision-protocol trace transaction");
+        return;
+      }
+
+      node_operation->recovery_decision_protocol()
+        .complete_trace_execution_locally(
+          *args.rpc_ctx, txid, *commit_callbacks);
+    };
+  }
+#endif
+
   template <typename Input>
   using RecoveryDecisionProtocolHandler =
     std::function<std::optional<ErrorDetails>(
@@ -41,6 +71,13 @@ namespace ccf::node
           ccf::errors::InvalidNodeState,
           "Unable to open recovery-decision-protocol subsystems");
       }
+
+#ifdef CCF_RECOVERY_TRACE
+      auto& protocol = node_operation->recovery_decision_protocol();
+      protocol.abort_previous_trace_attempt(*args.rpc_ctx);
+#else
+      (void)trace_kind;
+#endif
 
       if (
         !config->get().node_config.sealing_recovery.has_value() ||
@@ -123,27 +160,17 @@ namespace ccf::node
         node_info_handle->put(info.location.name, src_info);
       }
 
-#ifdef CCF_RECOVERY_TRACE
-      const auto trace_pre = args.tx
-                               .ro<recovery_decision_protocol::SMState>(
-                                 Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
-                               ->get();
-      if (!trace_pre.has_value())
-      {
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Recovery-decision-protocol state not set while tracing");
-      }
-#else
-      (void)trace_kind;
-#endif
-
       // ---- Run callback ----
 
+#ifdef CCF_RECOVERY_TRACE
+      auto execution = protocol.prepare_trace_execution(*args.rpc_ctx);
+#endif
       auto ret = cb(args, in);
       if (ret.has_value())
       {
+#ifdef CCF_RECOVERY_TRACE
+        args.rpc_ctx->set_user_data(nullptr);
+#endif
         jsonhandler::JsonAdapterResponse res = ret.value();
         return res;
       }
@@ -152,9 +179,9 @@ namespace ccf::node
 
       try
       {
-        auto& protocol = node_operation->recovery_decision_protocol();
-        protocol.advance(args.tx, false);
 #ifdef CCF_RECOVERY_TRACE
+        recovery_decision_protocol::AdvanceResult result;
+        protocol.advance(args.tx, false, result);
         std::optional<ccf::TxID> trace_txid = std::nullopt;
         if constexpr (std::is_same_v<
                         Input,
@@ -162,17 +189,26 @@ namespace ccf::node
         {
           trace_txid = in.txid;
         }
-        protocol.record_trace_receive(
-          args.tx,
-          trace_kind,
-          in.message_id,
-          info.location.name,
-          trace_txid,
-          trace_pre.value());
+        if (execution != nullptr)
+        {
+          protocol.record_trace_receive(
+            *execution,
+            trace_kind,
+            in.message_id,
+            info.location.name,
+            trace_txid,
+            execution->pre_state.value_or(result.pre),
+            result);
+        }
+#else
+        node_operation->recovery_decision_protocol().advance(args.tx, false);
 #endif
       }
       catch (const std::logic_error& e)
       {
+#ifdef CCF_RECOVERY_TRACE
+        args.rpc_ctx->set_user_data(nullptr);
+#endif
         LOG_FAIL_FMT(
           "Recovery-decision-protocol failed to advance state: {}", e.what());
         return make_error(
@@ -224,17 +260,21 @@ namespace ccf::node
       gossip_handle->put(in.info.location.name, in.txid);
       return std::nullopt;
     };
-    registry
-      .make_endpoint(
-        "/recovery_decision_protocol/gossip",
-        HTTP_PUT,
-        json_adapter(wrap_recovery_decision_protocol<
-                     recovery_decision_protocol::GossipRequest>(
-          recovery_decision_protocol_gossip, node_context, "gossip_accepted")),
-        no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
-      .set_openapi_hidden(true)
-      .install();
+    auto gossip_endpoint = registry.make_endpoint(
+      "/recovery_decision_protocol/gossip",
+      HTTP_PUT,
+      json_adapter(wrap_recovery_decision_protocol<
+                   recovery_decision_protocol::GossipRequest>(
+        recovery_decision_protocol_gossip, node_context, "gossip_accepted")),
+      no_auth_required);
+    gossip_endpoint.set_forwarding_required(
+      endpoints::ForwardingRequired::Never);
+    gossip_endpoint.set_openapi_hidden(true);
+#ifdef CCF_RECOVERY_TRACE
+    gossip_endpoint.set_locally_committed_function(
+      recovery_decision_protocol_locally_committed(node_context));
+#endif
+    gossip_endpoint.install();
 
     auto recovery_decision_protocol_vote =
       [](auto& args, recovery_decision_protocol::TaggedWithNodeInfo in)
@@ -250,17 +290,20 @@ namespace ccf::node
 
       return std::nullopt;
     };
-    registry
-      .make_endpoint(
-        "/recovery_decision_protocol/vote",
-        HTTP_PUT,
-        json_adapter(wrap_recovery_decision_protocol<
-                     recovery_decision_protocol::TaggedWithNodeInfo>(
-          recovery_decision_protocol_vote, node_context, "vote_accepted")),
-        no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
-      .set_openapi_hidden(true)
-      .install();
+    auto vote_endpoint = registry.make_endpoint(
+      "/recovery_decision_protocol/vote",
+      HTTP_PUT,
+      json_adapter(wrap_recovery_decision_protocol<
+                   recovery_decision_protocol::TaggedWithNodeInfo>(
+        recovery_decision_protocol_vote, node_context, "vote_accepted")),
+      no_auth_required);
+    vote_endpoint.set_forwarding_required(endpoints::ForwardingRequired::Never);
+    vote_endpoint.set_openapi_hidden(true);
+#ifdef CCF_RECOVERY_TRACE
+    vote_endpoint.set_locally_committed_function(
+      recovery_decision_protocol_locally_committed(node_context));
+#endif
+    vote_endpoint.install();
 
     auto recovery_decision_protocol_iamopen =
       [&node_context](auto& args, recovery_decision_protocol::IAmOpenRequest in)
@@ -274,6 +317,15 @@ namespace ccf::node
         throw std::logic_error(
           "Recovery-decision-protocol state machine state is not set");
       }
+
+#ifdef CCF_RECOVERY_TRACE
+      if (auto* execution = static_cast<recovery_decision_protocol::Execution*>(
+            args.rpc_ctx->get_user_data());
+          execution != nullptr)
+      {
+        execution->pre_state = sm_state.value();
+      }
+#endif
 
       if (
         sm_state.value() == recovery_decision_protocol::StateMachine::OPENING ||
@@ -322,19 +374,21 @@ namespace ccf::node
         ->put(in.info.location.name);
       return std::nullopt;
     };
-    registry
-      .make_endpoint(
-        "/recovery_decision_protocol/iamopen",
-        HTTP_PUT,
-        json_adapter(wrap_recovery_decision_protocol<
-                     recovery_decision_protocol::IAmOpenRequest>(
-          recovery_decision_protocol_iamopen,
-          node_context,
-          "iamopen_accepted")),
-        no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
-      .set_openapi_hidden(true)
-      .install();
+    auto iamopen_endpoint = registry.make_endpoint(
+      "/recovery_decision_protocol/iamopen",
+      HTTP_PUT,
+      json_adapter(wrap_recovery_decision_protocol<
+                   recovery_decision_protocol::IAmOpenRequest>(
+        recovery_decision_protocol_iamopen, node_context, "iamopen_accepted")),
+      no_auth_required);
+    iamopen_endpoint.set_forwarding_required(
+      endpoints::ForwardingRequired::Never);
+    iamopen_endpoint.set_openapi_hidden(true);
+#ifdef CCF_RECOVERY_TRACE
+    iamopen_endpoint.set_locally_committed_function(
+      recovery_decision_protocol_locally_committed(node_context));
+#endif
+    iamopen_endpoint.install();
 
     auto recovery_decision_protocol_timeout = [&](
                                                 auto& args,
@@ -391,15 +445,23 @@ namespace ccf::node
       {
         auto& protocol = node_operation->recovery_decision_protocol();
 #ifdef CCF_RECOVERY_TRACE
-        const auto trace_pre = protocol.get_trace_state(args.tx);
-#endif
+        protocol.abort_previous_trace_attempt(*args.rpc_ctx);
+        auto execution = protocol.prepare_trace_execution(*args.rpc_ctx);
+        recovery_decision_protocol::AdvanceResult result;
+        protocol.advance(args.tx, true, result);
+        if (execution != nullptr)
+        {
+          protocol.record_trace_timeout(*execution, result);
+        }
+#else
         protocol.advance(args.tx, true);
-#ifdef CCF_RECOVERY_TRACE
-        protocol.record_trace_timeout(args.tx, trace_pre);
 #endif
       }
       catch (const std::logic_error& e)
       {
+#ifdef CCF_RECOVERY_TRACE
+        args.rpc_ctx->set_user_data(nullptr);
+#endif
         LOG_FAIL_FMT(
           "Recovery-decision-protocol failed to advance state: {}", e.what());
         return make_error(
@@ -412,14 +474,18 @@ namespace ccf::node
       return make_success(
         "Recovery-decision-protocol timeout processed successfully");
     };
-    registry
-      .make_endpoint(
-        "/recovery_decision_protocol/timeout",
-        HTTP_PUT,
-        json_adapter(recovery_decision_protocol_timeout),
-        {std::make_shared<NodeCertAuthnPolicy>()})
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
-      .set_openapi_hidden(true)
-      .install();
+    auto timeout_endpoint = registry.make_endpoint(
+      "/recovery_decision_protocol/timeout",
+      HTTP_PUT,
+      json_adapter(recovery_decision_protocol_timeout),
+      {std::make_shared<NodeCertAuthnPolicy>()});
+    timeout_endpoint.set_forwarding_required(
+      endpoints::ForwardingRequired::Never);
+    timeout_endpoint.set_openapi_hidden(true);
+#ifdef CCF_RECOVERY_TRACE
+    timeout_endpoint.set_locally_committed_function(
+      recovery_decision_protocol_locally_committed(node_context));
+#endif
+    timeout_endpoint.install();
   }
 }

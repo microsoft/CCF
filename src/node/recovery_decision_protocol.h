@@ -36,10 +36,58 @@ namespace ccf::recovery_decision_protocol
 
   DECLARE_JSON_TYPE_WITH_BASE(IAmOpenRequest, TaggedWithNodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(IAmOpenRequest, prev_service_fingerprint, txid);
+
+#ifdef CCF_RECOVERY_TRACE
+  struct AdvanceResult
+  {
+    StateMachine pre;
+    StateMachine post;
+    std::optional<OpenKinds> open_kind = std::nullopt;
+  };
+
+  struct Execution
+  {
+    std::optional<StateMachine> pre_state = std::nullopt;
+    std::optional<uint64_t> trace_attempt = std::nullopt;
+  };
+
+  struct TraceEvent
+  {
+    std::string kind;
+    std::optional<uint64_t> attempt = std::nullopt;
+    std::optional<std::string> message_id = std::nullopt;
+    std::optional<std::string> caused_by = std::nullopt;
+    std::optional<sealing_recovery::Name> source = std::nullopt;
+    std::optional<ccf::View> view = std::nullopt;
+    std::optional<ccf::SeqNo> seqno = std::nullopt;
+    std::optional<std::string> pre = std::nullopt;
+    std::optional<std::string> post = std::nullopt;
+    std::optional<std::string> open_kind = std::nullopt;
+    std::optional<std::string> send = std::nullopt;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TraceEvent);
+  DECLARE_JSON_REQUIRED_FIELDS(TraceEvent, kind);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    TraceEvent,
+    attempt,
+    message_id,
+    caused_by,
+    source,
+    view,
+    seqno,
+    pre,
+    post,
+    open_kind,
+    send);
+#endif
 }
 
 namespace ccf
 {
+#ifdef CCF_RECOVERY_TRACE
+  class CommitCallbackInterface;
+  class RpcContext;
+#endif
   class NodeState;
   class RecoveryDecisionProtocolSubsystem
   {
@@ -63,43 +111,48 @@ namespace ccf
     std::string recovery_node;
 
 #ifdef CCF_RECOVERY_TRACE
-    struct PendingTraceSend
-    {
-      recovery_decision_protocol::TraceEvent event;
-      recovery_decision_protocol::StateMachine state;
-    };
-
     ds::Mutex trace_lock;
-    uint64_t next_trace_record_id = 0;
     uint64_t next_trace_sequence = 0;
     uint64_t next_trace_message_number = 0;
+    uint64_t next_trace_attempt = 0;
     std::vector<std::string> trace_expected_locations;
-    recovery_decision_protocol::StateMachine trace_committed_state =
-      recovery_decision_protocol::StateMachine::GOSSIPING;
-    std::vector<PendingTraceSend> pending_trace_sends;
 #endif
 
   public:
     RecoveryDecisionProtocolSubsystem(NodeState* node_state);
     void reset_state(ccf::kv::Tx& tx);
     void try_start(ccf::kv::Tx& tx, bool recovering);
-    void advance(ccf::kv::Tx& tx, bool timeout);
+    void advance(
+      ccf::kv::Tx& tx,
+      bool timeout
+#ifdef CCF_RECOVERY_TRACE
+      ,
+      recovery_decision_protocol::AdvanceResult& trace_result
+#endif
+    );
 
     recovery_decision_protocol::IAmOpenRequest& get_iamopen_request(
       kv::ReadOnlyTx& tx);
 
 #ifdef CCF_RECOVERY_TRACE
-    recovery_decision_protocol::StateMachine get_trace_state(
-      kv::ReadOnlyTx& tx);
+    std::shared_ptr<recovery_decision_protocol::Execution>
+    prepare_trace_execution(RpcContext& rpc_ctx) noexcept;
+    void complete_trace_execution_locally(
+      RpcContext& rpc_ctx,
+      const ccf::TxID& txid,
+      CommitCallbackInterface& commit_callbacks) noexcept;
+    void abort_previous_trace_attempt(RpcContext& rpc_ctx) noexcept;
     void record_trace_receive(
-      ccf::kv::Tx& tx,
+      recovery_decision_protocol::Execution& execution,
       const std::string& kind,
       const std::string& caused_by,
       const std::string& source,
       const std::optional<ccf::TxID>& txid,
-      recovery_decision_protocol::StateMachine pre);
+      recovery_decision_protocol::StateMachine pre,
+      const recovery_decision_protocol::AdvanceResult& result) noexcept;
     void record_trace_timeout(
-      ccf::kv::Tx& tx, recovery_decision_protocol::StateMachine pre);
+      recovery_decision_protocol::Execution& execution,
+      const recovery_decision_protocol::AdvanceResult& result) noexcept;
 #endif
 
   private:
@@ -137,22 +190,23 @@ namespace ccf
     std::string new_message_id();
 
 #ifdef CCF_RECOVERY_TRACE
-    void initialise_trace();
-    void record_trace_event(
-      ccf::kv::Tx& tx, recovery_decision_protocol::TraceEvent event);
+    void initialise_trace() noexcept;
     void record_trace_effects(
-      ccf::kv::Tx& tx,
+      std::vector<recovery_decision_protocol::TraceEvent>& events,
+      uint64_t attempt,
       recovery_decision_protocol::StateMachine pre,
-      recovery_decision_protocol::StateMachine post);
-    void emit_trace_event(recovery_decision_protocol::TraceEvent event);
+      const recovery_decision_protocol::AdvanceResult& result);
+    void emit_trace_event(
+      recovery_decision_protocol::TraceEvent event) noexcept;
     void emit_trace_event_unsafe(recovery_decision_protocol::TraceEvent event);
-    void flush_pending_trace_sends_unsafe();
-    std::string new_trace_message_id();
-    void emit_trace_send_unsafe(
+    uint64_t new_trace_attempt_unsafe();
+    std::string new_trace_message_id_unsafe();
+    void emit_trace_send(
       const std::string& message_id,
-      const std::string& description,
+      const std::string& message_kind,
+      const sealing_recovery::Name& target,
       recovery_decision_protocol::StateMachine state,
-      const std::optional<ccf::TxID>& txid = std::nullopt);
+      const std::optional<ccf::TxID>& txid = std::nullopt) noexcept;
 #endif
   };
 }
