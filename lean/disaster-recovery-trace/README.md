@@ -19,10 +19,11 @@ racing after lifecycle resolution may select a retained pre-resolution local
 projection. Trace-only batch IDs let replay track multiple concurrent retry
 invocations independently when their sends interleave. Globally committed
 buffers are replayed in per-node TxID order rather than callback-log order.
-Local and final TxIDs must match, and terminal validation rejects locally
-committed attempts with no final status. The validator rejects the first
-incompatible record and reports its original file/line location and shortest
-failing ordered prefix.
+Local and final TxIDs must match, and terminal validation rejects a missing
+local final status when a later transaction has already resolved. The newest
+local attempt may remain unresolved when a terminal node shuts down. The
+validator rejects the first incompatible record and reports its original
+file/line location and shortest failing ordered prefix.
 
 ## Build and test
 

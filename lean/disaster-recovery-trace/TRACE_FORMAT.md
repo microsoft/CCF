@@ -94,8 +94,10 @@ emitted order or discards them. Reusing an attempt key, returning to a closed
 active attempt group, or resolving an unknown or already resolved attempt is
 invalid. An attempt may remain unresolved at the end of the available logs; it
 is ignored for canonical and terminal checks if it never commits locally. A
-locally committed attempt must eventually have a matching final lifecycle
-record with the same TxID. Distinct no-op or read-only attempts may share a
+final lifecycle record must match the attempt's local TxID. If a later TxID has
+already resolved, omitting an earlier local attempt's final status is invalid.
+The newest local attempt may remain unresolved when a terminal node shuts down
+before its callback is logged. Distinct no-op or read-only attempts may share a
 TxID; equal-TxID records are ordered by their per-node attempt number.
 
 ## Strict replay

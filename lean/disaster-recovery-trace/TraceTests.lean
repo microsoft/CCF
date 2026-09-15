@@ -679,20 +679,28 @@ private def checkAttempts : IO Unit := do
   | .error failure =>
       throw (IO.userError
         s!"read-only attempts sharing a TxID were rejected: {repr failure}")
-  match validate [
+  let laterTxid : TxID := { view := 2, seqno := 21 }
+  let missingOlderFinal := [
     reuseStart,
     firstGossipA,
     firstGossipB,
     firstReceive,
-    firstLocal
-  ] with
+    firstLocal,
+    { secondGossipA with sequence := 5, batch := some 5 },
+    { secondGossipB with sequence := 6, batch := some 5 },
+    { duplicateReceive with sequence := 7 },
+    { duplicateLocal with sequence := 8, txid := some laterTxid },
+    { lifecycleEvent reuseLocations "A" 9 1 .globallyCommitted with
+      txid := some laterTxid }
+  ]
+  match validate missingOlderFinal with
   | .error failure =>
       expect
         (failure.message ==
-          "trace ended with locally committed attempts awaiting final status")
-        "unresolved local commit reported the wrong failure"
+          "trace omitted the final status of an older local commit")
+        "missing older local final status reported the wrong failure"
   | .ok () =>
-      throw (IO.userError "unresolved local commit passed terminal validation")
+      throw (IO.userError "missing older local final status passed validation")
 
   let completedVote :=
     sendEvent locations 4 "completed-vote" "vote:A" .voting
@@ -1003,6 +1011,16 @@ private def checkMultiNodeLogs : IO Unit := do
     "producer-shaped duplicate IAmOpen or Joining timeout was rejected"
   expect (accepted (validateTextLogs logs.reverse scenario) (opener.length + joiner.length))
     "log path order changed distributed validation"
+  let unresolvedJoiner := joiner.take 5 ++ [{
+    lifecycleEvent locations "B" 5 1 .locallyCommitted with
+      txid := some { view := 1, seqno := 3 }
+  }]
+  let unresolvedLogs :=
+    [("b.out", jsonLog unresolvedJoiner), ("a.out", textLog opener)]
+  expect
+    (accepted (validateTextLogs unresolvedLogs scenario)
+      (opener.length + unresolvedJoiner.length))
+    "terminal duplicate IAmOpen awaiting its final callback was rejected"
   expectIncomplete
     (validateTextLogs [("b.out", jsonLog (joiner.take 3)), ("a.out", textLog opener)] scenario)
     "unterminated joiner was accepted"

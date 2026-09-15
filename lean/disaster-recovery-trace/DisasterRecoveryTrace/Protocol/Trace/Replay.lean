@@ -80,6 +80,7 @@ structure ReplayState where
   attempts : List BufferedAttempt := []
   seenAttempts : List (Location × Nat) := []
   localCommits : List LocalCommit := []
+  resolvedTxids : List (Location × TxID) := []
   abortedAttempts : List (Location × Nat) := []
   nextSequence : List (Prod Location Nat) := []
   seenMessageIds : List String := []
@@ -609,6 +610,9 @@ private def updateSendProofs
     remaining := { proof with alternatives := viable } :: remaining
   pure { active with sendProofs := remaining.reverse }
 
+private def txidLT (a b : TxID) : Bool :=
+  a.seqno < b.seqno || (a.seqno == b.seqno && a.view < b.view)
+
 private def pendingCommitLE (a b : PendingCommit) : Bool :=
   a.attempt.node < b.attempt.node ||
     (a.attempt.node == b.attempt.node &&
@@ -776,12 +780,14 @@ private def process
 
   let processed : Except String
       (ActiveReplay × List BufferedAttempt × List (Location × Nat) ×
-        List LocalCommit × List (Location × Nat)) := do
+        List LocalCommit × List (Location × TxID) ×
+        List (Location × Nat)) := do
     match event.kind with
     | .start =>
         let active <- start state.active config event
         pure (active, closeAttemptGroups event.node state.attempts,
-          state.seenAttempts, state.localCommits, state.abortedAttempts)
+          state.seenAttempts, state.localCommits, state.resolvedTxids,
+          state.abortedAttempts)
     | .send =>
         let some active := state.active
           | throw "trace must begin with start"
@@ -798,7 +804,8 @@ private def process
           (orderAttempts visibleCommits (state.attempts ++ pendingAttempts))
           (localCommitKeys visibleCommits) event
         pure (next, closeAttemptGroups event.node state.attempts,
-          state.seenAttempts, state.localCommits, state.abortedAttempts)
+          state.seenAttempts, state.localCommits, state.resolvedTxids,
+          state.abortedAttempts)
     | .gossipAccepted | .voteAccepted | .iAmOpenAccepted
     | .timeout | .open | .joinRestart | .complete =>
         let some active := state.active
@@ -809,7 +816,7 @@ private def process
         let (attempts, seen) <-
           bufferSemantic state.attempts state.seenAttempts event
         pure (active, attempts, seen, state.localCommits,
-          state.abortedAttempts)
+          state.resolvedTxids, state.abortedAttempts)
     | .locallyCommitted =>
         let some active := state.active
           | throw "trace must begin with start"
@@ -830,7 +837,7 @@ private def process
         let next <- updateSendProofs
           active (localCommitKeys localCommits) state.abortedAttempts
         pure (next, attempts, state.seenAttempts, localCommits,
-          state.abortedAttempts)
+          state.resolvedTxids, state.abortedAttempts)
     | .globallyCommitted | .rolledBack | .aborted =>
         let some active := state.active
           | throw "trace must begin with start"
@@ -867,10 +874,12 @@ private def process
         let remainingLocal := if event.kind == .aborted then localCommits else
           localCommits.filter fun commit =>
             commit.node != key.1 || commit.attempt != key.2
+        let resolvedTxids := if event.kind == .aborted then state.resolvedTxids
+          else (event.node, event.txid.get!) :: state.resolvedTxids
         pure (next, remaining, state.seenAttempts, remainingLocal,
-          aborted)
-  let (nextActive, nextAttempts, nextSeen, nextLocalCommits, nextAborted) <-
-      match processed with
+          resolvedTxids, aborted)
+  let (nextActive, nextAttempts, nextSeen, nextLocalCommits,
+      nextResolvedTxids, nextAborted) <- match processed with
     | .ok result => pure result
     | .error message =>
         let expected := state.active.map
@@ -882,6 +891,7 @@ private def process
     attempts := nextAttempts
     seenAttempts := nextSeen
     localCommits := nextLocalCommits
+    resolvedTxids := nextResolvedTxids
     abortedAttempts := nextAborted
     nextSequence :=
       setSequence state.nextSequence event.node (expectedSeq + 1)
@@ -909,10 +919,12 @@ def finish (state : ReplayState) (eventCount : Nat) : Except Failure Unit := do
           expected := ["start"]
         }
     | some active => pure active
-  if !state.localCommits.isEmpty then
+  if state.localCommits.any fun commit =>
+      state.resolvedTxids.any fun resolved =>
+        resolved.1 == commit.node && txidLT commit.txid resolved.2 then
     throw {
       prefixLength := eventCount
-      message := "trace ended with locally committed attempts awaiting final status"
+      message := "trace omitted the final status of an older local commit"
       expected := ["globally_committed", "rolled_back"]
     }
   if !active.pendingCommits.isEmpty then
