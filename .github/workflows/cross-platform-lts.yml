@@ -1,9 +1,14 @@
 name: Cross-platform LTS
 
 on:
-  push:
-    branches:
-      - achamayou-psychic-happiness
+  pull_request:
+    paths:
+      - .github/workflows/cross-platform-lts.yml
+      - tests/docker/lts_compatibility/Dockerfile
+      - tests/docker/run_lts_compatibility.sh
+      - tests/infra/github.py
+      - tests/infra/remote.py
+      - tests/lts_compatibility.py
   schedule:
     - cron: "0 3 * * 0"
   workflow_dispatch:
