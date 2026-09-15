@@ -118,8 +118,9 @@ namespace ccf::indexing::strategies
         return seqnos;
       }
       // Catch errors thrown by serialized::read
-      catch (const std::logic_error& e)
+      catch (const serialized::InsufficientSpaceException& e)
       {
+        LOG_TRACE_FMT("Deserialisation failed: {}", e.what());
         corrupt = true;
         return {};
       }
