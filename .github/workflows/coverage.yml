@@ -73,6 +73,13 @@ jobs:
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
 
+      - name: "Run partitions tests"
+        run: |
+          set -ex
+          cd build
+          ./tests.sh --timeout 360 --output-on-failure -C partitions -L '^partitions$' --no-tests=error
+        shell: bash
+
       - name: "Generate coverage reports"
         run: |
           set -exo pipefail
