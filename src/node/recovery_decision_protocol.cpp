@@ -409,6 +409,13 @@ namespace ccf
       return;
     }
 
+    emit_trace_event({
+      .kind = "locally_committed",
+      .attempt = trace_attempt,
+      .view = txid.view,
+      .seqno = txid.seqno,
+    });
+
     try
     {
       commit_callbacks.add_callback(

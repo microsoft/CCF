@@ -485,19 +485,25 @@ TEST_CASE("Recovery attempts are resolved without changing restart behaviour")
       CHECK(fixture.read_restarts() == 0);
 #ifdef CCF_RECOVERY_TRACE
       CHECK(fixture.commit_callbacks->size() == 1);
+      REQUIRE(fixture.environment.events.size() == events_before_accepted + 1);
+      CHECK(fixture.environment.events.back()["kind"] == "locally_committed");
+      CHECK(
+        fixture.environment.events.back()["attempt"] ==
+        fixture.environment.events.front()["attempt"]);
+      CHECK(fixture.environment.events.back()["view"] == txid.view);
+      CHECK(fixture.environment.events.back()["seqno"] == txid.seqno);
 #endif
-      CHECK(fixture.environment.events.size() == events_before_accepted);
       fixture.network.tables->rollback(before.first, before.second);
 #ifdef CCF_RECOVERY_TRACE
       fixture.resolve(txid, ccf::FinalTxStatus::Invalid);
-      REQUIRE(fixture.environment.events.size() == 3);
+      REQUIRE(fixture.environment.events.size() == events_before_accepted + 2);
       CHECK(fixture.environment.events.back()["kind"] == "rolled_back");
       CHECK(
         fixture.environment.events.back()["attempt"] ==
         fixture.environment.events.front()["attempt"]);
       CHECK(fixture.environment.events.back()["view"] == txid.view);
       CHECK(fixture.environment.events.back()["seqno"] == txid.seqno);
-      events_before_accepted = 3;
+      events_before_accepted += 2;
 #else
       CHECK(fixture.environment.events.empty());
 #endif
@@ -520,8 +526,11 @@ TEST_CASE("Recovery attempts are resolved without changing restart behaviour")
   [[maybe_unused]] const auto accepted_txid = fixture.locally_commit(*accepted);
   CHECK(fixture.read_restarts() == 0);
 #ifdef CCF_RECOVERY_TRACE
-  REQUIRE(fixture.environment.events.size() == events_before_accepted + 2);
+  REQUIRE(fixture.environment.events.size() == events_before_accepted + 3);
   CHECK(fixture.commit_callbacks->size() == 1);
+  CHECK(
+    fixture.environment.events[events_before_accepted + 2]["kind"] ==
+    "locally_committed");
 #else
   CHECK(fixture.environment.events.empty());
 #endif
@@ -529,7 +538,7 @@ TEST_CASE("Recovery attempts are resolved without changing restart behaviour")
   CHECK(fixture.read_restarts() == 1);
 #ifdef CCF_RECOVERY_TRACE
   fixture.resolve(accepted_txid, ccf::FinalTxStatus::Committed);
-  REQUIRE(fixture.environment.events.size() == events_before_accepted + 3);
+  REQUIRE(fixture.environment.events.size() == events_before_accepted + 4);
   const auto accepted_event = events_before_accepted;
   CHECK(
     fixture.environment.events[accepted_event]["kind"] == "iamopen_accepted");
@@ -537,10 +546,10 @@ TEST_CASE("Recovery attempts are resolved without changing restart behaviour")
   CHECK(
     fixture.environment.events[accepted_event + 1]["kind"] == "join_restart");
   CHECK(
-    fixture.environment.events[accepted_event + 2]["kind"] ==
+    fixture.environment.events[accepted_event + 3]["kind"] ==
     "globally_committed");
   CHECK(
-    fixture.environment.events[accepted_event + 2]["attempt"] ==
+    fixture.environment.events[accepted_event + 3]["attempt"] ==
     fixture.environment.events[accepted_event]["attempt"]);
   for (const auto& event : fixture.environment.events)
   {
@@ -560,14 +569,15 @@ TEST_CASE("Recovery attempts are resolved without changing restart behaviour")
   CHECK(fixture.read_restarts() == 1);
 #ifdef CCF_RECOVERY_TRACE
   fixture.resolve(duplicate_txid, ccf::FinalTxStatus::Committed);
-  REQUIRE(fixture.environment.events.size() == 2);
+  REQUIRE(fixture.environment.events.size() == 3);
   CHECK(fixture.environment.events[0]["kind"] == "iamopen_accepted");
   CHECK(fixture.environment.events[0]["caused_by"] == "opener:2");
   CHECK(fixture.environment.events[0]["pre"] == "JOINING");
   CHECK(fixture.environment.events[0]["post"] == "JOINING");
-  CHECK(fixture.environment.events[1]["kind"] == "globally_committed");
+  CHECK(fixture.environment.events[1]["kind"] == "locally_committed");
+  CHECK(fixture.environment.events[2]["kind"] == "globally_committed");
   CHECK(
-    fixture.environment.events[1]["attempt"] ==
+    fixture.environment.events[2]["attempt"] ==
     fixture.environment.events[0]["attempt"]);
 #else
   CHECK(fixture.environment.events.empty());
@@ -583,14 +593,15 @@ TEST_CASE("Recovery attempts are resolved without changing restart behaviour")
   CHECK(fixture.read_restarts() == 1);
 #ifdef CCF_RECOVERY_TRACE
   fixture.resolve(timeout_txid, ccf::FinalTxStatus::Committed);
-  REQUIRE(fixture.environment.events.size() == 2);
+  REQUIRE(fixture.environment.events.size() == 3);
   CHECK(fixture.environment.events[0]["kind"] == "timeout");
   CHECK(fixture.environment.events[0]["pre"] == "JOINING");
   CHECK(fixture.environment.events[0]["post"] == "JOINING");
   CHECK_FALSE(fixture.environment.events[0].contains("version"));
-  CHECK(fixture.environment.events[1]["kind"] == "globally_committed");
+  CHECK(fixture.environment.events[1]["kind"] == "locally_committed");
+  CHECK(fixture.environment.events[2]["kind"] == "globally_committed");
   CHECK(
-    fixture.environment.events[1]["attempt"] ==
+    fixture.environment.events[2]["attempt"] ==
     fixture.environment.events[0]["attempt"]);
 #else
   CHECK(fixture.environment.events.empty());
@@ -626,9 +637,10 @@ TEST_CASE("Recovery tracing does not add KV writes")
   CHECK(duplicate_txid.seqno == version_before);
 #ifdef CCF_RECOVERY_TRACE
   fixture.resolve(duplicate_txid, ccf::FinalTxStatus::Committed);
-  REQUIRE(fixture.environment.events.size() == 2);
+  REQUIRE(fixture.environment.events.size() == 3);
   CHECK(fixture.environment.events[0]["kind"] == "gossip_accepted");
-  CHECK(fixture.environment.events[1]["kind"] == "globally_committed");
+  CHECK(fixture.environment.events[1]["kind"] == "locally_committed");
+  CHECK(fixture.environment.events[2]["kind"] == "globally_committed");
 #else
   CHECK(fixture.environment.events.empty());
 #endif
@@ -663,7 +675,7 @@ TEST_CASE("Recovery retries supersede incomplete attempts")
 
 #ifdef CCF_RECOVERY_TRACE
   fixture.resolve(retry_txid, ccf::FinalTxStatus::Committed);
-  REQUIRE(fixture.environment.events.size() == 4);
+  REQUIRE(fixture.environment.events.size() == 5);
   CHECK(fixture.environment.events[0]["kind"] == "gossip_accepted");
   CHECK(fixture.environment.events[1]["kind"] == "aborted");
   CHECK(
@@ -673,9 +685,10 @@ TEST_CASE("Recovery retries supersede incomplete attempts")
   CHECK(
     fixture.environment.events[2]["attempt"] !=
     fixture.environment.events[0]["attempt"]);
-  CHECK(fixture.environment.events[3]["kind"] == "globally_committed");
+  CHECK(fixture.environment.events[3]["kind"] == "locally_committed");
+  CHECK(fixture.environment.events[4]["kind"] == "globally_committed");
   CHECK(
-    fixture.environment.events[3]["attempt"] ==
+    fixture.environment.events[4]["attempt"] ==
     fixture.environment.events[2]["attempt"]);
 #else
   CHECK(fixture.environment.events.empty());
@@ -692,5 +705,7 @@ TEST_CASE("Trace callback failures do not fail recovery requests")
   REQUIRE(request->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
   CHECK_NOTHROW(fixture.locally_commit(*request));
   CHECK(fixture.commit_callbacks->size() == 0);
+  REQUIRE(fixture.environment.events.size() == 3);
+  CHECK(fixture.environment.events.back()["kind"] == "locally_committed");
 }
 #endif
