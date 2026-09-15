@@ -40,6 +40,22 @@ structure SendProjection where
   state : NodeState
 deriving Repr, BEq
 
+structure SendProof where
+  node : Location
+  alternatives : List (List (Location × Nat))
+deriving Repr, BEq
+
+structure PendingCommit where
+  attempt : BufferedAttempt
+  txid : TxID
+deriving Repr, BEq
+
+structure LocalCommit where
+  node : Location
+  attempt : Nat
+  txid : TxID
+deriving Repr, BEq
+
 structure ActiveReplay where
   config : Config
   system : SystemState
@@ -47,17 +63,22 @@ structure ActiveReplay where
   sends : List ObservedSend := []
   consumedSendIds : List String := []
   sendProjections : List SendProjection := []
+  sendProofs : List SendProof := []
   pendingEffects : List PendingEffect := []
   pendingSendBatches : List PendingSendBatch := []
   terminalNodes : List Location := []
   completedNodes : List Location := []
   committedAttempts : List (Location × Nat) := []
+  committedRecords : List PendingCommit := []
+  pendingCommits : List PendingCommit := []
 deriving Repr, BEq
 
 structure ReplayState where
   active : Option ActiveReplay := none
   attempts : List BufferedAttempt := []
   seenAttempts : List (Location × Nat) := []
+  localCommits : List LocalCommit := []
+  abortedAttempts : List (Location × Nat) := []
   nextSequence : List (Prod Location Nat) := []
   seenMessageIds : List String := []
 deriving Repr, BEq, Inhabited
@@ -82,7 +103,7 @@ private def isTransactionSemantic : Kind -> Bool
   | _ => false
 
 private def isLifecycle : Kind -> Bool
-  | .globallyCommitted | .rolledBack | .aborted => true
+  | .locallyCommitted | .globallyCommitted | .rolledBack | .aborted => true
   | _ => false
 
 private def shapeError (event : TraceEvent) : Option String :=
@@ -94,7 +115,8 @@ private def shapeError (event : TraceEvent) : Option String :=
     some "semantic fields are not valid on lifecycle events"
   else if isLifecycle event.kind && event.attempt.isNone then
     some "attempt is required for lifecycle events"
-  else if (event.kind == .globallyCommitted || event.kind == .rolledBack) &&
+  else if (event.kind == .locallyCommitted ||
+      event.kind == .globallyCommitted || event.kind == .rolledBack) &&
       event.txid.isNone then
     some "view and seqno are required for transaction lifecycle events"
   else if event.kind == .aborted && event.txid.isSome then
@@ -375,7 +397,7 @@ private def expectedEvents (active : ActiveReplay) (node : Location) :
     (fun state => phaseName state.phase) |>.getD "UNKNOWN"
   [s!"state={phase}", "send", "gossip_accepted", "vote_accepted",
     "iamopen_accepted", "timeout", "open", "join_restart", "complete",
-    "globally_committed", "rolled_back", "aborted"]
+    "locally_committed", "globally_committed", "rolled_back", "aborted"]
 
 private def start
     (active : Option ActiveReplay)
@@ -417,7 +439,7 @@ private def processActive
   | .send => applySend active event
   | .open | .joinRestart | .complete => applyObservation active event
   | .start => throw "unexpected start event"
-  | .globallyCommitted | .rolledBack | .aborted =>
+  | .locallyCommitted | .globallyCommitted | .rolledBack | .aborted =>
       throw "unexpected lifecycle event"
 
 private def applySemanticEvents
@@ -438,25 +460,38 @@ private def applySendProjection
     }
   }
 
+private structure SpeculativeState where
+  active : ActiveReplay
+  requiredLocal : List (Location × Nat)
+
 private def speculativeStates
     (active : ActiveReplay)
     (attempts : List BufferedAttempt)
-    (node : Location) : List ActiveReplay := Id.run do
+    (node : Location) : List SpeculativeState := Id.run do
   let retained := (active.sendProjections.filter fun projection =>
-    projection.node == node).map (applySendProjection active)
-  let mut candidates := active :: retained
+    projection.node == node).map fun projection => {
+      active := applySendProjection active projection
+      requiredLocal := []
+    }
+  let mut candidates := { active, requiredLocal := [] } :: retained
   for buffered in attempts.reverse do
     if buffered.node == node then
       let mut added := []
       for candidate in candidates do
-        if let .ok applied := applySemanticEvents candidate buffered.events then
-          added := applied :: added
+        if let .ok applied :=
+            applySemanticEvents candidate.active buffered.events then
+          added := {
+            active := applied
+            requiredLocal :=
+              (buffered.node, buffered.attempt) :: candidate.requiredLocal
+          } :: added
       candidates := candidates ++ added.reverse
   pure candidates
 
 private def applyImmediateSend
     (active : ActiveReplay)
     (attempts : List BufferedAttempt)
+    (locallyCommitted : List (Location × Nat))
     (event : TraceEvent) : Except String ActiveReplay := do
   let continuingBatch := active.pendingSendBatches.any fun batch =>
     batch.node == event.node
@@ -469,22 +504,42 @@ private def applyImmediateSend
   let direct := applySend active event
   if let .ok next := direct then
     return { next with sendProjections := remainingProjections }
-  for candidate in speculativeStates active attempts event.node do
-    if let .ok observed := applySend candidate event then
-      return {
-        active with
-        sends := observed.sends
-        sendProjections := remainingProjections
-        pendingSendBatches := observed.pendingSendBatches
-      }
+  let successful := (speculativeStates active attempts event.node).filterMap
+    fun candidate => match applySend candidate.active event with
+      | .ok observed => some (observed, candidate.requiredLocal.eraseDups)
+      | .error _ => none
+  if let some (observed, _) := successful.find? fun candidate =>
+      candidate.2.all locallyCommitted.contains then
+    return {
+      active with
+      sends := observed.sends
+      sendProjections := remainingProjections
+      pendingSendBatches := observed.pendingSendBatches
+    }
+  if let some (observed, _) := successful.head? then
+    let alternatives := successful.map fun candidate =>
+      candidate.2.filter fun key => !locallyCommitted.contains key
+    return {
+      active with
+      sends := observed.sends
+      sendProjections := remainingProjections
+      sendProofs := {
+        node := event.node
+        alternatives := alternatives.eraseDups
+      } :: active.sendProofs
+      pendingSendBatches := observed.pendingSendBatches
+    }
   direct
 
 private def retainedSendProjections
     (active : ActiveReplay)
     (attempts : List BufferedAttempt)
+    (locallyCommitted : List (Location × Nat))
     (node : Location) : List SendProjection :=
-  (speculativeStates active attempts node).filterMap fun candidate => do
-    let state <- nodeState candidate.system node
+  let visibleAttempts := attempts.filter fun buffered =>
+    locallyCommitted.contains (buffered.node, buffered.attempt)
+  (speculativeStates active visibleAttempts node).filterMap fun candidate => do
+    let state <- nodeState candidate.active.system node
     if (sendBatch active.config state).isEmpty then
       none
     else
@@ -498,6 +553,96 @@ private def addSendProjections
     sendProjections := projections.foldl (fun retained projection =>
       if retained.contains projection then retained else projection :: retained)
       active.sendProjections
+  }
+
+private def localCommitKeys
+    (commits : List LocalCommit) : List (Location × Nat) :=
+  commits.map fun commit => (commit.node, commit.attempt)
+
+private def attemptTxid
+    (commits : List LocalCommit)
+    (attempt : BufferedAttempt) : Option TxID :=
+  (commits.find? fun commit =>
+    commit.node == attempt.node && commit.attempt == attempt.attempt).map
+      LocalCommit.txid
+
+private def newestAttemptFirst
+    (commits : List LocalCommit)
+    (a b : BufferedAttempt) : Bool :=
+  if a.node != b.node then
+    b.node < a.node
+  else
+    match attemptTxid commits a, attemptTxid commits b with
+    | some aTxid, some bTxid =>
+        aTxid.seqno > bTxid.seqno ||
+          (aTxid.seqno == bTxid.seqno &&
+            (aTxid.view > bTxid.view ||
+              (aTxid.view == bTxid.view && a.attempt >= b.attempt)))
+    | _, _ => a.attempt >= b.attempt
+
+private def orderAttempts
+    (commits : List LocalCommit)
+    (attempts : List BufferedAttempt) : List BufferedAttempt :=
+  attempts.mergeSort (newestAttemptFirst commits)
+
+private def updateSendProofs
+    (active : ActiveReplay)
+    (locallyCommitted : List (Location × Nat))
+    (aborted : List (Location × Nat)) : Except String ActiveReplay := do
+  let mut remaining := []
+  for proof in active.sendProofs do
+    if proof.alternatives.any fun alternative =>
+        alternative.all locallyCommitted.contains then
+      continue
+    let viable := proof.alternatives.filter fun alternative =>
+      !alternative.any aborted.contains
+    if viable.isEmpty then
+      throw s!"send from {proof.node} depended on an aborted attempt"
+    remaining := { proof with alternatives := viable } :: remaining
+  pure { active with sendProofs := remaining.reverse }
+
+private def pendingCommitLE (a b : PendingCommit) : Bool :=
+  a.attempt.node < b.attempt.node ||
+    (a.attempt.node == b.attempt.node &&
+      (a.txid.seqno < b.txid.seqno ||
+        (a.txid.seqno == b.txid.seqno &&
+          (a.txid.view < b.txid.view ||
+            (a.txid.view == b.txid.view &&
+              a.attempt.attempt <= b.attempt.attempt)))))
+
+private def rebuildCommittedState (active : ActiveReplay) : ActiveReplay := Id.run do
+  let pending := active.committedRecords.mergeSort pendingCommitLE
+  let mut next := {
+    active with
+    system := initialSystem active.config
+    consumedSendIds := []
+    pendingEffects := []
+    terminalNodes := []
+    completedNodes := []
+    committedAttempts := []
+    pendingCommits := []
+  }
+  let mut blockedNodes : List Location := []
+  let mut remaining := []
+  for commit in pending do
+    if blockedNodes.contains commit.attempt.node then
+      remaining := commit :: remaining
+    else
+      match applySemanticEvents next commit.attempt.events with
+      | .ok applied =>
+          next := {
+            applied with
+            committedAttempts :=
+              (commit.attempt.node, commit.attempt.attempt) ::
+                applied.committedAttempts
+          }
+      | .error _ =>
+          blockedNodes := commit.attempt.node :: blockedNodes
+          remaining := commit :: remaining
+  pure {
+    next with
+    committedRecords := active.committedRecords
+    pendingCommits := remaining.reverse
   }
 
 private def validateActiveContext
@@ -556,6 +701,7 @@ private def resolveAttempt
     (active : ActiveReplay)
     (attempts : List BufferedAttempt)
     (seen : List (Location × Nat))
+    (localCommits : List LocalCommit)
     (event : TraceEvent) :
     Except String (ActiveReplay × List BufferedAttempt) := do
   let attempt := event.attempt.getD 0
@@ -572,15 +718,25 @@ private def resolveAttempt
     if active.pendingSendBatches.any fun batch => batch.node == event.node then
       []
     else
-      retainedSendProjections active attempts event.node
+      let pendingAttempts := active.pendingCommits.map
+        fun commit => commit.attempt
+      let pendingLocals := active.pendingCommits.map fun commit => {
+        node := commit.attempt.node
+        attempt := commit.attempt.attempt
+        txid := commit.txid
+      }
+      let visibleCommits := localCommits ++ pendingLocals
+      retainedSendProjections active
+        (orderAttempts visibleCommits (attempts ++ pendingAttempts))
+        (localCommitKeys visibleCommits) event.node
   let mut next := active
   if event.kind == .globallyCommitted then
-    for semantic in buffered.events do
-      next <- processActive next semantic
-    next := {
+    next := rebuildCommittedState {
       next with
-      committedAttempts :=
-        (event.node, attempt) :: next.committedAttempts
+      committedRecords := {
+        attempt := buffered
+        txid := event.txid.get!
+      } :: next.committedRecords
     }
   next := addSendProjections next projections
   pure (next, attempts.filter fun candidate =>
@@ -615,19 +771,30 @@ private def process
       fail index "message_id and caused_by must identify distinct observations"
 
   let processed : Except String
-      (ActiveReplay × List BufferedAttempt × List (Location × Nat)) := do
+      (ActiveReplay × List BufferedAttempt × List (Location × Nat) ×
+        List LocalCommit × List (Location × Nat)) := do
     match event.kind with
     | .start =>
         let active <- start state.active config event
         pure (active, closeAttemptGroups event.node state.attempts,
-          state.seenAttempts)
+          state.seenAttempts, state.localCommits, state.abortedAttempts)
     | .send =>
         let some active := state.active
           | throw "trace must begin with start"
         validateActiveContext active event
-        let next <- applyImmediateSend active state.attempts event
+        let pendingAttempts := active.pendingCommits.map
+          fun commit => commit.attempt
+        let pendingLocals := active.pendingCommits.map fun commit => {
+          node := commit.attempt.node
+          attempt := commit.attempt.attempt
+          txid := commit.txid
+        }
+        let visibleCommits := state.localCommits ++ pendingLocals
+        let next <- applyImmediateSend active
+          (orderAttempts visibleCommits (state.attempts ++ pendingAttempts))
+          (localCommitKeys visibleCommits) event
         pure (next, closeAttemptGroups event.node state.attempts,
-          state.seenAttempts)
+          state.seenAttempts, state.localCommits, state.abortedAttempts)
     | .gossipAccepted | .voteAccepted | .iAmOpenAccepted
     | .timeout | .open | .joinRestart | .complete =>
         let some active := state.active
@@ -637,16 +804,69 @@ private def process
           validateCause active event
         let (attempts, seen) <-
           bufferSemantic state.attempts state.seenAttempts event
-        pure (active, attempts, seen)
+        pure (active, attempts, seen, state.localCommits,
+          state.abortedAttempts)
+    | .locallyCommitted =>
+        let some active := state.active
+          | throw "trace must begin with start"
+        validateActiveContext active event
+        let attempts := closeAttemptGroups event.node state.attempts
+        let key := (event.node, event.attempt.getD 0)
+        if !attempts.any fun candidate =>
+            candidate.node == key.1 && candidate.attempt == key.2 then
+          throw s!"unknown attempt ({key.1}, {key.2})"
+        if state.localCommits.any fun commit =>
+            commit.node == key.1 && commit.attempt == key.2 then
+          throw s!"duplicate local commit for attempt ({key.1}, {key.2})"
+        if state.abortedAttempts.contains key then
+          throw s!"aborted attempt ({key.1}, {key.2}) committed locally"
+        let txid := event.txid.get!
+        let localCommits := { node := event.node, attempt := key.2, txid } ::
+          state.localCommits
+        let next <- updateSendProofs
+          active (localCommitKeys localCommits) state.abortedAttempts
+        pure (next, attempts, state.seenAttempts, localCommits,
+          state.abortedAttempts)
     | .globallyCommitted | .rolledBack | .aborted =>
         let some active := state.active
           | throw "trace must begin with start"
         validateActiveContext active event
         let attempts := closeAttemptGroups event.node state.attempts
+        let key := (event.node, event.attempt.getD 0)
+        let existingLocal := state.localCommits.find? fun commit =>
+          commit.node == key.1 && commit.attempt == key.2
+        if event.kind == .aborted && existingLocal.isSome then
+          throw s!"locally committed attempt ({key.1}, {key.2}) was aborted"
+        let localCommits <-
+          if event.kind == .aborted then
+            pure state.localCommits
+          else
+            let txid := event.txid.get!
+            match existingLocal with
+            | some commit =>
+                if commit.txid != txid then
+                  throw s!"final TxID does not match local commit for attempt ({key.1}, {key.2})"
+                pure state.localCommits
+            | none =>
+                pure ({
+                  node := event.node
+                  attempt := key.2
+                  txid
+                } :: state.localCommits)
+        let locallyCommitted := localCommitKeys localCommits
+        let aborted :=
+          if event.kind == .aborted then key :: state.abortedAttempts
+          else state.abortedAttempts
+        let active <- updateSendProofs active locallyCommitted aborted
         let (next, remaining) <-
-          resolveAttempt active attempts state.seenAttempts event
-        pure (next, remaining, state.seenAttempts)
-  let (nextActive, nextAttempts, nextSeen) <- match processed with
+          resolveAttempt active attempts state.seenAttempts localCommits event
+        let remainingLocal := if event.kind == .aborted then localCommits else
+          localCommits.filter fun commit =>
+            commit.node != key.1 || commit.attempt != key.2
+        pure (next, remaining, state.seenAttempts, remainingLocal,
+          aborted)
+  let (nextActive, nextAttempts, nextSeen, nextLocalCommits, nextAborted) <-
+      match processed with
     | .ok result => pure result
     | .error message =>
         let expected := state.active.map
@@ -657,6 +877,8 @@ private def process
     active := some nextActive
     attempts := nextAttempts
     seenAttempts := nextSeen
+    localCommits := nextLocalCommits
+    abortedAttempts := nextAborted
     nextSequence :=
       setSequence state.nextSequence event.node (expectedSeq + 1)
     seenMessageIds := event.messageId.toList ++ state.seenMessageIds
@@ -683,11 +905,30 @@ def finish (state : ReplayState) (eventCount : Nat) : Except Failure Unit := do
           expected := ["start"]
         }
     | some active => pure active
+  if !state.localCommits.isEmpty then
+    throw {
+      prefixLength := eventCount
+      message := "trace ended with locally committed attempts awaiting final status"
+      expected := ["globally_committed", "rolled_back"]
+    }
+  if !active.pendingCommits.isEmpty then
+    throw {
+      prefixLength := eventCount
+      message := "trace ended with committed attempts awaiting transaction order"
+      expected := ["globally_committed", "rolled_back"]
+    }
   if !active.pendingEffects.isEmpty then
     throw {
       prefixLength := eventCount
       message := "trace ended with unobserved committed effects"
       expected := ["open", "join_restart", "complete"]
+    }
+  if !active.sendProofs.isEmpty then
+    throw {
+      prefixLength := eventCount
+      message := "trace ended with sends not justified by a local commit"
+      expected := ["locally_committed", "globally_committed", "rolled_back",
+        "aborted"]
     }
   if !active.pendingSendBatches.isEmpty then
     throw {

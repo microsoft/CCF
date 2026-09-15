@@ -50,14 +50,15 @@ All integers must be nonnegative Lean `Nat` values.
 | `open`               | `attempt`, `open_kind`, `pre`, `post`                                                                 | Speculative service-open observation        |
 | `join_restart`       | `attempt`, `pre`, `post`                                                                              | Speculative Joining/restart observation     |
 | `complete`           | `attempt`, `pre`, `post`                                                                              | Speculative Opening-to-Open completion      |
+| `locally_committed`  | `attempt`, `view`, `seqno`                                                                            | Mark the attempt as locally visible         |
 | `globally_committed` | `attempt`, `view`, `seqno`                                                                            | Apply the buffered attempt                  |
 | `rolled_back`        | `attempt`, `view`, `seqno`                                                                            | Discard a locally committed attempt         |
 | `aborted`            | `attempt`                                                                                             | Discard a superseded conflict-retry attempt |
 
 `start` and `send` must omit `attempt`. Every speculative semantic event must
 have one. Transaction lifecycle records have no `pre` or `post`;
-`globally_committed` and `rolled_back` carry the final transaction TxID, while
-`aborted` must not carry a TxID.
+`locally_committed`, `globally_committed`, and `rolled_back` carry the
+transaction TxID, while `aborted` must not carry a TxID.
 
 Every receive uses `caused_by` to identify an earlier `send`. The validator
 checks the sender, destination, message class, and gossip TxID payload. A
@@ -84,22 +85,36 @@ All semantic records from one execution have the same `(node, attempt)` and
 are contiguous in that node's sequence. Other nodes' records may appear between
 them in the topological order. Each group starts with one accepted receive or
 timeout and may contain its correlated `open`, `join_restart`, or `complete`
-observation. A later lifecycle record for the same key either applies the
-buffered records in emitted order or discards them. Reusing an attempt key,
-returning to a closed active attempt group, or resolving an unknown or already
-resolved attempt is invalid. An attempt may remain unresolved at the end of the
-available logs; it is ignored for canonical and terminal checks.
+observation. `locally_committed` marks the buffered attempt as visible to
+concurrent retry tasks without applying it to canonical state. A later final
+lifecycle record for the same key either applies the buffered records in
+emitted order or discards them. Reusing an attempt key, returning to a closed
+active attempt group, or resolving an unknown or already resolved attempt is
+invalid. An attempt may remain unresolved at the end of the available logs; it
+is ignored for canonical and terminal checks if it never commits locally. A
+locally committed attempt must eventually have a matching final lifecycle
+record with the same TxID. Distinct no-op or read-only attempts may share a
+TxID; equal-TxID records are ordered by their per-node attempt number.
 
 ## Strict replay
 
 A valid terminal trace describes a complete successful committed execution:
 every observed transport send and transaction lifecycle record is explicit.
 `DisasterRecoveryTrace/Protocol/Trace/Replay.lean` folds these events over one deterministic `SystemState`.
-It buffers speculative semantic records by attempt. A `globally_committed`
-record applies the whole buffer; `rolled_back` and `aborted` discard it.
-Unresolved buffers remain inert. Sends and starts are handled immediately.
-Sends validated against a locally visible speculative projection remain
-permanent even if that attempt later rolls back.
+It buffers speculative semantic records by attempt. A `locally_committed`
+record proves that the buffer was visible to retry tasks. A
+`globally_committed` record applies the whole buffer; `rolled_back` and
+`aborted` discard it. Final commit and rollback records also prove local
+visibility. Unresolved buffers remain inert. Sends and starts are handled
+immediately. If a send is observed before its local-commit record, the validator
+retains the possible attempt dependencies and requires one complete dependency
+set to become locally committed. An aborted attempt cannot justify a send.
+Sends justified by a locally visible speculative projection remain permanent
+even if that attempt later rolls back.
+Final callbacks may be logged out of transaction order. The validator retains
+all globally committed buffers and rebuilds canonical state in per-node TxID
+order whenever another final callback arrives. Buffers that still cannot be
+applied remain pending and prevent terminal validation.
 If lifecycle resolution races ahead of a task's first traced send, the
 pre-resolution projections with enabled sends remain available until that first
 send chooses a batch. That choice expires the alternatives; the selected
@@ -121,12 +136,14 @@ Configure CCF with `-DCCF_RECOVERY_TRACE=ON` to enable implementation tracing.
 Tracing observes normal protocol execution without changing transaction,
 restart, or retry behavior. Accepted receive, timeout, and correlated effect
 records are emitted together under a fresh attempt before the transaction
-outcome is known. The final transaction callback emits `globally_committed` or
-`rolled_back`; a conflict retry first emits `aborted` for the superseded
-attempt. Transport sends are emitted immediately and carry `message_id` in the
-protocol request in both traced and default builds. A receive records that value
-as `caused_by`. The `join_restart` effect is recorded only on entry into
-`JOINING`, not for later timeouts that leave the node in `JOINING`.
+outcome is known. The local-commit callback emits `locally_committed` before
+registering the final transaction callback, which later emits
+`globally_committed` or `rolled_back`; a conflict retry instead emits `aborted`
+for the superseded attempt. Transport sends are emitted immediately and carry
+`message_id` in the protocol request in both traced and default builds. A
+receive records that value as `caused_by`. The `join_restart` effect is recorded
+only on entry into `JOINING`, not for later timeouts that leave the node in
+`JOINING`.
 
 Each log record contains `RDP_TRACE ` followed by the event object.
 `../../tests/infra/recovery_trace.py` passes the original participating node log

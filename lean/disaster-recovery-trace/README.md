@@ -11,12 +11,17 @@ directly from text or JSON node logs and orders them using per-node sequences
 and causal send edges, not timestamps.
 `DisasterRecoveryTrace.Protocol.Trace.Replay` buffers speculative semantic
 events by `(node, attempt)`, applies globally committed attempts to the canonical
-transition system, and discards rolled-back or aborted attempts. Starts and
-sends are replayed immediately. A first send racing after lifecycle resolution
-may select a retained pre-resolution local projection; that choice expires the
-alternatives and fixes the phase for the rest of its batch. The validator rejects
-the first incompatible record and reports its original file/line location and
-shortest failing ordered prefix.
+transition system, and discards rolled-back or aborted attempts. Local-commit
+records prove which speculative states were visible to retry sends; sends
+observed before that proof remain conditional and are rejected if every
+possible attempt aborts. Starts and sends are replayed immediately. A first send
+racing after lifecycle resolution may select a retained pre-resolution local
+projection; that choice expires the alternatives and fixes the phase for the
+rest of its batch. Globally committed buffers are replayed in per-node TxID
+order rather than callback-log order. Local and final TxIDs must match, and
+terminal validation rejects locally committed attempts with no final status.
+The validator rejects the first incompatible record and reports its original
+file/line location and shortest failing ordered prefix.
 
 ## Build and test
 

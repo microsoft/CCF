@@ -18,6 +18,7 @@ inductive Kind where
   | open
   | joinRestart
   | complete
+  | locallyCommitted
   | globallyCommitted
   | rolledBack
   | aborted
@@ -50,6 +51,7 @@ private def parseKind : String -> Except String Kind
   | "open" => pure .open
   | "join_restart" => pure .joinRestart
   | "complete" => pure .complete
+  | "locally_committed" => pure .locallyCommitted
   | "globally_committed" => pure .globallyCommitted
   | "rolled_back" => pure .rolledBack
   | "aborted" => pure .aborted

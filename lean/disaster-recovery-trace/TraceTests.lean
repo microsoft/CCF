@@ -175,6 +175,7 @@ private def eventJson (event : TraceEvent) : Lean.Json :=
     | .open => "open"
     | .joinRestart => "join_restart"
     | .complete => "complete"
+    | .locallyCommitted => "locally_committed"
     | .globallyCommitted => "globally_committed"
     | .rolledBack => "rolled_back"
     | .aborted => "aborted"
@@ -431,11 +432,8 @@ private def checkAttempts : IO Unit := do
   | .error failure =>
       throw (IO.userError s!"pre-rollback sends were rejected: {repr failure}")
 
-  for lifecycle in [.globallyCommitted, .rolledBack, .aborted] do
-    let resolution := if lifecycle == .aborted then
-      { lifecycleEvent locations "A" 3 0 lifecycle with txid := none }
-    else
-      lifecycleEvent locations "A" 3 0 lifecycle
+  for lifecycle in [.globallyCommitted, .rolledBack] do
+    let resolution := lifecycleEvent locations "A" 3 0 lifecycle
     let lateVote :=
       sendEvent locations 4 s!"late-vote-{repr lifecycle}" "vote:A" .voting
     let lateGossip :=
@@ -458,6 +456,236 @@ private def checkAttempts : IO Unit := do
     | .error failure =>
         throw (IO.userError
           s!"first send after {repr lifecycle} was rejected: {repr failure}")
+  let abort := {
+    lifecycleEvent locations "A" 3 0 .aborted with txid := none
+  }
+  expect
+    (replayFailedAt [
+      start,
+      send,
+      receive,
+      abort,
+      sendEvent locations 4 "aborted-vote" "vote:A" .voting
+    ] 5)
+    "aborted attempt justified a later send"
+  expect
+    (replayFailedAt [
+      start,
+      send,
+      receive,
+      earlyVote,
+      earlyGossip,
+      { abort with sequence := 5 }
+    ] 6)
+    "aborted attempt justified earlier speculative sends"
+  let localCommit :=
+    lifecycleEvent locations "A" 5 0 .locallyCommitted
+  match parseEvent (eventJson localCommit).compress with
+  | .ok parsed =>
+      expect (parsed.kind == .locallyCommitted)
+        "local commit event kind did not parse"
+  | .error message =>
+      throw (IO.userError s!"local commit event did not parse: {message}")
+  match replay [
+    start,
+    send,
+    receive,
+    earlyVote,
+    earlyGossip,
+    localCommit
+  ] with
+  | .ok state =>
+      let active <- activeState state
+      expect active.sendProofs.isEmpty
+        "local commit did not justify earlier speculative sends"
+  | .error failure =>
+      throw (IO.userError
+        s!"local commit did not resolve speculative sends: {repr failure}")
+  expect
+    (replayFailedAt [
+      start,
+      send,
+      receive,
+      { localCommit with sequence := 3 },
+      { abort with sequence := 4 }
+    ] 5)
+    "locally committed attempt was later aborted"
+
+  let tx0 : TxID := { view := 1, seqno := 10 }
+  let tx1 : TxID := { view := 1, seqno := 11 }
+  let local0 := {
+    lifecycleEvent locations "A" 3 0 .locallyCommitted with txid := some tx0
+  }
+  let local1 := {
+    lifecycleEvent locations "A" 8 1 .locallyCommitted with txid := some tx1
+  }
+  let outOfOrderFinals := [
+    start,
+    send,
+    receive,
+    local0,
+    sendEvent locations 4 "ordered-vote" "vote:A" .voting,
+    sendEvent locations 5 "ordered-gossip" "gossip:A" .voting,
+    { voteEvent locations 6 "ordered-receive" "ordered-vote" .opening with
+      attempt := some 1 },
+    { openEvent locations 7 .quorum with attempt := some 1 },
+    local1,
+    { lifecycleEvent locations "A" 9 1 .globallyCommitted with txid := some tx1 },
+    { lifecycleEvent locations "A" 10 0 .globallyCommitted with txid := some tx0 }
+  ]
+  match replay outOfOrderFinals with
+  | .ok state =>
+      let active <- activeState state
+      expect (phaseAt active "A" == some .opening)
+        "out-of-order final callbacks changed transaction order"
+      expect active.pendingCommits.isEmpty
+        "out-of-order final callbacks were not drained"
+  | .error failure =>
+      throw (IO.userError
+        s!"out-of-order final callbacks were rejected: {repr failure}")
+
+  let repeatedLocations := ["A", "B"]
+  let repeatedStart := startEvent repeatedLocations "A"
+  let repeatedGossipA := {
+    sendEvent repeatedLocations 1 "repeated-gossip-a" "gossip:A" .gossiping with
+      txid := some { view := 2, seqno := 1 }
+  }
+  let repeatedGossipB :=
+    sendEvent repeatedLocations 2 "repeated-gossip-b" "gossip:B" .gossiping
+  let repeatedReceiveA := {
+    gossipEvent repeatedLocations 3 "repeated-receive-a" "repeated-gossip-a"
+      .gossiping with
+        attempt := some 0
+        txid := repeatedGossipA.txid
+  }
+  let repeatedGossipTimeout := {
+    timeoutEvent repeatedLocations 5 .gossiping .voting with
+      attempt := some 1
+  }
+  let repeatedVote :=
+    sendEvent repeatedLocations 7 "repeated-vote" "vote:A" .voting
+  let repeatedVoteReceive := {
+    voteEvent repeatedLocations 10 "repeated-vote-receive" "repeated-vote"
+      .voting with
+        attempt := some 2
+  }
+  let repeatedVoteTxid : TxID := { view := 2, seqno := 30 }
+  let repeatedTimeoutTxid : TxID := { view := 2, seqno := 31 }
+  let repeatedTrace := [
+    repeatedStart,
+    repeatedGossipA,
+    repeatedGossipB,
+    repeatedReceiveA,
+    lifecycleEvent repeatedLocations "A" 4 0 .globallyCommitted,
+    repeatedGossipTimeout,
+    lifecycleEvent repeatedLocations "A" 6 1 .globallyCommitted,
+    repeatedVote,
+    sendEvent repeatedLocations 8 "repeated-voting-gossip-a" "gossip:A" .voting,
+    sendEvent repeatedLocations 9 "repeated-voting-gossip-b" "gossip:B" .voting,
+    repeatedVoteReceive,
+    { lifecycleEvent repeatedLocations "A" 11 2 .locallyCommitted with
+      txid := some repeatedVoteTxid },
+    { timeoutEvent repeatedLocations 12 .voting .opening with attempt := some 3 },
+    { openEvent repeatedLocations 13 .failover with attempt := some 3 },
+    { lifecycleEvent repeatedLocations "A" 14 3 .locallyCommitted with
+      txid := some repeatedTimeoutTxid },
+    { lifecycleEvent repeatedLocations "A" 15 3 .globallyCommitted with
+      txid := some repeatedTimeoutTxid },
+    sendEvent repeatedLocations 16 "first-pending-iamopen" "iamopen:B" .opening,
+    sendEvent repeatedLocations 17 "second-pending-iamopen" "iamopen:B" .opening,
+    { lifecycleEvent repeatedLocations "A" 18 2 .globallyCommitted with
+      txid := some repeatedVoteTxid }
+  ]
+  match replay repeatedTrace with
+  | .ok state =>
+      let active <- activeState state
+      expect (phaseAt active "A" == some .opening)
+        "repeated sends changed out-of-order canonical replay"
+      expect active.pendingCommits.isEmpty
+        "lower final callback did not release the pending commit"
+      expect active.pendingSendBatches.isEmpty
+        "repeated pending-state send batch remained incomplete"
+  | .error failure =>
+      throw (IO.userError
+        s!"repeated sends from a pending commit were rejected: {repr failure}")
+
+  expect
+    (replayFailedAt [
+      start,
+      send,
+      receive,
+      local0,
+      { lifecycleEvent locations "A" 4 0 .globallyCommitted with
+        txid := some tx1 }
+    ] 5)
+    "final lifecycle accepted a TxID different from its local commit"
+
+  let reuseLocations := ["A", "B"]
+  let reuseStart := startEvent reuseLocations "A"
+  let firstGossipA :=
+    sendEvent reuseLocations 1 "first-gossip-a" "gossip:A" .gossiping
+  let firstGossipB :=
+    sendEvent reuseLocations 2 "first-gossip-b" "gossip:B" .gossiping
+  let firstReceive := {
+    gossipEvent reuseLocations 3 "first-receive" "first-gossip-a" .gossiping with
+      attempt := some 0
+  }
+  let reusedTxid : TxID := { view := 2, seqno := 20 }
+  let firstLocal := {
+    lifecycleEvent reuseLocations "A" 4 0 .locallyCommitted with
+      txid := some reusedTxid
+  }
+  let secondGossipA :=
+    sendEvent reuseLocations 6 "second-gossip-a" "gossip:A" .gossiping
+  let secondGossipB :=
+    sendEvent reuseLocations 7 "second-gossip-b" "gossip:B" .gossiping
+  let duplicateReceive := {
+    gossipEvent reuseLocations 8 "duplicate-receive" "second-gossip-a"
+      .gossiping with
+        attempt := some 1
+  }
+  let duplicateLocal := {
+    lifecycleEvent reuseLocations "A" 9 1 .locallyCommitted with
+      txid := some reusedTxid
+  }
+  match replay [
+    reuseStart,
+    firstGossipA,
+    firstGossipB,
+    firstReceive,
+    firstLocal,
+    { lifecycleEvent reuseLocations "A" 5 0 .globallyCommitted with
+      txid := some reusedTxid },
+    secondGossipA,
+    secondGossipB,
+    duplicateReceive,
+    duplicateLocal,
+    { lifecycleEvent reuseLocations "A" 10 1 .globallyCommitted with
+      txid := some reusedTxid }
+  ] with
+  | .ok state =>
+      let active <- activeState state
+      expect (active.committedRecords.length == 2)
+        "read-only attempts did not retain a reused TxID"
+      expect active.pendingCommits.isEmpty
+        "equal-TxID attempts were not ordered by attempt"
+  | .error failure =>
+      throw (IO.userError
+        s!"read-only attempts sharing a TxID were rejected: {repr failure}")
+  match validate [
+    reuseStart,
+    firstGossipA,
+    firstGossipB,
+    firstReceive,
+    firstLocal
+  ] with
+  | .error failure =>
+      expect
+        (failure.message ==
+          "trace ended with locally committed attempts awaiting final status")
+        "unresolved local commit reported the wrong failure"
+  | .ok () =>
+      throw (IO.userError "unresolved local commit passed terminal validation")
 
   let completedVote :=
     sendEvent locations 4 "completed-vote" "vote:A" .voting
@@ -645,6 +873,11 @@ private def checkAttempts : IO Unit := do
   expect
     (replayFailedAt [start, { lifecycle with txid := none }] 2)
     "transaction lifecycle without TxID was accepted"
+  expect
+    (replayFailedAt [start, {
+      lifecycleEvent locations "A" 1 0 .locallyCommitted with txid := none
+    }] 2)
+    "local commit without TxID was accepted"
   expect
     (replayFailedAt [start, {
       lifecycleEvent locations "A" 1 0 .aborted with
@@ -852,7 +1085,7 @@ def main : IO UInt32 := do
     attempt := some 0
   }
   expect
-    (replayFailedAt [
+    (failedAt [
       start,
       gossipSend,
       wrongPost,
@@ -870,7 +1103,7 @@ def main : IO UInt32 := do
     pre := some .voting
   }
   expect
-    (replayFailedAt [
+    (failedAt [
       start,
       gossipSend,
       received,
@@ -889,7 +1122,7 @@ def main : IO UInt32 := do
     timeoutEvent single 1 .gossiping .gossiping with attempt := some 0
   }
   expect
-    (replayFailedAt [
+    (failedAt [
       start,
       abortedTimeout,
       lifecycleEvent single "A" 2 0 .globallyCommitted
@@ -898,7 +1131,7 @@ def main : IO UInt32 := do
 
   let throughVote := quorumTrace.take 7
   expect
-    (replayFailedAt (throughVote ++ [
+    (failedAt (throughVote ++ [
       { openEvent single 7 .quorum with attempt := some 1 },
       { openEvent single 8 .quorum with attempt := some 1 },
       lifecycleEvent single "A" 9 1 .globallyCommitted
