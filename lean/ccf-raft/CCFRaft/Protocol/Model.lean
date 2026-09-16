@@ -7,18 +7,18 @@ import Mathlib.Data.Finmap
 set_option autoImplicit false
 
 /-!
-# Arbitrary-term reconfiguring Raft model
+# Raft model with reconfiguration, pre-vote, and retirement
 
-Followers and candidates may repeatedly start successor-term elections, and
-messages may move another node directly across skipped terms. Protocol handlers
-receive only the acting node's local state and immutable message snapshots.
+Followers and candidates may start next-term elections repeatedly, and a message
+may move another node directly across skipped terms. Handlers see only the
+acting node's local state and an immutable message snapshot.
 -/
 
 namespace CCFRaft.Protocol.Model
 
 /--
-Whether a node understands pre-vote packets and whether it starts elections
-with a pre-vote round.
+Whether a node only answers pre-vote packets, or also starts its elections with
+a pre-vote round.
 -/
 inductive PreVoteStatus where
   | capable
@@ -32,14 +32,14 @@ class Bootstrap (Node : Type) [DecidableEq Node] where
   leader_mem : Membership.mem configuration leader
   preVoteStatus : Node -> PreVoteStatus := fun _ => .capable
 
-/-- The selected initial leader. -/
+/-- The initial leader. -/
 def INITIAL_LEADER
     {Node : Type}
     [DecidableEq Node]
     [bootstrap : Bootstrap Node] :
     Node :=
   bootstrap.leader
-/-- Initial leader term, matching CCF's forced-primary startup. -/
+/-- The term of the initial leader, matching CCF's forced-primary startup. -/
 def BOOTSTRAP_TERM : Nat := 2
 /-- Bootstrap membership known before its physical log entry is written. -/
 def INITIAL_CONFIGURATION
@@ -49,7 +49,7 @@ def INITIAL_CONFIGURATION
     Finset Node :=
   bootstrap.configuration
 
-/-- The selected per-node pre-vote compatibility mode. -/
+/-- The pre-vote mode of each node. -/
 def INITIAL_PRE_VOTE_STATUS
     {Node : Type}
     [DecidableEq Node]
@@ -57,21 +57,21 @@ def INITIAL_PRE_VOTE_STATUS
     Node -> PreVoteStatus :=
   bootstrap.preVoteStatus
 
-/-- Leadership roles represented by the model. -/
+/-- The role a node holds. -/
 inductive Role where
   /-- No leadership role, including fresh and newly retired nodes. -/
   | none
   /-- A replica that receives AppendEntries messages. -/
   | follower
-  /-- A node soliciting speculative votes without advancing its term. -/
+  /-- A node collecting pre-votes without advancing its term. -/
   | preVoteCandidate
-  /-- A node soliciting votes in its current term. -/
+  /-- A node collecting votes in its current term. -/
   | candidate
-  /-- The single node that accepts requests and sends AppendEntries. -/
+  /-- A node that accepts client requests and sends AppendEntries. -/
   | leader
   deriving DecidableEq, Repr
 
-/-- Membership and retirement phases represented by CCF Raft. -/
+/-- The membership and retirement phases of a node. -/
 inductive MembershipState where
   | active
   | retirementOrdered
@@ -80,25 +80,25 @@ inductive MembershipState where
   | retiredCommitted
   deriving DecidableEq, Repr
 
-/-- Payload kinds represented in the protocol log. -/
+/-- The payload kinds stored in the log. -/
 inductive EntryContent (Node TxId : Type) where
   /-- An ordinary client transaction with its external identifier. -/
   | transaction (txId : TxId)
   /-- A signature over the preceding log prefix. -/
   | signature
-  /-- A new configuration, stored at a one-based physical log index. -/
+  /-- A new configuration, identified by its one-based log index. -/
   | reconfiguration (nodes : Finset Node)
   /-- Nodes whose completed retirement is now durably recorded. -/
   | retiredCommitted (nodes : Finset Node)
   deriving DecidableEq
 
-/-- One typed entry stored in a Raft log. -/
+/-- One entry in a node's log. -/
 structure Entry (Node TxId : Type) where
   term : Nat
   content : EntryContent Node TxId
   deriving DecidableEq
 
-/-- Immutable AppendEntries data captured when a leader sends a request. -/
+/-- A replication request, as captured when the leader sends it. -/
 structure AppendEntriesRequest (Node TxId : Type) where
   term : Nat
   prevLogIndex : Nat
@@ -129,7 +129,7 @@ structure RequestVoteRequest (Node : Type) where
   destination : Node
   deriving DecidableEq, Repr
 
-/-- A voter's granted or rejected RequestVote response. -/
+/-- A voter's reply, granting or rejecting a vote. -/
 structure RequestVoteResponse (Node : Type) where
   term : Nat
   voteGranted : Bool
@@ -137,7 +137,7 @@ structure RequestVoteResponse (Node : Type) where
   destination : Node
   deriving DecidableEq, Repr
 
-/-- A speculative vote request, distinct on the wire from RequestVote. -/
+/-- A pre-vote request, sent as its own message kind. -/
 structure RequestPreVote (Node : Type) where
   term : Nat
   lastCommittableTerm : Nat
@@ -146,7 +146,7 @@ structure RequestPreVote (Node : Type) where
   destination : Node
   deriving DecidableEq, Repr
 
-/-- A granted or rejected response to a speculative vote request. -/
+/-- A voter's reply, granting or rejecting a pre-vote. -/
 structure RequestPreVoteResponse (Node : Type) where
   term : Nat
   voteGranted : Bool
@@ -183,7 +183,7 @@ variable {Node TxId : Type}
 
 namespace Message
 
-/-- Read a message's sender without inspecting any node state. -/
+/-- Read the source ID of a message. -/
 def source : Message Node TxId -> Node
   | .appendEntriesRequest request => request.source
   | .appendEntriesResponse response => response.source
@@ -193,7 +193,7 @@ def source : Message Node TxId -> Node
   | .requestPreVoteResponse response => response.source
   | .proposeVoteRequest request => request.source
 
-/-- Read a message's intended recipient. -/
+/-- Read the destination ID of a message. -/
 def destination : Message Node TxId -> Node
   | .appendEntriesRequest request => request.destination
   | .appendEntriesResponse response => response.destination
@@ -203,7 +203,7 @@ def destination : Message Node TxId -> Node
   | .requestPreVoteResponse response => response.destination
   | .proposeVoteRequest request => request.destination
 
-/-- Term snapshot carried by any message kind. -/
+/-- Read the term of a message. -/
 def term : Message Node TxId -> Nat
   | .appendEntriesRequest request => request.term
   | .appendEntriesResponse response => response.term
@@ -213,13 +213,13 @@ def term : Message Node TxId -> Nat
   | .requestPreVoteResponse response => response.term
   | .proposeVoteRequest request => request.term
 
-/-- Whether a packet belongs to the speculative pre-vote protocol. -/
+/-- Whether a message is a pre-vote request or response. -/
 def IsPreVote : Message Node TxId -> Prop
   | .requestPreVote _ => True
   | .requestPreVoteResponse _ => True
   | _ => False
 
-/-- Packets which carry no log, vote, or acknowledgement safety evidence. -/
+/-- Whether a message carries no log, vote, or acknowledgement evidence. -/
 def IsSafetyInert : Message Node TxId -> Prop
   | .requestPreVote _ => True
   | .requestPreVoteResponse _ => True
@@ -243,7 +243,10 @@ structure NodeState (Node TxId : Type) where
   membershipState : MembershipState := .active
   retirementIndex : Option Nat := none
   retirementCommittableIndex : Option Nat := none
-  /-- First commit callback frontier covering this node's retirement marker. -/
+  /--
+  The commit index at which this node's retired-committed entry first became
+  committed.
+  -/
   retiredCommittedIndex : Option Nat := none
 
 namespace NodeState
@@ -276,12 +279,12 @@ namespace NodeStore
 
 variable [DecidableEq Node]
 
-/-- Read an allocated node state. -/
+/-- Read a node's state, or `none` when the node is unallocated. -/
 def node? (nodes : NodeStore Node TxId) (node : Node) :
     Option (NodeState Node TxId) :=
   nodes.entries.lookup node
 
-/-- Read a node state, using the inert fresh state for an unallocated node. -/
+/-- Read a node's state, using `freshNodeState` for an unallocated node. -/
 def get (nodes : NodeStore Node TxId) (node : Node) :
     NodeState Node TxId :=
   (nodes.node? node).getD freshNodeState
@@ -297,7 +300,7 @@ instance (nodes : NodeStore Node TxId) (node : Node) :
     Decidable (nodes.allocated node) :=
   inferInstanceAs (Decidable (nodes.node? node |>.isSome))
 
-/-- Insert or replace one allocated node state. -/
+/-- Insert or replace the state of one node. -/
 def set
     (nodes : NodeStore Node TxId)
     (node : Node)
@@ -332,7 +335,10 @@ def allocate
 
 end NodeStore
 
-/-- Global state: allocated nodes, queues, transaction IDs, and join history. -/
+/--
+Global state: node states, message queues, submitted transaction IDs, and join
+history.
+-/
 structure State (Node TxId : Type) where
   nodes : NodeStore Node TxId
   network : Node -> List (Message Node TxId)
@@ -343,7 +349,7 @@ structure State (Node TxId : Type) where
 
 variable [DecidableEq Node] [DecidableEq TxId]
 
-/-- Read an allocated local state from the global state. -/
+/-- Read a node's state from the global state, or `none` when unallocated. -/
 def State.node? (state : State Node TxId) (node : Node) :
     Option (NodeState Node TxId) :=
   state.nodes.node? node
@@ -356,7 +362,7 @@ instance (state : State Node TxId) (node : Node) :
     Decidable (state.allocated node) :=
   inferInstanceAs (Decidable (state.nodes.allocated node))
 
-/-- Replace one node state while leaving every other node unchanged. -/
+/-- Replace the state of one node. -/
 def updateNode
     (nodes : NodeStore Node TxId)
     (node : Node)
@@ -372,7 +378,7 @@ def updateIndex
     Node -> Nat :=
   Function.update indices node value
 
-/-- Replace the FIFO queue for one destination. -/
+/-- Replace the message queue of one destination. -/
 def updateQueue
     (network : Node -> List (Message Node TxId))
     (destination : Node)
@@ -382,7 +388,10 @@ def updateQueue
 
 variable [Bootstrap Node]
 
-/-- Initialize bootstrap members at CCF's startup term and other nodes unused. -/
+/--
+The starting state of one node. Bootstrap members start at `BOOTSTRAP_TERM`,
+every other node at term 0.
+-/
 def initialNodeState (node : Node) : NodeState Node TxId where
   role :=
     if node = INITIAL_LEADER then
@@ -404,7 +413,10 @@ def initialNodeState (node : Node) : NodeState Node TxId where
 def initialNodes : NodeStore Node TxId :=
   NodeStore.ofFinset INITIAL_CONFIGURATION initialNodeState
 
-/-- Initialize bootstrap members, queues, and allocated transaction IDs. -/
+/--
+The starting global state: bootstrap members allocated, empty queues, and no
+submitted transactions.
+-/
 def initialState : State Node TxId where
   nodes := initialNodes
   network := fun _ => []
@@ -413,18 +425,18 @@ def initialState : State Node TxId where
   preVoteStatus := INITIAL_PRE_VOTE_STATUS
   retirementCompleted := fun _ => ∅
 
-/-- A configuration paired with its projected one-based log index. -/
+/-- A configuration and its one-based log index. -/
 structure Configuration (Node : Type) where
   index : Nat
   nodes : Finset Node
   deriving DecidableEq
 
-/-- The projected bootstrap configuration, which has no physical log entry. -/
+/-- The bootstrap configuration at index 0, which has no log entry. -/
 def implicitConfiguration : Configuration Node where
   index := 0
   nodes := INITIAL_CONFIGURATION
 
-/-- Collect physical reconfiguration entries with their one-based indices. -/
+/-- Collect the reconfiguration entries of a log with their one-based indices. -/
 def configurationsInLogFrom :
     Nat -> List (Entry Node TxId) -> List (Configuration Node)
   | _, [] => []
@@ -434,26 +446,26 @@ def configurationsInLogFrom :
       | .reconfiguration nodes => { index, nodes } :: remaining
       | _ => remaining
 
-/-- All physical reconfiguration entries in a log. -/
+/-- All configurations in a log, from reconfiguration entries only. -/
 def configurationsInLog
     (log : List (Entry Node TxId)) :
     List (Configuration Node) :=
   configurationsInLogFrom 1 log
 
-/-- All configurations known from a log, including implicit configuration 0. -/
+/-- All configurations of a log, including the bootstrap configuration. -/
 def allConfigurations
     (log : List (Entry Node TxId)) :
     List (Configuration Node) :=
   implicitConfiguration :: configurationsInLog log
 
-/-- The latest configuration represented in a node's current log. -/
+/-- The last configuration in a node's log. -/
 def latestConfiguration
     (state : NodeState Node TxId) :
     Configuration Node :=
   (configurationsInLog state.log).foldl (fun _ configuration => configuration)
     implicitConfiguration
 
-/-- The latest reconfiguration in a log at or before a supplied frontier. -/
+/-- The last configuration of a log at or before a commit index. -/
 def currentConfigurationAt
     (log : List (Entry Node TxId))
     (commitIndex : Nat) : Configuration Node :=
@@ -462,15 +474,14 @@ def currentConfigurationAt
       if configuration.index <= commitIndex then configuration else current)
     implicitConfiguration
 
-/-- The latest reconfiguration at or before the node's local commit frontier. -/
+/-- The last configuration at or before the node's own commit index. -/
 def currentConfiguration
     (state : NodeState Node TxId) :
     Configuration Node :=
   currentConfigurationAt state.log state.commitIndex
 
 /--
-The current configuration and all later pending configurations known from the
-node's log.
+The current configuration and every later configuration in the node's log.
 -/
 def activeConfigurations
     (state : NodeState Node TxId) :
@@ -479,13 +490,13 @@ def activeConfigurations
   (allConfigurations state.log).filter fun configuration =>
     current.index <= configuration.index
 
-/-- Union of every node in a node's current or pending configurations. -/
+/-- Union of the nodes in a node's active configurations. -/
 def activeNodeUnion (state : NodeState Node TxId) : Finset Node :=
   (activeConfigurations state).foldl
     (fun nodes configuration => nodes ∪ configuration.nodes)
     ∅
 
-/-- Highest active configuration index which contains a selected node. -/
+/-- The highest active configuration index containing a node, or zero if none. -/
 def highestActiveConfigurationWithNode
     (state : NodeState Node TxId)
     (node : Node) : Nat :=
@@ -535,7 +546,7 @@ def retirementIndexFromConfigurations
       else
         retirementIndexFromConfigurations node false configurations
 
-/-- The first local reconfiguration index which removes a node. -/
+/-- The index of the first configuration which removes a node. -/
 def retirementIndexInLog
     (node : Node)
     (log : List (Entry Node TxId)) :
@@ -573,14 +584,14 @@ def retiredCommittedIndexFrom
             retiredCommittedIndexFrom node (index + 1) entries
       | _ => retiredCommittedIndexFrom node (index + 1) entries
 
-/-- The first local retired-committed entry naming a node. -/
+/-- The index of the first retired-committed entry naming a node. -/
 def retiredCommittedIndexInLog
     (node : Node)
     (log : List (Entry Node TxId)) :
     Option Nat :=
   retiredCommittedIndexFrom node 1 log
 
-/-- Collect nodes named by committed retired-committed entries. -/
+/-- Nodes named by retired-committed entries at or before a commit index. -/
 def retiredCommittedNodesUpToFrom :
     Nat -> Nat -> List (Entry Node TxId) -> Finset Node
   | _, _, [] => ∅
@@ -625,7 +636,7 @@ def retirementCompletedNodes
     retiredCommittedNodesUpTo log commitIndex).filter fun node =>
       (retirementIndexInLog node (log.take commitIndex)).isSome
 
-/-- Recalculate local retirement metadata from a log and commit frontier. -/
+/-- Recompute a node's retirement metadata from its log and commit index. -/
 def refreshRetirementState
     (node : Node)
     (state : NodeState Node TxId) :
@@ -659,7 +670,7 @@ def refreshRetirementState
     retirementCommittableIndex
     retiredCommittedIndex := committedRetiredIndex }
 
-/-- Retired-completed nodes still requiring replication from one observer.
+/-- Record the retirement-completed nodes one observer must still replicate to.
 Compute the snapshot at update time, not at each later function application. -/
 @[macro_inline]
 def refreshRetirementCompleted
@@ -684,7 +695,7 @@ def isSignatureAt (log : List (Entry Node TxId)) (index : Nat) : Bool :=
   | some entry => decide (entry.content = .signature)
   | none => false
 
-/-- Return the one-based index of the latest signature, or zero if absent. -/
+/-- The one-based index of the latest signature, or zero if the log has none. -/
 def maxCommittableIndex (log : List (Entry Node TxId)) : Nat :=
   (List.range (log.length + 1)).foldl
     (fun best index =>
@@ -693,8 +704,8 @@ def maxCommittableIndex (log : List (Entry Node TxId)) : Nat :=
 
 /--
 A node may campaign once some known configuration containing it has reached
-the node's signed log frontier. Configuration zero therefore admits bootstrap
-members even before the first physical signature.
+the node's signed log frontier. Configuration 0 therefore admits bootstrap
+members even before the first signature.
 -/
 def campaignEligible
     (node : Node)
@@ -709,7 +720,10 @@ instance (node : Node) (state : NodeState Node TxId) :
   unfold campaignEligible
   infer_instance
 
-/-- State-local conditions shared by timeout and proposal-triggered elections. -/
+/--
+The conditions which let a node start an election, checked when it handles a
+vote proposal. The `timeout` and `becomePreVoteCandidate` guards repeat them.
+-/
 def candidateTransitionEnabled
     (state : State Node TxId)
     (node : Node) : Prop :=
@@ -729,7 +743,7 @@ instance
   unfold candidateTransitionEnabled
   infer_instance
 
-/-- Enter an ordinary election term and record the candidate's self vote. -/
+/-- Enter the next term as a candidate and vote for self. -/
 @[simp]
 def becomeCandidateNodeState
     (state : NodeState Node TxId)
@@ -742,32 +756,35 @@ def becomeCandidateNodeState
     votesGranted := {node}
     preVotesGranted := ∅ }
 
-/-- Return the term of the latest signature, or zero if absent. -/
+/-- The term of the latest signature, or zero if the log has none. -/
 def maxCommittableTerm (log : List (Entry Node TxId)) : Nat :=
   termAt log (maxCommittableIndex log)
 
-/-- Return the latest signature no later than a supplied log frontier. -/
+/-- The one-based index of the latest signature at or before a log position. -/
 def maxCommittableIndexUpTo
     (log : List (Entry Node TxId))
     (frontier : Nat) : Nat :=
   maxCommittableIndex (log.take frontier)
 
-/-- Include a node's persisted commit frontier in its election snapshot. -/
+/--
+The log position a node reports when it campaigns: its commit index or its
+latest signature, whichever is higher.
+-/
 def lastCommittableIndex (state : NodeState Node TxId) : Nat :=
   max state.commitIndex (maxCommittableIndex state.log)
 
-/-- Return the term at a node's last committable election position. -/
+/-- The term at `lastCommittableIndex`. -/
 def lastCommittableTerm (state : NodeState Node TxId) : Nat :=
   termAt state.log (lastCommittableIndex state)
 
-/-- Select the log entries between the previous index and chosen batch end. -/
+/-- The log entries after `previousIndex` up to `batchEnd`. -/
 def messageEntries
     (log : List (Entry Node TxId))
     (previousIndex batchEnd : Nat) :
     List (Entry Node TxId) :=
   (log.drop previousIndex).take (batchEnd - previousIndex)
 
-/-- Append each successful send, including messages equal to pending messages.
+/-- Append a message to its destination queue, even if an equal one is pending.
 Inlining before closure conversion captures the queue once at send time. -/
 @[macro_inline]
 def enqueue
@@ -778,7 +795,7 @@ def enqueue
   let queue := network destination
   updateQueue network destination (queue ++ [message])
 
-/-- Remove the first message from a source while preserving all other order. -/
+/-- Take the first message from one sender, keeping the order of the others. -/
 def takeFirstFrom
     (source : Node) :
     List (Message Node TxId) ->
@@ -793,7 +810,7 @@ def takeFirstFrom
         | some (selected, remaining) =>
             some (selected, message :: remaining)
 
-/-- Select a zero-based occurrence from one sender without reordering others.
+/-- Take the zero-based nth message from one sender, keeping the others in order.
 Matches Network.tla's OrderDropMessage, with an explicit selection witness. -/
 def takeOccurrenceFrom
     (source : Node) :
@@ -881,7 +898,7 @@ instance (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId
   unfold noConflictExtension
   infer_instance
 
-/-- Advance commit only to a signature in the verified request frontier. -/
+/-- Advance the commit index to the latest signature the request covers. -/
 def committedFromLeader
     (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
@@ -891,7 +908,7 @@ def committedFromLeader
       (min request.leaderCommit
         (request.prevLogIndex + request.entries.length)))
 
-/-- Construct a successful response for an applied request. -/
+/-- Build the ACK for an applied request. -/
 def successResponse
     (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
@@ -903,7 +920,7 @@ def successResponse
   source := request.destination
   destination := request.source
 
-/-- Find the highest local index whose term could match a rejected request. -/
+/-- The highest local index whose term could match a rejected request. -/
 def findHighestPossibleMatch
     (log : List (Entry Node TxId))
     (index term : Nat) : Nat :=
@@ -915,7 +932,7 @@ def findHighestPossibleMatch
         best)
     0
 
-/-- Construct source-compatible NACK metadata for stale or inconsistent requests. -/
+/-- Build the NACK for a stale or mismatched request. -/
 def failureResponse
     (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId) :
@@ -963,7 +980,7 @@ def rejectAppendEntriesRequest?
   else
     none
 
-/-- ACK a request whose entries are already present, possibly learning commit. -/
+/-- ACK a request whose entries are already present, and adopt its commit index. -/
 def appendEntriesAlreadyDone?
     (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId) :
@@ -1014,7 +1031,7 @@ def noConflictAppendEntriesRequest?
   else
     none
 
-/-- Apply the accepted-request branches, composing truncation with retry. -/
+/-- Apply an accepted request: already done, clean extension, or truncate and retry. -/
 def acceptAppendEntriesRequest?
     (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId) :
@@ -1038,7 +1055,7 @@ def acceptAppendEntriesRequest?
   else
     none
 
-/-- Prefer rejection when required; otherwise run the accepted-request logic. -/
+/-- Reject a request when required, otherwise apply it. -/
 def handleAppendEntriesRequest?
     (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId) :
@@ -1105,7 +1122,7 @@ instance (state : NodeState Node TxId) (request : RequestVoteRequest Node) :
   unfold voteLogUpToDate
   infer_instance
 
-/-- View a RequestPreVote packet through the shared log-freshness fields. -/
+/-- Read a RequestPreVote as a RequestVote request with the same fields. -/
 def RequestPreVote.toRequestVoteRequest
     (request : RequestPreVote Node) :
     RequestVoteRequest Node where
@@ -1138,7 +1155,7 @@ def handleRequestVoteRequest?
   else
     none
 
-/-- Handle RequestPreVote without persisting the speculative vote. -/
+/-- Handle a RequestPreVote request without recording a vote. -/
 def handleRequestPreVote?
     (state : NodeState Node TxId)
     (request : RequestPreVote Node) :
@@ -1196,7 +1213,7 @@ def handleRequestPreVoteResponse?
   else
     none
 
-/-- Build a RequestVote message from candidate-local state. -/
+/-- Build a RequestVote message from the candidate's local state. -/
 def makeRequestVoteRequest
     (state : State Node TxId)
     (source destination : Node) :
@@ -1208,7 +1225,7 @@ def makeRequestVoteRequest
     source
     destination }
 
-/-- Build a RequestPreVote message from pre-vote-candidate-local state. -/
+/-- Build a RequestPreVote message from the pre-vote candidate's local state. -/
 def makeRequestPreVote
     (state : State Node TxId)
     (source destination : Node) :
@@ -1220,7 +1237,7 @@ def makeRequestPreVote
     source
     destination }
 
-/-- Build a same-term proposal from leader-local state. -/
+/-- Build a vote proposal from the leader's local state. -/
 def makeProposeVoteRequest
     (state : State Node TxId)
     (source destination : Node) :
@@ -1229,7 +1246,10 @@ def makeProposeVoteRequest
     source
     destination }
 
-/-- Consume nominations without changing state unless their term matches. -/
+/--
+Start an election on a same-term vote proposal when the node is eligible, and
+otherwise leave the node state unchanged.
+-/
 def handleProposeVoteRequest?
     (state : State Node TxId)
     (destination : Node)
@@ -1261,7 +1281,10 @@ instance
     Decidable (messageSourceAllowed state message) := by
   cases message <;> simp only [messageSourceAllowed] <;> infer_instance
 
-/-- Return a newer-term message, except a nomination, which never advances terms. -/
+/--
+The first queued message from a source with a newer term, ignoring vote
+proposals, which never advance a term.
+-/
 def newerMessage?
     (state : State Node TxId)
     (source destination : Node) :
@@ -1276,7 +1299,7 @@ def newerMessage?
       else
         none
 
-/-- Consume a request and append its response, preserving equal pending replies. -/
+/-- Replace a destination queue with its remaining messages, then append a reply. -/
 @[macro_inline]
 def reply
     (network : Node -> List (Message Node TxId))
@@ -1288,7 +1311,7 @@ def reply
     (updateQueue network requestDestination remaining)
     (.appendEntriesResponse response)
 
-/-- Process the first queued message from a chosen source at a destination. -/
+/-- Process the first queued message from one sender at a destination. -/
 def handleReceive?
     (state : State Node TxId)
     (source destination : Node) :
@@ -1410,7 +1433,7 @@ def handleReceive?
                     network :=
                       updateQueue state.network destination remaining }
 
-/-- Snapshot leader-local replication state into an AppendEntries request. -/
+/-- Build an AppendEntries request from the leader's state for one destination. -/
 def makeAppendEntriesRequest
     (state : State Node TxId)
     (source destination : Node)
@@ -1426,7 +1449,7 @@ def makeAppendEntriesRequest
     source
     destination }
 
-/-- Nodes locally known by the leader to acknowledge a candidate index. -/
+/-- Nodes which the leader locally knows to have reached an index. -/
 def acknowledgingNodes
     (state : State Node TxId)
     (leader : Node)
@@ -1436,7 +1459,7 @@ def acknowledgingNodes
     node = leader \/
       (state.nodes leader).matchIndex node >= index
 
-/-- True when a support set contains a strict majority of one configuration. -/
+/-- True when a set of nodes is a strict majority of one configuration. -/
 def hasConfigurationMajority
     (support : Finset Node)
     (configuration : Configuration Node) : Prop :=
@@ -1447,7 +1470,10 @@ instance (support : Finset Node) (configuration : Configuration Node) :
   unfold hasConfigurationMajority
   infer_instance
 
-/-- True when every configuration governing an index has replication support. -/
+/--
+True when every active configuration starting at or before an index has a
+majority which reached that index.
+-/
 def hasMajorityAt
     (state : State Node TxId)
     (leader : Node)
@@ -1459,7 +1485,7 @@ def hasMajorityAt
           (acknowledgingNodes state leader index)
           configuration)
 
-/-- Make the per-active-configuration replication predicate executable. -/
+/-- Make the replication majority check executable. -/
 instance (state : State Node TxId) (leader : Node) (index : Nat) :
     Decidable (hasMajorityAt state leader index) := by
   unfold hasMajorityAt
@@ -1514,7 +1540,10 @@ def pendingRetiredCommittedNodes
   state.retirementCompleted leader \
     allRetiredCommittedNodes (state.nodes leader).log
 
-/-- Greatest newer current-term signature acknowledged by a majority. -/
+/--
+The highest current-term signature above the leader's commit index which a
+majority has reached, or zero when there is none.
+-/
 def highestCommittableIndex
     (state : State Node TxId)
     (leader : Node) : Nat :=
@@ -1547,9 +1576,9 @@ instance
   unfold terminalRetirementCommit
   infer_instance
 
-/-- Explicit witnesses for every source of transition nondeterminism. -/
+/-- One protocol step, with an explicit argument for every nondeterministic choice. -/
 inductive Action (Node TxId : Type) where
-  /-- Persist the bootstrap configuration before its first signature. -/
+  /-- Write the bootstrap configuration to the initial leader's empty log. -/
   | initializeConfiguration (node : Node)
   /-- Submit a fresh external transaction to a node. -/
   | clientRequest (node : Node) (txId : TxId)
@@ -1561,17 +1590,17 @@ inductive Action (Node TxId : Type) where
   | signCommittableMessages (node : Node)
   /-- Send a single-term batch or an empty heartbeat. -/
   | appendEntries (source destination : Node) (batchEnd : Nat)
-  /-- Process the first queued message from a selected source. -/
+  /-- Process the first queued message from one sender. -/
   | receive (source destination : Node)
-  /-- Drop one sender-relative occurrence, preserving other packets and state. -/
+  /-- Drop the nth message from one sender, keeping the others in order. -/
   | drop (source destination : Node) (occurrence : Nat)
-  /-- Advance a leader to its locally computed quorum commit frontier. -/
+  /-- Advance a leader to the commit index it can compute locally. -/
   | advanceCommitIndex (node : Node)
-  /-- Start a successor-term election when pre-vote is not enabled. -/
+  /-- Start a next-term election when pre-vote is not enabled. -/
   | timeout (node : Node)
-  /-- Start a speculative election without advancing the local term. -/
+  /-- Start a pre-vote round without advancing the local term. -/
   | becomePreVoteCandidate (node : Node)
-  /-- Convert a successful pre-vote into a successor-term election. -/
+  /-- Convert a successful pre-vote round into a next-term election. -/
   | becomeCandidate (node : Node)
   /-- Send a RequestVote message from a candidate to another node. -/
   | requestVote (source destination : Node)
@@ -1583,187 +1612,13 @@ inductive Action (Node TxId : Type) where
   | updateTerm (source destination : Node)
   /-- Promote a candidate after its local vote set reaches a majority. -/
   | becomeLeader (node : Node)
-  /-- Ask one plausible active successor to begin an ordinary election. -/
+  /-- Ask one plausible successor to start an ordinary election. -/
   | proposeVote (source destination : Node)
-  /-- Commit terminal retirement and atomically nominate an explicit successor. -/
+  /-- Commit terminal retirement and propose a vote to a successor in one step. -/
   | advanceCommitIndexAndProposeVote (source destination : Node)
   deriving DecidableEq
 
-/-- Protocol guard for arbitrary repeated elections and leader writes. -/
-def Enabled
-    (state : State Node TxId) :
-    Action Node TxId -> Prop
-  | .initializeConfiguration node =>
-      node = INITIAL_LEADER /\
-        state.allocated node /\
-        (state.nodes node).role = .leader /\
-        (state.nodes node).currentTerm = BOOTSTRAP_TERM /\
-        (state.nodes node).log = [] /\
-        (state.nodes node).commitIndex = 0 /\
-        (state.nodes node).membershipState = .active /\
-        state.hasJoined = INITIAL_CONFIGURATION
-  | .clientRequest node txId =>
-      let nodeState := state.nodes node
-      let entry : Entry Node TxId :=
-        { term := nodeState.currentTerm
-          content := .transaction txId }
-      state.allocated node /\
-        nodeState.role = .leader /\
-        Not (nodeState.membershipState = .retiredCommitted) /\
-        txId ∉ state.submittedTxIds /\
-        Not (
-          (refreshRetirementState node
-            { nodeState with log := nodeState.log ++ [entry] }).membershipState =
-              .retiredCommitted)
-  | .changeConfiguration source newConfiguration =>
-      let sourceState := state.nodes source
-      let previousConfiguration := (latestConfiguration sourceState).nodes
-      let addedNodes := newConfiguration \ previousConfiguration
-      state.allocated source /\
-        sourceState.role = .leader /\
-        Not (sourceState.membershipState = .retiredCommitted) /\
-        newConfiguration.Nonempty /\
-        Not (newConfiguration = previousConfiguration) /\
-        (∀ node ∈ addedNodes, node ∉ state.hasJoined) /\
-        Not (
-          (refreshRetirementState source
-            { sourceState with
-              log := sourceState.log ++
-                [{ term := sourceState.currentTerm
-                   content := .reconfiguration newConfiguration }] }
-            ).membershipState = .retiredCommitted)
-  | .appendRetiredCommitted node =>
-      let nodeState := state.nodes node
-      let entry : Entry Node TxId :=
-        { term := nodeState.currentTerm
-          content := .retiredCommitted
-            (pendingRetiredCommittedNodes state node) }
-      state.allocated node /\
-        nodeState.role = .leader /\
-        Not (nodeState.membershipState = .retiredCommitted) /\
-        (pendingRetiredCommittedNodes state node).Nonempty /\
-        Not (
-          (refreshRetirementState node
-            { nodeState with log := nodeState.log ++ [entry] }).membershipState =
-              .retiredCommitted)
-  | .signCommittableMessages node =>
-      let nodeState := state.nodes node
-      let entry : Entry Node TxId :=
-        { term := nodeState.currentTerm
-          content := .signature }
-      state.allocated node /\
-        nodeState.role = .leader /\
-        Not (nodeState.membershipState = .retiredCommitted) /\
-        Not (nodeState.log = []) /\
-        Not (
-          (refreshRetirementState node
-            { nodeState with log := nodeState.log ++ [entry] }).membershipState =
-              .retiredCommitted)
-  | .appendEntries source destination batchEnd =>
-      state.allocated source /\
-        state.allocated destination /\
-        (state.nodes source).role = .leader /\
-        Not (source = destination) /\
-        (destination ∈ activeNodeUnion (state.nodes source) \/
-          destination ∈ state.retirementCompleted source) /\
-        (state.nodes source).sentIndex destination <= batchEnd /\
-        batchEnd <= (state.nodes source).log.length /\
-        ((messageEntries (state.nodes source).log
-          ((state.nodes source).sentIndex destination) batchEnd).all fun entry =>
-            entry.term == termAt (state.nodes source).log batchEnd) = true /\
-        (Not (
-            (state.nodes source).membershipState =
-              .retiredCommitted) \/
-          (state.nodes source).sentIndex destination < batchEnd)
-  | .receive source destination =>
-      state.allocated destination /\
-        (handleReceive? state source destination).isSome
-  | .drop source destination occurrence =>
-      (takeOccurrenceFrom source occurrence (state.network destination)).isSome
-  | .advanceCommitIndex node =>
-      state.allocated node /\
-        (state.nodes node).role = .leader /\
-        (state.nodes node).commitIndex <
-          highestCommittableIndex state node /\
-        Not (terminalRetirementCommit state node)
-  | .timeout node =>
-      state.allocated node /\
-        ((state.nodes node).role = .follower \/
-          (state.nodes node).role = .preVoteCandidate \/
-          (state.nodes node).role = .candidate) /\
-        ((node ∈ activeNodeUnion (state.nodes node) /\
-            campaignEligible node (state.nodes node)) \/
-          node ∈ state.retirementCompleted node) /\
-        Not ((state.nodes node).membershipState = .retiredCommitted) /\
-        Not (state.preVoteStatus node = .enabled)
-  | .becomePreVoteCandidate node =>
-      state.allocated node /\
-        ((state.nodes node).role = .follower \/
-          (state.nodes node).role = .preVoteCandidate \/
-          (state.nodes node).role = .candidate) /\
-        ((node ∈ activeNodeUnion (state.nodes node) /\
-            campaignEligible node (state.nodes node)) \/
-          node ∈ state.retirementCompleted node) /\
-        Not ((state.nodes node).membershipState = .retiredCommitted) /\
-        state.preVoteStatus node = .enabled
-  | .becomeCandidate node =>
-      state.allocated node /\
-        (state.nodes node).role = .preVoteCandidate /\
-        ((node ∈ activeNodeUnion (state.nodes node) /\
-            campaignEligible node (state.nodes node)) \/
-          node ∈ state.retirementCompleted node) /\
-        Not ((state.nodes node).membershipState = .retiredCommitted) /\
-        state.preVoteStatus node = .enabled /\
-        hasPreVoteMajority state node
-  | .requestVote source destination =>
-      state.allocated source /\
-        state.allocated destination /\
-        (state.nodes source).role = .candidate /\
-        Not (source = destination) /\
-        destination ∈ activeNodeUnion (state.nodes source)
-  | .requestPreVote source destination =>
-      state.allocated source /\
-        state.allocated destination /\
-        (state.nodes source).role = .preVoteCandidate /\
-        Not (source = destination) /\
-        destination ∈ activeNodeUnion (state.nodes source)
-  | .checkQuorum node =>
-      state.allocated node /\
-        (state.nodes node).role = .leader /\
-        hasOtherActiveReplica state node
-  | .updateTerm source destination =>
-      state.allocated destination /\
-        (newerMessage? state source destination).isSome
-  | .becomeLeader node =>
-      let nodeState := state.nodes node
-      let log := nodeState.log.take (maxCommittableIndex nodeState.log)
-      state.allocated node /\
-        nodeState.role = .candidate /\
-        Not (nodeState.membershipState = .retiredCommitted) /\
-        hasElectionMajority state node /\
-        Not (
-          (refreshRetirementState node
-            { nodeState with log }).membershipState = .retiredCommitted)
-  | .proposeVote source destination =>
-      state.allocated source /\
-        state.allocated destination /\
-        (state.nodes source).role = .leader /\
-        plausibleSuccessor state source destination
-  | .advanceCommitIndexAndProposeVote source destination =>
-      state.allocated source /\
-        state.allocated destination /\
-        (state.nodes source).role = .leader /\
-        (state.nodes source).commitIndex <
-          highestCommittableIndex state source /\
-        terminalRetirementCommit state source /\
-        plausibleSuccessor state source destination
-
-/-- Make every action guard directly executable. -/
-instance (state : State Node TxId) (action : Action Node TxId) :
-    Decidable (Enabled state action) := by
-  cases action <;> simp only [Enabled] <;> infer_instance
-
-/-- Enter an ordinary election term and record the candidate's self vote. -/
+/-- Apply `becomeCandidateNodeState` to one node of the global state. -/
 @[simp]
 def becomeCandidateState
     (state : State Node TxId)
@@ -1775,7 +1630,7 @@ def becomeCandidateState
       updateNode state.nodes node
         (becomeCandidateNodeState nodeState node) }
 
-/-- Advance commit and retirement metadata before applying terminal demotion. -/
+/-- Advance a node's commit index and refresh its retirement metadata. -/
 def advanceCommitState
     (state : State Node TxId)
     (node : Node) :
@@ -1801,7 +1656,10 @@ def stepDownState
       updateNode state.nodes node
         { nodeState with role := .follower, isNewFollower := true } }
 
-/-- Match `become_retired(RetiredCommitted)`, which clears the leadership role. -/
+/--
+Clear the role of a node whose retirement is committed, as CCF's
+`become_retired(RetiredCommitted)` does.
+-/
 def demoteRetiredCommitted
     (state : State Node TxId)
     (node : Node) :
@@ -1813,32 +1671,53 @@ def demoteRetiredCommitted
   else
     state
 
-/-- Deterministically apply the state update selected by an action witness. -/
-def next
+/-- An action's guard and total update, including when the guard is false. -/
+structure ActionDefinition (Node TxId : Type) where
+  enabled : Prop
+  next : State Node TxId
+
+/-- Define each action's guard beside its state update. -/
+@[reducible]
+def definition
     (state : State Node TxId) :
-    Action Node TxId -> State Node TxId
+    Action Node TxId -> ActionDefinition Node TxId
   | .initializeConfiguration node =>
       let nodeState := state.nodes node
-      { state with
-        nodes := updateNode state.nodes node
-          { nodeState with
-            log := [{ term := nodeState.currentTerm
-                      content := .reconfiguration INITIAL_CONFIGURATION }] } }
+      { enabled :=
+          node = INITIAL_LEADER /\
+            state.allocated node /\
+            nodeState.role = .leader /\
+            nodeState.currentTerm = BOOTSTRAP_TERM /\
+            nodeState.log = [] /\
+            nodeState.commitIndex = 0 /\
+            nodeState.membershipState = .active /\
+            state.hasJoined = INITIAL_CONFIGURATION
+        next :=
+          { state with
+            nodes := updateNode state.nodes node
+              { nodeState with
+                log := [{ term := nodeState.currentTerm
+                          content := .reconfiguration INITIAL_CONFIGURATION }] } } }
   | .clientRequest node txId =>
       let nodeState := state.nodes node
-      let entry :=
+      let entry : Entry Node TxId :=
         { term := nodeState.currentTerm
-          content := EntryContent.transaction txId }
-      { state with
-        nodes :=
-          updateNode state.nodes node
-            (refreshRetirementState node
-              { nodeState with log := nodeState.log ++ [entry] })
-        submittedTxIds := insert txId state.submittedTxIds
-        retirementCompleted :=
-          refreshRetirementCompleted state.retirementCompleted node
-            (refreshRetirementState node
-              { nodeState with log := nodeState.log ++ [entry] }) }
+          content := .transaction txId }
+      let refreshed :=
+        refreshRetirementState node
+          { nodeState with log := nodeState.log ++ [entry] }
+      { enabled :=
+          state.allocated node /\
+            nodeState.role = .leader /\
+            Not (nodeState.membershipState = .retiredCommitted) /\
+            txId ∉ state.submittedTxIds /\
+            Not (refreshed.membershipState = .retiredCommitted)
+        next :=
+          { state with
+            nodes := updateNode state.nodes node refreshed
+            submittedTxIds := insert txId state.submittedTxIds
+            retirementCompleted :=
+              refreshRetirementCompleted state.retirementCompleted node refreshed } }
   | .changeConfiguration source newConfiguration =>
       let sourceState := state.nodes source
       let previousConfiguration := (latestConfiguration sourceState).nodes
@@ -1846,144 +1725,261 @@ def next
       let entry : Entry Node TxId :=
         { term := sourceState.currentTerm
           content := .reconfiguration newConfiguration }
-      let nextSourceState :=
-        refreshRetirementState source
-          { sourceState with
-            log := sourceState.log ++ [entry]
-            sentIndex := fun peer =>
-              if peer ∈ addedNodes then
-                sourceState.log.length
-              else
-                sourceState.sentIndex peer }
-      { state with
-        nodes :=
-          updateNode (state.nodes.allocate addedNodes) source
-            nextSourceState
-        hasJoined := state.hasJoined ∪ addedNodes
-        retirementCompleted :=
-          refreshRetirementCompleted
-            state.retirementCompleted source nextSourceState }
+      let appended := { sourceState with log := sourceState.log ++ [entry] }
+      { enabled :=
+          state.allocated source /\
+            sourceState.role = .leader /\
+            Not (sourceState.membershipState = .retiredCommitted) /\
+            newConfiguration.Nonempty /\
+            Not (newConfiguration = previousConfiguration) /\
+            (∀ node ∈ addedNodes, node ∉ state.hasJoined) /\
+            Not (
+              (refreshRetirementState source appended).membershipState =
+                .retiredCommitted)
+        next :=
+          let nextSourceState :=
+            refreshRetirementState source
+              { appended with
+                sentIndex := fun peer =>
+                  if peer ∈ addedNodes then
+                    sourceState.log.length
+                  else
+                    sourceState.sentIndex peer }
+          { state with
+            nodes := updateNode (state.nodes.allocate addedNodes) source nextSourceState
+            hasJoined := state.hasJoined ∪ addedNodes
+            retirementCompleted :=
+              refreshRetirementCompleted
+                state.retirementCompleted source nextSourceState } }
   | .appendRetiredCommitted node =>
       let nodeState := state.nodes node
+      let pending := pendingRetiredCommittedNodes state node
       let entry : Entry Node TxId :=
         { term := nodeState.currentTerm
-          content := .retiredCommitted
-            (pendingRetiredCommittedNodes state node) }
-      { state with
-        nodes :=
-          updateNode state.nodes node
-            (refreshRetirementState node
-              { nodeState with log := nodeState.log ++ [entry] })
-        retirementCompleted :=
-          refreshRetirementCompleted state.retirementCompleted node
-            (refreshRetirementState node
-              { nodeState with log := nodeState.log ++ [entry] }) }
+          content := .retiredCommitted pending }
+      let refreshed :=
+        refreshRetirementState node
+          { nodeState with log := nodeState.log ++ [entry] }
+      { enabled :=
+          state.allocated node /\
+            nodeState.role = .leader /\
+            Not (nodeState.membershipState = .retiredCommitted) /\
+            pending.Nonempty /\
+            Not (refreshed.membershipState = .retiredCommitted)
+        next :=
+          { state with
+            nodes := updateNode state.nodes node refreshed
+            retirementCompleted :=
+              refreshRetirementCompleted state.retirementCompleted node refreshed } }
   | .signCommittableMessages node =>
       let nodeState := state.nodes node
       let entry : Entry Node TxId :=
         { term := nodeState.currentTerm
           content := .signature }
-      { state with
-        nodes :=
-          updateNode state.nodes node
-            (refreshRetirementState node
-              { nodeState with log := nodeState.log ++ [entry] })
-        retirementCompleted :=
-          refreshRetirementCompleted state.retirementCompleted node
-            (refreshRetirementState node
-              { nodeState with log := nodeState.log ++ [entry] }) }
+      let refreshed :=
+        refreshRetirementState node
+          { nodeState with log := nodeState.log ++ [entry] }
+      { enabled :=
+          state.allocated node /\
+            nodeState.role = .leader /\
+            Not (nodeState.membershipState = .retiredCommitted) /\
+            Not (nodeState.log = []) /\
+            Not (refreshed.membershipState = .retiredCommitted)
+        next :=
+          { state with
+            nodes := updateNode state.nodes node refreshed
+            retirementCompleted :=
+              refreshRetirementCompleted state.retirementCompleted node refreshed } }
   | .appendEntries source destination batchEnd =>
       let sourceState := state.nodes source
-      let request := makeAppendEntriesRequest state source destination batchEnd
-      { state with
-        nodes :=
-          updateNode state.nodes source
-            { sourceState with
-              sentIndex :=
-                updateIndex sourceState.sentIndex destination batchEnd }
-        network :=
-          enqueue state.network (.appendEntriesRequest request) }
-  | .receive source destination =>
-      (handleReceive? state source destination).getD state
-  | .drop source destination occurrence =>
-      match takeOccurrenceFrom source occurrence (state.network destination) with
-      | none => state
-      | some (_, remaining) =>
-          { state with network := updateQueue state.network destination remaining }
-  | .advanceCommitIndex node =>
-      demoteRetiredCommitted (advanceCommitState state node) node
-  | .timeout node =>
-      becomeCandidateState state node
-  | .becomePreVoteCandidate node =>
-      let nodeState := state.nodes node
-      { state with
-        nodes :=
-          updateNode state.nodes node
-            { nodeState with
-              role := .preVoteCandidate
-              preVotesGranted := {node} } }
-  | .becomeCandidate node =>
-      becomeCandidateState state node
-  | .requestVote source destination =>
-      let request := makeRequestVoteRequest state source destination
-      { state with
-        network :=
-          enqueue state.network (.requestVoteRequest request) }
-  | .requestPreVote source destination =>
-      let request := makeRequestPreVote state source destination
-      { state with
-        network :=
-          enqueue state.network (.requestPreVote request) }
-  | .checkQuorum node =>
-      stepDownState state node
-  | .updateTerm source destination =>
-      match newerMessage? state source destination with
-      | none => state
-      | some selected =>
-          let nodeState := state.nodes destination
+      { enabled :=
+          state.allocated source /\
+            state.allocated destination /\
+            sourceState.role = .leader /\
+            Not (source = destination) /\
+            (destination ∈ activeNodeUnion sourceState \/
+              destination ∈ state.retirementCompleted source) /\
+            sourceState.sentIndex destination <= batchEnd /\
+            batchEnd <= sourceState.log.length /\
+            ((messageEntries sourceState.log
+              (sourceState.sentIndex destination) batchEnd).all fun entry =>
+                entry.term == termAt sourceState.log batchEnd) = true /\
+            (Not (sourceState.membershipState = .retiredCommitted) \/
+              sourceState.sentIndex destination < batchEnd)
+        next :=
+          let request := makeAppendEntriesRequest state source destination batchEnd
           { state with
             nodes :=
-              updateNode state.nodes destination
+              updateNode state.nodes source
+                { sourceState with
+                  sentIndex :=
+                    updateIndex sourceState.sentIndex destination batchEnd }
+            network := enqueue state.network (.appendEntriesRequest request) } }
+  | .receive source destination =>
+      let result := handleReceive? state source destination
+      { enabled := state.allocated destination /\ result.isSome
+        next := result.getD state }
+  | .drop source destination occurrence =>
+      let result := takeOccurrenceFrom source occurrence (state.network destination)
+      { enabled := result.isSome
+        next :=
+          match result with
+          | none => state
+          | some (_, remaining) =>
+              { state with network := updateQueue state.network destination remaining } }
+  | .advanceCommitIndex node =>
+      { enabled :=
+          state.allocated node /\
+            (state.nodes node).role = .leader /\
+            (state.nodes node).commitIndex < highestCommittableIndex state node /\
+            Not (terminalRetirementCommit state node)
+        next := demoteRetiredCommitted (advanceCommitState state node) node }
+  | .timeout node =>
+      let nodeState := state.nodes node
+      { enabled :=
+          state.allocated node /\
+            (nodeState.role = .follower \/
+              nodeState.role = .preVoteCandidate \/
+              nodeState.role = .candidate) /\
+            ((node ∈ activeNodeUnion nodeState /\ campaignEligible node nodeState) \/
+              node ∈ state.retirementCompleted node) /\
+            Not (nodeState.membershipState = .retiredCommitted) /\
+            Not (state.preVoteStatus node = .enabled)
+        next := becomeCandidateState state node }
+  | .becomePreVoteCandidate node =>
+      let nodeState := state.nodes node
+      { enabled :=
+          state.allocated node /\
+            (nodeState.role = .follower \/
+              nodeState.role = .preVoteCandidate \/
+              nodeState.role = .candidate) /\
+            ((node ∈ activeNodeUnion nodeState /\ campaignEligible node nodeState) \/
+              node ∈ state.retirementCompleted node) /\
+            Not (nodeState.membershipState = .retiredCommitted) /\
+            state.preVoteStatus node = .enabled
+        next :=
+          { state with
+            nodes :=
+              updateNode state.nodes node
                 { nodeState with
-                  role :=
-                    if nodeState.role = .follower then
-                      .follower
-                    else
-                      .follower
-                  currentTerm := selected.term
-                  votedFor := none
-                  isNewFollower := true
-                  preVotesGranted := ∅ } }
+                  role := .preVoteCandidate
+                  preVotesGranted := {node} } } }
+  | .becomeCandidate node =>
+      let nodeState := state.nodes node
+      { enabled :=
+          state.allocated node /\
+            nodeState.role = .preVoteCandidate /\
+            ((node ∈ activeNodeUnion nodeState /\ campaignEligible node nodeState) \/
+              node ∈ state.retirementCompleted node) /\
+            Not (nodeState.membershipState = .retiredCommitted) /\
+            state.preVoteStatus node = .enabled /\
+            hasPreVoteMajority state node
+        next := becomeCandidateState state node }
+  | .requestVote source destination =>
+      { enabled :=
+          state.allocated source /\
+            state.allocated destination /\
+            (state.nodes source).role = .candidate /\
+            Not (source = destination) /\
+            destination ∈ activeNodeUnion (state.nodes source)
+        next :=
+          let request := makeRequestVoteRequest state source destination
+          { state with network := enqueue state.network (.requestVoteRequest request) } }
+  | .requestPreVote source destination =>
+      { enabled :=
+          state.allocated source /\
+            state.allocated destination /\
+            (state.nodes source).role = .preVoteCandidate /\
+            Not (source = destination) /\
+            destination ∈ activeNodeUnion (state.nodes source)
+        next :=
+          let request := makeRequestPreVote state source destination
+          { state with network := enqueue state.network (.requestPreVote request) } }
+  | .checkQuorum node =>
+      { enabled :=
+          state.allocated node /\
+            (state.nodes node).role = .leader /\
+            hasOtherActiveReplica state node
+        next := stepDownState state node }
+  | .updateTerm source destination =>
+      let result := newerMessage? state source destination
+      { enabled := state.allocated destination /\ result.isSome
+        next :=
+          match result with
+          | none => state
+          | some selected =>
+              let nodeState := state.nodes destination
+              { state with
+                nodes :=
+                  updateNode state.nodes destination
+                    { nodeState with
+                      role :=
+                        if nodeState.role = .follower then
+                          .follower
+                        else
+                          .follower
+                      currentTerm := selected.term
+                      votedFor := none
+                      isNewFollower := true
+                      preVotesGranted := ∅ } } }
   | .becomeLeader node =>
       let nodeState := state.nodes node
       let log := nodeState.log.take (maxCommittableIndex nodeState.log)
-      let nextNode :=
-        refreshRetirementState node
-          { nodeState with
-            role := .leader
-            log
-            sentIndex := fun _ => log.length
-            matchIndex := fun _ => 0 }
-      { state with
-        nodes :=
-          updateNode state.nodes node nextNode
-        retirementCompleted :=
-          refreshRetirementCompleted
-            state.retirementCompleted node nextNode }
+      let truncated := { nodeState with log }
+      { enabled :=
+          state.allocated node /\
+            nodeState.role = .candidate /\
+            Not (nodeState.membershipState = .retiredCommitted) /\
+            hasElectionMajority state node /\
+            Not (
+              (refreshRetirementState node truncated).membershipState =
+                .retiredCommitted)
+        next :=
+          let nextNode :=
+            refreshRetirementState node
+              { truncated with
+                role := .leader
+                sentIndex := fun _ => log.length
+                matchIndex := fun _ => 0 }
+          { state with
+            nodes := updateNode state.nodes node nextNode
+            retirementCompleted :=
+              refreshRetirementCompleted state.retirementCompleted node nextNode } }
   | .proposeVote source destination =>
-      let request := makeProposeVoteRequest state source destination
-      { state with
-        network :=
-          enqueue state.network (.proposeVoteRequest request) }
+      { enabled :=
+          state.allocated source /\
+            state.allocated destination /\
+            (state.nodes source).role = .leader /\
+            plausibleSuccessor state source destination
+        next :=
+          let request := makeProposeVoteRequest state source destination
+          { state with network := enqueue state.network (.proposeVoteRequest request) } }
   | .advanceCommitIndexAndProposeVote source destination =>
-      let advanced :=
-        demoteRetiredCommitted (advanceCommitState state source) source
-      let request := makeProposeVoteRequest state source destination
-      { advanced with
-        network :=
-          enqueue advanced.network (.proposeVoteRequest request) }
+      { enabled :=
+          state.allocated source /\
+            state.allocated destination /\
+            (state.nodes source).role = .leader /\
+            (state.nodes source).commitIndex < highestCommittableIndex state source /\
+            terminalRetirementCommit state source /\
+            plausibleSuccessor state source destination
+        next :=
+          let advanced :=
+            demoteRetiredCommitted (advanceCommitState state source) source
+          let request := makeProposeVoteRequest state source destination
+          { advanced with
+            network := enqueue advanced.network (.proposeVoteRequest request) } }
 
-/-- Package arbitrary-term Raft as a reusable executable transition system. -/
+def Enabled (state : State Node TxId) (action : Action Node TxId) : Prop :=
+  (definition state action).enabled
+
+-- Unfold only the guard projection to derive its decision procedure.
+instance (state : State Node TxId) (action : Action Node TxId) :
+    Decidable (Enabled state action) := by
+  cases action <;> dsimp [Enabled, definition] <;> infer_instance
+
+def next (state : State Node TxId) (action : Action Node TxId) : State Node TxId :=
+  (definition state action).next
+
 def system : ExecutableTransitionSystem where
   State := State Node TxId
   Action := Action Node TxId
@@ -1992,7 +1988,7 @@ def system : ExecutableTransitionSystem where
   enabledDecidable := fun _ _ => inferInstance
   next
 
-/-- Execute actions until one is disabled. -/
+/-- Apply actions in order, returning `none` when one of them is disabled. -/
 def runActions
     (state : State Node TxId) :
     List (Action Node TxId) -> Option (State Node TxId)
@@ -2001,7 +1997,7 @@ def runActions
       let nextState <- system.applyAction state action
       runActions nextState actions
 
-/-- States reachable through enabled arbitrary-term Raft actions. -/
+/-- States reachable from `initialState` through enabled actions. -/
 abbrev Reachable :=
   (system (Node := Node) (TxId := TxId)).Reachable
 
