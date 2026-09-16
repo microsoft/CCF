@@ -22,6 +22,7 @@
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "ccf/service/tables/virtual_measurements.h"
 #include "kv/store.h"
+#include "service/tables/signing_identities.h"
 #include "tables/config.h"
 #include "tables/governance_history.h"
 #include "tables/previous_service_identity.h"
@@ -175,6 +176,7 @@ namespace ccf
     // Service tables
     //
     const Service service = {Tables::SERVICE};
+    const SigningIdentities signing_identities = {Tables::SIGNING_IDENTITIES};
     const PreviousServiceIdentity previous_service_identity = {
       Tables::PREVIOUS_SERVICE_IDENTITY};
     const PreviousServiceLastSignedRoot previous_service_last_signed_root = {
@@ -188,7 +190,11 @@ namespace ccf
     [[nodiscard]] auto get_all_service_tables() const
     {
       return std::make_tuple(
-        service, config, constitution, previous_service_identity);
+        service,
+        signing_identities,
+        config,
+        constitution,
+        previous_service_identity);
     }
 
     // All builtin governance tables should be included here, so that wrapper
