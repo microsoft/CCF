@@ -2,18 +2,21 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "host/time_bound_logger.h"
+#include "ds/time_bound_logger.h"
 
 #include <algorithm>
+#include <charconv>
 #include <filesystem>
 #include <format>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
-namespace snapshots
+namespace ccf::snapshots
 {
   namespace fs = std::filesystem;
 
@@ -48,7 +51,7 @@ namespace snapshots
     auto ignored_file_name =
       std::format("{}.{}", file_name, snapshot_ignored_file_suffix);
     {
-      asynchost::TimeBoundLogger log_if_slow(std::format(
+      ccf::ds::TimeBoundLogger log_if_slow(std::format(
         "Ignoring snapshot file - rename({} to {})",
         file_name,
         ignored_file_name));

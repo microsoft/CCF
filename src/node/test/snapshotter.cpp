@@ -308,7 +308,7 @@ TEST_CASE("Recovery snapshot endorsement scan bounds ledger entry allocation")
 
 std::optional<fs::path> latest_committed_snapshot_path(const fs::path& dir)
 {
-  return snapshots::find_latest_committed_snapshot_in_directory(dir);
+  return ccf::snapshots::find_latest_committed_snapshot_in_directory(dir);
 }
 
 std::optional<::consensus::Index> latest_committed_snapshot_idx(
@@ -320,7 +320,7 @@ std::optional<::consensus::Index> latest_committed_snapshot_idx(
     return std::nullopt;
   }
 
-  return snapshots::get_snapshot_idx_from_file_name(path->filename());
+  return ccf::snapshots::get_snapshot_idx_from_file_name(path->filename());
 }
 
 std::optional<::consensus::Index> latest_committed_snapshot_evidence_idx(
@@ -332,7 +332,8 @@ std::optional<::consensus::Index> latest_committed_snapshot_evidence_idx(
     return std::nullopt;
   }
 
-  return snapshots::get_snapshot_evidence_idx_from_file_name(path->filename());
+  return ccf::snapshots::get_snapshot_evidence_idx_from_file_name(
+    path->filename());
 }
 
 std::vector<uint8_t> read_latest_committed_snapshot_data(const fs::path& dir)

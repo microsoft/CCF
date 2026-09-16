@@ -1,8 +1,7 @@
 # Lean disaster recovery model
 
 This package contains the canonical Lean model of CCF's C++ recovery decision
-protocol and its permanent safety proofs. It is pinned to Lean 4.33.1 and
-Mathlib `v4.33.1`.
+protocol and its permanent safety proofs.
 
 ## Model
 

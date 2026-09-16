@@ -29,20 +29,19 @@
 #include "ds/non_blocking.h"
 #include "ds/notifying.h"
 #include "ds/oversized.h"
+#include "ds/time_bound_logger.h"
 #include "enclave/entry_points.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
 #include "host/files_cleanup_timer.h"
 #include "http_client/curl.h"
 #include "json_schema.h"
-#include "lfs_file_handler.h"
 #include "node_connections.h"
 #include "pal/quote_generation.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
 #include "tcp.h"
 #include "ticker.h"
-#include "time_bound_logger.h"
 #include "udp.h"
 
 #include <CLI11/CLI11.hpp>
@@ -681,12 +680,6 @@ namespace ccf
         config.files_cleanup.max_committed_ledger_chunks);
     }
 
-    // handle LFS-related messages from the enclave
-    asynchost::LFSFileHandler lfs_file_handler(
-      writer_factory.create_writer_to_inside());
-    lfs_file_handler.register_message_handlers(
-      buffer_processor.get_dispatcher());
-
     // Setup node-to-node connections
     auto [node_host, node_port] =
       cli::validate_address(config.network.node_to_node_interface.bind_address);
@@ -1017,12 +1010,19 @@ namespace ccf
         argv + argc, // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         "\" \""));
 
-    // Validated before the --check early return, so that operators verifying a
-    // configuration file are told about a ledger/ring-buffer size mismatch
-    // rather than discovering it when the node starts for real
+    // Validate before --check returns, not just when starting the node.
     try
     {
       validate_ledger_transaction_size(config);
+      const auto pending_node_timeout =
+        std::chrono::microseconds(config.pending_node_timeout);
+      if (
+        pending_node_timeout > std::chrono::microseconds::zero() &&
+        pending_node_timeout < std::chrono::milliseconds(1))
+      {
+        throw std::logic_error(
+          "pending_node_timeout must be 0s or at least 1ms");
+      }
     }
     catch (const std::logic_error& e)
     {
@@ -1077,7 +1077,7 @@ namespace ccf
     // set the host log level
     ccf::logger::config::level() = log_level;
 
-    asynchost::TimeBoundLogger::default_max_time =
+    ccf::ds::TimeBoundLogger::default_max_time =
       config.slow_io_logging_threshold;
 
     // create the enclave:

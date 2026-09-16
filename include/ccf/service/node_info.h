@@ -71,6 +71,10 @@ namespace ccf
      * compatibility.
      */
     bool retired_committed = false;
+
+    /** Time when this Pending node last sent a join request, in milliseconds
+     * since the Unix epoch. Optional for backward compatibility. */
+    std::optional<int64_t> pending_last_seen = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -83,7 +87,8 @@ namespace ccf
     certificate_signing_request,
     public_key,
     node_data,
-    retired_committed);
+    retired_committed,
+    pending_last_seen);
 }
 
 template <>

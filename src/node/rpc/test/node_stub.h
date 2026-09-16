@@ -17,6 +17,7 @@ namespace ccf
   {
   public:
     bool is_public = false;
+    bool can_replicate_result = true;
     ccf::COSESignaturesConfig cose_signatures_config = {};
 
     ExtendedState state() override
@@ -66,7 +67,7 @@ namespace ccf
 
     bool can_replicate() override
     {
-      return true;
+      return can_replicate_result;
     }
 
     std::optional<ccf::NodeId> get_primary() override
@@ -280,6 +281,7 @@ namespace ccf
   struct StubNodeContext : public ccf::AbstractNodeContext
   {
   public:
+    ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
     std::shared_ptr<StubNodeOperation> node_operation = nullptr;
     std::shared_ptr<StubGovernanceEffects> gov_effects = nullptr;
     std::shared_ptr<StubNodeStateCache> cache = nullptr;
@@ -298,7 +300,7 @@ namespace ccf
 
     ccf::NodeId get_node_id() const override
     {
-      return ccf::kv::test::PrimaryNodeId;
+      return node_id;
     }
   };
 }
