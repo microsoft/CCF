@@ -50,6 +50,15 @@ Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readine
 File: `ci-al4.yml`
 3rd party dependencies: None
 
+# Cross-platform LTS
+
+Builds configurable CCF release install trees on Azure Linux 3 and Azure Linux 4 in parallel, then runs the LTS live-upgrade test directly on a VMSS runner. By default, it upgrades from the previous stable CCF release to the latest stable release; both versions can be overridden using the manual inputs in [`cross-platform-lts.yml`](cross-platform-lts.yml). Separate runtime images install only the required shared-library packages and copy in the matching install tree. Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking. Runs weekly and manually, but not on pull requests because both full builds and the compatibility test are expensive.
+
+Shared workflow environment values define the Python version, base images, runner pool labels, install archive filename, and test workspace.
+
+File: `cross-platform-lts.yml`
+3rd party dependencies: None
+
 # Coverage
 
 Builds CCF with coverage enabled, runs unit and end to end tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
