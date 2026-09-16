@@ -79,33 +79,57 @@ jobs:
           cd python
           pytest
 
-      - name: "Check doc builds with no warnings"
-        run: |
-          set -ex
-          python3 -m venv --without-pip env
-          source env/bin/activate
-          uv pip install -e ./python
-          uv pip install -r doc/requirements.txt
-          uv pip install -r doc/historical_ccf_requirements.txt
-          sphinx-build --fail-on-warning -b html doc doc/html
-
       - name: "Run Unit tests"
         run: |
           set -ex
           cd build
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
 
-      - name: "Run e2e tests (bucket_a)"
+      - name: "Build docs and run e2e tests (bucket_a)"
+        shell: bash
         run: |
-          set -ex
-          cd build
-          ./tests.sh --timeout 360 --output-on-failure -L bucket_a
+          set -exo pipefail
+          source env/bin/activate
+          uv pip install -e ./python
+          uv pip install -r doc/requirements.txt
+          uv pip install -r doc/historical_ccf_requirements.txt
+
+          # Keep compilation and unit tests out of the concurrency window so
+          # the compatibility networks retain CPU headroom.
+          mkdir -p build/ci-logs
+          declare -A pids
+          (
+            time sphinx-build --fail-on-warning -b html doc doc/html
+          ) > build/ci-logs/docs.log 2>&1 &
+          pids[docs]=$!
+
+          (
+            cd build
+            time ./tests.sh --timeout 360 --output-on-failure -L bucket_a
+          ) > build/ci-logs/e2e.log 2>&1 &
+          pids[e2e]=$!
+
+          # Reap both processes, even if one fails, and keep their logs separate.
+          status=0
+          for task in docs e2e; do
+            if wait "${pids[$task]}"; then
+              rc=0
+            else
+              rc=$?
+              status=1
+            fi
+            echo "::group::$task (exit $rc)"
+            cat "build/ci-logs/$task.log"
+            echo "::endgroup::"
+          done
+          exit "$status"
 
       - name: "Upload logs for virtual A"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-azurelinux-virtual-a
           path: |
+            build/ci-logs/
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
