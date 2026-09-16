@@ -4,6 +4,7 @@
 
 #include "ccf/ds/nonstd.h"
 
+#include <algorithm>
 #include <optional>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -62,6 +63,35 @@ namespace ccf::ds::json
     auto element = nlohmann::json::object();
     fill_schema<T>(element);
     return element;
+  }
+
+  /** Produces the schema for a field which is marked as required (ie -
+   * always present in the JSON object), but whose C++ type is
+   * std::optional<T>. Such fields are always serialised, but may hold a JSON
+   * null when the C++ value is std::nullopt (for instance, a consensus's
+   * primary_id while no primary is currently known). The produced schema
+   * therefore describes the inner type T, additionally marked as nullable.
+   */
+  template <typename T>
+  inline nlohmann::json required_schema_element()
+  {
+    if constexpr (ccf::nonstd::is_specialization<T, std::optional>::value)
+    {
+      auto element = schema_element<typename T::value_type>();
+      element["nullable"] = true;
+      const auto enum_it = element.find("enum");
+      if (
+        enum_it != element.end() &&
+        std::find(enum_it->begin(), enum_it->end(), nullptr) == enum_it->end())
+      {
+        enum_it->push_back(nullptr);
+      }
+      return element;
+    }
+    else
+    {
+      return schema_element<T>();
+    }
   }
 
   namespace adl

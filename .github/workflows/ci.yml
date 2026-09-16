@@ -14,8 +14,12 @@ concurrency:
 permissions: read-all
 
 env:
-  NPM_CONFIG_REGISTRY: https://packagefeedproxy.microsoft.io/npm/
-  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+  # Add bounded retries for transient runner-to-package-storage route failures.
+  NPM_CONFIG_FETCH_RETRIES: "5"
+  NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
+  NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "5000"
+  NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "30000"
+  NPM_CONFIG_FETCH_TIMEOUT: "60000"
 
 jobs:
   vmss-virtual-a:
@@ -23,7 +27,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=ci_build_tidy-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -44,10 +48,14 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
+        uses: ./.github/actions/install-ci-dependencies
+        with:
+          python-requirements: doc/requirements.txt,doc/historical_ccf_requirements.txt,tests/requirements.txt
+
+      - name: "Install development dependencies"
         shell: bash
         run: |
           set -ex
-          ./scripts/setup-ci.sh
           ./scripts/setup-dev.sh
 
       - name: "Run Checks and Build Debug with clang-tidy"
@@ -64,22 +72,21 @@ jobs:
       - name: "Run tests for Python package"
         run: |
           set -ex
-          python3 -m venv env
+          python3 -m venv --without-pip env
           source env/bin/activate
-          pip install -U -q pip pytest
-          pip install -q -U -e python
+          uv pip install -q pytest
+          uv pip install -q -e python
           cd python
           pytest
 
       - name: "Check doc builds with no warnings"
         run: |
           set -ex
-          python3 -m venv env
+          python3 -m venv --without-pip env
           source env/bin/activate
-          pip install -U pip
-          pip install -U -e ./python
-          pip install -U -r doc/requirements.txt
-          pip install -U -r doc/historical_ccf_requirements.txt
+          uv pip install -e ./python
+          uv pip install -r doc/requirements.txt
+          uv pip install -r doc/historical_ccf_requirements.txt
           sphinx-build --fail-on-warning -b html doc doc/html
 
       - name: "Run Unit tests"
@@ -113,7 +120,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=ci_build_test_virtual-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -138,10 +145,7 @@ jobs:
         shell: bash
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Confirm running on Virtual"
         run: |
@@ -156,7 +160,8 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
+          # Recovery and schema dynamically select all three logging variants.
+          ninja js_generic logging logging_cose_only logging_cose_only_allow_join_dual programmability nobuiltins
         shell: bash
 
       - name: "Test virtual"
@@ -188,7 +193,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=ci_build_test_virtual_rest-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -209,10 +214,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug"
         run: |
@@ -221,7 +223,8 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
+          # bucket_c and partitions, including the Python-driven Raft scenarios.
+          ninja js_generic logging logging_cose_only programmability raft_driver
         shell: bash
 
       - name: "Test virtual"
@@ -245,91 +248,6 @@ jobs:
         with:
           name: logs-azurelinux-virtual-c
           path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
-            build/workspace/**/openapi_coverage.json
-          if-no-files-found: ignore
-        if: success() || failure()
-
-  aci_snp_milan:
-    name: "ACI SNP Milan"
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-c-aci-ci,
-        "JobId=aci_snp_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - name: "Dump environment"
-        run: |
-          set -ex
-          # Dump environment variables, extract Fabric_NodeIPOrFQDN
-          # and save it to a file for reconfiguration test using THIM.
-          { cat /proc/*/environ 2>/dev/null || true; } | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
-          echo "::group::Disk usage"
-          df -kh
-          echo "::endgroup::"
-          echo "::group::Mounts"
-          mount
-          echo "::endgroup::"
-          echo "::group::CPU Info"
-          cat /proc/cpuinfo
-          echo "::endgroup::"
-        shell: bash
-
-      - name: "Confirm running on SEV-SNP Milan"
-        run: |
-          set -ex
-          python3 tests/infra/platform_detection.py snp milan
-        shell: bash
-
-      - name: "Build Debug"
-        run: |
-          set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
-          ninja
-        shell: bash
-
-      - name: "Tests"
-        run: |
-          set -ex
-          cd build
-          rm -rf /github/home/.cache
-          mkdir -p /github/home/.cache
-          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
-          ./tests.sh --timeout 360 --output-on-failure -R code_update
-          ./tests.sh --timeout 360 -V -R '^ledger_bench$'
-        shell: bash
-        env:
-          ELECTION_TIMEOUT_MS: 10000
-
-      - name: "Capture dmesg"
-        run: |
-          set -ex
-          echo "::group::Disk usage"
-          df -kh
-          echo "::endgroup::"
-          dmesg > dmesg.log
-        shell: bash
-        if: success() || failure()
-
-      - name: "Upload logs"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: logs-aci-snp-milan
-          path: |
-            dmesg.log
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
@@ -383,7 +301,8 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
-          ninja
+          # SNP unit/e2e tests, code_update, and the explicitly run ledger bench.
+          ninja logging programmability snp_ioctl_test snp_attestation_test ledger_bench
         shell: bash
 
       - name: "Tests"
@@ -397,6 +316,7 @@ jobs:
           ./tests.sh --timeout 360 -V -R '^ledger_bench$'
         shell: bash
         env:
+          CCF_TEST_SYNC_AFTER_SETUP: 1
           ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"

@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/locking.h"
 #include "ccf/endpoint_registry.h"
 #include "ccf/http_status.h"
 #include "ccf/node/node_configuration_interface.h"
 #include "ccf/node_context.h"
-#include "ccf/pal/locking.h"
 #include "ccf/rpc_exception.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/signed_req.h"
@@ -17,7 +17,6 @@
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
-#include "http/http_rpc_context.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
 #include "node/endpoint_context_impl.h"
@@ -41,7 +40,7 @@ namespace ccf
     ccf::AbstractNodeContext& node_context;
 
   private:
-    ccf::pal::Mutex open_lock;
+    ccf::ds::Mutex open_lock;
     std::atomic<bool> is_open_{false};
 
     std::atomic<ccf::kv::Consensus*> consensus{nullptr};
@@ -900,8 +899,7 @@ namespace ccf
             };
           }
 
-          ccf::kv::CommitResult result =
-            tx.commit(ctx->claims, nullptr, ws_observer);
+          ccf::kv::CommitResult result = tx.commit(ctx->claims, ws_observer);
 
           switch (result)
           {
@@ -1017,6 +1015,18 @@ namespace ccf
 
           return;
         }
+        catch (const ccf::kv::MaxTransactionSizeExceeded& e)
+        {
+          // Thrown before the transaction is applied, so the store is
+          // unchanged and later transactions are unaffected
+          ctx->clear_response_headers();
+          ctx->set_error(
+            HTTP_STATUS_PAYLOAD_TOO_LARGE,
+            ccf::errors::TransactionTooLarge,
+            e.what());
+
+          return;
+        }
         catch (const ccf::kv::KvSerialiserException& e)
         {
           // If serialising the committed transaction fails, there is no way
@@ -1077,7 +1087,7 @@ namespace ccf
 
     void open() override
     {
-      std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
+      std::lock_guard<ccf::ds::Mutex> mguard(open_lock);
       if (!is_open_.load(std::memory_order_relaxed))
       {
         LOG_INFO_FMT("Opening frontend");

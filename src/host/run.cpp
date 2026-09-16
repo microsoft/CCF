@@ -21,26 +21,26 @@
 #include "common/enclave_interface_types.h"
 #include "config_schema.h"
 #include "configuration.h"
+#include "consensus/ledger_enclave_types.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "ds/non_blocking.h"
 #include "ds/notifying.h"
 #include "ds/oversized.h"
+#include "ds/time_bound_logger.h"
 #include "enclave/entry_points.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
 #include "host/files_cleanup_timer.h"
-#include "http/curl.h"
+#include "http_client/curl.h"
 #include "json_schema.h"
-#include "lfs_file_handler.h"
 #include "node_connections.h"
 #include "pal/quote_generation.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
 #include "tcp.h"
 #include "ticker.h"
-#include "time_bound_logger.h"
 #include "udp.h"
 
 #include <CLI11/CLI11.hpp>
@@ -96,6 +96,28 @@ static constexpr size_t retry_interval_ms = 100;
 
 namespace ccf
 {
+  void validate_ledger_transaction_size(const host::HostConfig& config)
+  {
+    const auto max_message_size = config.memory.max_msg_size.count_bytes();
+    const auto max_transaction_size =
+      config.ledger.max_transaction_size.count_bytes();
+    const auto response_overhead =
+      ::consensus::ledger_range_response_metadata_size;
+
+    if (
+      max_message_size <= response_overhead ||
+      max_transaction_size > max_message_size - response_overhead)
+    {
+      throw std::logic_error(fmt::format(
+        "ledger.max_transaction_size ({}) must be at least {} bytes smaller "
+        "than memory.max_msg_size ({}) so a single ledger entry fits in a "
+        "ring-buffer range response",
+        max_transaction_size,
+        response_overhead,
+        max_message_size));
+    }
+  }
+
   void validate_and_adjust_recovery_threshold(host::HostConfig& config)
   {
     if (config.command.type != StartType::Start)
@@ -659,12 +681,6 @@ namespace ccf
         config.files_cleanup.max_committed_ledger_chunks);
     }
 
-    // handle LFS-related messages from the enclave
-    asynchost::LFSFileHandler lfs_file_handler(
-      writer_factory.create_writer_to_inside());
-    lfs_file_handler.register_message_handlers(
-      buffer_processor.get_dispatcher());
-
     // Setup node-to-node connections
     auto [node_host, node_port] =
       cli::validate_address(config.network.node_to_node_interface.bind_address);
@@ -715,7 +731,7 @@ namespace ccf
     // Initialise the curlm singleton
     curl_global_init(CURL_GLOBAL_DEFAULT);
     auto curl_libuv_context =
-      curl::CurlmLibuvContextSingleton(uv_default_loop());
+      http_client::CurlmLibuvContextSingleton(uv_default_loop());
 
     // Setup RPC interfaces
     setup_rpc_interfaces(config, rpc, rpc_udp);
@@ -994,6 +1010,26 @@ namespace ccf
         argv + argc, // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         "\" \""));
 
+    // Validate before --check returns, not just when starting the node.
+    try
+    {
+      validate_ledger_transaction_size(config);
+      const auto pending_node_timeout =
+        std::chrono::microseconds(config.pending_node_timeout);
+      if (
+        pending_node_timeout > std::chrono::microseconds::zero() &&
+        pending_node_timeout < std::chrono::milliseconds(1))
+      {
+        throw std::logic_error(
+          "pending_node_timeout must be 0s or at least 1ms");
+      }
+    }
+    catch (const std::logic_error& e)
+    {
+      LOG_FATAL_FMT("{}. Exiting.", e.what());
+      return static_cast<int>(CLI::ExitCodes::ValidationError);
+    }
+
     if (check_config_only)
     {
       LOG_INFO_FMT("Configuration file successfully verified");
@@ -1041,7 +1077,7 @@ namespace ccf
     // set the host log level
     ccf::logger::config::level() = log_level;
 
-    asynchost::TimeBoundLogger::default_max_time =
+    ccf::ds::TimeBoundLogger::default_max_time =
       config.slow_io_logging_threshold;
 
     // create the enclave:

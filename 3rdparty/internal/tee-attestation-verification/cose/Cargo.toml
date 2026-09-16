@@ -1,8 +1,8 @@
 [package]
 name = "tee-attestation-verification-cose"
-version = "1.0.4"
+version = "1.0.8"
 edition = "2021"
-rust-version = "1.77"
+rust-version = "1.85"
 repository = "https://github.com/microsoft/TEE-Attestation-Verification"
 keywords = ["confidentiality", "sev-snp", "tpm"]
 description = "COSE verification helpers for TEE attestation verification"
@@ -12,11 +12,9 @@ license = "MIT"
 [features]
 default = ["crypto/default"]
 crypto_openssl = ["crypto/crypto_openssl"]
-crypto_pure_rust = ["crypto/crypto_pure_rust"]
 crypto_webcrypto = ["crypto/crypto_webcrypto"]
+crypto_windows = ["crypto/crypto_windows"]
 
 [dependencies]
-crypto = { package = "tee-attestation-verification-crypto", version = "1.0.4", path = "../crypto", default-features = false }
-# project-everest/everparse tag v2026.07.02 resolves to this pinned commit.
-cborrs = { git = "https://github.com/project-everest/everparse.git", rev = "950bc93838ac2faae51126d8acd0637cf8c8a569" }
-cborrs-nondet = { git = "https://github.com/project-everest/everparse.git", rev = "950bc93838ac2faae51126d8acd0637cf8c8a569" }
+cbor = { package = "tee-attestation-verification-cbor", version = "1.0.8", path = "../cbor" }
+crypto = { package = "tee-attestation-verification-crypto", version = "1.0.8", path = "../crypto", default-features = false }

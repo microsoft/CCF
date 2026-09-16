@@ -8,6 +8,8 @@
 
 namespace consensus
 {
+  static constexpr size_t ledger_range_response_metadata_size = 2048;
+
   using Index = uint64_t;
 
   enum LedgerRequestPurpose : uint8_t

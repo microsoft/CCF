@@ -27,7 +27,6 @@ set(
   ${CCF_DIR}/src/crypto/openssl/verifier.cpp
   ${CCF_DIR}/src/crypto/openssl/cose_verifier.cpp
   ${CCF_DIR}/src/crypto/sharing.cpp
-  ${CCF_DIR}/src/crypto/cbor.cpp
 )
 
 find_library(CRYPTO_LIBRARY crypto)
@@ -43,14 +42,8 @@ add_san(ccfcrypto)
 add_hardening(ccfcrypto)
 add_tidy(ccfcrypto)
 
-target_link_libraries(ccfcrypto PUBLIC crypto ssl evercbor ccf_threading)
-target_link_libraries(
-  ccfcrypto
-  PUBLIC
-    $<BUILD_INTERFACE:${CCF_RS_LIB_BUILD_PATH}>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/lib/${CCF_RS_LIB}>
-)
-add_dependencies(ccfcrypto cargo-build_ccf_rs)
+target_link_libraries(ccfcrypto PUBLIC crypto ssl ccf_threading)
+target_link_libraries(ccfcrypto PUBLIC ccf_rs)
 set_property(TARGET ccfcrypto PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 install(TARGETS ccfcrypto EXPORT ccf DESTINATION lib)

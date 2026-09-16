@@ -1,0 +1,42 @@
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -7549,6 +7549,8 @@
+     if (!JS_IsObject(error_obj))
+         return; /* protection in the out of memory case */
+     
++    /* An allocation below may replace and free the pending exception. */
++    JS_DupValue(ctx, error_obj);
+     js_dbuf_init(ctx, &dbuf);
+     if (filename) {
+         dbuf_printf(&dbuf, "    at %s", filename);
+@@ -7557,7 +7559,7 @@
+         dbuf_putc(&dbuf, '\n');
+         str = JS_NewString(ctx, filename);
+         if (JS_IsException(str))
+-            return;
++            goto done;
+         /* Note: SpiderMonkey does that, could update once there is a standard */
+         if (JS_DefinePropertyValue(ctx, error_obj, JS_ATOM_fileName, str,
+                                    JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE) < 0 ||
+@@ -7565,7 +7567,7 @@
+                                    JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE) < 0 ||
+             JS_DefinePropertyValue(ctx, error_obj, JS_ATOM_columnNumber, JS_NewInt32(ctx, col_num),
+                                    JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE) < 0) {
+-            return;
++            goto done;
+         }
+     }
+     for(sf = ctx->rt->current_stack_frame; sf != NULL; sf = sf->prev_frame) {
+@@ -7611,9 +7613,11 @@
+         str = JS_NULL;
+     else
+         str = JS_NewString(ctx, (char *)dbuf.buf);
+-    dbuf_free(&dbuf);
+     JS_DefinePropertyValue(ctx, error_obj, JS_ATOM_stack, str,
+                            JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
++ done:
++    dbuf_free(&dbuf);
++    JS_FreeValue(ctx, error_obj);
+ }
+ 
+ /* Note: it is important that no exception is returned by this function */

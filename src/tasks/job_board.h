@@ -13,7 +13,7 @@ namespace ccf::tasks
   class JobBoard
   {
     struct PImpl;
-    std::unique_ptr<PImpl> pimpl = nullptr;
+    std::unique_ptr<PImpl> pimpl;
 
     void add_timed_task(
       Task task,

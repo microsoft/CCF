@@ -3,18 +3,18 @@
 #pragma once
 
 #include "ccf/crypto/symmetric_key.h"
+#include "ccf/ds/locking.h"
 #include "ccf/ds/nonstd.h"
-#include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "ds/messaging.h"
 #include "ds/serialized.h"
+#include "ds/time_bound_logger.h"
 #include "ds/worker_shutdown_gate.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "ledger_filenames.h"
-#include "time_bound_logger.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -90,7 +90,7 @@ namespace asynchost
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
     FILE* file = nullptr;
-    ccf::pal::Mutex file_lock;
+    ccf::ds::Mutex file_lock;
 
     size_t start_idx = 1;
     size_t total_len = 0; // Points to end of last written entry
@@ -114,7 +114,7 @@ namespace asynchost
         return 0;
       }
 
-      TimeBoundLogger log_if_slow(
+      ccf::ds::TimeBoundLogger log_if_slow(
         fmt::format("Closing ledger file - fclose({})", file_name));
       errno = 0;
       auto* file_to_close = file;
@@ -144,7 +144,7 @@ namespace asynchost
       // Use O_EXCL to atomically fail if the file already exists, and create
       // with restrictive permissions (0600) rather than relying on umask.
       {
-        TimeBoundLogger log_if_slow(
+        ccf::ds::TimeBoundLogger log_if_slow(
           fmt::format("Creating ledger file - open({})", file_path));
         file = files::open_file(file_path, O_RDWR | O_CREAT | O_EXCL, "w+b");
       }
@@ -186,7 +186,7 @@ namespace asynchost
       const auto* const mode = committed ? "rb" : "r+b";
 
       {
-        TimeBoundLogger log_if_slow(
+        ccf::ds::TimeBoundLogger log_if_slow(
           fmt::format("Opening ledger file - fopen({})", file_path));
         // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         file = fopen(file_path.c_str(), mode);
@@ -208,7 +208,7 @@ namespace asynchost
       fseeko(file, 0, SEEK_SET);
       positions_offset_header_t table_offset = 0;
       {
-        TimeBoundLogger log_if_slow(
+        ccf::ds::TimeBoundLogger log_if_slow(
           fmt::format("Reading positions offset - fread({})", file_path));
         if (
           fread(&table_offset, sizeof(positions_offset_header_t), 1, file) != 1)
@@ -253,7 +253,7 @@ namespace asynchost
           (total_file_size - table_offset) / sizeof(positions.at(0)));
 
         {
-          TimeBoundLogger log_if_slow(fmt::format(
+          ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
             "Reading positions table ({} entries) - fread({})",
             positions.size(),
             file_path));
@@ -277,7 +277,7 @@ namespace asynchost
         total_len = sizeof(positions_offset_header_t);
         auto len = total_file_size - total_len;
 
-        TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
           "Recovering entries from incomplete ledger file {} ({} bytes)",
           file_path,
           len));
@@ -378,7 +378,7 @@ namespace asynchost
         std::vector<uint8_t> entry(size);
         bool read_mismatch = false;
         {
-          TimeBoundLogger log_if_slow(fmt::format(
+          ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
             "Reading existing entry for comparison ({} bytes) - fread({})",
             size,
             file_name));
@@ -404,7 +404,7 @@ namespace asynchost
       if (should_write)
       {
         {
-          TimeBoundLogger log_if_slow(fmt::format(
+          ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
             "Writing ledger entry ({} bytes) - fwrite({})", size, file_name));
           if (fwrite(data, size, 1, file) != 1)
           {
@@ -415,7 +415,7 @@ namespace asynchost
         // Committable entries get flushed straight away
         if (committable)
         {
-          TimeBoundLogger log_if_slow(
+          ccf::ds::TimeBoundLogger log_if_slow(
             fmt::format("Flushing ledger entry - fflush({})", file_name));
           if (fflush(file) != 0)
           {
@@ -505,7 +505,7 @@ namespace asynchost
         file_name,
         max_size.value_or(0));
 
-      std::unique_lock<ccf::pal::Mutex> guard(file_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(file_lock);
       auto [size, to_] = entries_size(from, to, max_size);
       if (size == 0)
       {
@@ -515,7 +515,7 @@ namespace asynchost
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
 
       {
-        TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
           "Reading ledger entries {} to {} ({} bytes) - fread({})",
           from,
           to_,
@@ -547,7 +547,7 @@ namespace asynchost
       {
         // Truncating everything triggers file deletion
         {
-          TimeBoundLogger log_if_slow(fmt::format(
+          ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
             "Removing ledger file on truncation - remove({})", file_name));
           if (!fs::remove(dir / file_name))
           {
@@ -564,7 +564,7 @@ namespace asynchost
       fseeko(file, 0, SEEK_SET);
       positions_offset_header_t table_offset = 0;
       {
-        TimeBoundLogger log_if_slow(
+        ccf::ds::TimeBoundLogger log_if_slow(
           fmt::format("Resetting positions offset - fwrite({})", file_name));
         if (fwrite(&table_offset, sizeof(table_offset), 1, file) != 1)
         {
@@ -580,7 +580,7 @@ namespace asynchost
       }
 
       {
-        TimeBoundLogger log_if_slow(
+        ccf::ds::TimeBoundLogger log_if_slow(
           fmt::format("Flushing truncated ledger - fflush({})", file_name));
         if (fflush(file) != 0)
         {
@@ -590,7 +590,7 @@ namespace asynchost
       }
 
       {
-        TimeBoundLogger log_if_slow(
+        ccf::ds::TimeBoundLogger log_if_slow(
           fmt::format("Truncating ledger file - ftruncate({})", file_name));
         if (ftruncate(fileno(file), total_len) != 0)
         {
@@ -627,7 +627,7 @@ namespace asynchost
       size_t table_offset = ftello(file);
 
       {
-        TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
           "Writing positions table ({} entries) - fwrite({})",
           positions.size(),
           file_name));
@@ -649,7 +649,7 @@ namespace asynchost
       }
 
       {
-        TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
           "Writing positions table offset - fwrite({})", file_name));
         if (fwrite(&table_offset, sizeof(table_offset), 1, file) != 1)
         {
@@ -659,7 +659,7 @@ namespace asynchost
       }
 
       {
-        TimeBoundLogger log_if_slow(
+        ccf::ds::TimeBoundLogger log_if_slow(
           fmt::format("Completing ledger file - fflush({})", file_name));
         if (fflush(file) != 0)
         {
@@ -700,7 +700,7 @@ namespace asynchost
 
       try
       {
-        TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
           "Renaming ledger file {} to {} - rename()",
           file_name,
           new_file_name));
@@ -723,7 +723,7 @@ namespace asynchost
       {
         int open_errno = 0;
         {
-          TimeBoundLogger log_if_slow(
+          ccf::ds::TimeBoundLogger log_if_slow(
             fmt::format("Reopening ledger file - fopen({})", new_file_path));
           errno = 0;
           // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
@@ -763,7 +763,7 @@ namespace asynchost
       // committed_ledger_path_with_idx() is complete and can be safely read and
       // served to other nodes.
       {
-        TimeBoundLogger log_if_slow(
+        ccf::ds::TimeBoundLogger log_if_slow(
           fmt::format("Committing ledger file - fsync({})", file_name));
         if (fsync(fileno(file)) != 0)
         {
@@ -810,7 +810,7 @@ namespace asynchost
     // Ledger directories (read-only)
     const std::vector<fs::path> read_ledger_dirs;
 
-    ccf::pal::Mutex state_lock;
+    ccf::ds::Mutex state_lock;
 
     // Keep tracks of all ledger files for writing.
     // Current ledger file is always the last one
@@ -819,7 +819,7 @@ namespace asynchost
     // Cache of ledger files for reading
     const size_t max_read_cache_files;
     std::list<std::shared_ptr<LedgerFile>> files_read_cache;
-    ccf::pal::Mutex read_cache_lock;
+    ccf::ds::Mutex read_cache_lock;
 
     size_t last_idx = 0;
     size_t committed_idx = 0;
@@ -869,7 +869,7 @@ namespace asynchost
       }
 
       {
-        std::unique_lock<ccf::pal::Mutex> guard(read_cache_lock);
+        std::unique_lock<ccf::ds::Mutex> guard(read_cache_lock);
 
         // First, try to find file from read cache
         for (auto const& f : files_read_cache)
@@ -928,7 +928,7 @@ namespace asynchost
       }
 
       {
-        std::unique_lock<ccf::pal::Mutex> guard(read_cache_lock);
+        std::unique_lock<ccf::ds::Mutex> guard(read_cache_lock);
 
         files_read_cache.emplace_back(match_file);
         if (files_read_cache.size() > max_read_cache_files)
@@ -991,7 +991,7 @@ namespace asynchost
       bool read_cache_only = false,
       std::optional<size_t> max_entries_size = std::nullopt)
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       // Note: if max_entries_size is set, this returns contiguous ledger
       // entries on a best effort basis, so that the returned entries fit in
@@ -1066,7 +1066,7 @@ namespace asynchost
       auto ignored_file_name =
         fmt::format("{}{}", file_name, ledger_ignored_file_suffix);
       {
-        TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
           "Ignoring ledger file - rename({} to {})",
           file_name,
           ignored_file_name));
@@ -1083,7 +1083,7 @@ namespace asynchost
         auto start_idx = get_start_idx_from_file_name(file_name);
         if (start_idx > idx)
         {
-          TimeBoundLogger log_if_slow(fmt::format(
+          ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
             "Deleting divergent ledger file - remove({})", file_name));
           if (!fs::remove(ledger_dir / file_name))
           {
@@ -1302,7 +1302,7 @@ namespace asynchost
       }
       else
       {
-        TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
           "Creating ledger directory - create_directory({})", ledger_dir));
         if (!fs::create_directory(ledger_dir))
         {
@@ -1327,10 +1327,10 @@ namespace asynchost
 
     void init(size_t idx, size_t recovery_start_idx_ = 0)
     {
-      TimeBoundLogger log_if_slow(
+      ccf::ds::TimeBoundLogger log_if_slow(
         fmt::format("Initing ledger - seqno={}", idx));
 
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       init_idx = idx;
 
@@ -1364,7 +1364,7 @@ namespace asynchost
             last_idx_file.value());
 
           {
-            TimeBoundLogger log_rename_if_slow(
+            ccf::ds::TimeBoundLogger log_rename_if_slow(
               fmt::format("Removing committed suffix - rename({})", file_name));
             files::rename(
               ledger_dir / file_name,
@@ -1408,7 +1408,7 @@ namespace asynchost
       // Note: this operation cannot be rolled back.
       LOG_INFO_FMT("Ledger complete recovery");
 
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       for (auto it = files.begin(); it != files.end();)
       {
@@ -1435,21 +1435,21 @@ namespace asynchost
 
     [[nodiscard]] size_t get_last_idx()
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       return last_idx;
     }
 
     void set_recovery_start_idx(size_t idx)
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       recovery_start_idx = idx;
     }
 
     std::optional<LedgerReadResult> read_entry(size_t idx)
     {
-      TimeBoundLogger log_if_slow(
+      ccf::ds::TimeBoundLogger log_if_slow(
         fmt::format("Reading ledger entry at {}", idx));
 
       // Locking is done in read_entries_range
@@ -1462,7 +1462,7 @@ namespace asynchost
       size_t to,
       std::optional<size_t> max_entries_size = std::nullopt)
     {
-      TimeBoundLogger log_if_slow(
+      ccf::ds::TimeBoundLogger log_if_slow(
         fmt::format("Reading ledger entries from {} to {}", from, to));
 
       // Locking is done in read_entries_range
@@ -1472,10 +1472,10 @@ namespace asynchost
 
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
-      TimeBoundLogger log_if_slow(fmt::format(
+      ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
         "Writing ledger entry - {} bytes, committable={}", size, committable));
 
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       auto header =
         serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
@@ -1565,9 +1565,10 @@ namespace asynchost
 
     void truncate(size_t idx, bool recovery_mode = false)
     {
-      TimeBoundLogger log_if_slow(fmt::format("Truncating ledger at {}", idx));
+      ccf::ds::TimeBoundLogger log_if_slow(
+        fmt::format("Truncating ledger at {}", idx));
 
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       LOG_DEBUG_FMT(
         "Ledger truncate: {}/{} [recovery: {}]", idx, last_idx, recovery_mode);
@@ -1649,10 +1650,10 @@ namespace asynchost
 
     void commit(size_t idx)
     {
-      TimeBoundLogger log_if_slow(
+      ccf::ds::TimeBoundLogger log_if_slow(
         fmt::format("Committing ledger entry {}", idx));
 
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       LOG_DEBUG_FMT("Ledger commit: {}/{}", idx, last_idx);
 
@@ -1692,7 +1693,7 @@ namespace asynchost
 
     [[nodiscard]] bool is_in_committed_file(size_t idx)
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       return idx <= end_of_committed_files_idx;
     }
@@ -1705,7 +1706,7 @@ namespace asynchost
     [[nodiscard]] std::optional<fs::path> committed_ledger_path_with_idx(
       size_t idx)
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       if (idx > end_of_committed_files_idx)
       {
@@ -1734,7 +1735,7 @@ namespace asynchost
 
     [[nodiscard]] size_t get_init_idx()
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       return init_idx;
     }
@@ -1884,9 +1885,8 @@ namespace asynchost
 
           // Ledger entries response has metadata so cap total entries size
           // accordingly
-          constexpr size_t write_ledger_range_response_metadata_size = 2048;
           auto max_entries_size = to_enclave->get_max_message_size() -
-            write_ledger_range_response_metadata_size;
+            ::consensus::ledger_range_response_metadata_size;
 
           if (is_in_committed_file(to_idx))
           {

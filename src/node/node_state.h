@@ -7,11 +7,11 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
+#include "ccf/ds/locking.h"
 #include "ccf/entity_id.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/pal/attestation_sev_snp.h"
-#include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
 #include "ccf/pal/snp_ioctl.h"
 #include "ccf/pal/uvm_endorsements.h"
@@ -30,8 +30,8 @@
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
-#include "http/curl.h"
 #include "http/http_parser.h"
+#include "http_client/curl.h"
 #include "indexing/indexer.h"
 #include "js/global_class_ids.h"
 #include "network_state.h"
@@ -44,6 +44,7 @@
 #include "node/local_sealing.h"
 #include "node/node_inbound_message.h"
 #include "node/node_to_node_channel_manager.h"
+#include "node/pending_node_cleanup.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
 #include "node/signature_cache_subsystem.h"
@@ -112,7 +113,8 @@ namespace ccf
       best_view = ls->view;
     }
 
-    auto lcs = tx.ro<ccf::CoseSignatures>(Tables::COSE_SIGNATURES)->get();
+    auto lcs = tx.ro<ccf::CoseSignatures>(Tables::COSE_SIGNATURES)
+                 ->get(ccf::IdentityType::CLASSICAL);
     if (lcs.has_value())
     {
       auto receipt = cose::decode_ccf_receipt(lcs.value(), false);
@@ -176,7 +178,7 @@ namespace ccf
           NodeState* owner;
           ~ClearOnExit()
           {
-            std::lock_guard<pal::Mutex> guard(owner->lock);
+            std::lock_guard<ds::Mutex> guard(owner->lock);
             owner->snapshot_fetch_task = nullptr;
           }
         } clear_on_exit{owner};
@@ -238,7 +240,7 @@ namespace ccf
             snapshots::get_snapshot_idx_from_file_name(
               latest_peer_snapshot->snapshot_name);
 
-          std::lock_guard<pal::Mutex> guard(owner->lock);
+          std::lock_guard<ds::Mutex> guard(owner->lock);
           owner->set_startup_snapshot(
             snapshot_seqno, std::move(latest_peer_snapshot->snapshot_data));
         }
@@ -274,7 +276,7 @@ namespace ccf
           BackupSnapshotFetch* task;
           ~ClearOnExit()
           {
-            std::lock_guard<pal::Mutex> guard(
+            std::lock_guard<ds::Mutex> guard(
               owner->backup_snapshot_fetch_task_lock);
             if (owner->backup_snapshot_fetch_task.get() == task)
             {
@@ -408,7 +410,7 @@ namespace ccf
     // this node's core state
     //
     ::ds::StateMachine<NodeStartupState> sm;
-    pal::Mutex lock;
+    ds::Mutex lock;
     StartType start_type = StartType::Start;
 
     ccf::crypto::CurveID curve_id;
@@ -417,7 +419,7 @@ namespace ccf
     std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> node_sign_kp;
     NodeId self;
     std::shared_ptr<ccf::crypto::RSAKeyPair> node_encrypt_kp;
-    pal::Mutex node_certificates_lock;
+    ds::Mutex node_certificates_lock;
     ccf::crypto::Pem self_signed_node_cert;
     std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
@@ -472,7 +474,7 @@ namespace ccf
     // apply_changes(), with KV map locks held, this mutex must never be held
     // while accessing the KV store. Accessors copy the state out and release
     // the mutex before doing any KV work.
-    pal::Mutex recovery_secrets_lock;
+    ds::Mutex recovery_secrets_lock;
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets;
     using SealedRecoveryData = std::optional<
       std::tuple<ccf::NodeId, std::vector<uint8_t>, SealedRecoveryKey>>;
@@ -485,6 +487,7 @@ namespace ccf
     // JWT key auto-refresh
     //
     std::shared_ptr<JwtKeyAutoRefresh> jwt_key_auto_refresh;
+    std::shared_ptr<PendingNodeCleanup> pending_node_cleanup;
 
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
     // Set to the snapshot seqno when a node starts from one and remembered for
@@ -493,7 +496,7 @@ namespace ccf
 
     ccf::tasks::Task join_periodic_task;
     ccf::tasks::Task snapshot_fetch_task;
-    pal::Mutex backup_snapshot_fetch_task_lock;
+    ds::Mutex backup_snapshot_fetch_task_lock;
     ccf::tasks::Task backup_snapshot_fetch_task;
 
     // Set while a join request is in flight so the periodic join timer does
@@ -833,7 +836,7 @@ namespace ccf
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
       sm.expect(NodeStartupState::uninitialized);
 
       consensus_config = consensus_config_;
@@ -881,10 +884,14 @@ namespace ccf
       }
 
       auto snp_attestation =
-        AttestationProvider::get_snp_attestation(quote_info);
+        AttestationProvider::get_snp_attestation_report(quote_info);
       if (snp_attestation.has_value())
       {
-        snp_tcb_version = snp_attestation.value().reported_tcb;
+        const uint8_t* data = nullptr;
+        size_t size = 0;
+        tav_snp_attestation_report_reported_tcb(
+          snp_attestation.value().get(), &data, &size);
+        snp_tcb_version = ccf::pal::snp::TcbVersionRaw({data, size});
       }
 
       // Verify that the security policy matches the quoted digest of the policy
@@ -1032,19 +1039,18 @@ namespace ccf
 
               // Check that tcbm in endorsement matches reported TCB in our
               // retrieved attestation
-              const auto* quote =
-                reinterpret_cast<const ccf::pal::snp::Attestation*>(
-                  quote_info.quote.data());
-              const auto reported_tcb = quote->reported_tcb;
+              const auto report =
+                ccf::pal::snp::parse_attestation_report_unverified(
+                  quote_info.quote);
+              const uint8_t* data = nullptr;
+              size_t size = 0;
+              tav_snp_attestation_report_reported_tcb(
+                report.get(), &data, &size);
+              const auto reported_tcb =
+                ccf::pal::snp::TcbVersionRaw({data, size});
 
-              // tcbm is a single hex value, like DB18000000000004. To match
-              // that with a TcbVersion, reverse the bytes.
-              const auto* tcb_begin =
-                reinterpret_cast<const uint8_t*>(&reported_tcb);
-              const std::span<const uint8_t> tcb_bytes{
-                tcb_begin, tcb_begin + sizeof(reported_tcb)};
-              auto tcb_as_hex = fmt::format(
-                "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
+              // tcbm is a single hex value, like DB18000000000004.
+              auto tcb_as_hex = reported_tcb.to_hex();
               ccf::nonstd::to_upper(tcb_as_hex);
 
               if (tcb_as_hex == aci_endorsements.tcbm)
@@ -1111,7 +1117,7 @@ namespace ccf
           // On SEV-SNP, fetch endorsements from servers if specified
           quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
             endpoint_config, [this](std::vector<uint8_t>&& endorsements) {
-              std::lock_guard<pal::Mutex> guard(lock);
+              std::lock_guard<ds::Mutex> guard(lock);
               quote_info.endorsements = std::move(endorsements);
               try
               {
@@ -1151,7 +1157,7 @@ namespace ccf
     NodeCreateInfo create(
       StartType start_type_, const ccf::StartupConfig& config_)
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
       start_type = start_type_;
 
@@ -1166,7 +1172,7 @@ namespace ccf
         config.startup_host_time,
         config.node_certificate.initial_validity_days);
       {
-        std::lock_guard<pal::Mutex> cert_guard(node_certificates_lock);
+        std::lock_guard<ds::Mutex> cert_guard(node_certificates_lock);
         self_signed_node_cert = new_self_signed_node_cert;
       }
 
@@ -1322,7 +1328,7 @@ namespace ccf
       // (it is not yet endorsed at join time). CURLOPT_SSL_VERIFYHOST=2
       // additionally checks that the target certificate matches the address we
       // connected to.
-      ccf::curl::UniqueCURL curl_handle;
+      ccf::http_client::UniqueCURL curl_handle;
       curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
       curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
@@ -1348,7 +1354,7 @@ namespace ccf
         CURLOPT_SSLKEY_BLOB, client_key_pem.data(), client_key_pem.size());
       curl_handle.set_opt(CURLOPT_SSLKEYTYPE, "PEM");
 
-      ccf::curl::UniqueSlist request_headers;
+      ccf::http_client::UniqueSlist request_headers;
       request_headers.append(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
@@ -1358,7 +1364,7 @@ namespace ccf
         get_actor_prefix(ActorsType::nodes),
         "join");
 
-      auto request_body = std::make_unique<ccf::curl::RequestBody>(
+      auto request_body = std::make_unique<ccf::http_client::RequestBody>(
         std::vector<uint8_t>(body.begin(), body.end()));
 
       // Generous cap on the join response body (service identity, endorsed
@@ -1370,9 +1376,9 @@ namespace ccf
       // response. Do not use the config target address, which may have been
       // updated by a redirect in the interim.
       // NOLINTBEGIN(readability-function-cognitive-complexity)
-      ccf::curl::CurlRequest::ResponseCallback response_callback =
+      ccf::http_client::CurlRequest::ResponseCallback response_callback =
         [this, target_address = config.join.target_rpc_address](
-          std::unique_ptr<ccf::curl::CurlRequest>&& request,
+          std::unique_ptr<ccf::http_client::CurlRequest>&& request,
           CURLcode curl_response,
           long status_code) {
           // The request has completed (with a response, a transport error, or
@@ -1402,7 +1408,7 @@ namespace ccf
           // are torn down during enclave shutdown, before NodeState is
           // destroyed), so capturing raw `this` is safe.
           auto response_headers =
-            std::make_shared<ccf::curl::ResponseHeaders::HeaderMap>(
+            std::make_shared<ccf::http_client::ResponseHeaders::HeaderMap>(
               request->get_response_headers());
           auto response_body = std::make_shared<std::vector<uint8_t>>(
             request->get_response_body() != nullptr ?
@@ -1415,7 +1421,7 @@ namespace ccf
                                                             status_code,
                                                             response_headers,
                                                             response_body]() {
-            std::lock_guard<pal::Mutex> guard(lock);
+            std::lock_guard<ds::Mutex> guard(lock);
             if (
               !sm.check(NodeStartupState::pending) ||
               network.tables->get_readiness() ==
@@ -1434,7 +1440,8 @@ namespace ccf
                 // handshake failures (e.g. an untrusted service certificate) as
                 // fatal. Preserve both behaviours: transient transport errors
                 // are retried, everything else is fatal.
-                if (ccf::curl::is_transient_transport_error(curl_response))
+                if (ccf::http_client::is_transient_transport_error(
+                      curl_response))
                 {
                   LOG_INFO_FMT(
                     "Transient error contacting {} to join: {} ({}). The join "
@@ -1777,13 +1784,14 @@ namespace ccf
         };
       // NOLINTEND(readability-function-cognitive-complexity)
 
-      auto join_request = std::make_unique<ccf::curl::CurlRequest>(
+      auto join_request = std::make_unique<ccf::http_client::CurlRequest>(
         std::move(curl_handle),
         HTTP_POST,
         url,
         std::move(request_headers),
         std::move(request_body),
-        std::make_unique<ccf::curl::ResponseBody>(max_join_response_size),
+        std::make_unique<ccf::http_client::ResponseBody>(
+          max_join_response_size),
         std::move(response_callback));
 
       // Mark a request as in flight before handing it to the shared curl
@@ -1795,8 +1803,8 @@ namespace ccf
       join_request_in_flight.store(true);
       try
       {
-        ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-          std::move(join_request));
+        ccf::http_client::CurlmLibuvContextSingleton::get_instance()
+          ->attach_request(std::move(join_request));
       }
       catch (...)
       {
@@ -1807,7 +1815,7 @@ namespace ccf
 
     void initiate_join()
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
       initiate_join_unsafe();
     }
 
@@ -1819,7 +1827,7 @@ namespace ccf
       initiate_join_unsafe();
 
       join_periodic_task = ccf::tasks::make_basic_task([this]() {
-        std::lock_guard<pal::Mutex> guard(this->lock);
+        std::lock_guard<ds::Mutex> guard(this->lock);
         if (this->sm.check(NodeStartupState::pending))
         {
           this->initiate_join_unsafe();
@@ -1885,7 +1893,7 @@ namespace ccf
 
     void recover_public_ledger_entries(const std::vector<uint8_t>& entries)
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
 
       sm.expect(NodeStartupState::readingPublicLedger);
 
@@ -1973,7 +1981,7 @@ namespace ccf
 
     void advance_part_of_public_network()
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
       sm.expect(NodeStartupState::readingPublicLedger);
       history->start_signature_emit_timer();
       sm.advance(NodeStartupState::partOfPublicNetwork);
@@ -1981,7 +1989,7 @@ namespace ccf
 
     void advance_part_of_network()
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
       history->start_signature_emit_timer();
       auto_refresh_jwt_keys();
@@ -2034,7 +2042,8 @@ namespace ccf
       }
 
       ccf::COSESignaturesConfig cs_cfg{};
-      auto lcs = tx.ro(network.cose_signatures)->get();
+      auto lcs =
+        tx.ro(network.cose_signatures)->get(ccf::IdentityType::CLASSICAL);
       if (lcs.has_value())
       {
         CoseSignature cs = lcs.value();
@@ -2155,7 +2164,7 @@ namespace ccf
         }
 
         {
-          std::lock_guard<pal::Mutex> guard(recovery_secrets_lock);
+          std::lock_guard<ds::Mutex> guard(recovery_secrets_lock);
           cached_sealed_recovery_data = std::move(sealed_recovery_data);
         }
       }
@@ -2178,7 +2187,7 @@ namespace ccf
     //
     void recover_private_ledger_entries(const std::vector<uint8_t>& entries)
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
       if (!sm.check(NodeStartupState::readingPrivateLedger))
       {
         LOG_FAIL_FMT(
@@ -2346,7 +2355,7 @@ namespace ccf
         }
       }
       {
-        std::lock_guard<pal::Mutex> guard(recovery_secrets_lock);
+        std::lock_guard<ds::Mutex> guard(recovery_secrets_lock);
         recovered_encrypted_ledger_secrets.clear();
       }
       reset_data(quote_info.quote);
@@ -2389,7 +2398,7 @@ namespace ccf
     //
     void recover_ledger_end()
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
 
       if (is_reading_public_ledger())
       {
@@ -2637,20 +2646,20 @@ namespace ccf
     // taken by the recovery map hook.
     SealedRecoveryData get_cached_sealed_recovery_data()
     {
-      std::lock_guard<pal::Mutex> guard(recovery_secrets_lock);
+      std::lock_guard<ds::Mutex> guard(recovery_secrets_lock);
       return cached_sealed_recovery_data;
     }
 
     RecoveredEncryptedLedgerSecrets get_recovered_encrypted_ledger_secrets()
     {
-      std::lock_guard<pal::Mutex> guard(recovery_secrets_lock);
+      std::lock_guard<ds::Mutex> guard(recovery_secrets_lock);
       return recovered_encrypted_ledger_secrets;
     }
 
   public:
     void initiate_private_recovery(ccf::kv::Tx& tx) override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfPublicNetwork);
       LedgerSecretsMap recovered_ledger_secrets =
         share_manager.restore_recovery_shares_info(
@@ -2805,7 +2814,7 @@ namespace ccf
 
     ExtendedState state() override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
       auto s = sm.value();
       if (s == NodeStartupState::readingPrivateLedger)
       {
@@ -2817,7 +2826,7 @@ namespace ccf
 
     bool rekey_ledger(ccf::kv::Tx& tx) override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfNetwork);
 
       // The ledger should not be re-keyed when the service is not open
@@ -2856,7 +2865,7 @@ namespace ccf
 
     ccf::kv::Version get_startup_snapshot_seqno() override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
       return startup_seqno;
     }
 
@@ -2867,7 +2876,7 @@ namespace ccf
 
     ccf::crypto::Pem get_self_signed_certificate() override
     {
-      std::lock_guard<pal::Mutex> guard(node_certificates_lock);
+      std::lock_guard<ds::Mutex> guard(node_certificates_lock);
       return self_signed_node_cert;
     }
 
@@ -2886,7 +2895,7 @@ namespace ccf
   private:
     bool is_ip(const std::string_view& hostname)
     {
-      if (hostname.find(':') != std::string_view::npos)
+      if (hostname.contains(':'))
       {
         in6_addr addr{};
         if (inet_pton(AF_INET6, std::string(hostname).c_str(), &addr) == 1)
@@ -3317,7 +3326,7 @@ namespace ccf
               const auto new_endorsed_node_cert = endorsed_certificate.value();
               std::optional<ccf::crypto::Pem> previous_endorsed_node_cert;
               {
-                std::lock_guard<pal::Mutex> cert_guard(node_certificates_lock);
+                std::lock_guard<ds::Mutex> cert_guard(node_certificates_lock);
                 previous_endorsed_node_cert = endorsed_node_cert;
                 endorsed_node_cert = new_endorsed_node_cert;
               }
@@ -3397,8 +3406,7 @@ namespace ccf
 
                 ccf::crypto::Pem previous_self_signed_node_cert;
                 {
-                  std::lock_guard<pal::Mutex> cert_guard(
-                    node_certificates_lock);
+                  std::lock_guard<ds::Mutex> cert_guard(node_certificates_lock);
                   previous_self_signed_node_cert = self_signed_node_cert;
                   self_signed_node_cert = new_self_signed_node_cert;
                 }
@@ -3476,7 +3484,7 @@ namespace ccf
       // from. If the primary changes while the network is public-only, the
       // new primary should also know at which version the new ledger secret
       // is applicable from.
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<ds::Mutex> guard(lock);
       return last_recovered_signed_idx;
     }
 
@@ -3513,7 +3521,7 @@ namespace ccf
             }
 
             {
-              std::lock_guard<pal::Mutex> guard(recovery_secrets_lock);
+              std::lock_guard<ds::Mutex> guard(recovery_secrets_lock);
               recovered_encrypted_ledger_secrets.emplace_back(
                 std::move(encrypted_ledger_secret_info.value()));
             }
@@ -3583,11 +3591,11 @@ namespace ccf
 
       auto shared_state = std::make_shared<aft::State>(self);
 
-      auto node_client = std::make_shared<HTTPNodeClient>(
-        rpc_map,
-        node_sign_kp,
-        get_self_signed_certificate(),
-        endorsed_node_certificate_);
+      auto node_client =
+        std::make_shared<HTTPNodeClient>(rpc_map, node_sign_kp, [this]() {
+          std::lock_guard<ds::Mutex> guard(node_certificates_lock);
+          return endorsed_node_cert.value_or(self_signed_node_cert);
+        });
 
       consensus = std::make_shared<RaftType>(
         consensus_config,
@@ -3598,6 +3606,12 @@ namespace ccf
         node_client,
         commit_callbacks,
         public_only);
+
+      pending_node_cleanup = std::make_shared<PendingNodeCleanup>(
+        node_client,
+        consensus,
+        std::chrono::milliseconds(config.pending_node_timeout));
+      pending_node_cleanup->start();
 
       network.tables->set_consensus(consensus);
       network.tables->set_snapshotter(snapshotter);
@@ -3629,8 +3643,9 @@ namespace ccf
           [s = this->snapshotter](
             ccf::kv::Version version,
             const CoseSignatures::Write& w) -> ccf::kv::ConsensusHookPtr {
-            assert(w.has_value());
-            s->record_cose_signature(version, w.value());
+            const auto cose_signatures = extract_cose_signatures(w);
+            assert(!cose_signatures.empty());
+            s->record_cose_signatures(version, cose_signatures);
             return {nullptr};
           }));
 
@@ -3679,7 +3694,7 @@ namespace ccf
             {
               ccf::tasks::Task task_to_schedule = nullptr;
               {
-                std::lock_guard<pal::Mutex> guard(
+                std::lock_guard<ds::Mutex> guard(
                   backup_snapshot_fetch_task_lock);
                 if (
                   backup_snapshot_fetch_task != nullptr &&

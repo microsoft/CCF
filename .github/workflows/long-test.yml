@@ -17,9 +17,6 @@ concurrency:
 
 permissions: read-all
 
-env:
-  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
-
 jobs:
   long-asan:
     if: &check_trigger_conditions ${{ (github.event.action == 'labeled' && github.event.label.name == 'run-long-test') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-long-test')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
@@ -27,7 +24,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=long_asan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -48,10 +45,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug (Long Test)"
         run: |
@@ -88,7 +82,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=long_tsan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -109,10 +103,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug (Long Test)"
         run: |
@@ -152,7 +143,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=long_e2e_debug-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -173,10 +164,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build"
         run: |
@@ -192,7 +180,7 @@ jobs:
           cd build
           ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
 
-      - name: "Run CBOR fuzz test"
+      - name: "Run fuzz tests"
         run: |
           set -o pipefail
           set -ex
@@ -200,9 +188,17 @@ jobs:
           cd build_fuzz
           rm -f CMakeCache.txt
           cmake -GNinja -DFUZZING=ON -DSAN=ON -DUSE_SNMALLOC=OFF ..
-          ninja cbor_fuzz_test
-          mkdir -p /tmp/cbor_fuzz_live
-          ./cbor_fuzz_test /tmp/cbor_fuzz_live ../src/crypto/test/cbor_fuzz_corpus -max_total_time=60
+          ninja cbor_fuzz_test msgpack_fuzz_test
+          mkdir -p fuzz-live/cbor fuzz-live/msgpack fuzz-artifacts/cbor fuzz-artifacts/msgpack
+          ./cbor_fuzz_test fuzz-live/cbor ../src/crypto/test/cbor_fuzz_corpus \
+            -max_total_time=60 \
+            -artifact_prefix="$PWD/fuzz-artifacts/cbor/"
+          ./msgpack_fuzz_test fuzz-live/msgpack ../src/msgpack/test/msgpack_fuzz_corpus \
+            -max_total_time=60 \
+            -max_len=4096 \
+            -timeout=2 \
+            -rss_limit_mb=1024 \
+            -artifact_prefix="$PWD/fuzz-artifacts/msgpack/"
 
       - name: "Upload logs"
         if: success() || failure()
@@ -216,6 +212,7 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
+            build_fuzz/fuzz-artifacts/**
           if-no-files-found: ignore
 
   # All e2e tests in release mode (same as release build).
@@ -225,7 +222,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=long_e2e_release-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -246,10 +243,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build"
         run: |
@@ -290,7 +284,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=long_e2e_shuffled-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -311,10 +305,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build"
         run: |

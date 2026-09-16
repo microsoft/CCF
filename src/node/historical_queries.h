@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/locking.h"
 #include "ccf/historical_queries_interface.h"
-#include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "kv/store.h"
@@ -74,12 +74,31 @@ namespace ccf::historical
     return signatures->get();
   }
 
-  static std::optional<ccf::CoseSignature> get_cose_signature(
+  static ccf::CoseSignatureMap get_cose_signatures(
     const ccf::kv::StorePtr& sig_store)
   {
     auto tx = sig_store->create_read_only_tx();
     auto* signatures = tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
-    return signatures->get();
+    ccf::CoseSignatureMap cose_signatures;
+    signatures->foreach(
+      [&cose_signatures](const auto& identity_type, const auto& signature) {
+        cose_signatures.emplace(identity_type, signature);
+        return true;
+      });
+    return cose_signatures;
+  }
+
+  // This historical API exposes a single COSE signature, so receipts are
+  // described by the CLASSICAL one.
+  static std::optional<ccf::CoseSignature> select_described_cose_signature(
+    const ccf::CoseSignatureMap& cose_signatures)
+  {
+    const auto signature = cose_signatures.find(ccf::IdentityType::CLASSICAL);
+    if (signature == cose_signatures.end())
+    {
+      return std::nullopt;
+    }
+    return signature->second;
   }
 
   static std::optional<std::vector<uint8_t>> get_tree(
@@ -497,8 +516,10 @@ namespace ccf::historical
         // Iterate through earlier indices. If this signature covers them
         // then create a receipt for them
         const auto sig = get_signature(sig_details->store);
-        const auto cose_sig = get_cose_signature(sig_details->store);
-        if (!sig.has_value() && !cose_sig.has_value())
+        const auto cose_sigs = get_cose_signatures(sig_details->store);
+        const auto described_cose_sig =
+          select_described_cose_signature(cose_sigs);
+        if (!sig.has_value() && !described_cose_sig.has_value())
         {
           return false;
         }
@@ -533,7 +554,7 @@ namespace ccf::historical
                   details->transaction_id = {sig->view, seqno};
                   details->receipt = std::make_shared<TxReceiptImpl>(
                     sig->sig,
-                    cose_sig,
+                    cose_sigs,
                     proof.get_root(),
                     proof.get_path(),
                     sig->node,
@@ -544,8 +565,8 @@ namespace ccf::historical
                 }
                 else
                 {
-                  auto cose_receipt =
-                    ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+                  auto cose_receipt = ccf::cose::decode_ccf_receipt(
+                    described_cose_sig.value(), false);
                   auto parsed_txid =
                     ccf::TxID::from_str(cose_receipt.phdr.ccf.txid);
                   if (!parsed_txid.has_value())
@@ -557,7 +578,7 @@ namespace ccf::historical
                   details->transaction_id = {parsed_txid->view, seqno};
                   details->receipt = std::make_shared<TxReceiptImpl>(
                     std::nullopt,
-                    cose_sig,
+                    cose_sigs,
                     proof.get_root(),
                     proof.get_path(),
                     ccf::NodeId{},
@@ -594,7 +615,7 @@ namespace ccf::historical
     };
 
     // Guard all access to internal state with this lock
-    ccf::pal::Mutex requests_lock;
+    ccf::ds::Mutex requests_lock;
 
     // Track all things currently requested by external callers
     std::map<CompoundHandle, Request> requests;
@@ -842,17 +863,19 @@ namespace ccf::historical
         // the receipt _later_ for an already-fetched signature
         // transaction.
         const auto sig = get_signature(details->store);
-        const auto cose_sig = get_cose_signature(details->store);
+        const auto cose_sigs = get_cose_signatures(details->store);
+        const auto described_cose_sig =
+          select_described_cose_signature(cose_sigs);
         if (sig.has_value())
         {
           details->transaction_id = {sig->view, sig->seqno};
           details->receipt = std::make_shared<TxReceiptImpl>(
-            sig->sig, cose_sig, sig->root.h, nullptr, sig->node, sig->cert);
+            sig->sig, cose_sigs, sig->root.h, nullptr, sig->node, sig->cert);
         }
-        else if (cose_sig.has_value())
+        else if (described_cose_sig.has_value())
         {
           auto as_receipt =
-            ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+            ccf::cose::decode_ccf_receipt(described_cose_sig.value(), false);
           const auto& txid = as_receipt.phdr.ccf.txid;
           auto parsed_txid = ccf::TxID::from_str(txid);
 
@@ -864,7 +887,7 @@ namespace ccf::historical
           details->transaction_id = parsed_txid.value();
           details->receipt = std::make_shared<TxReceiptImpl>(
             std::nullopt,
-            cose_sig,
+            cose_sigs,
             std::nullopt,
             nullptr,
             ccf::NodeId{},
@@ -1032,7 +1055,7 @@ namespace ccf::historical
           "Invalid range for historical query: Cannot request empty range");
       }
 
-      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
 
       const auto ms_until_expiry =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1287,7 +1310,7 @@ namespace ccf::historical
 
     bool drop_cached_states(const CompoundHandle& handle)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
       lru_evict(handle);
       const auto erased_count = requests.erase(handle);
       return erased_count > 0;
@@ -1300,7 +1323,7 @@ namespace ccf::historical
 
     bool handle_ledger_entry(ccf::SeqNo seqno, const uint8_t* data, size_t size)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
       const auto it = all_stores.find(seqno);
       auto details = it == all_stores.end() ? nullptr : it->second.lock();
       if (details == nullptr || details->current_stage != StoreStage::Fetching)
@@ -1426,6 +1449,16 @@ namespace ccf::historical
           serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
         const auto whole_size =
           header.size + ccf::kv::serialised_entry_header_size;
+        if (whole_size > size)
+        {
+          LOG_FAIL_FMT(
+            "Corrupt ledger entry received at {} - claims to be {} bytes but "
+            "only {} bytes remain",
+            seqno,
+            whole_size,
+            size);
+          return false;
+        }
         all_accepted &= handle_ledger_entry(seqno, data, whole_size);
         data += whole_size;
         size -= whole_size;
@@ -1452,7 +1485,7 @@ namespace ccf::historical
 
     void handle_no_entry_range(ccf::SeqNo from_seqno, ccf::SeqNo to_seqno)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
 
       LOG_TRACE_FMT("handle_no_entry_range({}, {})", from_seqno, to_seqno);
 
@@ -1484,6 +1517,11 @@ namespace ccf::historical
       ccf::kv::StorePtr store = std::make_shared<ccf::kv::Store>(
         false /* Do not start from very first seqno */,
         true /* Make use of historical secrets */);
+
+      // max_transaction_size is deliberately not set on this store. It is a
+      // write-time limit, and historical queries must remain able to
+      // reconstruct any entry which was validly written, including under a
+      // previously larger or unset limit.
 
       // If this is older than the node's currently known ledger secrets, use
       // the historical encryptor (which should have older secrets)
@@ -1541,13 +1579,13 @@ namespace ccf::historical
 
     size_t get_estimated_store_cache_size()
     {
-      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
       return estimated_store_cache_size;
     }
 
     void tick(const std::chrono::milliseconds& elapsed_ms)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
 
       {
         auto it = requests.begin();

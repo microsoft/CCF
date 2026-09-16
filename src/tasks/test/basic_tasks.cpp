@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 #include "tasks/worker.h"
@@ -312,21 +312,21 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
   // Custom logger that captures log messages for assertion
   struct CapturingLogger : public ccf::logger::AbstractLogger
   {
-    ccf::pal::Mutex mutex;
+    ccf::ds::Mutex mutex;
     std::vector<std::string> messages CCF_GUARDED_BY(mutex);
 
     void write(const ccf::logger::LogLine& ll) override
     {
-      ccf::pal::MutexGuard lock(mutex);
+      ccf::ds::MutexGuard lock(mutex);
       messages.push_back(ll.msg);
     }
 
     bool contains(const std::string& substring)
     {
-      ccf::pal::MutexGuard lock(mutex);
+      ccf::ds::MutexGuard lock(mutex);
       for (const auto& m : messages)
       {
-        if (m.find(substring) != std::string::npos)
+        if (m.contains(substring))
         {
           return true;
         }
@@ -336,7 +336,7 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
 
     void clear()
     {
-      ccf::pal::MutexGuard lock(mutex);
+      ccf::ds::MutexGuard lock(mutex);
       messages.clear();
     }
   };

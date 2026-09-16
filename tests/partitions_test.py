@@ -24,6 +24,7 @@ from ccf.tx_id import TxID
 from e2e_logging import verify_receipt
 from infra.checker import check_can_progress, check_does_not_progress
 from infra.log_capture import flush_info
+from infra.runner import ConcurrentRunner
 from infra.tx_status import TxStatus
 from loguru import logger as LOG
 from reconfiguration import test_ledger_invariants
@@ -189,28 +190,21 @@ def test_isolate_primary_from_one_backup(network, args):
             }, f"Primary {p.local_node_id} is no longer follower"
         time.sleep(0.1)
 
+    LOG.info("A stable majority is not enough while a backup is still isolated")
+    try:
+        network.wait_for_stability(timeout_multiplier=3)
+    except TimeoutError:
+        pass
+    else:
+        assert False, "Partitioned network reported full stability"
+
     # Explicitly drop rules before continuing
     rules.drop()
 
     # primary should now observe partitioned backup as primary
     network.wait_for_new_primary_in({b_0}, nodes=[p])
 
-    LOG.info(f"Check that new primary {b_0.local_node_id} reports stable acks")
-    last_ack = 0
-    end_time = time.time() + 2 * network.args.election_timeout_ms // 1000
-    while time.time() < end_time:
-        with b_0.client() as c:
-            acks = c.get("/node/consensus", log_capture=[]).body.json()["details"][
-                "acks"
-            ]
-            delayed_acks = [
-                ack
-                for ack in acks.values()
-                if ack["last_received_ms"] > args.election_timeout_ms
-            ]
-            if delayed_acks:
-                raise RuntimeError(f"New primary reported some delayed acks: {acks}")
-        time.sleep(0.1)
+    network.wait_for_stability()
 
     return network
 
@@ -396,11 +390,7 @@ def test_expired_certs(network, args):
         check_can_progress(backup_a)
 
     # Restore connectivity with primary, an election may or may not happen
-    network.wait_for_primary_unanimity(min_view=r.view + 1)
-
-    # Dropped partition, and even primary unanimity, do not mean node connectivity has been instantaneously restored.
-    # Sleep through potential delays in reconnection.
-    time.sleep(3)
+    network.wait_for_stability(min_view=r.view + 1)
 
     # Set valid node certs so that future clients can speak to these nodes
     set_certs(from_days_diff=-1, validity_period_days=7, nodes=(primary, backup_a))
@@ -497,8 +487,6 @@ def test_election_reconfiguration(network, args):
     # Note: this test makes use of node-endorsed secondary RPC interface since
     # new nodes never observe commit of their configuration and thus never
     # open their service-endorsed primary RPC interface.
-    primary, backups = network.find_nodes()
-
     LOG.info("Join new nodes without trusting them just yet")
     new_nodes = []
     # Start N+1 new nodes to make sure they cannot elect one of them as a primary
@@ -517,6 +505,11 @@ def test_election_reconfiguration(network, args):
     # Wait until all backups know about these joins, so they have an equal chance of
     # becoming primary afterwards
     network.wait_for_node_commit_sync()
+
+    # An election may have occurred while the new nodes were joining. Use the
+    # current roles so the partition does not isolate the actual primary.
+    primary = network.wait_for_primary_unanimity()
+    backups = network.find_backups(primary=primary)
 
     LOG.info("Isolate original backups and issue reconfiguration of another quorum")
     # Partition backups _from each other_
@@ -608,7 +601,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         network.wait_for_new_primary(primary, nodes=backups)
 
     LOG.info("Check the pending join is retried after rollback")
-    primary = network.wait_for_primary_unanimity(nodes=backups)
+    primary = network.wait_for_stability()
     network.wait_for_node_in_store(
         primary,
         pending_node.node_id,
@@ -630,7 +623,8 @@ def test_join_rollback_on_primary_isolation(network, args):
     check_can_progress(primary)
 
     LOG.info("Trust a pending node on an isolated primary")
-    primary, backups = network.find_nodes()
+    primary = network.wait_for_stability()
+    backups = network.find_backups(primary=primary)
     host_spec = infra.interfaces.HostSpec()
     host_spec.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
     trusted_node = network.create_node(host_spec)
@@ -666,7 +660,8 @@ def test_join_rollback_on_primary_isolation(network, args):
         network.wait_for_new_primary(primary, nodes=backups)
 
     LOG.info("Check the trusted transition is rolled back and can be retried")
-    primary = network.wait_for_primary_unanimity(nodes=backups)
+    # The rolled-back joiner is not yet a member of the stable configuration.
+    primary = network.wait_for_stability(nodes=[primary, *backups])
     network.wait_for_node_in_store(
         primary,
         trusted_node.node_id,
@@ -686,6 +681,7 @@ def test_join_rollback_on_primary_isolation(network, args):
     )
     network.wait_for_all_nodes_to_commit(primary=primary)
     check_can_progress(primary)
+    network.wait_for_stability()
 
     return network
 
@@ -1178,12 +1174,10 @@ def force_become_primary(network, args, target_node):
         # target becomes primary and emits signature
         # target replicates signature
         # then we can remove the partition
-        rules = network.partitioner.isolate_node(primary, target_node)
-        target_node.wait_for_leadership_state(
-            0, "Leader", timeout=2 * args.election_timeout_ms / 1000
-        )
-        network.wait_for_node_commit_sync(nodes=backups)
-        rules.drop()
+        timeout = 4 * network.observed_election_duration
+        with network.partitioner.isolate_node(primary, target_node):
+            target_node.wait_for_leadership_state(0, "Leader", timeout=timeout)
+            network.wait_for_node_commit_sync(nodes=backups, timeout=timeout)
         # Wait for the old primary to observe the new one
         network.wait_for_new_primary_in({target_node}, nodes=[primary])
         network.wait_for_primary_unanimity()
@@ -1551,46 +1545,102 @@ def run_ledger_chunk_bytes_check(const_args):
         assert len(chunk_ends_to_expected_size) == 0
 
 
-def run(args):
-    txs = app.LoggingTxs("user0")
+@contextlib.contextmanager
+def partitioned_network(args):
+    """A fresh partitioned network for one group of tests.
 
+    Each group runs on its own network so that groups can run concurrently.
+    Every Partitioner owns a private iptables chain whose rules only match its
+    own nodes' addresses and ports, so co-existing groups do not interfere.
+    """
     with infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
-        txs=txs,
+        txs=app.LoggingTxs("user0"),
         init_partitioner=True,
     ) as network:
         network.start_and_open(args)
+        yield network
 
+
+def run_basic_partitions(args):
+    with partitioned_network(args) as network:
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
         test_new_joiner_helps_liveness(network, args)
+
+
+def run_certificate_partitions(args):
+    with partitioned_network(args) as network:
         test_expired_certs(network, args)
         test_rolled_back_node_certificate(network, args)
+
+
+def run_isolate_and_reconnect(args):
+    with partitioned_network(args) as network:
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
+
+
+def run_reconfiguration_partitions(args):
+    with partitioned_network(args) as network:
         test_join_rollback_on_primary_isolation(network, args)
         test_election_reconfiguration(network, args)
+
+
+def run_forwarding_and_sessions(args):
+    with partitioned_network(args) as network:
         test_forwarding_timeout(network, args)
         test_invalidated_blocking_calls(network, args)
         # HTTP2 doesn't support forwarding
         if not args.http2:
             test_session_consistency(network, args)
-        network = test_recovery_elections(network, args)
-        test_ledger_invariants(network, args)
-    run_ledger_chunk_bytes_check(args)
-    run_in_place_restart_uncommittable_ledger_check(args)
+
+
+def run_recovery_elections(args):
+    with partitioned_network(args) as network:
+        # test_recovery_elections stops this network and recovers into a new
+        # one, which the context manager does not own: it still holds the
+        # original. Stop the returned network here, or its nodes outlive the
+        # test.
+        recovery_network = test_recovery_elections(network, args)
+        try:
+            test_ledger_invariants(recovery_network, args)
+        finally:
+            if recovery_network is not network:
+                recovery_network.stop_all_nodes(skip_verification=True)
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.package = "samples/apps/logging/logging"
-    args.snapshot_tx_interval = (
+    cr = ConcurrentRunner()
+    cr.args.snapshot_tx_interval = (
         20  # Increase snapshot frequency for faster reconfigurations
     )
 
-    run(args)
+    # Each group below runs on its own network, concurrently, and preserves the
+    # relative order of the tests it contains.
+    for name, target in (
+        ("basic", run_basic_partitions),
+        ("certs", run_certificate_partitions),
+        ("isolate-reconnect", run_isolate_and_reconnect),
+        ("reconfiguration", run_reconfiguration_partitions),
+        ("forwarding", run_forwarding_and_sessions),
+        ("recovery-elections", run_recovery_elections),
+        ("ledger-chunks", run_ledger_chunk_bytes_check),
+        ("in-place-restart", run_in_place_restart_uncommittable_ledger_check),
+    ):
+        cr.add(
+            name,
+            target,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        )
+
+    # These groups deliberately isolate nodes and wait for elections, so they
+    # are the most sensitive in the suite both to not getting CPU promptly and
+    # to contention on the shared iptables table: a starved or still-partitioned
+    # node looks like a failed election. Run few at once.
+    cr.run(max_concurrent=2)

@@ -3,12 +3,12 @@
 #pragma once
 
 #include "before_io.h"
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "dns.h"
 #include "ds/internal_logger.h"
 #include "ds/pending_io.h"
-#include "proxy.h"
 #include "socket.h"
+#include "uv/proxy.h"
 
 #include <optional>
 
@@ -16,14 +16,14 @@ namespace asynchost
 {
   // NOLINTBEGIN(cppcoreguidelines-virtual-class-destructor)
   class UDPImpl;
-  using UDP = proxy_ptr<UDPImpl>;
+  using UDP = ccf::uv::proxy_ptr<UDPImpl>;
 
   /// For now this is server only, as we have no immediate plans to
   /// create node-to-node UDP channels or use UDP for REST between nodes
-  class UDPImpl : public with_uv_handle<uv_udp_t>
+  class UDPImpl : public ccf::uv::with_uv_handle<uv_udp_t>
   {
   private:
-    friend class close_ptr<UDPImpl>;
+    friend class ccf::uv::close_ptr<UDPImpl>;
 
     static constexpr int backlog = 128;
     static constexpr size_t max_read_size = 16384;
@@ -32,9 +32,7 @@ namespace asynchost
     static constexpr auto max_read_quota = max_read_size * 4;
     static size_t remaining_read_quota;
 
-    // This is a simplified version of the state machine for QUIC that
-    // mostly follows plain UDP state. We should add more when we need
-    // for QUIC, not predict complexity prematurely.
+    // UDP is connectionless, so this tracks only socket lifecycle events.
     enum Status : uint8_t
     {
       // Starting state + failure recovery (if any)
@@ -102,7 +100,7 @@ namespace asynchost
     ~UDPImpl() override
     {
       {
-        std::unique_lock<ccf::pal::Mutex> guard(pending_resolve_requests_mtx);
+        std::unique_lock<ccf::ds::Mutex> guard(pending_resolve_requests_mtx);
         for (const auto& req : pending_resolve_requests)
         {
           // The UV request objects can stay, but if there are any references
@@ -354,7 +352,7 @@ namespace asynchost
 
     static void on_resolved(uv_getaddrinfo_t* req, int rc, struct addrinfo* res)
     {
-      std::unique_lock<ccf::pal::Mutex> guard(pending_resolve_requests_mtx);
+      std::unique_lock<ccf::ds::Mutex> guard(pending_resolve_requests_mtx);
       pending_resolve_requests.erase(req);
 
       LOG_TRACE_FMT("UDP on_resolve static");
@@ -539,5 +537,5 @@ namespace asynchost
     }
   };
 
-  using ResetUDPReadQuota = proxy_ptr<BeforeIO<ResetUDPReadQuotaImpl>>;
+  using ResetUDPReadQuota = ccf::uv::proxy_ptr<BeforeIO<ResetUDPReadQuotaImpl>>;
 }

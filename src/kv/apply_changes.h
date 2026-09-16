@@ -21,8 +21,9 @@ namespace ccf::kv
   // version which can have a conflict with the transaction.
 
   using VersionLastNewMap = Version;
-  using VersionResolver = std::function<std::tuple<Version, VersionLastNewMap>(
-    bool tx_contains_new_map)>;
+  using VersionResolution = std::tuple<Version, VersionLastNewMap>;
+  using VersionResolver =
+    std::function<std::optional<VersionResolution>(bool tx_contains_new_map)>;
 
   static inline std::optional<Version> apply_changes(
     OrderedChanges& changes,
@@ -118,32 +119,42 @@ namespace ccf::kv
     {
       // Get the version number to be used for this commit.
       ccf::kv::Version version_last_new_map = 0;
-      std::tie(version, version_last_new_map) =
-        version_resolver_fn(!new_maps.empty());
-
-      // Transfer ownership of these new maps to their target stores, iff we
-      // have writes to them
-      for (const auto& [map_name, map_ptr] : new_maps)
+      const auto version_resolution = version_resolver_fn(!new_maps.empty());
+      if (version_resolution.has_value())
       {
-        const auto it = views.find(map_name);
-        if (it != views.end() && it->second->has_writes())
+        std::tie(version, version_last_new_map) = version_resolution.value();
+      }
+      else
+      {
+        ok = false;
+      }
+
+      if (ok)
+      {
+        // Transfer ownership of these new maps to their target stores, iff we
+        // have writes to them
+        for (const auto& [map_name, map_ptr] : new_maps)
         {
-          map_ptr->get_store()->add_dynamic_map(version, map_ptr);
+          const auto it = views.find(map_name);
+          if (it != views.end() && it->second->has_writes())
+          {
+            map_ptr->get_store()->add_dynamic_map(version, map_ptr);
+          }
         }
-      }
 
-      for (auto& [view_name, view_ptr] : views)
-      {
-        view_ptr->commit(version, track_deletes_on_missing_keys);
-      }
-
-      // Collect ConsensusHooks
-      for (auto& [view_name, view_ptr] : views)
-      {
-        auto hook_ptr = view_ptr->post_commit();
-        if (hook_ptr != nullptr)
+        for (auto& [view_name, view_ptr] : views)
         {
-          hooks.push_back(std::move(hook_ptr));
+          view_ptr->commit(version, track_deletes_on_missing_keys);
+        }
+
+        // Collect ConsensusHooks
+        for (auto& [view_name, view_ptr] : views)
+        {
+          auto hook_ptr = view_ptr->post_commit();
+          if (hook_ptr != nullptr)
+          {
+            hooks.push_back(std::move(hook_ptr));
+          }
         }
       }
     }

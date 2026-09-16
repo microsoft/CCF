@@ -5,7 +5,6 @@
 #include "ccf/js/core/context.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/pal/mem.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 #include "ds/oversized.h"
@@ -83,6 +82,7 @@ namespace ccf
       size_t sig_tx_interval,
       size_t sig_ms_interval,
       size_t chunk_threshold,
+      size_t max_transaction_size,
       const ccf::consensus::Configuration& consensus_config,
       const ccf::crypto::CurveID& curve_id,
       ccf::ds::WorkBeaconPtr work_beacon_,
@@ -101,6 +101,7 @@ namespace ccf
 
       network.tables->set_chunker(
         std::make_shared<ccf::kv::LedgerChunker>(chunk_threshold));
+      network.tables->set_max_transaction_size(max_transaction_size);
 
       LOG_TRACE_FMT("Creating node");
       node = std::make_unique<ccf::NodeState>(
@@ -122,7 +123,7 @@ namespace ccf
       context->install_subsystem(indexer);
 
       lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
-        writer_factory->create_writer_to_outside());
+        ccf::tasks::get_main_job_board());
       context->install_subsystem(lfs_access);
 
       context->install_subsystem(std::make_shared<ccf::NodeOperation>(*node));
@@ -267,8 +268,6 @@ namespace ccf
 
         // reconstruct oversized messages sent to the enclave
         oversized::FragmentReconstructor fr(bp.get_dispatcher());
-
-        lfs_access->register_message_handlers(bp.get_dispatcher());
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, AdminMessage::stop, [this, &bp](const uint8_t*, size_t) {

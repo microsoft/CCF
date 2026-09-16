@@ -6,6 +6,7 @@
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "node/encryptor.h"
 
 #include <doctest/doctest.h>
 #undef FAIL
@@ -310,6 +311,252 @@ TEST_CASE(
       REQUIRE(handle_target->get("privk1") == "privv1");
     }
   }
+}
+
+TEST_CASE(
+  "Reject transactions exceeding configured serialised size" *
+  doctest::test_suite("serialisation"))
+{
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+
+  ccf::kv::Store kv_store;
+  kv_store.set_consensus(consensus);
+  kv_store.set_encryptor(encryptor);
+  kv_store.set_max_transaction_size(1024);
+
+  MapTypes::StringString map("public:pub_map");
+
+  {
+    INFO("An oversized transaction is rejected before it is applied");
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("oversized", std::string(2048, 'A'));
+    REQUIRE_THROWS_AS(tx.commit(), ccf::kv::MaxTransactionSizeExceeded);
+    REQUIRE(kv_store.current_version() == 0);
+    REQUIRE(!consensus->get_latest_data().has_value());
+  }
+
+  {
+    INFO("Later transactions are unaffected");
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("small", "ok");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(kv_store.current_version() == 1);
+  }
+}
+
+TEST_CASE(
+  "The transaction size limit is compared against the exact entry size" *
+  doctest::test_suite("serialisation"))
+{
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+
+  MapTypes::StringString map("public:pub_map");
+  const auto value = std::string(512, 'A');
+
+  // Serialise the transaction under a permissive limit to find the exact size
+  // of the ledger entry it produces.
+  size_t entry_size = 0;
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_consensus(consensus);
+    kv_store.set_encryptor(encryptor);
+
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("key", value);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
+    entry_size = latest_data->size();
+  }
+
+  // The allocation-free sizing pass must report the exact size of the entry
+  // which is eventually written. A limit of precisely that size is accepted,
+  // and one byte less is not.
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(encryptor);
+    kv_store.set_max_transaction_size(entry_size);
+
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("key", value);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(encryptor);
+    kv_store.set_max_transaction_size(entry_size - 1);
+
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("key", value);
+    REQUIRE_THROWS_AS(tx.commit(), ccf::kv::MaxTransactionSizeExceeded);
+    REQUIRE(kv_store.current_version() == 0);
+  }
+}
+
+TEST_CASE(
+  "The transaction size limit includes encrypted private data" *
+  doctest::test_suite("serialisation"))
+{
+  const auto create_encryptor = []() {
+    auto secrets = std::make_shared<ccf::LedgerSecrets>();
+    secrets->init();
+    return std::make_shared<ccf::NodeEncryptor>(secrets);
+  };
+
+  MapTypes::StringString public_map("public:pub_map");
+  MapTypes::StringString private_map("priv_map");
+  const auto value = std::string(512, 'A');
+
+  const auto populate = [&](ccf::kv::CommittableTx& tx) {
+    tx.rw(public_map)->put("public_key", value);
+    tx.rw(private_map)->put("private_key", value);
+  };
+
+  size_t entry_size = 0;
+  {
+    auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+    ccf::kv::Store kv_store;
+    kv_store.set_consensus(consensus);
+    kv_store.set_encryptor(create_encryptor());
+
+    auto tx = kv_store.create_tx();
+    populate(tx);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
+    entry_size = latest_data->size();
+  }
+
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(create_encryptor());
+    kv_store.set_max_transaction_size(entry_size);
+
+    auto tx = kv_store.create_tx();
+    populate(tx);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(create_encryptor());
+    kv_store.set_max_transaction_size(entry_size - 1);
+
+    auto tx = kv_store.create_tx();
+    populate(tx);
+    REQUIRE_THROWS_AS(tx.commit(), ccf::kv::MaxTransactionSizeExceeded);
+    REQUIRE(kv_store.current_version() == 0);
+  }
+}
+
+TEST_CASE(
+  "Deserialisation is not subject to the transaction size limit" *
+  doctest::test_suite("serialisation"))
+{
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+
+  // Serialise a transaction under a permissive (default) limit.
+  ccf::kv::Store kv_store;
+  kv_store.set_consensus(consensus);
+  kv_store.set_encryptor(encryptor);
+
+  MapTypes::StringString map("public:pub_map");
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("large", std::string(2048, 'A'));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  const auto latest_data = consensus->get_latest_data();
+  REQUIRE(latest_data.has_value());
+
+  // The cap applies only to serialisation. A tiny limit on the target store
+  // must not prevent it from deserialising an already-serialised transaction.
+  ccf::kv::Store kv_store_target;
+  kv_store_target.set_encryptor(encryptor);
+  kv_store_target.set_max_transaction_size(1);
+
+  REQUIRE(
+    kv_store_target.deserialize(latest_data.value())->apply() ==
+    ccf::kv::ApplyResult::PASS);
+}
+
+TEST_CASE(
+  "RawWriter and SizeWriter agree" * doctest::test_suite("serialisation"))
+{
+  const auto check = [](const auto& entry) {
+    ccf::kv::RawWriter raw_writer;
+    ccf::kv::SizeWriter size_writer;
+    const auto expected_size = ccf::kv::RawWriter::serialised_size(entry);
+    raw_writer.append(entry);
+    size_writer.append(entry);
+    REQUIRE(raw_writer.size() == expected_size);
+    REQUIRE(size_writer.size() == expected_size);
+  };
+
+  check(ccf::kv::EntryType::WriteSetWithCommitEvidenceAndClaims);
+  check(uint8_t(42));
+  check(uint64_t(42));
+  check(ccf::kv::Version(42));
+  check(ccf::crypto::Sha256Hash(std::string("some content")));
+  check(std::string());
+  check(std::string("a string of some length"));
+  check(std::vector<uint8_t>());
+  check(std::vector<uint8_t>(37, 'x'));
+  check(std::vector<ccf::kv::Version>{1, 2, 3});
+  check(ccf::kv::serialisers::SerialisedEntry());
+  check(ccf::kv::serialisers::SerialisedEntry(91, 'y'));
+}
+
+TEST_CASE(
+  "Reserved signature transactions ignore the configured transaction size "
+  "limit" *
+  doctest::test_suite("serialisation"))
+{
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+  kv_store.set_max_transaction_size(1);
+
+  MapTypes::StringString map("public:signature");
+  auto tx = kv_store.create_reserved_tx(kv_store.next_txid());
+  tx.rw(map)->put("signature", std::string(512, 'A'));
+
+  const auto [result, data, claims, commit_evidence, hooks] =
+    tx.commit_reserved();
+  REQUIRE(result == ccf::kv::CommitResult::SUCCESS);
+  REQUIRE(data.size() > kv_store.get_max_transaction_size());
+}
+
+TEST_CASE(
+  "Reject configuring a maximum transaction size beyond the serialisable "
+  "limit" *
+  doctest::test_suite("serialisation"))
+{
+  ccf::kv::Store kv_store;
+
+  // The largest entry the ledger entry header can describe is accepted.
+  REQUIRE_NOTHROW(
+    kv_store.set_max_transaction_size(ccf::kv::max_serialised_entry_size));
+
+  // A value larger than can ever be serialised is rejected at configuration
+  // time, rather than being deferred to a later serialisation failure.
+  REQUIRE_THROWS_AS(
+    kv_store.set_max_transaction_size(std::numeric_limits<size_t>::max()),
+    std::logic_error);
 }
 
 TEST_CASE(
@@ -822,6 +1069,7 @@ TEST_CASE(
 
   ccf::ClaimsDigest claims_digest;
   claims_digest.set(ccf::crypto::Sha256Hash("claim text"));
+  ccf::crypto::Sha256Hash expected_commit_evidence_digest;
 
   INFO("Commit to source store, including claims");
   {
@@ -833,9 +1081,11 @@ TEST_CASE(
     handle_pub->put("pubk1", "pubv1");
 
     REQUIRE(tx.commit(claims_digest) == ccf::kv::CommitResult::SUCCESS);
+    expected_commit_evidence_digest = ccf::crypto::Sha256Hash(
+      encryptor->get_commit_evidence({tx.commit_term(), tx.commit_version()}));
   }
 
-  INFO("Deserialise transaction in target store and extract claims");
+  INFO("Deserialise transaction in target store and extract digests");
   {
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
@@ -843,6 +1093,11 @@ TEST_CASE(
     REQUIRE(wrapper->apply() != ccf::kv::ApplyResult::FAIL);
     auto deserialised_claims = wrapper->consume_claims_digest();
     REQUIRE(claims_digest == deserialised_claims);
+    auto deserialised_commit_evidence =
+      wrapper->consume_commit_evidence_digest();
+    REQUIRE(deserialised_commit_evidence.has_value());
+    REQUIRE(
+      deserialised_commit_evidence.value() == expected_commit_evidence_digest);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_priv = tx_target.rw<MapTypes::StringString>(priv_map);

@@ -12,6 +12,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+
 log() {
   echo "-=[ $* ]=-"
 }
@@ -40,7 +42,6 @@ install_packages_ubuntu() {
     gawk \
     findutils \
     python3 \
-    python3-pip \
     npm \
     jq \
     clang-format-18
@@ -54,16 +55,8 @@ install_packages_ubuntu() {
 # uv provides the isolated Python tool runtime (uvx) used by black, ruff, mypy,
 # gersemi and openapi-spec-validator.
 install_uv() {
-  if command -v uv >/dev/null 2>&1; then
-    log "uv already installed ($(uv --version))"
-    return
-  fi
-  log "Installing uv from PyPI"
-  # Ubuntu 24 may enforce externally-managed Python environments. Try with
-  # --break-system-packages first, then fall back for distros that don't need it.
-  if ! $SUDO python3 -m pip install --upgrade uv --break-system-packages; then
-    $SUDO python3 -m pip install --upgrade uv
-  fi
+  log "Installing pinned uv release"
+  $SUDO bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin
 }
 
 install_packages_ubuntu

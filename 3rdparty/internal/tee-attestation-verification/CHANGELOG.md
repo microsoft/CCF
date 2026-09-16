@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.0.8]
+
+[1.0.8]: https://github.com/microsoft/TEE-Attestation-Verification/releases/tag/tav-1.0.8
+
+### Added
+
+- Handle-based CBOR API for C++ in the `tee-attestation-verification-ffi` crate, with independently owned navigation handles, for building, parsing, serializing and inspecting CBOR. The supported interface is the `<tav/cbor.hpp>` wrapper; the C ABI beneath it is an implementation detail of that header. (#133)
+
+### Changed
+
+- By default all crypto backends are enabled. This selects the platform's crypto backend automatically, however OpenSSL is now disabled on Windows. (#136)
+
+### Fixed
+
+- Reject duplicate CPUID entries in minimum-TCB policies, including case aliases supplied through WASM JSON. (#83)
+
+### Removed
+
+- Removed the `crypto_pure_rust` backend and feature from all crates. (#131)
+
+## [1.0.7]
+
+[1.0.7]: https://github.com/microsoft/TEE-Attestation-Verification/releases/tag/tav-1.0.7
+
+### Added
+
+- C and .NET FFI constructors for decoding SNP reports without verification. (#101)
+- Windows CNG crypto provider. (#100)
+- Windows and macOS x64 native libraries in the .NET NuGet package.
+
+## [1.0.6]
+
+[1.0.6]: https://github.com/microsoft/TEE-Attestation-Verification/releases/tag/tav-1.0.6
+
+### Changed
+
+- Updated the NuGet package README to consume C-ACI's published endorsement formats directly. (#98)
+
+## [1.0.5]
+
+[1.0.5]: https://github.com/microsoft/TEE-Attestation-Verification/releases/tag/tav-1.0.5
+
+### Added
+
+- Nuget packaging (#94)
+
 ## [1.0.4]
 
 [1.0.4]: https://github.com/microsoft/TEE-Attestation-Verification/releases/tag/tav-1.0.4

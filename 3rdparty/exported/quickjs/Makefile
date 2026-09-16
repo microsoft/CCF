@@ -53,6 +53,12 @@ PREFIX?=/usr/local
 #CONFIG_MSAN=y
 # use UB sanitizer
 #CONFIG_UBSAN=y
+# use thread sanitizer
+#CONFIG_TSAN=y
+
+# TEST262 bootstrap config: commit id and shallow "since" parameter
+TEST262_COMMIT?=5c8206929d81b2d3d727ca6aac56c18358c8d790
+TEST262_SINCE?=2025-09-01
 
 OBJDIR=.obj
 
@@ -187,6 +193,10 @@ endif
 ifdef CONFIG_UBSAN
 CFLAGS+=-fsanitize=undefined -fno-omit-frame-pointer
 LDFLAGS+=-fsanitize=undefined -fno-omit-frame-pointer
+endif
+ifdef CONFIG_TSAN
+CFLAGS+=-fsanitize=thread -fno-omit-frame-pointer
+LDFLAGS+=-fsanitize=thread -fno-omit-frame-pointer
 endif
 ifdef CONFIG_WIN32
 LDEXPORT=
@@ -452,6 +462,7 @@ test: qjs$(EXE)
 	$(WINE) ./qjs$(EXE) tests/test_worker.js
 ifndef CONFIG_WIN32
 	$(WINE) ./qjs$(EXE) tests/test_std.js
+	$(WINE) ./qjs$(EXE) tests/test_rw_handler.js
 endif
 ifdef CONFIG_SHARED_LIBS
 	$(WINE) ./qjs$(EXE) tests/test_bjson.js
@@ -464,6 +475,15 @@ stats: qjs$(EXE)
 microbench: qjs$(EXE)
 	$(WINE) ./qjs$(EXE) --std tests/microbench.js
 
+ifeq ($(wildcard test262/features.txt),)
+test2-bootstrap:
+	git clone --single-branch --shallow-since=$(TEST262_SINCE) https://github.com/tc39/test262.git
+	(cd test262 && git checkout -q $(TEST262_COMMIT) && patch -p1 < ../tests/test262.patch && cd ..)
+else
+test2-bootstrap:
+	(cd test262 && git fetch && git reset --hard $(TEST262_COMMIT) && patch -p1 < ../tests/test262.patch && cd ..)
+endif
+
 ifeq ($(wildcard test262o/tests.txt),)
 test2o test2o-update:
 	@echo test262o tests not installed
@@ -473,7 +493,7 @@ test2o: run-test262
 	time ./run-test262 -t -m -c test262o.conf
 
 test2o-update: run-test262
-	./run-test262 -t -u -c test262o.conf
+	./run-test262 -t -u -c test262o.conf -T 1
 endif
 
 ifeq ($(wildcard test262/features.txt),)
@@ -488,7 +508,7 @@ test2: run-test262
 	time ./run-test262 -t -m -c test262.conf -a
 
 test2-update: run-test262
-	./run-test262 -t -u -c test262.conf -a
+	./run-test262 -t -u -c test262.conf -a -T 1
 
 test2-check: run-test262
 	time ./run-test262 -t -m -c test262.conf -E -a

@@ -13,9 +13,6 @@ on:
 
 permissions: read-all
 
-env:
-  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: false
@@ -26,7 +23,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=bab_benchmark_pr-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     if: ${{ (github.event.action == 'labeled' && github.event.label.name == 'bench-ab') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'bench-ab')) }}
@@ -46,7 +43,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install dependencies
-        run: ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: Confirm platform
         run: python3 tests/infra/platform_detection.py virtual

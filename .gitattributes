@@ -9,3 +9,6 @@ src/crypto/test/cbor_fuzz_corpus/* binary
 *.cpp linguist-language=C++
 
 .*canary merge=keeplocal
+
+lean/disaster-recovery/DisasterRecovery/Proofs/**/*.lean linguist-generated=true
+lean/disaster-recovery/DisasterRecovery.lean text eol=lf

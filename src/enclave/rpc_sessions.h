@@ -2,15 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "ccf/service/node_info_network.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "enclave/session.h"
 #include "forwarder_types.h"
-#include "http/http2_session.h"
 #include "http/http_responder.h"
-#include "http/http_session.h"
+#include "http2_session.h"
+#include "http_session.h"
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/session_metrics.h"
 #include "rpc_handler.h"
@@ -20,10 +20,6 @@
 #include "tls/server.h"
 #include "udp/msg_types.h"
 
-// NB: This should be HTTP3 including QUIC, but this is
-// ok for now, as we only have an echo service for now
-#include "quic/quic_session.h"
-
 #include <limits>
 #include <map>
 #include <stdexcept>
@@ -31,8 +27,6 @@
 
 namespace ccf
 {
-  using QUICSessionImpl = quic::QUICEchoSession;
-
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;
   static const ccf::Endorsement endorsement_default = {ccf::Authority::SERVICE};
@@ -64,7 +58,7 @@ namespace ccf
     std::shared_ptr<CommitCallbackSubsystem> commit_callbacks_subsystem =
       nullptr;
 
-    ccf::pal::Mutex lock;
+    ccf::ds::Mutex lock;
     std::unordered_map<
       ccf::tls::ConnID,
       std::pair<ListenInterfaceID, std::shared_ptr<ccf::Session>>>
@@ -175,28 +169,35 @@ namespace ccf
 
     void report_parsing_error(const ccf::ListenInterfaceID& id) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       get_interface_from_interface_id(id).errors.parsing++;
     }
 
     void report_request_payload_too_large_error(
       const ccf::ListenInterfaceID& id) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       get_interface_from_interface_id(id).errors.request_payload_too_large++;
     }
 
     void report_request_header_too_large_error(
       const ccf::ListenInterfaceID& id) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       get_interface_from_interface_id(id).errors.request_header_too_large++;
+    }
+
+    void report_request_target_too_long_error(
+      const ccf::ListenInterfaceID& id) override
+    {
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
+      get_interface_from_interface_id(id).errors.request_target_too_long++;
     }
 
     void update_listening_interface_options(
       const ccf::NodeInfoNetwork& node_info)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       for (const auto& [name, interface] : node_info.rpc_interfaces)
       {
@@ -229,7 +230,7 @@ namespace ccf
     ccf::SessionMetrics get_session_metrics()
     {
       ccf::SessionMetrics sm;
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       sm.active = sessions.size();
       sm.peak = sessions_peak;
@@ -285,7 +286,7 @@ namespace ccf
       auto cert = std::make_shared<::tls::Cert>(
         nullptr, cert_, pk, std::nullopt, /*auth_required ==*/false);
 
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       for (auto& [listen_interface_id, interface] : listening_interfaces)
       {
@@ -301,7 +302,7 @@ namespace ccf
       const ListenInterfaceID& listen_interface_id,
       bool udp = false)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       if (sessions.find(id) != sessions.end())
       {
@@ -320,10 +321,13 @@ namespace ccf
       }
 
       auto& per_listen_interface = it->second;
+      const auto unsecured =
+        per_listen_interface.endorsement.authority == Authority::UNSECURED;
+      const auto is_http2_interface =
+        per_listen_interface.app_protocol == "HTTP2";
+      const auto cert_it = certs.find(listen_interface_id);
 
-      if (
-        per_listen_interface.endorsement.authority != Authority::UNSECURED &&
-        certs.find(listen_interface_id) == certs.end())
+      if (!unsecured && cert_it == certs.end())
       {
         LOG_DEBUG_FMT(
           "Refusing TLS session {} inside the enclave - interface {} "
@@ -361,9 +365,19 @@ namespace ccf
           listen_interface_id,
           per_listen_interface.max_open_sessions_soft);
 
-        auto ctx = std::make_unique<::tls::Server>(certs[listen_interface_id]);
+        std::unique_ptr<tls::Context> ctx;
+        if (unsecured)
+        {
+          ctx = std::make_unique<nontls::PlaintextServer>();
+        }
+        else
+        {
+          ctx = std::make_unique<::tls::Server>(
+            cert_it->second, is_http2_interface);
+        }
+
         std::shared_ptr<Session> capped_session;
-        if (per_listen_interface.app_protocol == "HTTP2")
+        if (is_http2_interface)
         {
           capped_session =
             std::make_shared<NoMoreSessionsImpl<::http::HTTP2ServerSession>>(
@@ -405,18 +419,10 @@ namespace ccf
         if (udp)
         {
           LOG_DEBUG_FMT("New UDP endpoint at {}", id);
-          if (per_listen_interface.app_protocol == "QUIC")
+          if (custom_protocol_subsystem)
           {
-            auto session = std::make_shared<QUICSessionImpl>(
-              rpc_map, id, listen_interface_id, writer_factory);
-            sessions.insert(std::make_pair(
-              id, std::make_pair(listen_interface_id, std::move(session))));
-          }
-          else if (custom_protocol_subsystem)
-          {
-            // We know it's a custom protocol, but the session creation function
-            // hasn't been registered yet, so we keep a nullptr until the first
-            // udp::udp_inbound message.
+            // The session creation function may not be registered yet, so keep
+            // a nullptr until the first udp::udp_inbound message.
             sessions.insert(
               std::make_pair(id, std::make_pair(listen_interface_id, nullptr)));
           }
@@ -433,16 +439,14 @@ namespace ccf
         else
         {
           std::unique_ptr<tls::Context> ctx;
-          if (
-            per_listen_interface.endorsement.authority == Authority::UNSECURED)
+          if (unsecured)
           {
             ctx = std::make_unique<nontls::PlaintextServer>();
           }
           else
           {
             ctx = std::make_unique<::tls::Server>(
-              certs[listen_interface_id],
-              per_listen_interface.app_protocol == "HTTP2");
+              cert_it->second, is_http2_interface);
           }
 
           auto session = make_server_session(
@@ -466,7 +470,7 @@ namespace ccf
 
     std::shared_ptr<Session> find_session(ccf::tls::ConnID id)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       auto search = sessions.find(id);
       if (search == sessions.end())
@@ -503,7 +507,7 @@ namespace ccf
 
     void remove_session(ccf::tls::ConnID id)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       LOG_DEBUG_FMT("Closing a session inside the enclave: {}", id);
       const auto search = sessions.find(id);
       if (search != sessions.end())
@@ -567,7 +571,7 @@ namespace ccf
 
           std::shared_ptr<Session> session;
           {
-            std::lock_guard<ccf::pal::Mutex> guard(lock);
+            std::lock_guard<ccf::ds::Mutex> guard(lock);
 
             auto search = sessions.find(id);
             if (search == sessions.end())

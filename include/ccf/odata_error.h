@@ -83,6 +83,7 @@ namespace ccf
     ERROR(UnsupportedHttpVerb)
     ERROR(UnsupportedContentType)
     ERROR(RequestBodyTooLarge)
+    ERROR(RequestTargetTooLong)
     ERROR(RequestHeaderTooLarge)
     ERROR(PreconditionFailed)
 
@@ -100,6 +101,7 @@ namespace ccf
     ERROR(TransactionNotFound)
     ERROR(TransactionCommitAttemptsExceedLimit)
     ERROR(TransactionReplicationFailed)
+    ERROR(TransactionTooLarge)
     ERROR(UnknownCertificate)
     ERROR(VoteNotFound)
     ERROR(VoteAlreadyExists)

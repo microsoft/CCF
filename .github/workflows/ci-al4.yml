@@ -3,7 +3,6 @@ name: Continuous Integration AL4
 on:
   schedule:
     - cron: "0 0 * * 1-5"
-  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -12,16 +11,13 @@ concurrency:
 
 permissions: read-all
 
-env:
-  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
-
 jobs:
   vmss-virtual-a:
     name: "AL4 VMSS Virtual A" # Debug build, unit tests, e2e (bucket_a)
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=ci_al4_build_test_virtual_a-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -41,10 +37,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci-al4.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug"
         run: |
@@ -53,6 +46,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja
         shell: bash
 
@@ -89,7 +83,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=ci_al4_build_test_virtual_b-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -114,10 +108,7 @@ jobs:
         shell: bash
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci-al4.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Confirm running on Virtual"
         run: |
@@ -132,6 +123,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja
         shell: bash
 
@@ -164,7 +156,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=ci_al4_build_test_virtual_c-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -184,10 +176,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci-al4.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug"
         run: |
@@ -196,6 +185,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja
         shell: bash
 

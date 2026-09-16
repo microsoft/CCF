@@ -7,6 +7,7 @@
 
 #include <doctest/doctest.h>
 #undef FAIL
+#include <string>
 
 struct MapTypes
 {
@@ -18,6 +19,59 @@ struct MapTypes
 
 MapTypes::StringString string_map("public:string_map");
 MapTypes::NumNum num_map("public:num_map");
+
+TEST_CASE(
+  "Snapshots are not subject to the transaction size limit" *
+  doctest::test_suite("snapshot"))
+{
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+
+  // A deliberately small per-transaction limit.
+  constexpr size_t small_limit = 512;
+  store.set_max_transaction_size(small_limit);
+
+  // Accumulate committed state larger than the limit across several
+  // transactions, each of which individually stays under the limit.
+  constexpr size_t num_entries = 32;
+  constexpr size_t value_size = 64;
+  ccf::kv::Version snapshot_version = ccf::kv::NoVersion;
+  for (size_t i = 0; i < num_entries; ++i)
+  {
+    auto tx = store.create_tx();
+    auto handle = tx.rw(string_map);
+    handle->put("key_" + std::to_string(i), std::string(value_size, 'x'));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    snapshot_version = tx.commit_version();
+  }
+  REQUIRE(num_entries * value_size > small_limit);
+
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
+  {
+    ccf::kv::ScopedStoreMapsLock maps_lock(&store);
+    snapshot = store.snapshot_unsafe_maps(snapshot_version);
+  }
+
+  // Serialising a snapshot larger than the per-transaction limit must not be
+  // rejected by that limit.
+  std::vector<uint8_t> serialised_snapshot;
+  REQUIRE_NOTHROW(
+    serialised_snapshot = store.serialise_snapshot(std::move(snapshot)));
+
+  // And it can be read back into a store configured with the same small limit.
+  ccf::kv::Store new_store;
+  new_store.set_encryptor(encryptor);
+  new_store.set_max_transaction_size(small_limit);
+
+  ccf::kv::ConsensusHookPtrs hooks;
+  REQUIRE_EQ(
+    new_store.deserialise_snapshot(
+      serialised_snapshot.data(), serialised_snapshot.size(), hooks),
+    ccf::kv::ApplyResult::PASS);
+  REQUIRE_EQ(new_store.current_version(), snapshot_version);
+}
 
 TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 {

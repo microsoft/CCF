@@ -170,7 +170,7 @@ namespace messaging
           get_decorated_message_name(m),
           size);
         LOG_TRACE_FMT("{}", e.what());
-        throw e;
+        throw;
       }
     }
   };

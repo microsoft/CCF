@@ -15,7 +15,6 @@ permissions: read-all
 # scripts/coverage_summary.py, so that the two stay in sync from a single place.
 env:
   COVERAGE_HISTORY_POINTS: "9"
-  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
 jobs:
   coverage_virtual:
@@ -23,7 +22,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=ci_coverage-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -44,10 +43,7 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug with coverage"
         run: |
@@ -77,6 +73,13 @@ jobs:
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
 
+      - name: "Run partitions tests"
+        run: |
+          set -ex
+          cd build
+          ./tests.sh --timeout 360 --output-on-failure -C partitions -L '^partitions$' --no-tests=error
+        shell: bash
+
       - name: "Generate coverage reports"
         run: |
           set -exo pipefail
@@ -104,7 +107,9 @@ jobs:
             job_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs" \
               --jq '.jobs[0].id' || true)
             [[ -z "$job_id" ]] && continue
-            gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${job_id}/logs" \
+            # Job logs contain ANSI sequences, which gh 2.97+ blocks by default.
+            gh api --allow-escape-sequences \
+              "repos/${GITHUB_REPOSITORY}/actions/jobs/${job_id}/logs" \
               > "coverage_history/${run_id}-${run_number}.log" || true
           done <<< "$runs"
         shell: bash

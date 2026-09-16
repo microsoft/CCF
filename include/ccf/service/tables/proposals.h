@@ -6,6 +6,7 @@
 #include "ccf/service/map.h"
 
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace ccf
@@ -82,8 +83,8 @@ struct formatter<ccf::ProposalState>
       }
       default:
       {
-        throw std::logic_error(fmt::format(
-          "Unknown proposal state {}", static_cast<uint8_t>(state)));
+        throw std::logic_error(
+          fmt::format("Unknown proposal state {}", std::to_underlying(state)));
       }
     }
   }

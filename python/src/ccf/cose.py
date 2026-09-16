@@ -17,14 +17,10 @@ import cwt.enums
 import cwt.utils
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.ec import (
-    EllipticCurvePrivateKey,
-    EllipticCurvePublicKey,
-)
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
     PublicFormat,
-    load_pem_private_key,
     load_pem_public_key,
 )
 from cryptography.x509 import load_pem_x509_certificate
@@ -71,13 +67,6 @@ def default_algorithm_for_key(key) -> int:
             raise NotImplementedError("unsupported curve")
     else:
         raise NotImplementedError("unsupported key type")
-
-
-def get_priv_key_type(priv_pem: Pem) -> str:
-    key = load_pem_private_key(priv_pem.encode("ascii"), None)
-    if isinstance(key, EllipticCurvePrivateKey):
-        return "ec"
-    raise NotImplementedError("unsupported key type")
 
 
 def cert_fingerprint(cert_pem: Pem):

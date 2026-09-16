@@ -70,6 +70,11 @@
                     "default": "16KB",
                     "description": "Maximum size (size string) of a single HTTP request header (key or value). Submitting a request with a header larger than this value will result in the client session being automatically closed"
                   },
+                  "max_request_target_size": {
+                    "type": "string",
+                    "default": "16KB",
+                    "description": "HTTP/1.x only. Maximum size (size string) of a single HTTP request target, including the query string. Submitting a request with a target larger than this value will result in the client session being automatically closed"
+                  },
                   "max_headers_count": {
                     "type": "integer",
                     "default": 256,
@@ -477,6 +482,11 @@
           "type": "string",
           "default": "5MB",
           "description": "Minimum size (size string) of the current ledger file after which a new ledger file (chunk) is created"
+        },
+        "max_transaction_size": {
+          "type": "string",
+          "default": "32MB",
+          "description": "Maximum total serialised size (size string) of a transaction written to the ledger. Reserved internal signature transactions are exempt. This covers the whole ledger entry: the fixed 8-byte ledger entry header, the ledger encryption header, public domain size field, public domain and encrypted private domain. Must be smaller than 'memory.max_msg_size', by at least the ring-buffer range response overhead, so that a single ledger entry can be read back from the host"
         }
       },
       "description": "This section includes configuration for the ledger directories and files",
@@ -569,6 +579,11 @@
       },
       "description": "This section includes configuration for periodic cleanup of old files (snapshots, ledger chunks)",
       "additionalProperties": false
+    },
+    "pending_node_timeout": {
+      "type": "string",
+      "default": "1h",
+      "description": "Delay after which the primary automatically removes a Pending node that has stopped sending join requests. Cleanup runs at least once per minute, so removal may occur up to one minute after this delay. Set to 0s to disable automatic removal. Positive values must be at least 1ms."
     },
     "identity_history_fetch": {
       "type": "object",

@@ -4,11 +4,11 @@
 
 #include "ccf/ds/nonstd.h"
 #include "ds/internal_logger.h"
-#include "enclave/session.h"
 #include "http2_callbacks.h"
 #include "http2_types.h"
 #include "http_proc.h"
-#include "http_rpc_context.h"
+
+#include <utility>
 
 namespace http2
 {
@@ -273,8 +273,7 @@ namespace http2
     {
       std::vector<nghttp2_nv> hdrs = {};
 
-      auto status_str = fmt::format(
-        "{}", static_cast<std::underlying_type_t<ccf::http_status>>(status));
+      auto status_str = fmt::format("{}", std::to_underlying(status));
       hdrs.emplace_back(
         make_nv(ccf::http2::headers::STATUS, status_str.data()));
 

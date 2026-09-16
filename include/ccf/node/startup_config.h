@@ -29,6 +29,8 @@ namespace ccf
 
     ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
 
+    ccf::ds::TimeString pending_node_timeout = {"1h"};
+
     ccf::consensus::Configuration consensus = {};
     ccf::NodeInfoNetwork network;
 
@@ -48,6 +50,7 @@ namespace ccf
       std::string directory = "ledger";
       std::vector<std::string> read_only_directories;
       ccf::ds::SizeString chunk_size = {"5MB"};
+      ccf::ds::SizeString max_transaction_size = {"32MB"};
 
       bool operator==(const Ledger&) const = default;
     };

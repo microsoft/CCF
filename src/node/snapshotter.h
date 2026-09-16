@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/internal_logger.h"
@@ -36,7 +36,7 @@ namespace ccf
     // Writes committed snapshot files to disk, in-process, on a task thread.
     snapshots::SnapshotWriter snapshot_writer;
 
-    ccf::pal::Mutex lock;
+    ccf::ds::Mutex lock;
 
     std::shared_ptr<ccf::kv::Store> store;
 
@@ -71,7 +71,7 @@ namespace ccf
 
       std::optional<::consensus::Index> evidence_idx = std::nullopt;
 
-      std::optional<std::vector<uint8_t>> cose_sig = std::nullopt;
+      std::optional<CoseSignatureMap> cose_sigs = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
       // Outputs of the serialise action, handed to the persist action.
@@ -203,7 +203,7 @@ namespace ccf
       std::shared_ptr<Snapshotter> self;
       ccf::kv::Version version;
       ::consensus::Index evidence_idx;
-      std::vector<uint8_t> cose_sig;
+      CoseSignatureMap cose_sigs;
       std::vector<uint8_t> tree;
       std::shared_ptr<SnapshotSerialisation> serialised;
 
@@ -213,13 +213,13 @@ namespace ccf
         std::shared_ptr<Snapshotter> _self,
         ccf::kv::Version _version,
         ::consensus::Index _evidence_idx,
-        std::vector<uint8_t> _cose_sig,
+        CoseSignatureMap _cose_sigs,
         std::vector<uint8_t> _tree,
         std::shared_ptr<SnapshotSerialisation> _serialised) :
         self(std::move(_self)),
         version(_version),
         evidence_idx(_evidence_idx),
-        cose_sig(std::move(_cose_sig)),
+        cose_sigs(std::move(_cose_sigs)),
         tree(std::move(_tree)),
         serialised(std::move(_serialised)),
         name(fmt::format("persist-snapshot@{}", version))
@@ -228,7 +228,7 @@ namespace ccf
       void do_action() override
       {
         self->persist_snapshot_(
-          version, evidence_idx, cose_sig, tree, serialised);
+          version, evidence_idx, cose_sigs, tree, serialised);
       }
 
       [[nodiscard]] const std::string& get_name() const override
@@ -277,7 +277,7 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
-      auto rc = tx.commit(cd, nullptr, capture_ws_digest_and_commit_evidence);
+      auto rc = tx.commit(cd, capture_ws_digest_and_commit_evidence);
       if (rc != ccf::kv::CommitResult::SUCCESS)
       {
         LOG_FAIL_FMT(
@@ -310,12 +310,12 @@ namespace ccf
     void persist_snapshot_(
       ccf::kv::Version version,
       ::consensus::Index evidence_idx,
-      const std::vector<uint8_t>& cose_sig,
+      const CoseSignatureMap& cose_sigs,
       const std::vector<uint8_t>& tree,
       const std::shared_ptr<SnapshotSerialisation>& serialised)
     {
       auto serialised_receipt = build_and_serialise_receipt(
-        cose_sig,
+        cose_sigs,
         tree,
         evidence_idx,
         serialised->write_set_digest,
@@ -365,7 +365,7 @@ namespace ccf
         if (
           snapshot_info.evidence_idx.has_value() &&
           idx > snapshot_info.evidence_idx.value() &&
-          snapshot_info.cose_sig.has_value() && snapshot_info.tree.has_value())
+          snapshot_info.cose_sigs.has_value() && snapshot_info.tree.has_value())
         {
           // Commit evidence is durable. Enqueue the persist action on this
           // generation's ordered task collection. OrderedTasks guarantees it
@@ -378,7 +378,7 @@ namespace ccf
               shared_from_this(),
               snapshot_info.version,
               snapshot_info.evidence_idx.value(),
-              std::move(snapshot_info.cose_sig.value()),
+              std::move(snapshot_info.cose_sigs.value()),
               std::move(snapshot_info.tree.value()),
               snapshot_info.serialised));
 
@@ -415,7 +415,7 @@ namespace ccf
       // After public recovery, the first node should have restored all
       // snapshot indices in next_snapshot_indices so that snapshot
       // generation can continue at the correct interval
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       last_snapshot_idx = next_snapshot_indices.back().idx;
       last_snapshot_time = Clock::now();
@@ -423,13 +423,13 @@ namespace ccf
 
     void set_snapshot_generation(bool enabled)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       snapshot_generation_enabled = enabled;
     }
 
     void init_from_snapshot_status(const SnapshotStatus& status)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       const auto timestamp = time_point_from_snapshot_status(status.timestamp);
       last_snapshot_idx = status.version;
@@ -475,7 +475,7 @@ namespace ccf
 
     bool should_schedule_snapshot(::consensus::Index threshold_idx) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       return should_schedule_snapshot_unsafe(threshold_idx);
     }
 
@@ -483,7 +483,7 @@ namespace ccf
     {
       // Returns true if the committable idx will require the generation of a
       // snapshot, and thus a new ledger chunk
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       CCF_ASSERT_FMT(
         idx >= next_snapshot_indices.back().idx,
@@ -513,26 +513,27 @@ namespace ccf
       return false;
     }
 
-    void record_cose_signature(
-      ::consensus::Index idx, const std::vector<uint8_t>& cose_sig)
+    void record_cose_signatures(
+      ::consensus::Index idx, const CoseSignatureMap& cose_sigs)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       for (auto& [_, pending_snapshot] : pending_snapshots)
       {
         if (
           pending_snapshot.evidence_idx.has_value() &&
           idx > pending_snapshot.evidence_idx.value() &&
-          !pending_snapshot.cose_sig.has_value())
+          !pending_snapshot.cose_sigs.has_value())
         {
           LOG_TRACE_FMT(
-            "Recording COSE signature at {} for snapshot {} with evidence at "
-            "{}",
+            "Recording {} COSE signature(s) at {} for snapshot {} with "
+            "evidence at {}",
+            cose_sigs.size(),
             idx,
             pending_snapshot.version,
             pending_snapshot.evidence_idx.value());
 
-          pending_snapshot.cose_sig = cose_sig;
+          pending_snapshot.cose_sigs = cose_sigs;
         }
       }
     }
@@ -540,7 +541,7 @@ namespace ccf
     void record_serialised_tree(
       ::consensus::Index idx, const std::vector<uint8_t>& tree)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       for (auto& [_, pending_snapshot] : pending_snapshots)
       {
@@ -564,7 +565,7 @@ namespace ccf
     void record_snapshot_evidence_idx(
       ::consensus::Index idx, const SnapshotHash& snapshot)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       for (auto& [_, pending_snapshot] : pending_snapshots)
       {
@@ -584,7 +585,7 @@ namespace ccf
     // globally committed baseline aligned with replicated state.
     void record_snapshot_status(const SnapshotStatus& status)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       const auto timestamp = time_point_from_snapshot_status(status.timestamp);
       last_snapshot_idx = status.version;
@@ -637,7 +638,7 @@ namespace ccf
       // that a snapshot was generated.
 
       ccf::kv::ScopedStoreMapsLock maps_lock(store);
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       // Prune all but one of the requested snapshots below idx and also take
       // the opportunity to release any pending snapshots which now have commit
@@ -695,7 +696,7 @@ namespace ccf
 
     void rollback(::consensus::Index idx) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       while (!next_snapshot_indices.empty() &&
              (next_snapshot_indices.back().idx > idx))

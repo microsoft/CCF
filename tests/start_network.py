@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import argparse
 import http
 import json
 import os
@@ -14,6 +15,21 @@ import infra.platform_detection
 from loguru import logger as LOG
 
 DEFAULT_NODES = ["local://127.0.0.1:8000"]
+
+START_NETWORK_CLI_ARGUMENT_CONFIG_PATHS = {
+    "node": None,
+    "verbose": None,
+    "recover": None,
+    "ledger_dir": None,
+    "snapshots_dir": None,
+    "common_dir": None,
+    "auto_shutdown": None,
+    "auto_shutdown_delay_s": None,
+    "redirection_kind": None,
+    "primary_hostname": None,
+    "backup_hostname": None,
+    "use_defaults_from_host_config": None,
+}
 
 
 def run(args):
@@ -190,6 +206,9 @@ def run(args):
 
 
 if __name__ == "__main__":
+    defaults_parser = argparse.ArgumentParser(add_help=False)
+    defaults_parser.add_argument("--use-defaults-from-host-config", action="store_true")
+    defaults, _ = defaults_parser.parse_known_args()
 
     def add(parser):
         parser.add_argument(
@@ -249,8 +268,17 @@ if __name__ == "__main__":
             "--backup-hostname",
             help="The backup hostname to set when --redirection-kind is set to static-address",
         )
+        parser.add_argument(
+            "--use-defaults-from-host-config",
+            help="Use defaults and descriptions from the cchost configuration schema",
+            action="store_true",
+        )
 
-    args = infra.e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args(
+        add,
+        use_host_config_defaults=defaults.use_defaults_from_host_config,
+        additional_cli_argument_config_paths=START_NETWORK_CLI_ARGUMENT_CONFIG_PATHS,
+    )
     if args.recover and not all([args.ledger_dir, args.common_dir]):
         print("Error: --recover requires --ledger-dir and --common-dir arguments.")
         sys.exit(1)

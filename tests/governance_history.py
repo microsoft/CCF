@@ -4,7 +4,6 @@
 import base64
 import http
 import json
-import os
 
 import ccf.ledger
 import ccf.read_ledger
@@ -215,12 +214,16 @@ def test_tables_doc(network, args):
     return network
 
 
-@reqs.description("Test that all nodes' ledgers can be read")
+@reqs.description("Test that all nodes' API-readable ledger chunks can be read")
 def test_ledger_is_readable(network, args):
     primary, backups = network.find_nodes()
     target_seqno = network.create_and_wait_for_ledger_chunk(primary)
     for node in (primary, *backups):
-        with node.get_ledger_from_api(target_seqno, local_only=True) as ledger:
+        with node.get_ledger_from_api(
+            target_seqno,
+            local_only=True,
+            timeout=args.ledger_recovery_timeout,
+        ) as ledger:
             for chunk in ledger:
                 for _ in chunk:
                     pass
@@ -246,9 +249,9 @@ def test_read_ledger_utility(network, args):
                 tables_format_rules=format_rule,
             )
 
-    snapshot_dir = network.get_committed_snapshots(primary)
+    snapshot_path = primary.wait_for_snapshot(target_seqno)
     assert ccf.read_ledger.run(
-        paths=[os.path.join(snapshot_dir, os.listdir(snapshot_dir)[-1])],
+        paths=[snapshot_path],
         print_mode=ccf.read_ledger.PrintMode.Contents,
         is_snapshot=True,
         tables_format_rules=format_rule,

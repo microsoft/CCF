@@ -5,6 +5,7 @@
     "context": "."
   },
   "runArgs": [
+    "--cap-add=PERFMON",
     "--cap-add=SYS_PTRACE",
     "--cap-add=NET_ADMIN",
     "--security-opt",
