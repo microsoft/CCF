@@ -258,9 +258,19 @@ Service identity and status.
 
 Public keys for verifying service COSE signatures.
 
-**Key** Identity type as a little-endian 64-bit unsigned integer. Only ``CLASSICAL`` (0) is populated.
+**Key** Identity type as a little-endian 64-bit unsigned integer.
 
-**Value** JSON with ``kind`` set to ``"X509_SPKI_DER"`` and ``value`` containing the base64-encoded DER public key.
+.. doxygenenum:: ccf::IdentityType
+   :project: CCF
+
+**Value** Represented as JSON.
+
+.. doxygenenum:: ccf::IdentityKind
+   :project: CCF
+
+.. doxygenstruct:: ccf::Identity
+   :project: CCF
+   :members:
 
 For legacy ledgers, an empty table falls back to ``service.info.cert`` for ``CLASSICAL``.
 

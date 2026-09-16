@@ -12,11 +12,14 @@
 
 namespace ccf
 {
+  /// Cryptographic family of an identity.
   // Preserve the existing 64-bit C++ representation.
   // NOLINTNEXTLINE(performance-enum-size)
   enum class IdentityType : uint64_t
   {
+    /// Classical cryptographic identity.
     CLASSICAL = 0,
+    /// Post-quantum cryptographic identity.
     PQ = 1,
   };
 
@@ -24,9 +27,12 @@ namespace ccf
     IdentityType,
     {{IdentityType::CLASSICAL, "CLASSICAL"}, {IdentityType::PQ, "PQ"}});
 
+  /// Encoding of the certificate or public key held by an identity.
   enum class IdentityKind : uint8_t
   {
+    /// DER-encoded X.509 certificate.
     X509_CERT_DER = 0,
+    /// DER-encoded X.509 SubjectPublicKeyInfo public key.
     X509_SPKI_DER = 1,
   };
 
@@ -37,11 +43,12 @@ namespace ccf
 
   using IdentityValue = std::vector<uint8_t>;
 
-  // The kind is supplied by aggregate initialisation or required JSON fields.
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
+  /// An encoded certificate or public key.
   struct Identity
   {
-    IdentityKind kind;
+    /// Encoding of the identity material.
+    IdentityKind kind = IdentityKind::X509_CERT_DER;
+    /// Certificate or public-key bytes in the encoding specified by kind.
     IdentityValue value;
 
     bool operator==(const Identity&) const = default;
