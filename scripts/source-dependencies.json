@@ -34,6 +34,24 @@
     "uv": [],
     "http": ["ccf-api", "crypto", "ds"],
     "http_client": ["ccf-api", "ds", "uv"],
-    "snapshots": ["ccf-api", "ds", "http", "http_client"]
+    "snapshots": ["ccf-api", "ds", "http", "http_client"],
+    "ledger": [],
+    "tls": ["ccf-api", "crypto", "ds", "tasks", "tcp"],
+    "host": [
+      "ccf-api",
+      "common",
+      "consensus",
+      "crypto",
+      "ds",
+      "enclave",
+      "http_client",
+      "kv",
+      "ledger",
+      "node",
+      "pal",
+      "service",
+      "snapshots",
+      "uv"
+    ]
   }
 }
