@@ -124,3 +124,9 @@ inventory so one failure does not hide the remaining scenarios.
 For existing verbatim captures, use `--raw-directory` as documented in
 [REDUCTION.md](REDUCTION.md). Reusing captures does not test a newly changed
 implementation.
+
+PR CI runs this complete pipeline in `tla-shallow.yml`, reusing its traced
+`raft_driver` build. It captures every scenario afresh and uploads raw traces,
+reduced instructions, replay diagnostics, and `summary.json` as the
+`lean-trace-validation-consensus` artifact. The separate `lean.yml` workflow
+builds and audits the safety proofs and runs the focused regression tests.
