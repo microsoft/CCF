@@ -1230,6 +1230,14 @@ TEST_CASE("TCP connections use the legacy latency and keepalive options")
   REQUIRE(get_option(IPPROTO_TCP, TCP_KEEPIDLE) == 30);
   REQUIRE(get_option(IPPROTO_TCP, TCP_KEEPINTVL) == 1);
   REQUIRE(get_option(IPPROTO_TCP, TCP_KEEPCNT) == 10);
+
+  const int quickack_off = 0;
+  REQUIRE(
+    setsockopt(
+      fd, IPPROTO_TCP, TCP_QUICKACK, &quickack_off, sizeof(quickack_off)) == 0);
+  REQUIRE(get_option(IPPROTO_TCP, TCP_QUICKACK) == 0);
+  REQUIRE_FALSE(asynchost::details::request_tcp_quickack(fd).has_value());
+  REQUIRE(get_option(IPPROTO_TCP, TCP_QUICKACK) == 1);
   REQUIRE((fcntl(fd, F_GETFD) & FD_CLOEXEC) != 0);
 
   ::close(fd);
@@ -1238,6 +1246,11 @@ TEST_CASE("TCP connections use the legacy latency and keepalive options")
   REQUIRE(error.has_value());
   REQUIRE(std::string(error->option) == "TCP_NODELAY");
   REQUIRE(error->error == EBADF);
+
+  const auto quickack_error = asynchost::details::request_tcp_quickack(-1);
+  REQUIRE(quickack_error.has_value());
+  REQUIRE(std::string(quickack_error->option) == "TCP_QUICKACK");
+  REQUIRE(quickack_error->error == EBADF);
 }
 
 TEST_CASE("TLS handshake and small round-trip")

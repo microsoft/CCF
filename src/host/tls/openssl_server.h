@@ -93,6 +93,16 @@ namespace asynchost
       }
       return set_option(IPPROTO_TCP, TCP_KEEPCNT, "TCP_KEEPCNT", 10);
     }
+
+    inline std::optional<SocketOptionError> request_tcp_quickack(int fd)
+    {
+      const int one = 1;
+      if (setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one)) != 0)
+      {
+        return SocketOptionError{"TCP_QUICKACK", errno};
+      }
+      return std::nullopt;
+    }
   }
 
   class OpenSSLServer : public std::enable_shared_from_this<OpenSSLServer>
@@ -656,6 +666,16 @@ namespace asynchost
       const int r = SSL_accept(c.ssl);
       if (r == 1)
       {
+        // With no post-handshake session tickets, the peer may wait for the
+        // delayed ACK of its Finished before Nagle sends its first request.
+        if (const auto error = details::request_tcp_quickack(c.fd))
+        {
+          LOG_DEBUG_FMT(
+            "setsockopt({}) failed for connection {} after TLS handshake: {}",
+            error->option,
+            c.id,
+            std::generic_category().message(error->error));
+        }
         c.state = Conn::Ready;
         c.want_write = false;
         X509* cert = SSL_get1_peer_certificate(c.ssl);
