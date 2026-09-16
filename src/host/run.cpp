@@ -35,7 +35,6 @@
 #include "host/files_cleanup_timer.h"
 #include "http_client/curl.h"
 #include "json_schema.h"
-#include "lfs_file_handler.h"
 #include "node_connections.h"
 #include "pal/quote_generation.h"
 #include "sig_term.h"
@@ -598,12 +597,6 @@ namespace ccf
         config.ledger.read_only_directories,
         config.files_cleanup.max_committed_ledger_chunks);
     }
-
-    // handle LFS-related messages from the enclave
-    asynchost::LFSFileHandler lfs_file_handler(
-      writer_factory.create_writer_to_inside());
-    lfs_file_handler.register_message_handlers(
-      buffer_processor.get_dispatcher());
 
     // Setup node-to-node connections
     auto [node_host, node_port] =
