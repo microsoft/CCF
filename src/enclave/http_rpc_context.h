@@ -10,6 +10,8 @@
 #include "http/http_parser.h"
 #include "node/rpc_context_impl.h"
 
+#include <format>
+
 namespace http
 {
   inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
@@ -65,7 +67,7 @@ namespace http
     {
       if (!serialised)
       {
-        const auto request_prefix = fmt::format(
+        const auto request_prefix = std::format(
           "{} {} HTTP/1.1\r\n"
           "{}"
           "\r\n",
@@ -376,7 +378,7 @@ namespace ccf
 
     if (processor.received.size() != 1)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Expected packed to contain a single complete HTTP message. Actually "
         "parsed {} messages",
         processor.received.size()));

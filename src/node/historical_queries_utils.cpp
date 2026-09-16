@@ -14,6 +14,8 @@
 #include "node/tx_receipt_impl.h"
 #include "service/tables/previous_service_identity.h"
 
+#include <format>
+
 namespace
 {
   using Endorsements = std::vector<std::vector<uint8_t>>;
@@ -228,14 +230,14 @@ namespace ccf
       }
       if (fetching == FetchStatus::Failed)
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "The service identity endorsement for the receipt at seqno {} "
           "cannot be fetched",
           state->transaction_id.seqno));
       }
       if (fetching != FetchStatus::Done && fetching != FetchStatus::Partial)
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "Unexpected endorsements fetching status: expected Done or Partial; "
           "got {}",
           ccf::to_string(fetching)));
@@ -247,7 +249,7 @@ namespace ccf
       if (!cose_endorsements.has_value())
       {
         // Cannot tell whether this seqno was ever endorsed.
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "Cannot determine the service identity endorsement chain "
           "for the receipt at {}",
           state->transaction_id.to_str()));
@@ -267,7 +269,7 @@ namespace ccf
       const auto tx_id = ccf::TxID::from_str(receipt.phdr.ccf.txid);
       if (!tx_id.has_value())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Failed to convert txid {} to ccf::TxID", receipt.phdr.ccf.txid));
       }
 
@@ -275,7 +277,7 @@ namespace ccf
         network_identity_subsystem->get_trusted_identity_for(tx_id->seqno);
       if (!trusted_key)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Verifying receipt for seqno {} failed due to trusted key absence",
           tx_id->seqno));
       }

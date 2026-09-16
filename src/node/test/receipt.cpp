@@ -10,6 +10,7 @@
 #include "crypto/openssl/hash.h"
 
 #include <doctest/doctest.h>
+#include <format>
 #include <iostream>
 #include <random>
 
@@ -74,7 +75,7 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
     auto service_kp = ccf::crypto::make_ec_key_pair();
     auto service_cert =
       service_kp->self_sign("CN=service", valid_from, valid_to);
-    const auto csr = node_kp->create_csr(fmt::format("CN=Test{}", i));
+    const auto csr = node_kp->create_csr(std::format("CN=Test{}", i));
     const auto endorsement =
       service_kp->sign_csr(service_cert, csr, valid_from, valid_to);
     receipt->service_endorsements.push_back(endorsement);

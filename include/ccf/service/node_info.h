@@ -8,8 +8,7 @@
 #include "ccf/kv/version.h"
 #include "ccf/service/node_info_network.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 #include <optional>
 
 namespace ccf
@@ -92,9 +91,8 @@ namespace ccf
     pending_last_seen);
 }
 
-FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<ccf::NodeStatus>
+struct std::formatter<ccf::NodeStatus>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -110,17 +108,16 @@ struct formatter<ccf::NodeStatus>
     {
       case (ccf::NodeStatus::PENDING):
       {
-        return format_to(ctx.out(), "PENDING");
+        return std::format_to(ctx.out(), "PENDING");
       }
       case (ccf::NodeStatus::TRUSTED):
       {
-        return format_to(ctx.out(), "TRUSTED");
+        return std::format_to(ctx.out(), "TRUSTED");
       }
       case (ccf::NodeStatus::RETIRED):
       {
-        return format_to(ctx.out(), "RETIRED");
+        return std::format_to(ctx.out(), "RETIRED");
       }
     }
   }
 };
-FMT_END_NAMESPACE

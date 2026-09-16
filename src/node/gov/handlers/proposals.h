@@ -13,6 +13,8 @@
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 
+#include <format>
+
 namespace ccf::gov::endpoints
 {
   namespace api
@@ -82,7 +84,7 @@ namespace ccf::gov::endpoints
     {
       auto* cose_recent_proposals =
         tx.rw<ccf::COSERecentProposals>(ccf::Tables::COSE_RECENT_PROPOSALS);
-      auto key = fmt::format("{}:{}", created_at, ds::to_hex(request_digest));
+      auto key = std::format("{}:{}", created_at, ds::to_hex(request_digest));
 
       if (cose_recent_proposals->has(key))
       {
@@ -93,7 +95,7 @@ namespace ccf::gov::endpoints
             ProposalSubmissionResult::Status::DuplicateInWindow,
             *colliding_proposal_id};
         }
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Failed to get value for existing key in {}",
           ccf::Tables::COSE_RECENT_PROPOSALS));
       }
@@ -221,7 +223,7 @@ namespace ccf::gov::endpoints
           ballot_func = js_context.get_exported_function(
             mb,
             "vote",
-            fmt::format(
+            std::format(
               "{}[{}].ballots[{}]",
               ccf::jsgov::Tables::PROPOSALS_INFO,
               proposal_id,
@@ -277,7 +279,7 @@ namespace ccf::gov::endpoints
             resolve_func = js_context.get_exported_function(
               constitution,
               "resolve",
-              fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
+              std::format("{}[0]", ccf::Tables::CONSTITUTION));
           }
           catch (const std::exception& exc)
           {
@@ -286,7 +288,7 @@ namespace ccf::gov::endpoints
               "Operation took too long to complete." :
               exc.what();
             proposal_info.failure = ccf::jsgov::Failure{
-              fmt::format("Failed to resolve(): {}", reason), std::nullopt};
+              std::format("Failed to resolve(): {}", reason), std::nullopt};
             proposal_info.final_votes = votes;
             proposal_info.vote_failures = vote_failures;
             proposal_info_handle->put(proposal_id, proposal_info);
@@ -330,7 +332,7 @@ namespace ccf::gov::endpoints
               reason = "Operation took too long to complete.";
             }
             proposal_info.failure = ccf::jsgov::Failure{
-              fmt::format("Failed to resolve(): {}", reason), trace};
+              std::format("Failed to resolve(): {}", reason), trace};
           }
           else
           {
@@ -352,7 +354,7 @@ namespace ccf::gov::endpoints
             {
               proposal_info.state = ProposalState::FAILED;
               proposal_info.failure = ccf::jsgov::Failure{
-                fmt::format(
+                std::format(
                   "resolve() returned invalid status value: \"{}\"", status),
                 std::nullopt // No trace
               };
@@ -407,7 +409,7 @@ namespace ccf::gov::endpoints
               apply_func = js_context.get_exported_function(
                 constitution,
                 "apply",
-                fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
+                std::format("{}[0]", ccf::Tables::CONSTITUTION));
             }
             catch (const std::exception& exc)
             {
@@ -416,7 +418,7 @@ namespace ccf::gov::endpoints
                 "Operation took too long to complete." :
                 exc.what();
               proposal_info.failure = ccf::jsgov::Failure{
-                fmt::format("Failed to apply(): {}", reason), std::nullopt};
+                std::format("Failed to apply(): {}", reason), std::nullopt};
               proposal_info_handle->put(proposal_id, proposal_info);
               return;
             }
@@ -436,7 +438,7 @@ namespace ccf::gov::endpoints
                 reason = "Operation took too long to complete.";
               }
               proposal_info.failure = ccf::jsgov::Failure{
-                fmt::format("Failed to apply(): {}", reason), trace};
+                std::format("Failed to apply(): {}", reason), trace};
 
               // Update final proposal_info (in KV) again, with failure info
               proposal_info_handle->put(proposal_id, proposal_info);
@@ -547,7 +549,7 @@ namespace ccf::gov::endpoints
               validate_func = context.get_exported_function(
                 constitution.value(),
                 "validate",
-                fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
+                std::format("{}[0]", ccf::Tables::CONSTITUTION));
             }
             catch (const std::exception& exc)
             {
@@ -558,7 +560,7 @@ namespace ccf::gov::endpoints
                 ctx.rpc_ctx,
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
-                fmt::format("Failed to load validate: {}", reason));
+                std::format("Failed to load validate: {}", reason));
               return;
             }
 
@@ -579,7 +581,7 @@ namespace ccf::gov::endpoints
                   ctx.rpc_ctx,
                   HTTP_STATUS_INTERNAL_SERVER_ERROR,
                   ccf::errors::InternalError,
-                  fmt::format(
+                  std::format(
                     "Failed to execute validation: {} {}",
                     reason,
                     trace.value_or("")));
@@ -610,7 +612,7 @@ namespace ccf::gov::endpoints
                   ctx.rpc_ctx,
                   HTTP_STATUS_BAD_REQUEST,
                   ccf::errors::ProposalFailedToValidate,
-                  fmt::format("Proposal failed to validate: {}", description));
+                  std::format("Proposal failed to validate: {}", description));
                 return;
               }
             }
@@ -673,7 +675,7 @@ namespace ccf::gov::endpoints
               return;
             }
 
-            const auto created_at_str = fmt::format(
+            const auto created_at_str = std::format(
               "{:0>10}", cose_ident.protected_header.gov_msg_created_at);
 
             const auto subtime_result =
@@ -687,7 +689,7 @@ namespace ccf::gov::endpoints
                   ctx.rpc_ctx,
                   HTTP_STATUS_BAD_REQUEST,
                   ccf::errors::ProposalCreatedTooLongAgo,
-                  fmt::format(
+                  std::format(
                     "Proposal created too long ago, created_at must be greater "
                     "than {}",
                     subtime_result.info));
@@ -700,7 +702,7 @@ namespace ccf::gov::endpoints
                   ctx.rpc_ctx,
                   HTTP_STATUS_BAD_REQUEST,
                   ccf::errors::ProposalReplay,
-                  fmt::format(
+                  std::format(
                     "Proposal submission replay, already exists as proposal {}",
                     subtime_result.info));
                 return;
@@ -742,7 +744,7 @@ namespace ccf::gov::endpoints
                 ctx.rpc_ctx,
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
-                fmt::format("{}", proposal_info.failure));
+                std::format("{}", proposal_info.failure));
               return;
             }
 
@@ -805,7 +807,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_FORBIDDEN,
               ccf::errors::AuthorizationFailed,
-              fmt::format(
+              std::format(
                 "Proposal {} can only be withdrawn by proposer {}, not caller "
                 "{}.",
                 proposal_id,
@@ -824,7 +826,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::ProposalNotOpen,
-              fmt::format(
+              std::format(
                 "Proposal {} is currently in state {} and cannot be withdrawn.",
                 proposal_id,
                 proposal_info->state));
@@ -886,7 +888,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ProposalNotFound,
-              fmt::format("Could not find proposal {}.", proposal_id));
+              std::format("Could not find proposal {}.", proposal_id));
             return;
           }
 
@@ -967,7 +969,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ProposalNotFound,
-              fmt::format("Could not find proposal {}.", proposal_id));
+              std::format("Could not find proposal {}.", proposal_id));
             return;
           }
 
@@ -1028,7 +1030,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ProposalNotFound,
-              fmt::format("Could not find proposal {}.", proposal_id));
+              std::format("Could not find proposal {}.", proposal_id));
             return;
           }
 
@@ -1038,7 +1040,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::ProposalNotOpen,
-              fmt::format(
+              std::format(
                 "Proposal {} is currently in state {} - only {} proposals "
                 "can receive votes",
                 proposal_id,
@@ -1057,7 +1059,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ProposalNotFound,
-              fmt::format("Could not find proposal {}.", proposal_id));
+              std::format("Could not find proposal {}.", proposal_id));
             return;
           }
 
@@ -1109,7 +1111,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::VoteAlreadyExists,
-              fmt::format(
+              std::format(
                 "Different ballot already submitted by {} for {}.",
                 member_id,
                 proposal_id));
@@ -1142,7 +1144,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              fmt::format("{}", proposal_info->failure));
+              std::format("{}", proposal_info->failure));
             return;
           }
 
@@ -1197,7 +1199,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ProposalNotFound,
-              fmt::format("Proposal {} does not exist.", proposal_id));
+              std::format("Proposal {} does not exist.", proposal_id));
             return;
           }
 
@@ -1209,7 +1211,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::VoteNotFound,
-              fmt::format(
+              std::format(
                 "Member {} has not voted for proposal {}.",
                 member_id,
                 proposal_id));

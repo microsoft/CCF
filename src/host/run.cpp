@@ -5,6 +5,7 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/logger_level.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/ds/unit_strings.h"
@@ -51,6 +52,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <format>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -61,9 +63,6 @@
 #include <unistd.h>
 #include <utility>
 #include <uv.h>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace fs = std::filesystem;
 
@@ -108,7 +107,7 @@ namespace ccf
       max_message_size <= response_overhead ||
       max_transaction_size > max_message_size - response_overhead)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "ledger.max_transaction_size ({}) must be at least {} bytes smaller "
         "than memory.max_msg_size ({}) so a single ledger entry fits in a "
         "ring-buffer range response",
@@ -176,7 +175,7 @@ namespace ccf
       {
         if (recovery_threshold > 1)
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Recovery threshold ({}) cannot be greater than 1 when all "
             "initial consortium members ({}) are of type recovery owner "
             "(specified via --member-info options)",
@@ -186,7 +185,7 @@ namespace ccf
       }
       else if (recovery_threshold > recovery_participants_count)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Recovery threshold ({}) cannot be greater than total number ({})"
           "of initial consortium members with a public encryption "
           "key (specified via --member-info options)",
@@ -356,7 +355,7 @@ namespace ccf
         }
         else
         {
-          url = fmt::format(
+          url = std::format(
             "{}:{}",
             ccf::env::expand_envvar(url->substr(0, pos)),
             ccf::env::expand_envvar(url->substr(pos + 1)));
@@ -483,7 +482,7 @@ namespace ccf
     auto idf = config.command.recover.previous_service_identity_file;
     if (!files::exists(idf))
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Recovery requires a previous service identity certificate; cannot "
         "open '{}'",
         idf));
@@ -586,7 +585,7 @@ namespace ccf
 
         if (!ret)
         {
-          throw std::logic_error(fmt::format("Failure in enclave_run"));
+          throw std::logic_error(std::format("Failure in enclave_run"));
         }
       }
       catch (const std::exception& e)
@@ -770,7 +769,8 @@ namespace ccf
       else
       {
         LOG_FAIL_FMT(
-          "Service data is ignored for start type {}", config.command.type);
+          "Service data is ignored for start type {}",
+          std::to_underlying(config.command.type));
       }
     }
 
@@ -966,7 +966,7 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        config_parsing_error = fmt::format(
+        config_parsing_error = std::format(
           "Error parsing configuration file {}: {}",
           config_file_path,
           e.what());
@@ -984,7 +984,7 @@ namespace ccf
     auto schema_error_msg = json::validate_json(config_json, schema_json);
     if (schema_error_msg.has_value())
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Error validating JSON schema for configuration file {}: {}",
         config_file_path,
         schema_error_msg.value()));
@@ -1005,7 +1005,7 @@ namespace ccf
 
     LOG_INFO_FMT(
       "CLI args: \"{}\"",
-      fmt::join(
+      ccf::ds::join(
         argv,
         argv + argc, // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         "\" \""));
@@ -1072,7 +1072,7 @@ namespace ccf
     }
 
     // Write PID to disk
-    files::dump(fmt::format("{}", ::getpid()), config.output_files.pid_file);
+    files::dump(std::format("{}", ::getpid()), config.output_files.pid_file);
 
     // set the host log level
     ccf::logger::config::level() = log_level;
@@ -1167,7 +1167,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "Leaked handle: type={}, ptr={}",
           uv_handle_type_name(handle->type),
-          fmt::ptr(handle));
+          static_cast<const void*>(handle));
       };
       uv_walk(uv_default_loop(), cb, nullptr);
     }

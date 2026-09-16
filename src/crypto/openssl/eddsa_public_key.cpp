@@ -5,6 +5,9 @@
 #include "crypto/openssl/eddsa_key_pair.h"
 #include "crypto/openssl/hash.h"
 
+#include <format>
+#include <utility>
+
 namespace ccf::crypto
 {
   using namespace OpenSSL;
@@ -99,8 +102,8 @@ namespace ccf::crypto
       case CurveID::SECP384R1:
       case CurveID::SECP256R1:
       case CurveID::SECP521R1:
-        throw std::logic_error(
-          fmt::format("unsupported OpenSSL CurveID {}", gid));
+        throw std::logic_error(std::format(
+          "unsupported OpenSSL CurveID {}", std::to_underlying(gid)));
     }
     return NID_undef;
   }
@@ -115,7 +118,7 @@ namespace ccf::crypto
       case NID_X25519:
         return CurveID::X25519;
       default:
-        throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
+        throw std::runtime_error(std::format("Unknown OpenSSL curve {}", nid));
     }
     return CurveID::NONE;
   }

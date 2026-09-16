@@ -14,6 +14,8 @@
 #include "node/snapshot_serdes.h"
 #include "snapshots/filenames.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <chrono>
 #include <doctest/doctest.h>
@@ -42,7 +44,7 @@ struct ScopedSnapshotDir
 
   ScopedSnapshotDir()
   {
-    const auto unique_name = fmt::format(
+    const auto unique_name = std::format(
       "ccf-snapshotter-test-{}-{}",
       ::getpid(),
       std::chrono::steady_clock::now().time_since_epoch().count());

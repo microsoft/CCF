@@ -5,6 +5,8 @@
 #include "ccf/ds/nonstd.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
 
+#include <format>
+
 namespace ccf::kv::serialisers
 {
   // Converts values to their raw, in-memory representation. To add support for
@@ -53,7 +55,7 @@ namespace ccf::kv::serialisers
         T t;
         if (rep.size() != t.size())
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Wrong serialised size {} for deserialisation of array of size {}",
             rep.size(),
             t.size()));
@@ -65,7 +67,7 @@ namespace ccf::kv::serialisers
       {
         if (rep.size() != sizeof(T))
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Wrong serialised size {} for deserialisation of integral of size "
             "{}",
             rep.size(),

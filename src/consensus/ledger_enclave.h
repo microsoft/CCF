@@ -8,7 +8,7 @@
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 
-#include <fmt/format.h>
+#include <format>
 
 namespace consensus
 {
@@ -19,7 +19,7 @@ namespace consensus
     {
       if (size < ccf::kv::serialised_entry_header_size)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot read transaction header: buffer contains {} bytes, but the "
           "fixed ledger entry header requires {} bytes",
           size,
@@ -39,7 +39,7 @@ namespace consensus
       // limit can always be read back.
       if (body_size > available_body_size)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot read transaction with serialised body size {} bytes from "
           "buffer containing {} bytes after the fixed {}-byte ledger entry "
           "header",

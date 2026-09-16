@@ -5,8 +5,7 @@
 #include "ring_buffer.h"
 
 #include <deque>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -114,7 +113,7 @@ namespace ringbuffer
             auto* dest = reinterpret_cast<uint8_t*>(marker.value());
             if (dest < it.buffer.data())
             {
-              throw std::runtime_error(fmt::format(
+              throw std::runtime_error(std::format(
                 "Invalid pending marker - writing before buffer: {} < {}",
                 reinterpret_cast<size_t>(dest),
                 reinterpret_cast<size_t>(it.buffer.data())));
@@ -123,7 +122,7 @@ namespace ringbuffer
             auto* const buffer_end = it.buffer.data() + it.buffer.size();
             if (dest + size > buffer_end)
             {
-              throw std::runtime_error(fmt::format(
+              throw std::runtime_error(std::format(
                 "Invalid pending marker - write extends beyond buffer: {} + {} "
                 "> {}",
                 reinterpret_cast<size_t>(dest),

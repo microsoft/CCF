@@ -4,6 +4,7 @@
 
 #include "ds/internal_logger.h"
 
+#include <format>
 #include <uv.h>
 
 namespace asynchost
@@ -97,7 +98,7 @@ namespace asynchost
       }
 
       return {
-        fmt::format("[{}]", buf), fmt::format("{}", ntohs(in6->sin6_port))};
+        std::format("[{}]", buf), std::format("{}", ntohs(in6->sin6_port))};
     }
 
     assert(address_family == AF_INET);
@@ -107,6 +108,6 @@ namespace asynchost
       LOG_FAIL_FMT("uv_ip4_name failed: {}", uv_strerror(rc));
     }
 
-    return {buf, fmt::format("{}", ntohs(in4->sin_port))};
+    return {buf, std::format("{}", ntohs(in4->sin_port))};
   }
 }

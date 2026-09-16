@@ -6,15 +6,14 @@
 #include "ring_buffer.h"
 #include "serialized.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 #include <unordered_map>
 #include <utility>
 
 #define LOG_AND_THROW(ERROR_TYPE, ...) \
   do \
   { \
-    const auto msg = fmt::format(__VA_ARGS__); \
+    const auto msg = std::format(__VA_ARGS__); \
     LOG_FAIL_FMT("{}", msg); \
     throw ERROR_TYPE(msg); \
   } while (0)
@@ -74,7 +73,7 @@ namespace oversized
           {
             throw ringbuffer::message_error(
               message_id,
-              fmt::format(
+              std::format(
                 "Too much data for oversized fragmented message. Message {} "
                 "asked for {} bytes, has already written {}, but has sent a "
                 "further {}",

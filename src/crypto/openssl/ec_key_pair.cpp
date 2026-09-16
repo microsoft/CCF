@@ -5,13 +5,13 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "ccf/ds/join.h"
 #include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/hash.h"
 #include "x509_time.h"
 
-#define FMT_HEADER_ONLY
 #include <climits>
-#include <fmt/format.h>
+#include <format>
 #include <openssl/asn1.h>
 #include <openssl/core_names.h>
 #include <openssl/ec.h>
@@ -60,7 +60,7 @@ namespace ccf::crypto
     if (keygen_rc <= 0)
     {
       throw std::runtime_error(
-        fmt::format("could not generate new EC key: {}", keygen_rc));
+        std::format("could not generate new EC key: {}", keygen_rc));
     }
   }
 
@@ -252,7 +252,7 @@ namespace ccf::crypto
           nullptr,
           nullptr,
           NID_subject_alt_name,
-          fmt::format("{}", fmt::join(subject_alt_names, ", ")).c_str()));
+          std::format("{}", ccf::ds::join(subject_alt_names, ", ")).c_str()));
       sk_X509_EXTENSION_push(exts, ext);
       X509_REQ_add_extensions(req, exts);
     }
@@ -365,7 +365,7 @@ namespace ccf::crypto
     Unique_X509_TIME not_after(valid_to);
     if (!validate_chronological_times(not_before, not_after))
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Certificate cannot be created with not_before date {} > not_after "
         "date {}",
         to_x509_time_string(not_before),
@@ -524,7 +524,7 @@ namespace ccf::crypto
     auto rc = BN_bn2binpad(d, bytes.data(), size);
     if (rc != size)
     {
-      throw std::runtime_error(fmt::format("BN_bn2binpad failed: {}", rc));
+      throw std::runtime_error(std::format("BN_bn2binpad failed: {}", rc));
     }
     jwk.d = b64url_from_raw(bytes, false /* with_padding */);
 

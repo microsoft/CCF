@@ -10,6 +10,8 @@
 #include "node/rpc/network_identity_chain_helpers.h"
 #include "node/snapshot_serdes.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <chrono>
 #include <deque>
@@ -91,7 +93,7 @@ namespace
         // to nullopt, which means "state not yet loaded"). Reaching
         // here from a test is a test-author bug -- surface it loudly
         // rather than silently dropping the subsystem into Retry.
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "MockHistoricalStateAccessor: no entry for seqno {}", seq));
       }
       return it->second;

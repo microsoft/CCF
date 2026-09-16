@@ -10,6 +10,7 @@
 #include "ds/internal_logger.h"
 #include "x509_time.h"
 
+#include <format>
 #include <openssl/evp.h>
 #include <openssl/ossl_typ.h>
 #include <openssl/x509.h>
@@ -49,7 +50,7 @@ namespace ccf::crypto
       cert = Unique_X509(certbio, false);
       if (cert == nullptr)
       {
-        throw std::invalid_argument(fmt::format(
+        throw std::invalid_argument(std::format(
           "OpenSSL error: {}", OpenSSL::error_string(ERR_get_error())));
       }
     }
@@ -57,7 +58,7 @@ namespace ccf::crypto
     EVP_PKEY* pk = X509_get_pubkey(cert);
     if (pk == nullptr)
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "OpenSSL error loading certificate public key: {}",
         OpenSSL::error_string(ERR_get_error())));
     }

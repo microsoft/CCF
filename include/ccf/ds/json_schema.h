@@ -5,10 +5,9 @@
 #include "ccf/ds/nonstd.h"
 
 #include <algorithm>
-#include <optional>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <set>
 #include <unordered_set>
 
@@ -139,27 +138,27 @@ namespace ccf::ds::json
       }
       else
       {
-        return fmt::format("{}_array", schema_name<typename T::value_type>());
+        return std::format("{}_array", schema_name<typename T::value_type>());
       }
     }
     else if constexpr (
       ccf::nonstd::is_specialization<T, std::set>::value ||
       ccf::nonstd::is_specialization<T, std::unordered_set>::value)
     {
-      return fmt::format("{}_set", schema_name<typename T::value_type>());
+      return std::format("{}_set", schema_name<typename T::value_type>());
     }
     else if constexpr (
       ccf::nonstd::is_specialization<T, std::map>::value ||
       ccf::nonstd::is_specialization<T, std::unordered_map>::value)
     {
-      return fmt::format(
+      return std::format(
         "{}_to_{}",
         schema_name<typename T::key_type>(),
         schema_name<typename T::mapped_type>());
     }
     else if constexpr (ccf::nonstd::is_specialization<T, std::pair>::value)
     {
-      return fmt::format(
+      return std::format(
         "{}_and_{}",
         schema_name<typename T::first_type>(),
         schema_name<typename T::second_type>());

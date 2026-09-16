@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <exception>
+#include <format>
 #include <string>
 
 namespace ccf::tasks
@@ -32,7 +33,7 @@ namespace ccf::tasks
     }
     catch (const std::exception& e)
     {
-      dump_stacktrace(fmt::format(
+      dump_stacktrace(std::format(
         "{} task failed with exception: {}", task.get_name(), e.what()));
       if (abort_on_throw)
       {
@@ -42,7 +43,7 @@ namespace ccf::tasks
     catch (...)
     {
       dump_stacktrace(
-        fmt::format("{} task failed with unknown exception", task.get_name()));
+        std::format("{} task failed with unknown exception", task.get_name()));
       if (abort_on_throw)
       {
         std::abort();

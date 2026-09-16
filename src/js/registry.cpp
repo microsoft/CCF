@@ -17,8 +17,7 @@
 
 #include <algorithm>
 #include <charconv>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 
 // Custom Endpoints
 #include "ccf/crypto/sha256.h"
@@ -48,7 +47,7 @@ namespace ccf::js
   {
     if (!sv.starts_with("/"))
     {
-      return fmt::format("/{}", sv);
+      return std::format("/{}", sv);
     }
 
     return std::string(sv);
@@ -144,7 +143,7 @@ namespace ccf::js
       if (JS_HasException(ctx) != 0)
       {
         auto [js_reason, js_trace] = ctx.error_message();
-        full_reason = fmt::format("{}: {}", reason, js_reason);
+        full_reason = std::format("{}: {}", reason, js_reason);
         trace = std::move(js_trace);
       }
 
@@ -269,7 +268,7 @@ namespace ccf::js
         if (!module_val.has_value())
         {
           throw std::logic_error(
-            fmt::format("Module '{}' could not be loaded", props.js_module));
+            std::format("Module '{}' could not be loaded", props.js_module));
         }
         auto export_func = ctx.get_exported_function(
           *module_val, props.js_function, props.js_module);
@@ -679,14 +678,14 @@ namespace ccf::js
   BaseDynamicJSEndpointRegistry::BaseDynamicJSEndpointRegistry(
     ccf::AbstractNodeContext& context, const std::string& kv_prefix) :
     ccf::UserEndpointRegistry(context),
-    modules_map(fmt::format("{}.modules", kv_prefix)),
-    metadata_map(fmt::format("{}.metadata", kv_prefix)),
-    interpreter_flush_map(fmt::format("{}.interpreter_flush", kv_prefix)),
+    modules_map(std::format("{}.modules", kv_prefix)),
+    metadata_map(std::format("{}.metadata", kv_prefix)),
+    interpreter_flush_map(std::format("{}.interpreter_flush", kv_prefix)),
     modules_quickjs_version_map(
-      fmt::format("{}.modules_quickjs_version", kv_prefix)),
+      std::format("{}.modules_quickjs_version", kv_prefix)),
     modules_quickjs_bytecode_map(
-      fmt::format("{}.modules_quickjs_bytecode", kv_prefix)),
-    runtime_options_map(fmt::format("{}.runtime_options", kv_prefix))
+      std::format("{}.modules_quickjs_bytecode", kv_prefix)),
+    runtime_options_map(std::format("{}.runtime_options", kv_prefix))
   {
     interpreter_cache =
       context.get_subsystem<ccf::js::AbstractInterpreterCache>();
@@ -779,7 +778,7 @@ namespace ccf::js
         out_buf = JS_WriteObject(jsctx, &out_buf_len, module_val.val, flags);
         if (!out_buf)
         {
-          throw std::runtime_error(fmt::format(
+          throw std::runtime_error(std::format(
             "Unable to serialize bytecode for JS module '{}'", name));
         }
 
@@ -950,7 +949,7 @@ namespace ccf::js
       endpoint_def->dispatch = key;
       endpoint_def->properties = it.value();
       endpoint_def->full_uri_path =
-        fmt::format("/{}{}", method_prefix, endpoint_def->dispatch.uri_path);
+        std::format("/{}{}", method_prefix, endpoint_def->dispatch.uri_path);
       ccf::instantiate_authn_policies(*endpoint_def);
       return endpoint_def;
     }
@@ -1000,7 +999,7 @@ namespace ccf::js
 
                 auto endpoint = std::make_shared<CustomJSEndpoint>();
                 endpoint->dispatch = other_key;
-                endpoint->full_uri_path = fmt::format(
+                endpoint->full_uri_path = std::format(
                   "/{}{}", method_prefix, endpoint->dispatch.uri_path);
                 endpoint->properties = endpoints->get(other_key).value();
                 ccf::instantiate_authn_policies(*endpoint);
@@ -1076,7 +1075,7 @@ namespace ccf::js
         auto& path_op = ds::openapi::path_operation(
           ds::openapi::path(
             document,
-            fmt::format(
+            std::format(
               "/{}{}",
               ccf::get_actor_prefix(ccf::ActorsType::users),
               key.uri_path)),
@@ -1136,7 +1135,7 @@ namespace ccf::js
   {
     try
     {
-      const auto created_at_str = fmt::format("{:0>10}", created_at);
+      const auto created_at_str = std::format("{:0>10}", created_at);
       const auto action_digest =
         ccf::crypto::sha256(action.data(), action.size());
 
@@ -1144,7 +1143,7 @@ namespace ccf::js
 
       auto* recent_actions = tx.rw<RecentActions>(recent_actions_map);
       auto key =
-        fmt::format("{}:{}", created_at_str, ds::to_hex(action_digest));
+        std::format("{}:{}", created_at_str, ds::to_hex(action_digest));
 
       if (recent_actions->contains(key))
       {

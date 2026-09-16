@@ -13,6 +13,7 @@
 #include <crypto/cbor_tags.h>
 #include <crypto/cose.h>
 #include <crypto/cose_utils.h>
+#include <format>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -118,7 +119,7 @@ namespace ccf::cose
         return cwt_claims.map_at(make_signed(ccf::cwt::header::iana::ISS))
           .as_string();
       },
-      fmt::format(
+      std::format(
         "Parse CWT claim iss({}) field", ccf::cwt::header::iana::ISS));
 
     claims.sub = rethrow_with_msg(
@@ -126,7 +127,7 @@ namespace ccf::cose
         return cwt_claims.map_at(make_signed(ccf::cwt::header::iana::SUB))
           .as_string();
       },
-      fmt::format(
+      std::format(
         "Parse CWT claim sub({}) field", ccf::cwt::header::iana::SUB));
 
     try
@@ -156,14 +157,14 @@ namespace ccf::cose
     if (x5chain.empty())
     {
       throw COSEDecodeError(
-        fmt::format("No certificates in {} x5chain", context));
+        std::format("No certificates in {} x5chain", context));
     }
 
     const auto common_validity_period =
       ccf::crypto::OpenSSL::get_x509_chain_common_validity_period(x5chain);
     if (!common_validity_period.has_value())
     {
-      throw COSEDecodeError(fmt::format(
+      throw COSEDecodeError(std::format(
         "Certificates in {} x5chain have no common validity period", context));
     }
 
@@ -173,7 +174,7 @@ namespace ccf::cose
       iat < common_validity_period->not_before ||
       iat > common_validity_period->not_after)
     {
-      throw COSEDecodeError(fmt::format(
+      throw COSEDecodeError(std::format(
         "CWT iat {} in {} is outside x5chain common validity period [{}, {}]",
         claims.iat.value(),
         context,
@@ -193,7 +194,7 @@ namespace ccf::cose
         return phdr.map_at(make_signed(ccf::cose::header::iana::ALG))
           .as_signed();
       },
-      fmt::format(
+      std::format(
         "Parse protected header alg({})", ccf::cose::header::iana::ALG));
 
     try
@@ -220,7 +221,7 @@ namespace ccf::cose
           phdr.map_at(make_signed(ccf::cose::header::iana::X5CHAIN));
         return ccf::cose::utils::parse_x5chain(x5chain_val);
       },
-      fmt::format(
+      std::format(
         "Parse protected header x5chain({})",
         ccf::cose::header::iana::X5CHAIN));
 
@@ -268,7 +269,7 @@ namespace ccf::cose
   {
     if (bytes.size() != ccf::crypto::Sha256Hash::SIZE)
     {
-      throw COSEDecodeError(fmt::format(
+      throw COSEDecodeError(std::format(
         "Unsupported {} size: {} (expected {})",
         field,
         bytes.size(),
@@ -328,7 +329,7 @@ namespace ccf::cose
         return ccf_claims.map_at(make_string(ccf::cose::header::custom::TX_ID))
           .as_string();
       },
-      fmt::format(
+      std::format(
         "Parse CCF claims TxID ({}) field", ccf::cose::header::custom::TX_ID));
   }
 
@@ -343,7 +344,7 @@ namespace ccf::cose
         return cbor.map_at(make_signed(ccf::cose::header::iana::ALG))
           .as_signed();
       },
-      fmt::format(
+      std::format(
         "Parse protected header alg({})", ccf::cose::header::iana::ALG));
 
     rethrow_with_msg(
@@ -352,7 +353,7 @@ namespace ccf::cose
           cbor.map_at(make_signed(ccf::cose::header::iana::KID)).as_bytes();
         phdr.kid.assign(bytes.begin(), bytes.end());
       },
-      fmt::format(
+      std::format(
         "Parse protected header kid({})", ccf::cose::header::iana::KID));
 
     phdr.vds = rethrow_with_msg(
@@ -360,12 +361,12 @@ namespace ccf::cose
         return cbor.map_at(make_signed(ccf::cose::header::iana::VDS))
           .as_signed();
       },
-      fmt::format(
+      std::format(
         "Parse protected header vds({})", ccf::cose::header::iana::VDS));
 
     if (phdr.vds != ccf::cose::value::CCF_LEDGER_SHA256)
     {
-      throw COSEDecodeError(fmt::format(
+      throw COSEDecodeError(std::format(
         "Unsupported vds value ({}) in protected header", phdr.vds));
     }
 
@@ -385,7 +386,7 @@ namespace ccf::cose
 
     const auto vdp = rethrow_with_msg(
       [&]() { return uhdr.map_at(make_signed(ccf::cose::header::iana::VDP)); },
-      fmt::format("Parse vdp() map", ccf::cose::header::iana::VDP));
+      std::format("Parse vdp() map", ccf::cose::header::iana::VDP));
 
     const auto proofs_array = rethrow_with_msg(
       [&]() {
@@ -532,7 +533,7 @@ namespace ccf::cose
         }
         if (proofs[i].leaf.claims_digest != receipt.claims_digest)
         {
-          throw COSEDecodeError(fmt::format(
+          throw COSEDecodeError(std::format(
             "Claims from proofs don't match: {} != {}",
             ds::to_hex(receipt.claims_digest),
             ds::to_hex(proofs[i].leaf.claims_digest)));

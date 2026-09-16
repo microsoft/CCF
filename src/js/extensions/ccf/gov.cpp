@@ -3,9 +3,11 @@
 
 #include "ccf/js/extensions/ccf/gov.h"
 
+#include "ccf/ds/join.h"
 #include "ccf/js/core/context.h"
 #include "js/checks.h"
 
+#include <format>
 #include <iostream>
 #include <quickjs/quickjs.h>
 
@@ -109,7 +111,7 @@ namespace ccf::js::extensions
 
           auto plural_arg = [](size_t n) { return n == 1 ? "arg" : "args"; };
 
-          const auto actual = fmt::format(
+          const auto actual = std::format(
             "{} exports function {} with {} {}",
             path,
             fn_name,
@@ -121,12 +123,12 @@ namespace ccf::js::extensions
             const auto required_size = args_spec.required_args.size();
             if (length != required_size)
             {
-              auto err = fmt::format(
+              auto err = std::format(
                 "{}, expected {} {} ({})",
                 actual,
                 required_size,
                 plural_arg(required_size),
-                fmt::join(args_spec.required_args, ", "));
+                ccf::ds::join(args_spec.required_args, ", "));
               return JS_ThrowTypeError(ctx, "%s", err.c_str());
             }
           }
@@ -137,13 +139,13 @@ namespace ccf::js::extensions
 
             if (length < min_size || length > max_size)
             {
-              auto err = fmt::format(
+              auto err = std::format(
                 "{}, expected between {} and {} args ({}[, {}])",
                 actual,
                 min_size,
                 max_size,
-                fmt::join(args_spec.required_args, ", "),
-                fmt::join(args_spec.optional_args, ", "));
+                ccf::ds::join(args_spec.required_args, ", "),
+                ccf::ds::join(args_spec.optional_args, ", "));
               return JS_ThrowTypeError(ctx, "%s", err.c_str());
             }
           }

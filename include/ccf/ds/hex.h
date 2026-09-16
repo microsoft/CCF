@@ -2,9 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
-#include <fmt/ranges.h>
+#include "ccf/ds/join.h"
+
+#include <cstdint>
+#include <format>
 #include <span>
 #include <string>
 #include <vector>
@@ -36,7 +37,7 @@ namespace ccf::ds
   template <typename Iter>
   inline static std::string to_hex(Iter begin, Iter end)
   {
-    return fmt::format("{:02x}", fmt::join(begin, end, ""));
+    return std::format("{:02x}", ccf::ds::join(begin, end, ""));
   }
 
   template <typename T>
@@ -50,7 +51,7 @@ namespace ccf::ds
     std::string r;
     for (auto c : buf)
     {
-      r += fmt::format("{:02x}", c);
+      r += std::format("{:02x}", c);
     }
     return r;
   }
@@ -62,13 +63,13 @@ namespace ccf::ds
   {
     if ((str.size() & 1) != 0)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Input string '{}' is not of even length: {}", str, str.size()));
     }
 
     if (std::distance(begin, end) != str.size() / 2)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Output container of size {} cannot fit decoded hex str {}",
         std::distance(begin, end),
         str.size() / 2));

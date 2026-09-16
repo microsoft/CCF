@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <format>
 #include <queue>
 #include <random>
 
@@ -1594,7 +1595,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     service_cert,
     kp1,
     generate_endorsed_cert(
-      kp1, fmt::format("CN={}", nid1), network_kp, service_cert));
+      kp1, std::format("CN={}", nid1), network_kp, service_cert));
   channels1.set_message_limit(message_limit);
   TmpChannel tc1(nid1, nid2, eio2, nbwf1, channels1, to_send_from_1);
 
@@ -1605,7 +1606,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     service_cert,
     kp2,
     generate_endorsed_cert(
-      kp2, fmt::format("CN={}", nid2), network_kp, service_cert));
+      kp2, std::format("CN={}", nid2), network_kp, service_cert));
   TmpChannel tc2(nid2, nid1, eio1, nbwf2, channels2, to_send_from_2);
 
   std::thread thread1(run_channel, std::ref(tc1));

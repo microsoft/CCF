@@ -8,6 +8,7 @@
 #include "ds/files.h"
 #include "node/uvm_endorsements.h"
 
+#include <format>
 #include <tav/cbor.hpp>
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -19,7 +20,7 @@ TEST_CASE("Check RSA Production endorsement")
   char* end_path = std::getenv("TEST_ENDORSEMENTS_PATH");
   REQUIRE(end_path != nullptr);
 
-  auto endorsement = files::slurp(fmt::format("{}/rsa_test1.cose", end_path));
+  auto endorsement = files::slurp(std::format("{}/rsa_test1.cose", end_path));
   REQUIRE(!endorsement.empty());
 
   ccf::pal::SnpAttestationMeasurement measurement(
@@ -44,7 +45,7 @@ TEST_CASE("Check ECDSA Test endorsement")
   char* end_path = std::getenv("TEST_ENDORSEMENTS_PATH");
   REQUIRE(end_path != nullptr);
 
-  auto endorsement = files::slurp(fmt::format("{}/ecdsa_test1.cose", end_path));
+  auto endorsement = files::slurp(std::format("{}/ecdsa_test1.cose", end_path));
   REQUIRE(!endorsement.empty());
 
   ccf::pal::SnpAttestationMeasurement measurement(
@@ -77,7 +78,7 @@ TEST_CASE("Check Test endorsement with integer SVN")
   char* end_path = std::getenv("TEST_ENDORSEMENTS_PATH");
   REQUIRE(end_path != nullptr);
 
-  auto endorsement = files::slurp(fmt::format("{}/int_svn.cose", end_path));
+  auto endorsement = files::slurp(std::format("{}/int_svn.cose", end_path));
   REQUIRE(!endorsement.empty());
 
   ccf::pal::SnpAttestationMeasurement measurement(
@@ -114,7 +115,7 @@ TEST_CASE("Check Test endorsement for UVM 0.2.9")
   char* end_path = std::getenv("TEST_ENDORSEMENTS_PATH");
   REQUIRE(end_path != nullptr);
 
-  auto endorsement = files::slurp(fmt::format("{}/uvm_0.2.9.cose", end_path));
+  auto endorsement = files::slurp(std::format("{}/uvm_0.2.9.cose", end_path));
   REQUIRE(!endorsement.empty());
 
   ccf::pal::SnpAttestationMeasurement measurement(
@@ -151,7 +152,7 @@ TEST_CASE("Check Test endorsement for UVM 0.2.10")
   char* end_path = std::getenv("TEST_ENDORSEMENTS_PATH");
   REQUIRE(end_path != nullptr);
 
-  auto endorsement = files::slurp(fmt::format("{}/uvm_0.2.10.cose", end_path));
+  auto endorsement = files::slurp(std::format("{}/uvm_0.2.10.cose", end_path));
   REQUIRE(!endorsement.empty());
 
   ccf::pal::SnpAttestationMeasurement measurement(

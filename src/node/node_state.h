@@ -64,6 +64,7 @@
 #include "uvm_endorsements.h"
 
 #include <arpa/inet.h>
+#include <format>
 #include <optional>
 
 #ifdef USE_NULL_ENCRYPTOR
@@ -74,11 +75,10 @@
 #include <atomic>
 #include <chrono>
 #include <limits>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace ccf
@@ -121,7 +121,7 @@ namespace ccf
       auto tx_id_opt = ccf::TxID::from_str(receipt.phdr.ccf.txid);
       if (!tx_id_opt.has_value())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Failed to parse TxID from COSE signature: {}",
           receipt.phdr.ccf.txid));
       }
@@ -232,7 +232,7 @@ namespace ccf
             LOG_FAIL_FMT(
               "Overwriting existing snapshot at {} with data retrieved from "
               "peer",
-              dst_path);
+              dst_path.string());
           }
           files::dump(latest_peer_snapshot->snapshot_data, dst_path);
 
@@ -547,7 +547,7 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "old-style snapshot receipt cannot use an endorsement chain: {}",
             e.what()));
         }
@@ -627,7 +627,7 @@ namespace ccf
 
         LOG_INFO_FMT(
           "Found latest local snapshot file: {} (size: {})",
-          snapshot_path,
+          snapshot_path.string(),
           snapshot_data.size());
 
         if (start_type == StartType::Recover)
@@ -918,7 +918,7 @@ namespace ccf
           ccf::crypto::Sha256Hash(security_policy);
         if (security_policy_digest != quoted_digest.value())
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Digest of decoded security policy \"{}\" {} does not match "
             "attestation host data {}",
             security_policy,
@@ -960,7 +960,7 @@ namespace ccf
           catch (const std::exception& e)
           {
             throw std::logic_error(
-              fmt::format("Error verifying UVM endorsements: {}", e.what()));
+              std::format("Error verifying UVM endorsements: {}", e.what()));
           }
         }
       }
@@ -999,8 +999,9 @@ namespace ccf
         }
         default:
         {
-          throw std::logic_error(
-            fmt::format("Node was launched in unknown mode {}", start_type));
+          throw std::logic_error(std::format(
+            "Node was launched in unknown mode {}",
+            std::to_underlying(start_type)));
         }
       }
     }
@@ -1137,7 +1138,7 @@ namespace ccf
 
         if (quote_info.format != QuoteFormat::insecure_virtual)
         {
-          throw std::runtime_error(fmt::format(
+          throw std::runtime_error(std::format(
             "Unsupported quote format: {}",
             static_cast<int>(quote_info.format)));
         }
@@ -1245,8 +1246,9 @@ namespace ccf
         }
         default:
         {
-          throw std::logic_error(
-            fmt::format("Node was started in unknown mode {}", start_type));
+          throw std::logic_error(std::format(
+            "Node was started in unknown mode {}",
+            std::to_underlying(start_type)));
         }
       }
     }
@@ -1358,7 +1360,7 @@ namespace ccf
       request_headers.append(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
-      const auto url = fmt::format(
+      const auto url = std::format(
         "https://{}/{}/{}",
         config.join.target_rpc_address,
         get_actor_prefix(ActorsType::nodes),
@@ -1458,7 +1460,7 @@ namespace ccf
                 // message rather than curl's generic "write error".
                 if (curl_response == CURLE_WRITE_ERROR)
                 {
-                  auto error_msg = fmt::format(
+                  auto error_msg = std::format(
                     "Join response from {} exceeded the maximum permitted size "
                     "of {} bytes. Shutting down node gracefully...",
                     target_address,
@@ -1480,7 +1482,7 @@ namespace ccf
                 const bool tls_certificate_trust_check_failed =
                   curl_response == CURLE_PEER_FAILED_VERIFICATION ||
                   curl_response == CURLE_SSL_CACERT_BADFILE;
-                auto error_msg = fmt::format(
+                auto error_msg = std::format(
                   "Early error when joining existing network at {}: {}{} ({}). "
                   "Shutting down node gracefully...",
                   target_address,
@@ -1515,7 +1517,7 @@ namespace ccf
                     "Join request returned {}, body exceeds permitted JSON "
                     "nesting "
                     "depth: {}",
-                    status,
+                    std::to_underlying(status),
                     e.what());
                 }
                 catch (const nlohmann::json::exception& e)
@@ -1524,7 +1526,7 @@ namespace ccf
                   LOG_FAIL_FMT(
                     "Join request returned {}, body is not ODataErrorResponse: "
                     "{}",
-                    status,
+                    std::to_underlying(status),
                     std::string(data.begin(), data.end()));
                 }
 
@@ -1561,11 +1563,11 @@ namespace ccf
                   return;
                 }
 
-                auto error_msg = fmt::format(
+                auto error_msg = std::format(
                   "Join request to {} returned {} Bad Request: {}. Shutting "
                   "down node gracefully.",
                   target_address,
-                  status,
+                  std::to_underlying(status),
                   std::string(data.begin(), data.end()));
                 LOG_FAIL_FMT("{}", error_msg);
                 RINGBUFFER_WRITE_MESSAGE(
@@ -1592,11 +1594,11 @@ namespace ccf
                 {
                   LOG_FAIL_FMT(
                     "An error occurred while joining the network: {} {}{}",
-                    status,
+                    std::to_underlying(status),
                     ccf::http_status_str(status),
                     data.empty() ?
                       "" :
-                      fmt::format(
+                      std::format(
                         "  '{}'", std::string(data.begin(), data.end())));
                 }
                 return;
@@ -1712,7 +1714,7 @@ namespace ccf
                       join_periodic_task = nullptr;
                     }
 
-                    auto error_msg = fmt::format(
+                    auto error_msg = std::format(
                       "Failed to install startup snapshot: {}. Shutting down "
                       "node gracefully...",
                       e.what());
@@ -1880,7 +1882,7 @@ namespace ccf
     {
       if (!sm.check(NodeStartupState::readingPublicLedger))
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Node should be in state {} to start reading ledger",
           NodeStartupState::readingPublicLedger));
       }
@@ -1925,7 +1927,8 @@ namespace ccf
           if (result == ccf::kv::ApplyResult::FAIL)
           {
             LOG_FAIL_FMT(
-              "Failed to deserialise public ledger entry: {}", result);
+              "Failed to deserialise public ledger entry: {}",
+              std::to_underlying(result));
             recover_public_ledger_end_unsafe();
             return;
           }
@@ -2057,7 +2060,7 @@ namespace ccf
           auto tx_id_opt = ccf::TxID::from_str(as_receipt.phdr.ccf.txid);
           if (!tx_id_opt.has_value())
           {
-            throw std::logic_error(fmt::format(
+            throw std::logic_error(std::format(
               "Failed to parse TxID from COSE signature: {}",
               as_receipt.phdr.ccf.txid));
           }
@@ -2156,7 +2159,7 @@ namespace ccf
 
         if (!sealed_recovery_data.has_value())
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Failed to find sealed recovery data for location ({}) in ledger "
             "at {}",
             name,
@@ -2221,7 +2224,8 @@ namespace ccf
           if (result == ccf::kv::ApplyResult::FAIL)
           {
             LOG_FAIL_FMT(
-              "Failed to deserialise private ledger entry: {}", result);
+              "Failed to deserialise private ledger entry: {}",
+              std::to_underlying(result));
             // Note: rollback terms do not matter here as recovery store is
             // about to be discarded
             recovery_store->rollback({0, last_recovered_idx}, 0);
@@ -2271,7 +2275,7 @@ namespace ccf
 
       if (recovery_v != recovery_store->current_version())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Private recovery did not reach public ledger seqno: {}/{}",
           recovery_store->current_version(),
           recovery_v));
@@ -2281,7 +2285,7 @@ namespace ccf
         dynamic_cast<MerkleTxHistory*>(recovery_store->get_history().get());
       if (h->get_replicated_state_root() != recovery_root)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Root of public store does not match root of private store at {}",
           recovery_v));
       }
@@ -2312,7 +2316,7 @@ namespace ccf
 
           if (!active_service.has_value())
           {
-            throw std::logic_error(fmt::format(
+            throw std::logic_error(std::format(
               "Error in {}: no value in {}", __func__, Tables::SERVICE));
           }
 
@@ -2320,10 +2324,10 @@ namespace ccf
             active_service->status !=
             ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
           {
-            throw std::logic_error(fmt::format(
+            throw std::logic_error(std::format(
               "Error in {}: current service status is {}",
               __func__,
-              active_service->status));
+              std::to_underlying(active_service->status)));
           }
         }
 
@@ -2378,7 +2382,7 @@ namespace ccf
             -> ccf::kv::ConsensusHookPtr {
             if (!w.has_value())
             {
-              throw std::logic_error(fmt::format(
+              throw std::logic_error(std::format(
                 "Unexpected removal from {} table",
                 network.encrypted_ledger_secrets.get_name()));
             }
@@ -2530,7 +2534,8 @@ namespace ccf
         service_info->status == ServiceStatus::OPEN)
       {
         LOG_DEBUG_FMT(
-          "Service in state {} is already open", service_info->status);
+          "Service in state {} is already open",
+          std::to_underlying(service_info->status));
         return;
       }
 
@@ -2552,7 +2557,7 @@ namespace ccf
           identities.previous->data(), identities.previous->size());
         if (prev_ident.value() != from_proposal)
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "Previous service identity does not match.\nActual:\n{}\nIn "
             "proposal:\n{}",
             prev_ident->str(),
@@ -2562,7 +2567,7 @@ namespace ccf
 
       if (identities.next != service_info->cert)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Service identity mismatch: the next service identity in the "
           "transition_service_to_open proposal does not match the current "
           "service identity:\nNext:\n{}\nCurrent:\n{}",
@@ -2625,7 +2630,7 @@ namespace ccf
         catch (const std::logic_error& e)
         {
           throw std::logic_error(
-            fmt::format("Failed to issue recovery shares: {}", e.what()));
+            std::format("Failed to issue recovery shares: {}", e.what()));
         }
 
         InternalTablesAccess::open_service(tx);
@@ -2636,7 +2641,7 @@ namespace ccf
       }
 
       throw std::logic_error(
-        fmt::format("Node in state {} cannot open service", sm.value()));
+        std::format("Node in state {} cannot open service", sm.value()));
     }
 
   private:
@@ -2914,7 +2919,7 @@ namespace ccf
           .back();
       if (final_component.empty())
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "{} has a trailing period, is not a valid hostname", hostname));
       }
 
@@ -2969,7 +2974,7 @@ namespace ccf
       if (!fe.has_value())
       {
         throw std::logic_error(
-          fmt::format("Cannot find {} frontend", (int)actor));
+          std::format("Cannot find {} frontend", (int)actor));
       }
       return fe.value();
     }
@@ -3050,7 +3055,7 @@ namespace ccf
       const auto body = nlohmann::json(create_params).dump();
 
       ::http::Request request(
-        fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "create"));
+        std::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "create"));
       request.set_header(
         ccf::http::headers::CONTENT_TYPE,
         ccf::http::headervalues::contenttype::JSON);
@@ -3167,7 +3172,7 @@ namespace ccf
             const auto& ledger_secrets_for_nodes = w;
             if (!ledger_secrets_for_nodes.has_value())
             {
-              throw std::logic_error(fmt::format(
+              throw std::logic_error(std::format(
                 "Unexpected removal from {} table",
                 network.secrets.get_name()));
             }
@@ -3214,7 +3219,7 @@ namespace ccf
           const auto& ledger_secrets_for_nodes = w;
           if (!ledger_secrets_for_nodes.has_value())
           {
-            throw std::logic_error(fmt::format(
+            throw std::logic_error(std::format(
               "Unexpected removal from {} table", network.secrets.get_name()));
           }
 
@@ -3235,7 +3240,7 @@ namespace ccf
               // version read from the write set.
               if (!encrypted_ledger_secret.version.has_value())
               {
-                throw std::logic_error(fmt::format(
+                throw std::logic_error(std::format(
                   "Commit hook at seqno {} for table {}: no version for "
                   "encrypted ledger secret",
                   hook_version,
@@ -3319,7 +3324,7 @@ namespace ccf
               {
                 LOG_FAIL_FMT(
                   "[local] Endorsed cert for self ({}) has been deleted", self);
-                throw std::logic_error(fmt::format(
+                throw std::logic_error(std::format(
                   "Could not find endorsed node certificate for {}", self));
               }
 
@@ -3374,7 +3379,7 @@ namespace ccf
                 LOG_FAIL_FMT(
                   "[global] Endorsed cert for self ({}) has been deleted",
                   self);
-                throw std::logic_error(fmt::format(
+                throw std::logic_error(std::format(
                   "Could not find endorsed node certificate for {}", self));
               }
 
@@ -3463,7 +3468,7 @@ namespace ccf
               "Executing global hook for service table at {}, to service "
               "status {}. Cert is:\n{}",
               hook_version,
-              w->status,
+              std::to_underlying(w->status),
               w->cert.str());
 
             network.identity->set_certificate(w->cert);
@@ -3500,7 +3505,7 @@ namespace ccf
             auto encrypted_ledger_secret_info = w;
             if (!encrypted_ledger_secret_info.has_value())
             {
-              throw std::logic_error(fmt::format(
+              throw std::logic_error(std::format(
                 "Unexpected removal from {} table",
                 network.encrypted_ledger_secrets.get_name()));
             }

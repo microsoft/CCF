@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <chrono>
 #include <exception>
+#include <format>
 #include <openssl/err.h>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -634,8 +635,8 @@ TEST_CASE("hybrid group negotiation")
   {
     REQUIRE(
       negotiate_group(
-        fmt::format("{}:{}", secp384r1_mlkem1024, classical_groups),
-        fmt::format("{}:{}", secp256r1_mlkem768, classical_groups)) ==
+        std::format("{}:{}", secp384r1_mlkem1024, classical_groups),
+        std::format("{}:{}", secp256r1_mlkem768, classical_groups)) ==
       "secp521r1");
   }
 
@@ -643,8 +644,8 @@ TEST_CASE("hybrid group negotiation")
   {
     REQUIRE_THROWS_AS(
       negotiate_group(
-        fmt::format("{}:P-521", secp384r1_mlkem1024),
-        fmt::format("{}:P-256", secp256r1_mlkem768)),
+        std::format("{}:P-521", secp384r1_mlkem1024),
+        std::format("{}:P-256", secp256r1_mlkem768)),
       const std::runtime_error&);
   }
 
@@ -653,13 +654,13 @@ TEST_CASE("hybrid group negotiation")
     // As for classical groups, the client's order is what matters
     REQUIRE(
       negotiate_group(
-        fmt::format("{}:{}", secp384r1_mlkem1024, secp256r1_mlkem768),
-        fmt::format("{}:{}", secp256r1_mlkem768, secp384r1_mlkem1024)) ==
+        std::format("{}:{}", secp384r1_mlkem1024, secp256r1_mlkem768),
+        std::format("{}:{}", secp256r1_mlkem768, secp384r1_mlkem1024)) ==
       secp384r1_mlkem1024);
     REQUIRE(
       negotiate_group(
-        fmt::format("{}:{}", secp256r1_mlkem768, secp384r1_mlkem1024),
-        fmt::format("{}:{}", secp384r1_mlkem1024, secp256r1_mlkem768)) ==
+        std::format("{}:{}", secp256r1_mlkem768, secp384r1_mlkem1024),
+        std::format("{}:{}", secp384r1_mlkem1024, secp256r1_mlkem768)) ==
       secp256r1_mlkem768);
   }
 
@@ -677,7 +678,7 @@ TEST_CASE("hybrid group negotiation")
     for (const auto& group : hybrid_groups)
     {
       INFO("group: ", group);
-      const auto groups = fmt::format("{}:{}", group, classical_groups);
+      const auto groups = std::format("{}:{}", group, classical_groups);
       REQUIRE(negotiate_group(groups, groups) == group);
     }
   }

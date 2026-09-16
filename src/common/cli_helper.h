@@ -8,10 +8,8 @@
 
 #include <CLI11/CLI11.hpp>
 #include <charconv>
+#include <format>
 #include <optional>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace cli
 {
@@ -44,7 +42,7 @@ namespace cli
       if (close == std::string::npos)
       {
         throw std::logic_error(
-          fmt::format("Address '{}' has an unmatched '['", addr));
+          std::format("Address '{}' has an unmatched '['", addr));
       }
       hostname = addr.substr(1, close - 1);
       if (close + 1 == addr.size())
@@ -59,7 +57,7 @@ namespace cli
       }
       else
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Address '{}' has unexpected characters after ']'", addr));
       }
     }
@@ -70,7 +68,7 @@ namespace cli
       // than one ':' (e.g. "::1").
       if (addr.contains(':') && addr.find(':') != addr.find_last_of(':'))
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "IPv6 address '{}' must be bracketed as '[host]:port'", addr));
       }
 
@@ -85,16 +83,16 @@ namespace cli
       std::from_chars(port.data(), port.data() + port.size(), port_n);
     if (ec == std::errc::invalid_argument)
     {
-      throw std::logic_error(fmt::format("Port '{}' is not a number", port));
+      throw std::logic_error(std::format("Port '{}' is not a number", port));
     }
     if (ec == std::errc::result_out_of_range)
     {
       throw std::logic_error(
-        fmt::format("Port '{}' is not in range 0-65535", port));
+        std::format("Port '{}' is not in range 0-65535", port));
     }
     if (ec != std::errc())
     {
-      throw std::logic_error(fmt::format("Error parsing port '{}'", port));
+      throw std::logic_error(std::format("Error parsing port '{}'", port));
     }
 
     return std::make_pair(hostname, port);
@@ -168,7 +166,7 @@ namespace cli
         {
           throw CLI::ValidationError(
             option_name,
-            fmt::format(
+            std::format(
               "SAN could not be parsed: {}, must be (iPAddress|dNSName):VALUE",
               result));
         }

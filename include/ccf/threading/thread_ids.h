@@ -2,10 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
-#include <fmt/ostream.h>
-#include <fmt/std.h>
 #include <limits>
 #include <map>
 #include <thread>

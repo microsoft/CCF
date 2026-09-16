@@ -10,6 +10,7 @@
 #include "ccf/tx.h"
 #include "http/http_jwt.h"
 
+#include <format>
 #include <set>
 #include <sstream>
 
@@ -39,7 +40,7 @@ namespace ccf::jwt_management_detail
     catch (const std::invalid_argument& exc)
     {
       throw std::logic_error(
-        fmt::format("Failed to construct RSA public key: {}", exc.what()));
+        std::format("Failed to construct RSA public key: {}", exc.what()));
     }
   }
 
@@ -67,7 +68,7 @@ namespace ccf::jwt_management_detail
     catch (const std::invalid_argument& exc)
     {
       throw std::logic_error(
-        fmt::format("Failed to construct EC public key: {}", exc.what()));
+        std::format("Failed to construct EC public key: {}", exc.what()));
     }
   }
 
@@ -89,7 +90,7 @@ namespace ccf::jwt_management_detail
     catch (const std::invalid_argument& e)
     {
       throw std::logic_error(
-        fmt::format("Could not parse x5c of key id {}: {}", kid, e.what()));
+        std::format("Could not parse x5c of key id {}: {}", kid, e.what()));
     }
     try
     {
@@ -98,7 +99,7 @@ namespace ccf::jwt_management_detail
     }
     catch (std::invalid_argument& exc)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "JWKS kid {} has an invalid X.509 certificate: {}", kid, exc.what()));
     }
   }
@@ -128,7 +129,7 @@ namespace ccf::jwt_management_detail
     }
 
     throw std::logic_error(
-      fmt::format("JWKS kid {} has neither RSA/EC public key or x5c", kid));
+      std::format("JWKS kid {} has neither RSA/EC public key or x5c", kid));
   }
 }
 
@@ -228,7 +229,7 @@ namespace ccf
         {
           if (!check_issuer_constraint(issuer, *jwk.issuer))
           {
-            throw std::logic_error(fmt::format(
+            throw std::logic_error(std::format(
               "JWKS kid {} with issuer constraint {} fails validation "
               "against "
               "issuer {}",
@@ -302,7 +303,10 @@ namespace ccf
         "Save JWT key kid={} issuer={}, constraint={}",
         kid,
         value.issuer,
-        value.constraint);
+        value.constraint.has_value() ?
+          std::format(
+            "optional({})", nlohmann::json(value.constraint.value()).dump()) :
+          "none");
 
       auto existing_keys = keys->get(kid);
       if (existing_keys)

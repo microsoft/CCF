@@ -8,6 +8,8 @@
 #include "node/gov/handlers/helpers.h"
 #include "node/share_manager.h"
 
+#include <format>
+
 namespace ccf::gov::endpoints
 {
   namespace api
@@ -73,7 +75,7 @@ namespace ccf::gov::endpoints
                 ctx.rpc_ctx,
                 HTTP_STATUS_NOT_FOUND,
                 ccf::errors::ResourceNotFound,
-                fmt::format(
+                std::format(
                   "Recovery share not found for member {}.", member_id));
               return;
             }
@@ -153,7 +155,7 @@ namespace ccf::gov::endpoints
               ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidAuthenticationInfo,
-              fmt::format(
+              std::format(
                 "Member ID from path parameter ({}) does not match "
                 "member ID from body signature ({}).",
                 member_id,
@@ -204,7 +206,7 @@ namespace ccf::gov::endpoints
           {
             // Same format of message, whether this is sufficient to trigger
             // recovery or not
-            message = fmt::format(
+            message = std::format(
               "{}/{} recovery shares successfully submitted",
               submitted_shares_count,
               threshold);

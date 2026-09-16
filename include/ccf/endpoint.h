@@ -10,6 +10,7 @@
 #include "ccf/service/map.h"
 #include "ccf/service/operator_feature.h"
 
+#include <format>
 #include <string>
 #include <utility>
 
@@ -26,7 +27,7 @@ namespace ccf::endpoints
 
     [[nodiscard]] std::string to_str() const
     {
-      return fmt::format("{} {}", verb.c_str(), uri_path);
+      return std::format("{} {}", verb.c_str(), uri_path);
     }
   };
 }
@@ -40,7 +41,7 @@ namespace ccf::kv::serialisers
       const ccf::endpoints::EndpointKey& endpoint_key)
     {
       auto str =
-        fmt::format("{} {}", endpoint_key.verb.c_str(), endpoint_key.uri_path);
+        std::format("{} {}", endpoint_key.verb.c_str(), endpoint_key.uri_path);
       return {str.begin(), str.end()};
     }
 
@@ -511,9 +512,8 @@ namespace ccf::endpoints
   using EndpointPtr = std::shared_ptr<const Endpoint>;
 }
 
-FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<ccf::endpoints::ForwardingRequired>
+struct std::formatter<ccf::endpoints::ForwardingRequired>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -529,22 +529,21 @@ struct formatter<ccf::endpoints::ForwardingRequired>
     {
       case ccf::endpoints::ForwardingRequired::Sometimes:
       {
-        return format_to(ctx.out(), "sometimes");
+        return std::format_to(ctx.out(), "sometimes");
       }
       case ccf::endpoints::ForwardingRequired::Always:
       {
-        return format_to(ctx.out(), "always");
+        return std::format_to(ctx.out(), "always");
       }
       case ccf::endpoints::ForwardingRequired::Never:
       {
-        return format_to(ctx.out(), "never");
+        return std::format_to(ctx.out(), "never");
       }
       default:
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Unhandled value for ForwardingRequired: {}", std::to_underlying(v)));
       }
     }
   }
 };
-FMT_END_NAMESPACE

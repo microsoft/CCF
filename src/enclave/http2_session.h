@@ -10,6 +10,8 @@
 #include "http/http_responder.h"
 #include "http_rpc_context.h"
 
+#include <format>
+
 namespace http
 {
   using HTTP2Session = ccf::EncryptedSession;
@@ -358,7 +360,7 @@ namespace http
           send_odata_error_response(ccf::ErrorDetails{
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format("Error constructing RpcContext: {}", e.what())});
+            std::format("Error constructing RpcContext: {}", e.what())});
           return;
         }
         std::shared_ptr<ccf::RpcHandler> search =
@@ -384,7 +386,7 @@ namespace http
         responder->send_odata_error_response(ccf::ErrorDetails{
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format("Exception: {}", e.what())});
+          std::format("Exception: {}", e.what())});
 
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");

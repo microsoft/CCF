@@ -5,7 +5,7 @@
 #include "ds/internal_logger.h"
 
 #include <chrono>
-#include <fmt/format.h>
+#include <format>
 #include <string>
 #include <utility>
 
@@ -20,17 +20,17 @@ namespace ccf::ds
         std::chrono::duration_cast<std::chrono::microseconds>(d).count();
       if (us < 1000)
       {
-        return fmt::format("{:>7.03f}us", static_cast<float>(us));
+        return std::format("{:>7.03f}us", static_cast<float>(us));
       }
 
       const auto ms = us / 1000.0f;
       if (ms < 1000)
       {
-        return fmt::format("{:>7.03f}ms", ms);
+        return std::format("{:>7.03f}ms", ms);
       }
 
       const auto s = ms / 1000.0f;
-      return fmt::format("{:>7.03f}s", s);
+      return std::format("{:>7.03f}s", s);
     }
 
     static inline std::chrono::microseconds default_max_time{10'000};

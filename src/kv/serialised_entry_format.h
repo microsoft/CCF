@@ -5,7 +5,7 @@
 #include "ds/ccf_assert.h"
 
 #include <climits>
-#include <fmt/format.h>
+#include <format>
 #include <stdint.h>
 #include <string>
 
@@ -56,7 +56,7 @@ namespace ccf::kv
   static inline std::string describe_serialised_entry_size_error(
     size_t entry_size, size_t max_entry_size)
   {
-    return fmt::format(
+    return std::format(
       "Cannot serialise transaction with total serialised size {} bytes. The "
       "configured maximum is {} bytes. The size compared to this limit is the "
       "whole ledger entry: the fixed {}-byte ledger entry header plus the "

@@ -9,6 +9,7 @@
 
 #include <crypto/cbor_tags.h>
 #include <crypto/cose.h>
+#include <format>
 #include <tav/cbor.hpp>
 
 namespace
@@ -72,7 +73,7 @@ namespace
     auto key = CoseKey::from_pem_public(pem.data(), pem.size(), key_err);
     if (!key.is_set())
     {
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Failed to create COSE verification key: {}",
         key_err.is_set() ? key_err.to_string() : "unknown error"));
     }
@@ -85,7 +86,7 @@ namespace
     auto key = CoseKey::from_public(der.data(), der.size(), key_err);
     if (!key.is_set())
     {
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "Failed to create COSE verification key: {}",
         key_err.is_set() ? key_err.to_string() : "unknown error"));
     }
@@ -109,7 +110,7 @@ namespace ccf::crypto
         CoseKey::from_der_cert(certificate.data(), certificate.size(), der_err);
       if (!key.is_set())
       {
-        throw std::invalid_argument(fmt::format(
+        throw std::invalid_argument(std::format(
           "Failed to parse certificate (PEM: {}, DER: {})",
           pem_err.is_set() ? pem_err.to_string() : "unknown error",
           der_err.is_set() ? der_err.to_string() : "unknown error"));
@@ -126,7 +127,7 @@ namespace ccf::crypto
     auto key = CoseKey::from_pem_cert(pem.data(), pem.size(), key_err);
     if (!key.is_set())
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "Failed to parse PEM certificate: {}",
         key_err.is_set() ? key_err.to_string() : "unknown error"));
     }
@@ -141,7 +142,7 @@ namespace ccf::crypto
     auto key = CoseKey::from_der_cert(der.data(), der.size(), key_err);
     if (!key.is_set())
     {
-      throw std::invalid_argument(fmt::format(
+      throw std::invalid_argument(std::format(
         "Failed to parse DER certificate: {}",
         key_err.is_set() ? key_err.to_string() : "unknown error"));
     }

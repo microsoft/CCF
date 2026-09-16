@@ -6,6 +6,7 @@
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
 #include <cstdint>
+#include <format>
 #include <map>
 #include <stdexcept>
 #include <vector>
@@ -76,7 +77,7 @@ namespace ccf::kv::serialisers
           return ccf::IdentityType::PQ;
         default:
           throw std::logic_error(
-            fmt::format("Unknown identity type: {}", value));
+            std::format("Unknown identity type: {}", value));
       }
     }
   };

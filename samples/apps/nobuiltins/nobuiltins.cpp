@@ -9,6 +9,7 @@
 #include "ccf/node_context.h"
 
 #include <charconv>
+#include <format>
 
 namespace nobuiltins
 {
@@ -86,7 +87,7 @@ namespace nobuiltins
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              fmt::format(
+              std::format(
                 "Failed to get quote: {}", ccf::api_result_to_str(result)));
             return;
           }
@@ -105,7 +106,7 @@ namespace nobuiltins
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              fmt::format(
+              std::format(
                 "Failed to get committed transaction: {}",
                 ccf::api_result_to_str(result)));
             return;
@@ -119,7 +120,7 @@ namespace nobuiltins
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              fmt::format(
+              std::format(
                 "Failed to get node ID: {}", ccf::api_result_to_str(result)));
             return;
           }
@@ -144,7 +145,7 @@ namespace nobuiltins
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format(
+            std::format(
               "Failed to get quotes: {}", ccf::api_result_to_str(result)));
           return;
         }
@@ -181,7 +182,7 @@ namespace nobuiltins
         return ccf::make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format(
+          std::format(
             "Failed to generate OpenAPI: {}", ccf::api_result_to_str(result)));
       };
       make_endpoint(
@@ -204,7 +205,7 @@ namespace nobuiltins
         return ccf::make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format(
+          std::format(
             "Failed to get committed transaction: {}",
             ccf::api_result_to_str(result)));
       };
@@ -240,7 +241,7 @@ namespace nobuiltins
               return ccf::make_error(
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::InvalidQueryParameterValue,
-                fmt::format(
+                std::format(
                   "Query parameter '{}' cannot be parsed as a seqno",
                   query_value));
             }
@@ -261,7 +262,7 @@ namespace nobuiltins
             return ccf::make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              fmt::format(
+              std::format(
                 "Unable to construct TxID: {}",
                 ccf::api_result_to_str(result)));
           }
@@ -270,7 +271,7 @@ namespace nobuiltins
         return ccf::make_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidInput,
-          fmt::format("Missing query parameter '{}'", "seqno"));
+          std::format("Missing query parameter '{}'", "seqno"));
       };
       make_command_endpoint(
         "/tx_id",
@@ -290,7 +291,7 @@ namespace nobuiltins
           return ccf::make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format(
+            std::format(
               "Unable to get time: {}", ccf::api_result_to_str(result)));
         }
 
@@ -306,7 +307,7 @@ namespace nobuiltins
           return ccf::make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format("Unable to format timestamp"));
+            std::format("Unable to format timestamp"));
         }
 
         // Build full time, with 6 decimals of sub-second precision, and a
@@ -314,7 +315,7 @@ namespace nobuiltins
         TimeResponse response;
         constexpr size_t usec_per_nsec = 1'000;
         response.timestamp =
-          fmt::format("{}.{:06}+00:00", buf, time.tv_nsec / usec_per_nsec);
+          std::format("{}.{:06}+00:00", buf, time.tv_nsec / usec_per_nsec);
         return ccf::make_success(response);
       };
       make_command_endpoint(

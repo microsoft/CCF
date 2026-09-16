@@ -8,6 +8,7 @@
 #include "service/tables/config.h"
 #include "service/tables/signatures.h"
 
+#include <format>
 #include <stdexcept>
 
 namespace ccf
@@ -67,7 +68,7 @@ namespace ccf
           }
           default:
           {
-            throw std::logic_error(fmt::format(
+            throw std::logic_error(std::format(
               "Unknown node status {} for node {} in configuration change hook",
               static_cast<uint8_t>(ni.status),
               node_id));

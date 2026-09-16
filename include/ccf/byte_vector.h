@@ -2,12 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/join.h"
 #include "ccf/ds/siphash.h"
 
-#define FMT_HEADER_ONLY
 #include <climits>
-#include <fmt/format.h>
-#include <fmt/ranges.h>
+#include <format>
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #include <small_vector/SmallVector.h>
@@ -34,9 +33,8 @@ namespace std
 }
 // NOLINTEND(cert-dcl58-cpp)
 
-FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<ccf::ByteVector>
+struct std::formatter<ccf::ByteVector>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -55,14 +53,13 @@ struct formatter<ccf::ByteVector>
     };
     if (std::all_of(e.begin(), e.end(), printable))
     {
-      return format_to(
+      return std::format_to(
         ctx.out(),
         "<uint8[{}]: ascii={}>",
         e.size(),
         std::string(e.begin(), e.end()));
     }
-    return format_to(
-      ctx.out(), "<uint8[{}]: hex={:02x}>", e.size(), fmt::join(e, " "));
+    return std::format_to(
+      ctx.out(), "<uint8[{}]: hex={:02x}>", e.size(), ccf::ds::join(e, " "));
   }
 };
-FMT_END_NAMESPACE
