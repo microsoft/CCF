@@ -79,6 +79,7 @@ TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
   CHECK_THROWS_AS(Queue(Queue::MAX_CAPACITY + 1), std::invalid_argument);
   Queue queue(3);
   auto ignore = [](auto) {};
+  CHECK(queue.size() == 0);
   CHECK(queue.read(1, ignore) == 0);
   std::array<uint8_t, 37> payload = {};
   for (size_t round = 0; round < 64; ++round)
@@ -87,20 +88,24 @@ TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
     {
       payload.fill(i);
       REQUIRE(queue.push(payload));
+      CHECK(queue.size() == i + 1);
     }
     const auto before = allocations;
     const auto full = queue.push(payload);
     const auto after = allocations;
     CHECK_FALSE(full);
     CHECK(after == before);
+    CHECK(queue.size() == 3);
     size_t expected = 0;
     CHECK(queue.read(3, [&](auto bytes) {
+      CHECK(queue.size() == 3 - expected);
       CHECK(bytes.size() == payload.size());
       for (auto byte : bytes)
         CHECK(byte == expected);
       ++expected;
     }) == 3);
     CHECK(expected == 3);
+    CHECK(queue.size() == 0);
     CHECK(queue.read(1, ignore) == 0);
   }
   for (size_t failure = 1; failure <= 2; ++failure)
@@ -136,10 +141,13 @@ TEST_CASE("SPSC callback retains ownership until it returns")
   auto released = release.get_future();
   std::thread consumer([&] {
     CHECK(queue.read(1, [&](auto bytes) {
+      CHECK(queue.size() == 1);
       entered.set_value();
       released.wait();
       CHECK(bytes[0] == 42);
+      CHECK(queue.size() == 1);
     }) == 1);
+    CHECK(queue.size() == 0);
   });
   entered.get_future().wait();
   payload[0] = 17;
@@ -181,7 +189,11 @@ TEST_CASE("SPSC records are published in order concurrently")
   uint64_t expected = 0;
   while (expected < count)
   {
+    CHECK(queue.size() <= 3);
     queue.read(64, [&](auto bytes) {
+      const auto pending = queue.size();
+      CHECK(pending >= 1);
+      CHECK(pending <= 3);
       REQUIRE(bytes.size() == 37);
       uint64_t sequence;
       std::memcpy(&sequence, bytes.data(), sizeof(sequence));
@@ -193,6 +205,7 @@ TEST_CASE("SPSC records are published in order concurrently")
     std::this_thread::yield();
   }
   writer.join();
+  CHECK(queue.size() == 0);
 }
 
 TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
@@ -340,12 +353,33 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
          std::chrono::steady_clock::now() < report_deadline)
     std::this_thread::yield();
   CHECK(logs->reports == 2);
+  const auto drops_before_unbound = Sink::dropped_count();
+  bool unbound_pushed = true;
+  size_t unbound_allocations = 0;
+  std::thread unbound([&] {
+    const auto before = allocations;
+    unbound_pushed = Sink::enqueue(payload);
+    unbound_allocations = allocations - before;
+  });
+  unbound.join();
+  CHECK_FALSE(unbound_pushed);
+  CHECK(unbound_allocations == 0);
+  CHECK(Sink::dropped_count() == drops_before_unbound + 1);
   const auto drops_before_shutdown = Sink::dropped_count();
   const auto start = std::chrono::steady_clock::now();
   Sink::shutdown();
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::seconds(1)));
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(3));
   CHECK(Sink::dropped_count() == drops_before_shutdown + 3);
+  // Use the empty queue so a full queue cannot mask shutdown rejection.
+  Sink::bind_producer(1);
+  const auto allocations_before_shutdown_enqueue = allocations;
+  const auto shutdown_pushed = Sink::enqueue(payload);
+  const auto allocations_after_shutdown_enqueue = allocations;
+  CHECK_FALSE(shutdown_pushed);
+  CHECK(
+    allocations_after_shutdown_enqueue == allocations_before_shutdown_enqueue);
+  CHECK(Sink::dropped_count() == drops_before_shutdown + 4);
   CHECK(logs->reports == 2);
   CHECK_FALSE(wrong_thread);
   close(peer);

@@ -62,6 +62,14 @@ namespace ccf::tracing
       return true;
     }
 
+    // Consumer-only observation; exact once the producer has stopped.
+    // Includes the record held by a running read callback.
+    size_t size() const
+    {
+      return tail.load(std::memory_order_acquire) -
+        head.load(std::memory_order_relaxed);
+    }
+
     template <typename F>
     size_t read(size_t limit, F&& callback)
     {

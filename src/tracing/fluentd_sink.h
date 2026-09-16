@@ -31,18 +31,21 @@ namespace ccf::tracing
 
   public:
     using Endpoint = ccf::CCFConfig::Observability::Fluentd;
+    static constexpr size_t MAX_PRODUCERS = 65535;
     static constexpr uint64_t DROP_REPORT_INTERVAL = 65536;
 
     static size_t validate(const Endpoint& endpoint, size_t producers = 1)
     {
       const auto size = endpoint.queue_capacity;
       if (
-        producers == 0 || producers > 65535 || size == 0 ||
+        producers == 0 || producers > MAX_PRODUCERS || size == 0 ||
         size > SPSCQueue::MAX_CAPACITY)
       {
-        throw std::invalid_argument(
-          "Trace queue capacity must be between 1 and 1048576 slots, with "
-          "between 1 and 65535 producers");
+        throw std::invalid_argument(fmt::format(
+          "Trace queue capacity must be between 1 and {} slots, with "
+          "between 1 and {} producers",
+          SPSCQueue::MAX_CAPACITY,
+          MAX_PRODUCERS));
       }
       unsigned port = 0;
       const auto* end = endpoint.port.data() + endpoint.port.size();
@@ -59,20 +62,11 @@ namespace ccf::tracing
     }
 
   private:
-    struct Queue
-    {
-      SPSCQueue records;
-      size_t enqueued = 0;
-      size_t consumed = 0;
-
-      explicit Queue(size_t capacity) : records(capacity) {}
-    };
-
     struct Transport
     {
       sockaddr_storage address = {};
       socklen_t address_size = 0;
-      std::vector<std::unique_ptr<Queue>> queues;
+      std::vector<std::unique_ptr<SPSCQueue>> queues;
       std::atomic<uint64_t> dropped = 0;
       std::atomic<bool> stopping = false;
       std::atomic<bool> connected = false;
@@ -102,7 +96,7 @@ namespace ccf::tracing
         freeaddrinfo(addresses);
         for (size_t i = 0; i < producers; ++i)
         {
-          queues.push_back(std::make_unique<Queue>(size));
+          queues.push_back(std::make_unique<SPSCQueue>(size));
         }
         consumer = std::thread([this] { run(); });
       }
@@ -236,7 +230,7 @@ namespace ccf::tracing
 
       void run()
       {
-        for (;;)
+        while (!expired())
         {
           if (fd < 0 && !stopping.load(std::memory_order_acquire))
           {
@@ -247,33 +241,30 @@ namespace ccf::tracing
           {
             if (expired())
             {
-              size_t pending = 0;
-              for (const auto& q : queues)
-              {
-                pending += q->enqueued - q->consumed;
-              }
-              dropped.fetch_add(pending, std::memory_order_relaxed);
-              report_drops();
-              disconnect();
-              return;
+              break;
             }
-            progress |= queue->records.read(
-                          64, [this, &queue](std::span<const uint8_t> bytes) {
-                            write(bytes);
-                            ++queue->consumed;
-                          }) != 0;
+            progress |= queue->read(64, [this](std::span<const uint8_t> bytes) {
+              write(bytes);
+            }) != 0;
+          }
+          if (!progress && stopping.load(std::memory_order_acquire))
+          {
+            break;
           }
           report_drops();
           if (!progress)
           {
-            if (stopping.load(std::memory_order_acquire))
-            {
-              disconnect();
-              return;
-            }
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
           }
         }
+        size_t pending = 0;
+        for (const auto& queue : queues)
+        {
+          pending += queue->size();
+        }
+        dropped.fetch_add(pending, std::memory_order_relaxed);
+        report_drops();
+        disconnect();
       }
 
       void shutdown()
@@ -298,9 +289,9 @@ namespace ccf::tracing
       return instance;
     }
 
-    static Queue*& bound_queue()
+    static SPSCQueue*& bound_queue()
     {
-      thread_local Queue* queue = nullptr;
+      thread_local SPSCQueue* queue = nullptr;
       return queue;
     }
 
@@ -363,12 +354,11 @@ namespace ccf::tracing
         return false;
       }
       auto* q = bound_queue();
-      if (!q || !q->records.push(bytes))
+      if (!q || t->stopping.load(std::memory_order_acquire) || !q->push(bytes))
       {
         t->dropped.fetch_add(1, std::memory_order_relaxed);
         return false;
       }
-      ++q->enqueued;
       return true;
     }
 
@@ -377,6 +367,7 @@ namespace ccf::tracing
       return transport() ? transport()->dropped.load() : 0;
     }
 
+    // Producers must stop enqueueing before shutdown begins.
     static void shutdown()
     {
       if (transport())

@@ -1,6 +1,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-"""Start nodes with tracing disabled, unavailable, and a real Fluentd collector."""
+"""Check the Fluentd exporter across four node startup cases.
+
+1. No exporter configured: transactions commit as usual.
+2. Invalid exporter configuration: the node rejects it at startup.
+3. Exporter configured but the collector refuses connections: transactions
+   still commit.
+4. Exporter configured against a real Fluentd (only with --fluentd PATH): the
+   collector receives well-formed Raft events, and the node keeps committing
+   after the collector is killed.
+"""
 
 import copy
 import json
