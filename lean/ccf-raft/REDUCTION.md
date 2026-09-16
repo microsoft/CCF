@@ -6,9 +6,9 @@
 for every file under `tests/raft_scenarios`.
 
 The reducer does not run a solver, search for actions, import the earlier
-experimental reducer, or construct a protocol state. It keeps a packet-occurrence
-ledger to correlate recorded sends, receives, and drops. Lean alone executes
-protocol actions and compares observations.
+experimental reducer, or construct a protocol state. It consumes prefixes of the
+recorded event list in one loop. It has no packet queue or future-event
+correlation. Lean alone executes protocol actions and compares observations.
 
 ## Commands and files
 
@@ -45,8 +45,8 @@ Every regular file is selected recursively, including extensionless files and
 names such as `suffix_collision.1`. Sorting fixes execution order. No scenario
 name, extension, or deprecated syntax is filtered out.
 
-Each failed capture, reduction, or replay remains a failed scenario. The suite
-attempts the rest of the inventory and exits nonzero if any scenario fails.
+Capture and replay failures and explicit reduction errors remain failed scenarios.
+The suite attempts the rest of the inventory and exits nonzero if any scenario fails.
 A driver stderr stream also makes capture fail, matching the upstream scenario
 runner, even when the driver exits with status zero.
 A successful executable exit is insufficient. Its JSON response must report
@@ -60,8 +60,9 @@ successful summary looking like the result of the new run.
 
 NDJSON input contains one object per physical line. Empty input, empty records,
 duplicate JSON keys, non-finite numbers, non-object records, and malformed JSON
-are errors. Event timestamps must increase strictly in input order. The reducer
-never sorts records.
+are errors. After extraction, preprocessing assumes driver-shaped records.
+Malformed record structures can raise ordinary Python exceptions and abort the run.
+The reducer uses file order without sorting or checking timestamps.
 
 A `.stdout` input is a verbatim driver capture. `trace_io.py` recognizes
 `<RaftDriver>` diagram lines and structured non-Raft logger records. These
@@ -85,12 +86,21 @@ does not cause an invented model step. Unknown command names fail.
 Original markers, including a trailing assertion without subsequent events,
 remain in the captured stdout.
 
-Node creation commands also declare pre-vote compatibility modes. The driver's
+`shuffle_one` and `shuffle_all` are unsupported and fail during parsing.
+The supported driver scenarios preserve source/destination queue order.
+
+`associate()` attaches command context and collects the global per-node pre-vote
+map, including nodes that have not emitted an event. It does not reconstruct
+protocol state or packet queues. Rules check their own preconditions; state and
+packet projection happens when emitting observations, not in a separate preflight.
+
+Node creation commands declare pre-vote compatibility modes. The driver's
 initial setting is `true`. `pre_vote_enabled` changes the setting for subsequent
 creations, not existing nodes. This follows
 [`RaftDriver::add_node`](../../src/consensus/aft/test/driver.h).
-Recorded node-state modes must agree with their creation setting. A configuration
-node without either a recorded creation or an observed mode is an error.
+Without a creation command, the first snapshot supplies the node's mode.
+Lean checks recorded modes against this map and rejects undeclared configuration
+nodes.
 
 ## Coordinates and bootstrap
 
@@ -139,6 +149,20 @@ this exact prelude fails, even when its scenario is selected by the suite.
 
 ## Reduction rules
 
+`reduce_trace` contains the rules in one `while events` loop. `peek(n)` reads
+the next function names; `take(n)` consumes that prefix. Compound patterns precede
+their single-event alternatives. A matched pattern with invalid evidence fails
+rather than falling through to another rule.
+
+Configuration writes consume the recorded new-peer heartbeat prefix. Its length
+and destinations come from the configuration arguments and pre-change snapshot.
+AppendEntries receives consume a variable-length, same-node, same-command run of
+execute, configuration, and commit callbacks, ending at a recorded response when
+present. Neither rule carries partial-call state into the next loop iteration.
+
+`Instructions` only builds output. Each rule supplies action parameters explicitly;
+the builder does not infer the acting node or choose a protocol step.
+
 | Rule                          | Recorded boundary and emitted result                                                                                                                                                                                         |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bootstrap`                   | Verify the exact prelude above. Coalesce its configuration callback into guarded `initializeConfiguration`, then emit signature and commit actions with every boundary observation.                                          |
@@ -152,22 +176,25 @@ this exact prelude fails, even when its scenario is selected by the suite.
 | `atomic-append`               | Emit exactly one `appendEntries`, with projected `batchEnd`, for one recorded packet. Never split an append batch or manufacture intermediate network packets.                                                               |
 | `send-post`                   | Compare every packet field against the latest queued packet from that source to that destination.                                                                                                                            |
 | `signature-marker`            | Check each recorded committable index with an `entry` observation requiring signature content. Do not assert that unlisted log entries are not signatures.                                                                   |
-| `drop`                        | Observe the sender and exact pending packet, then emit `drop` with its sender-relative occurrence. One recorded drop removes one occurrence.                                                                                 |
+| `drop`                        | Observe the sender and source/destination queue head, then emit `drop` at occurrence zero. One recorded drop removes one packet.                                                                                             |
 | `receive-pre`                 | Compare receiver state, recorded peer progress, and the selected source-relative queue head before processing it.                                                                                                            |
 | `receive-term`                | A following same-node `become_follower` at the packet's higher term witnesses `updateTerm`. Observe its post-state before the consuming receive.                                                                             |
 | `receive-fallback`            | Same-term AppendEntries fallback uses the canonical non-consuming fallback receive, observes the follower boundary, and then consumes the packet.                                                                            |
+| `receive-follower-post`       | Observe the complete `become_follower` snapshot after term update or same-term fallback, before rollback and entry application.                                                                                              |
 | `atomic-receive`              | Group adjacent same-node AppendEntries callbacks through `send_append_entries_response`. Execute one consuming receive. A nomination's adjacent `become_candidate` is part of that receive, not a second election.           |
-| `tla-callback-stutter`        | Apply the fixed callback masks below at source-defined stable boundaries. Retain the complete raw callback and every omitted transient field in provenance.                                                                  |
+| `tla-callback-stutter`        | Emit all callback properties except explicit, reasoned exclusions. Retain excluded values and reasons in provenance.                                                                                                         |
 | `callback-entry`              | Compare a follower configuration callback's physical entry index and node set against the final canonical log. Compare a commit callback's target against a committed signature entry.                                       |
+| `callback-configuration`      | Compare each configuration-cache entry against its physical log entry, even when later commit compacts the active cache.                                                                                                     |
+| `callback-committed-prefix`   | Check that an intermediate nonzero commit frontier points to a committed signature, without equating it to the final frontier.                                                                                               |
 | `receive-post`                | Observe the complete terminal response or candidate state after the action, including unchanged values.                                                                                                                      |
 | `response-post`               | Compare the recorded AppendEntries response against the latest queued response after the receive.                                                                                                                            |
 | `commit-pre`                  | Observe a standalone leader `commit` callback before `advanceCommitIndex`. An ungrouped follower commit is an error.                                                                                                         |
 | `commit-post`                 | Compare the resulting commit index to the recorded `args.idx`.                                                                                                                                                               |
-| `terminal-commit`             | Coalesce a commit with its immediate same-node, same-command retirement nomination. Emit one `advanceCommitIndexAndProposeVote` with the destination determined from the recorded packet receive or drop.                    |
+| `terminal-commit`             | Coalesce a commit with its immediate same-node, same-command retirement nomination. Emit one `advanceCommitIndexAndProposeVote` using the nomination's recorded destination.                                                 |
 | `terminal-nomination-pre`     | Check the unchanged log, term, configuration cache, and retirement ordering indices before the combined action. The configuration cache has not yet been compacted at this callback.                                         |
 | `terminal-nomination-post`    | Observe the new commit and retired-committed frontier after the combined action. The callback's old leader role and completed retirement phase are checked as raw call-site facts, not compared to the final terminal state. |
 | `role-post`                   | Emit the corresponding election, promotion, or quorum-step-down action, then observe the recorded state. Disabled canonical actions are failures.                                                                            |
-| `nomination`                  | Correlate a nomination with its unique subsequent same-source, same-term recorded receive or drop. Emit `proposeVote` with both origins. Missing or ambiguous destinations are errors.                                       |
+| `nomination`                  | Emit `proposeVote` using the destination recorded in `to_node_id`. No later receive or drop is needed to determine the action.                                                                                               |
 
 Ordinary writes use `input-file:original-line` as an opaque transaction identity.
 The reducer does not guess transaction contents or equate different accepted
@@ -177,33 +204,38 @@ Boundary selection depends on source callback ordering, not on observed scalar
 values matching either endpoint. Mutating a callback field cannot move its
 observation across an action.
 
-The fixed masks use the atomic receive boundary from
-[`Traceccfraft.tla`](../../tla/consensus/Traceccfraft.tla). Interior follower roles
-are checked directly against their C++ call sites rather than against a final
-state that may already have completed retirement:
+`emit_observations(event, rule, properties, exclusions={field: reason})` checks
+every supplied property by default. Without `properties`, it uses
+`state_facts(event)`. Exclusions must name supplied properties and give nonempty
+reasons. A new property is observed unless a rule explicitly excludes it.
+An empty state observation is an error. Callers cannot override its provenance.
+Committable-cache properties produce signature-entry observations rather than
+cache equality, as described above.
 
-| Raw callback                         | Observed fields                                            | TLA source                                          |
-| ------------------------------------ | ---------------------------------------------------------- | --------------------------------------------------- |
-| `execute_append_entries_sync`        | `currentTerm`, `preVoteEnabled`; raw role must be follower | `IsExecuteAppendEntries`, line 396                  |
-| Follower `add_configuration`         | `preVoteEnabled`; raw role must be follower                | `IsAddConfiguration`, line 283                      |
-| Follower `commit`                    | `preVoteEnabled`; raw role must be follower                | `IsAdvanceCommitIndex`, follower branch at line 321 |
-| Receive-associated `become_follower` | `role`, `membershipState`, `preVoteEnabled`                | `IsBecomeFollower`, line 430                        |
+Receive helpers remain after the consuming atomic receive, but their checks
+are stronger than the original masks from
+[`Traceccfraft.tla`](../../tla/consensus/Traceccfraft.tla):
 
-Receive helpers stutter after the one consuming atomic receive. An associated
-`become_follower` follows the explicit term-update or same-term fallback action.
-These diagnostic callbacks can occur partway through a packet. Their transient
-log length, commit index, pending signatures, configuration list, and retirement
-fields are not stable canonical observations at that point. In particular, a
-single batch can add or remove the receiving node and advance its retirement
-phase between callbacks. The TLA preprocessing removes an execute record before
-a configuration callback. This reducer retains it, but does not equate any
-interior membership phase to the packet's final membership phase.
-Fields outside both the canonical mask and the raw call-site checks are recorded under
-`origin.omittedTransientFields`, with values. `origin.rawRecord` retains the
-complete original callback, including arguments and implementation location.
-`origin.checkedRawFields` records the call-site predicates checked by Python.
-The full `send_append_entries_response` state is still observed after the atomic
-receive, and its packet is compared separately. No raw callback disappears.
+| Callback property               | Observation or exclusion                                                                                                                                                                  |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `become_follower` snapshot      | All properties. Term assignment precedes the trace; rollback and entry application follow it.                                                                                             |
+| `currentTerm`, `preVoteEnabled` | Exact equality throughout the execute loop, configuration hooks, and commit callbacks.                                                                                                    |
+| `logLength`                     | Exact equality after the last execute callback. Earlier callbacks precede entry application, so their partial lengths are excluded.                                                       |
+| `commitIndex`                   | Exact equality after the last commit callback. Earlier nonzero frontiers instead produce committed-signature entry observations.                                                          |
+| `role`                          | Checked as follower at the raw call site. Also compared to the final role unless a pending commit could trigger terminal retirement.                                                      |
+| `membershipState`               | Excluded because configuration, signature, and commit callbacks can each advance retirement within one packet.                                                                            |
+| Retirement indices              | Present indices are compared exactly. An absent index is excluded only while its writer remains: configuration for ordering, entry execution for signing, commit for terminal retirement. |
+| `committableIndices`            | Each recorded marker must identify a signature in the final log. Later commits may remove markers from the cache, not the log.                                                            |
+| `configurations`                | Each recorded configuration is checked as a log entry. Cache equality is excluded because later hooks insert configurations and commit discards older ones.                               |
+
+The receive rule states each exclusion beside its source-based reason.
+Its `pending` set includes the current callback because execute and commit trace
+before their mutations. This is a set of recorded function names, not model state.
+`origin.omittedTransientFields` preserves the excluded values and
+`origin.omissionReasons` preserves those reasons, including reasons for replacing
+an exact state comparison with an entry observation. `origin.rawRecord` retains
+the complete callback. The terminal response snapshot is still observed in full,
+and its packet is compared separately.
 
 Configuration callback arguments produce an `entry` observation with
 `fields: {kind: "configuration", configuration: [...]}` at the recorded index.
@@ -221,27 +253,30 @@ not replace `none` with `follower` or patch state to make a replay pass.
 compatibility value. The reducer never treats an unexpected true value as an
 unused bit to discard.
 
-## Packet occurrence rules
+## Head-of-queue packets
 
-The occurrence ledger retains each explicit packet send. Receives consume the
-first matching packet from that sender. A receive that would reorder packets
-from one sender fails because the canonical receive action selects that sender's
-first pending packet.
+Each receive or drop observes the canonical queue head for its source and
+destination before consuming it. A missing packet or mismatched field fails in
+Lean. The reducer never searches for a later matching packet. Repeated packets
+remain separate occurrences; each drop removes exactly one.
 
-A drop can select a later matching occurrence. Equal fully recorded packets use
-the earliest identical occurrence, preserving multiplicity. A resend creates a
-new occurrence and has its own source line.
+`RaftDriver::drop_pending_to` drains the selected source/destination queue and
+records one drop per packet. Each event therefore selects occurrence zero.
+Explicit queue-shuffling commands are rejected rather than modeled.
 
-C++ does not trace RequestVote response sends. Its
-`recv_request_vote_unsafe` sends exactly one response, including for stale terms.
-The occurrence ledger records only the response family and the term established
-by that call. It does not invent `vote_granted`. A later recorded receive or drop
-supplies that field for Lean to check. If a drop matches multiple such incomplete
-response occurrences, reduction fails rather than guessing.
+C++ does not trace RequestVote response sends. The canonical receive action
+already generates those responses. Subsequent receive or drop observations
+check their recorded fields, including `vote_granted`, against the canonical
+queue. No Python reconstruction of unlogged sends is needed.
 
 A higher-term nomination does not imply `updateTerm` or a new election.
 `recv_propose_request_vote` acts only for a same-term nomination. An ignored
 nomination still emits a consuming canonical `receive`.
+
+The originating `step_down_and_nominate_successor` trace records the selected
+successor as `to_node_id`. Older captures without that field must be recaptured
+with the updated driver. The reducer rejects them instead of recovering a
+destination from future events.
 
 ## Terminal retirement
 
@@ -295,3 +330,7 @@ and does not claim canonical replay from bootstrap.
 `terminal_retirement.stdout` is a complete fresh `reconfig_0_1` driver capture.
 It covers committing a retirement marker, the before-demotion nomination
 callback, successor election, and subsequent traffic involving the retired node.
+
+`retire_follower.stdout` is a complete `retire_one` driver capture. It covers
+retirement indices already set in interior follower callbacks. Mutation tests
+change those raw indices and require canonical replay to reject them.

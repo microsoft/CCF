@@ -2798,6 +2798,7 @@ namespace aft
 #ifdef CCF_RAFT_TRACING
         nlohmann::json j = {};
         j["function"] = "step_down_and_nominate_successor";
+        j["to_node_id"] = successor.value();
         j["state"] = *state;
         COMMITTABLE_INDICES(j["state"], state);
         j["configurations"] = configurations;

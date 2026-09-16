@@ -55,6 +55,15 @@ class CanonicalReplayTests(unittest.TestCase):
             },
         )
 
+    def test_recorded_pre_vote_mode_is_checked_by_the_model(self):
+        records = read_trace(FIXTURE)
+        records[-1].value["msg"]["state"]["pre_vote_enabled"] = True
+        document = reduce_trace(records)
+        self.assertEqual(document["bootstrap"]["pre_vote_enabled"], {"0": False})
+        result = self.replay(document)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("preVoteEnabled", result.stderr)
+
     def test_startup_retains_physical_prefix_before_next_signature(self):
         document = reduce_trace(read_trace(FIXTURE.with_name("startup.ndjson")))
         signature = next(
@@ -107,6 +116,128 @@ class CanonicalReplayTests(unittest.TestCase):
         self.assertEqual(
             json.loads(result.stdout)["instructions"], len(document["instructions"])
         )
+
+    def test_recorded_nomination_destination_is_checked_by_the_model(self):
+        records = read_trace(FIXTURE.with_name("terminal_retirement.stdout"))
+        nomination = next(
+            row.value["msg"]
+            for row in records
+            if row.value.get("msg", {}).get("function")
+            == "step_down_and_nominate_successor"
+        )
+        nomination["to_node_id"] = nomination["state"]["node_id"]
+        negative = self.replay(reduce_trace(records))
+        self.assertEqual(negative.returncode, 1)
+        self.assertIn(
+            "disabled canonical action 'advanceCommitIndexAndProposeVote'",
+            negative.stderr,
+        )
+
+    def test_callback_property_mutations_are_rejected(self):
+        records = read_trace(FIXTURE.with_name("terminal_retirement.stdout"))
+        document = reduce_trace(records)
+        positive = self.replay(document)
+        self.assertEqual(positive.returncode, 0, positive.stderr)
+        cases = [
+            ("become_follower", "last_idx", 999, "logLength"),
+            ("become_follower", "commit_idx", 999, "commitIndex"),
+            ("execute_append_entries_sync", "current_view", 999, "currentTerm"),
+            ("execute_append_entries_sync", "commit_idx", 999, "commitIndex"),
+            ("add_configuration", "current_view", 999, "currentTerm"),
+            ("commit", "current_view", 999, "currentTerm"),
+            ("commit", "last_idx", 999, "logLength"),
+            (
+                "execute_append_entries_sync",
+                "committable_indices",
+                [1],
+                "signature-marker",
+            ),
+        ]
+        for function, field, value, diagnostic in cases:
+            with self.subTest(function=function, field=field):
+                callback = next(
+                    i
+                    for i in document["instructions"]
+                    if i["origin"][0]["function"] == function
+                    and i["origin"][0]["rule"]
+                    in {"tla-callback-stutter", "receive-follower-post"}
+                    and (field == "committable_indices" or diagnostic in i["fields"])
+                )
+                mutated = copy.deepcopy(records)
+                record = next(
+                    row for row in mutated if row.line == callback["origin"][0]["line"]
+                )
+                record.value["msg"]["state"][field] = value
+                negative = self.replay(reduce_trace(mutated))
+                self.assertNotEqual(negative.returncode, 0)
+                self.assertIn(diagnostic, negative.stderr)
+                self.assertIn(f":{record.line} [", negative.stderr)
+
+    def test_callback_configuration_cache_entries_are_observed(self):
+        records = read_trace(FIXTURE.with_name("terminal_retirement.stdout"))
+        document = reduce_trace(records)
+        observation = next(
+            i
+            for i in document["instructions"]
+            if i["origin"][0]["rule"] == "callback-configuration"
+        )
+        record = next(
+            row for row in records if row.line == observation["origin"][0]["line"]
+        )
+        record.value["msg"]["configurations"][0]["nodes"] = {
+            "unexpected-node": {"address": ":"}
+        }
+        negative = self.replay(reduce_trace(records))
+        self.assertNotEqual(negative.returncode, 0)
+        self.assertIn("callback-configuration", negative.stderr)
+        self.assertIn("unexpected-node", negative.stderr)
+
+    def test_callback_committed_prefix_is_independent_observed_evidence(self):
+        records = read_trace(FIXTURE.with_name("terminal_retirement.stdout"))
+        document = reduce_trace(records)
+        observation = next(
+            i
+            for i in document["instructions"]
+            if i["origin"][0]["rule"] == "callback-committed-prefix"
+        )
+        record = next(
+            row for row in records if row.line == observation["origin"][0]["line"]
+        )
+        # The earlier receive snapshot and commit args remain untouched. Neither
+        # establishes that this separate callback reported a valid commit index.
+        record.value["msg"]["state"]["commit_idx"] = 999
+        negative = self.replay(reduce_trace(records))
+        self.assertNotEqual(negative.returncode, 0)
+        self.assertIn("callback-committed-prefix", negative.stderr)
+        self.assertIn("999", negative.stderr)
+
+    def test_callback_present_retirement_indices_are_observed(self):
+        original = read_trace(FIXTURE.with_name("retire_follower.stdout"))
+        document = reduce_trace(original)
+        positive = self.replay(document)
+        self.assertEqual(positive.returncode, 0, positive.stderr)
+        for raw, field in (
+            ("retirement_idx", "retirementIndex"),
+            ("retirement_committable_idx", "retirementCommittableIndex"),
+        ):
+            with self.subTest(field=field):
+                observation = next(
+                    i
+                    for i in document["instructions"]
+                    if i["origin"][0]["rule"] == "tla-callback-stutter"
+                    and field in i["fields"]
+                )
+                records = copy.deepcopy(original)
+                record = next(
+                    row
+                    for row in records
+                    if row.line == observation["origin"][0]["line"]
+                )
+                record.value["msg"]["state"][raw] = 999
+                negative = self.replay(reduce_trace(records))
+                self.assertNotEqual(negative.returncode, 0)
+                self.assertIn("tla-callback-stutter", negative.stderr)
+                self.assertIn(field, negative.stderr)
 
     def test_recorded_missing_bootstrap_prefix_produces_nack(self):
         records = read_trace(FIXTURE)
@@ -172,6 +303,58 @@ class CanonicalReplayTests(unittest.TestCase):
         self.assertIn("disabled canonical action 'receive'", result.stderr)
         self.assertIn("bootstrap.ndjson:3 [bootstrap]", result.stderr)
         self.assertEqual(result.stdout, "")
+
+    def test_drop_checks_and_removes_only_the_sender_queue_head(self):
+        document = self.bootstrap()
+        document["bootstrap"]["pre_vote_enabled"]["1"] = False
+        origin = document["instructions"][0]["origin"]
+        configure = {
+            "kind": "action",
+            "action": "changeConfiguration",
+            "source": "0",
+            "configuration": ["0", "1"],
+            "origin": origin,
+        }
+        send = {
+            "kind": "action",
+            "action": "appendEntries",
+            "source": "0",
+            "destination": "1",
+            "batchEnd": 1,
+            "origin": origin,
+        }
+        observe = {
+            "kind": "observation",
+            "observation": "message",
+            "source": "0",
+            "destination": "1",
+            "occurrence": 0,
+            "packet": {"msg": "raft_append_entries", "prev_idx": 0},
+            "origin": origin,
+        }
+        drop = {
+            "kind": "action",
+            "action": "drop",
+            "source": "0",
+            "destination": "1",
+            "occurrence": 0,
+            "origin": origin,
+        }
+        second = copy.deepcopy(observe)
+        second["packet"]["prev_idx"] = 1
+        document["instructions"] = [configure, send, send, observe, drop, second, drop]
+        positive = self.replay(document)
+        self.assertEqual(positive.returncode, 0, positive.stderr)
+
+        document["instructions"] = [configure, send, send, second, drop]
+        wrong_head = self.replay(document)
+        self.assertEqual(wrong_head.returncode, 1)
+        self.assertIn("prev_idx: observed 1, canonical 0", wrong_head.stderr)
+
+        document["instructions"] = [configure, observe, drop]
+        empty_queue = self.replay(document)
+        self.assertEqual(empty_queue.returncode, 1)
+        self.assertIn("no pending packet", empty_queue.stderr)
 
     def test_malformed_packet_rejected_after_valid_canonical_send(self):
         document = self.bootstrap()

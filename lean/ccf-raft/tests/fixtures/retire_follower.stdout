@@ -1,0 +1,473 @@
+{"tag": "raft_trace", "cmd": "start_node,0"}
+{"h_ts":"0","thread_id":"0","level":"info","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"572","msg":"n[0] | None | Active | Election timer has become active"}
+{"h_ts":"1","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2207","msg":"n[0] | None | Active | Election index is 0 in term 2"}
+<RaftDriver>  n[0]->>n[0]: [KV] initialising in term 2 (ts=2)
+{"h_ts":"2","thread_id":"0","level":"info","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2231","msg":"n[0] | Leader | Active | Becoming leader n[0]: 2"}
+{"h_ts":"3","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"2239","msg":{"configurations":[],"function":"become_leader","state":{"commit_idx":0,"committable_indices":[],"current_view":2,"last_idx":0,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+<RaftDriver>  n[0]->>n[0]: replicate 2.1 = [0 bytes]  [reconfiguration] (ts=4)
+{"h_ts":"4","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"5","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 1 (1 hooks)"}
+{"h_ts":"6","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":false,"seqno":1,"state":{"commit_idx":0,"committable_indices":[],"current_view":2,"last_idx":0,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+{"h_ts":"7","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"532","msg":"n[0] | Leader | Active | Configurations: add new configuration at 1: {{n[0]}}"}
+{"h_ts":"8","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"542","msg":{"args":{"configuration":{"idx":1,"nodes":{"0":{"address":":"}},"rid":1}},"configurations":[],"function":"add_configuration","state":{"commit_idx":0,"committable_indices":[],"current_view":2,"last_idx":0,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.1=[64 bytes] {"data":"eyIwIj (ts=9)
+{"h_ts":"9","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 1"}
+{"h_ts":"10","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+<RaftDriver>  Note over n[0]: Node 0 created (ts=11)
+{"tag": "raft_trace", "cmd": "assert_detail,0,leadership_state,Leader"}
+{"tag": "raft_trace", "cmd": "emit_signature,2"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.2 = [9 bytes] signature [raw] (ts=11)
+{"h_ts":"11","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"12","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 2 committable (0 hooks)"}
+{"h_ts":"13","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":true,"seqno":2,"state":{"commit_idx":0,"committable_indices":[],"current_view":2,"last_idx":1,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+{"h_ts":"14","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"696","msg":"n[0] | Leader | Active | membership: Active leadership: Leader"}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.2=[36 bytes] {"data":"c2lnbm (ts=15)
+{"h_ts":"15","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 2"}
+{"h_ts":"16","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"h_ts":"17","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2529","msg":"n[0] | Leader | Active | In update_commit, new_commit_idx: 2, last_idx: 2"}
+{"h_ts":"18","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2586","msg":"n[0] | Leader | Active | Starting commit"}
+{"h_ts":"19","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"2603","msg":{"args":{"idx":2},"configurations":[{"idx":1,"nodes":{"0":{"address":":"}},"rid":1}],"function":"commit","state":{"commit_idx":0,"committable_indices":[2],"current_view":2,"last_idx":2,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"20","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2623","msg":"n[0] | Leader | Active | Compacting..."}
+<RaftDriver>  n[0]->>n[0]: [KV] compacting to 2 (ts=21)
+{"h_ts":"21","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2633","msg":"n[0] | Leader | Active | Commit on n[0]: 2"}
+{"tag": "raft_trace", "cmd": "assert_detail,0,leadership_state,Leader"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,0,2"}
+{"tag": "raft_trace", "cmd": "trust_node,2,1"}
+{"h_ts":"22","thread_id":"0","level":"info","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"572","msg":"n[1] | None | Active | Election timer has become active"}
+<RaftDriver>  Note over n[1]: Node 1 trusted (ts=23)
+<RaftDriver>  n[0]-->n[1]: connect (ts=23)
+<RaftDriver>  n[0]->>n[0]: replicate 2.3 = [0 bytes]  [reconfiguration] (ts=23)
+{"h_ts":"23","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"24","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 3 (1 hooks)"}
+{"h_ts":"25","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":false,"seqno":3,"state":{"commit_idx":2,"committable_indices":[],"current_view":2,"last_idx":2,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+{"h_ts":"26","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"532","msg":"n[0] | Leader | Active | Configurations: add new configuration at 3: {{n[0] n[1]}}"}
+{"h_ts":"27","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"542","msg":{"args":{"configuration":{"idx":3,"nodes":{"0":{"address":":"},"1":{"address":":"}},"rid":3}},"configurations":[{"idx":1,"nodes":{"0":{"address":":"}},"rid":1}],"function":"add_configuration","state":{"commit_idx":2,"committable_indices":[],"current_view":2,"last_idx":2,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"28","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2836","msg":"n[0] | Leader | Active | Configurations: associate node address for n[1]"}
+{"h_ts":"29","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1080","msg":"n[0] | Leader | Active | Send append_entries from n[0] to n[1]: (2.2, 2.2] (2)"}
+{"h_ts":"30","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1093","msg":{"function":"send_append_entries","match_idx":0,"packet":{"contains_new_view":false,"idx":2,"leader_commit_idx":2,"msg":"raft_append_entries","prev_idx":2,"prev_term":2,"term":2,"term_of_idx":2},"sent_idx":3,"state":{"commit_idx":2,"committable_indices":[],"current_view":2,"last_idx":2,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"to_node_id":"1"}}
+{"h_ts":"31","thread_id":"0","level":"info","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2859","msg":"n[0] | Leader | Active | Added raft node n[1] (:)"}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.3=[92 bytes] {"data":"eyIwIj (ts=32)
+{"h_ts":"32","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 3"}
+{"h_ts":"33","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "emit_signature,2"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.4 = [9 bytes] signature [raw] (ts=34)
+{"h_ts":"34","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"35","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 4 committable (0 hooks)"}
+{"h_ts":"36","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":true,"seqno":4,"state":{"commit_idx":2,"committable_indices":[],"current_view":2,"last_idx":3,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+{"h_ts":"37","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"696","msg":"n[0] | Leader | Active | membership: Active leadership: Leader"}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.4=[36 bytes] {"data":"c2lnbm (ts=38)
+{"h_ts":"38","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 4"}
+{"h_ts":"39","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "dispatch_all"}
+<RaftDriver>  n[0]->>n[1]: append_entries (2.2, 2.2] (term 2, commit 2) (ts=40)
+{"h_ts":"40","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1125","msg":"n[1] | None | Active | Recv append_entries to n[1] from n[0]: 2.2 to 2.2 in term 2"}
+{"h_ts":"41","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1134","msg":{"from_node_id":"0","function":"recv_append_entries","packet":{"contains_new_view":false,"idx":2,"leader_commit_idx":2,"msg":"raft_append_entries","prev_idx":2,"prev_term":2,"term":2,"term_of_idx":2},"state":{"commit_idx":0,"committable_indices":[],"current_view":0,"last_idx":0,"leadership_state":"None","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"42","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2297","msg":"n[1] | None | Active | Becoming aware of new term 2"}
+{"h_ts":"43","thread_id":"0","level":"info","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2280","msg":"n[1] | Follower | Active | Becoming follower n[1]: 2.0"}
+{"h_ts":"44","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"2288","msg":{"configurations":[],"function":"become_follower","state":{"commit_idx":0,"committable_indices":[],"current_view":2,"last_idx":0,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"45","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1175","msg":"n[1] | Follower | Active | Previous term for 2 should be 0"}
+{"h_ts":"46","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1187","msg":"n[1] | Follower | Active | Recv append_entries to n[1] from n[0] but our log does not yet contain index 2"}
+{"h_ts":"47","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1562","msg":"n[1] | Follower | Active | Send append_entries_response from n[1] to n[0] for index 0: NACK"}
+{"h_ts":"48","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1571","msg":{"function":"send_append_entries_response","packet":{"last_log_idx":0,"msg":"raft_append_entries_response","success":"FAIL","term":2},"state":{"commit_idx":0,"committable_indices":[],"current_view":2,"last_idx":0,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true},"to_node_id":"0"}}
+<RaftDriver>  n[1]-->>n[0]: append_entries_response NACK for 2.0 (ts=49)
+{"h_ts":"49","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1603","msg":{"from_node_id":"1","function":"recv_append_entries_response","match_idx":0,"packet":{"last_log_idx":0,"msg":"raft_append_entries_response","success":"FAIL","term":2},"sent_idx":2,"state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":4,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"50","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1673","msg":"n[0] | Leader | Active | Recv append_entries_response to n[0] from n[1]: failed"}
+{"tag": "raft_trace", "cmd": "periodic_all,10"}
+<RaftDriver>  n[0]->>n[0]: periodic for 10 ms (ts=51)
+{"h_ts":"51","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1080","msg":"n[0] | Leader | Active | Send append_entries from n[0] to n[1]: (0.0, 2.3] (2)"}
+{"h_ts":"52","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1093","msg":{"function":"send_append_entries","match_idx":0,"packet":{"contains_new_view":false,"idx":3,"leader_commit_idx":2,"msg":"raft_append_entries","prev_idx":0,"prev_term":0,"term":2,"term_of_idx":2},"sent_idx":0,"state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":4,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"to_node_id":"1"}}
+{"h_ts":"53","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1080","msg":"n[0] | Leader | Active | Send append_entries from n[0] to n[1]: (2.3, 2.4] (2)"}
+{"h_ts":"54","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1093","msg":{"function":"send_append_entries","match_idx":0,"packet":{"contains_new_view":false,"idx":4,"leader_commit_idx":2,"msg":"raft_append_entries","prev_idx":3,"prev_term":2,"term":2,"term_of_idx":2},"sent_idx":3,"state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":4,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"to_node_id":"1"}}
+<RaftDriver>  n[1]->>n[1]: periodic for 10 ms (ts=55)
+{"tag": "raft_trace", "cmd": "dispatch_all"}
+<RaftDriver>  n[0]->>n[1]: append_entries (0.0, 2.3] (term 2, commit 2) (ts=55)
+{"h_ts":"55","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1125","msg":"n[1] | Follower | Active | Recv append_entries to n[1] from n[0]: 0.0 to 2.3 in term 2"}
+{"h_ts":"56","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1134","msg":{"from_node_id":"0","function":"recv_append_entries","packet":{"contains_new_view":false,"idx":3,"leader_commit_idx":2,"msg":"raft_append_entries","prev_idx":0,"prev_term":0,"term":2,"term_of_idx":2},"state":{"commit_idx":0,"committable_indices":[],"current_view":2,"last_idx":0,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"57","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1214","msg":"n[1] | Follower | Active | Node n[1] thinks leader is n[0]"}
+{"h_ts":"58","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1252","msg":"n[1] | Follower | Active | Recv append_entries to n[1] from n[0] for index 3 and previous index 0"}
+{"h_ts":"59","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Active | Replicating on follower n[1]: 1"}
+{"h_ts":"60","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":0,"committable_indices":[],"current_view":2,"last_idx":0,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"61","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"532","msg":"n[1] | Follower | Active | Configurations: add new configuration at 1: {{n[0]}}"}
+{"h_ts":"62","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"542","msg":{"args":{"configuration":{"idx":1,"nodes":{"0":{"address":":"}},"rid":1}},"configurations":[],"function":"add_configuration","state":{"commit_idx":0,"committable_indices":[],"current_view":2,"last_idx":1,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"63","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2836","msg":"n[1] | Follower | Active | Configurations: associate node address for n[0]"}
+{"h_ts":"64","thread_id":"0","level":"info","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2859","msg":"n[1] | Follower | Active | Added raft node n[0] (:)"}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.1=[64 bytes] {"data":"eyIwIj (ts=65)
+{"h_ts":"65","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Active | Replicating on follower n[1]: 2"}
+{"h_ts":"66","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":0,"committable_indices":[],"current_view":2,"last_idx":1,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.2=[36 bytes] {"data":"c2lnbm (ts=67)
+{"h_ts":"67","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1436","msg":"n[1] | Follower | Active | Deserialising signature at 2"}
+{"h_ts":"68","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 1"}
+{"h_ts":"69","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"h_ts":"70","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2559","msg":"n[1] | Follower | Active | Commit if possible 2 (ci: 0) (ti 2)"}
+{"h_ts":"71","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2586","msg":"n[1] | Follower | Active | Starting commit"}
+{"h_ts":"72","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"2603","msg":{"args":{"idx":2},"configurations":[{"idx":1,"nodes":{"0":{"address":":"}},"rid":1}],"function":"commit","state":{"commit_idx":0,"committable_indices":[2],"current_view":2,"last_idx":2,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"73","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2623","msg":"n[1] | Follower | Active | Compacting..."}
+<RaftDriver>  n[1]->>n[1]: [KV] compacting to 2 (ts=74)
+{"h_ts":"74","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2633","msg":"n[1] | Follower | Active | Commit on n[1]: 2"}
+{"h_ts":"75","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Active | Replicating on follower n[1]: 3"}
+{"h_ts":"76","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":2,"committable_indices":[],"current_view":2,"last_idx":2,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"77","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"532","msg":"n[1] | Follower | Active | Configurations: add new configuration at 3: {{n[0] n[1]}}"}
+{"h_ts":"78","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"542","msg":{"args":{"configuration":{"idx":3,"nodes":{"0":{"address":":"},"1":{"address":":"}},"rid":3}},"configurations":[{"idx":1,"nodes":{"0":{"address":":"}},"rid":1}],"function":"add_configuration","state":{"commit_idx":2,"committable_indices":[],"current_view":2,"last_idx":3,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.3=[92 bytes] {"data":"eyIwIj (ts=79)
+{"h_ts":"79","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2559","msg":"n[1] | Follower | Active | Commit if possible 2 (ci: 2) (ti 2)"}
+{"h_ts":"80","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 3"}
+{"h_ts":"81","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"h_ts":"82","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1562","msg":"n[1] | Follower | Active | Send append_entries_response from n[1] to n[0] for index 3: ACK"}
+{"h_ts":"83","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1571","msg":{"function":"send_append_entries_response","packet":{"last_log_idx":3,"msg":"raft_append_entries_response","success":"OK","term":2},"state":{"commit_idx":2,"committable_indices":[],"current_view":2,"last_idx":3,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true},"to_node_id":"0"}}
+<RaftDriver>  n[0]->>n[1]: append_entries (2.3, 2.4] (term 2, commit 2) (ts=84)
+{"h_ts":"84","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1125","msg":"n[1] | Follower | Active | Recv append_entries to n[1] from n[0]: 2.3 to 2.4 in term 2"}
+{"h_ts":"85","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1134","msg":{"from_node_id":"0","function":"recv_append_entries","packet":{"contains_new_view":false,"idx":4,"leader_commit_idx":2,"msg":"raft_append_entries","prev_idx":3,"prev_term":2,"term":2,"term_of_idx":2},"state":{"commit_idx":2,"committable_indices":[],"current_view":2,"last_idx":3,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"86","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1252","msg":"n[1] | Follower | Active | Recv append_entries to n[1] from n[0] for index 4 and previous index 3"}
+{"h_ts":"87","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Active | Replicating on follower n[1]: 4"}
+{"h_ts":"88","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":2,"committable_indices":[],"current_view":2,"last_idx":3,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.4=[36 bytes] {"data":"c2lnbm (ts=89)
+{"h_ts":"89","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1436","msg":"n[1] | Follower | Active | Deserialising signature at 4"}
+{"h_ts":"90","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 4"}
+{"h_ts":"91","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"h_ts":"92","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2559","msg":"n[1] | Follower | Active | Commit if possible 2 (ci: 2) (ti 2)"}
+{"h_ts":"93","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2559","msg":"n[1] | Follower | Active | Commit if possible 2 (ci: 2) (ti 2)"}
+{"h_ts":"94","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1562","msg":"n[1] | Follower | Active | Send append_entries_response from n[1] to n[0] for index 4: ACK"}
+{"h_ts":"95","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1571","msg":{"function":"send_append_entries_response","packet":{"last_log_idx":4,"msg":"raft_append_entries_response","success":"OK","term":2},"state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":4,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true},"to_node_id":"0"}}
+<RaftDriver>  n[1]-->>n[0]: append_entries_response ACK for 2.3 (ts=96)
+{"h_ts":"96","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1603","msg":{"from_node_id":"1","function":"recv_append_entries_response","match_idx":0,"packet":{"last_log_idx":3,"msg":"raft_append_entries_response","success":"OK","term":2},"sent_idx":4,"state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":4,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"97","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1690","msg":"n[0] | Leader | Active | Recv append_entries_response to n[0] from n[1] for index 3: success"}
+<RaftDriver>  n[1]-->>n[0]: append_entries_response ACK for 2.4 (ts=98)
+{"h_ts":"98","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1603","msg":{"from_node_id":"1","function":"recv_append_entries_response","match_idx":3,"packet":{"last_log_idx":4,"msg":"raft_append_entries_response","success":"OK","term":2},"sent_idx":4,"state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":4,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"99","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1690","msg":"n[0] | Leader | Active | Recv append_entries_response to n[0] from n[1] for index 4: success"}
+{"h_ts":"100","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2529","msg":"n[0] | Leader | Active | In update_commit, new_commit_idx: 4, last_idx: 4"}
+{"h_ts":"101","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2586","msg":"n[0] | Leader | Active | Starting commit"}
+{"h_ts":"102","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"2603","msg":{"args":{"idx":4},"configurations":[{"idx":1,"nodes":{"0":{"address":":"}},"rid":1},{"idx":3,"nodes":{"0":{"address":":"},"1":{"address":":"}},"rid":3}],"function":"commit","state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":4,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"103","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2623","msg":"n[0] | Leader | Active | Compacting..."}
+<RaftDriver>  n[0]->>n[0]: [KV] compacting to 4 (ts=104)
+{"h_ts":"104","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2633","msg":"n[0] | Leader | Active | Commit on n[0]: 4"}
+{"h_ts":"105","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2659","msg":"n[0] | Leader | Active | Configurations: discard committed configuration at 1"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,0,4"}
+{"tag": "raft_trace", "cmd": "replicate,2,txAtIdx1"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.5 = [8 bytes] txAtIdx1 [raw] (ts=106)
+{"h_ts":"106","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"107","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 5 (0 hooks)"}
+{"h_ts":"108","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":false,"seqno":5,"state":{"commit_idx":4,"committable_indices":[],"current_view":2,"last_idx":4,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.5=[36 bytes] {"data":"dHhBdE (ts=109)
+{"h_ts":"109","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 5"}
+{"h_ts":"110","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "replicate,2,txAtIdx2"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.6 = [8 bytes] txAtIdx2 [raw] (ts=111)
+{"h_ts":"111","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"112","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 6 (0 hooks)"}
+{"h_ts":"113","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":false,"seqno":6,"state":{"commit_idx":4,"committable_indices":[],"current_view":2,"last_idx":5,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.6=[36 bytes] {"data":"dHhBdE (ts=114)
+{"h_ts":"114","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 6"}
+{"h_ts":"115","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "replicate,2,txAtIdx3"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.7 = [8 bytes] txAtIdx3 [raw] (ts=116)
+{"h_ts":"116","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"117","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 7 (0 hooks)"}
+{"h_ts":"118","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":false,"seqno":7,"state":{"commit_idx":4,"committable_indices":[],"current_view":2,"last_idx":6,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.7=[36 bytes] {"data":"dHhBdE (ts=119)
+{"h_ts":"119","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 7"}
+{"h_ts":"120","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "replicate,2,txAtIdx4"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.8 = [8 bytes] txAtIdx4 [raw] (ts=121)
+{"h_ts":"121","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"122","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 8 (0 hooks)"}
+{"h_ts":"123","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":false,"seqno":8,"state":{"commit_idx":4,"committable_indices":[],"current_view":2,"last_idx":7,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.8=[36 bytes] {"data":"dHhBdE (ts=124)
+{"h_ts":"124","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 8"}
+{"h_ts":"125","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "replicate,2,txAtIdx5"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.9 = [8 bytes] txAtIdx5 [raw] (ts=126)
+{"h_ts":"126","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"127","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 9 (0 hooks)"}
+{"h_ts":"128","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":false,"seqno":9,"state":{"commit_idx":4,"committable_indices":[],"current_view":2,"last_idx":8,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.9=[36 bytes] {"data":"dHhBdE (ts=129)
+{"h_ts":"129","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 9"}
+{"h_ts":"130","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "replicate,2,txAtIdx6"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.10 = [8 bytes] txAtIdx6 [raw] (ts=131)
+{"h_ts":"131","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"132","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 10 (0 hooks)"}
+{"h_ts":"133","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":false,"seqno":10,"state":{"commit_idx":4,"committable_indices":[],"current_view":2,"last_idx":9,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.10=[36 bytes] {"data":"dHhBdE (ts=134)
+{"h_ts":"134","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 10"}
+{"h_ts":"135","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "emit_signature,2"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.11 = [9 bytes] signature [raw] (ts=136)
+{"h_ts":"136","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"137","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 11 committable (0 hooks)"}
+{"h_ts":"138","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":true,"seqno":11,"state":{"commit_idx":4,"committable_indices":[],"current_view":2,"last_idx":10,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+{"h_ts":"139","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"696","msg":"n[0] | Leader | Active | membership: Active leadership: Leader"}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.11=[36 bytes] {"data":"c2lnbm (ts=140)
+{"h_ts":"140","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 11"}
+{"h_ts":"141","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "periodic_all,30"}
+<RaftDriver>  n[0]->>n[0]: periodic for 30 ms (ts=142)
+{"h_ts":"142","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1080","msg":"n[0] | Leader | Active | Send append_entries from n[0] to n[1]: (2.4, 2.11] (4)"}
+{"h_ts":"143","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1093","msg":{"function":"send_append_entries","match_idx":4,"packet":{"contains_new_view":false,"idx":11,"leader_commit_idx":4,"msg":"raft_append_entries","prev_idx":4,"prev_term":2,"term":2,"term_of_idx":2},"sent_idx":4,"state":{"commit_idx":4,"committable_indices":[11],"current_view":2,"last_idx":11,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"to_node_id":"1"}}
+<RaftDriver>  n[1]->>n[1]: periodic for 30 ms (ts=144)
+{"tag": "raft_trace", "cmd": "dispatch_all"}
+<RaftDriver>  n[0]->>n[1]: append_entries (2.4, 2.11] (term 2, commit 4) (ts=144)
+{"h_ts":"144","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1125","msg":"n[1] | Follower | Active | Recv append_entries to n[1] from n[0]: 2.4 to 2.11 in term 2"}
+{"h_ts":"145","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1134","msg":{"from_node_id":"0","function":"recv_append_entries","packet":{"contains_new_view":false,"idx":11,"leader_commit_idx":4,"msg":"raft_append_entries","prev_idx":4,"prev_term":2,"term":2,"term_of_idx":2},"state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":4,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"146","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1252","msg":"n[1] | Follower | Active | Recv append_entries to n[1] from n[0] for index 11 and previous index 4"}
+{"h_ts":"147","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Active | Replicating on follower n[1]: 5"}
+{"h_ts":"148","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":4,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.5=[36 bytes] {"data":"dHhBdE (ts=149)
+{"h_ts":"149","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Active | Replicating on follower n[1]: 6"}
+{"h_ts":"150","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":5,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.6=[36 bytes] {"data":"dHhBdE (ts=151)
+{"h_ts":"151","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Active | Replicating on follower n[1]: 7"}
+{"h_ts":"152","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":6,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.7=[36 bytes] {"data":"dHhBdE (ts=153)
+{"h_ts":"153","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Active | Replicating on follower n[1]: 8"}
+{"h_ts":"154","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":7,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.8=[36 bytes] {"data":"dHhBdE (ts=155)
+{"h_ts":"155","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Active | Replicating on follower n[1]: 9"}
+{"h_ts":"156","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":8,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.9=[36 bytes] {"data":"dHhBdE (ts=157)
+{"h_ts":"157","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Active | Replicating on follower n[1]: 10"}
+{"h_ts":"158","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":9,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.10=[36 bytes] {"data":"dHhBdE (ts=159)
+{"h_ts":"159","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Active | Replicating on follower n[1]: 11"}
+{"h_ts":"160","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":2,"committable_indices":[4],"current_view":2,"last_idx":10,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.11=[36 bytes] {"data":"c2lnbm (ts=161)
+{"h_ts":"161","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1436","msg":"n[1] | Follower | Active | Deserialising signature at 11"}
+{"h_ts":"162","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 5"}
+{"h_ts":"163","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"h_ts":"164","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2559","msg":"n[1] | Follower | Active | Commit if possible 4 (ci: 2) (ti 2)"}
+{"h_ts":"165","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2586","msg":"n[1] | Follower | Active | Starting commit"}
+{"h_ts":"166","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"2603","msg":{"args":{"idx":4},"configurations":[{"idx":1,"nodes":{"0":{"address":":"}},"rid":1},{"idx":3,"nodes":{"0":{"address":":"},"1":{"address":":"}},"rid":3}],"function":"commit","state":{"commit_idx":2,"committable_indices":[4,11],"current_view":2,"last_idx":11,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"167","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2623","msg":"n[1] | Follower | Active | Compacting..."}
+<RaftDriver>  n[1]->>n[1]: [KV] compacting to 4 (ts=168)
+{"h_ts":"168","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2633","msg":"n[1] | Follower | Active | Commit on n[1]: 4"}
+{"h_ts":"169","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2659","msg":"n[1] | Follower | Active | Configurations: discard committed configuration at 1"}
+{"h_ts":"170","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2559","msg":"n[1] | Follower | Active | Commit if possible 4 (ci: 4) (ti 2)"}
+{"h_ts":"171","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1562","msg":"n[1] | Follower | Active | Send append_entries_response from n[1] to n[0] for index 11: ACK"}
+{"h_ts":"172","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1571","msg":{"function":"send_append_entries_response","packet":{"last_log_idx":11,"msg":"raft_append_entries_response","success":"OK","term":2},"state":{"commit_idx":4,"committable_indices":[11],"current_view":2,"last_idx":11,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true},"to_node_id":"0"}}
+<RaftDriver>  n[1]-->>n[0]: append_entries_response ACK for 2.11 (ts=173)
+{"h_ts":"173","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1603","msg":{"from_node_id":"1","function":"recv_append_entries_response","match_idx":4,"packet":{"last_log_idx":11,"msg":"raft_append_entries_response","success":"OK","term":2},"sent_idx":11,"state":{"commit_idx":4,"committable_indices":[11],"current_view":2,"last_idx":11,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"174","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1690","msg":"n[0] | Leader | Active | Recv append_entries_response to n[0] from n[1] for index 11: success"}
+{"h_ts":"175","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2529","msg":"n[0] | Leader | Active | In update_commit, new_commit_idx: 11, last_idx: 11"}
+{"h_ts":"176","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2586","msg":"n[0] | Leader | Active | Starting commit"}
+{"h_ts":"177","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"2603","msg":{"args":{"idx":11},"configurations":[{"idx":3,"nodes":{"0":{"address":":"},"1":{"address":":"}},"rid":3}],"function":"commit","state":{"commit_idx":4,"committable_indices":[11],"current_view":2,"last_idx":11,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"178","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2623","msg":"n[0] | Leader | Active | Compacting..."}
+<RaftDriver>  n[0]->>n[0]: [KV] compacting to 11 (ts=179)
+{"h_ts":"179","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2633","msg":"n[0] | Leader | Active | Commit on n[0]: 11"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,0,11"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,1,4"}
+{"tag": "raft_trace", "cmd": "periodic_all,30"}
+<RaftDriver>  n[0]->>n[0]: periodic for 30 ms (ts=180)
+{"h_ts":"180","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1080","msg":"n[0] | Leader | Active | Send append_entries from n[0] to n[1]: (2.11, 2.11] (11)"}
+{"h_ts":"181","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1093","msg":{"function":"send_append_entries","match_idx":11,"packet":{"contains_new_view":false,"idx":11,"leader_commit_idx":11,"msg":"raft_append_entries","prev_idx":11,"prev_term":2,"term":2,"term_of_idx":2},"sent_idx":11,"state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":11,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"to_node_id":"1"}}
+<RaftDriver>  n[1]->>n[1]: periodic for 30 ms (ts=182)
+{"tag": "raft_trace", "cmd": "dispatch_all"}
+<RaftDriver>  n[0]->>n[1]: append_entries (2.11, 2.11] (term 2, commit 11) (ts=182)
+{"h_ts":"182","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1125","msg":"n[1] | Follower | Active | Recv append_entries to n[1] from n[0]: 2.11 to 2.11 in term 2"}
+{"h_ts":"183","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1134","msg":{"from_node_id":"0","function":"recv_append_entries","packet":{"contains_new_view":false,"idx":11,"leader_commit_idx":11,"msg":"raft_append_entries","prev_idx":11,"prev_term":2,"term":2,"term_of_idx":2},"state":{"commit_idx":4,"committable_indices":[11],"current_view":2,"last_idx":11,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"184","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1252","msg":"n[1] | Follower | Active | Recv append_entries to n[1] from n[0] for index 11 and previous index 11"}
+{"h_ts":"185","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2559","msg":"n[1] | Follower | Active | Commit if possible 11 (ci: 4) (ti 2)"}
+{"h_ts":"186","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2586","msg":"n[1] | Follower | Active | Starting commit"}
+{"h_ts":"187","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"2603","msg":{"args":{"idx":11},"configurations":[{"idx":3,"nodes":{"0":{"address":":"},"1":{"address":":"}},"rid":3}],"function":"commit","state":{"commit_idx":4,"committable_indices":[11],"current_view":2,"last_idx":11,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"188","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2623","msg":"n[1] | Follower | Active | Compacting..."}
+<RaftDriver>  n[1]->>n[1]: [KV] compacting to 11 (ts=189)
+{"h_ts":"189","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2633","msg":"n[1] | Follower | Active | Commit on n[1]: 11"}
+{"h_ts":"190","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1562","msg":"n[1] | Follower | Active | Send append_entries_response from n[1] to n[0] for index 11: ACK"}
+{"h_ts":"191","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1571","msg":{"function":"send_append_entries_response","packet":{"last_log_idx":11,"msg":"raft_append_entries_response","success":"OK","term":2},"state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":11,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true},"to_node_id":"0"}}
+<RaftDriver>  n[1]-->>n[0]: append_entries_response ACK for 2.11 (ts=192)
+{"h_ts":"192","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1603","msg":{"from_node_id":"1","function":"recv_append_entries_response","match_idx":11,"packet":{"last_log_idx":11,"msg":"raft_append_entries_response","success":"OK","term":2},"sent_idx":11,"state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":11,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"193","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1690","msg":"n[0] | Leader | Active | Recv append_entries_response to n[0] from n[1] for index 11: success"}
+{"tag": "raft_trace", "cmd": "assert_state_sync"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,0,11"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,1,11"}
+{"tag": "raft_trace", "cmd": "swap_nodes,2,out,1"}
+<RaftDriver>  Note over n[1]: Node 1 retired (ts=194)
+<RaftDriver>  n[0]->>n[0]: replicate 2.12 = [0 bytes]  [reconfiguration] (ts=194)
+{"h_ts":"194","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"195","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 12 (1 hooks)"}
+{"h_ts":"196","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":false,"seqno":12,"state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":11,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+{"h_ts":"197","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"532","msg":"n[0] | Leader | Active | Configurations: add new configuration at 12: {{n[0]}}"}
+{"h_ts":"198","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"542","msg":{"args":{"configuration":{"idx":12,"nodes":{"0":{"address":":"}},"rid":12}},"configurations":[{"idx":3,"nodes":{"0":{"address":":"},"1":{"address":":"}},"rid":3}],"function":"add_configuration","state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":11,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.12=[64 bytes] {"data":"eyIwIj (ts=199)
+{"h_ts":"199","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 12"}
+{"h_ts":"200","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "periodic_all,30"}
+<RaftDriver>  n[0]->>n[0]: periodic for 30 ms (ts=201)
+{"h_ts":"201","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1080","msg":"n[0] | Leader | Active | Send append_entries from n[0] to n[1]: (2.11, 2.12] (11)"}
+{"h_ts":"202","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1093","msg":{"function":"send_append_entries","match_idx":11,"packet":{"contains_new_view":false,"idx":12,"leader_commit_idx":11,"msg":"raft_append_entries","prev_idx":11,"prev_term":2,"term":2,"term_of_idx":2},"sent_idx":11,"state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":12,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"to_node_id":"1"}}
+<RaftDriver>  n[1]->>n[1]: periodic for 30 ms (ts=203)
+{"tag": "raft_trace", "cmd": "dispatch_all"}
+<RaftDriver>  n[0]->>n[1]: append_entries (2.11, 2.12] (term 2, commit 11) (ts=203)
+{"h_ts":"203","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1125","msg":"n[1] | Follower | Active | Recv append_entries to n[1] from n[0]: 2.11 to 2.12 in term 2"}
+{"h_ts":"204","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1134","msg":{"from_node_id":"0","function":"recv_append_entries","packet":{"contains_new_view":false,"idx":12,"leader_commit_idx":11,"msg":"raft_append_entries","prev_idx":11,"prev_term":2,"term":2,"term_of_idx":2},"state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":11,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"205","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1252","msg":"n[1] | Follower | Active | Recv append_entries to n[1] from n[0] for index 12 and previous index 11"}
+{"h_ts":"206","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Active | Replicating on follower n[1]: 12"}
+{"h_ts":"207","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":11,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"208","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"532","msg":"n[1] | Follower | Active | Configurations: add new configuration at 12: {{n[0]}}"}
+{"h_ts":"209","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"542","msg":{"args":{"configuration":{"idx":12,"nodes":{"0":{"address":":"}},"rid":12}},"configurations":[{"idx":3,"nodes":{"0":{"address":":"},"1":{"address":":"}},"rid":3}],"function":"add_configuration","state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":12,"leadership_state":"Follower","membership_state":"Active","node_id":"1","pre_vote_enabled":true}}}
+{"h_ts":"210","thread_id":"0","level":"info","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2368","msg":"n[1] | Follower | Active | Becoming retired, phase 1 (leadership Follower): n[1]: 2 at 12"}
+{"h_ts":"211","thread_id":"0","level":"info","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2378","msg":"n[1] | Follower | Active | Node retiring at 12"}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.12=[64 bytes] {"data":"eyIwIj (ts=212)
+{"h_ts":"212","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2559","msg":"n[1] | Follower | Retired | Commit if possible 11 (ci: 11) (ti 2)"}
+{"h_ts":"213","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 12"}
+{"h_ts":"214","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"h_ts":"215","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1562","msg":"n[1] | Follower | Retired | Send append_entries_response from n[1] to n[0] for index 12: ACK"}
+{"h_ts":"216","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1571","msg":{"function":"send_append_entries_response","packet":{"last_log_idx":12,"msg":"raft_append_entries_response","success":"OK","term":2},"state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":12,"leadership_state":"Follower","membership_state":"Retired","node_id":"1","pre_vote_enabled":true,"retirement_idx":12,"retirement_phase":"Ordered"},"to_node_id":"0"}}
+<RaftDriver>  n[1]-->>n[0]: append_entries_response ACK for 2.12 (ts=217)
+{"h_ts":"217","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1603","msg":{"from_node_id":"1","function":"recv_append_entries_response","match_idx":11,"packet":{"last_log_idx":12,"msg":"raft_append_entries_response","success":"OK","term":2},"sent_idx":12,"state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":12,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"218","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1690","msg":"n[0] | Leader | Active | Recv append_entries_response to n[0] from n[1] for index 12: success"}
+{"tag": "raft_trace", "cmd": "state_all"}
+<RaftDriver>  Note right of n[0]: leadership P membership A @2.12 (committed 11) (ts=219)
+<RaftDriver>  Note right of n[1]: leadership F membership R @2.12 (committed 11) (ts=219)
+{"tag": "raft_trace", "cmd": "assert_detail,0,leadership_state,Leader"}
+{"tag": "raft_trace", "cmd": "assert_detail,1,leadership_state,Follower"}
+{"tag": "raft_trace", "cmd": "emit_signature,2"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.13 = [9 bytes] signature [raw] (ts=219)
+{"h_ts":"219","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"220","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 13 committable (0 hooks)"}
+{"h_ts":"221","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":true,"seqno":13,"state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":12,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+{"h_ts":"222","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"696","msg":"n[0] | Leader | Active | membership: Active leadership: Leader"}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.13=[36 bytes] {"data":"c2lnbm (ts=223)
+{"h_ts":"223","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 13"}
+{"h_ts":"224","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,0,11"}
+{"tag": "raft_trace", "cmd": "replicate,2,txAt10"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.14 = [6 bytes] txAt10 [raw] (ts=225)
+{"h_ts":"225","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"226","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 14 (0 hooks)"}
+{"h_ts":"227","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":false,"seqno":14,"state":{"commit_idx":11,"committable_indices":[13],"current_view":2,"last_idx":13,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.14=[32 bytes] {"data":"dHhBdD (ts=228)
+{"h_ts":"228","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 14"}
+{"h_ts":"229","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,0,11"}
+{"tag": "raft_trace", "cmd": "emit_signature,2"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.15 = [9 bytes] signature [raw] (ts=230)
+{"h_ts":"230","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"231","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 15 committable (0 hooks)"}
+{"h_ts":"232","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":true,"seqno":15,"state":{"commit_idx":11,"committable_indices":[13],"current_view":2,"last_idx":14,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+{"h_ts":"233","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"696","msg":"n[0] | Leader | Active | membership: Active leadership: Leader"}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.15=[36 bytes] {"data":"c2lnbm (ts=234)
+{"h_ts":"234","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 15"}
+{"h_ts":"235","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,0,11"}
+{"tag": "raft_trace", "cmd": "periodic_all,30"}
+<RaftDriver>  n[0]->>n[0]: periodic for 30 ms (ts=236)
+{"h_ts":"236","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1080","msg":"n[0] | Leader | Active | Send append_entries from n[0] to n[1]: (2.12, 2.15] (11)"}
+{"h_ts":"237","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1093","msg":{"function":"send_append_entries","match_idx":12,"packet":{"contains_new_view":false,"idx":15,"leader_commit_idx":11,"msg":"raft_append_entries","prev_idx":12,"prev_term":2,"term":2,"term_of_idx":2},"sent_idx":12,"state":{"commit_idx":11,"committable_indices":[13,15],"current_view":2,"last_idx":15,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"to_node_id":"1"}}
+<RaftDriver>  n[1]->>n[1]: periodic for 30 ms (ts=238)
+{"tag": "raft_trace", "cmd": "dispatch_all"}
+<RaftDriver>  n[0]->>n[1]: append_entries (2.12, 2.15] (term 2, commit 11) (ts=238)
+{"h_ts":"238","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1125","msg":"n[1] | Follower | Retired | Recv append_entries to n[1] from n[0]: 2.12 to 2.15 in term 2"}
+{"h_ts":"239","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1134","msg":{"from_node_id":"0","function":"recv_append_entries","packet":{"contains_new_view":false,"idx":15,"leader_commit_idx":11,"msg":"raft_append_entries","prev_idx":12,"prev_term":2,"term":2,"term_of_idx":2},"state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":12,"leadership_state":"Follower","membership_state":"Retired","node_id":"1","pre_vote_enabled":true,"retirement_idx":12,"retirement_phase":"Ordered"}}}
+{"h_ts":"240","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1252","msg":"n[1] | Follower | Retired | Recv append_entries to n[1] from n[0] for index 15 and previous index 12"}
+{"h_ts":"241","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Retired | Replicating on follower n[1]: 13"}
+{"h_ts":"242","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":11,"committable_indices":[],"current_view":2,"last_idx":12,"leadership_state":"Follower","membership_state":"Retired","node_id":"1","pre_vote_enabled":true,"retirement_idx":12,"retirement_phase":"Ordered"}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.13=[36 bytes] {"data":"c2lnbm (ts=243)
+{"h_ts":"243","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1436","msg":"n[1] | Follower | Retired | Deserialising signature at 13"}
+{"h_ts":"244","thread_id":"0","level":"info","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2368","msg":"n[1] | Follower | Retired | Becoming retired, phase 2 (leadership Follower): n[1]: 2 at 13"}
+{"h_ts":"245","thread_id":"0","level":"info","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2391","msg":"n[1] | Follower | Retired | Node retirement committable at 13"}
+{"h_ts":"246","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 13"}
+{"h_ts":"247","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"h_ts":"248","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2559","msg":"n[1] | Follower | Retired | Commit if possible 11 (ci: 11) (ti 2)"}
+{"h_ts":"249","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Retired | Replicating on follower n[1]: 14"}
+{"h_ts":"250","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":11,"committable_indices":[13],"current_view":2,"last_idx":13,"leadership_state":"Follower","membership_state":"Retired","node_id":"1","pre_vote_enabled":true,"retirement_committable_idx":13,"retirement_idx":12,"retirement_phase":"Signed"}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.14=[32 bytes] {"data":"dHhBdD (ts=251)
+{"h_ts":"251","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1384","msg":"n[1] | Follower | Retired | Replicating on follower n[1]: 15"}
+{"h_ts":"252","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1392","msg":{"from_node_id":"0","function":"execute_append_entries_sync","state":{"commit_idx":11,"committable_indices":[13],"current_view":2,"last_idx":14,"leadership_state":"Follower","membership_state":"Retired","node_id":"1","pre_vote_enabled":true,"retirement_committable_idx":13,"retirement_idx":12,"retirement_phase":"Signed"}}}
+<RaftDriver>  n[1]->>n[1]: [ledger] appending: 2.15=[36 bytes] {"data":"c2lnbm (ts=253)
+{"h_ts":"253","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1436","msg":"n[1] | Follower | Retired | Deserialising signature at 15"}
+{"h_ts":"254","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 13"}
+{"h_ts":"255","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"h_ts":"256","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2559","msg":"n[1] | Follower | Retired | Commit if possible 11 (ci: 11) (ti 2)"}
+{"h_ts":"257","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2559","msg":"n[1] | Follower | Retired | Commit if possible 11 (ci: 11) (ti 2)"}
+{"h_ts":"258","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1562","msg":"n[1] | Follower | Retired | Send append_entries_response from n[1] to n[0] for index 15: ACK"}
+{"h_ts":"259","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1571","msg":{"function":"send_append_entries_response","packet":{"last_log_idx":15,"msg":"raft_append_entries_response","success":"OK","term":2},"state":{"commit_idx":11,"committable_indices":[13,15],"current_view":2,"last_idx":15,"leadership_state":"Follower","membership_state":"Retired","node_id":"1","pre_vote_enabled":true,"retirement_committable_idx":13,"retirement_idx":12,"retirement_phase":"Signed"},"to_node_id":"0"}}
+<RaftDriver>  n[1]-->>n[0]: append_entries_response ACK for 2.15 (ts=260)
+{"h_ts":"260","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"1603","msg":{"from_node_id":"1","function":"recv_append_entries_response","match_idx":12,"packet":{"last_log_idx":15,"msg":"raft_append_entries_response","success":"OK","term":2},"sent_idx":15,"state":{"commit_idx":11,"committable_indices":[13,15],"current_view":2,"last_idx":15,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"261","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"1690","msg":"n[0] | Leader | Active | Recv append_entries_response to n[0] from n[1] for index 15: success"}
+{"h_ts":"262","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2529","msg":"n[0] | Leader | Active | In update_commit, new_commit_idx: 15, last_idx: 15"}
+{"h_ts":"263","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2586","msg":"n[0] | Leader | Active | Starting commit"}
+{"h_ts":"264","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"2603","msg":{"args":{"idx":15},"configurations":[{"idx":3,"nodes":{"0":{"address":":"},"1":{"address":":"}},"rid":3},{"idx":12,"nodes":{"0":{"address":":"}},"rid":12}],"function":"commit","state":{"commit_idx":11,"committable_indices":[13,15],"current_view":2,"last_idx":15,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"265","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2623","msg":"n[0] | Leader | Active | Compacting..."}
+<RaftDriver>  n[0]->>n[0]: [KV] compacting to 15 (ts=266)
+{"h_ts":"266","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2633","msg":"n[0] | Leader | Active | Commit on n[0]: 15"}
+{"h_ts":"267","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2659","msg":"n[0] | Leader | Active | Configurations: discard committed configuration at 3"}
+{"tag": "raft_trace", "cmd": "assert_detail,0,leadership_state,Leader"}
+{"tag": "raft_trace", "cmd": "assert_detail,1,leadership_state,Follower"}
+{"tag": "raft_trace", "cmd": "assert_detail,1,membership_state,Retired"}
+{"tag": "raft_trace", "cmd": "assert_detail,1,retirement_phase,Signed"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,0,15"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,1,11"}
+{"tag": "raft_trace", "cmd": "cleanup_nodes,2,1"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.16 = [0 bytes]  [raw] (ts=268)
+{"h_ts":"268","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"269","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 16 (0 hooks)"}
+{"h_ts":"270","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":false,"seqno":16,"state":{"commit_idx":15,"committable_indices":[],"current_view":2,"last_idx":15,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.16=[66 bytes] {"data":"eyIxIj (ts=271)
+{"h_ts":"271","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 16"}
+{"h_ts":"272","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "emit_signature,2"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.17 = [9 bytes] signature [raw] (ts=273)
+{"h_ts":"273","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"274","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 17 committable (0 hooks)"}
+{"h_ts":"275","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":true,"seqno":17,"state":{"commit_idx":15,"committable_indices":[],"current_view":2,"last_idx":16,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+{"h_ts":"276","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"696","msg":"n[0] | Leader | Active | membership: Active leadership: Leader"}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.17=[36 bytes] {"data":"c2lnbm (ts=277)
+{"h_ts":"277","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 17"}
+{"h_ts":"278","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"h_ts":"279","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2529","msg":"n[0] | Leader | Active | In update_commit, new_commit_idx: 17, last_idx: 17"}
+{"h_ts":"280","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2586","msg":"n[0] | Leader | Active | Starting commit"}
+{"h_ts":"281","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"2603","msg":{"args":{"idx":17},"configurations":[{"idx":12,"nodes":{"0":{"address":":"}},"rid":12}],"function":"commit","state":{"commit_idx":15,"committable_indices":[17],"current_view":2,"last_idx":17,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"282","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2623","msg":"n[0] | Leader | Active | Compacting..."}
+<RaftDriver>  n[0]->>n[0]: [KV] compacting to 17 (ts=283)
+{"h_ts":"283","thread_id":"0","level":"info","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"358","msg":"n[0] | Leader | Active | Removed n[1] from nodes known to consensus"}
+{"h_ts":"284","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2633","msg":"n[0] | Leader | Active | Commit on n[0]: 17"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,0,17"}
+{"tag": "raft_trace", "cmd": "periodic_all,30"}
+<RaftDriver>  n[0]->>n[0]: periodic for 30 ms (ts=285)
+<RaftDriver>  n[1]->>n[1]: periodic for 30 ms (ts=285)
+{"tag": "raft_trace", "cmd": "dispatch_all"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,1,11"}
+{"tag": "raft_trace", "cmd": "assert_detail,1,membership_state,Retired"}
+{"tag": "raft_trace", "cmd": "assert_detail,1,retirement_phase,Signed"}
+{"tag": "raft_trace", "cmd": "disconnect,0,1"}
+<RaftDriver>  n[0]-->n[1]: disconnect (ts=285)
+{"tag": "raft_trace", "cmd": "replicate,2,some_tx"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.18 = [7 bytes] some_tx [raw] (ts=285)
+{"h_ts":"285","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"286","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 18 (0 hooks)"}
+{"h_ts":"287","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":false,"seqno":18,"state":{"commit_idx":17,"committable_indices":[],"current_view":2,"last_idx":17,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.18=[36 bytes] {"data":"c29tZV (ts=288)
+{"h_ts":"288","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 18"}
+{"h_ts":"289","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"tag": "raft_trace", "cmd": "emit_signature,2"}
+<RaftDriver>  n[0]->>n[0]: replicate 2.19 = [9 bytes] signature [raw] (ts=290)
+{"h_ts":"290","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"291","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 19 committable (0 hooks)"}
+{"h_ts":"292","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":true,"seqno":19,"state":{"commit_idx":17,"committable_indices":[],"current_view":2,"last_idx":18,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+{"h_ts":"293","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"696","msg":"n[0] | Leader | Active | membership: Active leadership: Leader"}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.19=[36 bytes] {"data":"c2lnbm (ts=294)
+{"h_ts":"294","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 19"}
+{"h_ts":"295","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"h_ts":"296","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2529","msg":"n[0] | Leader | Active | In update_commit, new_commit_idx: 19, last_idx: 19"}
+{"h_ts":"297","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2586","msg":"n[0] | Leader | Active | Starting commit"}
+{"h_ts":"298","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"2603","msg":{"args":{"idx":19},"configurations":[{"idx":12,"nodes":{"0":{"address":":"}},"rid":12}],"function":"commit","state":{"commit_idx":17,"committable_indices":[19],"current_view":2,"last_idx":19,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"299","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2623","msg":"n[0] | Leader | Active | Compacting..."}
+<RaftDriver>  n[0]->>n[0]: [KV] compacting to 19 (ts=300)
+{"h_ts":"300","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2633","msg":"n[0] | Leader | Active | Commit on n[0]: 19"}
+{"tag": "raft_trace", "cmd": "assert_commit_idx,0,19"}
+<RaftDriver>  Note over n[1]: Ignoring from sync check, due to retirement (ts=301)
+<RaftDriver>  n[0]->>n[0]: replicate 2.20 = [9 bytes] signature [raw] (ts=301)
+{"h_ts":"301","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"657","msg":"n[0] | Leader | Active | Replicating 1 entries"}
+{"h_ts":"302","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"673","msg":"n[0] | Leader | Active | Replicated on leader n[0]: 20 committable (0 hooks)"}
+{"h_ts":"303","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"683","msg":{"function":"replicate","globally_committable":true,"seqno":20,"state":{"commit_idx":19,"committable_indices":[],"current_view":2,"last_idx":19,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true},"view":2}}
+{"h_ts":"304","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"696","msg":"n[0] | Leader | Active | membership: Active leadership: Leader"}
+<RaftDriver>  n[0]->>n[0]: [ledger] appending: 2.20=[36 bytes] {"data":"c2lnbm (ts=305)
+{"h_ts":"305","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"39","msg":"Updating view to: 2 at version: 20"}
+{"h_ts":"306","thread_id":"0","level":"debug","tag":"","file":"CCF/src/consensus/aft/impl/state.h","number":"56","msg":"Resulting views: 1, 1"}
+{"h_ts":"307","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2529","msg":"n[0] | Leader | Active | In update_commit, new_commit_idx: 20, last_idx: 20"}
+{"h_ts":"308","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2586","msg":"n[0] | Leader | Active | Starting commit"}
+{"h_ts":"309","thread_id":"0","level":"debug","tag":"raft_trace","file":"CCF/src/consensus/aft/raft.h","number":"2603","msg":{"args":{"idx":20},"configurations":[{"idx":12,"nodes":{"0":{"address":":"}},"rid":12}],"function":"commit","state":{"commit_idx":19,"committable_indices":[20],"current_view":2,"last_idx":20,"leadership_state":"Leader","membership_state":"Active","node_id":"0","pre_vote_enabled":true}}}
+{"h_ts":"310","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2623","msg":"n[0] | Leader | Active | Compacting..."}
+<RaftDriver>  n[0]->>n[0]: [KV] compacting to 20 (ts=311)
+{"h_ts":"311","thread_id":"0","level":"debug","tag":"raft","file":"CCF/src/consensus/aft/raft.h","number":"2633","msg":"n[0] | Leader | Active | Commit on n[0]: 20"}
+<RaftDriver>  n[0]-->n[1]: reconnect (ts=312)
+<RaftDriver>  n[0]->>n[0]: periodic for 10 ms (ts=312)

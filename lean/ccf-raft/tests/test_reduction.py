@@ -14,7 +14,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from capture import capture
-from reduction import reduce_trace
+from reduction import Instructions, associate, reduce_trace, state_facts
 from run_scenarios import inventory, run_suite
 from trace_io import TraceError, parse_ndjson, read_trace
 
@@ -69,6 +69,159 @@ def later_actions(document):
 
 
 class ReductionTests(unittest.TestCase):
+    def test_capture_order_does_not_depend_on_timestamps(self):
+        records = read_trace(FIXTURE)
+        expected = reduce_trace(records)
+        for record in records:
+            record.value.pop("h_ts", None)
+        self.assertEqual(reduce_trace(records), expected)
+
+    def test_creation_commands_declare_future_nodes_with_mixed_modes(self):
+        records = read_trace(FIXTURE)
+        records += parse_ndjson(
+            [
+                '{"tag":"raft_trace","cmd":"pre_vote_enabled,true"}',
+                '{"tag":"raft_trace","cmd":"create_new_node,1"}',
+            ]
+        )
+        events, modes = associate(records)
+        self.assertEqual(modes, {"0": False, "1": True})
+        self.assertEqual({event.node for event in events}, {"0"})
+        self.assertEqual(events[0].command.value["cmd"], "start_node,0")
+        self.assertEqual(events[-1].command.value["cmd"], "emit_signature,2")
+        self.assertEqual(reduce_trace(records)["bootstrap"]["pre_vote_enabled"], modes)
+
+    def test_write_coordinates_must_match_the_pre_state(self):
+        for changes in ({"seqno": 4}, {"view": 3}):
+            write = {
+                "function": "replicate",
+                "state": state(),
+                "seqno": 3,
+                "view": 2,
+                "globally_committable": False,
+                **changes,
+            }
+            with self.subTest(changes=changes), self.assertRaisesRegex(
+                TraceError, "write coordinates"
+            ):
+                reduce_trace(trace(write))
+
+    def test_observations_default_to_every_supplied_property(self):
+        reducer = Instructions()
+        event = associate(read_trace(FIXTURE))[0][0]
+        properties = {"currentTerm": 1, "logLength": 0, "allocated": True}
+        reducer.emit_observations(event, "all-properties", properties)
+        self.assertEqual(reducer.instructions[-1]["fields"], properties)
+
+        reason = "Observed before the action; this example checks the post-state."
+        reducer.emit_observations(
+            event, "explicit-exclusion", properties, exclusions={"logLength": reason}
+        )
+        observation = reducer.instructions[-1]
+        self.assertEqual(observation["fields"], {"currentTerm": 1, "allocated": True})
+        self.assertEqual(
+            observation["origin"][0]["omittedTransientFields"], {"logLength": 0}
+        )
+        self.assertEqual(
+            observation["origin"][0]["omissionReasons"], {"logLength": reason}
+        )
+        self.assertEqual(observation["origin"][0]["rawRecord"], event.record.value)
+
+    def test_observation_exclusions_require_known_names_and_reasons(self):
+        reducer = Instructions()
+        event = associate(read_trace(FIXTURE))[0][0]
+        for reason in ("", " ", None):
+            with self.subTest(reason=reason), self.assertRaisesRegex(
+                TraceError, "requires a reason"
+            ):
+                reducer.emit_observations(
+                    event, "invalid-exclusion", exclusions={"logLength": reason}
+                )
+        with self.assertRaisesRegex(TraceError, "unknown properties"):
+            reducer.emit_observations(
+                event, "invalid-exclusion", exclusions={"logLenght": "Typo"}
+            )
+        self.assertEqual(reducer.instructions, [])
+
+    def test_empty_observations_and_origin_overrides_are_rejected(self):
+        reducer = Instructions()
+        event = associate(read_trace(FIXTURE))[0][0]
+        for properties, exclusions in (
+            ({}, {}),
+            ({"logLength": 0}, {"logLength": "Checked at the pre-state"}),
+        ):
+            with self.subTest(properties=properties), self.assertRaisesRegex(
+                TraceError, "no state properties"
+            ):
+                reducer.emit_observations(
+                    event, "empty", properties, exclusions=exclusions
+                )
+        with self.assertRaises(TypeError):
+            reducer.emit_observations(event, "override", origin=[])
+        self.assertEqual(reducer.instructions, [])
+
+    def test_callback_observes_new_properties_by_default(self):
+        records = read_trace(FIXTURE.with_name("retire_follower.stdout"))
+        with patch(
+            "reduction.state_facts",
+            side_effect=lambda event: {**state_facts(event), "allocated": True},
+        ):
+            document = reduce_trace(records)
+        observation = next(
+            i
+            for i in document["instructions"]
+            if i["origin"][0]["rule"] == "tla-callback-stutter"
+        )
+        event = next(
+            e
+            for e in associate(records)[0]
+            if e.record.line == observation["origin"][0]["line"]
+        )
+        properties = {**state_facts(event), "allocated": True}
+        self.assertTrue(observation["fields"]["allocated"])
+        self.assertEqual(
+            set(observation["origin"][0]["omissionReasons"]),
+            set(properties) - set(observation["fields"]) - {"committableIndices"},
+        )
+
+    def test_receive_follower_boundary_is_observed_in_full(self):
+        records = read_trace(FIXTURE)
+        records += read_trace(FIXTURE.with_name("configuration_callback.ndjson"))
+        records += read_trace(FIXTURE.with_name("missing_prefix_response.ndjson"))
+        events, _ = associate(records)
+        event = next(e for e in events if e.function == "become_follower")
+        document = reduce_trace(records)
+        observation = next(
+            i
+            for i in document["instructions"]
+            if i["origin"][0]["rule"] == "receive-follower-post"
+        )
+        self.assertEqual(
+            observation["fields"],
+            {k: v for k, v in state_facts(event).items() if k != "committableIndices"},
+        )
+        self.assertNotIn("omissionReasons", observation["origin"][0])
+        self.assertEqual(
+            [
+                i["action"]
+                for i in document["instructions"]
+                if i.get("action") in {"receive", "updateTerm"}
+            ],
+            ["updateTerm", "receive", "receive"],
+        )
+        # Same-term fallback still needs a second, consuming receive.
+        receive = next(e for e in events if e.function == "recv_append_entries")
+        receive.state.update(current_view=2, leadership_state="Candidate")
+        same_term = reduce_trace(records)
+        self.assertEqual(
+            [
+                i["action"]
+                for i in same_term["instructions"]
+                if i.get("action") in {"receive", "updateTerm"}
+            ],
+            ["receive", "receive", "receive"],
+        )
+
     def test_exact_source_bootstrap(self):
         result = reduce_trace(read_trace(FIXTURE))
         self.assertEqual(result["bootstrap"]["configuration"], ["0"])
@@ -136,7 +289,13 @@ class ReductionTests(unittest.TestCase):
         for message, expected in (
             ({"function": "new_function", "state": state()}, "unsupported function"),
             (
-                {"function": "replicate", "state": state(secret_state=1)},
+                {
+                    "function": "replicate",
+                    "state": state(secret_state=1),
+                    "seqno": 3,
+                    "view": 2,
+                    "globally_committable": False,
+                },
                 "unsupported state",
             ),
         ):
@@ -255,16 +414,30 @@ class ReductionTests(unittest.TestCase):
         )
         self.assertEqual(
             set(callbacks[-1]["fields"]),
-            {"currentTerm", "preVoteEnabled"},
+            {
+                "currentTerm",
+                "preVoteEnabled",
+                "commitIndex",
+                "role",
+                "retirementIndex",
+                "retiredCommittedIndex",
+            },
+        )
+        self.assertEqual(callbacks[-1]["fields"]["role"], "follower")
+        self.assertEqual(callbacks[-1]["fields"]["retirementIndex"], None)
+        self.assertIn(
+            "pending entry",
+            callbacks[-1]["origin"][0]["omissionReasons"]["retirementCommittableIndex"],
         )
         self.assertEqual(
-            callbacks[-1]["origin"][0]["checkedRawFields"], {"role": "follower"}
+            set(callbacks[-1]["origin"][0]["omissionReasons"]),
+            set(callbacks[-1]["origin"][0]["omittedTransientFields"]),
         )
         helper["state"]["leadership_state"] = "Leader"
         with self.assertRaisesRegex(TraceError, "callback requires follower"):
             reduce_trace(trace(send, receive, first_helper, helper, response))
 
-    def test_commit_callback_uses_source_mask_and_final_entry(self):
+    def test_commit_callback_observes_stable_fields_and_log_entries(self):
         request = append_packet(prev_idx=4, idx=4, leader_commit_idx=4)
         send = {
             "function": "send_append_entries",
@@ -326,7 +499,38 @@ class ReductionTests(unittest.TestCase):
         self.assertGreater(callback_index, receive_index)
         self.assertEqual(
             set(instructions[callback_index]["fields"]),
-            {"preVoteEnabled"},
+            {
+                "currentTerm",
+                "logLength",
+                "preVoteEnabled",
+                "retirementIndex",
+                "retirementCommittableIndex",
+            },
+        )
+        observed_configurations = [
+            i
+            for i in instructions
+            if i["origin"][0]["rule"] == "callback-configuration"
+        ]
+        self.assertEqual([i["index"] for i in observed_configurations], [1, 3])
+        self.assertEqual(
+            observed_configurations[1]["fields"],
+            {"kind": "configuration", "configuration": ["0", "1"]},
+        )
+        prefix = next(
+            i
+            for i in instructions
+            if i["origin"][0]["rule"] == "callback-committed-prefix"
+        )
+        self.assertEqual(prefix["index"], 2)
+        self.assertEqual(prefix["fields"], {"kind": "signature", "committed": True})
+        self.assertTrue(
+            any(
+                i.get("index") == 4
+                and i["origin"][0]["rule"] == "signature-marker"
+                and i["origin"][0]["function"] == "commit"
+                for i in instructions
+            )
         )
         entry = next(
             i for i in instructions if i["origin"][0]["rule"] == "callback-entry"
@@ -408,7 +612,7 @@ class ReductionTests(unittest.TestCase):
             ),
         )
 
-    def test_drop_selects_later_exact_packet(self):
+    def test_drop_does_not_search_for_a_later_matching_packet(self):
         first = {
             "function": "send_append_entries",
             "state": state(last_idx=6),
@@ -430,9 +634,39 @@ class ReductionTests(unittest.TestCase):
         }
         result = reduce_trace(trace(first, second, drop))
         action = next(i for i in result["instructions"] if i.get("action") == "drop")
-        self.assertEqual(action["occurrence"], 1)
+        self.assertEqual(action["occurrence"], 0)
+        observation = result["instructions"][result["instructions"].index(action) - 1]
+        self.assertEqual(observation["occurrence"], 0)
+        self.assertEqual(observation["packet"]["idx"], 6)
 
-    def test_drop_without_send_is_rejected(self):
+    def test_receive_emits_a_canonical_head_observation_without_a_python_queue(self):
+        first = {
+            "function": "send_append_entries",
+            "state": state(last_idx=6),
+            "to_node_id": "1",
+            "packet": append_packet(idx=4),
+        }
+        second = copy.deepcopy(first)
+        second["packet"] = append_packet(idx=6)
+        receive = {
+            "function": "recv_append_entries",
+            "state": state(node_id="1", leadership_state="Follower"),
+            "from_node_id": "0",
+            "packet": second["packet"],
+        }
+        for messages in ((receive,), (first, second, receive)):
+            with self.subTest(messages=len(messages)):
+                instructions = reduce_trace(trace(*messages))["instructions"]
+                head = next(
+                    i
+                    for i in instructions
+                    if i.get("observation") == "message"
+                    and i["origin"][0]["rule"] == "receive-pre"
+                )
+                self.assertEqual(head.get("occurrence", 0), 0)
+                self.assertEqual(head["packet"]["idx"], 6)
+
+    def test_drop_queue_existence_is_checked_by_replay(self):
         drop = {
             "function": "drop_pending_to",
             "state": state(last_idx=6),
@@ -440,8 +674,10 @@ class ReductionTests(unittest.TestCase):
             "to_node_id": "1",
             "packet": append_packet(),
         }
-        with self.assertRaisesRegex(TraceError, "no matching recorded send"):
-            reduce_trace(trace(drop))
+        instructions = reduce_trace(trace(drop))["instructions"]
+        self.assertEqual(instructions[-1]["action"], "drop")
+        self.assertEqual(instructions[-1]["occurrence"], 0)
+        self.assertEqual(instructions[-2]["observation"], "message")
 
     def test_source_configuration_callback_keeps_log_and_peer_facts(self):
         records = read_trace(FIXTURE)
@@ -491,6 +727,30 @@ class ReductionTests(unittest.TestCase):
         with self.assertRaisesRegex(TraceError, "missing configurations"):
             reduce_trace(records + callbacks)
 
+    def test_configuration_prefix_requires_all_new_peer_heartbeats(self):
+        records = read_trace(FIXTURE)
+        callbacks = read_trace(FIXTURE.with_name("configuration_callback.ndjson"))
+        callbacks = [
+            row
+            for row in callbacks
+            if row.value.get("msg", {}).get("function") != "send_append_entries"
+        ]
+        with self.assertRaisesRegex(
+            TraceError, "missing new-peer configuration callback"
+        ):
+            reduce_trace(records + callbacks)
+
+    def test_unmatched_callback_is_not_silently_consumed(self):
+        callback = {
+            "function": "execute_append_entries_sync",
+            "state": state(node_id="1", leadership_state="Follower"),
+            "from_node_id": "0",
+        }
+        with self.assertRaisesRegex(
+            TraceError, "ungrouped callback execute_append_entries_sync"
+        ):
+            reduce_trace(trace(callback))
+
     def test_terminal_commit_includes_its_nomination_once(self):
         fixture = FIXTURE.with_name("terminal_retirement.stdout")
         document = reduce_trace(read_trace(fixture))
@@ -517,7 +777,10 @@ class ReductionTests(unittest.TestCase):
             if i["origin"][0]["rule"] == "terminal-nomination-post"
         )
         self.assertEqual(
-            before["origin"][0]["checkedRawFields"],
+            {
+                k: before["origin"][0]["omittedTransientFields"][k]
+                for k in ("role", "membershipState")
+            },
             {
                 "role": "leader",
                 "membershipState": "retirementCompleted",
@@ -551,10 +814,16 @@ class ReductionTests(unittest.TestCase):
             reduce_trace(records)
 
     def test_invalid_response_verdict_is_a_trace_error(self):
+        receive = {
+            "function": "recv_append_entries",
+            "state": state(node_id="1", leadership_state="Follower"),
+            "from_node_id": "0",
+            "packet": append_packet(idx=2),
+        }
         response = {
             "function": "send_append_entries_response",
-            "state": state(),
-            "to_node_id": "1",
+            "state": state(node_id="1", leadership_state="Follower"),
+            "to_node_id": "0",
             "packet": {
                 "msg": "raft_append_entries_response",
                 "term": 2,
@@ -563,9 +832,9 @@ class ReductionTests(unittest.TestCase):
             },
         }
         with self.assertRaisesRegex(TraceError, "response success"):
-            reduce_trace(trace(response))
+            reduce_trace(trace(receive, response))
 
-    def test_nomination_correlation_validates_packets_before_inspecting_them(self):
+    def test_packets_are_validated_without_correlation(self):
         for function in ("drop_pending_to", "recv_propose_request_vote"):
             for malformed in (None, {"msg": "raft_propose_request_vote", "term": []}):
                 event = {
@@ -608,6 +877,7 @@ class ReductionTests(unittest.TestCase):
         nomination = {
             "function": "step_down_and_nominate_successor",
             "state": state(current_view=4),
+            "to_node_id": "1",
         }
         receive = {
             "function": "recv_propose_request_vote",
@@ -619,16 +889,29 @@ class ReductionTests(unittest.TestCase):
         actions = [i["action"] for i in later_actions(result)]
         self.assertEqual(actions, ["proposeVote", "receive"])
 
-    def test_ambiguous_nomination_rejected(self):
-        nomination = {"function": "step_down_and_nominate_successor", "state": state()}
-        receive = {
-            "function": "recv_propose_request_vote",
-            "state": state(node_id="1", leadership_state="Follower"),
-            "from_node_id": "0",
-            "packet": {"msg": "raft_propose_request_vote", "term": 2},
+    def test_nomination_uses_recorded_destination_without_future_evidence(self):
+        nomination = {
+            "function": "step_down_and_nominate_successor",
+            "state": state(),
+            "to_node_id": "1",
         }
-        with self.assertRaisesRegex(TraceError, "2 possible originating sends"):
-            reduce_trace(trace(nomination, nomination, receive))
+        actions = later_actions(reduce_trace(trace(nomination, nomination)))
+        self.assertEqual([i["action"] for i in actions], ["proposeVote", "proposeVote"])
+        self.assertEqual([i["destination"] for i in actions], ["1", "1"])
+        self.assertTrue(all(len(i["origin"]) == 1 for i in actions))
+        del nomination["to_node_id"]
+        with self.assertRaisesRegex(TraceError, "missing nomination destination"):
+            reduce_trace(trace(nomination))
+
+    def test_shuffle_commands_are_unsupported(self):
+        for command in ("shuffle_one,0", "shuffle_all"):
+            records = read_trace(FIXTURE) + parse_ndjson(
+                [json.dumps({"tag": "raft_trace", "cmd": command})]
+            )
+            with self.subTest(command=command), self.assertRaisesRegex(
+                TraceError, "unsupported command"
+            ):
+                reduce_trace(records)
 
     def test_no_actions_invented_for_assertion_commands(self):
         records = read_trace(FIXTURE)

@@ -9,7 +9,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import deque
 from dataclasses import dataclass
+from itertools import islice
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +36,7 @@ MESSAGE_FIELDS = {
     "send_append_entries": {"to_node_id", "packet", "sent_idx", "match_idx"},
     "send_append_entries_response": {"to_node_id", "packet"},
     "send_request_vote": {"to_node_id", "packet"},
-    "step_down_and_nominate_successor": {"configurations"},
+    "step_down_and_nominate_successor": {"configurations", "to_node_id"},
 }
 COMMANDS = {
     "pre_vote_enabled",
@@ -77,8 +79,6 @@ COMMANDS = {
     "nominate_successor",
     "reconnect",
     "reconnect_node",
-    "shuffle_one",
-    "shuffle_all",
 }
 ROLES = {
     "None": "none",
@@ -143,34 +143,33 @@ INDEX_KEYS = {
     "last_committable_idx",
 }
 TERM_KEYS = {"term", "prev_term", "term_of_idx", "term_of_last_committable_idx"}
-CALLBACK_FIELDS = {
-    "execute_append_entries_sync": {"currentTerm", "preVoteEnabled"},
-    "add_configuration": {"preVoteEnabled"},
-    "commit": {"preVoteEnabled"},
-    "become_follower": {"role", "membershipState", "preVoteEnabled"},
-}
 
 
 def require(condition: bool, message: str) -> None:
+    """Report trace evidence that a rule or projection cannot handle."""
     if not condition:
         raise TraceError(message)
 
 
 def natural(value: Any, location: str) -> int:
+    """Read a non-negative trace coordinate, rejecting booleans as integers."""
     require(type(value) is int and value >= 0, f"{location}: expected natural number")
     return value
 
 
 def node(value: Any, location: str) -> str:
+    """Read a driver node ID without renaming it for replay."""
     require(isinstance(value, str) and bool(value), f"{location}: expected node string")
     return value
 
 
 def index(value: Any, location: str) -> int:
+    """Preserve physical ledger positions when translating to replay."""
     return natural(value, location)
 
 
 def term(value: Any, location: str) -> int:
+    """Map raw views to model terms using the audited bootstrap offset."""
     raw = natural(value, location)
     require(
         raw != 1, f"{location}: term 1 is outside the verified bootstrap projection"
@@ -180,6 +179,8 @@ def term(value: Any, location: str) -> int:
 
 @dataclass(frozen=True)
 class Event:
+    """Pair a raw event with its driver command for rule matching and origins."""
+
     record: Record
     command: Record
     message: dict[str, Any]
@@ -201,6 +202,7 @@ class Event:
         return self.record.location
 
     def origin(self, rule: str) -> dict[str, Any]:
+        """Link an emitted instruction back to this event and its command."""
         return {
             "file": self.record.file,
             "line": self.record.line,
@@ -220,63 +222,43 @@ class Event:
 
 
 def associate(records: list[Record]) -> tuple[list[Event], dict[str, bool]]:
-    """Associate commands without sorting or discarding event records."""
-    require(bool(records), "empty trace")
+    """Attach commands and collect fixed per-node pre-vote settings.
+
+    Preserve capture order; do not reconstruct protocol state or packet queues.
+    """
     events = []
     command = None
-    timestamp = -1
     modes: dict[str, bool] = {}
     default_mode = True
     for record in records:
         row = record.value
-        require(
-            row.get("tag") == "raft_trace", f"{record.location}: expected raft_trace"
-        )
         if "cmd" in row:
-            require(set(row) == {"tag", "cmd"}, f"{record.location}: malformed command")
-            require(
-                isinstance(row["cmd"], str) and bool(row["cmd"]),
-                f"{record.location}: empty command",
-            )
             parts = row["cmd"].split(",")
             prefix = parts[0]
             require(
                 prefix in COMMANDS, f"{record.location}: unsupported command {prefix!r}"
             )
+            # Creation commands declare modes for nodes with no Raft events yet.
             created = []
             if prefix == "pre_vote_enabled":
-                require(
-                    len(parts) == 2 and parts[1] in {"true", "false"},
-                    f"{record.location}: malformed pre-vote command",
-                )
-                default_mode = parts[1] == "true"
+                default_mode = {"true": True, "false": False}[parts[1]]
             elif prefix in {"start_node", "create_new_node", "nodes"}:
                 created = parts[1:]
             elif prefix in {"trust_node", "trust_nodes"}:
                 created = parts[2:]
             elif prefix == "swap_node":
-                require(len(parts) == 4, f"{record.location}: malformed swap_node")
                 created = parts[3:]
             elif prefix == "swap_nodes":
                 mode = None
                 for part in parts[2:]:
                     if part in {"in", "out"}:
                         mode = part
-                    else:
-                        require(
-                            mode is not None, f"{record.location}: malformed swap_nodes"
-                        )
-                        if mode == "in":
-                            created.append(part)
-            for name in created:
-                node(name, record.location)
-                require(
-                    name not in modes,
-                    f"{record.location}: duplicate node creation {name!r}",
-                )
-                modes[name] = default_mode
+                    elif mode == "in":
+                        created.append(part)
+            modes.update((name, default_mode) for name in created)
             command = record
             continue
+        # Keep the original command and record for grouping and diagnostics.
         require(command is not None, f"{record.location}: event before command")
         require(
             not (
@@ -285,28 +267,11 @@ def associate(records: list[Record]) -> tuple[list[Event], dict[str, bool]]:
             ),
             f"{record.location}: unknown record fields",
         )
-        ts = row.get("h_ts")
+        message = row["msg"]
+        # Reject extensions we would otherwise silently omit from observations.
         require(
-            isinstance(ts, str) and ts.isascii() and ts.isdecimal(),
-            f"{record.location}: invalid timestamp",
-        )
-        try:
-            current_timestamp = int(ts)
-        except ValueError as error:
-            raise TraceError(
-                f"{record.location}: invalid timestamp: {error}"
-            ) from error
-        require(
-            current_timestamp > timestamp,
-            f"{record.location}: non-increasing timestamp",
-        )
-        timestamp = current_timestamp
-        message = row.get("msg")
-        require(isinstance(message, dict), f"{record.location}: missing message")
-        require(
-            isinstance(message.get("function"), str)
-            and message["function"] in MESSAGE_FIELDS,
-            f"{record.location}: unsupported function {message.get('function')!r}",
+            message["function"] in MESSAGE_FIELDS,
+            f"{record.location}: unsupported function {message['function']!r}",
         )
         require(
             not (
@@ -316,30 +281,25 @@ def associate(records: list[Record]) -> tuple[list[Event], dict[str, bool]]:
             ),
             f"{record.location}: unknown message fields",
         )
-        require(
-            isinstance(message.get("state"), dict),
-            f"{record.location}: state is not an object",
-        )
         event = Event(record, command, message)
-        state_facts(event)
-        mode = event.state["pre_vote_enabled"]
-        require(
-            event.node not in modes or modes[event.node] == mode,
-            f"{record.location}: pre-vote mode changed for existing node",
-        )
-        modes[event.node] = mode
+        if event.function == "step_down_and_nominate_successor":
+            require(
+                "to_node_id" in message,
+                f"{event.location}: missing nomination destination; recapture with an updated raft_driver",
+            )
+        # Without a creation command, use the node's first snapshot.
+        modes.setdefault(event.node, event.state["pre_vote_enabled"])
         events.append(event)
     require(bool(events), "trace contains commands but no events")
-    for event in events:
-        if event.function == "add_configuration":
-            require(
-                set(configuration(event)) <= modes.keys(),
-                f"{event.location}: configuration contains nodes without recorded creation or mode",
-            )
     return events, modes
 
 
 def state_facts(event: Event) -> dict[str, Any]:
+    """Project a recorded snapshot into Lean's observation properties.
+
+    These are expected values for emit_observations, not computed model state.
+    Rules choose which properties to exclude at their action boundary.
+    """
     state = event.state
     require(isinstance(state, dict), f"{event.location}: state is not an object")
     require(
@@ -413,6 +373,10 @@ def state_facts(event: Event) -> dict[str, Any]:
 
 
 def packet(event: Event) -> dict[str, Any]:
+    """Translate a recorded packet header for rules and message observations.
+
+    Convert term numbering without reconstructing payloads or searching queues.
+    """
     raw = event.message.get("packet")
     require(isinstance(raw, dict), f"{event.location}: missing packet")
     family = raw.get("msg")
@@ -451,6 +415,7 @@ def packet(event: Event) -> dict[str, Any]:
 
 
 def configuration(event: Event) -> list[str]:
+    """Read the incoming membership from an add_configuration callback."""
     args = event.message.get("args")
     require(
         isinstance(args, dict) and set(args) == {"configuration"},
@@ -460,6 +425,7 @@ def configuration(event: Event) -> list[str]:
 
 
 def configuration_value(value: Any, location: str) -> list[str]:
+    """Extract sorted node IDs from a configuration argument or cached snapshot."""
     require(
         isinstance(value, dict) and set(value) == {"idx", "nodes", "rid"},
         f"{location}: invalid configuration",
@@ -482,170 +448,70 @@ def configuration_value(value: Any, location: str) -> list[str]:
     return sorted(nodes)
 
 
-class Reducer:
-    """Emit canonical instructions. No canonical state is simulated here."""
+class Instructions:
+    """Output builders only; no event cursor or protocol state."""
 
-    def __init__(self, records: list[Record]):
-        self.records = records
-        self.events, self.modes = associate(records)
+    def __init__(self):
         self.instructions: list[dict[str, Any]] = []
-        self.nominations: dict[int, Event] = {}
-        pending: dict[tuple[str, int], list[Event]] = {}
-        for event in self.events:
-            if event.function == "step_down_and_nominate_successor":
-                pending.setdefault(
-                    (event.node, event.state["current_view"]), []
-                ).append(event)
-            elif event.function in {"recv_propose_request_vote", "drop_pending_to"}:
-                packet(event)
-                raw = event.message["packet"]
-                if raw.get("msg") != "raft_propose_request_vote":
-                    continue
-                source = node(event.message.get("from_node_id"), event.location)
-                candidates = pending.get((source, raw.get("term")), [])
-                require(
-                    len(candidates) == 1,
-                    f"{event.location}: nomination packet has {len(candidates)} possible originating sends",
-                )
-                nomination = candidates.pop()
-                self.nominations[nomination.record.line] = event
-        unmatched = [event for events in pending.values() for event in events]
-        require(
-            not unmatched,
-            f"{unmatched[0].location if unmatched else ''}: nomination has no recorded receive/drop destination",
-        )
-        self.drop_occurrences: dict[int, int] = {}
-        self.correlate_packets()
 
-    def correlate_packets(self) -> None:
-        """Track recorded packet occurrences, not canonical protocol state."""
-        queues: dict[tuple[str, str], list[dict[str, Any]]] = {}
-        for event in self.events:
-            function = event.function
-            if function in {
-                "send_append_entries",
-                "send_append_entries_response",
-                "send_request_vote",
-            }:
-                packet(event)
-                destination = node(event.message.get("to_node_id"), event.location)
-                queues.setdefault((event.node, destination), []).append(
-                    event.message["packet"]
-                )
-            elif function == "step_down_and_nominate_successor":
-                evidence = self.nominations[event.record.line]
-                destination = (
-                    evidence.node
-                    if evidence.function == "recv_propose_request_vote"
-                    else evidence.message["to_node_id"]
-                )
-                queues.setdefault((event.node, destination), []).append(
-                    {
-                        "msg": "raft_propose_request_vote",
-                        "term": event.state["current_view"],
-                    }
-                )
-            elif function.startswith("recv_") or function == "drop_pending_to":
-                packet(event)
-                raw = event.message["packet"]
-                source = node(event.message.get("from_node_id"), event.location)
-                destination = (
-                    event.node
-                    if function.startswith("recv_")
-                    else node(event.message.get("to_node_id"), event.location)
-                )
-                queue = queues.setdefault((source, destination), [])
-                matches = [
-                    occurrence
-                    for occurrence, sent in enumerate(queue)
-                    if all(raw.get(key) == value for key, value in sent.items())
-                ]
-                require(
-                    bool(matches),
-                    f"{event.location}: packet has no matching recorded send",
-                )
-                if function == "drop_pending_to":
-                    require(
-                        len(matches) == 1 or all(queue[i] == raw for i in matches),
-                        f"{event.location}: dropped packet matches ambiguous unlogged vote responses",
-                    )
-                    self.drop_occurrences[event.record.line] = matches[0]
-                    queue.pop(matches[0])
-                else:
-                    require(
-                        matches[0] == 0,
-                        f"{event.location}: receive reorders packets from one sender; canonical FIFO action cannot represent it",
-                    )
-                    queue.pop(0)
-                    if function == "recv_request_vote":
-                        family = raw["msg"]
-                        require(
-                            family in {"raft_request_vote", "raft_request_pre_vote"},
-                            f"{event.location}: invalid vote family",
-                        )
-                        # C++ always sends one response here. Its grant bit is
-                        # not logged; only correlate fields actually established.
-                        queues.setdefault((destination, source), []).append(
-                            {
-                                "msg": family + "_response",
-                                "term": max(raw["term"], event.state["current_view"]),
-                            }
-                        )
-
-    def observe(
+    def emit_observations(
         self,
         event: Event,
         rule: str,
-        fields: dict[str, Any] | None = None,
-        **extra: Any,
+        properties: dict[str, Any] | None = None,
+        *,
+        exclusions: dict[str, str] | None = None,
+        peer: str | None = None,
     ) -> None:
-        facts = state_facts(event) if fields is None else fields
-        self.instructions.append(
-            {
-                "kind": "observation",
-                "observation": "state",
-                "node": event.node,
-                "fields": {
-                    key: value
-                    for key, value in facts.items()
-                    if key != "committableIndices"
-                },
-                "origin": [event.origin(rule)],
-                **extra,
-            }
+        """Emit properties for Lean to compare, recording reasons for exclusions.
+
+        Use all state_facts by default. Emit committable markers as entry checks.
+        """
+        properties = state_facts(event) if properties is None else properties
+        exclusions = {} if exclusions is None else exclusions
+        require(
+            not exclusions.keys() - properties.keys(),
+            f"{event.location}: exclusions name unknown properties: "
+            f"{sorted(exclusions.keys() - properties.keys())}",
         )
+        require(
+            all(
+                isinstance(reason, str) and reason.strip()
+                for reason in exclusions.values()
+            ),
+            f"{event.location}: every observation exclusion requires a reason",
+        )
+        origin = event.origin(rule)
+        if exclusions:
+            origin.update(
+                rawRecord=event.record.value,
+                omittedTransientFields={name: properties[name] for name in exclusions},
+                omissionReasons=exclusions,
+            )
+        facts = {
+            name: value for name, value in properties.items() if name not in exclusions
+        }
+        # C++'s committable cache is not a complete signature enumeration and
+        # commit prunes it. Check positive log membership, not cache equality.
+        fields = {
+            name: value for name, value in facts.items() if name != "committableIndices"
+        }
+        require(
+            bool(fields),
+            f"{event.location}: {rule} has no state properties to observe",
+        )
+        observation = {
+            "kind": "observation",
+            "observation": "state",
+            "node": event.node,
+            "fields": fields,
+            "origin": [origin],
+        }
+        if peer is not None:
+            observation["peer"] = peer
+        self.instructions.append(observation)
         for marker in facts.get("committableIndices", []):
             self.entry(event, marker, {"kind": "signature"}, rule="signature-marker")
-
-    def callback(self, event: Event) -> None:
-        facts = state_facts(event)
-        selected = CALLBACK_FIELDS[event.function]
-        origin = event.origin("tla-callback-stutter")
-        checked = {}
-        if event.function != "become_follower":
-            require(
-                facts["role"] == "follower",
-                f"{event.location}: receive callback requires follower role",
-            )
-            checked["role"] = facts["role"]
-        origin["checkedRawFields"] = checked
-        origin["rawRecord"] = event.record.value
-        origin["omittedTransientFields"] = {
-            name: value
-            for name, value in facts.items()
-            if name not in selected and name not in checked
-        }
-        self.instructions.append(
-            {
-                "kind": "observation",
-                "observation": "state",
-                "node": event.node,
-                "fields": {
-                    name: value for name, value in facts.items() if name in selected
-                },
-                "origin": [origin],
-            }
-        )
 
     def entry(
         self,
@@ -654,6 +520,7 @@ class Reducer:
         fields: dict[str, Any],
         rule: str = "callback-entry",
     ) -> None:
+        """Observe selected fields of one physical log entry on the event's node."""
         self.instructions.append(
             {
                 "kind": "observation",
@@ -673,20 +540,7 @@ class Reducer:
         group: list[Event] | None = None,
         **parameters: Any,
     ) -> None:
-        if action in {"receive", "updateTerm"}:
-            parameters["destination"] = event.node
-        elif action in {
-            "changeConfiguration",
-            "appendEntries",
-            "drop",
-            "requestVote",
-            "requestPreVote",
-            "proposeVote",
-            "advanceCommitIndexAndProposeVote",
-        }:
-            parameters["source"] = event.node
-        else:
-            parameters["node"] = event.node
+        """Append a rule-selected model action with origins for its source events."""
         self.instructions.append(
             {
                 "kind": "action",
@@ -697,6 +551,10 @@ class Reducer:
         )
 
     def message(self, event: Event, rule: str, receiving: bool, **extra: Any) -> None:
+        """Observe a queued header using receive or send endpoint direction.
+
+        Rules select the queue position through selection or occurrence.
+        """
         source = (
             node(event.message.get("from_node_id"), event.location)
             if receiving
@@ -720,6 +578,7 @@ class Reducer:
         )
 
     def peers(self, event: Event, rule: str) -> None:
+        """Observe sent_idx and match_idx as progress toward the remote peer."""
         fields = {
             target: index(event.message[raw], event.location)
             for raw, target in (("sent_idx", "sentIndex"), ("match_idx", "matchIndex"))
@@ -727,490 +586,577 @@ class Reducer:
         }
         if fields:
             peer = event.message.get("to_node_id", event.message.get("from_node_id"))
-            self.observe(event, rule, fields, peer=node(peer, event.location))
-
-    def bootstrap(self) -> int:
-        prelude = self.events[:5]
-        require(
-            [e.function for e in prelude]
-            == [
-                "become_leader",
-                "replicate",
-                "add_configuration",
-                "replicate",
-                "commit",
-            ],
-            f"{self.events[0].location}: expected exact five-event bootstrap",
-        )
-        leader = prelude[0].node
-        for event, last in zip(prelude, [0, 0, 0, 1, 2]):
-            require(
-                event.node == leader
-                and event.state["current_view"] == 2
-                and event.state["last_idx"] == last
-                and event.state["commit_idx"] == 0
-                and event.state["leadership_state"] == "Leader"
-                and event.state["membership_state"] == "Active",
-                f"{event.location}: bootstrap state differs from audited prelude",
-            )
-        require(
-            configuration(prelude[2]) == [leader],
-            f"{prelude[2].location}: bootstrap is not singleton",
-        )
-        require(
-            prelude[2].message["args"]["configuration"]["idx"] == 1,
-            f"{prelude[2].location}: bootstrap configuration index",
-        )
-        for event, seqno, committable in (
-            (prelude[1], 1, False),
-            (prelude[3], 2, True),
-        ):
-            require(
-                event.message.get("seqno") == seqno
-                and event.message.get("view") == 2
-                and event.message.get("globally_committable") is committable,
-                f"{event.location}: bootstrap write differs from audited prelude",
-            )
-        require(
-            prelude[4].message.get("args") == {"idx": 2},
-            f"{prelude[4].location}: bootstrap commit target",
-        )
-        expected_committables = [[], [], [], [], [2]]
-        for event, expected in zip(prelude, expected_committables):
-            require(
-                event.state.get("committable_indices") == expected,
-                f"{event.location}: bootstrap committable indices",
-            )
-        for event in prelude[:3]:
-            self.observe(event, "bootstrap")
-        self.action(prelude[2], "initializeConfiguration", "bootstrap", prelude[1:3])
-        self.observe(prelude[3], "bootstrap")
-        self.action(prelude[3], "signCommittableMessages", "bootstrap")
-        self.observe(prelude[4], "bootstrap")
-        self.action(prelude[4], "advanceCommitIndex", "bootstrap")
-        self.observe(prelude[4], "bootstrap", {"commitIndex": 2})
-        self.leader = leader
-        return 5
-
-    def configuration_write(self, position: int) -> int:
-        write, config = self.events[position : position + 2]
-        require(
-            "configurations" in config.message,
-            f"{config.location}: missing configurations snapshot",
-        )
-        previous_nodes = {
-            name
-            for value in config.message["configurations"]
-            for name in configuration_value(value, config.location)
-        }
-        added = set(configuration(config)) - previous_nodes - {write.node}
-        callbacks = []
-        last = position + 1
-        seen = set()
-        while last + 1 < len(self.events):
-            callback = self.events[last + 1]
-            if not (
-                callback.function == "send_append_entries"
-                and callback.command == write.command
-                and callback.node == write.node
-                and callback.state["last_idx"] == write.state["last_idx"]
-            ):
-                break
-            destination = node(callback.message.get("to_node_id"), callback.location)
-            raw = callback.message["packet"]
-            old_last = write.state["last_idx"]
-            require(
-                destination in added
-                and destination not in seen
-                and raw["prev_idx"] == old_last
-                and raw["idx"] == old_last
-                and callback.message.get("sent_idx") == old_last + 1
-                and callback.message.get("match_idx") == 0,
-                f"{callback.location}: unsupported configuration callback heartbeat",
-            )
-            pre, post = {}, {}
-            for key, value in state_facts(callback).items():
-                if key in {
-                    "membershipState",
-                    "retirementIndex",
-                    "retirementCommittableIndex",
-                    "retiredCommittedIndex",
-                }:
-                    post[key] = value
-                else:
-                    pre[key] = value
-            if pre:
-                self.observe(callback, "configuration-callback-pre", pre)
-            callbacks.append((callback, post))
-            seen.add(destination)
-            last += 1
-        require(
-            seen == added,
-            f"{config.location}: missing new-peer configuration callback {sorted(added - seen)}",
-        )
-        self.action(
-            write,
-            "changeConfiguration",
-            "configuration-pair",
-            [write, config],
-            configuration=configuration(config),
-        )
-        for callback, post in callbacks:
-            if post:
-                self.observe(callback, "configuration-callback-post", post)
-            self.observe(
-                callback,
-                "configuration-callback-peer",
-                {
-                    "sentIndex": callback.message["sent_idx"] - 1,
-                    "matchIndex": callback.message["match_idx"],
-                },
-                peer=callback.message["to_node_id"],
-            )
-            self.action(
-                callback,
-                "appendEntries",
-                "configuration-callback-send",
-                destination=callback.message["to_node_id"],
-                batchEnd=packet(callback)["idx"],
-            )
-            self.message(callback, "send-post", receiving=False, selection="last")
-        return last
-
-    def nominee(self, event: Event) -> tuple[str, Event]:
-        evidence = self.nominations[event.record.line]
-        destination = (
-            evidence.node
-            if evidence.function == "recv_propose_request_vote"
-            else node(evidence.message.get("to_node_id"), evidence.location)
-        )
-        return destination, evidence
-
-    def terminal_commit(self, commit: Event, nomination: Event, target: int) -> None:
-        """Nomination runs after compaction but before terminal role/phase assignment."""
-        facts = state_facts(nomination)
-        require(
-            facts["role"] == "leader"
-            and facts["membershipState"] == "retirementCompleted"
-            and facts["commitIndex"] == target
-            and facts["retiredCommittedIndex"] == target,
-            f"{nomination.location}: unexpected terminal-retirement nomination boundary",
-        )
-        checked = {"role": facts["role"], "membershipState": facts["membershipState"]}
-        post_fields = {"commitIndex", "retiredCommittedIndex", "committableIndices"}
-        before = {
-            key: value
-            for key, value in facts.items()
-            if key not in checked and key not in post_fields
-        }
-        after = {key: value for key, value in facts.items() if key in post_fields}
-        origin = nomination.origin("terminal-nomination-pre")
-        origin.update(rawRecord=nomination.record.value, checkedRawFields=checked)
-        self.observe(nomination, "terminal-nomination-pre", before, origin=[origin])
-        destination, evidence = self.nominee(nomination)
-        self.action(
-            commit,
-            "advanceCommitIndexAndProposeVote",
-            "terminal-commit",
-            [commit, nomination, evidence],
-            destination=destination,
-        )
-        origin = nomination.origin("terminal-nomination-post")
-        origin.update(rawRecord=nomination.record.value, checkedRawFields=checked)
-        self.observe(nomination, "terminal-nomination-post", after, origin=[origin])
-
-    def run(self) -> dict[str, Any]:
-        position = self.bootstrap()
-        while position < len(self.events):
-            event = self.events[position]
-            following = (
-                self.events[position + 1] if position + 1 < len(self.events) else None
-            )
-            function = event.function
-            if function == "replicate":
-                self.observe(event, "write-pre")
-                require(
-                    event.message.get("seqno") == event.state["last_idx"] + 1,
-                    f"{event.location}: non-successor write",
-                )
-                require(
-                    event.message.get("view") == event.state["current_view"],
-                    f"{event.location}: write term mismatch",
-                )
-                require(
-                    type(event.message.get("globally_committable")) is bool,
-                    f"{event.location}: missing committable flag",
-                )
-                if following is not None and following.function == "add_configuration":
-                    require(
-                        following.node == event.node
-                        and following.command == event.command
-                        and following.state == event.state
-                        and following.message["args"]["configuration"]["idx"]
-                        == event.message["seqno"]
-                        and event.message["globally_committable"] is False,
-                        f"{event.location}: configuration write pair mismatch",
-                    )
-                    self.observe(following, "configuration-pair")
-                    position = self.configuration_write(position)
-                elif event.message["globally_committable"]:
-                    self.action(event, "signCommittableMessages", "write-pre")
-                elif event.command.value["cmd"].startswith("cleanup_nodes,"):
-                    self.action(event, "appendRetiredCommitted", "write-pre")
-                else:
-                    self.action(
-                        event,
-                        "clientRequest",
-                        "write-pre",
-                        transaction=f"{event.record.file}:{event.record.line}",
-                    )
-            elif function == "send_append_entries":
-                self.observe(event, "send-pre")
-                self.peers(event, "send-pre")
-                self.action(
-                    event,
-                    "appendEntries",
-                    "atomic-append",
-                    destination=node(event.message.get("to_node_id"), event.location),
-                    batchEnd=packet(event)["idx"],
-                )
-                self.message(event, "send-post", receiving=False, selection="last")
-            elif function == "drop_pending_to":
-                self.observe(event, "drop")
-                require(
-                    event.message.get("from_node_id") == event.node,
-                    f"{event.location}: drop sender mismatch",
-                )
-                occurrence = self.drop_occurrences[event.record.line]
-                self.message(event, "drop", receiving=False, occurrence=occurrence)
-                self.action(
-                    event,
-                    "drop",
-                    "drop",
-                    source=event.node,
-                    destination=node(event.message.get("to_node_id"), event.location),
-                    occurrence=occurrence,
-                )
-            elif function.startswith("recv_"):
-                position = self.receive(position)
-            elif function == "commit":
-                require(
-                    event.state["leadership_state"] == "Leader",
-                    f"{event.location}: ungrouped follower commit",
-                )
-                self.observe(event, "commit-pre")
-                args = event.message.get("args")
-                require(
-                    isinstance(args, dict) and set(args) == {"idx"},
-                    f"{event.location}: invalid commit args",
-                )
-                target = index(args["idx"], event.location)
-                if (
-                    following is not None
-                    and following.function == "step_down_and_nominate_successor"
-                    and following.node == event.node
-                    and following.command == event.command
-                    and following.state.get("retired_committed_idx") is not None
-                ):
-                    self.terminal_commit(event, following, target)
-                    position += 1
-                else:
-                    self.action(event, "advanceCommitIndex", "commit-pre")
-                self.observe(
-                    event,
-                    "commit-post",
-                    {"commitIndex": target},
-                )
-            elif function in {
-                "become_candidate",
-                "become_pre_vote_candidate",
-                "become_follower",
-                "become_leader",
-            }:
-                action = {
-                    "become_candidate": (
-                        "becomeCandidate"
-                        if event.state["pre_vote_enabled"]
-                        else "timeout"
-                    ),
-                    "become_pre_vote_candidate": "becomePreVoteCandidate",
-                    "become_follower": "checkQuorum",
-                    "become_leader": "becomeLeader",
-                }[function]
-                self.action(event, action, "role-post")
-                self.observe(event, "role-post")
-            elif function == "send_request_vote":
-                self.observe(event, "send-pre")
-                family = packet(event)["msg"]
-                require(
-                    family in {"raft_request_vote", "raft_request_pre_vote"},
-                    f"{event.location}: wrong vote request packet",
-                )
-                self.action(
-                    event,
-                    (
-                        "requestVote"
-                        if family == "raft_request_vote"
-                        else "requestPreVote"
-                    ),
-                    "send-pre",
-                    destination=node(event.message.get("to_node_id"), event.location),
-                )
-                self.message(event, "send-post", receiving=False, selection="last")
-            elif function == "step_down_and_nominate_successor":
-                destination, evidence = self.nominee(event)
-                self.observe(event, "nomination")
-                self.action(
-                    event,
-                    "proposeVote",
-                    "nomination",
-                    [event, evidence],
-                    destination=destination,
-                )
-            else:
-                raise TraceError(f"{event.location}: ungrouped callback {function}")
-            position += 1
-        return {
-            "schema": SCHEMA,
-            "bootstrap": {
-                "configuration": [self.leader],
-                "leader": self.leader,
-                "pre_vote_enabled": self.modes,
-            },
-            "instructions": self.instructions,
-        }
-
-    def receive(self, position: int) -> int:
-        event = self.events[position]
-        source = node(event.message.get("from_node_id"), event.location)
-        families = {
-            "recv_append_entries": {"raft_append_entries"},
-            "recv_append_entries_response": {"raft_append_entries_response"},
-            "recv_request_vote": {"raft_request_vote", "raft_request_pre_vote"},
-            "recv_request_vote_response": {
-                "raft_request_vote_response",
-                "raft_request_pre_vote_response",
-            },
-            "recv_propose_request_vote": {"raft_propose_request_vote"},
-        }
-        require(
-            packet(event)["msg"] in families[event.function],
-            f"{event.location}: receive function/packet mismatch",
-        )
-        self.observe(event, "receive-pre")
-        self.peers(event, "receive-pre")
-        self.message(event, "receive-pre", receiving=True)
-        last = position
-        follower = None
-        if last + 1 < len(self.events):
-            candidate = self.events[last + 1]
-            if (
-                candidate.function == "become_follower"
-                and candidate.node == event.node
-                and candidate.command == event.command
-            ):
-                follower = candidate
-                last += 1
-        if follower is not None:
-            require(
-                follower.state["current_view"] == event.message["packet"]["term"],
-                f"{follower.location}: follower term differs from packet",
-            )
-            if follower.state["current_view"] > event.state["current_view"]:
-                self.action(
-                    event,
-                    "updateTerm",
-                    "receive-term",
-                    [event, follower],
-                    source=source,
-                )
-            else:
-                require(
-                    event.function == "recv_append_entries",
-                    f"{event.location}: unexplained same-term fallback",
-                )
-                self.action(
-                    event,
-                    "receive",
-                    "receive-fallback",
-                    [event, follower],
-                    source=source,
-                )
-            self.callback(follower)
-        helpers = []
-        if event.function == "recv_append_entries":
-            while last + 1 < len(self.events):
-                helper = self.events[last + 1]
-                if helper.function not in {
-                    "execute_append_entries_sync",
-                    "add_configuration",
-                    "commit",
-                    "send_append_entries_response",
-                }:
-                    break
-                require(
-                    helper.node == event.node and helper.command == event.command,
-                    f"{helper.location}: interleaved receive callback",
-                )
-                helpers.append(helper)
-                last += 1
-                if helper.function == "send_append_entries_response":
-                    break
-        elif event.function == "recv_propose_request_vote" and last + 1 < len(
-            self.events
-        ):
-            helper = self.events[last + 1]
-            if (
-                helper.function == "become_candidate"
-                and helper.node == event.node
-                and helper.command == event.command
-            ):
-                helpers.append(helper)
-                last += 1
-        self.action(
-            event, "receive", "atomic-receive", [event, *helpers], source=source
-        )
-        for helper in helpers:
-            if helper.function in {"send_append_entries_response", "become_candidate"}:
-                self.observe(helper, "receive-post")
-                if helper.function == "send_append_entries_response":
-                    self.message(
-                        helper, "response-post", receiving=False, selection="last"
-                    )
-                continue
-            if helper.function == "execute_append_entries_sync":
-                require(
-                    helper.message.get("from_node_id") == source,
-                    f"{helper.location}: execute source mismatch",
-                )
-            elif helper.function == "add_configuration":
-                names = configuration(helper)
-                self.entry(
-                    helper,
-                    helper.message["args"]["configuration"]["idx"],
-                    {
-                        "kind": "configuration",
-                        "configuration": names,
-                    },
-                )
-            elif helper.function == "commit":
-                args = helper.message.get("args")
-                require(
-                    isinstance(args, dict) and set(args) == {"idx"},
-                    f"{helper.location}: invalid commit args",
-                )
-                target = index(args["idx"], helper.location)
-                self.entry(helper, target, {"kind": "signature", "committed": True})
-            else:
-                raise TraceError(
-                    f"{helper.location}: unsupported receive helper {helper.function}"
-                )
-            self.callback(helper)
-        return last
+            self.emit_observations(event, rule, fields, peer=node(peer, event.location))
 
 
 def reduce_trace(records: list[Record]) -> dict[str, Any]:
-    return Reducer(records).run()
+    """Translate ordered event prefixes into actions and observations for Lean."""
+    source, modes = associate(records)
+    events = deque(source)
+    out = Instructions()
+    leader = source[0].node
+
+    def peek(count: int = 1) -> list[str]:
+        return [event.function for event in islice(events, count)]
+
+    def take(count: int = 1) -> list[Event]:
+        require(
+            len(events) >= count,
+            f"{events[0].location if events else 'end of trace'}: incomplete event group",
+        )
+        return [events.popleft() for _ in range(count)]
+
+    def same_context(first: Event, second: Event) -> bool:
+        return first.node == second.node and first.command == second.command
+
+    bootstrap = [
+        "become_leader",
+        "replicate",
+        "add_configuration",
+        "replicate",
+        "commit",
+    ]
+    receive_families = {
+        "recv_append_entries": {"raft_append_entries"},
+        "recv_append_entries_response": {"raft_append_entries_response"},
+        "recv_request_vote": {"raft_request_vote", "raft_request_pre_vote"},
+        "recv_request_vote_response": {
+            "raft_request_vote_response",
+            "raft_request_pre_vote_response",
+        },
+        "recv_propose_request_vote": {"raft_propose_request_vote"},
+    }
+    append_callbacks = {
+        "execute_append_entries_sync",
+        "add_configuration",
+        "commit",
+        "send_append_entries_response",
+    }
+    retirement_fields = {
+        "membershipState",
+        "retirementIndex",
+        "retirementCommittableIndex",
+        "retiredCommittedIndex",
+    }
+
+    while events:
+        if events[0].function == "replicate":
+            write = events[0]
+            require(
+                write.message["seqno"] == write.state["last_idx"] + 1
+                and write.message["view"] == write.state["current_view"],
+                f"{write.location}: write coordinates differ from the recorded state",
+            )
+        if not out.instructions:
+            require(
+                peek(5) == bootstrap,
+                f"{events[0].location}: expected exact five-event bootstrap",
+            )
+            prelude = take(5)
+            for event, length, markers in zip(
+                prelude, [0, 0, 0, 1, 2], [[], [], [], [], [2]]
+            ):
+                require(
+                    event.node == leader
+                    and event.state["current_view"] == 2
+                    and event.state["last_idx"] == length
+                    and event.state["commit_idx"] == 0
+                    and event.state["leadership_state"] == "Leader"
+                    and event.state["membership_state"] == "Active",
+                    f"{event.location}: bootstrap state differs from audited prelude",
+                )
+                require(
+                    event.state.get("committable_indices") == markers,
+                    f"{event.location}: bootstrap committable indices",
+                )
+            require(
+                configuration(prelude[2]) == [leader],
+                f"{prelude[2].location}: bootstrap is not singleton",
+            )
+            require(
+                prelude[2].message["args"]["configuration"]["idx"] == 1,
+                f"{prelude[2].location}: bootstrap configuration index",
+            )
+            for event, seqno, committable in (
+                (prelude[1], 1, False),
+                (prelude[3], 2, True),
+            ):
+                require(
+                    event.message.get("seqno") == seqno
+                    and event.message.get("view") == 2
+                    and event.message.get("globally_committable") is committable,
+                    f"{event.location}: bootstrap write differs from audited prelude",
+                )
+            require(
+                prelude[4].message["args"]["idx"] == 2,
+                f"{prelude[4].location}: bootstrap commit target",
+            )
+            for event in prelude[:3]:
+                out.emit_observations(event, "bootstrap")
+            out.action(
+                prelude[2],
+                "initializeConfiguration",
+                "bootstrap",
+                prelude[1:3],
+                node=leader,
+            )
+            out.emit_observations(prelude[3], "bootstrap")
+            out.action(prelude[3], "signCommittableMessages", "bootstrap", node=leader)
+            out.emit_observations(prelude[4], "bootstrap")
+            out.action(prelude[4], "advanceCommitIndex", "bootstrap", node=leader)
+            # The snapshot precedes commit; args.idx alone records its result.
+            out.emit_observations(prelude[4], "bootstrap", {"commitIndex": 2})
+
+        elif peek(2) == ["replicate", "add_configuration"]:
+            write, config = take(2)
+            require(
+                same_context(write, config)
+                and config.state == write.state
+                and config.message["args"]["configuration"]["idx"]
+                == write.message["seqno"]
+                and write.message["globally_committable"] is False,
+                f"{write.location}: configuration write pair mismatch",
+            )
+            out.emit_observations(write, "write-pre")
+            out.emit_observations(config, "configuration-pair")
+            require(
+                "configurations" in config.message,
+                f"{config.location}: missing configurations snapshot",
+            )
+            previous_nodes = {
+                name
+                for value in config.message["configurations"]
+                for name in configuration_value(value, config.location)
+            }
+            added = set(configuration(config)) - previous_nodes - {write.node}
+            require(
+                peek(len(added)) == ["send_append_entries"] * len(added),
+                f"{config.location}: missing new-peer configuration callback",
+            )
+            callbacks = take(len(added))
+            require(
+                sorted(node(c.message.get("to_node_id"), c.location) for c in callbacks)
+                == sorted(added),
+                f"{config.location}: new-peer configuration callback destinations differ",
+            )
+            for callback in callbacks:
+                raw = callback.message["packet"]
+                old_length = write.state["last_idx"]
+                require(
+                    same_context(write, callback)
+                    and callback.state["last_idx"] == old_length
+                    and raw["prev_idx"] == old_length
+                    and raw["idx"] == old_length
+                    and callback.message.get("sent_idx") == old_length + 1
+                    and callback.message.get("match_idx") == 0,
+                    f"{callback.location}: unsupported configuration callback heartbeat",
+                )
+                # Hooks have changed membership, but replicate has not yet
+                # appended the configuration entry. Check both sides separately.
+                out.emit_observations(
+                    callback,
+                    "configuration-callback-pre",
+                    exclusions={
+                        field: "The configuration hook already changed this property; observed after changeConfiguration."
+                        for field in retirement_fields
+                    },
+                )
+            out.action(
+                write,
+                "changeConfiguration",
+                "configuration-pair",
+                [write, config],
+                source=write.node,
+                configuration=configuration(config),
+            )
+            for callback in callbacks:
+                facts = state_facts(callback)
+                out.emit_observations(
+                    callback,
+                    "configuration-callback-post",
+                    {
+                        field: value
+                        for field, value in facts.items()
+                        if field in retirement_fields
+                    },
+                )
+                # The new-peer constructor stores a next-index sentinel, one
+                # past the canonical sent frontier. Ordinary sends do not.
+                out.emit_observations(
+                    callback,
+                    "configuration-callback-peer",
+                    {
+                        "sentIndex": callback.message["sent_idx"] - 1,
+                        "matchIndex": callback.message["match_idx"],
+                    },
+                    peer=callback.message["to_node_id"],
+                )
+                out.action(
+                    callback,
+                    "appendEntries",
+                    "configuration-callback-send",
+                    source=write.node,
+                    destination=callback.message["to_node_id"],
+                    batchEnd=packet(callback)["idx"],
+                )
+                out.message(callback, "send-post", receiving=False, selection="last")
+
+        elif peek(1) == ["replicate"]:
+            (event,) = take()
+            out.emit_observations(event, "write-pre")
+            if event.message["globally_committable"]:
+                out.action(
+                    event, "signCommittableMessages", "write-pre", node=event.node
+                )
+            elif event.command.value["cmd"].startswith("cleanup_nodes,"):
+                out.action(
+                    event, "appendRetiredCommitted", "write-pre", node=event.node
+                )
+            else:
+                out.action(
+                    event,
+                    "clientRequest",
+                    "write-pre",
+                    node=event.node,
+                    transaction=f"{event.record.file}:{event.record.line}",
+                )
+
+        elif peek(1) == ["send_append_entries"]:
+            (event,) = take()
+            out.emit_observations(event, "send-pre")
+            out.peers(event, "send-pre")
+            out.action(
+                event,
+                "appendEntries",
+                "atomic-append",
+                source=event.node,
+                destination=node(event.message.get("to_node_id"), event.location),
+                batchEnd=packet(event)["idx"],
+            )
+            out.message(event, "send-post", receiving=False, selection="last")
+
+        elif peek(1) == ["drop_pending_to"]:
+            (event,) = take()
+            require(
+                event.message.get("from_node_id") == event.node,
+                f"{event.location}: drop sender mismatch",
+            )
+            out.emit_observations(event, "drop")
+            out.message(event, "drop", receiving=False, occurrence=0)
+            out.action(
+                event,
+                "drop",
+                "drop",
+                source=event.node,
+                destination=node(event.message.get("to_node_id"), event.location),
+                occurrence=0,
+            )
+
+        elif events[0].function in receive_families:
+            (event,) = take()
+            sender = node(event.message.get("from_node_id"), event.location)
+            require(
+                packet(event)["msg"] in receive_families[event.function],
+                f"{event.location}: receive function/packet mismatch",
+            )
+            out.emit_observations(event, "receive-pre")
+            out.peers(event, "receive-pre")
+            out.message(event, "receive-pre", receiving=True)
+
+            if peek() == ["become_follower"] and same_context(event, events[0]):
+                (follower,) = take()
+                require(
+                    follower.state["current_view"] == event.message["packet"]["term"],
+                    f"{follower.location}: follower term differs from packet",
+                )
+                if follower.state["current_view"] > event.state["current_view"]:
+                    out.action(
+                        event,
+                        "updateTerm",
+                        "receive-term",
+                        [event, follower],
+                        source=sender,
+                        destination=event.node,
+                    )
+                else:
+                    require(
+                        event.function == "recv_append_entries",
+                        f"{event.location}: unexplained same-term fallback",
+                    )
+                    # Same-term fallback does not consume the packet.
+                    out.action(
+                        event,
+                        "receive",
+                        "receive-fallback",
+                        [event, follower],
+                        source=sender,
+                        destination=event.node,
+                    )
+                out.emit_observations(follower, "receive-follower-post")
+
+            # Match the variable-length source callback run, not protocol state.
+            # A response ends it; response-less receive paths are also valid.
+            callbacks = []
+            if event.function == "recv_append_entries":
+                while events and events[0].function in append_callbacks:
+                    (callback,) = take()
+                    require(
+                        same_context(event, callback),
+                        f"{callback.location}: interleaved receive callback",
+                    )
+                    callbacks.append(callback)
+                    if callback.function == "send_append_entries_response":
+                        break
+            elif (
+                event.function == "recv_propose_request_vote"
+                and peek() == ["become_candidate"]
+                and same_context(event, events[0])
+            ):
+                callbacks = take()
+            out.action(
+                event,
+                "receive",
+                "atomic-receive",
+                [event, *callbacks],
+                source=sender,
+                destination=event.node,
+            )
+            for position, callback in enumerate(callbacks):
+                if callback.function in {
+                    "send_append_entries_response",
+                    "become_candidate",
+                }:
+                    out.emit_observations(callback, "receive-post")
+                    if callback.function == "send_append_entries_response":
+                        out.message(
+                            callback, "response-post", receiving=False, selection="last"
+                        )
+                    continue
+
+                if callback.function == "execute_append_entries_sync":
+                    require(
+                        callback.message.get("from_node_id") == sender,
+                        f"{callback.location}: execute source mismatch",
+                    )
+                elif callback.function == "add_configuration":
+                    out.entry(
+                        callback,
+                        callback.message["args"]["configuration"]["idx"],
+                        {
+                            "kind": "configuration",
+                            "configuration": configuration(callback),
+                        },
+                    )
+                elif callback.function == "commit":
+                    out.entry(
+                        callback,
+                        callback.message["args"]["idx"],
+                        {"kind": "signature", "committed": True},
+                    )
+
+                facts = state_facts(callback)
+                require(
+                    facts["role"] == "follower",
+                    f"{callback.location}: receive callback requires follower role",
+                )
+                # Include the current callback: it traces before its mutation.
+                pending = {c.function for c in callbacks[position:]}
+                exclusions = {
+                    "membershipState": (
+                        "Configuration hooks order retirement, signature application signs "
+                        "it, and commit completes it, all within the atomic receive."
+                    ),
+                }
+                if "execute_append_entries_sync" in pending:
+                    exclusions["logLength"] = (
+                        "execute_append_entries_sync traces before applying an entry; "
+                        "remaining execute callbacks extend the log before receive ends."
+                    )
+                if "commit" in pending:
+                    exclusions["role"] = (
+                        "Checked as follower at the raw call site above; terminal retirement "
+                        "during a pending commit can clear the final role."
+                    )
+                    exclusions["commitIndex"] = (
+                        "commit traces before advancing commit_idx; remaining commit "
+                        "callbacks can advance it again. Check the already-committed "
+                        "signature below instead of equality with the final frontier."
+                    )
+                    if facts["commitIndex"] > 0:
+                        out.entry(
+                            callback,
+                            facts["commitIndex"],
+                            {"kind": "signature", "committed": True},
+                            rule="callback-committed-prefix",
+                        )
+                # State rollback precedes the execute loop. A present retirement
+                # index cannot be replaced by the remaining hooks or commits.
+                for field, writer, reason in (
+                    (
+                        "retirementIndex",
+                        "add_configuration",
+                        "a pending configuration hook can order retirement",
+                    ),
+                    (
+                        "retirementCommittableIndex",
+                        "execute_append_entries_sync",
+                        "a pending entry can be the signature that signs retirement",
+                    ),
+                    (
+                        "retiredCommittedIndex",
+                        "commit",
+                        "a pending commit callback can finish retirement",
+                    ),
+                ):
+                    if facts[field] is None and writer in pending:
+                        exclusions[field] = (
+                            f"Absent at this callback, but {reason} in the same packet. "
+                            "Present indices are compared to the final state."
+                        )
+                if "configurations" in facts:
+                    exclusions["configurations"] = (
+                        "add_configuration traces before inserting its configuration; "
+                        "commit traces before pruning old configurations. Check the "
+                        "recorded entries below, not equality with the final active cache."
+                    )
+                    for config in facts["configurations"]:
+                        out.entry(
+                            callback,
+                            config["index"],
+                            {"kind": "configuration", "configuration": config["nodes"]},
+                            rule="callback-configuration",
+                        )
+                out.emit_observations(
+                    callback, "tla-callback-stutter", facts, exclusions=exclusions
+                )
+
+        elif peek(2) == ["commit", "step_down_and_nominate_successor"]:
+            commit, nomination = take(2)
+            require(
+                same_context(commit, nomination),
+                f"{nomination.location}: interleaved terminal nomination",
+            )
+            require(
+                commit.state["leadership_state"] == "Leader",
+                f"{commit.location}: ungrouped follower commit",
+            )
+            out.emit_observations(commit, "commit-pre")
+            target = commit.message["args"]["idx"]
+            facts = state_facts(nomination)
+            require(
+                facts["role"] == "leader"
+                and facts["membershipState"] == "retirementCompleted"
+                and facts["commitIndex"] == target
+                and facts["retiredCommittedIndex"] == target,
+                f"{nomination.location}: unexpected terminal-retirement nomination boundary",
+            )
+            post_fields = {"commitIndex", "retiredCommittedIndex", "committableIndices"}
+            # The nomination runs after compaction but before role/phase
+            # assignment and before old configurations are discarded.
+            out.emit_observations(
+                nomination,
+                "terminal-nomination-pre",
+                facts,
+                exclusions={
+                    "role": "nominate_successor runs before become_retired clears leadership; the raw leader role is checked above.",
+                    "membershipState": "nominate_successor runs before become_retired assigns the terminal phase; the raw completed phase is checked above.",
+                    **{
+                        field: "Observed after the combined action at terminal-nomination-post."
+                        for field in post_fields
+                        if field in facts
+                    },
+                },
+            )
+            out.action(
+                commit,
+                "advanceCommitIndexAndProposeVote",
+                "terminal-commit",
+                [commit, nomination],
+                source=commit.node,
+                destination=nomination.message["to_node_id"],
+            )
+            out.emit_observations(
+                nomination,
+                "terminal-nomination-post",
+                {
+                    field: value
+                    for field, value in facts.items()
+                    if field in post_fields
+                },
+            )
+            out.emit_observations(commit, "commit-post", {"commitIndex": target})
+
+        elif peek(1) == ["commit"]:
+            (event,) = take()
+            require(
+                event.state["leadership_state"] == "Leader",
+                f"{event.location}: ungrouped follower commit",
+            )
+            out.emit_observations(event, "commit-pre")
+            out.action(event, "advanceCommitIndex", "commit-pre", node=event.node)
+            out.emit_observations(
+                event, "commit-post", {"commitIndex": event.message["args"]["idx"]}
+            )
+
+        elif events[0].function in {
+            "become_candidate",
+            "become_pre_vote_candidate",
+            "become_follower",
+            "become_leader",
+        }:
+            (event,) = take()
+            action = {
+                "become_candidate": (
+                    "becomeCandidate" if event.state["pre_vote_enabled"] else "timeout"
+                ),
+                "become_pre_vote_candidate": "becomePreVoteCandidate",
+                "become_follower": "checkQuorum",
+                "become_leader": "becomeLeader",
+            }[event.function]
+            out.action(event, action, "role-post", node=event.node)
+            out.emit_observations(event, "role-post")
+
+        elif peek(1) == ["send_request_vote"]:
+            (event,) = take()
+            out.emit_observations(event, "send-pre")
+            family = packet(event)["msg"]
+            require(
+                family in {"raft_request_vote", "raft_request_pre_vote"},
+                f"{event.location}: wrong vote request packet",
+            )
+            out.action(
+                event,
+                "requestVote" if family == "raft_request_vote" else "requestPreVote",
+                "send-pre",
+                source=event.node,
+                destination=node(event.message.get("to_node_id"), event.location),
+            )
+            out.message(event, "send-post", receiving=False, selection="last")
+
+        elif peek(1) == ["step_down_and_nominate_successor"]:
+            (event,) = take()
+            out.emit_observations(event, "nomination")
+            out.action(
+                event,
+                "proposeVote",
+                "nomination",
+                source=event.node,
+                destination=event.message["to_node_id"],
+            )
+
+        else:
+            event = events[0]
+            raise TraceError(f"{event.location}: ungrouped callback {event.function}")
+
+    return {
+        "schema": SCHEMA,
+        "bootstrap": {
+            "configuration": [leader],
+            "leader": leader,
+            "pre_vote_enabled": modes,
+        },
+        "instructions": out.instructions,
+    }
 
 
 def main() -> int:
