@@ -19,6 +19,14 @@ Overview
     ---
 
 
+    :fa:`shield-alt` :doc:`threat_model`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Which parties CCF trusts, and how it protects nodes, stored state, and communication.
+
+    ---
+
+
     :fa:`tachometer-alt` :doc:`performance`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -37,5 +45,6 @@ Overview
 
     what_is_ccf
     governance
+    threat_model
     performance
     glossary
