@@ -2818,8 +2818,8 @@ example :
 
 example :
     (handleProposeVoteRequest? (initialState : State Bool Unit) false
-        { term := 2, source := true, destination := false }).map
-        (fun node => node.currentTerm) = some 1 := by
+        { term := BOOTSTRAP_TERM + 1, source := true, destination := false }).map
+        (fun node => node.currentTerm) = some BOOTSTRAP_TERM := by
   decide
 
 end RetirementExamples

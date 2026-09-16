@@ -54,6 +54,9 @@ The transition system is parameterized by node and transaction identifier
 types and a bootstrap configuration. Replay uses string identifiers and the
 recorded bootstrap. Fixed-size node fixtures belong only to the executable tests.
 Physical ledger indices retain the bootstrap configuration and signature.
+Term numbers also match the implementation: bootstrap nodes start at
+`BOOTSTRAP_TERM = 2`, fresh nodes start at 0, and elections increment by one.
+Reduction preserves recorded terms, including term 1, without an offset.
 
 `Enabled` and `next` define the canonical semantics. `applyAction` rejects a
 disabled action rather than applying its state update.

@@ -29,6 +29,55 @@ variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId]
 variable [Bootstrap Node]
 
+private lemma positiveOfBootstrapTermLe
+    {term : Nat}
+    (bound : BOOTSTRAP_TERM <= term) :
+    0 < term :=
+  Nat.lt_of_lt_of_le (by decide : 0 < BOOTSTRAP_TERM) bound
+
+private lemma invariantCurrentTermsValid
+    {state : State Node TxId}
+    (invariant : SystemInductiveInvariant state) :
+    CurrentTermsValid state := by
+  rcases invariant with ⟨_, _, _, _, _, _, facts⟩
+  exact facts.currentTermsValid
+
+omit [DecidableEq TxId] [Bootstrap Node] in
+private lemma networkTermsValidEnqueue
+    {state : State Node TxId}
+    {message : Message Node TxId}
+    (valid : NetworkTermsValid state)
+    (termValid : TermNumberValid message.term) :
+    NetworkTermsValid
+      { state with network := enqueue state.network message } := by
+  intro destination queued member
+  rcases memEnqueue state.network message queued destination member with
+    old | added
+  · exact valid destination queued old
+  · rw [added.2]
+    exact termValid
+
+omit [DecidableEq TxId] [Bootstrap Node] in
+private lemma networkTermsValidDequeue
+    {state : State Node TxId}
+    {source destination : Node}
+    {message : Message Node TxId}
+    {remaining : List (Message Node TxId)}
+    (valid : NetworkTermsValid state)
+    (taken :
+      takeFirstFrom source (state.network destination) =
+        some (message, remaining)) :
+    NetworkTermsValid
+      { state with
+        network := updateQueue state.network destination remaining } := by
+  intro peer queued member
+  apply valid peer queued
+  by_cases same : peer = destination
+  · subst peer
+    exact (takeFirstFromSound taken).2.2 queued
+      (by simpa [updateQueue, Function.update] using member)
+  · simpa [updateQueue, Function.update, same] using member
+
 omit [DecidableEq TxId] [Bootstrap Node] in
 /-- A same-term successful response to an active leader retains its snapshot. -/
 lemma successfulResponseSnapshotCoveredOfLeader
@@ -4307,11 +4356,39 @@ lemma electionHistoryOwnerProvenance
     {term : Nat}
     {owner : Node}
     (owned : owners term = some owner) :
-    ((term = TERM_ONE /\ owner = INITIAL_LEADER) \/
+    ((term = BOOTSTRAP_TERM /\ owner = INITIAL_LEADER) \/
       Exists fun record =>
         elections term = some record /\
           record.leader = owner) :=
   electionFacts.ownerRecorded term owner owned
+
+private lemma nodeLogTermNumberValid
+    {state : State Node TxId}
+    {votes : VoteHistory Node}
+    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {canonicalHistory : Nat -> List (Entry Node TxId)}
+    {owners : TermOwners Node}
+    {elections : ElectionHistory Node TxId}
+    (ownership :
+      TermOwnershipFacts state votes appendHistory canonicalHistory owners)
+    (electionFacts :
+      ElectionHistoryFacts state votes canonicalHistory owners elections)
+    (node : Node)
+    (index : Nat) :
+    TermNumberValid (termAt (state.nodes node).log index) := by
+  by_cases zero : termAt (state.nodes node).log index = 0
+  · exact Or.inl zero
+  · rcases termAtPositiveEntry (Nat.pos_of_ne_zero zero) with
+      ⟨entry, found, entryTerm⟩
+    rcases termOwnershipLogEntryOwner ownership (entryAtSomeMember found) with
+      ⟨owner, owned⟩
+    right
+    rw [← entryTerm]
+    rcases electionFacts.ownerRecorded entry.term owner owned with
+      bootstrap | elected
+    · exact bootstrap.1.ge
+    · rcases elected with ⟨record, recorded, _⟩
+      exact (electionFacts.termAboveBootstrap entry.term record recorded).le
 
 /--
 Canonical agreement for a frozen voter log transfers canonical monotonicity
@@ -4445,7 +4522,7 @@ lemma candidatesSelfVoteAboveBootstrap
   have currentVote := voteFacts.current candidate
   rw [selfVote] at currentVote
   have termNe :
-      Not ((state.nodes candidate).currentTerm = TERM_ONE) := by
+      Not ((state.nodes candidate).currentTerm = BOOTSTRAP_TERM) := by
     intro termEq
     rw [termEq, voteFacts.bootstrapEmpty candidate] at currentVote
     contradiction
@@ -5069,7 +5146,7 @@ lemma handledAppendRequestRetainsEvidenceFrontier
           have positive :=
             prospectiveFacts.commitTermPositive
               evidence supportedPrefix known
-          exact Nat.lt_of_lt_of_le Nat.zero_lt_one positive
+          exact positiveOfBootstrapTermLe positive
         rcases termAtPositiveEntry
             (show 0 < termAt evidence.history evidence.commitFrontier by
               rw [valid.2.1]
@@ -6371,7 +6448,7 @@ lemma leastBadElectionPromotionContainsPrefixForActivation
   let supportedPrefix := (state.nodes source).log.take index
   have sourceTermPositive :
       0 < (state.nodes source).currentTerm := by
-    exact Nat.lt_of_lt_of_le Nat.zero_lt_one
+    exact positiveOfBootstrapTermLe
       (termsPositive source (by rw [sourceRole]; decide))
   have lookupPositive :
       0 < termAt (state.nodes source).log index := by
@@ -7455,7 +7532,7 @@ lemma leastBadElectionPromotionContainsPrefix
   let supportedPrefix := (state.nodes source).log.take index
   have sourceTermPositive :
       0 < (state.nodes source).currentTerm := by
-    exact Nat.lt_of_lt_of_le Nat.zero_lt_one
+    exact positiveOfBootstrapTermLe
       (termsPositive source (by rw [sourceRole]; decide))
   have lookupPositive :
       0 < termAt (state.nodes source).log index := by
@@ -7820,7 +7897,7 @@ lemma candidateSnapshotContainsSupportedPrefix
     {elections : ElectionHistory Node TxId}
     {supportedHistory : List (Entry Node TxId)}
     {supportedTerm index targetTerm : Nat}
-    (supportedTermPositive : TERM_ONE <= supportedTerm)
+    (supportedTermPositive : BOOTSTRAP_TERM <= supportedTerm)
     (ownership :
       TermOwnershipFacts
         state votes appendHistory canonicalHistory owners)
@@ -7866,7 +7943,7 @@ lemma candidateSnapshotContainsSupportedPrefix
     supportedHistory.take index <+: promotionLog := by
   let supportedPrefix := supportedHistory.take index
   have supportedTermPositive' : 0 < supportedTerm := by
-    exact Nat.lt_of_lt_of_le Nat.zero_lt_one supportedTermPositive
+    exact positiveOfBootstrapTermLe supportedTermPositive
   have lookupPositive :
       0 < termAt supportedHistory index := by
     rw [supportedEntry]
@@ -8110,7 +8187,7 @@ lemma candidateSnapshotContainsProspectivePrefix
     {elections : ElectionHistory Node TxId}
     {source : Node}
     (sourceTermPositive :
-      TERM_ONE <= (state.nodes source).currentTerm)
+      BOOTSTRAP_TERM <= (state.nodes source).currentTerm)
     (ownership :
       TermOwnershipFacts
         state votes appendHistory canonicalHistory owners)
@@ -9121,7 +9198,7 @@ lemma futureElectionMemberContainsSignedPrefix
     (frontierPositive : 0 < evidence.commitFrontier)
     (frontierSignature :
       isSignatureAt evidence.history evidence.commitFrontier = true)
-    (commitTermPositive : TERM_ONE <= evidence.commitTerm)
+    (commitTermPositive : BOOTSTRAP_TERM <= evidence.commitTerm)
     (electionClosure :
       forall term record,
         elections term = some record ->
@@ -9265,7 +9342,7 @@ lemma futureElectionMemberContainsSignedPrefix
         0 < maxCommittableTerm (state.nodes candidate).log := by
       have commitTermPositive :
           0 < evidence.commitTerm := by
-        exact Nat.lt_of_lt_of_le Nat.zero_lt_one commitPositive
+        exact positiveOfBootstrapTermLe commitPositive
       omega
     have candidateIndexPositive :
         0 < maxCommittableIndex (state.nodes candidate).log := by
@@ -9444,7 +9521,7 @@ lemma prospectiveCommitFutureMemberCore
         KnownCommitEvidence
             state appendHistory nodeEvidence requestEvidence
             evidence supportedPrefix ->
-          TERM_ONE <= evidence.commitTerm)
+          BOOTSTRAP_TERM <= evidence.commitTerm)
     (electionClosure :
       forall evidence supportedPrefix,
         KnownCommitEvidence
@@ -13330,6 +13407,7 @@ lemma electionHistoryFrame
   · intro term record voter recorded member
     simpa [voteLogUpToDate] using
       facts.upToDate term record voter recorded member
+  · exact facts.termAboveBootstrap
 
 omit [DecidableEq TxId] in
 /-- A current node log is canonical under term ownership. -/
@@ -14347,7 +14425,7 @@ lemma initialSystemInductiveInvariant :
   · simp [CommitIndicesBounded, initialState, initialNodeState]
   · intro node participating
     by_cases member : node ∈ INITIAL_CONFIGURATION
-    · simp [initialState, initialNodeState, member, TERM_ONE]
+    · simp [initialState, initialNodeState, member, BOOTSTRAP_TERM]
     · have notLeader : Not (node = INITIAL_LEADER) := by
         intro leader
         subst node
@@ -14401,7 +14479,7 @@ lemma initialSystemInductiveInvariant :
     · simp [initialState]
     · simp [initialState]
   · let owners : TermOwners (Node : Type) :=
-      fun term => if term = TERM_ONE then some INITIAL_LEADER else none
+      fun term => if term = BOOTSTRAP_TERM then some INITIAL_LEADER else none
     let canonicalHistory : Nat -> List (Entry Node TxId) :=
       fun _ => []
     let elections : ElectionHistory Node TxId :=
@@ -14690,6 +14768,11 @@ lemma initialSystemInductiveInvariant :
         initialNodes, NodeStore.allocated,
         NodeStore.node?_ofFinset_of_not_mem, member
       ]
+  · intro node
+    by_cases member : node ∈ INITIAL_CONFIGURATION <;>
+      simp [TermNumberValid, initialState, initialNodeState, member]
+  · simp [NetworkTermsValid, initialState]
+
 /-! ## Leader append -/
 
 /-- Append one current-term entry while applying the action-specific client set. -/
@@ -18119,6 +18202,9 @@ lemma leaderAppendPreservesSystemInductiveInvariant
             exact facts.allocatedNodesExactlyJoined candidate
         ]
         simp only [Finset.mem_union]
+  · intro candidate
+    simpa only [currentTermEq] using facts.currentTermsValid candidate
+  · exact facts.networkTermsValid
 /-! ## Executable leader append actions -/
 
 /-- Appending a retired-committed record preserves the arbitrary-term invariant. -/
@@ -19203,6 +19289,12 @@ lemma requestVotePreservesSystemInductiveInvariant
         facts.allocatedNodesExactlyJoined
         (fun _ => Iff.rfl)
         rfl
+
+  · exact facts.currentTermsValid
+  · simpa only [NetworkTermsValid, next, CCFRaft.Protocol.Model.next] using
+      (networkTermsValidEnqueue
+        (message := .requestVoteRequest request)
+        facts.networkTermsValid (facts.currentTermsValid source))
 
 /-! ## AppendEntries send -/
 
@@ -21423,6 +21515,12 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     exact
       NodeStore.allocated_set_iff_of_allocated
         state.nodes source _ enabled.1 candidate
+  · intro candidate
+    simpa only [currentTermEq] using facts.currentTermsValid candidate
+  · simpa only [NetworkTermsValid, next, CCFRaft.Protocol.Model.next] using
+      (networkTermsValidEnqueue
+        (message := .appendEntriesRequest request)
+        facts.networkTermsValid (facts.currentTermsValid source))
 /-! ## Election timeout -/
 
 /--
@@ -21870,7 +21968,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
         (potentialElectionVotersOtherSubset candidate candidateNe)
         (activeConfigurationsEq candidate)
         majority
-  have newTermAboveBootstrap : TERM_ONE < newTerm := by
+  have newTermAboveBootstrap : BOOTSTRAP_TERM < newTerm := by
     have participating : Not ((state.nodes node).role = .none) := by
       rcases enabled.2 with follower | preVoteCandidate | candidate
       · simp [follower]
@@ -22048,7 +22146,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     · intro voter
       by_cases voterEq : voter = node
       · subst voter
-        have termNe : Not (TERM_ONE = newTerm) :=
+        have termNe : Not (BOOTSTRAP_TERM = newTerm) :=
           ne_of_lt newTermAboveBootstrap
         simp [
           newVotes, Function.update, newTerm,
@@ -23628,7 +23726,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     · intro voter
       by_cases voterEq : voter = node
       · subst voter
-        have newTermNe : Not (newTerm = TERM_ONE) := by
+        have newTermNe : Not (newTerm = BOOTSTRAP_TERM) := by
           have participating : Not ((state.nodes node).role = .none) := by
             rcases enabled.2 with follower | preVoteCandidate | candidate
             · rw [follower]
@@ -24120,6 +24218,15 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       NodeStore.allocated_set_iff_of_allocated
         state.nodes node _ enabled.1 candidate
 
+  · intro candidate
+    by_cases same : candidate = node
+    · subst candidate
+      rw [termNode]
+      exact Or.inr newTermAboveBootstrap.le
+    · rw [termOther candidate same]
+      exact facts.currentTermsValid candidate
+  · exact facts.networkTermsValid
+
 /-- A pre-vote-capable timeout starts a regular election when not enabled. -/
 lemma timeoutPreservesSystemInductiveInvariant
     (state : State Node TxId)
@@ -24143,6 +24250,7 @@ lemma becomeCandidatePreservesSystemInductiveInvariant
       state node invariant
         ⟨enabled.1, Or.inr (Or.inl enabled.2.1)⟩
   simpa [next, CCFRaft.Protocol.Model.next] using preserved
+
 
 /-! ## Newer-term observation -/
 
@@ -24185,6 +24293,13 @@ lemma updateTermPreservesSystemInductiveInvariant
       simp [found] at enabled
   | some selected =>
     have newer := (newerMessageSound found).choose_spec.2
+    have selectedTermBound : BOOTSTRAP_TERM <= selected.term := by
+      have selectedMember :=
+        (takeFirstFromSound (newerMessageSound found).choose_spec.1).2.1
+      rcases facts.networkTermsValid destination selected selectedMember with
+        zero | bound
+      · simp [zero] at newer
+      · exact bound
     have roleDestination :
         ((next state (.updateTerm source destination)).nodes destination).role =
           .follower := by
@@ -24588,8 +24703,7 @@ lemma updateTermPreservesSystemInductiveInvariant
       by_cases same : node = destination
       · subst node
         rw [termDestination]
-        simp [TERM_ONE]
-        omega
+        exact selectedTermBound
       · rw [termOther node same]
         apply facts.currentTermsPositive node
         intro none
@@ -25040,8 +25154,7 @@ lemma updateTermPreservesSystemInductiveInvariant
       by_cases nodeEq : node = destination
       · subst node
         rw [termDestination]
-        simp [TERM_ONE]
-        omega
+        exact selectedTermBound
       · rw [termOther node nodeEq]
         apply facts.currentTermsPositive node
         intro none
@@ -25659,8 +25772,7 @@ lemma updateTermPreservesSystemInductiveInvariant
               by_cases nodeEq : node = destination
               · subst node
                 rw [termDestination]
-                simp [TERM_ONE]
-                omega
+                exact selectedTermBound
               · rw [termOther node nodeEq]
                 apply facts.currentTermsPositive node
                 intro none
@@ -26028,6 +26140,14 @@ lemma updateTermPreservesSystemInductiveInvariant
       exact
         NodeStore.allocated_set_iff_of_allocated
           state.nodes destination _ enabled.1 candidate
+    · intro candidate
+      by_cases same : candidate = destination
+      · subst candidate
+        rw [termDestination]
+        exact Or.inr selectedTermBound
+      · rw [termOther candidate same]
+        exact facts.currentTermsValid candidate
+    · simpa only [NetworkTermsValid, networkEq] using facts.networkTermsValid
 /-! ## Leader promotion -/
 
 /-- Promoting a winning candidate preserves all arbitrary-term support facts. -/
@@ -26643,7 +26763,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           termAt
             ((next state (.becomeLeader node)).nodes node).log index := by
       rw [current, termEq]
-      exact Nat.lt_of_lt_of_le Nat.zero_lt_one
+      exact positiveOfBootstrapTermLe
         (facts.currentTermsPositive node (by rw [oldRole]; decide))
     rcases termAtPositiveEntry positive with
       ⟨foundEntry, found, foundTerm⟩
@@ -27252,7 +27372,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     constructor
     · have above := candidatesAboveBootstrap node oldRole
       have termNe :
-          Not (TERM_ONE = (state.nodes node).currentTerm) := by
+          Not (BOOTSTRAP_TERM = (state.nodes node).currentTerm) := by
         omega
       simpa [
         newOwners, Function.update, termNe
@@ -27908,6 +28028,12 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
                 newElections, Function.update, termEqNode
               ] using recorded)
               member
+      · intro term record recorded
+        by_cases same : term = (state.nodes node).currentTerm
+        · subst term
+          exact candidatesAboveBootstrap node oldRole
+        · exact electionFacts.termAboveBootstrap term record
+            (by simpa [newElections, Function.update, same] using recorded)
     · constructor
       · intro term record recorded
         by_cases termEqNode :
@@ -28725,6 +28851,9 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     exact
       NodeStore.allocated_set_iff_of_allocated
         state.nodes node _ enabled.1 candidate
+  · intro candidate
+    simpa only [termEq] using facts.currentTermsValid candidate
+  · simpa only [NetworkTermsValid, networkEq] using facts.networkTermsValid
 /-! ## Commit advancement -/
 
 /-- Advancing a current-term quorum frontier preserves all safety evidence. -/
@@ -29394,7 +29523,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           electionFacts.ownerRecorded
             (state.nodes node).currentTerm node nodeOwned with
         bootstrap | elected
-      · have nodeTerm : (state.nodes node).currentTerm = TERM_ONE := by
+      · have nodeTerm : (state.nodes node).currentTerm = BOOTSTRAP_TERM := by
           simpa using bootstrap.1
         omega
       · rcases elected with ⟨election, electionStored, electionLeader⟩
@@ -29469,7 +29598,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           electionFacts.ownerRecorded
             record.activationTerm record.leader recordOwned with
         bootstrap | elected
-      · have recordTerm : record.activationTerm = TERM_ONE := by
+      · have recordTerm : record.activationTerm = BOOTSTRAP_TERM := by
           simpa using bootstrap.1
         have nodePositive :=
           facts.currentTermsPositive node (by rw [leaderRole]; decide)
@@ -30294,10 +30423,10 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               rw [oldRole]
               decide)
           have bootstrapTerm :
-              (state.nodes node).currentTerm = TERM_ONE := by
+              (state.nodes node).currentTerm = BOOTSTRAP_TERM := by
             simpa using bootstrap.1
           have sourceBeforeBootstrap :
-              (state.nodes source).currentTerm < TERM_ONE := by
+              (state.nodes source).currentTerm < BOOTSTRAP_TERM := by
             simpa [activationRecord, termEq, bootstrapTerm] using later
           omega
         · rcases recordedElection with
@@ -32417,7 +32546,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 candidateActivation.leader activationOwned with
             bootstrap | elected
           · have activationTerm :
-                candidateActivation.activationTerm = TERM_ONE := by
+                candidateActivation.activationTerm = BOOTSTRAP_TERM := by
               simpa using bootstrap.1
             have nodePositive :=
               facts.currentTermsPositive node (by rw [leaderRole]; decide)
@@ -32532,7 +32661,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               electionFacts.ownerRecorded
                 (state.nodes node).currentTerm node nodeOwned with
             bootstrap | elected
-          · have nodeTerm : (state.nodes node).currentTerm = TERM_ONE := by
+          · have nodeTerm : (state.nodes node).currentTerm = BOOTSTRAP_TERM := by
               simpa using bootstrap.1
             have activationPositive :=
               activationHistoryAfter.termPositive
@@ -35365,6 +35494,9 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     exact
       NodeStore.allocated_set_iff_of_allocated
         state.nodes node _ enabled.1 candidate
+  · intro candidate
+    simpa only [termEq] using facts.currentTermsValid candidate
+  · simpa only [NetworkTermsValid, networkEq] using facts.networkTermsValid
 /-! ## Message receive -/
 
 /--
@@ -36329,7 +36461,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                     candidateActivation.leader owned with
                 bootstrap | elected
               · have activationTerm :
-                    candidateActivation.activationTerm = TERM_ONE := by
+                    candidateActivation.activationTerm = BOOTSTRAP_TERM := by
                   simpa using bootstrap.1
                 have sourcePositive :=
                   facts.currentTermsPositive source
@@ -36442,7 +36574,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                     (state.nodes source).currentTerm source sourceOwned with
                 bootstrap | elected
               · have sourceTerm :
-                    (state.nodes source).currentTerm = TERM_ONE := by
+                    (state.nodes source).currentTerm = BOOTSTRAP_TERM := by
                   simpa using bootstrap.1
                 have activationPositive :=
                   activationQuorums.history.termPositive
@@ -36769,6 +36901,9 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
       exact
         NodeStore.allocated_set_iff_of_allocated
           state.nodes destination _ destinationAllocated candidate
+    · intro candidate
+      simpa only [termEq] using facts.currentTermsValid candidate
+    · simpa only [NetworkTermsValid, networkEq] using facts.networkTermsValid
   · contradiction
 
 omit [DecidableEq TxId] [Bootstrap Node] in
@@ -37003,7 +37138,8 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
         message ∈ after.network destination ->
           message ∈ state.network destination \/
             (Message.IsSafetyInert message /\
-              message.destination = destination))
+              message.destination = destination /\
+              TermNumberValid message.term))
     (progressAfter : LeaderProgressBounded after)
     (effectiveAckersSubsetAfter :
       forall
@@ -37206,7 +37342,7 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
     · intro destination message member
       rcases networkFrame destination message member with old | inert
       · exact facts.networkHistory.addressed destination message old
-      · exact inert.2
+      · exact inert.2.1
     · intro destination request member
       rcases
           facts.networkHistory.appendRequest
@@ -37638,6 +37774,12 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
   · exact
       AllocatedNodesExactlyJoined.frame
         facts.allocatedNodesExactlyJoined allocatedEq hasJoinedEq
+  · intro node
+    simpa only [termEq] using facts.currentTermsValid node
+  · intro destination message member
+    rcases networkFrame destination message member with old | added
+    · exact facts.networkTermsValid destination message old
+    · exact added.2.2
 /--
 Pure response dequeue preserves the invariant when every node record is
 unchanged and the remaining effective evidence is accounted for.
@@ -37655,7 +37797,8 @@ lemma networkFramePreservesSystemInductiveInvariant
         message ∈ after.network destination ->
           message ∈ state.network destination \/
             (Message.IsSafetyInert message /\
-              message.destination = destination))
+              message.destination = destination /\
+              TermNumberValid message.term))
     (effectiveAckersSubsetAfter :
       forall
         (votes : VoteHistory Node)
@@ -37915,7 +38058,8 @@ lemma safetyInertNetworkChangePreservesSystemInductiveInvariant
         message ∈ after.network destination ->
           message ∈ state.network destination \/
             (Message.IsSafetyInert message /\
-              message.destination = destination)) :
+              message.destination = destination /\
+              TermNumberValid message.term)) :
     SystemInductiveInvariant after := by
   have appendResponseSubset :
       forall destination response,
@@ -38016,13 +38160,16 @@ lemma requestPreVotePreservesSystemInductiveInvariant
   · rcases new with ⟨destinationEq, messageEq⟩
     subst queuedDestination
     subst message
-    exact Or.inr ⟨by simp [Message.IsSafetyInert], rfl⟩
+    exact Or.inr
+      ⟨by simp [Message.IsSafetyInert], rfl,
+        invariantCurrentTermsValid invariant source⟩
 
 /-- Enqueuing a proposal packet changes no consensus-safety evidence. -/
 lemma enqueueProposeVoteRequestPreservesSystemInductiveInvariant
     (state : State Node TxId)
     (request : ProposeVoteRequest Node)
-    (invariant : SystemInductiveInvariant state) :
+    (invariant : SystemInductiveInvariant state)
+    (requestTermValid : TermNumberValid request.term) :
     SystemInductiveInvariant
       { state with
         network :=
@@ -38046,7 +38193,7 @@ lemma enqueueProposeVoteRequestPreservesSystemInductiveInvariant
   · rcases new with ⟨destinationEq, messageEq⟩
     subst queuedDestination
     subst message
-    exact Or.inr ⟨by simp [Message.IsSafetyInert], rfl⟩
+    exact Or.inr ⟨by simp [Message.IsSafetyInert], rfl, requestTermValid⟩
 
 /-- Sending a successor proposal preserves the safety invariant. -/
 lemma proposeVotePreservesSystemInductiveInvariant
@@ -38059,6 +38206,7 @@ lemma proposeVotePreservesSystemInductiveInvariant
   simpa [next, CCFRaft.Protocol.Model.next, makeProposeVoteRequest] using
     enqueueProposeVoteRequestPreservesSystemInductiveInvariant
       state (makeProposeVoteRequest state source destination) invariant
+      (invariantCurrentTermsValid invariant source)
 
 omit [DecidableEq TxId] [Bootstrap Node] in
 /-- Replication cursors and queued ACK evidence determine effective ACKers. -/
@@ -41711,8 +41859,8 @@ lemma appendRequestAckerTemporalFacts
                   0 < termAt (state.nodes leader).log index := by
                 rw [oldCurrent]
                 exact
-                  termsPositive leader
-                    (by rw [oldRole]; decide)
+                  positiveOfBootstrapTermLe
+                    (termsPositive leader (by rw [oldRole]; decide))
               rcases termAtPositiveEntry currentPositive with
                 ⟨entry, found, entryTerm⟩
               have foundInPrefix :
@@ -41753,8 +41901,8 @@ lemma appendRequestAckerTemporalFacts
                       (state.nodes request.source).log index := by
                   rw [oldCurrent]
                   exact
-                    termsPositive request.source
-                      (by rw [oldRole]; decide)
+                    positiveOfBootstrapTermLe
+                      (termsPositive request.source (by rw [oldRole]; decide))
                 rcases termAtPositiveEntry currentPositive with
                   ⟨entry, found, _⟩
                 simp [
@@ -42633,7 +42781,8 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
     (response : RequestVoteResponse Node)
     (invariant : SystemInductiveInvariant state)
     (rejected : response.voteGranted = false)
-    (responseSourceJoined : response.source ∈ state.hasJoined) :
+    (responseSourceJoined : response.source ∈ state.hasJoined)
+    (responseTermValid : TermNumberValid response.term) :
     SystemInductiveInvariant
       { state with
         network :=
@@ -43296,6 +43445,8 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
   · exact
       AllocatedNodesExactlyJoined.frame
         facts.allocatedNodesExactlyJoined (fun _ => Iff.rfl) rfl
+  · exact facts.currentTermsValid
+  · exact networkTermsValidEnqueue facts.networkTermsValid responseTermValid
 /-- Enqueuing a granted vote response materialises prospective election evidence. -/
 lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
     (state : State Node TxId)
@@ -43910,7 +44061,7 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
     · intro voter
       by_cases voterEq : voter = destination
       · subst voter
-        have requestAbove : TERM_ONE < request.term :=
+        have requestAbove : BOOTSTRAP_TERM < request.term :=
           requestFacts.2.2.2.1
         simpa [
           newVotes, Function.update,
@@ -45169,6 +45320,16 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
     exact
       NodeStore.allocated_set_iff_of_allocated
         state.nodes destination _ destinationAllocated candidate
+  · intro node
+    simpa only [termEq] using facts.currentTermsValid node
+  · have responseValid : TermNumberValid response.term := by
+      rw [post.responseTerm]
+      exact facts.currentTermsValid destination
+    simpa only [NetworkTermsValid, after] using
+      (networkTermsValidEnqueue
+        (message := .requestVoteResponse response)
+        facts.networkTermsValid responseValid)
+
 /-- Receiving an AppendEntries request preserves the full arbitrary-term invariant. -/
 lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
     (state : State Node TxId)
@@ -45536,7 +45697,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
         KnownCommitEvidence
             after appendHistory newNodeEvidence requestEvidence
               evidence supportedPrefix ->
-          TERM_ONE <= evidence.commitTerm := by
+          BOOTSTRAP_TERM <= evidence.commitTerm := by
     intro evidence supportedPrefix known
     rcases knownInherited evidence supportedPrefix known with
       ⟨oldEvidence, oldPrefix, oldKnown, termSame, _, _, _, _⟩
@@ -47766,6 +47927,25 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
       NodeStore.allocated_set_iff_of_allocated
         state.nodes destination _ destinationAllocated candidate
 
+  · intro node
+    change TermNumberValid (after.nodes node).currentTerm
+    simpa only [termEq] using facts.currentTermsValid node
+  · have responseValid : TermNumberValid response.term := by
+      by_cases success : response.success = true
+      · rw [post.successfulResponseTerm success]
+        exact facts.currentTermsValid destination
+      · rw [post.failedResponse (Bool.eq_false_of_not_eq_true success)]
+        unfold failureResponse
+        dsimp only
+        split_ifs <;> first
+        | exact facts.currentTermsValid destination
+        | exact nodeLogTermNumberValid ownership electionFacts destination _
+    simpa only [NetworkTermsValid, after, reply] using
+      (networkTermsValidEnqueue
+        (message := .appendEntriesResponse response)
+        (networkTermsValidDequeue facts.networkTermsValid taken)
+        responseValid)
+
 /-- Recalculate retirement metadata after a successful AppendEntries receive. -/
 lemma receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
     (state : State Node TxId)
@@ -47919,6 +48099,9 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
                 systemVoteRequestDestinationJoined
                   state invariant destination request
                     (takeFirstFromSound taken).2.1)
+            (by
+              rw [post.responseTerm]
+              exact invariantCurrentTermsValid invariant destination)
   have roleEq :
       forall node,
         (after.nodes node).role = (enqueued.nodes node).role := by
@@ -48175,7 +48358,8 @@ lemma receiveRequestPreVotePreservesSystemInductiveInvariant
         message ∈ after.network queuedDestination ->
           message ∈ state.network queuedDestination \/
             (Message.IsSafetyInert message /\
-              message.destination = queuedDestination) := by
+              message.destination = queuedDestination /\
+              TermNumberValid message.term) := by
     intro queuedDestination message member
     rcases
         memEnqueue
@@ -48193,7 +48377,19 @@ lemma receiveRequestPreVotePreservesSystemInductiveInvariant
     · rcases new with ⟨destinationEq, messageEq⟩
       subst queuedDestination
       subst message
-      exact Or.inr ⟨by simp [Message.IsSafetyInert], rfl⟩
+      have responseTerm :
+          response.term = (state.nodes destination).currentTerm := by
+        unfold handleRequestPreVote? at handled
+        split at handled
+        · exact congrArg (fun result => result.2.term)
+            (Option.some.inj handled).symm
+        · contradiction
+      exact Or.inr
+        ⟨by simp [Message.IsSafetyInert], rfl,
+          by
+            change TermNumberValid response.term
+            rw [responseTerm]
+            exact invariantCurrentTermsValid invariant destination⟩
   rw [nextNodeEq, collapsedNodes]
   change SystemInductiveInvariant after
   exact
@@ -49444,6 +49640,7 @@ lemma advanceCommitAndProposeVotePreservesSystemInductiveInvariant
   simpa [next, CCFRaft.Protocol.Model.next, advanced, request] using
     enqueueProposeVoteRequestPreservesSystemInductiveInvariant
       advanced request advancedInvariant
+      (invariantCurrentTermsValid invariant source)
 
 /-- Entering a speculative election changes no consensus-safety evidence. -/
 lemma becomePreVoteCandidatePreservesSystemInductiveInvariant

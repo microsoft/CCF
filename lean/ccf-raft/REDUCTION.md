@@ -126,9 +126,10 @@ No bootstrap entries are erased.
 
 Every ledger index remains its physical raw value. This includes log lengths,
 commit indices, peer progress, retirement indices, and packet coordinates.
-Raw term 0 remains 0. Raw terms at least 2 use `raw - 1`.
-Raw term 1 is rejected under this prelude. Term-at-index fields use the same
-term mapping, without changing a recorded nonzero term to a sentinel.
+Every term remains its raw value, including 0 and 1. State and packet terms,
+including term-at-index fields, use this identity mapping.
+The model starts bootstrap nodes at `BOOTSTRAP_TERM = 2` and fresh nodes at 0.
+Elections increment the current term by one. No recorded term becomes a sentinel.
 
 Each recorded committable index produces a `signature-marker` entry observation.
 The marker must point to a signature in the canonical log. The implementation's

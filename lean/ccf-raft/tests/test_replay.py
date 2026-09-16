@@ -55,6 +55,15 @@ class CanonicalReplayTests(unittest.TestCase):
             },
         )
 
+    def test_offset_bootstrap_term_is_rejected(self):
+        document = self.bootstrap()
+        observation = document["instructions"][0]
+        self.assertEqual(observation["fields"]["currentTerm"], 2)
+        observation["fields"]["currentTerm"] = 1
+        result = self.replay(document)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("currentTerm: observed 1, canonical 2", result.stderr)
+
     def test_recorded_pre_vote_mode_is_checked_by_the_model(self):
         records = read_trace(FIXTURE)
         records[-1].value["msg"]["state"]["pre_vote_enabled"] = True
@@ -75,7 +84,7 @@ class CanonicalReplayTests(unittest.TestCase):
         preceding = document["instructions"][signature - 1]
         self.assertEqual(preceding["fields"]["logLength"], 2)
         self.assertEqual(preceding["fields"]["commitIndex"], 2)
-        self.assertEqual(preceding["fields"]["currentTerm"], 1)
+        self.assertEqual(preceding["fields"]["currentTerm"], 2)
         result = self.replay(document)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
@@ -382,7 +391,7 @@ class CanonicalReplayTests(unittest.TestCase):
                 "source": "0",
                 "destination": "1",
                 "origin": origin,
-                "packet": {"msg": "raft_append_entries", "term": 1},
+                "packet": {"msg": "raft_append_entries", "term": 2},
             },
         ]
         positive = self.replay(document)

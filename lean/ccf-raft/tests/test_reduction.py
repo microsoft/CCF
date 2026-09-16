@@ -14,7 +14,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from capture import capture
-from reduction import Instructions, associate, reduce_trace, state_facts
+from reduction import Instructions, associate, packet, reduce_trace, state_facts
 from run_scenarios import inventory, run_suite
 from trace_io import TraceError, parse_ndjson, read_trace
 
@@ -69,6 +69,81 @@ def later_actions(document):
 
 
 class ReductionTests(unittest.TestCase):
+    def test_explicit_nomination_after_commit_is_not_a_terminal_commit(self):
+        commit = {
+            "function": "commit",
+            "state": state(last_idx=3, committable_indices=[3]),
+            "args": {"idx": 3},
+        }
+        nomination = {
+            "function": "step_down_and_nominate_successor",
+            "state": state(last_idx=3, commit_idx=3),
+            "to_node_id": "1",
+        }
+        records = trace(commit)
+        records += parse_ndjson(
+            [
+                '{"tag":"raft_trace","cmd":"nominate_successor,0"}',
+                json.dumps({"tag": "raft_trace", "msg": nomination}),
+            ]
+        )
+        self.assertEqual(
+            [action["action"] for action in later_actions(reduce_trace(records))],
+            ["advanceCommitIndex", "proposeVote"],
+        )
+        with self.assertRaisesRegex(TraceError, "terminal-retirement nomination"):
+            reduce_trace(trace(commit, nomination))
+
+    def test_state_and_packet_terms_preserve_implementation_numbers(self):
+        event = associate(read_trace(FIXTURE))[0][0]
+        for value in (0, 1, 2, 4, 999):
+            with self.subTest(term=value, field="current_view"):
+                event.state["current_view"] = value
+                self.assertEqual(state_facts(event)["currentTerm"], value)
+            packets = [
+                append_packet(term=value, prev_term=value, term_of_idx=value),
+                {
+                    "msg": "raft_append_entries_response",
+                    "term": value,
+                    "last_log_idx": 6,
+                    "success": "OK",
+                },
+                {"msg": "raft_propose_request_vote", "term": value},
+            ]
+            for family in ("raft_request_vote", "raft_request_pre_vote"):
+                packets.extend(
+                    [
+                        {
+                            "msg": family,
+                            "term": value,
+                            "last_committable_idx": 2,
+                            "term_of_last_committable_idx": value,
+                        },
+                        {
+                            "msg": f"{family}_response",
+                            "term": value,
+                            "vote_granted": True,
+                        },
+                    ]
+                )
+            for raw in packets:
+                with self.subTest(term=value, packet=raw["msg"]):
+                    event.message["packet"] = raw
+                    self.assertEqual(packet(event), raw)
+
+    def test_state_and_packet_terms_require_natural_numbers(self):
+        event = associate(read_trace(FIXTURE))[0][0]
+        for value in (-1, True, 1.5, "1", None):
+            with self.subTest(term=value, field="current_view"):
+                event.state["current_view"] = value
+                with self.assertRaisesRegex(TraceError, "expected natural number"):
+                    state_facts(event)
+            for field in ("term", "prev_term", "term_of_idx"):
+                with self.subTest(term=value, field=field):
+                    event.message["packet"] = append_packet(**{field: value})
+                    with self.assertRaisesRegex(TraceError, "expected natural number"):
+                        packet(event)
+
     def test_capture_order_does_not_depend_on_timestamps(self):
         records = read_trace(FIXTURE)
         expected = reduce_trace(records)
@@ -232,7 +307,7 @@ class ReductionTests(unittest.TestCase):
             if i.get("observation") == "state"
         ]
         self.assertEqual(
-            [f["currentTerm"] for f in observed if "currentTerm" in f], [1] * 5
+            [f["currentTerm"] for f in observed if "currentTerm" in f], [2] * 5
         )
         self.assertEqual(
             [f["logLength"] for f in observed if "logLength" in f], [0, 0, 0, 1, 2]
@@ -365,7 +440,7 @@ class ReductionTests(unittest.TestCase):
         self.assertEqual(observed["observation"], "message")
         self.assertEqual(observed["packet"]["idx"], 6)
         self.assertEqual(observed["packet"]["prev_idx"], 2)
-        self.assertEqual(observed["packet"]["prev_term"], 1)
+        self.assertEqual(observed["packet"]["prev_term"], 2)
         self.assertNotEqual(actions[0]["origin"], actions[-1]["origin"])
 
     def test_receive_transient_facts_are_explicitly_audited(self):
@@ -544,7 +619,7 @@ class ReductionTests(unittest.TestCase):
             and i["origin"][0]["function"] == "send_append_entries_response"
         )
         self.assertEqual(response_state["fields"]["role"], "follower")
-        self.assertEqual(response_state["fields"]["currentTerm"], 1)
+        self.assertEqual(response_state["fields"]["currentTerm"], 2)
         self.assertEqual(response_state["fields"]["logLength"], 4)
         self.assertEqual(response_state["fields"]["commitIndex"], 4)
 

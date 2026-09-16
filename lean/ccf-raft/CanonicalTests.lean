@@ -18,11 +18,43 @@ private def check (condition : Bool) (message : String) : IO Unit :=
   unless condition do
     throw (IO.userError message)
 
+private def bootstrapAndNoMatchingPrefixTerms : IO Unit := do
+  let initial : State Node Nat := initialState
+  let source : Node := ⟨0, by decide⟩
+  let destination : Node := ⟨1, by decide⟩
+  let future : Node := ⟨5, by decide⟩
+  check (BOOTSTRAP_TERM == 2 &&
+    (initial.nodes source).currentTerm == BOOTSTRAP_TERM &&
+    (initial.nodes destination).currentTerm == BOOTSTRAP_TERM)
+    "bootstrap leader and follower must start at implementation term 2"
+  check ((initial.nodes future).currentTerm == 0 &&
+    (freshNodeState : NodeState Node Nat).currentTerm == 0)
+    "fresh nodes must retain term 0"
+  let follower := { initial.nodes destination with
+    log := [{ term := BOOTSTRAP_TERM, content := .transaction 1 }] }
+  let request : AppendEntriesRequest Node Nat := {
+    source
+    destination
+    term := BOOTSTRAP_TERM
+    prevLogIndex := 1
+    prevLogTerm := 1
+    entries := []
+    leaderCommit := 0
+  }
+  check (findHighestPossibleMatch follower.log request.prevLogIndex request.prevLogTerm == 0)
+    "conflicting prefix must have no possible matching index"
+  let some (after, response) := handleAppendEntriesRequest? follower request
+    | throw (IO.userError "conflicting prefix did not produce a response")
+  check (!response.success && response.lastLogIndex == 0 && response.term == 0)
+    "no matching prefix must produce a NACK with index 0 and term 0"
+  check (after.currentTerm == BOOTSTRAP_TERM && after.log == follower.log)
+    "no matching prefix NACK must preserve the follower's term and log"
+
 private def nominationTerms : IO Unit := do
   let initial : State Node Nat := initialState
   let source : Node := ⟨0, by decide⟩
   let destination : Node := ⟨1, by decide⟩
-  for term in [0, 2] do
+  for term in [0, 1, BOOTSTRAP_TERM + 1] do
     let request : ProposeVoteRequest Node :=
       { source, destination, term }
     let state := { initial with
@@ -40,7 +72,7 @@ private def nominationTerms : IO Unit := do
         check (decide ((after.nodes destination).role = (state.nodes destination).role))
           s!"nomination term {term}: role changed"
   let nomination : ProposeVoteRequest Node :=
-    { source, destination, term := 1 }
+    { source, destination, term := BOOTSTRAP_TERM }
   let nominated := { initial with
     network := enqueue initial.network (.proposeVoteRequest nomination) }
   match system.applyAction nominated (.receive source destination) with
@@ -48,15 +80,16 @@ private def nominationTerms : IO Unit := do
   | some after =>
       check (decide ((after.nodes destination).role = .candidate))
         "same-term nomination: eligible follower did not become candidate"
-      check ((after.nodes destination).currentTerm == 2)
+      check ((after.nodes destination).currentTerm == BOOTSTRAP_TERM + 1)
         "same-term nomination: election did not increment the term"
-  let vote := { makeRequestVoteRequest initial source destination with term := 2 }
+  let vote := { makeRequestVoteRequest initial source destination with
+    term := BOOTSTRAP_TERM + 1 }
   let voting := { initial with
     network := enqueue initial.network (.requestVoteRequest vote) }
   match system.applyAction voting (.updateTerm source destination) with
   | none => throw (IO.userError "newer vote request: updateTerm is disabled")
   | some after =>
-      check ((after.nodes destination).currentTerm == 2)
+      check ((after.nodes destination).currentTerm == BOOTSTRAP_TERM + 1)
         "newer vote request: current term did not advance"
       check ((after.network destination).length == 1)
         "newer vote request: updateTerm consumed the message"
@@ -250,11 +283,11 @@ private def jsonReplay : IO Unit := do
     r#"{"kind":"action","action":"clientRequest","node":"alpha","transaction":"tx-1"}"#,
     r#"{"kind":"action","action":"signCommittableMessages","node":"alpha"}"#,
     r#"{"kind":"action","action":"appendEntries","source":"alpha","destination":"beta","batchEnd":2}"#]
-  let packet := r#"{"kind":"observation","observation":"message","source":"alpha","destination":"beta","packet":{"msg":"raft_append_entries","term":1,"prev_idx":0,"prev_term":0,"idx":2,"term_of_idx":1,"leader_commit_idx":0,"contains_new_view":false}}"#
+  let packet := r#"{"kind":"observation","observation":"message","source":"alpha","destination":"beta","packet":{"msg":"raft_append_entries","term":2,"prev_idx":0,"prev_term":0,"idx":2,"term_of_idx":2,"leader_commit_idx":0,"contains_new_view":false}}"#
   let receive := r#"{"kind":"action","action":"receive","source":"alpha","destination":"beta"}"#
   let complete := initialSteps ++ [packet, receive,
     r#"{"kind":"observation","observation":"state","node":"beta","fields":{"role":"follower","logLength":2,"commitIndex":0}}"#,
-    r#"{"kind":"observation","observation":"message","source":"beta","destination":"alpha","packet":{"msg":"raft_append_entries_response","term":1,"success":"OK","last_log_idx":2}}"#,
+    r#"{"kind":"observation","observation":"message","source":"beta","destination":"alpha","packet":{"msg":"raft_append_entries_response","term":2,"success":"OK","last_log_idx":2}}"#,
     r#"{"kind":"action","action":"receive","source":"beta","destination":"alpha"}"#,
     r#"{"kind":"action","action":"advanceCommitIndex","node":"alpha"}"#,
     r#"{"kind":"observation","observation":"state","node":"alpha","peer":"beta","fields":{"commitIndex":2,"sentIndex":2,"matchIndex":2}}"#]
@@ -333,7 +366,7 @@ private def jsonReplay : IO Unit := do
     r#"{"kind":"action","action":"updateTerm","source":"alpha","destination":"future"}"#,
     r#"{"kind":"action","action":"receive","source":"alpha","destination":"future"}"#,
     r#"{"kind":"action","action":"becomePreVoteCandidate","node":"future"}"#,
-    r#"{"kind":"observation","observation":"state","node":"future","fields":{"role":"preVoteCandidate","currentTerm":1,"logLength":2}}"#]
+    r#"{"kind":"observation","observation":"state","node":"future","fields":{"role":"preVoteCandidate","currentTerm":2,"logLength":2}}"#]
   match CCFRaft.Replay.replay reconfiguration with
   | .ok result => check (result.instructions == 8) "incomplete reconfiguration replay"
   | .error error => throw (IO.userError error)
@@ -362,11 +395,11 @@ private def bootstrapPrefix : IO Unit := do
     r#"{"kind":"action","action":"changeConfiguration","source":"alpha","configuration":["alpha","beta"]}"#,
     r#"{"kind":"observation","observation":"state","node":"alpha","peer":"beta","fields":{"logLength":3,"commitIndex":2,"committableIndices":[],"sentIndex":2,"configurations":[{"index":1,"nodes":["alpha"]},{"index":3,"nodes":["alpha","beta"]}]}}"#,
     r#"{"kind":"action","action":"appendEntries","source":"alpha","destination":"beta","batchEnd":2}"#,
-    r#"{"kind":"observation","observation":"message","source":"alpha","destination":"beta","packet":{"msg":"raft_append_entries","prev_idx":2,"idx":2,"prev_term":1,"term_of_idx":1,"leader_commit_idx":2}}"#,
+    r#"{"kind":"observation","observation":"message","source":"alpha","destination":"beta","packet":{"msg":"raft_append_entries","prev_idx":2,"idx":2,"prev_term":2,"term_of_idx":2,"leader_commit_idx":2}}"#,
     r#"{"kind":"action","action":"updateTerm","source":"alpha","destination":"beta"}"#,
     r#"{"kind":"action","action":"receive","source":"alpha","destination":"beta"}"#,
-    r#"{"kind":"observation","observation":"message","source":"beta","destination":"alpha","packet":{"msg":"raft_append_entries_response","success":"FAIL","last_log_idx":0,"term":1}}"#,
-    r#"{"kind":"observation","observation":"state","node":"beta","fields":{"role":"follower","currentTerm":1,"logLength":0,"commitIndex":0}}"#,
+    r#"{"kind":"observation","observation":"message","source":"beta","destination":"alpha","packet":{"msg":"raft_append_entries_response","success":"FAIL","last_log_idx":0,"term":2}}"#,
+    r#"{"kind":"observation","observation":"state","node":"beta","fields":{"role":"follower","currentTerm":2,"logLength":0,"commitIndex":0}}"#,
     r#"{"kind":"action","action":"receive","source":"beta","destination":"alpha"}"#,
     r#"{"kind":"action","action":"appendEntries","source":"alpha","destination":"beta","batchEnd":3}"#,
     r#"{"kind":"action","action":"receive","source":"alpha","destination":"beta"}"#,
@@ -380,7 +413,7 @@ private def bootstrapPrefix : IO Unit := do
     r#"{"kind":"action","action":"signCommittableMessages","node":"alpha"}"#,
     r#"{"kind":"action","action":"advanceCommitIndex","node":"alpha"}"#,
     r#"{"kind":"observation","observation":"state","node":"alpha","fields":{"logLength":2,"commitIndex":2}}"#,
-    r#"{"kind":"observation","observation":"entry","node":"alpha","index":1,"fields":{"kind":"configuration","configuration":["alpha"],"term":1,"committed":true}}"#,
+    r#"{"kind":"observation","observation":"entry","node":"alpha","index":1,"fields":{"kind":"configuration","configuration":["alpha"],"term":2,"committed":true}}"#,
     r#"{"kind":"observation","observation":"entry","node":"alpha","index":2,"fields":{"kind":"signature","committed":true}}"#,
     r#"{"kind":"action","action":"signCommittableMessages","node":"alpha"}"#,
     r#"{"kind":"observation","observation":"state","node":"alpha","fields":{"logLength":3,"committableIndices":[3]}}"#,
@@ -417,10 +450,10 @@ private def terminalRetirementRole : IO Unit := do
     r#"{"kind":"action","action":"receive","source":"alpha","destination":"beta"}"#,
     r#"{"kind":"action","action":"receive","source":"beta","destination":"alpha"}"#,
     r#"{"kind":"action","action":"advanceCommitIndexAndProposeVote","source":"alpha","destination":"beta"}"#,
-    r#"{"kind":"observation","observation":"state","node":"alpha","fields":{"role":"none","membershipState":"retiredCommitted","currentTerm":1,"commitIndex":6,"retiredCommittedIndex":6}}"#,
-    r#"{"kind":"observation","observation":"message","source":"alpha","destination":"beta","packet":{"msg":"raft_propose_request_vote","term":1}}"#,
+    r#"{"kind":"observation","observation":"state","node":"alpha","fields":{"role":"none","membershipState":"retiredCommitted","currentTerm":2,"commitIndex":6,"retiredCommittedIndex":6}}"#,
+    r#"{"kind":"observation","observation":"message","source":"alpha","destination":"beta","packet":{"msg":"raft_propose_request_vote","term":2}}"#,
     r#"{"kind":"action","action":"receive","source":"alpha","destination":"beta"}"#,
-    r#"{"kind":"observation","observation":"state","node":"beta","fields":{"role":"candidate","currentTerm":2}}"#]
+    r#"{"kind":"observation","observation":"state","node":"beta","fields":{"role":"candidate","currentTerm":3}}"#]
   let bootstrap ← parseJson r#"{"configuration":["alpha"],"leader":"alpha","pre_vote_enabled":{"alpha":false,"beta":false}}"#
   match CCFRaft.Replay.replay (document.setObjVal! "bootstrap" bootstrap) with
   | .ok result => check (result.instructions == 24) "incomplete terminal retirement replay"
@@ -475,6 +508,7 @@ private def retirementCommitFrontiers : IO Unit := do
       s!"batch from {oldLength}: wrong first covering retirement commit"
 
 def main : IO Unit := do
+  bootstrapAndNoMatchingPrefixTerms
   nominationTerms
   batchesAndDrops
   committedLeaderCanHeartbeatBehindCommit

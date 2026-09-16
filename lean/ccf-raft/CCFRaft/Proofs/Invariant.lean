@@ -182,7 +182,7 @@ structure ActivationHistoryFacts
   termPositive :
     forall index record,
       activations index = some record ->
-        TERM_ONE <= record.activationTerm
+        BOOTSTRAP_TERM <= record.activationTerm
   supporterAcks :
     forall index record,
       activations index = some record ->
@@ -540,7 +540,21 @@ def EntriesDoNotExceedCurrentTerm (state : State Node TxId) : Prop :=
 def CurrentTermsPositive (state : State Node TxId) : Prop :=
   forall node,
     Not ((state.nodes node).role = .none) ->
-      TERM_ONE <= (state.nodes node).currentTerm
+      BOOTSTRAP_TERM <= (state.nodes node).currentTerm
+
+/-- Zero denotes an unknown term; numbered terms start at bootstrap. -/
+def TermNumberValid (term : Nat) : Prop :=
+  term = 0 \/ BOOTSTRAP_TERM <= term
+
+/-- Inactive nodes retain either an unknown or a numbered current term. -/
+def CurrentTermsValid (state : State Node TxId) : Prop :=
+  forall node, TermNumberValid (state.nodes node).currentTerm
+
+/-- Queued packets advertise only unknown or numbered terms. -/
+def NetworkTermsValid (state : State Node TxId) : Prop :=
+  forall destination message,
+    message ∈ state.network destination ->
+      TermNumberValid message.term
 
 /-- Candidates start each election with exactly their own persistent vote. -/
 def CandidatesSelfVote (state : State Node TxId) : Prop :=
@@ -553,7 +567,7 @@ def CandidatesSelfVote (state : State Node TxId) : Prop :=
 def CandidatesAboveBootstrap (state : State Node TxId) : Prop :=
   forall node,
     (state.nodes node).role = .candidate ->
-      TERM_ONE < (state.nodes node).currentTerm
+      BOOTSTRAP_TERM < (state.nodes node).currentTerm
 
 /-- Every active leader keeps both replication cursors inside its own log. -/
 def LeaderProgressBounded (state : State Node TxId) : Prop :=
@@ -575,7 +589,7 @@ structure VoteHistoryFacts
     (history : VoteHistory Node) : Prop where
   bootstrapEmpty :
     forall voter,
-      history voter TERM_ONE = none
+      history voter BOOTSTRAP_TERM = none
   current :
     forall voter,
       history voter (state.nodes voter).currentTerm =
@@ -684,7 +698,7 @@ structure NetworkHistoryFacts
               (voteRequestHistory request)
               (voteRequestHistory request).length /\
           EndsAtMaxCommittable (voteRequestHistory request) /\
-          TERM_ONE < request.term /\
+          BOOTSTRAP_TERM < request.term /\
           request.term <=
             (state.nodes request.source).currentTerm /\
           (request.term =
@@ -987,7 +1001,7 @@ structure TermOwnershipFacts
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (owners : TermOwners Node) : Prop where
   bootstrap :
-    owners TERM_ONE = some INITIAL_LEADER
+    owners BOOTSTRAP_TERM = some INITIAL_LEADER
   activeLeader :
     forall leader,
       (state.nodes leader).role = .leader ->
@@ -1061,7 +1075,7 @@ structure ElectionHistoryFacts
   ownerRecorded :
     forall term owner,
       owners term = some owner ->
-        ((term = TERM_ONE /\ owner = INITIAL_LEADER) \/
+        ((term = BOOTSTRAP_TERM /\ owner = INITIAL_LEADER) \/
           Exists fun record =>
             elections term = some record /\
               record.leader = owner)
@@ -1156,6 +1170,10 @@ structure ElectionHistoryFacts
                 (record.candidateLog voter).length
               source := record.leader
               destination := voter }
+  termAboveBootstrap :
+    forall term record,
+      elections term = some record ->
+        BOOTSTRAP_TERM < term
 
 /-- Every queued leader history contains that term's promotion snapshot. -/
 def ElectionQueuedHistoryFacts
@@ -1779,7 +1797,7 @@ structure ProspectiveCommitEvidenceFacts
       KnownCommitEvidence
           state appendHistory nodeEvidence requestEvidence
           evidence supportedPrefix ->
-        TERM_ONE <= evidence.commitTerm
+        BOOTSTRAP_TERM <= evidence.commitTerm
   electionClosure :
     forall evidence supportedPrefix,
       KnownCommitEvidence
@@ -2057,7 +2075,7 @@ def LeadersHaveElectionWitness (state : State Node TxId) : Prop :=
   forall leader,
     (state.nodes leader).role = .leader ->
       ((leader = INITIAL_LEADER /\
-          (state.nodes leader).currentTerm = TERM_ONE) \/
+          (state.nodes leader).currentTerm = BOOTSTRAP_TERM) \/
         Exists fun configuration =>
           configuration ∈ allConfigurations (state.nodes leader).log /\
             hasConfigurationMajority
@@ -2224,6 +2242,8 @@ structure InvariantFacts
     Exists fun history => ProcessedAckHistoryFacts state history
   joinedCarriers : JoinedCarrierFacts state
   allocatedNodesExactlyJoined : AllocatedNodesExactlyJoined state
+  currentTermsValid : CurrentTermsValid state
+  networkTermsValid : NetworkTermsValid state
 
 /-- Existentially package every consensus-safety invariant component. -/
 def SystemInductiveInvariant (state : State Node TxId) : Prop :=

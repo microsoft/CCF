@@ -39,8 +39,8 @@ def INITIAL_LEADER
     [bootstrap : Bootstrap Node] :
     Node :=
   bootstrap.leader
-/-- Initial bootstrap term. -/
-def TERM_ONE : Nat := 1
+/-- Initial leader term, matching CCF's forced-primary startup. -/
+def BOOTSTRAP_TERM : Nat := 2
 /-- Bootstrap membership known before its physical log entry is written. -/
 def INITIAL_CONFIGURATION
     {Node : Type}
@@ -382,7 +382,7 @@ def updateQueue
 
 variable [Bootstrap Node]
 
-/-- Initialize bootstrap members in term one and all other nodes unused. -/
+/-- Initialize bootstrap members at CCF's startup term and other nodes unused. -/
 def initialNodeState (node : Node) : NodeState Node TxId where
   role :=
     if node = INITIAL_LEADER then
@@ -391,7 +391,7 @@ def initialNodeState (node : Node) : NodeState Node TxId where
       .follower
     else
       .none
-  currentTerm := if node ∈ INITIAL_CONFIGURATION then TERM_ONE else 0
+  currentTerm := if node ∈ INITIAL_CONFIGURATION then BOOTSTRAP_TERM else 0
   log := []
   commitIndex := 0
   sentIndex := fun _ => 0
@@ -944,11 +944,7 @@ def failureResponse
       let lastLogIndex :=
         findHighestPossibleMatch
           state.log request.prevLogIndex request.prevLogTerm
-      { term :=
-          if lastLogIndex = 0 then
-            TERM_ONE
-          else
-            termAt state.log lastLogIndex
+      { term := termAt state.log lastLogIndex
         success := false
         lastLogIndex
         source := request.destination
@@ -1601,7 +1597,7 @@ def Enabled
       node = INITIAL_LEADER /\
         state.allocated node /\
         (state.nodes node).role = .leader /\
-        (state.nodes node).currentTerm = TERM_ONE /\
+        (state.nodes node).currentTerm = BOOTSTRAP_TERM /\
         (state.nodes node).log = [] /\
         (state.nodes node).commitIndex = 0 /\
         (state.nodes node).membershipState = .active /\

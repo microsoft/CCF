@@ -169,12 +169,8 @@ def index(value: Any, location: str) -> int:
 
 
 def term(value: Any, location: str) -> int:
-    """Map raw views to model terms using the audited bootstrap offset."""
-    raw = natural(value, location)
-    require(
-        raw != 1, f"{location}: term 1 is outside the verified bootstrap projection"
-    )
-    return max(0, raw - 1)
+    """Preserve implementation term numbers when translating to replay."""
+    return natural(value, location)
 
 
 @dataclass(frozen=True)
@@ -375,7 +371,7 @@ def state_facts(event: Event) -> dict[str, Any]:
 def packet(event: Event) -> dict[str, Any]:
     """Translate a recorded packet header for rules and message observations.
 
-    Convert term numbering without reconstructing payloads or searching queues.
+    Preserve coordinates without reconstructing payloads or searching queues.
     """
     raw = event.message.get("packet")
     require(isinstance(raw, dict), f"{event.location}: missing packet")
@@ -1030,12 +1026,11 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
                     callback, "tla-callback-stutter", facts, exclusions=exclusions
                 )
 
-        elif peek(2) == ["commit", "step_down_and_nominate_successor"]:
+        elif peek(2) == [
+            "commit",
+            "step_down_and_nominate_successor",
+        ] and same_context(events[0], events[1]):
             commit, nomination = take(2)
-            require(
-                same_context(commit, nomination),
-                f"{nomination.location}: interleaved terminal nomination",
-            )
             require(
                 commit.state["leadership_state"] == "Leader",
                 f"{commit.location}: ungrouped follower commit",
