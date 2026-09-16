@@ -605,7 +605,6 @@ if(BUILD_TESTS)
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
       LABELS snp
-      CONFIGURATIONS snp
     )
     target_link_libraries(snp_ioctl_test PRIVATE ccf_pal)
 
@@ -613,7 +612,6 @@ if(BUILD_TESTS)
       snp_attestation_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
       LABELS snp
-      CONFIGURATIONS snp
     )
     target_link_libraries(snp_attestation_test PRIVATE ccf_pal ccfcrypto)
 
@@ -1091,7 +1089,7 @@ if(BUILD_TESTS)
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/certs.py ./kp_cert_test
     )
     add_test_target(csr_test kp_cert_test)
-    add_test_label(csr_test unit_test)
+    add_test_label(csr_test unit)
 
     add_test(
       NAME versionifier_test

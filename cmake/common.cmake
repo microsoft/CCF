@@ -117,15 +117,9 @@ function(add_test_label test)
 endfunction()
 
 # Unit test wrapper. The test is always labelled `unit`; LABELS adds further
-# labels and CONFIGURATIONS restricts the test to the named ctest -C values.
+# labels.
 function(add_unit_test name)
-  cmake_parse_arguments(
-    PARSE_ARGV 1
-    PARSED_ARGS
-    "DETECT_DEADLOCKS"
-    ""
-    "LABELS;CONFIGURATIONS"
-  )
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "DETECT_DEADLOCKS" "" "LABELS")
 
   add_executable(${name} ${PARSED_ARGS_UNPARSED_ARGUMENTS})
   target_include_directories(
@@ -137,11 +131,7 @@ function(add_unit_test name)
   add_san(${name})
   add_warning_checks(${name})
 
-  add_test(
-    NAME ${name}
-    COMMAND ${name}
-    CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
-  )
+  add_test(NAME ${name} COMMAND ${name})
   add_test_label(${name} unit ${PARSED_ARGS_LABELS})
 
   if(COVERAGE)
