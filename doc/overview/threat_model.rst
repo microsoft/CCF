@@ -210,7 +210,7 @@ This diagram examines the traffic that crosses into and out of one node: user se
    * - :doc:`Joining nodes </operations/start_network>`
      - The HTTPS join request carries SNP attestation bound to the joining node's public key. CCF validates the evidence; attestation validation and consortium admission are separate steps.
    * - :doc:`Node-to-node channels </architecture/node_to_node>`
-     - Admitted nodes mutually authenticate service-endorsed identities. Authenticated Diffie-Hellman establishes per-direction AES-256-GCM keys for the custom TCP channel, and monotonic counters reject replayed messages. The crypto board approved this protocol.
+     - Admitted nodes mutually authenticate service-endorsed identities. Authenticated Diffie-Hellman establishes per-direction AES-256-GCM keys for the custom TCP channel, and monotonic counters reject replayed messages. The Microsoft Cryptography Board approved this protocol.
    * - Client sessions
      - HTTPS terminates inside the CCF node. Clients verify the TLS certificate against the expected service identity. CCF 7.0.14 offers hybrid ML-KEM key exchange, with classical key exchange available as a fallback.
    * - :doc:`Caller authentication </build_apps/auth/index>`
