@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PACKAGE))
+sys.path.insert(0, str(PACKAGE / "replay"))
 
 from reduction import reduce_trace
 from trace_io import read_trace

@@ -147,7 +147,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 run_scenarios.py ../../build/raft_driver \
+          python3 replay/run_scenarios.py ../../build/raft_driver \
             --output ../../build/lean-raft-traces
 
       - name: Upload Lean trace-validation artifacts

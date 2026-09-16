@@ -12,12 +12,14 @@ correlation. Lean alone executes protocol actions and compares observations.
 
 ## Commands and files
 
-| Command                                                   | Result                                                            |
-| --------------------------------------------------------- | ----------------------------------------------------------------- |
-| `python3 capture.py DRIVER SCENARIO OUTPUT.stdout`        | Verbatim stdout and a sibling `OUTPUT.stderr`                     |
-| `python3 reduction.py INPUT OUTPUT.json`                  | Deterministic, indented replay JSON                               |
-| `python3 run_scenarios.py DRIVER --output DIRECTORY`      | Every upstream scenario, individual artifacts, and `summary.json` |
-| `python3 -m unittest discover -s tests -p 'test_*.py' -v` | Python and canonical wire regression tests                        |
+Run these commands from `lean/ccf-raft`.
+
+| Command                                                     | Result                                                            |
+| ----------------------------------------------------------- | ----------------------------------------------------------------- |
+| `python3 replay/capture.py DRIVER SCENARIO OUTPUT.stdout`   | Verbatim stdout and a sibling `OUTPUT.stderr`                     |
+| `python3 replay/reduction.py INPUT OUTPUT.json`             | Deterministic, indented replay JSON                               |
+| `python3 replay/run_scenarios.py DRIVER --output DIRECTORY` | Every upstream scenario, individual artifacts, and `summary.json` |
+| `python3 -m unittest discover -s tests -p 'test_*.py' -v`   | Python and canonical wire regression tests                        |
 
 The suite accepts `--replayer`, `--scenarios`, and `--timeout`.
 `--raw-directory DIRECTORY` reuses existing `<scenario>.stdout` captures without
@@ -40,7 +42,7 @@ captures, `--raw-directory ../../build/raft-replay/raw --output
 temporary build storage.
 
 The inventory matches the directory expansion used by
-[`tests/raft_scenarios_runner.py`](../../tests/raft_scenarios_runner.py).
+[`tests/raft_scenarios_runner.py`](../../../tests/raft_scenarios_runner.py).
 Every regular file is selected recursively, including extensionless files and
 names such as `suffix_collision.1`. Sorting fixes execution order. No scenario
 name, extension, or deprecated syntax is filtered out.
@@ -97,7 +99,7 @@ packet projection happens when emitting observations, not in a separate prefligh
 Node creation commands declare pre-vote compatibility modes. The driver's
 initial setting is `true`. `pre_vote_enabled` changes the setting for subsequent
 creations, not existing nodes. This follows
-[`RaftDriver::add_node`](../../src/consensus/aft/test/driver.h).
+[`RaftDriver::add_node`](../../../src/consensus/aft/test/driver.h).
 Without a creation command, the first snapshot supplies the node's mode.
 Lean checks recorded modes against this map and rejects undeclared configuration
 nodes.
@@ -215,7 +217,7 @@ cache equality, as described above.
 
 Receive helpers remain after the consuming atomic receive, but their checks
 are stronger than the original masks from
-[`Traceccfraft.tla`](../../tla/consensus/Traceccfraft.tla):
+[`Traceccfraft.tla`](../../../tla/consensus/Traceccfraft.tla):
 
 | Callback property               | Observation or exclusion                                                                                                                                                                  |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

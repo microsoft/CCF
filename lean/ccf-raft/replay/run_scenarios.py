@@ -16,7 +16,7 @@ from capture import capture
 from reduction import reduce_trace
 from trace_io import TraceError, json_object, read_trace
 
-PACKAGE = Path(__file__).resolve().parent
+PACKAGE = Path(__file__).resolve().parents[1]
 REPOSITORY = PACKAGE.parent.parent
 
 

@@ -20,8 +20,10 @@ name = "CCFRaft"
 
 [[lean_exe]]
 name = "canonical-checks"
+srcDir = "tests"
 root = "CanonicalTests"
 
 [[lean_exe]]
 name = "ccfraft-replay"
+srcDir = "replay"
 root = "ReplayMain"
