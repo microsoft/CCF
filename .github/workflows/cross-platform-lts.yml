@@ -32,8 +32,8 @@ env:
   PYTHON_VERSION: "3.12"
   AZL3_IMAGE: &azl3_image mcr.microsoft.com/azurelinux/base/core:3.0
   AZL4_IMAGE: &azl4_image azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
-  AZL3_POOL: &azl3_pool 1ES.Pool=gha-vmss-d16av6-ci
-  AZL4_POOL: &azl4_pool 1ES.Pool=gha-vmss-d16av5-ci
+  AZL3_POOL: &azl3_pool 1ES.Pool=gha-vmss-d16av7-ci
+  AZL4_POOL: &azl4_pool 1ES.Pool=gha-vmss-d16av7-ci
   INSTALL_ARCHIVE: ccf-install.tar.gz
   LTS_WORKSPACE: cross-platform-lts-workspace
 
