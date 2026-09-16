@@ -98,7 +98,9 @@ function(add_test_label test)
 
   foreach(LABEL IN LISTS ARGN)
     set_property(TEST ${test} APPEND PROPERTY LABELS ${LABEL})
-    if(LABEL STREQUAL test)
+    # A label equal to the test name needs no aggregate: the test's own
+    # target already builds exactly that label's requirements.
+    if("${LABEL}" STREQUAL "${test}")
       continue()
     endif()
 
