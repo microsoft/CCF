@@ -8,7 +8,8 @@ import infra.network
 import suite.test_requirements as reqs
 from loguru import logger as LOG
 
-# Hybrid groups offered by src/tls/context.h, in the order they are offered
+# Hybrid groups offered by src/host/tls/openssl_server.h, in the order they are
+# offered
 HYBRID_GROUPS = ["SecP384r1MLKEM1024", "SecP256r1MLKEM768", "X25519MLKEM768"]
 
 # Weakest classical fallback, and the name OpenSSL reports for it
