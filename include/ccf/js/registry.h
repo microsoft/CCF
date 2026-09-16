@@ -51,7 +51,8 @@ namespace ccf::js
     const std::string registry_managed_prefix;
     bool registry_tables_protected = true;
 
-    ccf::js::NamespaceRestriction get_effective_namespace_restriction() const;
+    [[nodiscard]] ccf::js::NamespaceRestriction
+    get_effective_namespace_restriction() const;
 
     using PreExecutionHook = std::function<void(ccf::js::core::Context&)>;
 
@@ -76,7 +77,8 @@ namespace ccf::js
      * Registry-managed tables, resolved at request time. Subclasses should
      * extend this set for tables outside kv_prefix + ".".
      */
-    virtual std::set<std::string> get_registry_managed_tables() const;
+    [[nodiscard]] virtual std::set<std::string> get_registry_managed_tables()
+      const;
 
   public:
     BaseDynamicJSEndpointRegistry(
@@ -180,7 +182,8 @@ namespace ccf::js
     std::string audit_input_map;
     std::string audit_info_map;
 
-    std::set<std::string> get_registry_managed_tables() const override
+    [[nodiscard]] std::set<std::string> get_registry_managed_tables()
+      const override
     {
       auto tables =
         BaseDynamicJSEndpointRegistry::get_registry_managed_tables();

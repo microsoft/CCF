@@ -302,7 +302,7 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           # SNP unit/e2e tests, code_update, and the explicitly run ledger bench.
-          ninja logging programmability snp_ioctl_test snp_attestation_test ledger_bench
+          ninja js_generic logging programmability snp_ioctl_test snp_attestation_test ledger_bench
         shell: bash
 
       - name: "Tests"
@@ -389,7 +389,7 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
           # SNP unit/e2e tests, code_update, and the explicitly run ledger bench.
-          ninja logging programmability snp_ioctl_test snp_attestation_test ledger_bench
+          ninja js_generic logging programmability snp_ioctl_test snp_attestation_test ledger_bench
         shell: bash
 
       - name: "Tests"
