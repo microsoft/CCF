@@ -218,33 +218,6 @@ if(SAN)
   install(FILES ${CCF_DIR}/src/san_common.suppressions DESTINATION bin)
 endif()
 
-# Declare the enclave library first so Ninja can start its long-running
-# compile/tidy tasks early, rather than leaving them at the end of the build.
-# CMake resolves the library dependencies declared below during generation.
-set(
-  CCF_IMPL_SOURCE
-  ${CCF_DIR}/src/enclave/main.cpp
-  ${CCF_DIR}/src/node/quote.cpp
-  ${CCF_DIR}/src/node/uvm_endorsements.cpp
-  ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
-)
-
-add_ccf_static_library(
-  ccf
-  SRCS ${CCF_IMPL_SOURCE}
-  LINK_LIBS
-    http_parser
-    ccf_js
-    ccf_endpoints
-    ccfcrypto
-    ccf_kv
-    ccf_tasks
-    nghttp2
-    ${CMAKE_THREAD_LIBS_INIT}
-    curl
-    ccf_pal
-)
-
 set(
   HTTP_PARSER_SOURCES
   ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
@@ -491,6 +464,31 @@ option(CCF_RAFT_TRACING "Enable tracing of Raft consensus" OFF)
 if(CCF_RAFT_TRACING)
   add_compile_definitions(CCF_RAFT_TRACING)
 endif()
+
+# Build common library for CCF enclaves
+set(
+  CCF_IMPL_SOURCE
+  ${CCF_DIR}/src/enclave/main.cpp
+  ${CCF_DIR}/src/node/quote.cpp
+  ${CCF_DIR}/src/node/uvm_endorsements.cpp
+  ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
+)
+
+add_ccf_static_library(
+  ccf
+  SRCS ${CCF_IMPL_SOURCE}
+  LINK_LIBS
+    http_parser
+    ccf_js
+    ccf_endpoints
+    ccfcrypto
+    ccf_kv
+    ccf_tasks
+    nghttp2
+    ${CMAKE_THREAD_LIBS_INIT}
+    curl
+    ccf_pal
+)
 
 target_include_directories(
   ccf
