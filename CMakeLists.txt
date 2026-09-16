@@ -78,6 +78,7 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   )
 endif()
 
+include(${CCF_DIR}/cmake/stacktrace.cmake)
 include(${CCF_DIR}/cmake/cpack_settings.cmake)
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
@@ -344,19 +345,20 @@ add_ccf_static_library(
   LINK_LIBS ccf_threading
 )
 
-find_library(BACKTRACE_LIBRARY backtrace)
-if(NOT BACKTRACE_LIBRARY)
-  message(
-    FATAL_ERROR
-    "libbacktrace (library 'backtrace') is required to build the CCF task "
-    "system (target ccf_tasks). Please install libbacktrace and retry "
-    "configuration."
+if(CCF_STACKTRACE_BACKEND_RESOLVED STREQUAL "STD")
+  target_compile_definitions(ccf_tasks PRIVATE CCF_STACKTRACE_USE_STD=1)
+  target_link_libraries(ccf_tasks PRIVATE ${CCF_STACKTRACE_SUPPORT_LIBRARY})
+else()
+  target_include_directories(ccf_tasks PRIVATE ${BACKTRACE_INCLUDE_DIR})
+  target_link_libraries(
+    ccf_tasks
+    PRIVATE
+      $<BUILD_INTERFACE:${BACKTRACE_LIBRARY}>
+      $<INSTALL_INTERFACE:backtrace>
   )
 endif()
-
-# libbacktrace reads DWARF debug info directly, providing file/line/function
-# resolution in stack traces.
-target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS} ${BACKTRACE_LIBRARY})
+# Static-library private dependencies remain transitive link requirements.
+target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
 
 # Common test args for Python scripts starting up CCF networks
 set(
@@ -1005,6 +1007,15 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/test_jwt_auth.cpp
     )
     target_link_libraries(jwt_auth_test PRIVATE ccf_endpoints)
+
+    add_unit_test(
+      jwt_key_auto_refresh_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/jwt_key_auto_refresh.cpp
+    )
+    target_link_libraries(
+      jwt_key_auto_refresh_test
+      PRIVATE http_parser ccf_endpoints ccf_kv ccf_tasks curl uv
+    )
 
     add_unit_test(
       tx_status_test

@@ -7,6 +7,8 @@
 #include "enclave/rpc_map.h"
 #include "http/http_builder.h"
 
+#include <functional>
+
 namespace ccf
 {
   class NodeClient
@@ -14,19 +16,16 @@ namespace ccf
   protected:
     std::shared_ptr<ccf::RPCMap> rpc_map;
     ccf::crypto::ECKeyPairPtr node_sign_kp;
-    const ccf::crypto::Pem self_signed_node_cert;
-    const std::optional<ccf::crypto::Pem> endorsed_node_cert;
+    const std::function<ccf::crypto::Pem()> get_node_certificate;
 
   public:
     NodeClient(
       std::shared_ptr<ccf::RPCMap> rpc_map_,
       ccf::crypto::ECKeyPairPtr node_sign_kp_,
-      ccf::crypto::Pem self_signed_node_cert_,
-      std::optional<ccf::crypto::Pem> endorsed_node_cert_) :
+      std::function<ccf::crypto::Pem()> get_node_certificate_) :
       rpc_map(std::move(rpc_map_)),
       node_sign_kp(std::move(node_sign_kp_)),
-      self_signed_node_cert(std::move(self_signed_node_cert_)),
-      endorsed_node_cert(std::move(endorsed_node_cert_))
+      get_node_certificate(std::move(get_node_certificate_))
     {}
 
     virtual ~NodeClient() = default;

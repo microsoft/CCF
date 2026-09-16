@@ -3,15 +3,22 @@
 
 #include "tasks/worker.h"
 
-#include <backtrace.h>
 #include <cstdlib>
 #include <cxxabi.h>
 #include <dlfcn.h>
-#include <execinfo.h>
 #include <limits>
 #include <memory>
+#include <new>
 #include <sstream>
+#include <type_traits>
 #include <utility>
+
+#ifdef CCF_STACKTRACE_USE_STD
+#  include <stacktrace>
+#else
+#  include <backtrace.h>
+#  include <execinfo.h>
+#endif
 
 namespace ccf::tasks
 {
@@ -20,14 +27,69 @@ namespace ccf::tasks
 
   struct ThrowTrace
   {
+#ifdef CCF_STACKTRACE_USE_STD
+    std::stacktrace frames;
+#else
     void* frames[throw_trace_max_frames] = {};
     size_t num_frames = 0;
+#endif
   };
 
   namespace
   {
+    // Initialise the guard before touching the trace's non-trivial TLS object.
+    // An allocator may throw while current() is capturing the original throw.
+    thread_local bool suppress_throw_capture = false;
     thread_local ThrowTrace current_throw_trace = {};
 
+    struct SuppressThrowCapture
+    {
+      bool previous = std::exchange(suppress_throw_capture, true);
+
+      ~SuppressThrowCapture()
+      {
+        suppress_throw_capture = previous;
+      }
+    };
+
+#ifdef CCF_STACKTRACE_USE_STD
+    static_assert(
+      noexcept(std::stacktrace::current(0, throw_trace_max_frames)));
+    static_assert(std::is_nothrow_move_assignable_v<ThrowTrace>);
+
+    std::string format_stacktrace(const std::stacktrace& frames)
+    {
+      std::ostringstream oss;
+      size_t i = 0;
+      for (const auto& entry : frames)
+      {
+        oss << "  #" << i++ << ": ";
+        try
+        {
+          const auto description = entry.description();
+          const auto filename = entry.source_file();
+          const auto line = entry.source_line();
+          if (!description.empty() || !filename.empty())
+          {
+            oss << (description.empty() ? "<unknown>" : description);
+            if (!filename.empty())
+            {
+              oss << " at " << filename << ":" << line;
+            }
+            oss << "\n";
+            continue;
+          }
+        }
+        catch (const std::bad_alloc&)
+        {
+          // Symbolization is best-effort; retain the captured native handle.
+        }
+        oss << "<unavailable> (native handle: " << std::hex
+            << entry.native_handle() << std::dec << ")\n";
+      }
+      return oss.str();
+    }
+#else
     struct FreeDeleter
     {
       void operator()(char* p) const
@@ -175,24 +237,30 @@ namespace ccf::tasks
       }
       return oss.str();
     }
+#endif
   }
 
   void dump_stacktrace(const std::string& msg)
   {
+    // Consume before logging, so a symbolization/logging failure cannot leave
+    // a stale trace or replace it with an exception from the diagnostics.
+    const SuppressThrowCapture guard;
+    auto throw_trace = std::exchange(current_throw_trace, {});
     LOG_FATAL_FMT("{}", msg);
 
-    auto& throw_trace = current_throw_trace;
+#ifdef CCF_STACKTRACE_USE_STD
+    if (!throw_trace.frames.empty())
+    {
+      LOG_FATAL_FMT("Stack trace:\n{}", format_stacktrace(throw_trace.frames));
+    }
+#else
     if (throw_trace.num_frames > 0)
     {
       LOG_FATAL_FMT(
         "Stack trace:\n{}",
         format_stacktrace(throw_trace.frames, throw_trace.num_frames));
-
-      // Reset so that a subsequent dump does not re-use a stale trace
-      // (e.g. if an earlier throw was caught internally and a later
-      // throw; / re-throw escapes without calling __cxa_throw).
-      throw_trace.num_frames = 0;
     }
+#endif
     else
     {
       LOG_FATAL_FMT("No throw-point stack trace available");
@@ -209,83 +277,89 @@ extern "C"
   void __cxa_throw(
     void* thrown_exception, std::type_info* tinfo, void (*dest)(void*))
   {
-    // Capture the backtrace at the throw site using libbacktrace's own
-    // unwinder. glibc backtrace() can lose frames whose return address
-    // falls exactly at the end of a .eh_frame FDE range; libbacktrace's
-    // DWARF unwinder handles this correctly.
-    auto& trace = ccf::tasks::current_throw_trace;
-    trace.num_frames = 0;
-    auto* bt_state = ccf::tasks::get_backtrace_state();
-    // Initialise to -1 so that bt_ret < 0 means "backtrace_simple() was not
-    // called" (bt_state was nullptr). backtrace_simple() itself only returns
-    // 0 (all frames visited) or a positive value (callback stopped early).
-    int bt_ret = -1;
-    if (bt_state != nullptr)
+    // Resolve before capturing: a reentrant throw must be able to forward
+    // without entering a partially initialised function-local static.
+    static auto real_cxa_throw =
+      reinterpret_cast<CxaThrowFn>(dlsym(RTLD_NEXT, "__cxa_throw"));
+    if (real_cxa_throw == nullptr)
     {
-      bt_ret = backtrace_simple(
-        bt_state,
-        0, // skip = 0, capture from here
-        [](void* data, uintptr_t pc) -> int {
-          auto* trace = static_cast<ccf::tasks::ThrowTrace*>(data);
-          if (ccf::tasks::is_sentinel_pc(pc))
-          {
-            return 1;
-          }
-
-          if (trace->num_frames == ccf::tasks::throw_trace_max_frames)
-          {
-            return 1;
-          }
-
-          // NOLINTNEXTLINE(performance-no-int-to-ptr)
-          trace->frames[trace->num_frames++] = reinterpret_cast<void*>(pc);
-          return 0;
-        },
-        ccf::tasks::error_callback,
-        &trace);
+      std::abort();
     }
 
-    if (trace.num_frames == 0 || bt_ret < 0)
+    if (!ccf::tasks::suppress_throw_capture)
     {
-      // libbacktrace was unavailable (bt_ret < 0) or captured no frames;
-      // fall back to the glibc backtrace() so the throw-point trace is not
-      // lost.
-      auto num_frames =
-        backtrace(trace.frames, ccf::tasks::throw_trace_max_frames);
-      if (num_frames > 0)
+      const ccf::tasks::SuppressThrowCapture guard;
+      auto& trace = ccf::tasks::current_throw_trace;
+#ifdef CCF_STACKTRACE_USE_STD
+      // current() is noexcept and returns an empty trace on allocation failure.
+      // Its allocator can still throw internally; the guard lets that exception
+      // reach the library's handler without overwriting this throw's trace.
+      trace.frames =
+        std::stacktrace::current(0, ccf::tasks::throw_trace_max_frames);
+#else
+      // Capture the backtrace at the throw site using libbacktrace's own
+      // unwinder. glibc backtrace() can lose frames whose return address
+      // falls exactly at the end of a .eh_frame FDE range; libbacktrace's
+      // DWARF unwinder handles this correctly.
+      trace.num_frames = 0;
+      auto* bt_state = ccf::tasks::get_backtrace_state();
+      // Initialise to -1 so that bt_ret < 0 means "backtrace_simple() was not
+      // called" (bt_state was nullptr). backtrace_simple() itself only returns
+      // 0 (all frames visited) or a positive value (callback stopped early).
+      int bt_ret = -1;
+      if (bt_state != nullptr)
       {
-        trace.num_frames = static_cast<size_t>(num_frames);
-        while (trace.num_frames > 0)
-        {
-          const auto pc =
-            reinterpret_cast<uintptr_t>(trace.frames[trace.num_frames - 1]);
-          if (!ccf::tasks::is_sentinel_pc(pc))
-          {
-            break;
-          }
+        bt_ret = backtrace_simple(
+          bt_state,
+          0, // skip = 0, capture from here
+          [](void* data, uintptr_t pc) -> int {
+            auto* trace = static_cast<ccf::tasks::ThrowTrace*>(data);
+            if (ccf::tasks::is_sentinel_pc(pc))
+            {
+              return 1;
+            }
 
-          --trace.num_frames;
+            if (trace->num_frames == ccf::tasks::throw_trace_max_frames)
+            {
+              return 1;
+            }
+
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
+            trace->frames[trace->num_frames++] = reinterpret_cast<void*>(pc);
+            return 0;
+          },
+          ccf::tasks::error_callback,
+          &trace);
+      }
+
+      if (trace.num_frames == 0 || bt_ret < 0)
+      {
+        // libbacktrace was unavailable (bt_ret < 0) or captured no frames;
+        // fall back to the glibc backtrace() so the throw-point trace is not
+        // lost.
+        auto num_frames =
+          backtrace(trace.frames, ccf::tasks::throw_trace_max_frames);
+        if (num_frames > 0)
+        {
+          trace.num_frames = static_cast<size_t>(num_frames);
+          while (trace.num_frames > 0)
+          {
+            const auto pc =
+              reinterpret_cast<uintptr_t>(trace.frames[trace.num_frames - 1]);
+            if (!ccf::tasks::is_sentinel_pc(pc))
+            {
+              break;
+            }
+
+            --trace.num_frames;
+          }
         }
       }
+#endif
     }
 
     // Forward to the real __cxa_throw
-    static auto real_cxa_throw =
-      reinterpret_cast<CxaThrowFn>(dlsym(RTLD_NEXT, "__cxa_throw"));
-    if (real_cxa_throw != nullptr)
-    {
-      real_cxa_throw(thrown_exception, tinfo, dest);
-      // real_cxa_throw is [[noreturn]], so we never reach here
-    }
-    else
-    {
-      // If dlsym failed, we cannot safely proceed. Abort to prevent undefined
-      // behavior.
-      std::abort();
-    }
-    // Both real_cxa_throw and std::abort() are [[noreturn]], but the compiler
-    // may not recognize that for function pointers. This satisfies the compiler
-    // that we never return from this function.
+    real_cxa_throw(thrown_exception, tinfo, dest);
     std::unreachable();
   }
 }
