@@ -6,13 +6,26 @@ function(add_ccf_app name)
   cmake_parse_arguments(
     PARSE_ARGV 1
     PARSED_ARGS
-    ""
+    "OBJECT_LIBRARY"
     ""
     "SRCS;INCLUDE_DIRS;SYSTEM_INCLUDE_DIRS;LINK_LIBS;DEPS;INSTALL_LIBS"
   )
 
-  # Build app executable
-  add_executable(${name} ${PARSED_ARGS_SRCS})
+  if(PARSED_ARGS_OBJECT_LIBRARY)
+    add_library(${name} OBJECT ${PARSED_ARGS_SRCS})
+    # Shared app objects need the same PIE compilation mode as the executables,
+    # rather than the PIC mode CMake normally uses for object libraries.
+    set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE OFF)
+    target_compile_options(
+      ${name}
+      PRIVATE
+        "$<$<COMPILE_LANGUAGE:C>:${CMAKE_C_COMPILE_OPTIONS_PIE}>"
+        "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CXX_COMPILE_OPTIONS_PIE}>"
+    )
+  else()
+    add_executable(${name} ${PARSED_ARGS_SRCS})
+    set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+  endif()
 
   target_include_directories(${name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS})
   target_include_directories(
@@ -30,8 +43,6 @@ function(add_ccf_app name)
   if(NOT (SAN OR TSAN))
     target_link_options(${name} PRIVATE LINKER:--no-undefined)
   endif()
-
-  set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_san(${name})
   add_hardening(${name})

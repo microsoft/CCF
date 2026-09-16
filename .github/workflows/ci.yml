@@ -67,6 +67,8 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON ..
           ninja
+          mkdir -p ci-logs
+          cp .ninja_log ci-logs/ninja.log
         shell: bash
 
       - name: "Run tests for Python package"

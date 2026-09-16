@@ -9,7 +9,7 @@ function(add_ccf_app name)
   cmake_parse_arguments(
     PARSE_ARGV 1
     PARSED_ARGS
-    ""
+    "OBJECT_LIBRARY"
     ""
     "SRCS;INCLUDE_DIRS;SYSTEM_INCLUDE_DIRS;LINK_LIBS;DEPS;INSTALL_LIBS"
   )
