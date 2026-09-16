@@ -761,6 +761,9 @@ def run(args):
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
+    # The key-loading spy must finish before other JWT tests start threads.
+    if not cr.args.show_only:
+        jwt_test.test_jwt_signing_key_reuse()
     jwt_forwarding_timeout_ms = 10000
 
     cr.add(

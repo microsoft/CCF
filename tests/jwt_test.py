@@ -1117,7 +1117,6 @@ def with_timeout(fn, timeout):
 
 
 def run_auto(args):
-    test_jwt_signing_key_reuse()
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
