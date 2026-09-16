@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import base64
+import functools
 import json
 import ssl
 import tempfile
@@ -12,6 +13,7 @@ from enum import Enum
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+import jwt
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509 import load_pem_x509_certificate
@@ -192,6 +194,11 @@ class JwtIssuer:
         stripped_host = self.name[len("https://") :] if self.auto_refresh else None
         self._auth_type = auth_type
         self._alg = alg
+        # Keep one validated signing key per issuer, keyed by the current PEM
+        # and algorithm so direct key replacement also invalidates the cache.
+        self._prepare_jwt_key = functools.lru_cache(maxsize=1)(
+            lambda pem, algorithm: jwt.get_algorithm_by_name(algorithm).prepare_key(pem)
+        )
         # The effective host this issuer's TLS cert is valid for. The OpenID
         # provider server (see start_openid_server) binds and advertises this
         # same host so that the address CCF's curl client connects to matches
@@ -224,6 +231,7 @@ class JwtIssuer:
         (self.key_priv_pem, self.key_pub_pem), self.cert_pem = (
             self._generate_auth_data()
         )
+        self._prepare_jwt_key.cache_clear()
         if self.server and send_update:
             self.server.set_jwks(self.create_jwks(kid_))
 
@@ -322,7 +330,8 @@ class JwtIssuer:
         if "iss" not in claims:
             claims["iss"] = self.name
 
-        return infra.crypto.create_jwt(claims, self.key_priv_pem, kid_, self._alg.value)
+        key = self._prepare_jwt_key(self.key_priv_pem, self._alg.value)
+        return infra.crypto.create_jwt(claims, key, kid_, self._alg.value)
 
     def wait_for_refresh(self, network, args, kid=None):
         timeout = self.refresh_interval * 3

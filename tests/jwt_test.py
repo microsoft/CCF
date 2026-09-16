@@ -6,6 +6,7 @@ import socket
 import tempfile
 import time
 from contextlib import contextmanager
+from unittest.mock import patch
 
 import ca_certs
 import infra.clients
@@ -17,6 +18,7 @@ import infra.network
 import infra.path
 import infra.proc
 import infra.proposal
+import jwt
 import suite.test_requirements as reqs
 from ccf.tx_id import TxID
 from infra.jwt_issuer import (
@@ -25,6 +27,51 @@ from infra.jwt_issuer import (
     get_jwt_keys,
 )
 from loguru import logger as LOG
+
+
+def test_jwt_signing_key_reuse():
+    for alg in infra.jwt_issuer.JwtAlg:
+        issuer = infra.jwt_issuer.JwtIssuer(alg=alg)
+        replacement = infra.jwt_issuer.JwtIssuer(alg=alg)
+        with patch(
+            "jwt.algorithms.load_pem_private_key",
+            wraps=jwt.algorithms.load_pem_private_key,
+        ) as load_key:
+            for change_key in ("initial", "refresh", "replace"):
+                if change_key == "refresh":
+                    issuer.refresh_keys()
+                elif change_key == "replace":
+                    issuer.cert_pem, issuer.key_priv_pem = (
+                        replacement.cert_pem,
+                        replacement.key_priv_pem,
+                    )
+                public_key = issuer.public_key
+                loads_before = load_key.call_count
+                for _ in range(2):
+                    token = issuer.issue_jwt(kid="test-kid", claims={"sub": "test"})
+                    claims = jwt.decode(token, public_key, algorithms=[alg.value])
+                    assert claims["sub"] == "test"
+                    assert claims["iss"] == issuer.name
+                    assert claims["nbf"] < claims["exp"]
+                    assert jwt.get_unverified_header(token)["kid"] == "test-kid"
+                assert load_key.call_count == loads_before + 1
+
+            issuer.key_priv_pem = "not a private key"
+            for _ in range(2):
+                try:
+                    issuer.issue_jwt()
+                except (ValueError, jwt.InvalidKeyError):
+                    pass
+                else:
+                    raise AssertionError("Invalid signing key was accepted")
+            issuer.key_priv_pem = replacement.key_priv_pem
+            jwt.decode(
+                issuer.issue_jwt(), replacement.public_key, algorithms=[alg.value]
+            )
+            loads_before = load_key.call_count
+            replacement.issue_jwt()
+            replacement.issue_jwt()
+            assert load_key.call_count == loads_before + 1
 
 
 def set_issuer_with_keys(network, primary, issuer, kids):
@@ -1070,6 +1117,7 @@ def with_timeout(fn, timeout):
 
 
 def run_auto(args):
+    test_jwt_signing_key_reuse()
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
