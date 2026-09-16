@@ -41,10 +41,19 @@ END_OF_LIFE_MAJOR_VERSIONS = [1, 2, 3, 4, 5]
 
 
 def get_version_from_install(install_dir):
-    with open(
-        os.path.join(install_dir, INSTALL_VERSION_FILE_PATH), "r", encoding="utf-8"
-    ) as version_file:
-        return f"{TAG_RELEASE_PREFIX}{version_file.read()}"
+    long_version_file_path = os.path.join(install_dir, "share/VERSION_LONG")
+    version_file_path = (
+        long_version_file_path
+        if os.path.isfile(long_version_file_path)
+        else os.path.join(install_dir, INSTALL_VERSION_FILE_PATH)
+    )
+    with open(version_file_path, encoding="utf-8") as version_file:
+        version = version_file.read().strip()
+        return (
+            version
+            if version.startswith(TAG_RELEASE_PREFIX)
+            else f"{TAG_RELEASE_PREFIX}{version}"
+        )
 
 
 def is_release_branch(branch_name):
