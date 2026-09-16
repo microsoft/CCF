@@ -12,12 +12,35 @@ import subprocess
 import sys
 from pathlib import Path
 
-from capture import capture
 from reduction import reduce_trace
 from trace_io import TraceError, json_object, read_trace
 
 PACKAGE = Path(__file__).resolve().parents[1]
 REPOSITORY = PACKAGE.parent.parent
+
+
+def capture(driver: Path, scenario: Path, output: Path, timeout: float = 120) -> None:
+    """Run one scenario, retaining raw stdout and stderr even on failure."""
+    stderr_path = output.with_suffix(".stderr")
+    with output.open("wb") as stdout, stderr_path.open("wb") as stderr:
+        try:
+            process = subprocess.run(
+                [str(driver.resolve()), str(scenario.resolve())],
+                stdin=subprocess.DEVNULL,
+                stdout=stdout,
+                stderr=stderr,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise TraceError(f"{scenario}: raft_driver exceeded {timeout}s") from error
+    if process.returncode:
+        raise TraceError(
+            f"{scenario}: raft_driver exited {process.returncode}; "
+            f"see {output} and {stderr_path}"
+        )
+    if stderr_path.stat().st_size:
+        raise TraceError(f"{scenario}: raft_driver wrote to stderr; see {stderr_path}")
 
 
 def inventory(directory: Path) -> list[Path]:

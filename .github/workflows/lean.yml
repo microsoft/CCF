@@ -48,7 +48,7 @@ jobs:
 
       - name: Check deterministic reduction
         working-directory: lean/ccf-raft
-        run: python3 -m unittest discover -s tests -v
+        run: python3 -m unittest discover -s replay/tests -v
 
   disaster-recovery:
     name: Disaster recovery model and proofs

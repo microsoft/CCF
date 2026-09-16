@@ -10,7 +10,7 @@ import sys
 import unittest
 from pathlib import Path
 
-PACKAGE = Path(__file__).resolve().parents[1]
+PACKAGE = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE / "replay"))
 
 from reduction import reduce_trace
@@ -40,6 +40,34 @@ class CanonicalReplayTests(unittest.TestCase):
 
     def bootstrap(self):
         return reduce_trace(read_trace(FIXTURE))
+
+    def test_vote_response_sends_are_observed_at_receive_completion(self):
+        original = read_trace(FIXTURE.with_name("vote_responses.ndjson"))
+        positive = self.replay(reduce_trace(original))
+        self.assertEqual(positive.returncode, 0, positive.stderr)
+        for family in ("raft_request_vote_response", "raft_request_pre_vote_response"):
+            for field in ("term", "vote_granted", "last_idx"):
+                with self.subTest(family=family, field=field):
+                    records = copy.deepcopy(original)
+                    response = next(
+                        r.value["msg"]
+                        for r in records
+                        if r.value.get("msg", {}).get("function")
+                        == "send_request_vote_response"
+                        and r.value["msg"]["packet"]["msg"] == family
+                    )
+                    if field == "last_idx":
+                        response["state"][field] += 1
+                    elif field == "vote_granted":
+                        response["packet"][field] = not response["packet"][field]
+                    else:
+                        response["packet"][field] += 1
+                    negative = self.replay(reduce_trace(records))
+                    self.assertNotEqual(negative.returncode, 0)
+                    self.assertIn(
+                        "receive-post" if field == "last_idx" else "response-post",
+                        negative.stderr,
+                    )
 
     def test_source_bootstrap_is_accepted(self):
         document = self.bootstrap()

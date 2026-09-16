@@ -36,6 +36,7 @@ MESSAGE_FIELDS = {
     "send_append_entries": {"to_node_id", "packet", "sent_idx", "match_idx"},
     "send_append_entries_response": {"to_node_id", "packet"},
     "send_request_vote": {"to_node_id", "packet"},
+    "send_request_vote_response": {"to_node_id", "packet"},
     "step_down_and_nominate_successor": {"configurations", "to_node_id"},
 }
 COMMANDS = {
@@ -903,6 +904,18 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
                     callbacks.append(callback)
                     if callback.function == "send_append_entries_response":
                         break
+            elif event.function == "recv_request_vote" and peek() == [
+                "send_request_vote_response"
+            ]:
+                (response,) = take()
+                require(
+                    same_context(event, response)
+                    and response.message["to_node_id"] == sender
+                    and packet(response)["msg"]
+                    == event.message["packet"]["msg"] + "_response",
+                    f"{response.location}: vote response does not match request",
+                )
+                callbacks = [response]
             elif (
                 event.function == "recv_propose_request_vote"
                 and peek() == ["become_candidate"]
@@ -920,10 +933,11 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
             for position, callback in enumerate(callbacks):
                 if callback.function in {
                     "send_append_entries_response",
+                    "send_request_vote_response",
                     "become_candidate",
                 }:
                     out.emit_observations(callback, "receive-post")
-                    if callback.function == "send_append_entries_response":
+                    if callback.function != "become_candidate":
                         out.message(
                             callback, "response-post", receiving=False, selection="last"
                         )

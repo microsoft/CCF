@@ -11,11 +11,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "replay"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from capture import capture
 from reduction import Instructions, associate, packet, reduce_trace, state_facts
-from run_scenarios import inventory, run_suite
+from run_scenarios import capture, inventory, run_suite
 from trace_io import TraceError, parse_ndjson, read_trace
 
 FIXTURE = Path(__file__).parent / "fixtures/bootstrap.ndjson"
@@ -69,6 +68,78 @@ def later_actions(document):
 
 
 class ReductionTests(unittest.TestCase):
+    def test_vote_response_sends_observe_receive_without_an_extra_action(self):
+        records = read_trace(FIXTURE.with_name("vote_responses.ndjson"))
+        document = reduce_trace(records)
+        events, _ = associate(records)
+        responses = [e for e in events if e.function == "send_request_vote_response"]
+        self.assertEqual(
+            {
+                (e.message["packet"]["msg"], e.message["packet"]["vote_granted"])
+                for e in responses
+            },
+            {
+                ("raft_request_vote_response", True),
+                ("raft_request_pre_vote_response", True),
+                ("raft_request_pre_vote_response", False),
+            },
+        )
+        without_responses = reduce_trace(
+            [
+                r
+                for r in records
+                if r.value.get("msg", {}).get("function")
+                != "send_request_vote_response"
+            ]
+        )
+        self.assertEqual(
+            [
+                {k: v for k, v in i.items() if k != "origin"}
+                for i in document["instructions"]
+                if i["kind"] == "action"
+            ],
+            [
+                {k: v for k, v in i.items() if k != "origin"}
+                for i in without_responses["instructions"]
+                if i["kind"] == "action"
+            ],
+        )
+        for response in responses:
+            observations = [
+                i
+                for i in document["instructions"]
+                if i["origin"][0]["line"] == response.record.line
+            ]
+            self.assertEqual(
+                [i["observation"] for i in observations], ["state", "message"]
+            )
+            self.assertEqual(observations[1]["packet"], packet(response))
+            self.assertEqual(observations[1]["selection"], "last")
+            self.assertNotIn("omissionReasons", observations[0]["origin"][0])
+
+    def test_vote_response_callback_requires_matching_request(self):
+        original = read_trace(FIXTURE.with_name("vote_responses.ndjson"))
+        for field, value in (
+            ("to_node_id", "unexpected"),
+            ("msg", "raft_request_vote_response"),
+        ):
+            with self.subTest(field=field):
+                records = copy.deepcopy(original)
+                response = next(
+                    r.value["msg"]
+                    for r in records
+                    if r.value.get("msg", {}).get("function")
+                    == "send_request_vote_response"
+                )
+                if field == "msg":
+                    response["packet"][field] = value
+                else:
+                    response[field] = value
+                with self.assertRaisesRegex(
+                    TraceError, "vote response does not match request"
+                ):
+                    reduce_trace(records)
+
     def test_explicit_nomination_after_commit_is_not_a_terminal_commit(self):
         commit = {
             "function": "commit",
@@ -1136,10 +1207,52 @@ class InputTests(unittest.TestCase):
 
     def test_empty_capture_is_failure(self):
         with tempfile.TemporaryDirectory() as directory:
-            script = Path(directory) / "empty.py"
+            root = Path(directory)
+            scenarios = root / "scenarios"
+            scenarios.mkdir()
+            script = scenarios / "empty.py"
             script.write_text("pass\n")
-            with self.assertRaisesRegex(TraceError, "no Raft events"):
-                capture(Path(sys.executable), script, Path(directory) / "empty.stdout")
+            summary = run_suite(
+                Path(sys.executable), root / "replayer", scenarios, root / "out"
+            )
+            self.assertEqual(summary["failed"], 1)
+            self.assertEqual(summary["results"][0]["stage"], "reduction")
+            self.assertIn("no Raft events", summary["results"][0]["error"])
+
+    def test_capture_retains_output_on_nonzero_exit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / "driver.py"
+            script.write_text(
+                "import sys\nprint('partial trace')\n"
+                "print('driver error', file=sys.stderr)\nsys.exit(3)\n"
+            )
+            output = root / "capture.stdout"
+            with self.assertRaisesRegex(TraceError, "exited 3"):
+                capture(Path(sys.executable), script, output)
+            self.assertEqual(output.read_text(), "partial trace\n")
+            self.assertEqual(
+                output.with_suffix(".stderr").read_text(), "driver error\n"
+            )
+
+    def test_capture_timeout_retains_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "capture.stdout"
+
+            def timeout(*args, **kwargs):
+                kwargs["stdout"].write(b"partial trace\n")
+                kwargs["stderr"].write(b"partial error\n")
+                raise subprocess.TimeoutExpired(args[0], kwargs["timeout"])
+
+            with patch(
+                "run_scenarios.subprocess.run", side_effect=timeout
+            ), self.assertRaisesRegex(TraceError, "exceeded 5s"):
+                capture(root / "driver", root / "scenario", output, timeout=5)
+            self.assertEqual(output.read_bytes(), b"partial trace\n")
+            self.assertEqual(
+                output.with_suffix(".stderr").read_bytes(), b"partial error\n"
+            )
 
     def test_driver_stderr_is_an_issue_even_with_zero_exit(self):
         with tempfile.TemporaryDirectory() as directory:
