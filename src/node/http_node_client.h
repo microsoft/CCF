@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "enclave/http_rpc_context.h"
 #include "node/node_client.h"
 
 #include <chrono>
@@ -14,22 +15,18 @@ namespace ccf
     HTTPNodeClient(
       std::shared_ptr<ccf::RPCMap> rpc_map,
       ccf::crypto::ECKeyPairPtr node_sign_kp,
-      ccf::crypto::Pem self_signed_node_cert_,
-      std::optional<ccf::crypto::Pem> endorsed_node_cert_) :
+      std::function<ccf::crypto::Pem()> get_node_certificate_) :
       NodeClient(
         std::move(rpc_map),
         std::move(node_sign_kp),
-        std::move(self_signed_node_cert_),
-        std::move(endorsed_node_cert_))
+        std::move(get_node_certificate_))
     {}
 
     ~HTTPNodeClient() override = default;
 
     bool make_request(::http::Request& request) override
     {
-      const auto& node_cert = endorsed_node_cert.has_value() ?
-        endorsed_node_cert.value() :
-        self_signed_node_cert;
+      const auto node_cert = get_node_certificate();
 
       std::vector<uint8_t> packed = request.build_request();
 

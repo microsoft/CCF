@@ -1,0 +1,20 @@
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -1553,6 +1553,8 @@
+         JSMallocBlockHeader *b = get_zero_size_block(s);
+         return b->user_data;
+     } else {
++        if (unlikely(s->malloc_state.malloc_size > s->malloc_state.malloc_limit))
++            return NULL;
+         total_size = ((size + JS_MALLOC_ALIGN - 1) & ~(JS_MALLOC_ALIGN - 1)) +
+             sizeof(JSMallocBlockHeader);
+         if (!JS_MALLOC_LARGE_BLOCKS_ONLY &&
+@@ -1674,6 +1676,8 @@
+         void *new_ptr;
+         JSMallocBlockHeader *new_b;
+ 
++        if (unlikely(s->malloc_state.malloc_size > s->malloc_state.malloc_limit))
++            return NULL;
+         total_size = ((size + JS_MALLOC_ALIGN - 1) & ~(JS_MALLOC_ALIGN - 1)) +
+             sizeof(JSMallocBlockHeader);
+         if (total_size <= block_size)

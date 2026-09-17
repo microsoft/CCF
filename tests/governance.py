@@ -37,8 +37,16 @@ def test_create_endpoint(network, args):
     primary, _ = network.find_nodes()
     with primary.client("user0") as c:
         r = c.post("/node/create", validate_openapi=False)
-        assert r.status_code == http.HTTPStatus.FORBIDDEN.value
-        assert r.body.json()["error"]["message"] == "Node is not in initial state."
+        # Callers other than the node itself are rejected by the self_cert
+        # authentication policy before the handler runs
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value
+        error = r.body.json()["error"]
+        assert error["code"] == "InvalidAuthenticationInfo"
+        assert error["details"][0]["auth_policy"] == "self_cert"
+        assert (
+            error["details"][0]["message"]
+            == "Only the node itself can call this endpoint."
+        )
     return network
 
 
@@ -703,6 +711,16 @@ def single_node(args):
                     assert apply_error in e.response.body.text()
                 else:
                     assert False, "Expected to throw"
+
+            # Stalls the node for the default JS execution time limit, which
+            # would trigger an election in a multi-node network
+            test_desc("Execution time limit on evaluation of proposed constitution")
+            governance_js.test_set_constitution_evaluation_timeout(network, args)
+
+            # Same reasoning: module-scope loop in a ballot stalls the primary
+            # for at least the default execution time limit.
+            test_desc("Module-scope runtime limits on ballots")
+            governance_js.test_ballot_module_scope_restrictions(network, args)
 
             LOG.info("Stopping network to read node logs")
 

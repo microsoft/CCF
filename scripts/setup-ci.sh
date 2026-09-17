@@ -46,33 +46,27 @@ retry() {
     done
 }
 
-install_source_control() {
-    # Source control
-    tdnf "${TDNF_OPTIONS[@]}" install  \
-        git  \
-        ca-certificates
-}
-
-install_build_dependencies() {
-    # To build CCF
-    tdnf "${TDNF_OPTIONS[@]}" install  \
-        build-essential  \
-        clang  \
-        cmake  \
-        ninja-build  \
-        which  \
-        openssl-devel  \
-        libuv-devel  \
-        nghttp2-devel  \
-        curl-devel  \
-        doxygen  \
-        clang-tools-extra-devel  \
-        rust  \
-        libbacktrace-static
-}
-
-install_test_dependencies() {
+install_dependencies() {
+    # Resolve and install all RPM dependencies in one transaction.
     local packages=(
+        # Source control
+        git
+        ca-certificates
+        # To build CCF
+        build-essential
+        clang
+        cmake
+        ninja-build
+        patch
+        which
+        openssl-devel
+        libuv-devel
+        nghttp2-devel
+        curl-devel
+        doxygen
+        clang-tools-extra-devel
+        rust
+        libbacktrace-static
         # To run standard tests
         lldb
         expect
@@ -86,8 +80,17 @@ install_test_dependencies() {
         # partitions test
         iptables
         strace
+        # Node.js and npm from the same Azure Linux package repository
+        "nodejs >= 24"
+        nodejs-npm
+        # Packaging and Python
+        rpm-build
+        python3
     )
-    tdnf "${TDNF_OPTIONS[@]}" install "${packages[@]}" &&
+    tdnf "${TDNF_OPTIONS[@]}" install "${packages[@]}"
+}
+
+install_cddl() {
     gem install cddl
 }
 
@@ -103,30 +106,11 @@ install_h2spec() {
     rm h2spec_linux_amd64.tar.gz
 }
 
-install_node() {
-    # Node.js 24 and npm from the Azure Linux package repositories. The ">= 24"
-    # constraint pins the major version (failing rather than silently selecting
-    # an older nodejs); `nodejs-npm` provides npm and depends on that same
-    # `nodejs`, so it follows the selected version.
-    tdnf "${TDNF_OPTIONS[@]}" install  \
-        "nodejs >= 24"  \
-        nodejs-npm
-}
-
-install_packaging_and_python() {
-    local packages=(
-        # For packaging
-        rpm-build
-        # For end to end tests and scripts
-        python3
-    )
-    tdnf "${TDNF_OPTIONS[@]}" install "${packages[@]}" &&
+install_uv() {
     bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin
 }
 
-retry "Source control dependencies" install_source_control
-retry "Build dependencies" install_build_dependencies
-retry "Test dependencies" install_test_dependencies
-retry "Node.js installation" install_node
+retry "CI RPM dependencies" install_dependencies
+retry "CDDL installation" install_cddl
 retry "h2spec installation" install_h2spec
-retry "Packaging and Python dependencies" install_packaging_and_python
+retry "uv installation" install_uv

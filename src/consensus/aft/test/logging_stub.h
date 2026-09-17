@@ -150,6 +150,7 @@ namespace aft
     using MessageList =
       std::deque<std::pair<ccf::NodeId, std::vector<uint8_t>>>;
     MessageList messages;
+    std::map<ccf::NodeId, std::pair<std::string, std::string>> node_addresses;
 
     ChannelStubProxy() {}
 
@@ -196,7 +197,9 @@ namespace aft
       const ccf::NodeId& peer_id,
       const std::string& peer_hostname,
       const std::string& peer_service) override
-    {}
+    {
+      node_addresses[peer_id] = {peer_hostname, peer_service};
+    }
 
     void close_channel(const ccf::NodeId& peer_id) override {}
 

@@ -435,6 +435,62 @@ def test_custom_endpoints_kv_restrictions(network, args):
     return network
 
 
+def test_custom_endpoints_resizable_body(network, args):
+    """Regression test for a heap over-read in the JS response-body copy path
+    when returning a length-tracking typed array over a resizable ArrayBuffer
+    that was shrunk after the view was constructed. The copy must be clamped
+    against the backing buffer's real current size, not the typed array's
+    stale construction-time byteLength.
+    """
+    primary, _ = network.find_primary()
+    user = network.users[0]
+
+    module_name = "resizable_body.js"
+
+    endpoints = {
+        "/shrunk_body": {
+            "get": endpoint_properties(
+                js_module=module_name,
+                js_function="shrunk_body",
+            )
+        },
+    }
+
+    with open(
+        os.path.join(os.path.dirname(__file__), "programmability", module_name)
+    ) as module_file:
+        module = module_file.read()
+
+    bundle_with_content = {
+        "metadata": {"endpoints": endpoints},
+        "modules": [{"name": module_name, "module": module}],
+    }
+
+    signed_bundle = sign_payload(
+        network.identity(user.local_id), "custom_endpoints", bundle_with_content
+    )
+    with primary.client() as c:
+        r = c.put(
+            "/app/custom_endpoints",
+            body=signed_bundle,
+            headers={"Content-Type": "application/cose"},
+        )
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+    with primary.client() as c:
+        LOG.info("Shrunk resizable buffer: response body clamped to new size")
+        for shrunk in (1, 3, 128):
+            r = c.get(f"/app/shrunk_body?n={shrunk}")
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+            assert len(r.body.data()) == shrunk, (
+                len(r.body.data()),
+                shrunk,
+            )
+            assert all(b == 0xAB for b in r.body.data()), r.body.data()
+
+    return network
+
+
 def test_custom_endpoints_js_options(network, args):
     primary, _ = network.find_primary()
 
@@ -694,6 +750,7 @@ def run(args):
         network = test_custom_endpoints(network, args)
         network = test_custom_endpoints_circular_includes(network, args)
         network = test_custom_endpoints_kv_restrictions(network, args)
+        network = test_custom_endpoints_resizable_body(network, args)
         network = test_custom_role_definitions(network, args)
         network = test_custom_endpoints_js_options(network, args)
 

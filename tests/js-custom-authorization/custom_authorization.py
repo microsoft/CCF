@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from functools import partial
 from http import HTTPStatus
 
+import infra.clients
 import infra.e2e_args
 import infra.net
 import infra.network
@@ -76,10 +77,10 @@ def temporary_js_limits(network, primary, **kwargs):
         **temp_kwargs,
     )
 
-    yield
-
-    # Restore defaults
-    network.consortium.set_js_runtime_options(primary, **default_kwargs)
+    try:
+        yield
+    finally:
+        network.consortium.set_js_runtime_options(primary, **default_kwargs)
 
 
 def set_issuer_with_a_key(primary, network, issuer, kid, constraint):
@@ -306,6 +307,55 @@ def test_execution_time_limit(network, args):
     return network
 
 
+@reqs.description("Test execution time limit in nested and response JS")
+def test_execution_time_limit_across_request(network, args):
+    primary, _ = network.find_nodes()
+
+    with temporary_js_limits(
+        network, primary, max_execution_time_ms=30
+    ), primary.client("user0") as c:
+        for path in (
+            "nested_eval",
+            "nested_function",
+            "response_body_getter",
+            "response_headers_getter",
+            "response_header_value_getter",
+            "response_headers_proxy",
+            "response_status_code_getter",
+        ):
+            r = c.post(f"/app/{path}")
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+            message = r.body.json()["error"]["message"]
+            assert message == "Operation took too long to complete.", message
+
+    return network
+
+
+@reqs.description("Test regular exceptions are not masked by the timeout message")
+def test_response_exception_message(network, args):
+    primary, _ = network.find_nodes()
+
+    # Each of these raises an ordinary Error, well within the execution time
+    # limit. The reported message must describe the actual failure, and must
+    # never be the timeout message.
+    cases = {
+        "handler_throws": "Exception thrown while executing.",
+        "response_getter_throws": (
+            "Invalid endpoint function return value (error reading body)."
+        ),
+    }
+
+    with primary.client("user0") as c:
+        for path, expected in cases.items():
+            r = c.post(f"/app/{path}")
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+            message = r.body.json()["error"]["message"]
+            assert message != "Operation took too long to complete.", message
+            assert message == expected, message
+
+    return network
+
+
 def run_limits(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
@@ -314,6 +364,8 @@ def run_limits(args):
         network = test_stack_size_limit(network, args)
         network = test_heap_size_limit(network, args)
         network = test_execution_time_limit(network, args)
+        network = test_execution_time_limit_across_request(network, args)
+        network = test_response_exception_message(network, args)
 
 
 @reqs.description("Cert authentication")
@@ -1377,6 +1429,45 @@ def test_caching_of_kv_handles(network, args):
     return network
 
 
+@reqs.description("Historical state remains available through response conversion")
+def test_historical_response_conversion(network, args):
+    primary, _ = network.find_nodes()
+    with primary.client() as c:
+        writes = []
+        for _ in range(2):
+            r = c.post("/app/increment")
+            assert r.status_code == http.HTTPStatus.OK, r
+            c.wait_for_commit(r)
+            writes.append(r)
+
+        for write in writes:
+            expected_value = write.body.json()["value"]
+            for path in ("/app/historical", f"/app/historical/range/{write.seqno}"):
+                headers = {
+                    infra.clients.CCF_TX_ID_HEADER: f"{write.view}.{write.seqno}"
+                }
+                timeout = time.time() + 10
+                while True:
+                    r = c.get(path, headers=headers)
+                    if r.status_code != http.HTTPStatus.ACCEPTED:
+                        break
+                    assert time.time() < timeout, r
+                    time.sleep(0.1)
+
+                assert r.status_code == http.HTTPStatus.OK, r
+                assert r.body.json() == {"value": expected_value}, r
+                assert r.headers["x-historical-value"] == str(expected_value), r
+
+                for fail in ("body", "json"):
+                    r = c.get(path, headers={**headers, "x-throw": fail})
+                    assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+                    r = c.get(path, headers=headers)
+                    assert r.status_code == http.HTTPStatus.OK, r
+                    assert r.body.json() == {"value": expected_value}, r
+
+    return network
+
+
 def test_caching_of_app_code(network, args):
     primary, backups = network.find_nodes()
     LOG.info(
@@ -1420,6 +1511,7 @@ def run_interpreter_reuse(args):
 
         network = test_reused_interpreter_behaviour(network, args)
         network = test_caching_of_kv_handles(network, args)
+        network = test_historical_response_conversion(network, args)
         network = test_caching_of_app_code(network, args)
 
 

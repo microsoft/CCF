@@ -10,6 +10,7 @@
 #include "ccf/http_query.h"
 #include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"
+#include "ccf/node/node_configuration_interface.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
@@ -26,6 +27,7 @@
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/no_create_tx_claims_digest.cpp" // NOLINT(bugprone-suspicious-include)
 #include "node/rpc/node_frontend_utils.h"
+#include "node/rpc/self_cert_auth.h"
 #include "node/rpc/self_healing_open_handlers.h"
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
@@ -36,6 +38,7 @@
 #include "service/tables/snapshot_status.h"
 #include "snapshots/filenames.h"
 
+#include <chrono>
 #include <llhttp/llhttp.h>
 #include <stdexcept>
 
@@ -267,6 +270,26 @@ namespace ccf
       return duplicate_node_id;
     }
 
+    static int64_t current_time_ms()
+    {
+      return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+    }
+
+    std::optional<std::chrono::milliseconds> get_pending_node_timeout()
+    {
+      const auto node_configuration_subsystem =
+        this->context.get_subsystem<NodeConfigurationInterface>();
+      if (node_configuration_subsystem == nullptr)
+      {
+        return std::nullopt;
+      }
+
+      return std::chrono::milliseconds(
+        node_configuration_subsystem->get().node_config.pending_node_timeout);
+    }
+
     auto add_node(
       ccf::kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
@@ -362,6 +385,11 @@ namespace ccf
         client_public_key_pem,
         in.node_data};
 
+      if (node_status == NodeStatus::PENDING)
+      {
+        node_info.pending_last_seen = current_time_ms();
+      }
+
       nodes->put(joining_node_id, node_info);
 
       if (in.sealing_recovery_data.has_value())
@@ -449,13 +477,16 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.6";
+      openapi_info.document_version = "5.0.8";
     }
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void init_handlers() override
     {
       CommonEndpointRegistry::init_handlers();
+
+      const auto self_cert_auth_policy =
+        std::make_shared<SelfCertAuthnPolicy>(this->context);
 
       auto accept = [this](auto& args, const nlohmann::json& params) {
         const auto in = params.get<JoinNetworkNodeToNode::In>();
@@ -488,6 +519,49 @@ namespace ccf
             ccf::errors::InternalError,
             payload);
         }
+
+        auto* current_consensus = get_consensus();
+        const auto should_redirect_to_primary =
+          current_consensus != nullptr && !this->node_operation.can_replicate();
+        auto redirect_to_primary = [&]() {
+          auto primary_id = current_consensus->primary();
+          if (primary_id.has_value())
+          {
+            const auto address = node::get_redirect_address_for_node(
+              args, args.tx, primary_id.value());
+            if (!address.has_value())
+            {
+              LOG_INFO_FMT(
+                "Join request rejected: no redirect address for "
+                "primary {}",
+                primary_id.value());
+              return already_populated_response();
+            }
+
+            args.rpc_ctx->set_response_header(
+              http::headers::LOCATION,
+              fmt::format("https://{}/node/join", address.value()));
+
+            const std::string payload =
+              "Node is not primary; cannot handle write";
+            LOG_INFO_FMT(
+              "Join request redirected to primary {} at {}: {}",
+              primary_id.value(),
+              address.value(),
+              payload);
+            return make_error(
+              HTTP_STATUS_PERMANENT_REDIRECT,
+              ccf::errors::NodeCannotHandleRequest,
+              payload);
+          }
+
+          const std::string payload = "Primary unknown";
+          LOG_INFO_FMT("Join request rejected: {}", payload);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            payload);
+        };
 
         auto nodes = args.tx.ro(network.nodes);
 
@@ -524,6 +598,28 @@ namespace ccf
 
           if (node_status == NodeStatus::PENDING)
           {
+            const auto pending_node_timeout = get_pending_node_timeout();
+            if (!pending_node_timeout.has_value())
+            {
+              return make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "NodeConfiguration subsystem is not available");
+            }
+
+            if (
+              pending_node_timeout.value() > std::chrono::milliseconds::zero())
+            {
+              if (should_redirect_to_primary)
+              {
+                return redirect_to_primary();
+              }
+
+              node_info->pending_last_seen = current_time_ms();
+              args.tx.rw(network.nodes)
+                ->put(existing_node_info->node_id, node_info.value());
+            }
+
             // Only return node status and ID
             LOG_DEBUG_FMT(
               "Join request accepted: {} already marked as PENDING",
@@ -539,47 +635,9 @@ namespace ccf
         }
 
         // Not the primary => Redirect if possible to primary
-        auto* current_consensus = get_consensus();
-        if (
-          current_consensus != nullptr && !this->node_operation.can_replicate())
+        if (should_redirect_to_primary)
         {
-          auto primary_id = current_consensus->primary();
-          if (primary_id.has_value())
-          {
-            const auto address = node::get_redirect_address_for_node(
-              args, args.tx, primary_id.value());
-            if (!address.has_value())
-            {
-              LOG_INFO_FMT(
-                "Join request rejected: no redirect address for "
-                "primary {}",
-                primary_id.value());
-              return already_populated_response();
-            }
-
-            args.rpc_ctx->set_response_header(
-              http::headers::LOCATION,
-              fmt::format("https://{}/node/join", address.value()));
-
-            const std::string payload =
-              "Node is not primary; cannot handle write";
-            LOG_INFO_FMT(
-              "Join request redirected to primary {} at {}: {}",
-              primary_id.value(),
-              address.value(),
-              payload);
-            return make_error(
-              HTTP_STATUS_PERMANENT_REDIRECT,
-              ccf::errors::NodeCannotHandleRequest,
-              "payload");
-          }
-
-          const std::string payload = "Primary unknown";
-          LOG_INFO_FMT("Join request rejected: {}", payload);
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            payload);
+          return redirect_to_primary();
         }
 
         // Joiner's snapshot too old => StartupSeqnoIsOld
@@ -665,6 +723,73 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
+      auto remove_expired_pending = [this](auto& ctx, nlohmann::json&&) {
+        const auto pending_node_timeout = get_pending_node_timeout();
+        if (!pending_node_timeout.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfiguration subsystem is not available");
+        }
+
+        if (pending_node_timeout.value() <= std::chrono::milliseconds::zero())
+        {
+          return make_success(true);
+        }
+
+        const auto now = current_time_ms();
+        auto nodes = ctx.tx.rw(network.nodes);
+        std::map<NodeId, NodeInfo> untimestamped_pending_nodes;
+        std::vector<NodeId> expired_pending_nodes;
+        nodes->foreach([&](const auto& node_id, const auto& node_info) {
+          if (node_info.status != NodeStatus::PENDING)
+          {
+            return true;
+          }
+
+          if (
+            !node_info.pending_last_seen.has_value() ||
+            node_info.pending_last_seen.value() < 0 ||
+            node_info.pending_last_seen.value() > now)
+          {
+            auto updated_node_info = node_info;
+            updated_node_info.pending_last_seen = now;
+            untimestamped_pending_nodes.emplace(
+              node_id, std::move(updated_node_info));
+          }
+          else if (
+            now - node_info.pending_last_seen.value() >=
+            pending_node_timeout.value().count())
+          {
+            expired_pending_nodes.push_back(node_id);
+          }
+
+          return true;
+        });
+
+        for (const auto& [node_id, node_info] : untimestamped_pending_nodes)
+        {
+          nodes->put(node_id, node_info);
+        }
+
+        for (const auto& node_id : expired_pending_nodes)
+        {
+          LOG_INFO_FMT("Removing expired Pending node {}", node_id);
+          InternalTablesAccess::remove_node(ctx.tx, node_id);
+        }
+
+        return make_success(true);
+      };
+      make_endpoint(
+        "network/nodes/remove_expired_pending",
+        HTTP_POST,
+        json_adapter(remove_expired_pending),
+        {self_cert_auth_policy})
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+
       auto set_retired_committed = [this](auto& ctx, nlohmann::json&&) {
         auto nodes = ctx.tx.rw(network.nodes);
         nodes->foreach([&nodes](const auto& node_id, auto node_info) {
@@ -717,7 +842,7 @@ namespace ccf
         ccf::kv::Version cose_seqno = 0;
         auto cose_signatures =
           args.tx.template ro<CoseSignatures>(Tables::COSE_SIGNATURES);
-        auto cose_sig = cose_signatures->get();
+        auto cose_sig = cose_signatures->get(ccf::IdentityType::CLASSICAL);
         if (cose_sig.has_value() && !cose_sig->empty())
         {
           auto receipt = ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
@@ -1531,19 +1656,6 @@ namespace ccf
             "Node is not in initial state.");
         }
 
-        const auto& sig_auth_ident =
-          ctx.template get_caller<ccf::AnyCertAuthnIdentity>();
-        // AnyCertAuthnIdentity requires DER format certificates
-        const auto caller_node_id =
-          compute_node_id_from_cert_der(sig_auth_ident.cert);
-        if (caller_node_id != this->context.get_node_id())
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Only the node itself can call this endpoint.");
-        }
-
         const auto in = params.get<CreateNetworkNodeToNode::In>();
 
         if (InternalTablesAccess::is_service_created(ctx.tx, in.service_cert))
@@ -1662,7 +1774,8 @@ namespace ccf
               ctx.tx, in.snp_uvm_endorsements, recovering);
 
             auto attestation =
-              AttestationProvider::get_snp_attestation(in.quote_info).value();
+              AttestationProvider::get_snp_attestation_report(in.quote_info)
+                .value();
             InternalTablesAccess::trust_node_snp_tcb_version(
               ctx.tx, attestation);
             break;
@@ -1689,10 +1802,7 @@ namespace ccf
         return make_success(true);
       };
       make_endpoint(
-        "/create",
-        HTTP_POST,
-        json_adapter(create),
-        {std::make_shared<AnyCertAuthnPolicy>()})
+        "/create", HTTP_POST, json_adapter(create), {self_cert_auth_policy})
         .set_openapi_hidden(true)
         .install();
 

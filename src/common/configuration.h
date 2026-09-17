@@ -154,10 +154,12 @@ namespace ccf
     attestation,
     snapshots,
     files_cleanup,
+    pending_node_timeout,
     node_to_node_message_limit,
     historical_cache_soft_limit,
     identity_history_fetch,
-    observability);
+    observability,
+    idle_connection_timeout);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
   DECLARE_JSON_REQUIRED_FIELDS(

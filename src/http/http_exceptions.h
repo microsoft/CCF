@@ -36,6 +36,14 @@ namespace http
     {}
   };
 
+  class RequestTargetTooLongException : public RequestTooLargeException
+  {
+  public:
+    explicit RequestTargetTooLongException(const std::string& msg) :
+      RequestTooLargeException(msg)
+    {}
+  };
+
   class RequestHeaderTooLargeException : public RequestTooLargeException
   {
   public:

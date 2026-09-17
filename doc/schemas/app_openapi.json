@@ -67,7 +67,18 @@
       "LoggingGetCoseEndorsements__Out": {
         "properties": {
           "endorsements": {
-            "$ref": "#/components/schemas/base64string_array"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/base64string_array"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true,
+                "type": "object"
+              }
+            ]
           }
         },
         "required": [
@@ -261,7 +272,7 @@
   "info": {
     "description": "This CCF sample app implements a simple logging application, securely recording messages at client-specified IDs. It demonstrates most of the features available to CCF apps.",
     "title": "CCF Sample Logging App",
-    "version": "2.8.4"
+    "version": "2.8.5"
   },
   "openapi": "3.0.0",
   "paths": {

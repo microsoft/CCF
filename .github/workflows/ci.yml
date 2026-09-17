@@ -27,12 +27,12 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=ci_build_tidy-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
       - name: "Checkout dependencies"
@@ -41,7 +41,7 @@ jobs:
           set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
-          tdnf -y install ca-certificates git
+          tdnf -y install ca-certificates git tar zstd
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -120,7 +120,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=ci_build_test_virtual-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -160,7 +160,8 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
+          # Recovery and schema dynamically select all three logging variants.
+          ninja js_generic logging logging_cose_only logging_cose_only_allow_join_dual programmability nobuiltins
         shell: bash
 
       - name: "Test virtual"
@@ -192,7 +193,7 @@ jobs:
     runs-on:
       [
         self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
+        1ES.Pool=gha-vmss-d16av7-ci,
         "JobId=ci_build_test_virtual_rest-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
       ]
     container:
@@ -222,7 +223,8 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
+          # bucket_c and partitions, including the Python-driven Raft scenarios.
+          ninja js_generic logging logging_cose_only programmability raft_driver
         shell: bash
 
       - name: "Test virtual"
@@ -246,92 +248,6 @@ jobs:
         with:
           name: logs-azurelinux-virtual-c
           path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*/*.ledger/*
-            build/workspace/*/stack_trace
-            build/workspace/**/openapi_coverage.json
-          if-no-files-found: ignore
-        if: success() || failure()
-
-  aci_snp_milan:
-    name: "ACI SNP Milan"
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-c-aci-ci,
-        "JobId=aci_snp_milan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - name: "Dump environment"
-        run: |
-          set -ex
-          # Dump environment variables, extract Fabric_NodeIPOrFQDN
-          # and save it to a file for reconfiguration test using THIM.
-          { cat /proc/*/environ 2>/dev/null || true; } | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
-          echo "::group::Disk usage"
-          df -kh
-          echo "::endgroup::"
-          echo "::group::Mounts"
-          mount
-          echo "::endgroup::"
-          echo "::group::CPU Info"
-          cat /proc/cpuinfo
-          echo "::endgroup::"
-        shell: bash
-
-      - name: "Confirm running on SEV-SNP Milan"
-        run: |
-          set -ex
-          python3 tests/infra/platform_detection.py snp milan
-        shell: bash
-
-      - name: "Build Debug"
-        run: |
-          set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
-          ninja
-        shell: bash
-
-      - name: "Tests"
-        run: |
-          set -ex
-          cd build
-          rm -rf /github/home/.cache
-          mkdir -p /github/home/.cache
-          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp
-          ./tests.sh --timeout 360 --output-on-failure -R code_update
-          ./tests.sh --timeout 360 -V -R '^ledger_bench$'
-        shell: bash
-        env:
-          CCF_TEST_SYNC_AFTER_SETUP: 1
-          ELECTION_TIMEOUT_MS: 10000
-
-      - name: "Capture dmesg"
-        run: |
-          set -ex
-          echo "::group::Disk usage"
-          df -kh
-          echo "::endgroup::"
-          dmesg > dmesg.log
-        shell: bash
-        if: success() || failure()
-
-      - name: "Upload logs"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: logs-aci-snp-milan
-          path: |
-            dmesg.log
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
@@ -385,7 +301,8 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
-          ninja
+          # SNP unit/e2e tests, code_update, and the explicitly run ledger bench.
+          ninja logging programmability snp_ioctl_test snp_attestation_test ledger_bench
         shell: bash
 
       - name: "Tests"

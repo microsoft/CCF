@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 from pathlib import Path
-from subprocess import PIPE, Popen, run
+from subprocess import run
 
 from loguru import logger as LOG
 
@@ -43,11 +43,3 @@ def ccall(*args, path=None, log_output=True, env=None):
     if result.stderr and log_output:
         LOG.error(f"stderr: {result.stderr.decode().strip()}")
     return result
-
-
-def ccall_with_pipe(procs):
-    cur_proc = Popen(procs[0], shell=False, stdout=PIPE)
-    for p in procs[1:]:
-        cur_proc = Popen(p, shell=False, stdin=cur_proc.stdout, stdout=PIPE)
-
-    return (cur_proc.communicate()[0]).decode().strip()

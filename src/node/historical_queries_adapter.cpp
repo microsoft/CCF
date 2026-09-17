@@ -269,7 +269,14 @@ namespace ccf
   std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
     const TxReceiptImpl& receipt)
   {
-    return receipt.cose_signature;
+    // This API exposes a single signature, so it returns the CLASSICAL one.
+    const auto signature =
+      receipt.cose_signatures.find(IdentityType::CLASSICAL);
+    if (signature == receipt.cose_signatures.end())
+    {
+      return std::nullopt;
+    }
+    return signature->second;
   }
 
   std::optional<SerialisedCoseReceipt> describe_cose_receipt_v1(

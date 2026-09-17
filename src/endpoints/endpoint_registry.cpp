@@ -269,7 +269,7 @@ namespace ccf::endpoints
 
     return std::make_shared<TxReceiptImpl>(
       sig,
-      cached_sig->cose_signature,
+      cached_sig->cose_signatures,
       proof.get_root(),
       proof.get_path(),
       node,
