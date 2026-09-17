@@ -96,14 +96,13 @@ jobs:
           uv pip install -r doc/historical_ccf_requirements.txt
 
           cd build
-          ./tests.sh --timeout 360 --output-on-failure -L bucket_a -j2 --no-tests=error
+          ./tests.sh --timeout 360 --output-on-failure -V -L bucket_a -j2 --no-tests=error
 
       - name: "Upload logs for virtual A"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-azurelinux-virtual-a
           path: |
-            build/Testing/Temporary/LastTest.log
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
