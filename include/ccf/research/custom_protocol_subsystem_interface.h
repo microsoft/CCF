@@ -5,8 +5,6 @@
 #include "ccf/endpoint_context.h"
 #include "ccf/node/session.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/rpc_context.h"
-#include "ccf/service/node_info_network.h"
 #include "ccf/tx.h"
 
 #include <functional>
@@ -44,7 +42,6 @@ namespace ccf
 
     struct Essentials
     {
-      ringbuffer::WriterPtr writer;
       std::shared_ptr<ccf::kv::ReadOnlyTx> tx;
       std::shared_ptr<ccf::endpoints::ReadOnlyEndpointContext> ctx;
     };

@@ -3820,11 +3820,6 @@ namespace ccf
       return network.tables;
     }
 
-    ringbuffer::AbstractWriterFactory& get_writer_factory() override
-    {
-      return writer_factory;
-    }
-
     RecoveryDecisionProtocolSubsystem& get_recovery_decision_protocol() override
     {
       return recovery_decision_protocol;
