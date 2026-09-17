@@ -22,7 +22,7 @@ Overview
     :fa:`shield-alt` :doc:`threat_model`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Which parties CCF trusts, and how it protects nodes, stored state, and communication.
+    Trust relationships between CCF actors, and how they are maintained.
 
     ---
 
