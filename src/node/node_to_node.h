@@ -4,7 +4,7 @@
 
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
-#include "enclave/rpc_handler.h"
+#include "node/rpc/rpc_handler.h"
 #include "node_types.h"
 
 #include <algorithm>

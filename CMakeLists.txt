@@ -78,6 +78,7 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   )
 endif()
 
+include(${CCF_DIR}/cmake/stacktrace.cmake)
 include(${CCF_DIR}/cmake/cpack_settings.cmake)
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
@@ -365,19 +366,20 @@ add_ccf_static_library(
   LINK_LIBS ccf_threading
 )
 
-find_library(BACKTRACE_LIBRARY backtrace)
-if(NOT BACKTRACE_LIBRARY)
-  message(
-    FATAL_ERROR
-    "libbacktrace (library 'backtrace') is required to build the CCF task "
-    "system (target ccf_tasks). Please install libbacktrace and retry "
-    "configuration."
+if(CCF_STACKTRACE_BACKEND_RESOLVED STREQUAL "STD")
+  target_compile_definitions(ccf_tasks PRIVATE CCF_STACKTRACE_USE_STD=1)
+  target_link_libraries(ccf_tasks PRIVATE ${CCF_STACKTRACE_SUPPORT_LIBRARY})
+else()
+  target_include_directories(ccf_tasks PRIVATE ${BACKTRACE_INCLUDE_DIR})
+  target_link_libraries(
+    ccf_tasks
+    PRIVATE
+      $<BUILD_INTERFACE:${BACKTRACE_LIBRARY}>
+      $<INSTALL_INTERFACE:backtrace>
   )
 endif()
-
-# libbacktrace reads DWARF debug info directly, providing file/line/function
-# resolution in stack traces.
-target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS} ${BACKTRACE_LIBRARY})
+# Static-library private dependencies remain transitive link requirements.
+target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
 
 # Common test args for Python scripts starting up CCF networks
 set(
@@ -608,6 +610,25 @@ install(TARGETS verify_attestation DESTINATION bin)
 if(BUILD_TESTS)
   enable_testing()
 
+  set(
+    DOCS_PYTHON
+    ""
+    CACHE FILEPATH
+    "Python interpreter for the optional documentation test"
+  )
+  if(DOCS_PYTHON)
+    add_test(
+      NAME docs
+      COMMAND
+        "${DOCS_PYTHON}" -m sphinx --fail-on-warning -b html "${CCF_DIR}/doc"
+        "${CCF_DIR}/doc/html"
+    )
+    set_tests_properties(
+      docs
+      PROPERTIES LABELS "bucket_a;docs" WORKING_DIRECTORY "${CCF_DIR}"
+    )
+  endif()
+
   # Unit tests
   if(BUILD_UNIT_TESTS)
     add_test(
@@ -763,10 +784,10 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      rpc_connections_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/rpc_connections.cpp
+      openssl_server_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/openssl_server_test.cpp
     )
-    target_link_libraries(rpc_connections_test PRIVATE uv)
+    target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
 
     add_unit_test(
       node_connections_test
@@ -948,9 +969,6 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/identity_types.cpp
     )
 
-    add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
-    target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-
     add_unit_test(
       base64_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/base64.cpp
@@ -1035,6 +1053,15 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/test_jwt_auth.cpp
     )
     target_link_libraries(jwt_auth_test PRIVATE ccf_endpoints)
+
+    add_unit_test(
+      jwt_key_auto_refresh_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/jwt_key_auto_refresh.cpp
+    )
+    target_link_libraries(
+      jwt_key_auto_refresh_test
+      PRIVATE http_parser ccf_endpoints ccf_kv ccf_tasks curl uv
+    )
 
     add_unit_test(
       tx_status_test

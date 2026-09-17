@@ -76,6 +76,9 @@ endfunction()
 function(enable_coverage name)
 endfunction()
 
+function(ccf_detect_stacktrace)
+endfunction()
+
 # Third-party: Corrosion (corrosion-rs/corrosion)
 function(corrosion_import_crate)
   cmake_parse_arguments(
