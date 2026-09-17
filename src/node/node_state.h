@@ -31,12 +31,12 @@
 #include "history.h"
 #include "http/http_parser.h"
 #include "http_client/curl.h"
-#include "indexing/indexer.h"
 #include "js/global_class_ids.h"
 #include "network_state.h"
 #include "node/commit_callback_subsystem.h"
 #include "node/hooks.h"
 #include "node/http_node_client.h"
+#include "node/internal_tables_access.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/ledger_secret.h"
 #include "node/ledger_secrets.h"
@@ -55,7 +55,6 @@
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
-#include "service/internal_tables_access.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/recovery_type.h"
 #include "share_manager.h"
@@ -445,7 +444,6 @@ namespace ccf
 
     std::shared_ptr<ccf::kv::Consensus> consensus;
     std::shared_ptr<RPCMap> rpc_map;
-    std::shared_ptr<indexing::Indexer> indexer;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
@@ -835,7 +833,6 @@ namespace ccf
       const ccf::consensus::Configuration& consensus_config_,
       std::shared_ptr<RPCMap> rpc_map_,
       std::shared_ptr<AbstractRPCResponder> rpc_sessions_,
-      std::shared_ptr<indexing::Indexer> indexer_,
       std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks_,
       std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache_,
       size_t sig_tx_interval_,
@@ -847,7 +844,6 @@ namespace ccf
       consensus_config = consensus_config_;
       rpc_map = rpc_map_;
 
-      indexer = indexer_;
       commit_callbacks = commit_callbacks_;
       signature_cache = signature_cache_;
 
@@ -2710,12 +2706,6 @@ namespace ccf
 
       consensus->periodic(elapsed);
 
-      if (sm.check(NodeStartupState::partOfNetwork))
-      {
-        const auto tx_id = consensus->get_committed_txid();
-        indexer->update_strategies(elapsed, {tx_id.first, tx_id.second});
-      }
-
       n2n_channels->tick(elapsed);
     }
 
@@ -2791,6 +2781,20 @@ namespace ccf
     [[nodiscard]] bool is_part_of_network() const override
     {
       return sm.check(NodeStartupState::partOfNetwork);
+    }
+
+    // The TxID committed by consensus, once this node is part of the network.
+    // Empty in every other state, when the commit point is not yet meaningful
+    // to consumers such as indexing strategies.
+    [[nodiscard]] std::optional<ccf::TxID> get_committed_txid() const
+    {
+      if (!sm.check(NodeStartupState::partOfNetwork))
+      {
+        return std::nullopt;
+      }
+
+      const auto [view, seqno] = consensus->get_committed_txid();
+      return ccf::TxID{view, seqno};
     }
 
     [[nodiscard]] bool is_reading_public_ledger() const override
