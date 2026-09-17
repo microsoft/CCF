@@ -10,11 +10,11 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/pem.h"
 #include "ds/internal_logger.h"
-#include "host/tls/inbound_admission.h"
 #include "tasks/ordered_tasks.h"
 #include "tasks/task_system.h"
 #include "tasks/worker.h"
 #include "tcp/msg_types.h"
+#include "tls/inbound_admission.h"
 
 #include <arpa/inet.h>
 #include <atomic>
@@ -47,7 +47,7 @@
 #include <uv.h>
 #include <vector>
 
-namespace asynchost
+namespace ccf::tls
 {
   namespace details
   {
@@ -491,7 +491,7 @@ namespace asynchost
     // why. Called on the loop thread.
     //
     // This is the only place CCF's inbound TLS policy is defined. It is
-    // asserted from the wire by src/host/test/openssl_server_test.cpp and, for
+    // asserted from the wire by src/tls/test/openssl_server_test.cpp and, for
     // a running service, by tests/tls_groups.py.
     std::shared_ptr<SSL_CTX> build_server_ctx(
       const std::string& cert_pem, const std::string& key_pem)

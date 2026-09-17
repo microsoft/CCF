@@ -33,6 +33,7 @@
 #include "handle_ring_buffer.h"
 #include "host/env.h"
 #include "host/files_cleanup_timer.h"
+#include "host/ledger_subsystem.h"
 #include "http_client/curl.h"
 #include "json_schema.h"
 #include "node_connections.h"
@@ -415,7 +416,7 @@ namespace ccf
     std::vector<uint8_t>& rpc_addresses,
     ccf::LoggerLevel log_level,
     ringbuffer::NotifyingWriterFactory& notifying_factory,
-    asynchost::Ledger& ledger)
+    const std::shared_ptr<asynchost::ReadLedgerSubsystem>& ledger_subsystem)
   {
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;
@@ -439,7 +440,7 @@ namespace ccf
       log_level,
       config.worker_threads,
       notifying_factory.get_inbound_work_beacon(),
-      ledger);
+      ledger_subsystem);
     ecall_completed.store(true);
     flusher_thread.join();
 
@@ -760,7 +761,10 @@ namespace ccf
     // prior to the KV being updated
     startup_config.network.rpc_interfaces = config.network.rpc_interfaces;
 
-    // Create the enclave node
+    // Create the enclave node. The read-only ledger view is installed as a
+    // node subsystem, and is only valid while the ledger above is alive.
+    auto ledger_subsystem =
+      std::make_shared<asynchost::ReadLedgerSubsystem>(ledger);
     auto enclave_creation_result = create_enclave_node(
       config,
       buffer_processor,
@@ -772,7 +776,7 @@ namespace ccf
       rpc_addresses,
       log_level,
       factories.notifying_factory,
-      ledger);
+      ledger_subsystem);
 
     if (enclave_creation_result.has_value())
     {

@@ -134,7 +134,7 @@ namespace ccf::js
 
     void clear_cached_interpreters() override
     {
-      std::lock_guard<ccf::ds::Mutex> guard(lock);
+      ccf::ds::MutexGuard guard(lock);
       lru.clear();
     }
 
