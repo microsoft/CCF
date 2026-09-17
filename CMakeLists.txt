@@ -589,6 +589,25 @@ install(TARGETS verify_attestation DESTINATION bin)
 if(BUILD_TESTS)
   enable_testing()
 
+  set(
+    DOCS_PYTHON
+    ""
+    CACHE FILEPATH
+    "Python interpreter for the optional documentation test"
+  )
+  if(DOCS_PYTHON)
+    add_test(
+      NAME docs
+      COMMAND
+        "${DOCS_PYTHON}" -m sphinx --fail-on-warning -b html "${CCF_DIR}/doc"
+        "${CCF_DIR}/doc/html"
+    )
+    set_tests_properties(
+      docs
+      PROPERTIES LABELS "bucket_a;docs" WORKING_DIRECTORY "${CCF_DIR}"
+    )
+  endif()
+
   # Unit tests
   if(BUILD_UNIT_TESTS)
     add_test(
@@ -725,10 +744,10 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      rpc_connections_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/rpc_connections.cpp
+      openssl_server_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/openssl_server_test.cpp
     )
-    target_link_libraries(rpc_connections_test PRIVATE uv)
+    target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
 
     add_unit_test(
       node_connections_test
@@ -909,9 +928,6 @@ if(BUILD_TESTS)
       identity_types_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/identity_types.cpp
     )
-
-    add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
-    target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
       base64_test
