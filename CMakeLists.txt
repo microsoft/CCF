@@ -602,10 +602,9 @@ if(BUILD_TESTS)
         "${DOCS_PYTHON}" -m sphinx --fail-on-warning -b html "${CCF_DIR}/doc"
         "${CCF_DIR}/doc/html"
     )
-    # Preserve the docs build's lack of a timeout, independently of e2e tests.
     set_tests_properties(
       docs
-      PROPERTIES LABELS "bucket_a;docs" WORKING_DIRECTORY "${CCF_DIR}" TIMEOUT 0
+      PROPERTIES LABELS "bucket_a;docs" WORKING_DIRECTORY "${CCF_DIR}"
     )
   endif()
 
