@@ -32,8 +32,8 @@ env:
   PYTHON_VERSION: "3.12"
   AZL3_IMAGE: &azl3_image mcr.microsoft.com/azurelinux/base/core:3.0
   AZL4_IMAGE: &azl4_image azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
-  AZL3_POOL: &azl3_pool 1ES.Pool=gha-vmss-d16av7-ci
-  AZL4_POOL: &azl4_pool 1ES.Pool=gha-vmss-d16av7-ci
+  AZL3_POOL: &azl3_pool gha-vmss-d16av7-ci
+  AZL4_POOL: &azl4_pool gha-vmss-d16av7-ci
   INSTALL_ARCHIVE: ccf-install.tar.gz
   LTS_WORKSPACE: cross-platform-lts-workspace
 
@@ -93,12 +93,7 @@ jobs:
             ccf_version: ${{ needs.configure.outputs.to_version }}
             pool: *azl4_pool
             image: *azl4_image
-    runs-on:
-      [
-        self-hosted,
-        "${{ matrix.pool }}",
-        "JobId=cross_platform_lts_build_${{ matrix.artifact }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: ["${{ matrix.pool }}"]
     container:
       image: ${{ matrix.image }}
       options: --user root
@@ -162,12 +157,7 @@ jobs:
     name: "Upgrade ${{ needs.configure.outputs.from_version }} AL3 to ${{ needs.configure.outputs.to_version }} AL4"
     needs: [configure, build-install]
     timeout-minutes: 60
-    runs-on:
-      [
-        self-hosted,
-        *azl3_pool,
-        "JobId=cross_platform_lts_test-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [*azl3_pool]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-namespace asynchost
+namespace ccf::tls
 {
   // A node-wide bound on inbound data which has been read off sockets but not
   // yet processed by the sessions it was handed to.

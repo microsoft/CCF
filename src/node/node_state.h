@@ -27,7 +27,6 @@
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "ds/state_machine.h"
-#include "enclave/abstract_rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
 #include "http/http_parser.h"
@@ -47,6 +46,7 @@
 #include "node/pending_node_cleanup.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
+#include "node/rpc/abstract_rpc_sessions.h"
 #include "node/signature_cache_subsystem.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
@@ -3813,11 +3813,6 @@ namespace ccf
     std::shared_ptr<ccf::kv::Store> get_store() override
     {
       return network.tables;
-    }
-
-    ringbuffer::AbstractWriterFactory& get_writer_factory() override
-    {
-      return writer_factory;
     }
 
     RecoveryDecisionProtocolSubsystem& get_recovery_decision_protocol() override
