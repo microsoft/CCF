@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import base64
+import contextlib
 import copy
 import hashlib
 import http
@@ -174,36 +175,61 @@ def recover_with_primary_dying(args, recovered_network):
         previous_service_identity=prev_service_identity,
     )
 
-    recovered_network.consortium.recover_with_shares(
-        recovered_network.find_random_node()
-    )
-
-    # Wait until every node is reading the private ledger, so the primary can be
-    # prodded mid-read below.
-    for node in recovered_network.get_joined_nodes():
-        recovered_network.wait_for_state(
-            node,
-            infra.node.State.READING_PRIVATE_LEDGER.value,
-            timeout=args.ledger_recovery_timeout,
-        )
-
+    # Reading the private ledger only takes a fraction of a second in Release
+    # builds (roughly 4k entries/s), so everything done between the last share
+    # being accepted and the SIGTERM below eats into the window in which the
+    # primary can be prodded mid-read. Identify the primary and open a
+    # connection to every node up front, rather than paying for a fresh TLS
+    # session per request once the read is underway.
+    nodes = recovered_network.get_joined_nodes()
     retired_primary, initial_view = recovered_network.find_primary()
     retired_id = retired_primary.node_id
+    reading_private_ledger = infra.node.State.READING_PRIVATE_LEDGER.value
 
-    # Confirm the primary is still mid-read right before we prod it: this is the
-    # scenario under test (the primary must die before it can open the service).
-    # Checking here, rather than re-checking every node after the election,
-    # avoids racing the fast private-ledger read.
-    with retired_primary.client(connection_timeout=1) as c:
+    with contextlib.ExitStack() as stack:
+        clients = {
+            node: stack.enter_context(node.client(connection_timeout=1))
+            for node in nodes
+        }
+        # Establish the connections now, so that the polling below is cheap
+        for c in clients.values():
+            c.get("/node/state")
+
+        recovered_network.consortium.recover_with_shares(
+            recovered_network.find_random_node()
+        )
+
+        # Wait until every node is reading the private ledger, so the primary
+        # can be prodded mid-read below.
+        pending = set(nodes)
+        end_time = time.time() + args.ledger_recovery_timeout
+        while pending:
+            for node in list(pending):
+                if (
+                    clients[node].get("/node/state").body.json()["state"]
+                    == reading_private_ledger
+                ):
+                    pending.remove(node)
+            if pending:
+                assert (
+                    time.time() < end_time
+                ), f"Timed out waiting for {[n.node_id for n in pending]} to read the private ledger"
+                time.sleep(0.01)
+
+        # Confirm the primary is still mid-read right before we prod it: this is
+        # the scenario under test (the primary must die before it can open the
+        # service). Checking here, rather than re-checking every node after the
+        # election, avoids racing the fast private-ledger read.
+        primary_state = clients[retired_primary].get("/node/state").body.json()
         assert (
-            infra.node.State.READING_PRIVATE_LEDGER.value
-            == c.get("/node/state").body.json()["state"]
-        ), f"Primary {retired_id} finished reading before it could be prodded"
+            primary_state["state"] == reading_private_ledger
+        ), f"Primary {retired_id} finished reading before it could be prodded: {primary_state}"
 
-    # SIGTERM (not SIGKILL) the primary: thanks to ignore_first_sigterm it stays
-    # up, treats this as a stop notice and immediately nominates a successor.
-    LOG.info(f"SIGTERM primary {retired_id} to nominate a successor mid-recovery")
-    retired_primary.sigterm()
+        # SIGTERM (not SIGKILL) the primary: thanks to ignore_first_sigterm it
+        # stays up, treats this as a stop notice and immediately nominates a
+        # successor.
+        LOG.info(f"SIGTERM primary {retired_id} to nominate a successor mid-recovery")
+        retired_primary.sigterm()
 
     # The nominated successor is elected rapidly (no election-timeout wait). A new
     # view confirms the election ran while recovery was still in progress.
@@ -526,6 +552,22 @@ def test_recover_service(
     )
 
 
+@reqs.description("Recover with committed ledger entries after the startup snapshot")
+def test_recover_service_with_ledger_after_snapshot(network, args):
+    primary, _ = network.find_primary()
+    snapshots_dir = network.get_committed_snapshots(primary)
+    snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
+    assert snapshot_name is not None
+    snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
+
+    # Keep the copied snapshot, but commit the chunk after it before recovery.
+    # get_ledger() then puts snapshot_seqno + 1 in read-only recovery input,
+    # rather than leaving it in the main directory's current chunk by chance.
+    committed_seqno = network.create_and_wait_for_ledger_chunk(primary)
+    assert committed_seqno > snapshot_seqno, (committed_seqno, snapshot_seqno)
+    return test_recover_service(network, args, snapshots_dir=snapshots_dir)
+
+
 def _recover_service(
     network,
     args,
@@ -569,8 +611,9 @@ def _recover_service(
 
     if force_election:
         # Populate the private ledger so the primary is still reading it when
-        # prodded below: the read must outlast the wait for all nodes to start
-        # reading. The exact volume isn't critical, just large enough for that.
+        # prodded below. Release builds read it at roughly 4k entries/s, so this
+        # only buys well under a second: recover_with_primary_dying keeps the
+        # work it does after the last share is submitted to a minimum.
         network.txs.issue(
             network,
             number_txs=2000,

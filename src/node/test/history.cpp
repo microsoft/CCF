@@ -14,6 +14,7 @@
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "service/tables/signatures.h"
+#include "service/tables/signing_identities.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -21,6 +22,7 @@
 
 #include <atomic>
 #include <exception>
+#include <optional>
 #include <stop_token>
 #include <thread>
 
@@ -38,6 +40,7 @@ class DummyConsensus : public ccf::kv::test::StubConsensus
 {
 public:
   ccf::kv::Store* store;
+  std::optional<ccf::kv::ApplyResult> last_apply_result = std::nullopt;
 
   DummyConsensus(ccf::kv::Store* store_) : store(store_) {}
 
@@ -46,8 +49,9 @@ public:
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      return store->deserialize(*std::get<1>(entries[0]))->apply() !=
-        ccf::kv::ApplyResult::FAIL;
+      const auto result = store->deserialize(*std::get<1>(entries[0]))->apply();
+      last_apply_result = result;
+      return result != ccf::kv::ApplyResult::FAIL;
     }
     return true;
   }
@@ -140,6 +144,17 @@ TEST_CASE("Check signature verification")
     REQUIRE(backup_store.current_version() == 2);
   }
 
+  INFO("Verify signatures after appending one unsigned transaction");
+  {
+    MapT table("public:table");
+    auto tx = primary_store.create_tx();
+    tx.rw(table)->put(0, 1);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(backup_store.current_version() == 3);
+    REQUIRE_FALSE(
+      backup_history->verify_root_signatures(backup_store.current_version()));
+  }
+
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {
     auto txs = primary_store.create_tx();
@@ -148,6 +163,104 @@ TEST_CASE("Check signature verification")
     bogus.sig = std::vector<uint8_t>(256, 1);
     sigs->put(bogus);
     REQUIRE(txs.commit() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+  }
+}
+
+TEST_CASE("Check signature verification with published signing identities")
+{
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto node_kp = ccf::crypto::make_ec_key_pair();
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
+    ccf::crypto::make_ec_key_pair());
+  const auto self_signed = node_kp->self_sign("CN=Node", valid_from, valid_to);
+
+  ccf::kv::Store primary_store;
+  primary_store.set_encryptor(encryptor);
+  constexpr auto store_term = 2;
+  auto primary_history = std::make_shared<ccf::MerkleTxHistory>(
+    primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
+  primary_history->set_endorsed_certificate(self_signed);
+  primary_history->set_service_signing_identity(
+    service_kp, ccf::COSESignaturesConfig{});
+  primary_store.set_history(primary_history);
+  primary_store.initialise_term(store_term);
+
+  ccf::kv::Store backup_store;
+  backup_store.set_encryptor(encryptor);
+  auto backup_history = std::make_shared<ccf::MerkleTxHistory>(
+    backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp);
+  backup_store.set_history(backup_history);
+  backup_store.initialise_term(store_term);
+  backup_store.set_consensus(std::make_shared<DummyConsensus>(nullptr));
+
+  auto consensus = std::make_shared<DummyConsensus>(&backup_store);
+  primary_store.set_consensus(consensus);
+
+  ccf::Nodes nodes(ccf::Tables::NODES);
+  ccf::Service service(ccf::Tables::SERVICE);
+  {
+    auto tx = primary_store.create_tx();
+    ccf::NodeInfo node_info;
+    node_info.encryption_pub_key = node_kp->public_key_pem();
+    node_info.cert = self_signed;
+    tx.rw(nodes)->put(ccf::kv::test::PrimaryNodeId, node_info);
+    tx.rw(service)->put(ccf::ServiceInfo{
+      .cert = service_kp->self_sign("CN=Service", valid_from, valid_to)});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  primary_history->emit_signature();
+  REQUIRE(consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
+
+  auto tx = primary_store.create_tx();
+  auto* signing_identities =
+    tx.rw<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES);
+  signing_identities->put(
+    ccf::IdentityType::CLASSICAL,
+    {ccf::IdentityKind::X509_SPKI_DER, service_kp->public_key_der()});
+
+  SUBCASE("Published signing identity takes precedence over the certificate")
+  {
+    const auto other_key = ccf::crypto::make_ec_key_pair();
+    tx.rw(service)->put(ccf::ServiceInfo{
+      .cert = other_key->self_sign("CN=Other", valid_from, valid_to)});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    primary_history->emit_signature();
+    REQUIRE(
+      consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
+  }
+
+  SUBCASE("Published signing identity works without legacy service information")
+  {
+    tx.rw(service)->clear();
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    primary_history->emit_signature();
+    REQUIRE(
+      consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
+  }
+
+  SUBCASE("Failed verification does not retry the legacy certificate")
+  {
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      {ccf::IdentityKind::X509_SPKI_DER,
+       ccf::crypto::make_ec_key_pair()->public_key_der()});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    primary_history->emit_signature();
+    REQUIRE(consensus->last_apply_result == ccf::kv::ApplyResult::FAIL);
+  }
+
+  SUBCASE("Malformed signing keys do not retry the legacy certificate")
+  {
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      {ccf::IdentityKind::X509_SPKI_DER, std::vector<uint8_t>{1, 2, 3}});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    REQUIRE_THROWS(primary_history->emit_signature());
   }
 }
 
@@ -715,4 +828,86 @@ int main(int argc, char** argv)
   if (context.shouldExit())
     return res;
   return res;
+}
+
+TEST_CASE("COSE signature table holds one entry per identity")
+{
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
+
+  const ccf::CoseSignature ec384_sig{1, 2, 3};
+  const ccf::CoseSignature mldsa65_sig{4, 5, 6};
+
+  INFO("A table carrying two identities round-trips both");
+  {
+    auto tx = store.create_tx();
+    auto* handle = tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+    handle->put(ccf::IdentityType::CLASSICAL, ec384_sig);
+    handle->put(ccf::IdentityType::PQ, mldsa65_sig);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = store.create_read_only_tx();
+    auto* handle = tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+
+    // A reader which only understands ECDSA still finds it, unaffected by
+    // the presence of identities it does not know about.
+    REQUIRE(handle->get(ccf::IdentityType::CLASSICAL) == ec384_sig);
+    REQUIRE(handle->get(ccf::IdentityType::PQ) == mldsa65_sig);
+
+    ccf::CoseSignatureMap read_back;
+    handle->foreach([&read_back](const auto& identity_type, const auto& sig) {
+      read_back.emplace(identity_type, sig);
+      return true;
+    });
+    REQUIRE(read_back.size() == 2);
+  }
+}
+
+TEST_CASE("CLASSICAL COSE signatures interoperate with the legacy singleton")
+{
+  using LegacyCoseSignatures = ccf::ServiceValue<ccf::CoseSignature>;
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const ccf::CoseSignature legacy_signature{1, 2, 3};
+  const ccf::CoseSignature keyed_signature{4, 5, 6};
+
+  {
+    auto tx = store.create_tx();
+    tx.wo<LegacyCoseSignatures>(ccf::Tables::COSE_SIGNATURES)
+      ->put(legacy_signature);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = store.create_tx();
+    auto* signatures = tx.rw<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+    REQUIRE(signatures->get(ccf::IdentityType::CLASSICAL) == legacy_signature);
+    signatures->put(ccf::IdentityType::CLASSICAL, keyed_signature);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = store.create_read_only_tx();
+    REQUIRE(
+      tx.ro<LegacyCoseSignatures>(ccf::Tables::COSE_SIGNATURES)->get() ==
+      keyed_signature);
+  }
+}
+
+TEST_CASE("extract_cose_signatures skips removals")
+{
+  ccf::CoseSignatures::Write writes;
+  writes[ccf::IdentityType::CLASSICAL] = ccf::CoseSignature{1, 2, 3};
+  // A removal is recorded as an unset value, and must not be reported as a
+  // signature.
+  writes[ccf::IdentityType::PQ] = std::nullopt;
+
+  const auto extracted = ccf::extract_cose_signatures(writes);
+  REQUIRE(extracted.size() == 1);
+  REQUIRE(
+    extracted.at(ccf::IdentityType::CLASSICAL) == ccf::CoseSignature{1, 2, 3});
+  REQUIRE_FALSE(extracted.contains(ccf::IdentityType::PQ));
 }

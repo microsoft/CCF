@@ -47,10 +47,9 @@ namespace ccf::tasks
     using DelayedTasksByTime =
       std::map<std::chrono::milliseconds, DelayedTasks>;
 
-    std::atomic<std::chrono::milliseconds> total_elapsed =
-      std::chrono::milliseconds(0);
-
     ccf::ds::Mutex tasks_mutex;
+    std::chrono::milliseconds total_elapsed CCF_GUARDED_BY(tasks_mutex) =
+      std::chrono::milliseconds(0);
     DelayedTasksByTime tasks CCF_GUARDED_BY(tasks_mutex);
   };
 
@@ -71,33 +70,66 @@ namespace ccf::tasks
     std::shared_ptr<std::vector<WorkerThreadPtr>> waiting_worker_threads
       CCF_GUARDED_BY(mutex) = std::make_shared<std::vector<WorkerThreadPtr>>();
 
+    ccf::ds::WorkBeaconPtr work_beacon CCF_GUARDED_BY(mutex) = nullptr;
+
     // Collection of delayed tasks, that may be ready for execution on a future
     // tick
     Delayed delayed;
 
-    void add_task(Task&& task)
+    void set_work_beacon(ccf::ds::WorkBeaconPtr work_beacon_)
     {
-      // Under lock
-      ccf::ds::MutexGuard lock(mutex);
-
-      // First check if there is an idle worker waiting for a task
-      for (WorkerThreadPtr& worker : *waiting_worker_threads)
+      ccf::ds::WorkBeaconPtr beacon;
       {
-        // NB: Although waiting_worker_threads is modified under lock, it is
-        // possible that a second call to add_task arrives before the notified
-        // thread wakes up and removes itself from this collection. In this case
-        // we must avoid overwriting a previously-assigned task.
-        if (worker->assigned_task == nullptr)
+        ccf::ds::MutexGuard lock(mutex);
+        work_beacon = std::move(work_beacon_);
+        if (work_beacon != nullptr && !pending_tasks.empty())
         {
-          worker->assigned_task = std::move(task);
-          worker->cv.notify_one();
-          return;
+          beacon = work_beacon;
         }
       }
 
-      // There are no waiting_worker_threads currently, or none waiting for a
-      // task, so enqueue this task for later execution
-      pending_tasks.emplace(std::move(task));
+      if (beacon != nullptr)
+      {
+        beacon->notify_work_available_coalesced();
+      }
+    }
+
+    void add_task(Task&& task)
+    {
+      ccf::ds::WorkBeaconPtr beacon;
+      {
+        // Under lock
+        ccf::ds::MutexGuard lock(mutex);
+
+        // First check if there is an idle worker waiting for a task
+        for (WorkerThreadPtr& worker : *waiting_worker_threads)
+        {
+          // NB: Although waiting_worker_threads is modified under lock, it is
+          // possible that a second call to add_task arrives before the notified
+          // thread wakes up and removes itself from this collection. In this
+          // case we must avoid overwriting a previously-assigned task.
+          if (worker->assigned_task == nullptr)
+          {
+            worker->assigned_task = std::move(task);
+            worker->cv.notify_one();
+            return;
+          }
+        }
+
+        // There are no waiting_worker_threads currently, or none waiting for a
+        // task, so enqueue this task for later execution. Wake the external
+        // consumer only when the pending queue becomes non-empty.
+        if (pending_tasks.empty())
+        {
+          beacon = work_beacon;
+        }
+        pending_tasks.emplace(std::move(task));
+      }
+
+      if (beacon != nullptr)
+      {
+        beacon->notify_work_available_coalesced();
+      }
     }
 
     Task get_task()
@@ -162,16 +194,17 @@ namespace ccf::tasks
     {
       ccf::ds::MutexGuard lock(delayed.tasks_mutex);
 
-      const auto trigger_time = delayed.total_elapsed.load() + initial_delay;
+      const auto trigger_time = delayed.total_elapsed + initial_delay;
       delayed.tasks[trigger_time].emplace_back(task, periodic_delay);
     }
 
     void tick(std::chrono::milliseconds elapsed)
     {
-      elapsed += delayed.total_elapsed.load();
-
       {
         ccf::ds::MutexGuard lock(delayed.tasks_mutex);
+        elapsed += delayed.total_elapsed;
+        delayed.total_elapsed = elapsed;
+
         auto end_it = delayed.tasks.upper_bound(elapsed);
 
         Delayed::DelayedTasksByTime repeats;
@@ -210,8 +243,6 @@ namespace ccf::tasks
             repeated_tasks.end());
         }
       }
-
-      delayed.total_elapsed.store(elapsed);
     }
   };
 
@@ -226,6 +257,11 @@ namespace ccf::tasks
   JobBoard::JobBoard() : pimpl(std::make_unique<PImpl>()) {}
 
   JobBoard::~JobBoard() = default;
+
+  void JobBoard::set_work_beacon(ccf::ds::WorkBeaconPtr work_beacon)
+  {
+    pimpl->set_work_beacon(std::move(work_beacon));
+  }
 
   void JobBoard::add_task(Task task)
   {

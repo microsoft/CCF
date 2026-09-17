@@ -22,6 +22,7 @@
 #include "node/no_get_ledger_sign_mode.cpp" // NOLINT(bugprone-suspicious-include)
 #include "node_signature_verify.h"
 #include "service/tables/signatures.h"
+#include "service/tables/signing_identities.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
@@ -107,7 +108,7 @@ namespace ccf
         ccf::Tables::SERIALISED_MERKLE_TREE);
       PrimarySignature sig_value(id, txid.seqno);
       signatures->put(sig_value);
-      cose_signatures->put(ccf::CoseSignature{});
+      cose_signatures->put(ccf::IdentityType::CLASSICAL, ccf::CoseSignature{});
       serialised_tree->put({});
       return sig.commit_reserved();
     }
@@ -424,7 +425,7 @@ namespace ccf
       }
       std::vector<uint8_t> cose_sign(cose_buf.to_vector());
 
-      cose_signatures->put(cose_sign);
+      cose_signatures->put(ccf::IdentityType::CLASSICAL, cose_sign);
 
       auto* serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
@@ -569,7 +570,7 @@ namespace ccf
 
     ccf::crypto::ECKeyPair& node_kp;
     ccf::crypto::COSEVerifierUniquePtr cose_verifier;
-    ccf::crypto::Pem cose_cert_cached;
+    std::vector<uint8_t> cose_public_key_cached;
 
     ccf::tasks::Task emit_signature_periodic_task;
     size_t sig_tx_interval;
@@ -778,41 +779,26 @@ namespace ccf
       auto root = get_replicated_state_root();
       log_hash(root, VERIFY);
 
+      size_t signatures_passed = 0;
+
+      // Only verify the node signature if it was actually written in this
+      // version. In COSE-only mode, the signatures table is not written,
+      // so an old value may be present from a previous dual-signed
+      // transaction. Verifying that stale signature against the current
+      // root would fail.
       auto* signatures =
         tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto sig = signatures->get();
-      if (sig.has_value())
+      const auto sig_version = signatures->get_version_of_previous_write();
+      if (
+        sig.has_value() && sig_version.has_value() &&
+        sig_version.value() == version)
       {
-        // Only verify the node signature if it was actually written in this
-        // version. In COSE-only mode, the signatures table is not written,
-        // so an old value may be present from a previous dual-signed
-        // transaction. Verifying that stale signature against the current
-        // root would fail.
-        const auto sig_version = signatures->get_version_of_previous_write();
-        if (sig_version.has_value() && sig_version.value() == version)
+        if (!verify_node_signature(tx, sig->node, sig->sig, root))
         {
-          if (!verify_node_signature(tx, sig->node, sig->sig, root))
-          {
-            return false;
-          }
+          return false;
         }
-      }
-
-      auto* cose_signatures =
-        tx.template ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
-      auto cose_sig = cose_signatures->get();
-
-      if (!cose_sig.has_value())
-      {
-        // It's possible we are reading some old non-COSE ledger entry.
-        // In that case, it's enough to only verify regular sig.
-        if (sig.has_value())
-        {
-          return true;
-        }
-
-        LOG_FAIL_FMT("No signatures found in COSE signatures map");
-        return false;
+        signatures_passed++;
       }
 
       // Since COSE signatures have not always been emitted, it is possible in a
@@ -820,60 +806,65 @@ namespace ccf
       // that does not refer to the _current root_. When this occurs
       // version_of_previous_write will not match the version at which we're
       // verifying.
+      auto* cose_signatures =
+        tx.template ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+      auto cose_sig = cose_signatures->get(ccf::IdentityType::CLASSICAL);
       const auto cose_sig_version =
-        cose_signatures->get_version_of_previous_write();
-      if (cose_sig_version.has_value() && cose_sig_version.value() != version)
+        cose_signatures->get_version_of_previous_write(
+          ccf::IdentityType::CLASSICAL);
+      if (
+        cose_sig.has_value() && cose_sig_version.has_value() &&
+        cose_sig_version.value() == version)
       {
-        LOG_INFO_FMT(
-          "Non-monotonic presence of COSE signatures - had one at {} but none "
-          "at {}",
-          cose_sig_version.value(),
-          version);
-        return true;
-      }
-
-      auto* service = tx.template ro<ccf::Service>(Tables::SERVICE);
-      auto service_info = service->get();
-
-      if (!service_info.has_value())
-      {
-        LOG_FAIL_FMT("No service key found to verify the signature");
-        return false;
-      }
-
-      std::vector<uint8_t> root_hash{
-        root.h.data(), root.h.data() + root.h.size()};
-      if (!cose_verifier_cached(service_info->cert)
-             ->verify_detached(cose_sig.value(), root_hash))
-      {
-        return false;
-      }
-
-      if (ccf::logger::config::ok(LoggerLevel::DEBUG))
-      {
-        try
+        const auto service_signing_identity =
+          ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL);
+        if (!service_signing_identity.has_value())
         {
-          auto receipt = ccf::cose::decode_ccf_receipt(
-            cose_sig.value(), /* recompute_root */ false);
-          if (receipt.phdr.cwt.iat.has_value())
+          LOG_FAIL_FMT(
+            "No service signing identity found to verify the signature");
+          return false;
+        }
+
+        std::vector<uint8_t> root_hash{
+          root.h.data(), root.h.data() + root.h.size()};
+        if (!cose_verifier_cached(service_signing_identity->value)
+               ->verify_detached(cose_sig.value(), root_hash))
+        {
+          return false;
+        }
+        signatures_passed++;
+
+        if (ccf::logger::config::ok(LoggerLevel::DEBUG))
+        {
+          try
+          {
+            auto receipt = ccf::cose::decode_ccf_receipt(
+              cose_sig.value(), /* recompute_root */ false);
+            if (receipt.phdr.cwt.iat.has_value())
+            {
+              LOG_DEBUG_FMT(
+                "Verified COSE signature for TxID {}, issued at {}",
+                receipt.phdr.ccf.txid,
+                ccf::ds::to_x509_time_string(
+                  std::chrono::system_clock::from_time_t(
+                    receipt.phdr.cwt.iat.value())));
+            }
+          }
+          catch (const std::exception& e)
           {
             LOG_DEBUG_FMT(
-              "Verified COSE signature for TxID {}, issued at {}",
-              receipt.phdr.ccf.txid,
-              ccf::ds::to_x509_time_string(
-                std::chrono::system_clock::from_time_t(
-                  receipt.phdr.cwt.iat.value())));
+              "Failed to decode COSE protected header for debug logging: {}",
+              e.what());
           }
-        }
-        catch (const std::exception& e)
-        {
-          LOG_DEBUG_FMT(
-            "Failed to decode COSE protected header for debug logging: {}",
-            e.what());
         }
       }
 
-      return true;
+      if (signatures_passed == 0)
+      {
+        LOG_FAIL_FMT("No signatures found in transaction {}", version);
+      }
+
+      return signatures_passed > 0;
     }
 
     std::vector<uint8_t> serialise_tree(size_t to) override
@@ -1033,13 +1024,13 @@ namespace ccf
 
   private:
     ccf::crypto::COSEVerifierUniquePtr& cose_verifier_cached(
-      const ccf::crypto::Pem& cert)
+      const std::vector<uint8_t>& public_key)
     {
-      if (cert != cose_cert_cached)
+      if (!cose_verifier || public_key != cose_public_key_cached)
       {
-        cose_cert_cached = cert;
-        cose_verifier =
-          ccf::crypto::make_cose_verifier_from_pem_cert(cose_cert_cached);
+        auto verifier = ccf::crypto::make_cose_verifier_from_key(public_key);
+        cose_public_key_cached = public_key;
+        cose_verifier = std::move(verifier);
       }
       return cose_verifier;
     }

@@ -4,10 +4,12 @@
 #include "crypto/openssl/cose_verifier.h"
 
 #include "cose/cose_rs_ffi.h"
+#include "crypto/cbor_helpers.h"
 #include "ds/internal_logger.h"
 
-#include <crypto/cbor.h>
+#include <crypto/cbor_tags.h>
 #include <crypto/cose.h>
+#include <tav/cbor.hpp>
 
 namespace
 {
@@ -19,30 +21,30 @@ namespace
 
   CoseSign1Components decompose_cose_sign1(std::span<const uint8_t> envelope)
   {
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
 
-    auto cose_cbor =
-      rethrow_with_msg([&]() { return parse(envelope); }, "Parse COSE CBOR");
+    auto cose_cbor = rethrow_with_msg(
+      [&]() { return nondet_parse(envelope); }, "Parse COSE CBOR");
 
-    const auto& cose_envelope = rethrow_with_msg(
-      [&]() -> auto& { return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1); },
+    const auto cose_envelope = rethrow_with_msg(
+      [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
       "Parse COSE tag");
 
     auto phdr = rethrow_with_msg(
-      [&]() { return cose_envelope->array_at(0)->as_bytes(); },
+      [&]() { return cose_envelope.array_at(0).as_bytes(); },
       "Parse protected header");
 
     std::optional<std::span<const uint8_t>> payload;
     {
-      const auto& payload_item = cose_envelope->array_at(2);
+      const auto& payload_item = cose_envelope.array_at(2);
       try
       {
-        payload = payload_item->as_bytes();
+        payload = payload_item.as_bytes();
       }
-      catch (const CBORDecodeError&)
+      catch (const DecodeError&)
       {
         // as_bytes() fails when payload is CBOR null (detached)
-        if (payload_item->as_simple() != ccf::cbor::SimpleValue::Null)
+        if (payload_item.as_simple() != tav::cbor::SimpleValue::Null)
         {
           throw;
         }
@@ -50,7 +52,7 @@ namespace
     }
 
     auto sig = rethrow_with_msg(
-      [&]() { return cose_envelope->array_at(3)->as_bytes(); },
+      [&]() { return cose_envelope.array_at(3).as_bytes(); },
       "Parse signature");
 
     return {phdr, payload, sig};
@@ -58,9 +60,10 @@ namespace
 
   int64_t extract_alg(std::span<const uint8_t> phdr_bytes)
   {
-    using namespace ccf::cbor;
-    auto phdr = parse(phdr_bytes);
-    return phdr->map_at(make_signed(ccf::cose::header::iana::ALG))->as_signed();
+    using namespace tav::cbor;
+    const Value phdr = nondet_parse(phdr_bytes);
+    const Value alg_key = make_signed(ccf::cose::header::iana::ALG);
+    return phdr.map_at(alg_key).as_signed();
   }
 
   CoseKey cose_key_from_pem(const ccf::crypto::Pem& pem)
@@ -302,41 +305,42 @@ namespace ccf::crypto
   COSEEndorsementValidity extract_cose_endorsement_validity(
     std::span<const uint8_t> cose_msg)
   {
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
 
-    auto cose_cbor =
-      rethrow_with_msg([&]() { return parse(cose_msg); }, "Parse COSE CBOR");
+    auto cose_cbor = rethrow_with_msg(
+      [&]() { return nondet_parse(cose_msg); }, "Parse COSE CBOR");
 
-    const auto& cose_envelope = rethrow_with_msg(
-      [&]() -> auto& { return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1); },
+    const auto cose_envelope = rethrow_with_msg(
+      [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
       "Parse COSE tag");
 
-    const auto& phdr_raw = rethrow_with_msg(
-      [&]() -> auto& { return cose_envelope->array_at(0); },
+    const auto phdr_raw = rethrow_with_msg(
+      [&]() { return cose_envelope.array_at(0); },
       "Parse raw protected header");
 
     auto phdr = rethrow_with_msg(
-      [&]() { return parse(phdr_raw->as_bytes()); }, "Decode protected header");
+      [&]() { return nondet_parse(phdr_raw.as_bytes()); },
+      "Decode protected header");
 
-    const auto& ccf_claims = rethrow_with_msg(
-      [&]() -> auto& {
-        return phdr->map_at(make_string(ccf::cose::header::custom::CCF_V1));
+    const auto ccf_claims = rethrow_with_msg(
+      [&]() {
+        return phdr.map_at(make_string(ccf::cose::header::custom::CCF_V1));
       },
       "Retrieve CCF claims");
 
     auto from = rethrow_with_msg(
       [&]() {
         return ccf_claims
-          ->map_at(make_string(ccf::cose::header::custom::TX_RANGE_BEGIN))
-          ->as_string();
+          .map_at(make_string(ccf::cose::header::custom::TX_RANGE_BEGIN))
+          .as_string();
       },
       "Retrieve epoch range begin");
 
     auto to = rethrow_with_msg(
       [&]() {
         return ccf_claims
-          ->map_at(make_string(ccf::cose::header::custom::TX_RANGE_END))
-          ->as_string();
+          .map_at(make_string(ccf::cose::header::custom::TX_RANGE_END))
+          .as_string();
       },
       "Retrieve epoch range end");
 

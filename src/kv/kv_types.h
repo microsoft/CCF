@@ -682,7 +682,6 @@ namespace ccf::kv
     virtual void lock_map_set() = 0;
     virtual void unlock_map_set() = 0;
 
-    virtual Version next_version() = 0;
     virtual std::optional<std::tuple<Version, Version, Version>> next_version(
       bool commit_new_map, Term expected_commit_term) = 0;
     virtual ccf::TxID next_txid() = 0;
@@ -750,7 +749,6 @@ namespace ccf::kv
     };
 
     virtual void set_flag(StoreFlag f) = 0;
-    virtual void unset_flag(StoreFlag f) = 0;
     virtual bool flag_enabled(StoreFlag f) = 0;
     virtual void set_flag_unsafe(StoreFlag f) = 0;
     virtual void unset_flag_unsafe(StoreFlag f) = 0;

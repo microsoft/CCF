@@ -78,6 +78,7 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   )
 endif()
 
+include(${CCF_DIR}/cmake/stacktrace.cmake)
 include(${CCF_DIR}/cmake/cpack_settings.cmake)
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
@@ -164,9 +165,14 @@ include_directories(${CCF_DIR}/src)
 
 set(CCF_3RD_PARTY_EXPORTED_DIR "${CCF_DIR}/3rdparty/exported")
 set(CCF_3RD_PARTY_INTERNAL_DIR "${CCF_DIR}/3rdparty/internal")
+set(
+  TAV_INCLUDE_DIR
+  "${CCF_3RD_PARTY_INTERNAL_DIR}/tee-attestation-verification/ffi/include"
+)
 
 include_directories(SYSTEM ${CCF_3RD_PARTY_EXPORTED_DIR})
 include_directories(SYSTEM ${CCF_3RD_PARTY_INTERNAL_DIR})
+include_directories(SYSTEM ${TAV_INCLUDE_DIR})
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
 
@@ -223,7 +229,6 @@ include(${CCF_DIR}/cmake/ccf_rs.cmake)
 include(${CCF_DIR}/cmake/threading.cmake)
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
-include(${CCF_DIR}/cmake/evercbor.cmake)
 
 # Launcher library
 list(
@@ -259,6 +264,10 @@ add_ccf_static_library(
   SRCS ${CCF_DIR}/src/pal/attestation.cpp
   LINK_LIBS ccfcrypto
 )
+target_include_directories(
+  ccf_pal
+  PRIVATE ${CCF_DIR}/3rdparty/internal/tee-attestation-verification/ffi/include
+)
 
 # CCF js lib
 add_ccf_static_library(
@@ -283,6 +292,7 @@ add_ccf_static_library(
     ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
     ${CCF_DIR}/src/js/extensions/ccf/request.cpp
     ${CCF_DIR}/src/js/registry.cpp
+    ${CCF_DIR}/src/node/uvm_endorsements.cpp
   LINK_LIBS ccfcrypto quickjs ccf_pal
 )
 
@@ -335,19 +345,20 @@ add_ccf_static_library(
   LINK_LIBS ccf_threading
 )
 
-find_library(BACKTRACE_LIBRARY backtrace)
-if(NOT BACKTRACE_LIBRARY)
-  message(
-    FATAL_ERROR
-    "libbacktrace (library 'backtrace') is required to build the CCF task "
-    "system (target ccf_tasks). Please install libbacktrace and retry "
-    "configuration."
+if(CCF_STACKTRACE_BACKEND_RESOLVED STREQUAL "STD")
+  target_compile_definitions(ccf_tasks PRIVATE CCF_STACKTRACE_USE_STD=1)
+  target_link_libraries(ccf_tasks PRIVATE ${CCF_STACKTRACE_SUPPORT_LIBRARY})
+else()
+  target_include_directories(ccf_tasks PRIVATE ${BACKTRACE_INCLUDE_DIR})
+  target_link_libraries(
+    ccf_tasks
+    PRIVATE
+      $<BUILD_INTERFACE:${BACKTRACE_LIBRARY}>
+      $<INSTALL_INTERFACE:backtrace>
   )
 endif()
-
-# libbacktrace reads DWARF debug info directly, providing file/line/function
-# resolution in stack traces.
-target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS} ${BACKTRACE_LIBRARY})
+# Static-library private dependencies remain transitive link requirements.
+target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
 
 # Common test args for Python scripts starting up CCF networks
 set(
@@ -505,6 +516,11 @@ install(
   PATTERN "*.inc"
 )
 
+install(
+  FILES ${TAV_INCLUDE_DIR}/tav/snp.h ${TAV_INCLUDE_DIR}/tav/utils.h
+  DESTINATION include/3rdparty/tav
+)
+
 # Install all private CCF headers, which may still be needed
 install(
   DIRECTORY src/
@@ -593,6 +609,7 @@ if(BUILD_TESTS)
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
     )
+    target_link_libraries(snp_ioctl_test PRIVATE ccf_pal)
     set_property(TEST snp_ioctl_test APPEND PROPERTY LABELS snp)
     set_property(TEST snp_ioctl_test APPEND PROPERTY CONFIGURATIONS snp)
 
@@ -714,10 +731,10 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      rpc_connections_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/rpc_connections.cpp
+      openssl_server_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/openssl_server_test.cpp
     )
-    target_link_libraries(rpc_connections_test PRIVATE uv)
+    target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
 
     add_unit_test(
       node_connections_test
@@ -757,10 +774,9 @@ if(BUILD_TESTS)
     if(FUZZING)
       add_fuzz_test(
         cbor_fuzz_test
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/cbor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cbor_fuzz.cpp
       )
-      target_link_libraries(cbor_fuzz_test PRIVATE evercbor)
+      target_link_libraries(cbor_fuzz_test PRIVATE ccfcrypto)
     endif()
 
     add_unit_test(
@@ -842,7 +858,6 @@ if(BUILD_TESTS)
         ENVIRONMENT
           "TEST_ENDORSEMENTS_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/uvm_endorsements"
     )
-    target_link_libraries(endorsements_test PRIVATE evercbor)
 
     add_unit_test(
       historical_queries_test
@@ -900,9 +915,6 @@ if(BUILD_TESTS)
       identity_types_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/identity_types.cpp
     )
-
-    add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
-    target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
       base64_test
@@ -988,6 +1000,15 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/test_jwt_auth.cpp
     )
     target_link_libraries(jwt_auth_test PRIVATE ccf_endpoints)
+
+    add_unit_test(
+      jwt_key_auto_refresh_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/jwt_key_auto_refresh.cpp
+    )
+    target_link_libraries(
+      jwt_key_auto_refresh_test
+      PRIVATE http_parser ccf_endpoints ccf_kv ccf_tasks curl uv
+    )
 
     add_unit_test(
       tx_status_test
@@ -1603,7 +1624,8 @@ if(BUILD_TESTS)
 
   add_test_bin(
     curl_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/curl_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/http_client/test/curl_header_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/http_client/test/curl_test.cpp
   )
   target_link_libraries(curl_test PRIVATE curl uv http_parser)
 

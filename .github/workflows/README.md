@@ -17,7 +17,7 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
-Tests are run on two different testbeds for comparison: gha-vmss-d16av6-ci (d16av6 VMs) and gha-c-aci-ci (C-ACI with 16 cores and 32Gb RAM).
+Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP on AMD EPYC Genoa CPUs).
 
 File: `bencher.yml`
 3rd party dependencies: None
@@ -50,6 +50,15 @@ Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readine
 File: `ci-al4.yml`
 3rd party dependencies: None
 
+# Cross-platform LTS
+
+Builds configurable CCF release install trees on Azure Linux 3 and Azure Linux 4 in parallel, then runs the LTS live-upgrade test directly on a VMSS runner. By default, it upgrades from the previous stable CCF release to the latest stable release; both versions can be overridden using the manual inputs in [`cross-platform-lts.yml`](cross-platform-lts.yml). Separate runtime images install only the required shared-library packages and copy in the matching install tree. Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking. Runs weekly and manually, but not on pull requests because both full builds and the compatibility test are expensive.
+
+Shared workflow environment values define the Python version, base images, runner pool labels, install archive filename, and test workspace.
+
+File: `cross-platform-lts.yml`
+3rd party dependencies: None
+
 # Coverage
 
 Builds CCF with coverage enabled, runs unit and end to end tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
@@ -79,7 +88,7 @@ File: `codeql-analysis.yml`
 
 # Continuous Verification
 
-Runs the standard model checking, simulation, trace validation, counterexample, and disaster recovery jobs each week.
+Runs the standard model checking, simulation, trace validation, and counterexample jobs each week.
 
 File: `ci-verification.yml`
 3rd party dependencies: None
@@ -99,6 +108,22 @@ Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
 - Builds the Raft scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
 
 File: `tla-shallow.yml`
+3rd party dependencies: None
+
+# Lean
+
+Runs all Lean verification for the repository. Future Lean checks should be
+added as jobs to this workflow.
+
+The disaster recovery job builds the canonical model with `lake build --wfail`,
+audits its transitive axiom dependencies with `lake lint`, and runs its
+executable canonical behavior checks on Ubuntu 26.04 on relevant pull requests.
+The build and audit include both the human-reviewed model and system properties
+and the proof implementation files marked as generated for review purposes.
+The standard `mk_all --check` command ensures that the audit root imports every
+library module, so newly added proofs cannot silently escape the checks.
+
+File: `lean.yml`
 3rd party dependencies: None
 
 # Vendored Dependency Verification
