@@ -750,6 +750,12 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      runtime_control_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/runtime_control.cpp
+    )
+    target_link_libraries(runtime_control_test PRIVATE uv)
+
+    add_unit_test(
       openssl_server_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/openssl_server_test.cpp
     )
