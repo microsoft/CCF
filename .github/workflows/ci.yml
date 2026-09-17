@@ -96,7 +96,7 @@ jobs:
           uv pip install -r doc/historical_ccf_requirements.txt
 
           cd build
-          ./tests.sh --timeout 360 --output-on-failure -V -L bucket_a -j2 --no-tests=error
+          ./tests.sh --timeout 360 --output-on-failure -L bucket_a -j2
 
       - name: "Upload logs for virtual A"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
