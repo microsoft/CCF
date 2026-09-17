@@ -5,16 +5,16 @@
 #include "ds/internal_logger.h"
 #include "enclave/rpc_handler.h"
 #include "enclave/rpc_map.h"
+#include "enclave/session.h"
 #include "http/error_reporter.h"
 #include "http/http_parser.h"
 #include "http/http_responder.h"
 #include "http_rpc_context.h"
+#include "node/commit_callback_subsystem.h"
 
 namespace http
 {
-  using HTTPSession = ccf::EncryptedSession;
-
-  class HTTPServerSession : public HTTPSession,
+  class HTTPServerSession : public ccf::PlaintextSession,
                             public http::RequestProcessor,
                             public ccf::http::HTTPResponder
   {
@@ -33,12 +33,12 @@ namespace http
       std::shared_ptr<ccf::RPCMap> rpc_map_,
       ::tcp::ConnID session_id_,
       ccf::ListenInterfaceID interface_id_,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<ccf::tls::Context> ctx,
+      ccf::SessionWriter& writer,
+      std::vector<uint8_t> peer_cert,
       const ccf::http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter_,
       const std::shared_ptr<ccf::CommitCallbackSubsystem>& commit_callbacks_) :
-      HTTPSession(session_id_, writer_factory, std::move(ctx)),
+      ccf::PlaintextSession(session_id_, writer, std::move(peer_cert)),
       request_parser(*this, configuration),
       rpc_map(std::move(rpc_map_)),
       error_reporter(error_reporter_),
@@ -155,7 +155,7 @@ namespace http
         if (session_ctx == nullptr)
         {
           session_ctx = std::make_shared<ccf::SessionContext>(
-            session_id, tls_io->peer_cert(), interface_id);
+            session_id, peer_cert(), interface_id);
         }
 
         std::shared_ptr<http::HttpRpcContext> rpc_ctx = nullptr;
