@@ -18,6 +18,9 @@ The micro-benchmark tests can be run from the CCF build directory:
     ./tests.sh -VV -L "bench"
 
 These test performance-critical features of CCF such as certificate verification and KV alterations.
+The ``js_interpreter_bench`` target measures in-process QuickJS and CCF
+interpreter construction, destruction, module compilation, and direct function
+invocation.
 
 
 End-to-end performance tests
