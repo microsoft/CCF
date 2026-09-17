@@ -20,6 +20,10 @@
 #include "raft_types.h"
 #include "service/tables/signatures.h"
 
+#ifdef CCF_RAFT_TRACING
+#  include "raft_trace_msgpack.h"
+#endif
+
 #include <algorithm>
 #include <list>
 #include <random>
@@ -56,31 +60,6 @@
 #  define RAFT_DEBUG_FMT LOG_DEBUG_FMT
 #  define RAFT_INFO_FMT LOG_INFO_FMT
 #  define RAFT_FAIL_FMT LOG_FAIL_FMT
-#endif
-
-#define RAFT_TRACE_JSON_OUT(json_object) \
-  CCF_LOG_OUT(DEBUG, "raft_trace") << json_object
-
-#ifdef CCF_RAFT_TRACING
-
-static inline void add_committable_indices_start_and_end(
-  nlohmann::json& j, const std::shared_ptr<aft::State>& state)
-{
-  std::vector<aft::Index> committable_indices;
-  if (!state->committable_indices.empty())
-  {
-    committable_indices.push_back(state->committable_indices.front());
-    if (state->committable_indices.size() > 1)
-    {
-      committable_indices.push_back(state->committable_indices.back());
-    }
-  }
-  j["committable_indices"] = committable_indices;
-}
-
-#  define COMMITTABLE_INDICES(event_state, state) \
-    add_committable_indices_start_and_end(event_state, state);
-
 #endif
 
 #define LOG_ROLLBACK_INFO_FMT CCF_LOG_FMT(INFO, "rollback")
@@ -532,14 +511,7 @@ namespace aft
         "Configurations: add new configuration at {}: {{{}}}", idx, conf);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "add_configuration";
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["configurations"] = configurations;
-      j["args"] = nlohmann::json::object();
-      j["args"]["configuration"] = Configuration{idx, conf, idx};
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_add_configuration(*state, configurations, idx, conf);
 #endif
 
       // Detect when we are retired by observing a configuration
@@ -673,14 +645,7 @@ namespace aft
           hooks->size());
 
 #ifdef CCF_RAFT_TRACING
-        nlohmann::json j = {};
-        j["function"] = "replicate";
-        j["state"] = *state;
-        COMMITTABLE_INDICES(j["state"], state);
-        j["view"] = term;
-        j["seqno"] = index;
-        j["globally_committable"] = globally_committable;
-        RAFT_TRACE_JSON_OUT(j);
+        trace::emit_replicate(*state, term, index, globally_committable);
 #endif
 
         for (auto& hook : *hooks)
@@ -1082,15 +1047,14 @@ namespace aft
       auto& node = all_other_nodes.at(to);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "send_append_entries";
-      j["packet"] = ae;
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["to_node_id"] = to;
-      j["match_idx"] = node.match_idx;
-      j["sent_idx"] = node.sent_idx;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_packet_node_indices(
+        "send_append_entries",
+        *state,
+        ae,
+        "to_node_id",
+        to,
+        node.match_idx,
+        node.sent_idx);
 #endif
 
       // The host will append log entries to this message when it is
@@ -1125,13 +1089,8 @@ namespace aft
         r.term);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_append_entries";
-      j["packet"] = r;
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["from_node_id"] = from;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_packet_node(
+        "recv_append_entries", *state, r, "from_node_id", from);
 #endif
 
       // Don't check that the sender node ID is valid. Accept anything that
@@ -1384,12 +1343,8 @@ namespace aft
         RAFT_DEBUG_FMT("Replicating on follower {}: {}", state->node_id, i);
 
 #ifdef CCF_RAFT_TRACING
-        nlohmann::json j = {};
-        j["function"] = "execute_append_entries_sync";
-        j["state"] = *state;
-        COMMITTABLE_INDICES(j["state"], state);
-        j["from_node_id"] = from;
-        RAFT_TRACE_JSON_OUT(j);
+        trace::emit_state_node(
+          "execute_append_entries_sync", *state, "from_node_id", from);
 #endif
 
         bool track_deletes_on_missing_keys = false;
@@ -1562,13 +1517,8 @@ namespace aft
         (answer == AppendEntriesResponseType::OK ? "ACK" : "NACK"));
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "send_append_entries_response";
-      j["packet"] = response;
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["to_node_id"] = to;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_packet_node(
+        "send_append_entries_response", *state, response, "to_node_id", to);
 #endif
 
       channels->send_authenticated(
@@ -1592,15 +1542,14 @@ namespace aft
       }
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_append_entries_response";
-      j["packet"] = r;
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["from_node_id"] = from;
-      j["match_idx"] = node->second.match_idx;
-      j["sent_idx"] = node->second.sent_idx;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_packet_node_indices(
+        "recv_append_entries_response",
+        *state,
+        r,
+        "from_node_id",
+        from,
+        node->second.match_idx,
+        node->second.sent_idx);
 #endif
 
       // Ignore if we're not the leader.
@@ -1703,13 +1652,8 @@ namespace aft
           get_term_internal(last_committable_idx)};
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "send_request_vote";
-      j["packet"] = rpv;
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["to_node_id"] = to;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_packet_node(
+        "send_request_vote", *state, rpv, "to_node_id", to);
 #endif
 
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rpv);
@@ -1727,13 +1671,8 @@ namespace aft
           get_term_internal(last_committable_idx)};
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "send_request_vote";
-      j["packet"] = rv;
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["to_node_id"] = to;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_packet_node(
+        "send_request_vote", *state, rv, "to_node_id", to);
 #endif
 
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
@@ -1861,13 +1800,8 @@ namespace aft
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_request_vote";
-      j["packet"] = r;
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["from_node_id"] = from;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_packet_node(
+        "recv_request_vote", *state, r, "from_node_id", from);
 #endif
 
       recv_request_vote_unsafe(from, r, ElectionType::RegularVote);
@@ -1878,13 +1812,8 @@ namespace aft
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_request_vote";
-      j["packet"] = r;
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["from_node_id"] = from;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_packet_node(
+        "recv_request_vote", *state, r, "from_node_id", from);
 #endif
 
       // A pre-vote is a speculative request vote, so we translate it back to a
@@ -1941,13 +1870,8 @@ namespace aft
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_request_vote_response";
-      j["packet"] = r;
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["from_node_id"] = from;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_packet_node(
+        "recv_request_vote_response", *state, r, "from_node_id", from);
 #endif
 
       // Ignore if we don't recognise the node.
@@ -2069,14 +1993,10 @@ namespace aft
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_propose_request_vote";
-      j["packet"] = r;
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["from_node_id"] = from;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_packet_node(
+        "recv_propose_request_vote", *state, r, "from_node_id", from);
 #endif
+
       if (!is_retired_committed() && ticking && r.term == state->current_view)
       {
         RAFT_INFO_FMT(
@@ -2128,12 +2048,8 @@ namespace aft
         state->current_view);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "become_pre_vote_candidate";
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_configurations(
+        "become_pre_vote_candidate", *state, configurations);
 #endif
 
       add_vote_for_me(state->node_id);
@@ -2175,12 +2091,8 @@ namespace aft
         "Becoming candidate {}: {}", state->node_id, state->current_view);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "become_candidate";
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_configurations(
+        "become_candidate", *state, configurations);
 #endif
 
       add_vote_for_me(state->node_id);
@@ -2231,12 +2143,7 @@ namespace aft
         "Becoming leader {}: {}", state->node_id, state->current_view);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "become_leader";
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_configurations("become_leader", *state, configurations);
 #endif
 
       // Try to advance commit at once if there are no other nodes.
@@ -2280,12 +2187,8 @@ namespace aft
         state->commit_idx);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "become_follower";
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_state_configurations(
+        "become_follower", *state, configurations);
 #endif
     }
 
@@ -2593,14 +2496,7 @@ namespace aft
       }
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "commit";
-      j["args"] = nlohmann::json::object();
-      j["args"]["idx"] = idx;
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::emit_commit(*state, configurations, idx);
 #endif
 
       compact_committable_indices(idx);
@@ -2779,6 +2675,13 @@ namespace aft
       return *state;
     }
 
+#ifdef CCF_RAFT_TRACING
+    const State& get_state_for_trace() const
+    {
+      return *state;
+    }
+#endif
+
     void nominate_successor() override
     {
       if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
@@ -2796,12 +2699,8 @@ namespace aft
       if (successor.has_value())
       {
 #ifdef CCF_RAFT_TRACING
-        nlohmann::json j = {};
-        j["function"] = "step_down_and_nominate_successor";
-        j["state"] = *state;
-        COMMITTABLE_INDICES(j["state"], state);
-        j["configurations"] = configurations;
-        RAFT_TRACE_JSON_OUT(j);
+        trace::emit_state_configurations(
+          "step_down_and_nominate_successor", *state, configurations);
 #endif
 
         send_propose_request_vote(successor.value());

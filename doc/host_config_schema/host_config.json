@@ -4,6 +4,37 @@
   "title": "CCF node configuration",
   "description": "JSON schema for configuration of a single CCF node",
   "properties": {
+    "observability": {
+      "type": "object",
+      "description": "Startup-only observability settings. Absent fluentd configuration disables trace export.",
+      "properties": {
+        "fluentd": {
+          "type": "object",
+          "description": "Exports [tag, EventTime, {'process_id': string, 'h_ts': process sequence, 'msg': event}] to a trusted local in_forward listener over plaintext TCP, without authentication or acknowledgements. Generic tracing is independent of CCF_RAFT_TRACING. Setting CCF_RAFT_TRACING=ON enables Raft instrumentation, using the ccf.raft_trace tag and retaining node IDs. Sequence numbers are assigned before enqueue; delivery can be out of order or lossy. The consumer logs each 65536 dropped records and drains for at most two seconds at shutdown. One owning record queue per producer feeds one TCP connection. Queue synchronization is lock-free, but record allocation may lock. Nodes do not wait for a collector before starting.",
+          "properties": {
+            "host": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Hostname or IPv4/IPv6 address, resolved once at startup. Resolution failure prevents startup; collector outage does not."
+            },
+            "port": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "description": "Decimal TCP port in the range 1 to 65535.",
+              "examples": ["24224"]
+            },
+            "queue_capacity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1048576,
+              "default": 4096,
+              "description": "Per-producer record slots, not a byte budget. Full queues and records over 1MiB are rejected before allocation. Allocation failure also drops the record. Accepted records own their bytes until the consumer finishes sending or drops them. There is no aggregate byte limit."
+            }
+          },
+          "required": ["host", "port"]
+        }
+      }
+    },
     "network": {
       "type": "object",
       "properties": {

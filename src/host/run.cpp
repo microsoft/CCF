@@ -40,6 +40,7 @@
 #include "sig_term.h"
 #include "tcp.h"
 #include "ticker.h"
+#include "tracing/fluentd_sink.h"
 
 #include <CLI11/CLI11.hpp>
 #include <atomic>
@@ -501,6 +502,7 @@ namespace ccf
   {
     auto enclave_thread_start = [&](threading::ThreadID thread_id) {
       threading::set_current_thread_id(thread_id);
+      ccf::tracing::FluentdSink::bind_producer(thread_id);
       try
       {
         bool ret = enclave_run();
@@ -760,6 +762,11 @@ namespace ccf
     // prior to the KV being updated
     startup_config.network.rpc_interfaces = config.network.rpc_interfaces;
 
+    ccf::tracing::FluentdSink::configure(
+      config.observability.fluentd, config.worker_threads + 2);
+    ccf::tracing::FluentdSink::bind_producer(config.worker_threads + 1);
+    ccf::tracing::FluentdSink::Lifetime trace_lifetime;
+
     // Create the enclave node
     auto enclave_creation_result = create_enclave_node(
       config,
@@ -939,6 +946,11 @@ namespace ccf
     try
     {
       validate_ledger_transaction_size(config);
+      if (config.observability.fluentd)
+      {
+        ccf::tracing::FluentdSink::validate(
+          *config.observability.fluentd, config.worker_threads + 2);
+      }
       const auto pending_node_timeout =
         std::chrono::microseconds(config.pending_node_timeout);
       if (

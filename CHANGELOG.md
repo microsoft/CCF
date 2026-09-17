@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.15
 
+### Added
+
+- Added generic tracing over plaintext TCP to a trusted, local Fluentd `in_forward` listener, enabled by startup `observability.fluentd` configuration. Export is best-effort, without authentication, TLS, acknowledgements, or durable delivery. Each producer has an owning record queue with `queue_capacity` defaulting to 4096 slots and a separate 1MiB record limit. See the [host configuration schema](doc/host_config_schema/host_config.json) for record fields, queue limits, and shutdown behaviour. Raft instrumentation requires `CCF_RAFT_TRACING=ON`, which remains off by default. The Raft test driver waits up to five seconds for a configured collector and fails on connection timeout or exporter drops.
+
 ### Fixed
 
 - Governance JavaScript evaluation (member ballots and the constitution's `validate`, `resolve` and `apply` steps) is now bounded by the same `js_runtime_options` heap, stack and execution time limits used for application requests, including while loading and initialising the module that contains those functions. A single member can no longer stall or exhaust the primary by supplying module-scope code without a bounded execution window. (#8341, #8346, #8351)

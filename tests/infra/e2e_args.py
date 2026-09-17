@@ -33,6 +33,7 @@ CLI_ARGUMENT_CONFIG_PATHS = {
     "election_timeout_ms": "consensus.election_timeout",
     "consensus_update_timeout_ms": "consensus.message_timeout",
     "worker_threads": "worker_threads",
+    "observability": "observability",
     "pdb": None,
     "workspace": None,
     "label": None,
@@ -434,6 +435,11 @@ def cli_args(
         help="number of worker threads inside the enclave",
         type=int,
         default=0,
+    )
+    parser.add_argument(
+        "--observability",
+        help="Node observability configuration as a JSON object",
+        type=json.loads,
     )
     parser.add_argument(
         "--pdb", help="Break to debugger on exception", action="store_true"

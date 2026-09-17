@@ -193,6 +193,7 @@ class Network:
         "join_timer_s",
         "pending_node_timeout",
         "worker_threads",
+        "observability",
         "ledger_chunk_bytes",
         "ledger_max_transaction_bytes",
         "subject_alt_names",

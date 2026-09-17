@@ -100,6 +100,12 @@ jobs:
           # Convert microbenchmark output to bencher json
           source env/bin/activate
           PYTHONPATH=../tests python convert_pico_to_bencher.py
+          # Keep tracing out of the existing baselines. Both export variants
+          # below use the same tracing-enabled executable.
+          PYTHONPATH=../tests python -m unittest fluentd_benchmark_test
+          cmake -DCCF_RAFT_TRACING=ON ..
+          ninja basic
+          ./tests.sh -VV -C perf -R '^fluentd_emission$' --no-tests=error
         shell: bash
 
       - name: "Collect perf results"
@@ -131,6 +137,7 @@ jobs:
             build/workspace/*/stack_trace
             build/workspace/*/locust_failures.csv
             build/workspace/**/openapi_coverage.json
+            build/*_received.json
           if-no-files-found: ignore
         if: success() || failure()
 
