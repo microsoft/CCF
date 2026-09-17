@@ -114,23 +114,19 @@ function(add_tidy name)
   )
 endfunction()
 
-separate_arguments(
-  COVERAGE_FLAGS
-  UNIX_COMMAND
-  "-fprofile-instr-generate -fcoverage-mapping"
-)
-separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate")
-
 function(enable_coverage name)
   if(COVERAGE)
-    target_compile_options(${name} PRIVATE ${COVERAGE_FLAGS})
+    target_compile_options(
+      ${name}
+      PRIVATE -fprofile-instr-generate -fcoverage-mapping
+    )
     get_target_property(target_type ${name} TYPE)
     if(target_type STREQUAL "STATIC_LIBRARY")
       # Consumers need the runtime even if their own sources are not
       # instrumented. This also applies to installed instrumented archives.
-      target_link_options(${name} INTERFACE ${COVERAGE_LINK})
+      target_link_options(${name} INTERFACE -fprofile-instr-generate)
     else()
-      target_link_options(${name} PRIVATE ${COVERAGE_LINK})
+      target_link_options(${name} PRIVATE -fprofile-instr-generate)
       # Report linked objects through their binaries, not again as archives
       # containing implementation code that may never have been linked.
       set_property(GLOBAL APPEND PROPERTY CCF_COVERAGE_TARGETS ${name})

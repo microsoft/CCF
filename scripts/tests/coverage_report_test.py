@@ -69,6 +69,16 @@ class CoverageReportTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Duplicate coverage file"):
                 REPORT.coverage_files(document, root)
 
+    def test_source_paths_in_renamed_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "renamed-checkout"
+            files = {"src/crypto/base64.cpp": summary()}
+            for report_root in (root, root.parent / "CCF", Path()):
+                with self.subTest(report_root=report_root):
+                    self.assertEqual(
+                        REPORT.coverage_files(export(files, report_root), root), files
+                    )
+
     def test_rejects_invalid_or_empty_exports(self):
         for document in (
             {"type": "unknown", "data": [{}]},

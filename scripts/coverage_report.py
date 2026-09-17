@@ -33,15 +33,18 @@ def coverage_files(document: dict, source_dir: Path) -> dict:
         raise ValueError("Expected a non-empty llvm-cov JSON export")
 
     source_dir = source_dir.resolve()
+    # coverage.sh resolves the reproducible CCF/ prefix against the source
+    # parent. llvm-cov export does not apply --path-equivalence to filenames.
+    source_roots = (source_dir, source_dir.parent / "CCF")
     files = {}
     for data in document["data"]:
         for entry in data["files"]:
-            path = Path(entry["filename"]).resolve()
-            filename = (
-                path.relative_to(source_dir).as_posix()
-                if path.is_relative_to(source_dir)
-                else path.as_posix()
-            )
+            path = (source_dir / entry["filename"]).resolve()
+            filename = path.as_posix()
+            for root in source_roots:
+                if path.is_relative_to(root):
+                    filename = path.relative_to(root).as_posix()
+                    break
             if filename in files:
                 raise ValueError(f"Duplicate coverage file: {filename}")
             files[filename] = entry["summary"]

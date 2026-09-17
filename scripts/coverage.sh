@@ -146,14 +146,17 @@ echo "Merging coverage data into '${OUTPUT_FILE}'..."
 # CCF/build/CCF/include/...  Setting -compilation-dir to the parent of
 # the real source tree lets llvm-cov resolve the mapped paths correctly:
 # e.g. CCF/include/... relative to /workspaces -> /workspaces/CCF/include/...
+# Path equivalence also handles source directories not named CCF.
 # ---------------------------------------------------------------------------
 COMPILATION_DIR=""
+PATH_EQUIVALENCE=""
 COMPILE_DB="${PROFRAW_DIR}/compile_commands.json"
 if [[ -f "${COMPILE_DB}" ]]; then
   prefix_map=$(grep -m1 -o '\-ffile-prefix-map=[^ "]*' "${COMPILE_DB}" | sed 's/-ffile-prefix-map=//' || true)
   if [[ -n "${prefix_map}" ]]; then
     real_path="${prefix_map%%=*}"
     COMPILATION_DIR=$(dirname "${real_path}")
+    PATH_EQUIVALENCE="${COMPILATION_DIR}/${prefix_map#*=},${real_path}"
     echo "Detected file-prefix-map, using compilation-dir: ${COMPILATION_DIR}"
   fi
 fi
@@ -173,6 +176,7 @@ build_cov_args() {
   # Override compilation directory so llvm-cov can resolve mapped source paths
   if [[ -n "${COMPILATION_DIR}" ]]; then
     args+=("-compilation-dir=${COMPILATION_DIR}")
+    args+=("-path-equivalence=${PATH_EQUIVALENCE}")
   fi
   printf '%s\n' "${args[@]}"
 }
