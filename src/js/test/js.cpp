@@ -22,10 +22,71 @@
 #include "node/tx_receipt_impl.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include <condition_variable>
 #include <doctest/doctest.h>
+#include <future>
+#include <mutex>
 #include <random>
 
 using namespace ccf::js;
+
+TEST_CASE("JS interpreters are constructed concurrently")
+{
+  using namespace std::chrono_literals;
+
+  const auto run =
+    [](const std::optional<ccf::endpoints::InterpreterReusePolicy>& reuse) {
+      ccf::js::InterpreterCache cache(1);
+      std::mutex lock;
+      std::condition_variable cv;
+      size_t active = 0;
+      size_t max_active = 0;
+      bool release = false;
+
+      cache.set_interpreter_factory([&](TxAccess access) {
+        {
+          std::unique_lock guard(lock);
+          ++active;
+          max_active = std::max(max_active, active);
+          if (active == 2)
+          {
+            release = true;
+            cv.notify_all();
+          }
+          else
+          {
+            cv.wait_for(guard, 30s, [&] { return release; });
+          }
+          --active;
+        }
+        return std::make_shared<ccf::js::core::Context>(access);
+      });
+
+      auto first = std::async(std::launch::async, [&] {
+        return cache.get_interpreter(TxAccess::APP_RW, reuse, 0);
+      });
+      auto second = std::async(std::launch::async, [&] {
+        return cache.get_interpreter(TxAccess::APP_RW, reuse, 0);
+      });
+
+      const auto first_interpreter = first.get();
+      const auto second_interpreter = second.get();
+      REQUIRE(max_active == 2);
+      if (reuse.has_value())
+      {
+        REQUIRE(first_interpreter == second_interpreter);
+      }
+      else
+      {
+        REQUIRE(first_interpreter != second_interpreter);
+      }
+    };
+
+  run(std::optional<ccf::endpoints::InterpreterReusePolicy>{});
+  run(ccf::endpoints::InterpreterReusePolicy{
+    .kind = ccf::endpoints::InterpreterReusePolicy::Kind::KeyBased,
+    .key = "test"});
+}
 
 TEST_CASE("Runtime limits cover top-level module evaluation")
 {

@@ -40,12 +40,12 @@ namespace ccf
     std::shared_ptr<Session> create_session(
       const std::string& protocol_name,
       ccf::tls::ConnID conn_id,
-      const std::unique_ptr<tls::Context>&& ctx) override
+      ccf::SessionWriter& writer) override
     {
       auto it = session_creation_functions.find(protocol_name);
       if (it != session_creation_functions.end())
       {
-        return it->second(conn_id, std::move(ctx));
+        return it->second(conn_id, writer);
       }
       throw std::logic_error(fmt::format(
         "Session creation function for protocol '{}' has not been installed",
