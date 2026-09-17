@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// Host-side, OpenSSL-native RPC connection manager.
+// OpenSSL-native RPC connection manager, driven by the host libuv loop.
 //
 // Owns one OpenSSL transport per listening interface (TLS terminated in the
-// connection, see host/tls/openssl_server.h), creates the protocol session for
+// connection, see tls/openssl_server.h), creates the protocol session for
 // each connection, and applies per-interface session caps and certificates. It
 // implements ccf::AbstractRPCSessions so the node (NodeState/frontends) reaches
 // it without depending on the transport backend.
@@ -21,16 +21,16 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/service/node_info_network.h"
 #include "ds/internal_logger.h"
-#include "enclave/abstract_rpc_sessions.h"
-#include "enclave/http2_session.h"
-#include "enclave/http_session.h"
-#include "enclave/no_more_sessions.h"
-#include "enclave/rpc_map.h"
-#include "host/datagram_server.h"
-#include "host/tls/openssl_session_manager.h"
 #include "http/error_reporter.h"
+#include "node/rpc/abstract_rpc_sessions.h"
 #include "node/rpc/custom_protocol_subsystem.h"
+#include "node/rpc/http2_session.h"
+#include "node/rpc/http_session.h"
+#include "node/rpc/no_more_sessions.h"
+#include "node/rpc/openssl_session_manager.h"
+#include "node/rpc/rpc_map.h"
 #include "node/session_metrics.h"
+#include "tls/datagram_server.h"
 
 #include <algorithm>
 #include <atomic>
@@ -138,7 +138,7 @@ namespace ccf
       // shared_ptr so that callers which snapshot it under interfaces_mutex
       // and then use it without the lock (stop(), reply_async()) cannot race
       // with it being replaced or destroyed.
-      std::shared_ptr<asynchost::OpenSSLSessionManager> bridge;
+      std::shared_ptr<OpenSSLSessionManager> bridge;
     };
 
     class DatagramSessionWriter : public ccf::SessionWriter
@@ -177,7 +177,7 @@ namespace ccf
 
     struct DatagramInterface
     {
-      std::shared_ptr<asynchost::DatagramServer> server;
+      std::shared_ptr<ccf::tls::DatagramServer> server;
       std::unique_ptr<DatagramSessionWriter> writer;
       std::map<std::string, UdpSession> sessions_by_peer;
       std::map<::tcp::ConnID, std::string> peer_by_id;
@@ -210,9 +210,7 @@ namespace ccf
     // interface lock would serialise every forwarded reply behind unrelated
     // loop-thread work.
     std::mutex connection_interfaces_mutex;
-    std::unordered_map<
-      ::tcp::ConnID,
-      std::shared_ptr<asynchost::OpenSSLSessionManager>>
+    std::unordered_map<::tcp::ConnID, std::shared_ptr<OpenSSLSessionManager>>
       connection_transports;
     // UDP interface state, keyed by interface name, with one custom protocol
     // session per peer.
@@ -232,8 +230,8 @@ namespace ccf
 
     // Shared by every interface transport, so the bound is on the node rather
     // than on any one interface or connection.
-    std::shared_ptr<asynchost::InboundAdmission> inbound_admission =
-      std::make_shared<asynchost::InboundAdmission>(inbound_queue_limit);
+    std::shared_ptr<ccf::tls::InboundAdmission> inbound_admission =
+      std::make_shared<ccf::tls::InboundAdmission>(inbound_queue_limit);
 
     // Outlives this manager if a session does - see InterfaceErrorCounts.
     std::shared_ptr<InterfaceErrorCounts> error_counts =
@@ -678,15 +676,15 @@ namespace ccf
       // Enclave::run() while the loop was still going), in which case this is
       // a no-op, or node startup failed before the event loop was ever
       // entered - which is exactly LoopState::NotRunning.
-      stop(asynchost::OpenSSLServer::LoopState::NotRunning);
+      stop(ccf::tls::OpenSSLServer::LoopState::NotRunning);
     }
 
     // Tear down every transport. `loop_state` says whether another thread is
     // running the libuv loop, which the transports cannot determine for
     // themselves - see OpenSSLServer::stop().
     void stop(
-      asynchost::OpenSSLServer::LoopState loop_state =
-        asynchost::OpenSSLServer::LoopState::NotRunning)
+      ccf::tls::OpenSSLServer::LoopState loop_state =
+        ccf::tls::OpenSSLServer::LoopState::NotRunning)
     {
       // Refuse new sessions before tearing anything down. This is what makes
       // it safe for the destructor to call stop(): make_session() will no
@@ -700,8 +698,8 @@ namespace ccf
       // calling report_parsing_error()), so holding it across the stop would
       // deadlock. The snapshots are shared_ptr, so the transports stay alive
       // for the duration even if the maps change.
-      std::vector<std::shared_ptr<asynchost::OpenSSLSessionManager>> bridges;
-      std::vector<std::shared_ptr<asynchost::DatagramServer>> datagram_servers;
+      std::vector<std::shared_ptr<OpenSSLSessionManager>> bridges;
+      std::vector<std::shared_ptr<ccf::tls::DatagramServer>> datagram_servers;
       {
         std::lock_guard<std::mutex> guard(interfaces_mutex);
         for (auto& [name, li] : interfaces)
@@ -724,9 +722,9 @@ namespace ccf
       for (const auto& server : datagram_servers)
       {
         server->stop(
-          loop_state == asynchost::OpenSSLServer::LoopState::Running ?
-            asynchost::DatagramServer::LoopState::Running :
-            asynchost::DatagramServer::LoopState::NotRunning);
+          loop_state == ccf::tls::OpenSSLServer::LoopState::Running ?
+            ccf::tls::DatagramServer::LoopState::Running :
+            ccf::tls::DatagramServer::LoopState::NotRunning);
       }
     }
 
@@ -779,8 +777,8 @@ namespace ccf
 
       LOG_INFO_FMT(
         "Registering RPC interface {}, on tcp {}:{}", name, host, port);
-      li->bridge = std::make_shared<asynchost::OpenSSLSessionManager>(
-        asynchost::OpenSSLServer::Config{
+      li->bridge = std::make_shared<OpenSSLSessionManager>(
+        ccf::tls::OpenSSLServer::Config{
           .host = host,
           .port = parse_port(name, port),
           .cert_pem = cert_pem,
@@ -827,7 +825,7 @@ namespace ccf
 
       LOG_INFO_FMT(
         "Registering RPC interface {}, on udp {}:{}", name, host, port);
-      udp->server = std::make_shared<asynchost::DatagramServer>(
+      udp->server = std::make_shared<ccf::tls::DatagramServer>(
         host,
         parse_port(name, port),
         [this, li, udp_ptr, writer](
@@ -861,7 +859,7 @@ namespace ccf
       // The transport is snapshotted under the lock and used without it:
       // stopping a transport blocks on the libuv loop, which itself needs
       // interfaces_mutex, so no manager lock may be held across a send.
-      std::shared_ptr<asynchost::OpenSSLSessionManager> bridge;
+      std::shared_ptr<OpenSSLSessionManager> bridge;
       {
         std::lock_guard<std::mutex> guard(connection_interfaces_mutex);
         auto it = connection_transports.find(id);

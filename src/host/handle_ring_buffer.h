@@ -3,9 +3,9 @@
 #pragma once
 
 #include "../ds/files.h"
-#include "../enclave/interface.h"
 #include "ds/internal_logger.h"
 #include "ds/non_blocking.h"
+#include "node/rpc/ringbuffer_messages.h"
 #include "timer.h"
 
 #include <chrono>

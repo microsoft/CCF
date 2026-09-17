@@ -10,7 +10,6 @@
 #include "ccf/js/extensions/snp_attestation.h"
 #include "ccf/js/registry.h"
 #include "ccf/service/tables/modules.h"
-#include "enclave/http_rpc_context.h"
 #include "js/extensions/ccf/scoped_cleanse.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache.h"
@@ -18,6 +17,7 @@
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/untyped_map.h"
+#include "node/rpc/http_rpc_context.h"
 #include "node/rpc/test/node_stub.h"
 #include "node/tx_receipt_impl.h"
 

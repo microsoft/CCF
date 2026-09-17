@@ -14,13 +14,13 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
-#include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
 #include "node/endpoint_context_impl.h"
 #include "node/node_configuration_subsystem.h"
+#include "node/rpc/rpc_handler.h"
 #include "service/internal_tables_access.h"
 
 #define FMT_HEADER_ONLY
