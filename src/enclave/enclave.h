@@ -9,8 +9,6 @@
 #include "ds/internal_logger.h"
 #include "ds/oversized.h"
 #include "ds/work_beacon.h"
-#include "host/ledger.h"
-#include "host/rpc_connection_manager.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
@@ -25,7 +23,7 @@
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/gov_effects.h"
-#include "node/rpc/ledger_subsystem.h"
+#include "node/rpc/ledger_interface.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/network_identity_accessors_impl.h"
 #include "node/rpc/network_identity_subsystem.h"
@@ -33,6 +31,7 @@
 #include "node/rpc/node_operation.h"
 #include "node/rpc/user_frontend.h"
 #include "node/signature_cache_subsystem.h"
+#include "rpc_connection_manager.h"
 #include "rpc_map.h"
 #include "tasks/worker.h"
 
@@ -86,7 +85,8 @@ namespace ccf
       const ccf::consensus::Configuration& consensus_config,
       const ccf::crypto::CurveID& curve_id,
       ccf::ds::WorkBeaconPtr work_beacon_,
-      asynchost::Ledger& ledger_) :
+      const std::shared_ptr<AbstractReadLedgerSubsystemInterface>&
+        ledger_subsystem) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
@@ -145,8 +145,6 @@ namespace ccf
       context->install_subsystem(cpss);
       rpcsessions->set_custom_protocol_subsystem(cpss);
 
-      auto ledger_subsystem =
-        std::make_shared<ccf::ReadLedgerSubsystem>(ledger_);
       context->install_subsystem(ledger_subsystem);
 
       static constexpr size_t max_interpreter_cache_size = 10;
@@ -526,7 +524,7 @@ namespace ccf
         LOG_INFO_FMT("Stopping RPC transports");
         // The host is still running the libuv loop at this point - it only
         // exits once we send AdminMessage::stopped below.
-        rpcsessions->stop(asynchost::OpenSSLServer::LoopState::Running);
+        rpcsessions->stop(ccf::tls::OpenSSLServer::LoopState::Running);
 
         LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, to_host);
