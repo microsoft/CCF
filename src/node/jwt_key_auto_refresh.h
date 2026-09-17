@@ -7,11 +7,11 @@
 #include "ccf/ds/nonstd.h"
 #include "ccf/service/tables/cert_bundles.h"
 #include "ccf/service/tables/jwt.h"
-#include "enclave/http_rpc_context.h"
-#include "enclave/rpc_map.h"
 #include "http/http_builder.h"
 #include "http_client/curl.h"
+#include "node/rpc/http_rpc_context.h"
 #include "node/rpc/node_frontend.h"
+#include "node/rpc/rpc_map.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
