@@ -1,5 +1,7 @@
 Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
 
+All jobs run on 1ES hosted pools targeted by pool name only, for example `runs-on: [gha-vmss-d16av7-ci]`.
+
 # Shared actions
 
 ## Azure Linux CI dependencies
