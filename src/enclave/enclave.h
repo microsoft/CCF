@@ -34,6 +34,7 @@
 #include "node/rpc/user_frontend.h"
 #include "node/signature_cache_subsystem.h"
 #include "rpc_map.h"
+#include "runtime_control.h"
 #include "tasks/worker.h"
 
 namespace ccf
@@ -45,13 +46,13 @@ namespace ccf
     std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory;
     std::unique_ptr<oversized::WriterFactory> writer_factory;
     ccf::ds::WorkBeaconPtr work_beacon;
+    ccf::AbstractRuntimeControl& runtime_control;
     ccf::NetworkState network;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCConnectionManager> rpcsessions;
     std::unique_ptr<ccf::NodeState> node;
-    ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::high_resolution_clock::time_point last_tick_time;
-    std::atomic<bool> worker_stop_signal = false;
+    std::atomic<bool> stop_requested = false;
 
     StartType start_type{};
 
@@ -86,16 +87,16 @@ namespace ccf
       const ccf::consensus::Configuration& consensus_config,
       const ccf::crypto::CurveID& curve_id,
       ccf::ds::WorkBeaconPtr work_beacon_,
+      ccf::AbstractRuntimeControl& runtime_control_,
       asynchost::Ledger& ledger_) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
       work_beacon(std::move(work_beacon_)),
+      runtime_control(runtime_control_),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCConnectionManager>(rpc_map))
     {
-      to_host = writer_factory->create_writer_to_outside();
-
       LOG_TRACE_FMT("Creating ledger secrets");
       network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
 
@@ -105,7 +106,7 @@ namespace ccf
 
       LOG_TRACE_FMT("Creating node");
       node = std::make_unique<ccf::NodeState>(
-        *writer_factory, network, rpcsessions, curve_id);
+        *writer_factory, network, rpcsessions, curve_id, runtime_control);
 
       LOG_TRACE_FMT("Creating context");
       context = std::make_unique<NodeContext>(node->get_node_id());
@@ -193,6 +194,19 @@ namespace ccf
     {
       ccf::tasks::get_main_job_board().set_work_beacon(nullptr);
       LOG_TRACE_FMT("Shutting down enclave");
+    }
+
+    void request_stop()
+    {
+      stop_requested.store(true);
+      work_beacon->notify_work_available_coalesced();
+      ccf::tasks::get_main_job_board().stop_waiters();
+    }
+
+    void request_stop_notice()
+    {
+      ccf::tasks::add_task(
+        ccf::tasks::make_basic_task([this]() { node->stop_notice(); }));
     }
 
     CreateNodeStatus create_new_node(
@@ -356,17 +370,6 @@ namespace ccf
         // reconstruct oversized messages sent to the enclave
         oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, AdminMessage::stop, [this, &bp](const uint8_t*, size_t) {
-            bp.set_finished();
-            this->worker_stop_signal.store(true);
-          });
-
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, AdminMessage::stop_notice, [this](const uint8_t*, size_t) {
-            node->stop_notice();
-          });
-
         last_tick_time = decltype(last_tick_time)::clock::now();
 
         DISPATCHER_SET_MESSAGE_HANDLER(
@@ -483,7 +486,7 @@ namespace ccf
         static constexpr size_t max_messages = 256;
 
         bool should_wait_for_work = true;
-        while (!bp.get_finished())
+        while (!stop_requested.load())
         {
           if (should_wait_for_work)
           {
@@ -524,12 +527,11 @@ namespace ccf
         }
 
         LOG_INFO_FMT("Stopping RPC transports");
-        // The host is still running the libuv loop at this point - it only
-        // exits once we send AdminMessage::stopped below.
+        // The host is still running the libuv loop at this point.
         rpcsessions->stop(asynchost::OpenSSLServer::LoopState::Running);
 
         LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
-        RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, to_host);
+        runtime_control.report_stopped();
 
         return true;
       }
@@ -543,7 +545,7 @@ namespace ccf
         auto& job_board = ccf::tasks::get_main_job_board();
         const auto timeout = std::chrono::milliseconds(100);
 
-        while (!worker_stop_signal.load())
+        while (!stop_requested.load())
         {
           auto task = job_board.wait_for_task(timeout);
           if (task != nullptr)

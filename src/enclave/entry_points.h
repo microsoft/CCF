@@ -5,6 +5,7 @@
 #include "common/enclave_interface_types.h"
 #include "ds/work_beacon.h"
 #include "host/ledger.h"
+#include "runtime_control.h"
 
 #include <cstdint>
 
@@ -20,7 +21,10 @@ namespace ccf
     ccf::LoggerLevel log_level,
     size_t num_worker_thread,
     const ccf::ds::WorkBeaconPtr& work_beacon,
+    ccf::AbstractRuntimeControl& runtime_control,
     asynchost::Ledger& ledger);
 
   bool enclave_run();
+  bool enclave_request_stop();
+  bool enclave_request_stop_notice();
 }
