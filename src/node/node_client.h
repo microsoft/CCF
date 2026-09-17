@@ -4,8 +4,8 @@
 
 #include "ccf/crypto/pem.h"
 #include "consensus/aft/raft_types.h"
-#include "enclave/rpc_map.h"
 #include "http/http_builder.h"
+#include "node/rpc/rpc_map.h"
 
 #include <functional>
 
