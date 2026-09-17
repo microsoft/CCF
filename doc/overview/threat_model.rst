@@ -4,7 +4,7 @@ CCF threat model review
 What is CCF?
 ------------
 
-CCF is an application framework. Other teams deploy applications built on it. A CCF service runs an identical application on several nodes. Users reach it over HTTPS, application endpoints read and write a key-value store, and every state change is recorded in an integrity-protected replicated ledger. Users can obtain cryptographic receipts for committed transactions. A consortium of members governs the service through a JavaScript constitution. See the :doc:`public documentation </overview/what_is_ccf>` for the full description.
+CCF is an application framework. Other teams deploy applications built on it. A CCF service runs an identical application on several nodes. Users reach it over HTTPS, application endpoints read and write a key-value store, and every state change is recorded in an integrity-protected replicated ledger. Users can obtain cryptographic receipts for committed transactions. A consortium of members governs the service through a programmable constitution. See the :doc:`public documentation </overview/what_is_ccf>` for the full description.
 
 Threat modelling
 ----------------
@@ -22,18 +22,18 @@ Two terms carry a fixed meaning in this report. **Untrusted** means the party ma
    * - Approved application, CCF framework, and confidential-computing platform
      - **Trusted.** Assumed sound. Code running inside the enclave can read private state, so flaws there are not prevented.
    * - Governing consortium members
-     - **Trusted collectively, not individually.** Members govern through signed proposals and the approval rules in the constitution. The constitution is application-specific and therefore outside the scope of CCF's threat model. Individual members may act maliciously; the consortium is trusted as a whole to govern correctly.
+     - **Trusted collectively, not individually.** Members govern through signed proposals and the approval rules in the constitution. The constitution is service-instance-specific and therefore outside the scope of CCF's threat model. Individual members may act maliciously; the consortium is trusted as a whole to govern correctly.
    * - Service operator
      - **Trusted** to operate the service correctly.
    * - Host infrastructure, including hosts and the people who run them
      - **Untrusted.** Assumed to see and modify anything outside the enclave, including ledger files, snapshots, node configuration, and network traffic. Malicious host behavior is in scope.
 
-User interactions with the application are untrusted. Users can verify the service identity to check that they are communicating with the intended service. They can also obtain and verify :doc:`cryptographic receipts </audit/receipts>` for committed transactions, providing evidence with which to hold the service accountable.
+User interactions with the service are untrusted. Users can verify the service identity to check that they are communicating with the intended instance. They can also obtain and verify :doc:`cryptographic receipts </audit/receipts>` for committed transactions, providing evidence with which to hold the service accountable.
 
 Typical CCF deployment
 ~~~~~~~~~~~~~~~~~~~~~~
 
-A CCF service runs the same application on several nodes. Typical deployments have three nodes. One of them holds the primary role at any moment; the other two are backups. Transactions are replicated across the nodes by the primary. Each node has its own local disk holding its copy of the ledger and its snapshots. The load balancer routes client requests to whichever node is the primary.
+A CCF service runs the same application on several nodes. Typical deployments have three nodes. In normal operation, one of them holds the primary role; the other two are backups. Transactions are replicated across the nodes by the primary. Each node has its own local disk holding its copy of the ledger since it has joined and its snapshots. One or more load balancers route client requests to either the node that is currently the primary, or to the set of backups.
 
 .. mermaid::
 
@@ -78,7 +78,7 @@ Protection scope
    * - Stored state
      - Transaction integrity, private-data encryption, and rollback/fork detection.
 
-Governance rules are application-specific and out of scope for this review. The report describes CCF's protection mechanisms, not the service's constitution or its choice of member approval rules.
+Governance rules are service-instance-specific and out of scope for this review. The report describes CCF's protection mechanisms, not the service's constitution or its choice of member approval rules.
 
 Detailed analysis
 -----------------
@@ -124,7 +124,7 @@ Protected execution
    * - Component
      - Protection
    * - UVM memory and guest execution state
-     - SEV-SNP provides memory confidentiality and integrity against the host and hypervisor, including protection against replay, corruption, remapping, and aliasing attacks.
+     - SEV-SNP provides memory confidentiality and integrity against the host and hypervisor, including protection against corruption, remapping, and aliasing attacks.
    * - Application and CCF framework
      - Both execute inside the protected UVM and can access private state. They are trusted code, not isolated from each other by SEV-SNP.
    * - Container images and launch commands
@@ -140,8 +140,8 @@ Attestation lets peers check which environment a node runs in before trusting it
 
    * - Evidence
      - What it identifies
-   * - UVM launch measurement and Microsoft-issued endorsements
-     - The UVM image and its endorsement issuer.
+   * - ``measurement``
+     - The SEV-SNP measurement of the UVM image.     
    * - ``host_data``
      - The SHA-256 digest of the enforced execution policy.
    * - ``report_data``
@@ -161,10 +161,10 @@ Configuration
      - Configuration options
      - Protection
    * - :doc:`config.json </operations/configuration>`
-     - Contains options intended to be safe for the host to control, rather than security-sensitive launch options.
+     - Contains options intended to be safe for an untrusted actor to control, rather than security-sensitive launch options.
      - Unprotected, host-controlled input. Schema validation checks its format.
    * - :doc:`CLI arguments </operations/cli>`
-     - Capture security-sensitive options, such as ``--log-level``, that must not be freely controlled by the host.
+     - Capture security-sensitive options, such as ``--log-level``, whose value must be attested because they impact security guarantees.
      - Constrained by the execution policy and bound through attestation where that policy fixes their values.
 
 Stored state
@@ -210,7 +210,7 @@ This diagram examines the traffic that crosses into and out of one node: user se
    * - :doc:`Joining nodes </operations/start_network>`
      - The HTTPS join request carries SNP attestation bound to the joining node's public key. CCF validates the evidence; attestation validation and consortium admission are separate steps.
    * - :doc:`Node-to-node channels </architecture/node_to_node>`
-     - Admitted nodes mutually authenticate service-endorsed identities. Authenticated Diffie-Hellman establishes per-direction AES-256-GCM keys for the custom TCP channel, and monotonic counters reject replayed messages. The Microsoft Cryptography Board approved this protocol.
+     - Admitted nodes mutually authenticate service-endorsed identities. Authenticated Diffie-Hellman establishes per-direction AES-256-GCM keys for the custom TCP channel, and monotonic counters reject replayed messages.
    * - Client sessions
      - HTTPS terminates inside the CCF node. Clients verify the TLS certificate against the expected service identity. CCF 7.0.14 offers hybrid ML-KEM key exchange, with classical key exchange available as a fallback.
    * - :doc:`Caller authentication </build_apps/auth/index>`
