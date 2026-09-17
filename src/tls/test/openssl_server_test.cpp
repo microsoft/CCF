@@ -6,12 +6,12 @@
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "crypto/certs.h"
-#include "host/datagram_server.h"
-#include "host/tls/openssl_server.h"
-#include "host/tls/openssl_session_manager.h"
+#include "enclave/openssl_session_manager.h"
 #include "http/http_parser.h"
 #include "http/http_proc.h"
 #include "tasks/task_system.h"
+#include "tls/datagram_server.h"
+#include "tls/openssl_server.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <arpa/inet.h>
@@ -40,7 +40,8 @@
 #include <utility>
 #include <vector>
 
-using namespace asynchost;
+using namespace ccf::tls;
+using ccf::OpenSSLSessionManager;
 
 namespace
 {
@@ -1215,7 +1216,7 @@ TEST_CASE("TCP connections use the legacy latency and keepalive options")
 {
   const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
   REQUIRE(fd >= 0);
-  REQUIRE_FALSE(asynchost::details::configure_tcp_connection(fd).has_value());
+  REQUIRE_FALSE(ccf::tls::details::configure_tcp_connection(fd).has_value());
 
   const auto get_option = [fd](int level, int option) {
     int value = 0;
@@ -1236,18 +1237,18 @@ TEST_CASE("TCP connections use the legacy latency and keepalive options")
     setsockopt(
       fd, IPPROTO_TCP, TCP_QUICKACK, &quickack_off, sizeof(quickack_off)) == 0);
   REQUIRE(get_option(IPPROTO_TCP, TCP_QUICKACK) == 0);
-  REQUIRE_FALSE(asynchost::details::request_tcp_quickack(fd).has_value());
+  REQUIRE_FALSE(ccf::tls::details::request_tcp_quickack(fd).has_value());
   REQUIRE(get_option(IPPROTO_TCP, TCP_QUICKACK) == 1);
   REQUIRE((fcntl(fd, F_GETFD) & FD_CLOEXEC) != 0);
 
   ::close(fd);
 
-  const auto error = asynchost::details::configure_tcp_connection(-1);
+  const auto error = ccf::tls::details::configure_tcp_connection(-1);
   REQUIRE(error.has_value());
   REQUIRE(std::string(error->option) == "TCP_NODELAY");
   REQUIRE(error->error == EBADF);
 
-  const auto quickack_error = asynchost::details::request_tcp_quickack(-1);
+  const auto quickack_error = ccf::tls::details::request_tcp_quickack(-1);
   REQUIRE(quickack_error.has_value());
   REQUIRE(std::string(quickack_error->option) == "TCP_QUICKACK");
   REQUIRE(quickack_error->error == EBADF);
