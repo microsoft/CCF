@@ -52,6 +52,17 @@
       "service",
       "snapshots",
       "uv"
+    ],
+    "enclave": [
+      "ccf-api",
+      "common",
+      "crypto",
+      "ds",
+      "indexing",
+      "js",
+      "kv",
+      "node",
+      "tasks"
     ]
   }
 }

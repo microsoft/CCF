@@ -3,13 +3,13 @@
 #pragma once
 
 #include "ds/internal_logger.h"
-#include "enclave/rpc_map.h"
-#include "enclave/session.h"
 #include "http/error_reporter.h"
 #include "http/http2_parser.h"
 #include "http/http2_types.h"
 #include "http/http_responder.h"
 #include "http_rpc_context.h"
+#include "node/rpc/rpc_map.h"
+#include "node/rpc/session.h"
 
 namespace http
 {

@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/forwarder_types.h"
-#include "enclave/http_rpc_context.h"
-#include "enclave/rpc_map.h"
 #include "kv/kv_types.h"
 #include "node/node_to_node.h"
+#include "node/rpc/forwarder_types.h"
+#include "node/rpc/http_rpc_context.h"
+#include "node/rpc/rpc_map.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
