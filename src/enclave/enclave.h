@@ -11,7 +11,6 @@
 #include "ds/work_beacon.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
-#include "interface.h"
 #include "js/interpreter_cache.h"
 #include "kv/ledger_chunker.h"
 #include "node/commit_callback_subsystem.h"
@@ -29,10 +28,11 @@
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
+#include "node/rpc/ringbuffer_messages.h"
+#include "node/rpc/rpc_connection_manager.h"
+#include "node/rpc/rpc_map.h"
 #include "node/rpc/user_frontend.h"
 #include "node/signature_cache_subsystem.h"
-#include "rpc_connection_manager.h"
-#include "rpc_map.h"
 #include "tasks/worker.h"
 
 namespace ccf

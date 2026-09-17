@@ -16,9 +16,9 @@ Layers
 A single RPC interface is served by these pieces:
 
 - :ccf_repo:`OpenSSLServer </src/tls/openssl_server.h>` owns the listening and accepted sockets and registers ``uv_poll_t`` handles for them on the existing host loop. Each accepted connection holds an ``SSL`` object bound to its file descriptor with ``SSL_set_fd``. It emits decrypted bytes through an ``OnData`` callback and reports teardown through ``OnClose``.
-- :ccf_repo:`OpenSSLSessionManager </src/enclave/openssl_session_manager.h>` bridges the transport to the session layer. It lazily creates one ``ccf::Session`` per connection using a caller-supplied factory, and implements :ccf_repo:`ccf::SessionWriter </include/ccf/node/session.h>` so that a session's outbound plaintext is handed back to the transport.
-- :ccf_repo:`ccf::PlaintextSession </src/enclave/session.h>` is the base for the protocol sessions (:ccf_repo:`HTTPServerSession </src/enclave/http_session.h>`, :ccf_repo:`HTTP2ServerSession </src/enclave/http2_session.h>`). It receives plaintext, and emits plaintext through its ``SessionWriter``.
-- :ccf_repo:`RPCConnectionManager </src/enclave/rpc_connection_manager.h>` owns one of these stacks per configured RPC interface, and holds the cross-interface policy: certificates, session caps, and metrics.
+- :ccf_repo:`OpenSSLSessionManager </src/node/rpc/openssl_session_manager.h>` bridges the transport to the session layer. It lazily creates one ``ccf::Session`` per connection using a caller-supplied factory, and implements :ccf_repo:`ccf::SessionWriter </include/ccf/node/session.h>` so that a session's outbound plaintext is handed back to the transport.
+- :ccf_repo:`ccf::PlaintextSession </src/node/rpc/session.h>` is the base for the protocol sessions (:ccf_repo:`HTTPServerSession </src/node/rpc/http_session.h>`, :ccf_repo:`HTTP2ServerSession </src/node/rpc/http2_session.h>`). It receives plaintext, and emits plaintext through its ``SessionWriter``.
+- :ccf_repo:`RPCConnectionManager </src/node/rpc/rpc_connection_manager.h>` owns one of these stacks per configured RPC interface, and holds the cross-interface policy: certificates, session caps, and metrics.
 
 Because TLS lives below the session, there is no separate "encrypted session" type. The difference between a TLS interface and an ``UNSECURED`` one is a flag on the connection layer, not a different session class.
 
