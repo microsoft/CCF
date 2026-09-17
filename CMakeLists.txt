@@ -589,6 +589,26 @@ install(TARGETS verify_attestation DESTINATION bin)
 if(BUILD_TESTS)
   enable_testing()
 
+  set(
+    DOCS_PYTHON
+    ""
+    CACHE FILEPATH
+    "Python interpreter for the optional documentation test"
+  )
+  if(DOCS_PYTHON)
+    add_test(
+      NAME docs
+      COMMAND
+        "${DOCS_PYTHON}" -m sphinx --fail-on-warning -b html "${CCF_DIR}/doc"
+        "${CCF_DIR}/doc/html"
+    )
+    # Preserve the docs build's lack of a timeout, independently of e2e tests.
+    set_tests_properties(
+      docs
+      PROPERTIES LABELS "bucket_a;docs" WORKING_DIRECTORY "${CCF_DIR}" TIMEOUT 0
+    )
+  endif()
+
   # Unit tests
   if(BUILD_UNIT_TESTS)
     add_test(
