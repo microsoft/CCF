@@ -15,10 +15,10 @@ Layers
 
 A single RPC interface is served by these pieces:
 
-- :ccf_repo:`OpenSSLServer </src/host/tls/openssl_server.h>` owns the listening and accepted sockets and registers ``uv_poll_t`` handles for them on the existing host loop. Each accepted connection holds an ``SSL`` object bound to its file descriptor with ``SSL_set_fd``. It emits decrypted bytes through an ``OnData`` callback and reports teardown through ``OnClose``.
-- :ccf_repo:`OpenSSLSessionManager </src/host/tls/openssl_session_manager.h>` bridges the transport to the session layer. It lazily creates one ``ccf::Session`` per connection using a caller-supplied factory, and implements :ccf_repo:`ccf::SessionWriter </include/ccf/node/session.h>` so that a session's outbound plaintext is handed back to the transport.
-- :ccf_repo:`ccf::PlaintextSession </src/enclave/session.h>` is the base for the protocol sessions (:ccf_repo:`HTTPServerSession </src/http/http_session.h>`, :ccf_repo:`HTTP2ServerSession </src/http/http2_session.h>`). It receives plaintext, and emits plaintext through its ``SessionWriter``.
-- :ccf_repo:`RPCConnectionManager </src/host/rpc_connection_manager.h>` owns one of these stacks per configured RPC interface, and holds the cross-interface policy: certificates, session caps, and metrics.
+- :ccf_repo:`OpenSSLServer </src/tls/openssl_server.h>` owns the listening and accepted sockets and registers ``uv_poll_t`` handles for them on the existing host loop. Each accepted connection holds an ``SSL`` object bound to its file descriptor with ``SSL_set_fd``. It emits decrypted bytes through an ``OnData`` callback and reports teardown through ``OnClose``.
+- :ccf_repo:`OpenSSLSessionManager </src/enclave/openssl_session_manager.h>` bridges the transport to the session layer. It lazily creates one ``ccf::Session`` per connection using a caller-supplied factory, and implements :ccf_repo:`ccf::SessionWriter </include/ccf/node/session.h>` so that a session's outbound plaintext is handed back to the transport.
+- :ccf_repo:`ccf::PlaintextSession </src/enclave/session.h>` is the base for the protocol sessions (:ccf_repo:`HTTPServerSession </src/enclave/http_session.h>`, :ccf_repo:`HTTP2ServerSession </src/enclave/http2_session.h>`). It receives plaintext, and emits plaintext through its ``SessionWriter``.
+- :ccf_repo:`RPCConnectionManager </src/enclave/rpc_connection_manager.h>` owns one of these stacks per configured RPC interface, and holds the cross-interface policy: certificates, session caps, and metrics.
 
 Because TLS lives below the session, there is no separate "encrypted session" type. The difference between a TLS interface and an ``UNSECURED`` one is a flag on the connection layer, not a different session class.
 
@@ -154,7 +154,7 @@ Future: QUIC
 
 QUIC is not yet implemented. Server-side QUIC requires OpenSSL 3.5 or later, which adds ``SSL_new_listener``, ``SSL_accept_connection`` and ``OSSL_QUIC_server_method``; these are absent from the 3.3.x baseline CCF currently supports.
 
-:ccf_repo:`DatagramServer </src/host/datagram_server.h>` exists as the substrate for that work. It is deliberately shaped as the UDP socket a QUIC server operates on: socket creation, binding, ``uv_poll_t`` readiness and per-datagram dispatch are all reusable as-is. The points that change for QUIC are marked ``QUIC EXTENSION POINT`` inline, and consist of wrapping the socket with ``BIO_new_dgram``/``SSL_set_fd`` on a listener ``SSL``, adding the OpenSSL event timeout, and replacing the datagram callback with ``SSL_handle_events``.
+:ccf_repo:`DatagramServer </src/tls/datagram_server.h>` exists as the substrate for that work. It is deliberately shaped as the UDP socket a QUIC server operates on: socket creation, binding, ``uv_poll_t`` readiness and per-datagram dispatch are all reusable as-is. The points that change for QUIC are marked ``QUIC EXTENSION POINT`` inline, and consist of wrapping the socket with ``BIO_new_dgram``/``SSL_set_fd`` on a listener ``SSL``, adding the OpenSSL event timeout, and replacing the datagram callback with ``SSL_handle_events``.
 
 There is no built-in ``QUIC`` application protocol or UDP echo service. UDP interfaces are served only by registered custom protocols (:ccf_repo:`custom_protocol_subsystem_interface.h </include/ccf/research/custom_protocol_subsystem_interface.h>`), with one session per source address, swept on the same idle timeout as TCP connections.
 

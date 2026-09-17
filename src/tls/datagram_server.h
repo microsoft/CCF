@@ -42,7 +42,7 @@
 #include <unistd.h>
 #include <uv.h>
 
-namespace asynchost
+namespace ccf::tls
 {
   class DatagramServer
   {
@@ -74,7 +74,7 @@ namespace asynchost
     int sock = -1;
     // Heap-allocated and freed by their own close callbacks, so that this
     // server can be destroyed without waiting for the loop to run them. See
-    // the equivalent note in host/tls/openssl_server.h.
+    // the equivalent note in tls/openssl_server.h.
     uv_poll_t* socket_poll = nullptr;
     uv_async_t* stop_handle = nullptr;
     uint16_t bound_port = 0;

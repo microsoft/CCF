@@ -9,7 +9,7 @@
 #include <string>
 #include <string_view>
 
-namespace asynchost
+namespace ccf::ledger
 {
   namespace fs = std::filesystem;
 
