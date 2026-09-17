@@ -19,6 +19,14 @@ Overview
     ---
 
 
+    :fa:`shield-alt` :doc:`threat_model`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Trust relationships between CCF actors, and how they are maintained.
+
+    ---
+
+
     :fa:`tachometer-alt` :doc:`performance`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -37,5 +45,6 @@ Overview
 
     what_is_ccf
     governance
+    threat_model
     performance
     glossary
