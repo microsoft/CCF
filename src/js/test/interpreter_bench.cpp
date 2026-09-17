@@ -210,6 +210,15 @@ namespace
 
   constexpr auto ccf_module =
     "export function handler() { return ccf.strToBuf('value').byteLength; }";
+  constexpr auto intrinsic_module =
+    "export function handler() {"
+    "  const key = {};"
+    "  return new Date(42).getTime() +"
+    "    new Map([[1, 2]]).get(1) +"
+    "    new Set([3]).has(3) +"
+    "    new WeakMap([[key, 4]]).get(key) +"
+    "    new WeakSet([key]).has(key);"
+    "}";
 
   ccf::js::core::JSWrappedValue get_handler(
     ccf::js::core::Context& context, const char* module)
@@ -245,6 +254,25 @@ namespace
       if (result.is_exception())
       {
         throw std::runtime_error("Fresh CCF JS invocation failed");
+      }
+      do_not_optimize(result.val);
+      clobber_memory();
+    }
+  }
+
+  // Materializes every intrinsic family which is lazy in the standard context.
+  void create_compile_evaluate_and_use_lazy_intrinsics(picobench::state& state)
+  {
+    for (auto _ : state)
+    {
+      (void)_;
+      ccf::js::CommonContext context(ccf::js::TxAccess::APP_RW);
+      auto handler = get_handler(context, intrinsic_module);
+      auto result = context.call_with_rt_options(
+        handler, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+      if (result.is_exception())
+      {
+        throw std::runtime_error("Fresh lazy intrinsic invocation failed");
       }
       do_not_optimize(result.val);
       clobber_memory();
@@ -302,6 +330,8 @@ namespace
     .iterations(lifecycle_iteration_counts)
     .baseline();
   PICOBENCH(create_compile_evaluate_and_call)
+    .iterations(lifecycle_iteration_counts);
+  PICOBENCH(create_compile_evaluate_and_use_lazy_intrinsics)
     .iterations(lifecycle_iteration_counts);
   PICOBENCH(call_warm_handler).iterations(fast_iteration_counts);
 }

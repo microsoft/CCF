@@ -162,6 +162,219 @@ TEST_CASE("Runtime limits reset timeout state for reused interpreters")
   CHECK_FALSE(ctx.interrupt_data.request_timed_out);
 }
 
+TEST_CASE("Lazy intrinsic constructors preserve standard behavior")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  JS_UpdateStackTop(ctx.runtime());
+
+  auto handler = ctx.get_exported_function(
+    R"JS(
+      export function handler() {
+        const constructors = [
+          ["Date", 7],
+          ["Map", 0],
+          ["Set", 0],
+          ["WeakMap", 0],
+          ["WeakSet", 0],
+        ];
+        for (const [name, length] of constructors) {
+          const descriptor =
+            Object.getOwnPropertyDescriptor(globalThis, name);
+          const ctor = globalThis[name];
+          if (typeof ctor !== "function" ||
+              ctor.name !== name ||
+              ctor.length !== length ||
+              descriptor.enumerable ||
+              !descriptor.writable ||
+              !descriptor.configurable)
+            throw new Error(`Unexpected ${name} metadata`);
+        }
+
+        if (new Date(42).getTime() !== 42)
+          throw new Error("Date constructor failed");
+        const map = new Map([[1, 2]]);
+        if (map.get(1) !== 2 || [...map][0][1] !== 2)
+          throw new Error("Map constructor failed");
+        const set = new Set([1]);
+        if (!set.has(1) || [...set][0] !== 1)
+          throw new Error("Set constructor failed");
+        const key = {};
+        if (new WeakMap([[key, 3]]).get(key) !== 3)
+          throw new Error("WeakMap constructor failed");
+        if (!new WeakSet([key]).has(key))
+          throw new Error("WeakSet constructor failed");
+
+        class DerivedDate extends Date {}
+        class DerivedMap extends Map {}
+        class DerivedSet extends Set {}
+        if (!(new DerivedDate(42) instanceof DerivedDate) ||
+            !(new DerivedDate(42) instanceof Date))
+          throw new Error("Derived Date failed");
+        if (!(new DerivedMap() instanceof DerivedMap) ||
+            !(new DerivedMap() instanceof Map))
+          throw new Error("Derived Map failed");
+        if (!(new DerivedSet() instanceof DerivedSet) ||
+            !(new DerivedSet() instanceof Set))
+          throw new Error("Derived Set failed");
+      }
+    )JS",
+    "handler",
+    "lazy-intrinsics.js");
+  auto result = ctx.inner_call(handler, {});
+  if (result.is_exception())
+  {
+    const auto [reason, trace] = ctx.error_message();
+    FAIL("Lazy intrinsic JS threw: ", reason, " ", trace.value_or(""));
+  }
+
+  ccf::js::core::Context delete_ctx(TxAccess::APP_RO);
+  auto delete_handler = delete_ctx.get_exported_function(
+    R"JS(
+      export function handler() {
+        if (!delete globalThis.Map || "Map" in globalThis)
+          throw new Error("Unable to delete unmaterialized Map");
+        globalThis.Date = 42;
+        if (globalThis.Date !== 42)
+          throw new Error("Unable to overwrite unmaterialized Date");
+      }
+    )JS",
+    "handler",
+    "delete-lazy-intrinsics.js");
+  result = delete_ctx.inner_call(delete_handler, {});
+  if (result.is_exception())
+  {
+    const auto [reason, trace] = delete_ctx.error_message();
+    FAIL("Lazy intrinsic mutation threw: ", reason, " ", trace.value_or(""));
+  }
+
+  ccf::js::core::Context native_date_ctx(TxAccess::APP_RO);
+  auto date = native_date_ctx.wrap(JS_NewDate(native_date_ctx, 42));
+  CHECK_FALSE(date.is_exception());
+  auto date_prototype =
+    native_date_ctx.wrap(JS_GetPrototype(native_date_ctx, date.val));
+  REQUIRE(
+    date_prototype.set("constructor", native_date_ctx.new_string("HIJACKED")) ==
+    1);
+  auto date_constructor = native_date_ctx.get_global_property("Date");
+  CHECK(JS_IsFunction(native_date_ctx, date_constructor.val) == 1);
+  CHECK(JS_IsInstanceOf(native_date_ctx, date.val, date_constructor.val) == 1);
+
+  size_t serialized_size = 0;
+  uint8_t* serialized =
+    JS_WriteObject(native_date_ctx, &serialized_size, date.val, 0);
+  REQUIRE(serialized != nullptr);
+  ccf::js::core::Context read_date_ctx(TxAccess::APP_RO);
+  auto read_date = read_date_ctx.wrap(
+    JS_ReadObject(read_date_ctx, serialized, serialized_size, 0));
+  js_free(native_date_ctx, serialized);
+  REQUIRE_FALSE(read_date.is_exception());
+  date_constructor = read_date_ctx.get_global_property("Date");
+  CHECK(
+    JS_IsInstanceOf(read_date_ctx, read_date.val, date_constructor.val) == 1);
+  auto json = read_date_ctx.json_stringify(read_date);
+  CHECK(read_date_ctx.to_str(json) == R"("1970-01-01T00:00:00.042Z")");
+}
+
+TEST_CASE("Lazy intrinsic construction retries after OOM")
+{
+  size_t failed_materializations = 0;
+  for (const auto* name : {"Date", "Map"})
+  {
+    for (const auto headroom : {size_t{0}, size_t{512}, size_t{2048}})
+    {
+      ccf::js::core::Context ctx(TxAccess::APP_RO);
+      auto* runtime = static_cast<JSRuntime*>(ctx.runtime());
+      JSMemoryUsage usage;
+      JS_ComputeMemoryUsage(runtime, &usage);
+      JS_SetMemoryLimit(runtime, usage.malloc_size + headroom);
+
+      auto constructor = ctx.get_global_property(name);
+      if (!constructor.is_exception())
+      {
+        continue;
+      }
+
+      ++failed_materializations;
+      JS_FreeValue(ctx, JS_GetException(ctx));
+      JS_SetMemoryLimit(runtime, size_t(-1));
+      constructor = ctx.get_global_property(name);
+      REQUIRE_FALSE(constructor.is_exception());
+      CHECK(JS_IsFunction(ctx, constructor.val) == 1);
+      if (name[0] == 'M')
+      {
+        auto handler = ctx.get_exported_function(
+          R"JS(
+            export function handler() {
+              const map = new Map([[1, 2]]);
+              return [...map][0][1] === 2 &&
+                Object.getPrototypeOf(map.entries()) ===
+                  Object.getPrototypeOf(map[Symbol.iterator]());
+            }
+          )JS",
+          "handler",
+          "retry-map.js");
+        auto result = ctx.inner_call(handler, {});
+        REQUIRE_FALSE(result.is_exception());
+        CHECK(JS_ToBool(ctx, result.val) == 1);
+      }
+    }
+  }
+  CHECK(failed_materializations > 0);
+}
+
+TEST_CASE("Native Date construction retries after OOM")
+{
+  size_t failed_materializations = 0;
+  for (const auto headroom : {size_t{0}, size_t{512}, size_t{2048}})
+  {
+    ccf::js::core::Context ctx(TxAccess::APP_RO);
+    auto* runtime = static_cast<JSRuntime*>(ctx.runtime());
+    JSMemoryUsage usage;
+    JS_ComputeMemoryUsage(runtime, &usage);
+    JS_SetMemoryLimit(runtime, usage.malloc_size + headroom);
+
+    auto date = ctx.wrap(JS_NewDate(ctx, 42));
+    if (!date.is_exception())
+    {
+      continue;
+    }
+
+    ++failed_materializations;
+    JS_FreeValue(ctx, JS_GetException(ctx));
+    JS_SetMemoryLimit(runtime, size_t(-1));
+    date = ctx.wrap(JS_NewDate(ctx, 42));
+    REQUIRE_FALSE(date.is_exception());
+    auto constructor = ctx.get_global_property("Date");
+    REQUIRE_FALSE(constructor.is_exception());
+    CHECK(JS_IsInstanceOf(ctx, date.val, constructor.val) == 1);
+  }
+  CHECK(failed_materializations > 0);
+}
+
+TEST_CASE("Public eager intrinsic constructors remain supported")
+{
+  JSRuntime* runtime = JS_NewRuntime();
+  REQUIRE(runtime != nullptr);
+  JSContext* context = JS_NewContextRaw(runtime);
+  REQUIRE(context != nullptr);
+
+  REQUIRE(JS_AddIntrinsicBaseObjects(context) == 0);
+  REQUIRE(JS_AddIntrinsicDate(context) == 0);
+  REQUIRE(JS_AddIntrinsicMapSet(context) == 0);
+
+  auto global = JS_GetGlobalObject(context);
+  auto date = JS_GetPropertyStr(context, global, "Date");
+  CHECK(JS_IsFunction(context, date) == 1);
+  JS_FreeValue(context, date);
+  auto map = JS_GetPropertyStr(context, global, "Map");
+  CHECK(JS_IsFunction(context, map) == 1);
+  JS_FreeValue(context, map);
+  JS_FreeValue(context, global);
+
+  JS_FreeContext(context);
+  JS_FreeRuntime(runtime);
+}
+
 namespace
 {
   // Minimal test-only extension that either installs successfully or throws
