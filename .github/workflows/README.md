@@ -1,5 +1,7 @@
 Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
 
+All jobs run on 1ES hosted pools targeted by pool name only, for example `runs-on: [gha-vmss-d16av7-ci]`.
+
 # Shared actions
 
 ## Azure Linux CI dependencies
@@ -17,7 +19,7 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
-Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP on AMD EPYC Genoa CPUs).
+Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP).
 
 File: `bencher.yml`
 3rd party dependencies: None
