@@ -2779,6 +2779,7 @@ namespace aft
       return *state;
     }
 
+  private:
     void nominate_successor_unsafe()
     {
       if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)

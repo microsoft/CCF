@@ -53,6 +53,7 @@ namespace ccf
     std::unique_ptr<ccf::NodeState> node;
     std::chrono::high_resolution_clock::time_point last_tick_time;
     std::atomic<bool> stop_requested = false;
+    std::atomic<bool> stop_notice_requested = false;
 
     StartType start_type{};
 
@@ -205,8 +206,8 @@ namespace ccf
 
     void request_stop_notice()
     {
-      ccf::tasks::add_task(
-        ccf::tasks::make_basic_task([this]() { node->stop_notice(); }));
+      stop_notice_requested.store(true);
+      work_beacon->notify_work_available_coalesced();
     }
 
     CreateNodeStatus create_new_node(
@@ -494,6 +495,16 @@ namespace ccf
             // tasks are available, but wake at least every 100ms.
             work_beacon->wait_for_work_with_timeout(
               std::chrono::milliseconds(100));
+          }
+
+          if (stop_requested.load())
+          {
+            break;
+          }
+
+          if (stop_notice_requested.exchange(false))
+          {
+            node->stop_notice();
           }
 
           // First, read some messages from the ringbuffer
