@@ -13,10 +13,7 @@ if SPEC is None or SPEC.loader is None:
 SUMMARY = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SUMMARY)
 
-LLVM_COV_TOTAL = (
-    "TOTAL 100 10 90.00% 20 5 75.00% "
-    "80 20 75.00% 40 10 75.00%\n"
-)
+LLVM_COV_TOTAL = "TOTAL 100 10 90.00% 20 5 75.00% " "80 20 75.00% 40 10 75.00%\n"
 
 
 class CoverageSummaryTest(unittest.TestCase):
