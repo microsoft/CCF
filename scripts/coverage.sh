@@ -187,6 +187,7 @@ mapfile -t COV_ARGS < <(build_cov_args)
 # Overall coverage summary
 # ---------------------------------------------------------------------------
 echo ""
+echo "CCF coverage history format: instrumented-libraries-v1"
 echo "=== Coverage Summary ==="
 "${LLVM_COV}" report "${COV_ARGS[@]}"
 
