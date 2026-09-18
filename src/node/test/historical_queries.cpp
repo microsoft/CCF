@@ -10,12 +10,11 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/locking.h"
 #include "ccf/receipt.h"
+#include "consensus/test/ledger_stub.h"
 #include "crypto/cbor_helpers.h"
 #include "crypto/cbor_tags.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/test/cbor_printer.h"
-#include "ds/messaging.h"
-#include "ds/test/stub_writer.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
@@ -328,7 +327,7 @@ TEST_CASE("StateCache point queries")
   REQUIRE(ledger.size() == high_signature_transaction);
 
   // Now we actually get to the historical queries
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   ccf::historical::StateCache cache(
     kv_store, state.ledger_secrets, stub_writer);
 
@@ -368,19 +367,10 @@ TEST_CASE("StateCache point queries")
     std::set<ccf::SeqNo> actual;
     for (const auto& write : stub_writer->writes)
     {
-      const uint8_t* data = write.contents.data();
-      size_t size = write.contents.size();
-      REQUIRE(write.m == ::consensus::ledger_get_range);
-      auto [from_seqno_, to_seqno_, purpose_] =
-        ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
-      auto& purpose = purpose_;
-      auto& from_seqno = from_seqno_;
-      auto& to_seqno = to_seqno_;
-      REQUIRE(purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
-      REQUIRE(from_seqno == to_seqno);
+      REQUIRE(write.from == write.to);
       // Despite multiple calls for each seqno, the host only sees a single
       // request for each
-      REQUIRE(actual.insert(from_seqno).second);
+      REQUIRE(actual.insert(write.from).second);
     }
     stub_writer->writes.clear();
     REQUIRE(actual == expected);
@@ -396,17 +386,8 @@ TEST_CASE("StateCache point queries")
     REQUIRE(!stub_writer->writes.empty());
 
     const auto& write = stub_writer->writes[0];
-    const uint8_t* data = write.contents.data();
-    size_t size = write.contents.size();
-    REQUIRE(write.m == ::consensus::ledger_get_range);
-    auto [from_seqno_, to_seqno_, purpose_] =
-      ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
-    auto& purpose = purpose_;
-    auto& from_seqno = from_seqno_;
-    auto& to_seqno = to_seqno_;
-    REQUIRE(purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
-    REQUIRE(from_seqno == to_seqno);
-    REQUIRE(from_seqno == low_seqno);
+    REQUIRE(write.from == write.to);
+    REQUIRE(write.from == low_seqno);
     stub_writer->writes.clear();
   }
 
@@ -597,7 +578,7 @@ TEST_CASE("StateCache get store vs get state")
   REQUIRE(ledger.size() == signature_transaction);
 
   // Now we actually get to the historical queries
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   ccf::historical::StateCache cache(
     kv_store, state.ledger_secrets, stub_writer);
 
@@ -809,7 +790,9 @@ TEST_CASE("StateCache range queries")
   const auto end_seqno = kv_store.current_version();
 
   ccf::historical::StateCache cache(
-    kv_store, state.ledger_secrets, std::make_shared<StubWriter>());
+    kv_store,
+    state.ledger_secrets,
+    std::make_shared<consensus::test::StubLedgerReader>());
   auto ledger = construct_host_ledger(state.kv_store->get_consensus());
 
   auto provide_ledger_entry = [&](size_t i) {
@@ -899,7 +882,9 @@ TEST_CASE("Ledger entry bounds")
   const auto end_seqno = write_transactions_and_signature(kv_store, 2);
   const auto ledger = construct_host_ledger(kv_store.get_consensus());
   ccf::historical::StateCache cache(
-    kv_store, state.ledger_secrets, std::make_shared<StubWriter>());
+    kv_store,
+    state.ledger_secrets,
+    std::make_shared<consensus::test::StubLedgerReader>());
 
   constexpr auto handle = 0;
   REQUIRE(cache.get_store_range(handle, begin_seqno, end_seqno).empty());
@@ -968,7 +953,7 @@ TEST_CASE("Incremental progress")
 
   const auto end_seqno = kv_store.current_version();
 
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   ccf::historical::StateCache cache(
     kv_store, state.ledger_secrets, stub_writer);
   auto ledger = construct_host_ledger(state.kv_store->get_consensus());
@@ -988,17 +973,8 @@ TEST_CASE("Incremental progress")
   auto require_single_read_request = [&](size_t from, size_t to) {
     REQUIRE(stub_writer->writes.size() == 1);
     const auto& write = stub_writer->writes[0];
-    const uint8_t* data = write.contents.data();
-    size_t size = write.contents.size();
-    REQUIRE(write.m == ::consensus::ledger_get_range);
-    auto [from_seqno_, to_seqno_, purpose_] =
-      ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
-    auto& purpose = purpose_;
-    auto& from_seqno = from_seqno_;
-    auto& to_seqno = to_seqno_;
-    REQUIRE(purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
-    REQUIRE(from_seqno == from);
-    REQUIRE(to_seqno == to);
+    REQUIRE(write.from == from);
+    REQUIRE(write.to == to);
 
     stub_writer->writes.clear();
   };
@@ -1068,7 +1044,7 @@ TEST_CASE("StateCache soft zero limit with increasing")
   auto ledger = construct_host_ledger(state.kv_store->get_consensus());
   REQUIRE(ledger.size() == seq_high);
 
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   ccf::historical::StateCache cache(
     kv_store, state.ledger_secrets, stub_writer);
 
@@ -1134,7 +1110,7 @@ TEST_CASE("StateCache dropping state explicitly")
   auto ledger = construct_host_ledger(state.kv_store->get_consensus());
   REQUIRE(ledger.size() == seq_high);
 
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   ccf::historical::StateCache cache(
     kv_store, state.ledger_secrets, stub_writer);
 
@@ -1196,7 +1172,9 @@ TEST_CASE("StateCache sparse queries")
   const auto end_seqno = kv_store.current_version();
 
   ccf::historical::StateCache cache(
-    kv_store, state.ledger_secrets, std::make_shared<StubWriter>());
+    kv_store,
+    state.ledger_secrets,
+    std::make_shared<consensus::test::StubLedgerReader>());
   auto ledger = construct_host_ledger(state.kv_store->get_consensus());
 
   auto provide_ledger_entry = [&](size_t i) {
@@ -1314,56 +1292,27 @@ TEST_CASE("StateCache concurrent access")
     return begin_seqno + (rand() % (end_seqno - begin_seqno - 1));
   };
 
-  auto writer = std::make_shared<StubWriter>();
+  auto writer = std::make_shared<consensus::test::StubLedgerReader>();
   ccf::historical::StateCache cache(kv_store, state.ledger_secrets, writer);
 
   std::atomic<bool> finished = false;
   std::thread host_thread([&]() {
     auto ledger = construct_host_ledger(state.kv_store->get_consensus());
 
-    size_t last_handled_write = 0;
     while (!finished)
     {
-      std::vector<StubWriter::Write> writes;
+      while (writer->size() > 0)
       {
-        std::lock_guard<ccf::ds::Mutex> guard(writer->writes_mutex);
-        auto finished_write_it = std::partition_point(
-          writer->writes.begin() + last_handled_write,
-          writer->writes.end(),
-          [](const StubWriter::Write& w) { return w.finished; });
-        writes.insert(
-          writes.end(),
-          writer->writes.begin() + last_handled_write,
-          finished_write_it);
-        last_handled_write = finished_write_it - writer->writes.begin();
-      }
-
-      for (const auto& write : writes)
-      {
-        auto data = write.contents.data();
-        auto size = write.contents.size();
-        if (write.m == ::consensus::ledger_get_range)
+        auto request = writer->pop_request();
+        std::vector<uint8_t> combined;
+        for (auto seqno = request.from; seqno <= request.to; ++seqno)
         {
-          const auto [from_seqno, to_seqno, purpose_] =
-            ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
-          auto& purpose = purpose_;
-          REQUIRE(
-            purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
-
-          std::vector<uint8_t> combined;
-          for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
-          {
-            const auto it = ledger.find(seqno);
-            REQUIRE(it != ledger.end());
-            combined.insert(
-              combined.end(), it->second.begin(), it->second.end());
-          }
-          cache.handle_ledger_entries(from_seqno, to_seqno, combined);
+          const auto it = ledger.find(seqno);
+          REQUIRE(it != ledger.end());
+          combined.insert(combined.end(), it->second.begin(), it->second.end());
         }
-        else
-        {
-          REQUIRE(false);
-        }
+        const auto response_to = request.to;
+        writer->respond(std::move(request), response_to, std::move(combined));
       }
 
       cache.tick(std::chrono::milliseconds(100));
@@ -1817,7 +1766,7 @@ TEST_CASE("Recover historical ledger secrets")
   }
 
   // Now we actually get to the historical queries
-  auto writer = std::make_shared<StubWriter>();
+  auto writer = std::make_shared<consensus::test::StubLedgerReader>();
   ccf::historical::StateCache cache(
     *recovered_state.kv_store, recovered_state.ledger_secrets, writer);
   constexpr ccf::historical::RequestHandle default_handle = 42;
@@ -1901,7 +1850,7 @@ TEST_CASE("Valid merkle proof from receipts")
   auto ledger = construct_host_ledger(kv_store.get_consensus());
   REQUIRE(ledger.size() == sigseq);
 
-  auto writer = std::make_shared<StubWriter>();
+  auto writer = std::make_shared<consensus::test::StubLedgerReader>();
   ccf::historical::StateCache cache(kv_store, state.ledger_secrets, writer);
 
   const auto target = sigseq - 1;
@@ -1959,7 +1908,7 @@ TEST_CASE("Cache size estimation")
 
   auto ledger = construct_host_ledger(state.kv_store->get_consensus());
 
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   ccf::historical::StateCacheImpl cache(
     kv_store, state.ledger_secrets, stub_writer);
 
@@ -2008,7 +1957,7 @@ TEST_CASE("Cache size with populate_receipts")
   auto ledger = construct_host_ledger(state.kv_store->get_consensus());
   REQUIRE(ledger.size() == sig_seqno);
 
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   ccf::historical::StateCacheImpl cache(
     kv_store, state.ledger_secrets, stub_writer);
 
@@ -2108,8 +2057,8 @@ TEST_CASE("adjust_ranges")
     AdjustRangesAccessor(
       ccf::kv::Store& store,
       const std::shared_ptr<ccf::LedgerSecrets>& secrets,
-      const ringbuffer::WriterPtr& host_writer) :
-      StateCacheImpl(store, secrets, host_writer),
+      const std::shared_ptr<::consensus::AbstractLedgerReader>& ledger_reader) :
+      StateCacheImpl(store, secrets, ledger_reader),
       request(all_stores)
     {}
 
@@ -2130,7 +2079,7 @@ TEST_CASE("adjust_ranges")
   };
 
   auto state = create_and_init_state();
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
 
   {
     DOCTEST_INFO("Minimal regression test");
@@ -2205,7 +2154,9 @@ TEST_CASE(
   ccf::SignatureCacheSubsystem signature_cache;
   signature_cache.register_hooks(store);
   ccf::historical::StateCache historical_cache(
-    store, state.ledger_secrets, std::make_shared<StubWriter>());
+    store,
+    state.ledger_secrets,
+    std::make_shared<consensus::test::StubLedgerReader>());
 
   const std::vector<ccf::CoseSignatureMap> signature_transactions{
     {{ccf::IdentityType::CLASSICAL, {1, 2}}, {ccf::IdentityType::PQ, {3, 4}}},

@@ -743,7 +743,7 @@ namespace ccf::node
       }
 
       auto read_ledger_subsystem =
-        node_context.get_subsystem<ccf::AbstractReadLedgerSubsystemInterface>();
+        node_context.get_subsystem<ccf::AbstractLedgerSubsystemInterface>();
       if (read_ledger_subsystem == nullptr)
       {
         ctx.rpc_ctx->set_error(

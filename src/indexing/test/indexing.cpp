@@ -6,8 +6,8 @@
 #include "ccf/indexing/strategies/seqnos_by_key_in_memory.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/test/logging_stub.h"
+#include "consensus/test/ledger_stub.h"
 #include "crypto/openssl/hash.h"
-#include "ds/test/stub_writer.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "indexing/test/common.h"
@@ -306,7 +306,7 @@ TEST_CASE_TEMPLATE(
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
 
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   auto cache = std::make_shared<ccf::historical::StateCacheImpl>(
     kv_store, ledger_secrets, stub_writer);
 
@@ -371,22 +371,18 @@ TEST_CASE_TEMPLATE(
       {
         const auto& write = *it;
 
-        const uint8_t* data = write.contents.data();
-        size_t size = write.contents.size();
-        REQUIRE(write.m == ::consensus::ledger_get_range);
-        auto [from_seqno, to_seqno, purpose_] =
-          ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
-        auto& purpose = purpose_;
-        REQUIRE(purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
-
         std::vector<uint8_t> combined;
-        for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
+        for (auto seqno = write.from; seqno <= write.to; ++seqno)
         {
           const auto entry = ledger->get_raw_entry_by_idx(seqno);
           REQUIRE(entry.has_value());
           combined.insert(combined.end(), entry->begin(), entry->end());
         }
-        cache->handle_ledger_entries(from_seqno, to_seqno, combined);
+        write.callback(
+          {write.from,
+           write.to,
+           consensus::LedgerRangeStatus::Found,
+           std::move(combined)});
       }
 
       handled_writes = writes.end() - writes.begin();
@@ -466,7 +462,7 @@ TEST_CASE(
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
 
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   auto cache = std::make_shared<ccf::historical::StateCacheImpl>(
     kv_store, ledger_secrets, stub_writer);
 
@@ -588,17 +584,8 @@ TEST_CASE(
         {
           const auto& write = *it;
 
-          const uint8_t* data = write.contents.data();
-          size_t size = write.contents.size();
-          REQUIRE(write.m == ::consensus::ledger_get_range);
-          auto [from_seqno, to_seqno, purpose_] =
-            ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
-          auto& purpose = purpose_;
-          REQUIRE(
-            purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
-
           std::vector<uint8_t> combined;
-          for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
+          for (auto seqno = write.from; seqno <= write.to; ++seqno)
           {
             auto entry = ledger->get_raw_entry_by_idx(seqno);
             if (!entry.has_value())
@@ -611,7 +598,11 @@ TEST_CASE(
             REQUIRE(entry.has_value());
             combined.insert(combined.end(), entry->begin(), entry->end());
           }
-          cache->handle_ledger_entries(from_seqno, to_seqno, combined);
+          write.callback(
+            {write.from,
+             write.to,
+             consensus::LedgerRangeStatus::Found,
+             std::move(combined)});
         }
 
         handled_writes = writes.end() - writes.begin();
@@ -730,7 +721,7 @@ TEST_CASE(
   auto encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
   kv_store.set_encryptor(encryptor);
 
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   auto cache = std::make_shared<ccf::historical::StateCacheImpl>(
     kv_store, ledger_secrets, stub_writer);
 

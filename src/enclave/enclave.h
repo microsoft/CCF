@@ -48,6 +48,8 @@ namespace ccf
     ccf::ds::WorkBeaconPtr work_beacon;
     ccf::AbstractRuntimeControl& runtime_control;
     ccf::NetworkState network;
+    std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem =
+      nullptr;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCConnectionManager> rpcsessions;
     std::unique_ptr<ccf::NodeState> node;
@@ -89,13 +91,14 @@ namespace ccf
       const ccf::crypto::CurveID& curve_id,
       ccf::ds::WorkBeaconPtr work_beacon_,
       ccf::AbstractRuntimeControl& runtime_control_,
-      const std::shared_ptr<AbstractReadLedgerSubsystemInterface>&
+      const std::shared_ptr<AbstractLedgerSubsystemInterface>&
         ledger_subsystem) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
       work_beacon(std::move(work_beacon_)),
       runtime_control(runtime_control_),
+      ledger_subsystem(std::move(ledger_subsystem)),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCConnectionManager>(rpc_map))
     {
@@ -108,16 +111,19 @@ namespace ccf
 
       LOG_TRACE_FMT("Creating node");
       node = std::make_unique<ccf::NodeState>(
-        *writer_factory, network, rpcsessions, curve_id, runtime_control);
+        *writer_factory,
+        network,
+        rpcsessions,
+        curve_id,
+        runtime_control,
+        this->ledger_subsystem);
 
       LOG_TRACE_FMT("Creating context");
       context = std::make_unique<NodeContext>(node->get_node_id());
 
       LOG_TRACE_FMT("Creating context subsystems");
       historical_state_cache = std::make_shared<ccf::historical::StateCache>(
-        *network.tables,
-        network.ledger_secrets,
-        writer_factory->create_writer_to_outside());
+        *network.tables, network.ledger_secrets, this->ledger_subsystem);
       context->install_subsystem(historical_state_cache);
 
       indexer = std::make_shared<ccf::indexing::Indexer>(
@@ -148,7 +154,7 @@ namespace ccf
       context->install_subsystem(cpss);
       rpcsessions->set_custom_protocol_subsystem(cpss);
 
-      context->install_subsystem(ledger_subsystem);
+      context->install_subsystem(this->ledger_subsystem);
 
       static constexpr size_t max_interpreter_cache_size = 10;
       auto interpreter_cache =
@@ -191,6 +197,7 @@ namespace ccf
 
     ~Enclave()
     {
+      ledger_subsystem->shutdown();
       ccf::tasks::get_main_job_board().set_work_beacon(nullptr);
       LOG_TRACE_FMT("Shutting down enclave");
     }
@@ -417,73 +424,6 @@ namespace ccf
             {
               LOG_DEBUG_FMT(
                 "Ignoring node_inbound message due to exception: {}", e.what());
-            }
-          });
-
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp,
-          ::consensus::ledger_entry_range,
-          [this](const uint8_t* data, size_t size) {
-            const auto [from_seqno, to_seqno, purpose, body] =
-              ringbuffer::read_message<::consensus::ledger_entry_range>(
-                data, size);
-            switch (purpose)
-            {
-              case ::consensus::LedgerRequestPurpose::Recovery:
-              {
-                if (node->is_reading_public_ledger())
-                {
-                  node->recover_public_ledger_entries(body);
-                }
-                else if (node->is_reading_private_ledger())
-                {
-                  node->recover_private_ledger_entries(body);
-                }
-                else
-                {
-                  auto [s, _, __] = node->state();
-                  LOG_FAIL_FMT(
-                    "Cannot recover ledger entry: Unexpected node state {}", s);
-                }
-                break;
-              }
-              case ::consensus::LedgerRequestPurpose::HistoricalQuery:
-              {
-                historical_state_cache->handle_ledger_entries(
-                  from_seqno, to_seqno, body);
-                break;
-              }
-              default:
-              {
-                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
-              }
-            }
-          });
-
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp,
-          ::consensus::ledger_no_entry_range,
-          [this](const uint8_t* data, size_t size) {
-            const auto [from_seqno, to_seqno, purpose] =
-              ringbuffer::read_message<::consensus::ledger_no_entry_range>(
-                data, size);
-            switch (purpose)
-            {
-              case ::consensus::LedgerRequestPurpose::Recovery:
-              {
-                node->recover_ledger_end();
-                break;
-              }
-              case ::consensus::LedgerRequestPurpose::HistoricalQuery:
-              {
-                historical_state_cache->handle_no_entry_range(
-                  from_seqno, to_seqno);
-                break;
-              }
-              default:
-              {
-                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
-              }
             }
           });
 
