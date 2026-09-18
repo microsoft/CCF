@@ -102,7 +102,7 @@ TEST_CASE(
 {
   HistoryFixture fixture;
 
-  const auto [baseline_txid, baseline_root, baseline_term] =
+  const auto [baseline_txid, baseline_root, _] =
     fixture.history->get_replicated_state_txid_and_root();
   REQUIRE(baseline_txid.seqno == 1);
 
