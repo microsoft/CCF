@@ -64,10 +64,10 @@ Note that this diagram deliberately does not represent host-to-enclave communica
 
     flowchart TB
         Client[HTTPS/1.1 Client <a href='../build_apps/auth/index.html'>auth</a>] -- TLS 1.2 or 1.3 --> TLSConnection
-        TLSConnection[TLS Connection <a href='https://github.com/microsoft/CCF/blob/main/src/host/tls/openssl_server.h'>src</a>] -- PlainText --> HTTPSession
+        TLSConnection[TLS Connection <a href='https://github.com/microsoft/CCF/blob/main/src/tls/openssl_server.h'>src</a>] -- PlainText --> HTTPSession
         HTTPSession -- PlainText --> SessionWriter[Session Writer <a href='https://github.com/microsoft/CCF/blob/main/include/ccf/node/session.h'>src</a>]
         SessionWriter --> TLSConnection
-        HTTPSession[HTTP Session <a href='https://github.com/microsoft/CCF/blob/main/src/http/http_session.h'>src</a>] -- Request --> Endpoint[Application Endpoint <a href='../build_apps/api.html#application-endpoint-registration'>doc</a>]
+        HTTPSession[HTTP Session <a href='https://github.com/microsoft/CCF/blob/main/src/node/rpc/http_session.h'>src</a>] -- Request --> Endpoint[Application Endpoint <a href='../build_apps/api.html#application-endpoint-registration'>doc</a>]
         Endpoint -- Response --> HTTPSession
         TLSConnection --> Client
         Endpoint -- WriteSet --> Store[Store <a href='../build_apps/kv/index.html'>doc</a>]

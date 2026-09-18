@@ -26,7 +26,7 @@
 // guarded by a mutex.
 
 #include "ccf/node/session.h"
-#include "host/tls/openssl_server.h"
+#include "tls/openssl_server.h"
 
 #include <algorithm>
 #include <atomic>
@@ -39,7 +39,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace asynchost
+namespace ccf
 {
   class OpenSSLSessionManager : public ccf::SessionWriter
   {
@@ -56,13 +56,13 @@ namespace asynchost
       bool soft_limited)>;
 
   private:
-    std::shared_ptr<OpenSSLServer> server;
+    std::shared_ptr<ccf::tls::OpenSSLServer> server;
     SessionFactory factory;
     // Node-wide budget for inbound data which has been delivered to a session
     // but not yet processed. Charged here rather than in the transport so that
     // every path which drops data instead of delivering it is visible in one
     // function. Null disables the accounting.
-    std::shared_ptr<InboundAdmission> inbound_admission;
+    std::shared_ptr<ccf::tls::InboundAdmission> inbound_admission;
     // Invoked when an admitted connection is torn down, so an owner can
     // release whatever it reserved at accept time. Called on the loop thread
     // from on_close, exactly once per admitted connection.
@@ -169,15 +169,15 @@ namespace asynchost
     // Takes the transport's own Config verbatim, so there is a single place
     // where a listening interface is described.
     OpenSSLSessionManager(
-      OpenSSLServer::Config config,
+      ccf::tls::OpenSSLServer::Config config,
       SessionFactory factory_,
       std::function<void(::tcp::ConnID)> on_connection_closed_ = {},
-      OpenSSLServer::OnAccept on_accept = {}) :
+      ccf::tls::OpenSSLServer::OnAccept on_accept = {}) :
       factory(std::move(factory_)),
       inbound_admission(config.inbound_admission),
       on_connection_closed(std::move(on_connection_closed_))
     {
-      server = std::make_shared<OpenSSLServer>(
+      server = std::make_shared<ccf::tls::OpenSSLServer>(
         std::move(config),
         [this](
           ::tcp::ConnID id,
@@ -211,8 +211,8 @@ namespace asynchost
     }
 
     void stop(
-      OpenSSLServer::LoopState loop_state =
-        OpenSSLServer::LoopState::NotRunning)
+      ccf::tls::OpenSSLServer::LoopState loop_state =
+        ccf::tls::OpenSSLServer::LoopState::NotRunning)
     {
       server->stop(loop_state);
     }

@@ -2,15 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/endpoint_context.h"
-#include "ccf/node/session.h"
 #include "ccf/research/custom_protocol_subsystem_interface.h"
-#include "ccf/rpc_context.h"
-#include "ccf/service/node_info_network.h"
 #include "node/rpc/node_interface.h"
 
-#include <functional>
+#include <fmt/format.h>
+#include <map>
 #include <memory>
+#include <stdexcept>
 
 namespace ccf
 {
@@ -55,7 +53,6 @@ namespace ccf
     std::shared_ptr<Essentials> get_essentials() override
     {
       std::shared_ptr<Essentials> r = std::make_shared<Essentials>();
-      r->writer = node_state.get_writer_factory().create_writer_to_outside();
       auto store = node_state.get_store();
       r->tx = std::make_shared<ccf::kv::ReadOnlyTx>(store.get());
       r->ctx = std::make_shared<ccf::endpoints::ReadOnlyEndpointContext>(
