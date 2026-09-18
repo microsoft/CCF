@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.17]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.17
 
+### Added
+
+- C++ callers can use `ccf::crypto::KeyAesGcm::make_context()` to explicitly own and reuse a pre-keyed AES-GCM context when they can ensure it is not accessed concurrently.
+
+### Changed
+
+- AES-GCM encryption now replaces an existing output cipher with an empty cipher when encrypting empty plaintext, and AES-GCM decryption clears its plaintext output when authentication fails. Previously these calls could leave stale output from an earlier operation.
+
 ### Removed
 
 - Removed the unused ringbuffer writer from the public research `CustomProtocolSubsystemInterface::Essentials` structure. Custom protocol extensions can no longer access `Essentials::writer` (#8395).
