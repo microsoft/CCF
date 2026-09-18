@@ -6,7 +6,7 @@ below, in numbered order, to a generated `quickjs/quickjs.c` in the build
 directory. Only that copy is compiled; the source checkout and vendored dependency
 verification are unchanged.
 
-The build regenerates the copy whenever the upstream source or either patch
+The build regenerates the copy whenever the upstream source or any patch
 changes. Patch application disables fuzz and automatic reversal, and a failure
 stops the build rather than compiling an unpatched source.
 
@@ -43,3 +43,22 @@ regression coverage.
 
 Remove this patch and its CMake application when upstream provides equivalent
 lowered-limit enforcement. Keep the regression coverage.
+
+## 0003-lazy-intrinsic-constructors.patch
+
+- CCF performance patch for QuickJS `2026-06-04`.
+- `JS_NewContext()` eagerly creates the Date, Map, Set, WeakMap, and WeakSet
+  constructors and prototypes for every request, even if the application never
+  accesses them. Define their writable/configurable globals as auto-initialized
+  properties and create each fresh constructor/prototype family on first use.
+- No runtime, context, prototype, or JavaScript state is shared. Native and
+  deserialized Date construction initializes the same context-local intrinsic
+  and preserves constructor identity. Failed initialization leaves the
+  auto-initialized property retryable and clears partial prototype state.
+- Regression coverage: `Lazy intrinsic constructors preserve standard
+  behavior`, `Lazy intrinsic construction retries after OOM`, `Native Date
+  construction retries after OOM`, and `Public eager intrinsic constructors
+  remain supported` in `src/js/test/js.cpp`.
+
+Remove this patch and its CMake application when upstream provides equivalent
+lazy intrinsic-family initialization. Keep the regression coverage.

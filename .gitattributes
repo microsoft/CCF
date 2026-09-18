@@ -2,6 +2,7 @@
 *.pdf binary
 *.png binary
 *.jpg binary
+*.patch whitespace=-trailing-space
 
 src/crypto/test/cbor_fuzz_corpus/* binary
 
