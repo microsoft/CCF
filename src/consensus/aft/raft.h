@@ -2392,7 +2392,7 @@ namespace aft
       }
       else if (phase == ccf::kv::RetirementPhase::RetiredCommitted)
       {
-        nominate_successor();
+        nominate_successor_unsafe();
 
         leader_id.reset();
         state->leadership_state.store(ccf::kv::LeadershipState::None);
@@ -2779,7 +2779,8 @@ namespace aft
       return *state;
     }
 
-    void nominate_successor() override
+  private:
+    void nominate_successor_unsafe()
     {
       if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
       {
@@ -2806,6 +2807,13 @@ namespace aft
 
         send_propose_request_vote(successor.value());
       }
+    }
+
+  public:
+    void nominate_successor() override
+    {
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
+      nominate_successor_unsafe();
     }
 
   private:

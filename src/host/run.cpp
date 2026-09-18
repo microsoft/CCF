@@ -38,6 +38,7 @@
 #include "json_schema.h"
 #include "node_connections.h"
 #include "pal/quote_generation.h"
+#include "runtime_control.h"
 #include "sig_term.h"
 #include "tcp.h"
 #include "ticker.h"
@@ -416,6 +417,7 @@ namespace ccf
     std::vector<uint8_t>& rpc_addresses,
     ccf::LoggerLevel log_level,
     ringbuffer::NotifyingWriterFactory& notifying_factory,
+    ccf::AbstractRuntimeControl& runtime_control,
     const std::shared_ptr<asynchost::ReadLedgerSubsystem>& ledger_subsystem)
   {
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
@@ -440,6 +442,7 @@ namespace ccf
       log_level,
       config.worker_threads,
       notifying_factory.get_inbound_work_beacon(),
+      runtime_control,
       ledger_subsystem);
     ecall_completed.store(true);
     flusher_thread.join();
@@ -498,7 +501,9 @@ namespace ccf
     }
   }
 
-  void run_enclave_threads(const host::HostConfig& config)
+  void run_enclave_threads(
+    const host::HostConfig& config,
+    asynchost::RuntimeControlImpl& runtime_control)
   {
     auto enclave_thread_start = [&](threading::ThreadID thread_id) {
       threading::set_current_thread_id(thread_id);
@@ -539,6 +544,8 @@ namespace ccf
     {
       thread.join();
     }
+
+    runtime_control.throw_if_fatal_error();
   }
 
   std::optional<size_t> run_main_loop(
@@ -555,6 +562,17 @@ namespace ccf
     // provide regular ticks to the enclave
     const asynchost::Ticker ticker(config.tick_interval, writer_factory);
 
+    const auto request_enclave_stop = []() {
+      return ccf::enclave_request_stop();
+    };
+    const auto drain_ringbuffers_before_loop_stop =
+      [&buffer_processor, &circuit, &factories]() {
+        buffer_processor.read_all(circuit.read_from_inside());
+        factories.non_blocking_factory.flush_all_inbound();
+      };
+    asynchost::RuntimeControl runtime_control(
+      request_enclave_stop, drain_ringbuffers_before_loop_stop);
+
     // reset the inbound-TCP processing quota each iteration
     const asynchost::ResetTCPReadQuota reset_tcp_quota;
 
@@ -566,9 +584,9 @@ namespace ccf
       factories.non_blocking_factory);
 
     // graceful shutdown on sigterm
-    asynchost::Sigterm sigterm(writer_factory, config.ignore_first_sigterm);
+    asynchost::Sigterm sigterm(config.ignore_first_sigterm);
     // graceful shutdown on sighup
-    asynchost::Sighup sighup(writer_factory, false /* never ignore */);
+    asynchost::Sighup sighup(false /* never ignore */);
 
     asynchost::Ledger ledger(
       config.ledger.directory,
@@ -776,6 +794,7 @@ namespace ccf
       rpc_addresses,
       log_level,
       factories.notifying_factory,
+      *runtime_control,
       ledger_subsystem);
 
     if (enclave_creation_result.has_value())
@@ -787,7 +806,7 @@ namespace ccf
     write_certificates_to_disk(config, node_cert, service_cert);
 
     // Run enclave threads and event loop
-    run_enclave_threads(config);
+    run_enclave_threads(config, *runtime_control);
 
     return std::nullopt;
   }

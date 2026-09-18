@@ -5,6 +5,7 @@
 #include "common/enclave_interface_types.h"
 #include "ds/work_beacon.h"
 #include "node/rpc/ledger_interface.h"
+#include "node/runtime_control.h"
 
 #include <cstdint>
 #include <memory>
@@ -23,8 +24,11 @@ namespace ccf
     ccf::LoggerLevel log_level,
     size_t num_worker_thread,
     const ccf::ds::WorkBeaconPtr& work_beacon,
+    ccf::AbstractRuntimeControl& runtime_control,
     const std::shared_ptr<AbstractReadLedgerSubsystemInterface>&
       ledger_subsystem);
 
   bool enclave_run();
+  bool enclave_request_stop();
+  bool enclave_request_stop_notice();
 }
