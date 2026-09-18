@@ -23,7 +23,6 @@ from typing import List, NamedTuple, Optional, Tuple
 # sync with the number of previous-run logs it downloads.
 HISTORY_POINTS: int = int(os.environ.get("COVERAGE_HISTORY_POINTS") or 9)
 DEFAULT_REPOSITORY = "microsoft/CCF"
-HISTORY_FORMAT_MARKER = "CCF coverage history format: instrumented-libraries-v1"
 
 # The llvm-cov ``report`` TOTAL line lists, for each of Regions, Functions,
 # Lines and Branches, a count, a missed count and a coverage percentage, e.g.:
@@ -97,12 +96,11 @@ def load_history(directory: str) -> List[CoveragePoint]:
         run_id, label = parsed
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
-                text: str = f.read()
+                coverage: Optional[Tuple[float, Optional[float]]] = extract_coverage(
+                    f.read()
+                )
         except OSError:
             continue
-        if HISTORY_FORMAT_MARKER not in text:
-            continue
-        coverage: Optional[Tuple[float, Optional[float]]] = extract_coverage(text)
         if coverage is not None:
             line_coverage, branch_coverage = coverage
             points.append(CoveragePoint(run_id, label, line_coverage, branch_coverage))
