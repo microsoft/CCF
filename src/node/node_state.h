@@ -190,29 +190,11 @@ namespace ccf
             latest_peer_snapshot->snapshot_name,
             latest_peer_snapshot->snapshot_data.size());
 
-          bool signer_unverified = false;
           try
           {
             const auto segments =
               separate_segments(latest_peer_snapshot->snapshot_data);
-            try
-            {
-              verify_snapshot(segments, join_config.service_cert);
-            }
-            catch (const std::exception& e)
-            {
-              // A recovering service serves snapshots signed by its previous
-              // identity. Check the digest and proof only, as for a local
-              // snapshot, and decide from the join response whether the
-              // service is recovering.
-              LOG_INFO_FMT(
-                "Fetched snapshot {} is not signed by the current service "
-                "identity ({}), accepting only if the service is recovering",
-                latest_peer_snapshot->snapshot_name,
-                e.what());
-              verify_snapshot(segments);
-              signer_unverified = true;
-            }
+            verify_snapshot(segments);
           }
           catch (const std::exception& e)
           {
@@ -259,17 +241,8 @@ namespace ccf
               latest_peer_snapshot->snapshot_name);
 
           std::lock_guard<ds::Mutex> guard(owner->lock);
-          if (
-            !owner->sm.check(NodeStartupState::pending) ||
-            owner->network.tables->get_readiness() ==
-              ccf::kv::StoreReadiness::Failed)
-          {
-            LOG_FAIL_FMT("Discarding fetched snapshot after join has ended");
-            return;
-          }
           owner->set_startup_snapshot(
             snapshot_seqno, std::move(latest_peer_snapshot->snapshot_data));
-          owner->startup_snapshot_info->signer_unverified = signer_unverified;
         }
       }
 
@@ -806,16 +779,6 @@ namespace ccf
     {
       sm.advance(NodeStartupState::readingPublicLedger);
       start_ledger_recovery_unsafe();
-    }
-
-    // Undo install_startup_snapshot for a joiner, so the next join request
-    // reports no snapshot and the primary asks for a fresh fetch.
-    void discard_startup_snapshot()
-    {
-      startup_snapshot_info.reset();
-      startup_seqno = 0;
-      last_recovered_idx = 0;
-      last_recovered_signed_idx = 0;
     }
 
     void install_recovery_snapshot_and_start_unsafe()
@@ -1670,24 +1633,6 @@ namespace ccf
                     "Expected network info in join response");
                 }
 
-                if (
-                  startup_snapshot_info &&
-                  startup_snapshot_info->signer_unverified &&
-                  !resp.network_info->public_only)
-                {
-                  // The service is open, so its snapshots must be signed by
-                  // its current identity. Drop the fetched snapshot and let
-                  // the join timer retry: the next fetch should return a
-                  // snapshot signed by the current identity.
-                  LOG_FAIL_FMT(
-                    "Fetched snapshot at {} is not signed by the current "
-                    "service identity and the service is not recovering. "
-                    "Discarding it and retrying join",
-                    startup_snapshot_info->seqno);
-                  discard_startup_snapshot();
-                  return;
-                }
-
                 network.identity = std::make_unique<ccf::NetworkIdentity>(
                   resp.network_info->identity);
                 network.ledger_secrets->init_from_map(
@@ -1731,28 +1676,12 @@ namespace ccf
                     ccf::kv::StoreReadiness::InstallingSnapshot);
                   try
                   {
-                    if (resp.network_info->public_only)
-                    {
-                      // The snapshot is not yet authenticated. Neither hook
-                      // may retain its writes to network.secrets, which would
-                      // otherwise seed private recovery.
-                      network.tables->unset_map_hook(
-                        network.secrets.get_name());
-                      network.tables->unset_global_hook(
-                        network.secrets.get_name());
-                    }
-
                     deserialise_snapshot(
                       network.tables,
                       startup_snapshot_info->raw,
                       hooks,
                       &view_history_,
                       resp.network_info->public_only);
-
-                    if (resp.network_info->public_only)
-                    {
-                      setup_ledger_secret_hooks();
-                    }
 
                     for (auto& hook : hooks)
                     {
@@ -3225,7 +3154,7 @@ namespace ccf
     }
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-    void setup_ledger_secret_hooks()
+    void setup_basic_hooks()
     {
       network.tables->set_map_hook(
         network.secrets.get_name(),
@@ -3345,12 +3274,6 @@ namespace ccf
             network.secrets.get_name(),
             hook_version);
         }));
-    }
-
-    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-    void setup_basic_hooks()
-    {
-      setup_ledger_secret_hooks();
 
       network.tables->set_global_hook(
         network.nodes.get_name(),

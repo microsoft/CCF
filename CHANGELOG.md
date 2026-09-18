@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Joining nodes can fetch snapshots signed by the previous service identity while the service is recovering, matching how local snapshots are already accepted. Once the service is open, a fetched snapshot that is not signed by the current identity is discarded and the join is retried (#8403).
+- Joining nodes can fetch snapshots signed by a previous service identity, matching local snapshot handling during recovery and after the service opens (#8403).
 
 ### Removed
 

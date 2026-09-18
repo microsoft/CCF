@@ -25,9 +25,6 @@ namespace ccf
   {
     ccf::kv::Version seqno;
     std::vector<uint8_t> raw;
-    // Set when a fetched snapshot's receipt is not signed by the current
-    // service identity. Acceptable only while the service is recovering.
-    bool signer_unverified = false;
 
     StartupSnapshotInfo(ccf::kv::Version s, std::vector<uint8_t>&& r) :
       seqno(s),

@@ -352,7 +352,6 @@ def run_recovery_join_snapshot(args):
                 if not local_snapshot:
                     logs = _logs(joiner)
                     assert f"Received snapshot {snapshot_name} from peer" in logs
-                    assert "accepting only if the service is recovering" in logs
 
             recovered.recover(args)
             for node in recovered.get_joined_nodes():
@@ -367,9 +366,7 @@ def run_recovery_join_snapshot(args):
             target = app.LoggingTxs("user0").issue(recovered, number_txs=1)
             recovery_primary.trigger_snapshot()
             recovery_primary.wait_for_snapshot(target.seqno)
-            # A local copy is still accepted, as before. A fetched copy is
-            # discarded and the join retried without a snapshot, which the
-            # primary accepts and the joiner completes by replaying the ledger.
+            # Both local and fetched copies must still be accepted.
             primary_snapshot_dir = os.path.join(
                 recovery_primary.remote.remote.root,
                 recovery_primary.remote.snapshots_dir_name,
@@ -395,11 +392,11 @@ def run_recovery_join_snapshot(args):
                 recovered.trust_node(joiner, args)
                 with joiner.client() as c:
                     startup_seqno = c.get("/node/state").body.json()["startup_seqno"]
-                if local_snapshot:
-                    assert startup_seqno == snapshot_seqno, startup_seqno
-                else:
-                    assert "Discarding it and retrying join" in _logs(joiner)
-                    assert startup_seqno == 0, startup_seqno
+                assert startup_seqno == snapshot_seqno, startup_seqno
+                if not local_snapshot:
+                    assert f"Received snapshot {snapshot_name} from peer" in _logs(
+                        joiner
+                    )
         finally:
             recovered.stop_all_nodes(skip_verification=True)
 

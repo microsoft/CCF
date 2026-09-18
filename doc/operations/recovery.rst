@@ -113,7 +113,7 @@ Summary Diagram
 
 Once operators have established a recovered crash-fault tolerant public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network and submit their recovery shares <governance/accept_recovery:Accepting Recovery and Submitting Shares>`.
 
-While recovery is in progress, joining nodes may start from a local or fetched snapshot signed by the previous service identity. The configured service certificate authenticates the join connection, and the recovered ledger keys later authenticate the snapshot contents. Once the service is open, a fetched snapshot must be signed by the current service identity; otherwise the node discards it and retries the join.
+Joining nodes may start from a local or fetched snapshot signed by a previous service identity, both during recovery and after the service opens. The configured service certificate authenticates the join connection, not the snapshot signer. Both paths authenticate the snapshot contents with ledger keys during full deserialisation, immediately for an open service or during private recovery.
 
 Sealing-based Recovery (Experimental)
 -------------------------------------
