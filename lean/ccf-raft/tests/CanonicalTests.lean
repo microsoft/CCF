@@ -97,7 +97,10 @@ private def nominationTerms : IO Unit := do
 private def apply (state : State Node Nat) (action : Action Node Nat) :
     IO (State Node Nat) :=
   match system.applyAction state action with
-  | some after => pure after
+  | some after => do
+      check (decide (∀ node, (state.nodes node).committedLog <+: (after.nodes node).committedLog))
+        "canonical action rolled back or rewrote a committed prefix"
+      pure after
   | none => throw (IO.userError "expected canonical action to be enabled")
 
 private def batchesAndDrops : IO Unit := do
@@ -154,6 +157,56 @@ private def batchesAndDrops : IO Unit := do
   let mixed := { written with nodes := updateNode written.nodes source mixedNode }
   check (!(decide (Enabled mixed (.appendEntries source destination 2))))
     "native AppendEntries batches cannot span terms"
+
+private def committedPrefixSurvivesTruncation : IO Unit := do
+  let original : Node := ⟨0, by decide⟩
+  let successor : Node := ⟨1, by decide⟩
+  let second : Node := ⟨2, by decide⟩
+  let third : Node := ⟨3, by decide⟩
+  let mut state : State Node Nat := initialState
+  state ← apply state (.initializeConfiguration original)
+  state ← apply state (.signCommittableMessages original)
+  for peer in [successor, second] do
+    state ← apply state (.appendEntries original peer 2)
+    state ← apply state (.receive original peer)
+    state ← apply state (.receive peer original)
+  state ← apply state (.advanceCommitIndex original)
+  let committed := (state.nodes original).committedLog
+  check (committed.length == 2) "truncation test requires a nonempty committed prefix"
+  state ← apply state (.clientRequest original 10)
+  state ← apply state (.appendEntries original successor 3)
+  state ← apply state (.receive original successor)
+  state ← apply state (.receive successor original)
+  check ((state.nodes successor).commitIndex == 2 && (state.nodes successor).log.length == 3)
+    "successor must have a committed prefix and an uncommitted suffix"
+  state ← apply state (.timeout successor)
+  for voter in [second, third] do
+    state ← apply state (.requestVote successor voter)
+    state ← apply state (.updateTerm successor voter)
+    state ← apply state (.receive successor voter)
+    state ← apply state (.receive voter successor)
+  state ← apply state (.becomeLeader successor)
+  check ((state.nodes successor).log == committed &&
+    (state.nodes successor).committedLog == committed)
+    "promotion must truncate only the uncommitted suffix"
+  state ← apply state (.clientRequest successor 20)
+  state ← apply state (.signCommittableMessages successor)
+  for peer in [original, second] do
+    state ← apply state (.appendEntries successor peer 4)
+    if peer == original then
+      state ← apply state (.updateTerm successor peer)
+    state ← apply state (.receive successor peer)
+    state ← apply state (.receive peer successor)
+  check ((state.nodes original).committedLog == committed &&
+    entryAt? (state.nodes original).log 3 ==
+      some { term := BOOTSTRAP_TERM + 1, content := .transaction 20 })
+    "conflict resolution must replace the uncommitted entry, not the committed prefix"
+  state ← apply state (.advanceCommitIndex successor)
+  state ← apply state (.appendEntries successor original 4)
+  state ← apply state (.receive successor original)
+  check ((state.nodes original).commitIndex == 4 &&
+    decide (committed <+: (state.nodes original).committedLog))
+    "the retained prefix must extend when the replacement suffix commits"
 
 private def committedLeaderCanHeartbeatBehindCommit : IO Unit := do
   let source : Node := ⟨0, by decide⟩
@@ -512,6 +565,7 @@ def main : IO Unit := do
   nominationTerms
   batchesAndDrops
   committedLeaderCanHeartbeatBehindCommit
+  committedPrefixSurvivesTruncation
   networkSnapshots
   repliesAfterStepDown
   jsonReplay

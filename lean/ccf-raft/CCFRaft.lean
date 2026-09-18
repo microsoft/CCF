@@ -1,3 +1,4 @@
+import CCFRaft.Proofs.CommittedLog
 import CCFRaft.Proofs.ConfigurationCoverage
 import CCFRaft.Proofs.HandlerProofs
 import CCFRaft.Proofs.Invariant

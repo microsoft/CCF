@@ -6,6 +6,7 @@ import CCFRaft.Proofs.HandlerProofs
 import CCFRaft.Proofs.UpdateTermAuthority
 import CCFRaft.Proofs.VotedForFrame
 import CCFRaft.Proofs.ConfigurationCoverage
+import CCFRaft.Proofs.CommittedLog
 
 import CCFRaft.Proofs.Support
 
@@ -14321,7 +14322,7 @@ lemma memSelectedOrRemaining
 
 /-! ## Core safety projections -/
 
-/-- The explicit invariant implies the two core public safety properties. -/
+/-- The supporting invariant implies state safety and committed-prefix preservation. -/
 lemma systemInductiveInvariantSafety
     {state : State Node TxId}
     (invariant : SystemInductiveInvariant state) :
@@ -14332,6 +14333,11 @@ lemma systemInductiveInvariantSafety
   exact
     { committedLogsPrefix :=
         invariantFactsCommittedLogsPrefixFromActivation facts
+      committedLogAppendOnly := fun action enabled =>
+        CommittedLog.next_committedLog_prefix state action
+          facts.commitIndicesBounded
+          (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence facts)
+          enabled
       committedFrontierIsSignature :=
         invariantFactsCommittedFrontierIsSignatureFromCommitEvidence facts
       electionSafety :=
@@ -50173,6 +50179,14 @@ lemma reachableCommittedLogsPrefix
     CommittedLogsPrefix state :=
   (systemInductiveInvariantSafety
     (reachableSystemInductiveInvariant reachable)).committedLogsPrefix
+
+/-- Every enabled step from a reachable state retains each committed prefix. -/
+lemma reachableCommittedLogAppendOnly
+    {state : State Node TxId}
+    (reachable : Reachable state) :
+    CommittedLogAppendOnly state :=
+  (systemInductiveInvariantSafety
+    (reachableSystemInductiveInvariant reachable)).committedLogAppendOnly
 
 /-- Every positive committed frontier in a reachable state is a signature. -/
 lemma reachableCommittedFrontierIsSignature

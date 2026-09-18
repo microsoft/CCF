@@ -29,6 +29,37 @@ theorem reachable_committed_frontier_is_signature
     Protocol.Safety.CommittedFrontierIsSignature state :=
   Proofs.ReconfigurationPreservation.reachableCommittedFrontierIsSignature reachable
 
+/-- No enabled step from a reachable state rolls back or rewrites committed entries. -/
+theorem reachable_committed_log_append_only
+    {state : Protocol.Model.State Node TxId}
+    (reachable : Protocol.Model.Reachable state) :
+    Protocol.Safety.CommittedLogAppendOnly state :=
+  Proofs.ReconfigurationPreservation.reachableCommittedLogAppendOnly reachable
+
+/-- The committed prefix survives any finite execution from a reachable state. -/
+theorem run_actions_committed_log_prefix
+    {start final : Protocol.Model.State Node TxId}
+    {actions : List (Protocol.Model.Action Node TxId)}
+    (reachable : Protocol.Model.Reachable start)
+    (ran : Protocol.Model.runActions start actions = some final) :
+    forall node,
+      (start.nodes node).committedLog <+: (final.nodes node).committedLog := by
+  induction actions generalizing start with
+  | nil =>
+      simp only [Protocol.Model.runActions, Option.some.injEq] at ran
+      subst final
+      intro node
+      exact Proofs.HandlerProofs.prefixRefl _
+  | cons action actions inductionHypothesis =>
+      unfold Protocol.Model.runActions Protocol.ExecutableTransitionSystem.applyAction at ran
+      split at ran
+      · rename_i enabled
+        have tail := inductionHypothesis
+          (Proofs.ModelProofs.Reachable.step reachable enabled) ran
+        intro node
+        exact (reachable_committed_log_append_only reachable action enabled node).trans (tail node)
+      · simp at ran
+
 theorem reachable_election_safety
     {state : Protocol.Model.State Node TxId}
     (reachable : Protocol.Model.Reachable state) :

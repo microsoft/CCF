@@ -16,9 +16,17 @@ execution or calls a solver.
 ## What is proven, and what is not
 
 The public theorems in `CCFRaft/Properties.lean` establish election safety,
-pairwise committed-log prefix agreement, and signature commit frontiers for
-every reachable model state. They hold for arbitrary node and transaction
-identifier types under the model's bootstrap assumptions.
+pairwise committed-log prefix agreement, signature commit frontiers, and
+append-only committed logs for every reachable model state. They hold for
+arbitrary node and transaction identifier types under the model's bootstrap
+assumptions.
+
+`ConsensusSafety.committedLogAppendOnly` states that every enabled action
+retains each node's committed prefix. This is the step condition of
+`CommittedLogAppendOnlyProp` in `tla/consensus/ccfraft.tla`.
+`run_actions_committed_log_prefix` extends the guarantee to any finite sequence
+of enabled actions from a reachable state. Uncommitted suffixes may still be
+truncated or replaced.
 
 The proofs say nothing about liveness, fairness, or the C++ implementation.
 `SystemInductiveInvariant` and its ghost histories under `Proofs/` are proof

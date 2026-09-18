@@ -38,9 +38,21 @@ def CommittedLogsPrefix (state : State Node TxId) : Prop :=
       (state.nodes right).committedLog <+:
         (state.nodes left).committedLog
 
-/-- Core public safety mirrors committed-log, signature, and election safety. -/
-structure ConsensusSafety (state : State Node TxId) : Prop where
+/--
+Every enabled next step extends each node's committed log. Holding in every
+reachable state gives TLA+'s `CommittedLogAppendOnlyProp`; stuttering is reflexive.
+-/
+def CommittedLogAppendOnly [Bootstrap Node] (state : State Node TxId) : Prop :=
+  forall action,
+    Enabled state action ->
+      forall node,
+        (state.nodes node).committedLog <+:
+          ((next state action).nodes node).committedLog
+
+/-- Public safety includes agreement across nodes and committed history across time. -/
+structure ConsensusSafety [Bootstrap Node] (state : State Node TxId) : Prop where
   committedLogsPrefix : CommittedLogsPrefix state
+  committedLogAppendOnly : CommittedLogAppendOnly state
   committedFrontierIsSignature : CommittedFrontierIsSignature state
   electionSafety : ElectionSafety state
 
