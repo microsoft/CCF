@@ -985,8 +985,7 @@ namespace asynchost
       size_t from,
       size_t to,
       bool read_cache_only = false,
-      std::optional<size_t> max_entries_size = std::nullopt,
-      bool clamp_to_last_idx = true)
+      std::optional<size_t> max_entries_size = std::nullopt)
     {
       // Note: if max_entries_size is set, this returns contiguous ledger
       // entries on a best effort basis, so that the returned entries fit in
@@ -999,7 +998,7 @@ namespace asynchost
       // During recovery or other low-knowledge batch operations, we might
       // request entries past the end of the ledger - truncate to the true end
       // here.
-      if (clamp_to_last_idx && to > last_idx)
+      if (to > last_idx)
       {
         to = last_idx;
       }
@@ -1495,6 +1494,9 @@ namespace asynchost
       return read_entries_range(from, to, false, max_entries_size);
     }
 
+    // Reads entries known to lie in committed files. Only the read cache is
+    // consulted, but the state lock is still taken so that init() cannot
+    // un-commit and rewrite a file while it is being read.
     std::optional<LedgerReadResult> read_committed_entries(
       size_t from,
       size_t to,
@@ -1503,12 +1505,8 @@ namespace asynchost
       ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
         "Reading committed ledger entries from {} to {}", from, to));
 
-      return read_entries_range_unsafe(
-        from,
-        to,
-        true /* read cache only */,
-        max_entries_size,
-        false /* do not access mutable last_idx */);
+      return read_entries_range(
+        from, to, true /* read cache only */, max_entries_size);
     }
 
     size_t write_entry(const uint8_t* data, size_t size, bool committable)

@@ -13,15 +13,17 @@
 #include <filesystem>
 #include <mutex>
 #include <optional>
+#include <thread>
 
 namespace asynchost
 {
   // Typed, task-backed ledger access for the node. All mutations and reads of
   // mutable (uncommitted) state run in FIFO order on a single OrderedTasks
-  // lane. Reads which lie wholly within committed files run as ordinary tasks
-  // and may overlap with each other and with the lane: nothing in the lane
-  // modifies a file once it has been classified as committed (see init and
-  // open below). No action in this class blocks on another task.
+  // lane. Reads which lie wholly within committed files are dispatched as
+  // ordinary tasks so they do not hold up the lane; the Ledger's own state
+  // lock still serialises their file access against mutations, as it did
+  // when these reads ran on the libuv threadpool. No action in this class
+  // blocks on another task.
   class LedgerSubsystem : public ccf::AbstractLedgerSubsystemInterface
   {
   private:
@@ -235,12 +237,37 @@ namespace asynchost
       return ledger.get_init_idx();
     }
 
-    // Rejects new submissions and waits for in-flight storage actions and
-    // callbacks. Idempotent.
+    // Completes work already accepted, then rejects new submissions and waits
+    // for in-flight storage actions and callbacks. Idempotent.
+    //
+    // The caller must ensure no task worker can be executing the lane when
+    // this is called; the host calls it after the enclave threads have
+    // joined. Draining here is what the old design achieved by reading the
+    // remaining ringbuffer messages before stopping the loop: a mutation which
+    // append() or commit() accepted must reach disk. Committed-read tasks the
+    // drain dispatches are never run and their callbacks never fire, as with
+    // any other queued work at shutdown.
     void shutdown() override
     {
-      std::call_once(
-        shutdown_once, [this]() { shutdown_gate->shutdown_and_wait(); });
+      std::call_once(shutdown_once, [this]() {
+        size_t pending = 0;
+        bool active = false;
+        bool paused = false;
+        ordered_tasks->get_queue_summary(pending, active, paused);
+        while (pending > 0 || active)
+        {
+          if (active)
+          {
+            std::this_thread::yield();
+          }
+          else
+          {
+            ordered_tasks->do_task();
+          }
+          ordered_tasks->get_queue_summary(pending, active, paused);
+        }
+        shutdown_gate->shutdown_and_wait();
+      });
     }
   };
 }

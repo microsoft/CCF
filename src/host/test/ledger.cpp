@@ -2479,7 +2479,7 @@ TEST_CASE("Typed ledger accepts concurrent mutation submissions")
   REQUIRE(ledger.get_last_idx() == thread_count * entries_per_thread);
 }
 
-TEST_CASE("Typed committed reads may run concurrently")
+TEST_CASE("Typed committed read callbacks may run concurrently")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
   Ledger ledger(ledger_dir);
@@ -2613,20 +2613,35 @@ TEST_CASE("Reads of committed recovery chunks are ordered with open")
   REQUIRE(after_open->entries == entry);
 }
 
-TEST_CASE("Typed ledger shutdown cancels queued work")
+TEST_CASE("Typed ledger shutdown completes accepted work and rejects new work")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
   Ledger ledger(ledger_dir);
   ccf::tasks::JobBoard job_board;
   LedgerSubsystem subsystem(ledger, 1024, job_board);
 
-  bool callback_called = false;
-  REQUIRE(subsystem.get_range(
-    1, 1, [&](consensus::LedgerRangeResult&&) { callback_called = true; }));
+  // Accepted before shutdown, not yet executed by any worker.
+  REQUIRE(subsystem.append(make_ledger_entry(1), true));
+  REQUIRE(subsystem.commit(1));
+  bool read_completed = false;
+  REQUIRE(subsystem.get_range(1, 1, [&](consensus::LedgerRangeResult&& r) {
+    REQUIRE(r.status == consensus::LedgerRangeStatus::Found);
+    read_completed = true;
+  }));
+
   subsystem.shutdown();
-  REQUIRE_FALSE(subsystem.append(make_ledger_entry(1), false));
+
+  // The accepted mutations reached the ledger, in order, and the accepted
+  // read of uncommitted state was answered.
+  REQUIRE(ledger.get_last_idx() == 1);
+  REQUIRE(read_completed);
+
+  // Nothing new is accepted, and nothing is left for a worker to run.
+  REQUIRE_FALSE(subsystem.append(make_ledger_entry(2), false));
+  REQUIRE_FALSE(subsystem.get_range(
+    1, 1, [](consensus::LedgerRangeResult&&) { REQUIRE(false); }));
   run_all_tasks(job_board);
-  REQUIRE_FALSE(callback_called);
+  REQUIRE(ledger.get_last_idx() == 1);
 }
 
 int main(int argc, char** argv)
