@@ -7,6 +7,7 @@
 #include <memory>
 #include <span>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace ccf::tracing
@@ -26,8 +27,8 @@ namespace ccf::tracing
     static_assert(std::atomic<size_t>::is_always_lock_free);
 
   public:
-    static constexpr size_t MAX_CAPACITY = 1024 * 1024;
-    static constexpr size_t MAX_RECORD_SIZE = 1024 * 1024;
+    static constexpr size_t MAX_CAPACITY = size_t{1024} * 1024;
+    static constexpr size_t MAX_RECORD_SIZE = size_t{1024} * 1024;
 
     explicit SPSCQueue(size_t capacity = 4096)
     {
@@ -64,7 +65,7 @@ namespace ccf::tracing
 
     // Consumer-only observation; exact once the producer has stopped.
     // Includes the record held by a running read callback.
-    size_t size() const
+    [[nodiscard]] size_t size() const
     {
       return tail.load(std::memory_order_acquire) -
         head.load(std::memory_order_relaxed);
@@ -73,6 +74,7 @@ namespace ccf::tracing
     template <typename F>
     size_t read(size_t limit, F&& callback)
     {
+      auto&& handler = std::forward<F>(callback);
       size_t count = 0;
       while (count < limit)
       {
@@ -82,7 +84,7 @@ namespace ccf::tracing
           break;
         }
         auto& record = slots[read_index];
-        callback(std::span<const uint8_t>(*record));
+        handler(std::span<const uint8_t>(*record));
         record.reset();
         read_index = (read_index + 1) % slots.size();
         head.store(begin + 1, std::memory_order_release);

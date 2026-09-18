@@ -2,11 +2,33 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "common/configuration.h"
-#include "tracing/trace.h"
+#include "tracing/test/events.h"
 
 #include <arpa/inet.h>
 #include <doctest/doctest.h>
 #include <future>
+
+namespace request_trace
+{
+  struct EncodingProbe
+  {
+    bool& encoded;
+  };
+  inline void write_msgpack(std::vector<uint8_t>&, const EncodingProbe& probe)
+  {
+    probe.encoded = true;
+  }
+}
+
+template <typename... Args>
+concept EmitArguments =
+  requires(const Args&... args) { ccf::tracing::emit("ccf.test", args...); };
+
+static_assert(EmitArguments<>);
+static_assert(EmitArguments<char[4], int, std::string_view, bool>);
+static_assert(!EmitArguments<char[4]>);
+static_assert(!EmitArguments<int, int>);
+
 TEST_CASE("Fluentd configuration round trips")
 {
   ccf::CCFConfig::Observability config;
@@ -131,6 +153,30 @@ TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
   }) == 1);
 }
 
+TEST_CASE("Direct map encoding does not allocate into a reserved buffer")
+{
+  std::vector<uint8_t> bytes;
+  bytes.reserve(2048);
+  const auto before = allocations;
+  ccf::msgpack::write_map(
+    bytes,
+    "signed",
+    -1,
+    "unsigned",
+    uint64_t(42),
+    "bool",
+    true,
+    "nested",
+    request_trace::Nested{7, false},
+    "args",
+    ccf::msgpack::map("idx", 3),
+    "literal",
+    "value");
+  const auto after = allocations;
+  CHECK(after == before);
+  CHECK(nlohmann::json::from_msgpack(bytes)["nested"]["number"] == 7);
+}
+
 TEST_CASE("SPSC callback retains ownership until it returns")
 {
   ccf::tracing::SPSCQueue queue(1);
@@ -160,6 +206,46 @@ TEST_CASE("SPSC callback retains ownership until it returns")
   consumer.join();
   REQUIRE(queue.push(payload));
   CHECK(queue.read(1, [](auto bytes) { CHECK(bytes[0] == 17); }) == 1);
+}
+
+TEST_CASE("SPSC read reuses callbacks without copying or consuming them")
+{
+  ccf::tracing::SPSCQueue queue(2);
+  const auto fill = [&] {
+    REQUIRE(queue.push({}));
+    REQUIRE(queue.push({}));
+  };
+  auto callback = [count = size_t{0}](auto) mutable { return ++count; };
+  fill();
+  CHECK(queue.read(2, callback) == 2);
+  CHECK(callback(std::span<const uint8_t>{}) == 3);
+  fill();
+  CHECK(queue.read(2, callback) == 2);
+  CHECK(callback(std::span<const uint8_t>{}) == 6);
+
+  struct LvalueCallback
+  {
+    size_t& calls;
+
+    explicit LvalueCallback(size_t& calls_) : calls(calls_) {}
+    LvalueCallback(const LvalueCallback&) = delete;
+    LvalueCallback(LvalueCallback&&) = default;
+
+    void operator()(std::span<const uint8_t> /*bytes*/) &
+    {
+      ++calls;
+    }
+
+    void operator()(std::span<const uint8_t> /*bytes*/) && = delete;
+  };
+  size_t callback_calls = 0;
+  LvalueCallback lvalue_callback(callback_calls);
+  fill();
+  CHECK(queue.read(2, lvalue_callback) == 2);
+  CHECK(callback_calls == 2);
+  fill();
+  CHECK(queue.read(2, LvalueCallback{callback_calls}) == 2);
+  CHECK(callback_calls == 4);
 }
 
 TEST_CASE("SPSC default capacity counts records, including empty records")
@@ -213,7 +299,9 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   using Sink = ccf::tracing::FluentdSink;
   producer = std::this_thread::get_id();
   bool encoded = false;
-  ccf::tracing::emit("ccf.request", 0, [&](auto&) { encoded = true; });
+  ccf::tracing::emit(
+    "ccf.request", "probe", request_trace::EncodingProbe{encoded});
+  request_trace::single(request_trace::EncodingProbe{encoded});
   CHECK_FALSE(encoded);
   CHECK_FALSE(Sink::enqueue({}));
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::milliseconds(0)));
@@ -250,11 +338,13 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(Sink::dropped_count() == 0);
   int peer = accept(listener, nullptr, nullptr);
   REQUIRE(peer >= 0);
-  ccf::tracing::emit_fields(
-    "ccf.request",
-    ccf::msgpack::Field{"path", std::string_view("/app/log")},
-    ccf::msgpack::Field{"status", 200},
-    ccf::msgpack::Field{"cached", false});
+  ccf::tracing::emit(
+    "ccf.request", "path", "/app/log", "status", 200, "cached", false);
+  const auto typed_frame =
+    nlohmann::json::from_msgpack(ccf::tracing::event_buffer());
+  CHECK(
+    typed_frame[2]["msg"] ==
+    nlohmann::json{{"path", "/app/log"}, {"status", 200}, {"cached", false}});
   std::vector<uint8_t> bytes;
   std::array<uint8_t, 256> chunk;
   nlohmann::json frame;
@@ -277,6 +367,38 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(frame[2]["h_ts"] == 0);
   CHECK(frame[2]["process_id"].is_string());
   CHECK_FALSE(wrong_thread);
+
+  const auto check_event =
+    [&](auto emit, const nlohmann::ordered_json& expected) {
+      emit();
+      const auto& buffer = ccf::tracing::event_buffer();
+      const auto event = nlohmann::ordered_json::from_msgpack(buffer);
+      CHECK(
+        nlohmann::ordered_json::to_msgpack(event[2]["msg"]) ==
+        nlohmann::ordered_json::to_msgpack(expected));
+      std::vector<uint8_t> actual(buffer.size());
+      REQUIRE(
+        recv(peer, actual.data(), actual.size(), MSG_WAITALL) ==
+        static_cast<ssize_t>(actual.size()));
+      CHECK(actual == buffer);
+    };
+  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+  check_event(
+    request_trace::empty_from_other_translation_unit, {{"function", "empty"}});
+  check_event(
+    [] { request_trace::single(request_trace::Nested{7, false}); },
+    {{"function", "single"}, {"value", {{"number", 7}, {"flag", false}}}});
+  check_event(
+    request_trace::single_from_other_translation_unit,
+    {{"function", "single"}, {"value", {{"number", 7}, {"flag", false}}}});
+  int evaluations = 0;
+  check_event(
+    [&] { request_trace::request("/app/log", ++evaluations, false); },
+    {{"function", "request"},
+     {"path", "/app/log"},
+     {"status", 1},
+     {"cached", false}});
+  CHECK(evaluations == 1);
 
   std::thread second([&] {
     Sink::bind_producer(1);

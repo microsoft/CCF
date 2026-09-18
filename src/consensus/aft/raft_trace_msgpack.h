@@ -5,359 +5,209 @@
 #include "ccf/entity_id.h"
 #include "consensus/aft/impl/state.h"
 #include "consensus/aft/raft_types.h"
-#include "msgpack/fields.h"
+#include "msgpack/serialization.h"
 #include "tracing/trace.h"
 
 #include <algorithm>
-#include <string_view>
-#include <vector>
+#include <list>
 
-namespace aft::trace
+namespace aft
 {
-  constexpr std::string_view raft_trace_tag = "ccf.raft_trace";
+  DECLARE_MSGPACK_TYPE(AppendEntries);
+  DECLARE_MSGPACK_FIELDS(
+    AppendEntries,
+    msg,
+    idx,
+    prev_idx,
+    term,
+    prev_term,
+    leader_commit_idx,
+    term_of_idx,
+    contains_new_view);
 
-  using ccf::msgpack::container_size;
-  using ccf::msgpack::Field;
-  using ccf::msgpack::write_fields;
-  using ccf::msgpack::write_key;
-  using ccf::msgpack::write_msgpack;
-  using ccf::msgpack::write_optional;
+  DECLARE_MSGPACK_TYPE(AppendEntriesResponse);
+  DECLARE_MSGPACK_FIELDS(
+    AppendEntriesResponse, msg, term, last_log_idx, success);
 
-  inline void write_msgpack(std::vector<uint8_t>& out, const ccf::NodeId& id)
+  DECLARE_MSGPACK_TYPE(RequestVote);
+  DECLARE_MSGPACK_FIELDS(
+    RequestVote, msg, term, last_committable_idx, term_of_last_committable_idx);
+
+  DECLARE_MSGPACK_TYPE(RequestPreVote);
+  DECLARE_MSGPACK_FIELDS(
+    RequestPreVote,
+    msg,
+    term,
+    last_committable_idx,
+    term_of_last_committable_idx);
+
+  DECLARE_MSGPACK_TYPE(RequestVoteResponse);
+  DECLARE_MSGPACK_FIELDS(RequestVoteResponse, msg, term, vote_granted);
+
+  DECLARE_MSGPACK_TYPE(RequestPreVoteResponse);
+  DECLARE_MSGPACK_FIELDS(RequestPreVoteResponse, msg, term, vote_granted);
+
+  DECLARE_MSGPACK_TYPE(ProposeRequestVote);
+  DECLARE_MSGPACK_FIELDS(ProposeRequestVote, msg, term);
+
+  inline void write_trace_state(
+    std::vector<uint8_t>& out, const State& state, bool include_indices)
   {
-    ccf::msgpack::write_str(out, id.value());
-  }
-
-  template <bool IncludeCommittableIndices = true>
-  inline void write_msgpack(std::vector<uint8_t>& out, const State& state)
-  {
-    const auto optional_field_count =
-      static_cast<uint32_t>(state.retirement_phase.has_value()) +
-      static_cast<uint32_t>(state.retirement_idx.has_value()) +
-      static_cast<uint32_t>(state.retirement_committable_idx.has_value()) +
-      static_cast<uint32_t>(state.retired_committed_idx.has_value());
-    ccf::msgpack::write_map_header(
-      out, 7 + IncludeCommittableIndices + optional_field_count);
-
-    write_key(out, "node_id");
-    write_msgpack(out, state.node_id);
-    write_key(out, "current_view");
-    ccf::msgpack::write_uint(out, state.current_view);
-    write_key(out, "last_idx");
-    ccf::msgpack::write_uint(out, state.last_idx);
-    write_key(out, "commit_idx");
-    ccf::msgpack::write_uint(out, state.commit_idx);
-    write_key(out, "leadership_state");
-    write_msgpack(out, state.leadership_state.load());
-    write_key(out, "membership_state");
-    write_msgpack(out, state.membership_state);
-    write_key(out, "pre_vote_enabled");
-    ccf::msgpack::write_bool(out, state.pre_vote_enabled);
-
-    write_optional(
+    using namespace ccf::msgpack;
+    using ccf::msgpack::write_msgpack;
+    write_map_header(
       out,
-      "retirement_phase",
-      state.retirement_phase,
-      [](auto& buffer, auto value) { write_msgpack(buffer, value); });
+      7 + static_cast<uint32_t>(state.retirement_phase.has_value()) +
+        static_cast<uint32_t>(state.retirement_idx.has_value()) +
+        static_cast<uint32_t>(state.retirement_committable_idx.has_value()) +
+        static_cast<uint32_t>(state.retired_committed_idx.has_value()) +
+        static_cast<uint32_t>(include_indices));
+    write_pair(out, "node_id", state.node_id.value());
+    write_pair(out, "current_view", state.current_view);
+    write_pair(out, "last_idx", state.last_idx);
+    write_pair(out, "commit_idx", state.commit_idx);
+    write_pair(out, "leadership_state", state.leadership_state.load());
+    write_pair(out, "membership_state", state.membership_state);
+    write_pair(out, "pre_vote_enabled", state.pre_vote_enabled);
+    write_optional(out, "retirement_phase", state.retirement_phase);
+    write_optional(out, "retirement_idx", state.retirement_idx);
     write_optional(
-      out,
-      "retirement_idx",
-      state.retirement_idx,
-      [](auto& buffer, auto value) {
-        ccf::msgpack::write_uint(buffer, value);
-      });
-    write_optional(
-      out,
-      "retirement_committable_idx",
-      state.retirement_committable_idx,
-      [](auto& buffer, auto value) {
-        ccf::msgpack::write_uint(buffer, value);
-      });
-    write_optional(
-      out,
-      "retired_committed_idx",
-      state.retired_committed_idx,
-      [](auto& buffer, auto value) {
-        ccf::msgpack::write_uint(buffer, value);
-      });
-
-    if constexpr (IncludeCommittableIndices)
+      out, "retirement_committable_idx", state.retirement_committable_idx);
+    write_optional(out, "retired_committed_idx", state.retired_committed_idx);
+    if (include_indices)
     {
       write_key(out, "committable_indices");
-      const auto& indices = state.committable_indices;
-      const auto count =
-        static_cast<uint32_t>(std::min<size_t>(indices.size(), 2));
-      ccf::msgpack::write_array_header(out, count);
+      const auto count = static_cast<uint32_t>(
+        std::min<size_t>(state.committable_indices.size(), 2));
+      write_array_header(out, count);
       if (count > 0)
       {
-        ccf::msgpack::write_uint(out, indices.front());
+        write_msgpack(out, state.committable_indices.front());
       }
       if (count > 1)
       {
-        ccf::msgpack::write_uint(out, indices.back());
+        write_msgpack(out, state.committable_indices.back());
       }
     }
   }
 
+  inline void write_msgpack(std::vector<uint8_t>& out, const State& state)
+  {
+    write_trace_state(out, state, true);
+  }
+}
+
+namespace ccf::kv
+{
   inline void write_msgpack(
-    std::vector<uint8_t>& out, const ccf::kv::Configuration::NodeInfo& node)
+    std::vector<uint8_t>& out, const Configuration::Nodes& nodes)
   {
-    const auto address = ccf::make_net_address(node.hostname, node.port);
-    write_fields(out, Field{"address", std::string_view(address)});
+    msgpack::write_map_header(out, msgpack::container_size(nodes.size()));
+    for (const auto& [node_id, node_info] : nodes)
+    {
+      msgpack::write_key(out, node_id.value());
+      msgpack::write_map(
+        out,
+        "address",
+        ccf::make_net_address(node_info.hostname, node_info.port));
+    }
   }
 
-  inline void write_configuration(
-    std::vector<uint8_t>& out,
-    Index idx,
-    const ccf::kv::Configuration::Nodes& nodes,
-    ccf::kv::ReconfigurationId rid)
-  {
-    const auto write_nodes = [&](auto& buffer) {
-      ccf::msgpack::write_map_header(buffer, container_size(nodes.size()));
-      for (const auto& [node_id, node_info] : nodes)
-      {
-        write_msgpack(buffer, node_id);
-        write_msgpack(buffer, node_info);
-      }
-    };
-    write_fields(
-      out, Field{"idx", idx}, Field{"nodes", write_nodes}, Field{"rid", rid});
-  }
+  DECLARE_MSGPACK_TYPE(Configuration);
+  DECLARE_MSGPACK_FIELDS(Configuration, idx, nodes, rid);
 
   inline void write_msgpack(
-    std::vector<uint8_t>& out, const ccf::kv::Configuration& configuration)
+    std::vector<uint8_t>& out, const std::list<Configuration>& configurations)
   {
-    write_configuration(
-      out, configuration.idx, configuration.nodes, configuration.rid);
-  }
-
-  template <typename Configurations>
-  inline void write_configurations(
-    std::vector<uint8_t>& out, const Configurations& configurations)
-  {
-    ccf::msgpack::write_array_header(
-      out, container_size(configurations.size()));
+    msgpack::write_array_header(
+      out, msgpack::container_size(configurations.size()));
     for (const auto& configuration : configurations)
     {
       write_msgpack(out, configuration);
     }
   }
+}
+
+namespace aft::trace
+{
+  constexpr std::string_view raft_trace_tag = "ccf.raft_trace";
+
+  // Dropped packets use the legacy state shape without committable indices.
+  struct StateWithoutIndicesView
+  {
+    const State& state;
+  };
 
   inline void write_msgpack(
-    std::vector<uint8_t>& out, const AppendEntries& packet)
+    std::vector<uint8_t>& out, const StateWithoutIndicesView& value)
   {
-    write_fields(
-      out,
-      Field{"msg", packet.msg},
-      Field{"idx", packet.idx},
-      Field{"prev_idx", packet.prev_idx},
-      Field{"term", packet.term},
-      Field{"prev_term", packet.prev_term},
-      Field{"leader_commit_idx", packet.leader_commit_idx},
-      Field{"term_of_idx", packet.term_of_idx},
-      Field{"contains_new_view", packet.contains_new_view});
+    write_trace_state(out, value.state, false);
   }
 
-  inline void write_msgpack(
-    std::vector<uint8_t>& out, const AppendEntriesResponse& packet)
-  {
-    write_fields(
-      out,
-      Field{"msg", packet.msg},
-      Field{"term", packet.term},
-      Field{"last_log_idx", packet.last_log_idx},
-      Field{"success", packet.success});
-  }
-
-  template <typename VoteRequest>
-  inline void write_vote_request(
-    std::vector<uint8_t>& out, const VoteRequest& packet)
-  {
-    write_fields(
-      out,
-      Field{"msg", packet.msg},
-      Field{"term", packet.term},
-      Field{"last_committable_idx", packet.last_committable_idx},
-      Field{
-        "term_of_last_committable_idx", packet.term_of_last_committable_idx});
-  }
-
-  inline void write_msgpack(
-    std::vector<uint8_t>& out, const RequestVote& packet)
-  {
-    write_vote_request(out, packet);
-  }
-
-  inline void write_msgpack(
-    std::vector<uint8_t>& out, const RequestPreVote& packet)
-  {
-    write_vote_request(out, packet);
-  }
-
-  template <typename VoteResponse>
-  inline void write_vote_response(
-    std::vector<uint8_t>& out, const VoteResponse& packet)
-  {
-    write_fields(
-      out,
-      Field{"msg", packet.msg},
-      Field{"term", packet.term},
-      Field{"vote_granted", packet.vote_granted});
-  }
-
-  inline void write_msgpack(
-    std::vector<uint8_t>& out, const RequestVoteResponse& packet)
-  {
-    write_vote_response(out, packet);
-  }
-
-  inline void write_msgpack(
-    std::vector<uint8_t>& out, const RequestPreVoteResponse& packet)
-  {
-    write_vote_response(out, packet);
-  }
-
-  inline void write_msgpack(
-    std::vector<uint8_t>& out, const ProposeRequestVote& packet)
-  {
-    write_fields(out, Field{"msg", packet.msg}, Field{"term", packet.term});
-  }
-
-  template <typename... Fields>
-  inline void emit_fields(const Fields&... fields)
-  {
-    ccf::tracing::emit(raft_trace_tag, sizeof...(Fields), [&](auto& out) {
-      ((write_key(out, fields.name), write_msgpack(out, fields.value)), ...);
-    });
-  }
-
-  inline void emit_state_node(
-    std::string_view function,
-    const State& state,
-    std::string_view node_key,
-    const ccf::NodeId& node_id)
-  {
-    emit_fields(
-      Field{"function", function},
-      Field{"state", state},
-      Field{node_key, node_id});
-  }
-
-  template <typename Configurations>
-  inline void emit_state_configurations(
-    std::string_view function,
-    const State& state,
-    const Configurations& configurations)
-  {
-    const auto write = [&](auto& out) {
-      write_configurations(out, configurations);
-    };
-    emit_fields(
-      Field{"function", function},
-      Field{"state", state},
-      Field{"configurations", write});
-  }
-
-  template <typename Packet>
-  inline void emit_state_packet_node(
-    std::string_view function,
-    const State& state,
-    const Packet& packet,
-    std::string_view node_key,
-    const ccf::NodeId& node_id)
-  {
-    emit_fields(
-      Field{"function", function},
-      Field{"state", state},
-      Field{"packet", packet},
-      Field{node_key, node_id});
-  }
-
-  template <typename Packet>
-  inline void emit_state_packet_node_indices(
-    std::string_view function,
-    const State& state,
-    const Packet& packet,
-    std::string_view node_key,
-    const ccf::NodeId& node_id,
-    Index match_idx,
-    Index sent_idx)
-  {
-    emit_fields(
-      Field{"function", function},
-      Field{"state", state},
-      Field{"packet", packet},
-      Field{node_key, node_id},
-      Field{"match_idx", match_idx},
-      Field{"sent_idx", sent_idx});
-  }
-
-  template <typename Configurations>
+  DECLARE_TRACE_EVENT(
+    send_append_entries,
+    raft_trace_tag,
+    state,
+    packet,
+    to_node_id,
+    match_idx,
+    sent_idx);
+  DECLARE_TRACE_EVENT(
+    recv_append_entries_response,
+    raft_trace_tag,
+    state,
+    packet,
+    from_node_id,
+    match_idx,
+    sent_idx);
+  DECLARE_TRACE_EVENT(
+    recv_append_entries, raft_trace_tag, state, packet, from_node_id);
+  DECLARE_TRACE_EVENT(
+    execute_append_entries_sync, raft_trace_tag, state, from_node_id);
+  DECLARE_TRACE_EVENT(
+    send_append_entries_response, raft_trace_tag, state, packet, to_node_id);
+  DECLARE_TRACE_EVENT(
+    send_request_vote, raft_trace_tag, state, packet, to_node_id);
+  DECLARE_TRACE_EVENT(
+    send_request_vote_response, raft_trace_tag, state, packet, to_node_id);
+  DECLARE_TRACE_EVENT(
+    recv_request_vote, raft_trace_tag, state, packet, from_node_id);
+  DECLARE_TRACE_EVENT(
+    recv_request_vote_response, raft_trace_tag, state, packet, from_node_id);
+  DECLARE_TRACE_EVENT(
+    recv_propose_request_vote, raft_trace_tag, state, packet, from_node_id);
+  DECLARE_TRACE_EVENT(
+    become_pre_vote_candidate, raft_trace_tag, state, configurations);
+  DECLARE_TRACE_EVENT(become_candidate, raft_trace_tag, state, configurations);
+  DECLARE_TRACE_EVENT(become_leader, raft_trace_tag, state, configurations);
+  DECLARE_TRACE_EVENT(become_follower, raft_trace_tag, state, configurations);
+  DECLARE_TRACE_EVENT(
+    step_down_and_nominate_successor, raft_trace_tag, state, configurations);
+  DECLARE_TRACE_EVENT(
+    replicate, raft_trace_tag, state, view, seqno, globally_committable);
+  // This event preserves the nested args.configuration wire shape without
+  // constructing/copying a Configuration.
   inline void emit_add_configuration(
     const State& state,
-    const Configurations& configurations,
+    const std::list<ccf::kv::Configuration>& configurations,
     Index idx,
     const ccf::kv::Configuration::Nodes& nodes)
   {
-    const auto write_configs = [&](auto& out) {
-      write_configurations(out, configurations);
-    };
-    const auto write_args = [&](auto& out) {
-      const auto write_config = [&](auto& buffer) {
-        write_configuration(buffer, idx, nodes, idx);
-      };
-      write_fields(out, Field{"configuration", write_config});
-    };
-    emit_fields(
-      Field{"function", std::string_view("add_configuration")},
-      Field{"state", state},
-      Field{"configurations", write_configs},
-      Field{"args", write_args});
+    ccf::tracing::emit(
+      raft_trace_tag,
+      "function",
+      "add_configuration",
+      "state",
+      state,
+      "configurations",
+      configurations,
+      "args",
+      ccf::msgpack::map(
+        "configuration",
+        ccf::msgpack::map("idx", idx, "nodes", nodes, "rid", idx)));
   }
 
-  inline void emit_replicate(
-    const State& state, Term view, Index seqno, bool globally_committable)
-  {
-    emit_fields(
-      Field{"function", std::string_view("replicate")},
-      Field{"state", state},
-      Field{"view", view},
-      Field{"seqno", seqno},
-      Field{"globally_committable", globally_committable});
-  }
-
-  template <typename Configurations>
-  inline void emit_commit(
-    const State& state, const Configurations& configurations, Index idx)
-  {
-    const auto write_args = [&](auto& out) {
-      write_fields(out, Field{"idx", idx});
-    };
-    const auto write_configs = [&](auto& out) {
-      write_configurations(out, configurations);
-    };
-    emit_fields(
-      Field{"function", std::string_view("commit")},
-      Field{"state", state},
-      Field{"args", write_args},
-      Field{"configurations", write_configs});
-  }
-
-  template <typename Packet>
-  inline void emit_drop_pending_to(
-    const State& state,
-    const Packet& packet,
-    const ccf::NodeId& from,
-    const ccf::NodeId& to)
-  {
-    const auto write_state = [&](auto& out) {
-      write_msgpack<false>(out, state);
-    };
-    emit_fields(
-      Field{"function", std::string_view("drop_pending_to")},
-      Field{"state", write_state},
-      Field{"from_node_id", from},
-      Field{"to_node_id", to},
-      Field{"packet", packet});
-  }
-} // namespace aft::trace
+  DECLARE_TRACE_EVENT(commit, raft_trace_tag, state, args, configurations);
+  DECLARE_TRACE_EVENT(
+    drop_pending_to, raft_trace_tag, state, from_node_id, to_node_id, packet);
+}

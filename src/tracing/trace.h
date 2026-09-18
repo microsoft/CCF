@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json.h"
 #include "msgpack/fields.h"
 #include "msgpack/fluentd_event_time.h"
 #include "tracing/fluentd_sink.h"
@@ -39,9 +40,10 @@ namespace ccf::tracing
     return id;
   }
 
-  template <typename WriteRecord>
-  inline void emit(
-    std::string_view tag, uint32_t field_count, WriteRecord&& write_record)
+  // Alternating string keys and borrowed values form the envelope's msg map.
+  template <typename... Args>
+    requires msgpack::map_arguments<Args...>
+  inline void emit(std::string_view tag, const Args&... args)
   {
     if (!FluentdSink::is_configured())
     {
@@ -61,18 +63,27 @@ namespace ccf::tracing
     msgpack::write_key(buffer, "h_ts");
     msgpack::write_uint(buffer, sequence);
     msgpack::write_key(buffer, "msg");
-    msgpack::write_map_header(buffer, field_count);
-    write_record(buffer);
+    msgpack::write_map(buffer, args...);
     FluentdSink::enqueue(buffer);
   }
-
-  template <typename... Fields>
-  inline void emit_fields(std::string_view tag, const Fields&... fields)
-  {
-    emit(tag, sizeof...(Fields), [&](auto& out) {
-      ((msgpack::write_key(out, fields.name),
-        msgpack::write_msgpack(out, fields.value)),
-       ...);
-    });
-  }
 }
+
+#define CCF_TRACE_PARAMETER_FOR_JSON_NEXT(TYPE, MEMBER) const auto &MEMBER,
+#define CCF_TRACE_PARAMETER_FOR_JSON_FINAL(TYPE, MEMBER) const auto& MEMBER
+#define CCF_TRACE_ARGUMENT_FOR_JSON_NEXT(TYPE, MEMBER) , #MEMBER, MEMBER
+#define CCF_TRACE_ARGUMENT_FOR_JSON_FINAL(TYPE, MEMBER) \
+  CCF_TRACE_ARGUMENT_FOR_JSON_NEXT(TYPE, MEMBER)
+
+// DECLARE_TRACE_EVENT(event, tag, field) declares event(const auto& field).
+// Declare in the caller's namespace. The wrapper adds the function field.
+#define DECLARE_TRACE_EVENT(NAME, TAG, ...) \
+  inline void NAME(__VA_OPT__(_FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)( \
+    CCF_TRACE_PARAMETER, _, __VA_ARGS__))) \
+  { \
+    ccf::tracing::emit( \
+      TAG, \
+      "function", \
+      #NAME __VA_OPT__(_FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)( \
+        CCF_TRACE_ARGUMENT, _, __VA_ARGS__))); \
+  } \
+  REQUIRES_SEMICOLON_TERMINATION

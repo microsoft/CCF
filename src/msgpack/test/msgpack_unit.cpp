@@ -3,6 +3,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "msgpack/encode.h"
 #include "msgpack/fluentd_event_time.h"
+#include "msgpack/serialization.h"
 #include "msgpack/test/format_introspect.h"
 #include "msgpack/test/json.h"
 
@@ -21,6 +22,217 @@ using ccf::msgpack::test::classify_first_byte;
 using ccf::msgpack::test::encode_json;
 using ccf::msgpack::test::FormatFamily;
 using nlohmann::json;
+
+namespace records
+{
+  struct Empty
+  {};
+  DECLARE_MSGPACK_TYPE(Empty);
+  DECLARE_MSGPACK_FIELDS(Empty);
+
+  struct Child
+  {
+    int number;
+  };
+  DECLARE_MSGPACK_TYPE(Child);
+
+  enum class Kind
+  {
+    first
+  };
+  inline void to_json(std::string_view& out, Kind)
+  {
+    out = "first";
+  }
+
+  struct Custom
+  {
+    Custom() = default;
+    Custom(const Custom&) = delete;
+    Custom& operator=(const Custom&) = delete;
+    mutable size_t calls = 0;
+  };
+  inline void write_msgpack(std::vector<uint8_t>& out, const Custom& value)
+  {
+    ++value.calls;
+    ccf::msgpack::write_bool(out, true);
+  }
+
+  struct Record : Child
+  {
+    Child child;
+    Kind kind;
+    Custom custom;
+    std::string text;
+  };
+  DECLARE_MSGPACK_TYPE(Record);
+  DECLARE_MSGPACK_FIELDS(Record, number, child, kind, custom, text);
+  DECLARE_MSGPACK_FIELDS(Child, number);
+
+  struct OptionalChild
+  {
+    std::optional<Child> child;
+  };
+  DECLARE_MSGPACK_TYPE_WITH_OPTIONAL_FIELDS(OptionalChild);
+
+  struct OptionalRecord
+  {
+    int number;
+    std::optional<OptionalChild> nested;
+    std::optional<bool> flag;
+  };
+  DECLARE_MSGPACK_TYPE_WITH_OPTIONAL_FIELDS(OptionalRecord);
+  DECLARE_MSGPACK_FIELDS(OptionalRecord, number);
+  DECLARE_MSGPACK_OPTIONAL_FIELDS(OptionalRecord, nested, flag);
+  DECLARE_MSGPACK_FIELDS(OptionalChild);
+  DECLARE_MSGPACK_OPTIONAL_FIELDS(OptionalChild, child);
+
+  struct EmptyOptional
+  {};
+  DECLARE_MSGPACK_TYPE_WITH_OPTIONAL_FIELDS(EmptyOptional);
+  DECLARE_MSGPACK_FIELDS(EmptyOptional);
+  DECLARE_MSGPACK_OPTIONAL_FIELDS(EmptyOptional);
+}
+
+template <typename... Args>
+concept MapArguments =
+  requires(std::vector<uint8_t>& out, const Args&... args) {
+    ccf::msgpack::write_map(out, args...);
+  };
+
+static_assert(MapArguments<>);
+static_assert(MapArguments<char[4], int, std::string, bool>);
+static_assert(!MapArguments<char[4]>);
+static_assert(!MapArguments<int, int>);
+static_assert(!MapArguments<char[4], int, bool, int>);
+
+TEST_CASE("Individual pairs preserve order and serialize borrowed values once")
+{
+  std::vector<uint8_t> bytes;
+  const records::Custom custom;
+  const std::string key = "custom";
+  write_map_header(bytes, 2);
+  write_pair(bytes, "child", records::Child{-1});
+  write_pair(bytes, key, custom);
+  CHECK(custom.calls == 1);
+  CHECK(
+    bytes ==
+    nlohmann::ordered_json::to_msgpack(
+      nlohmann::ordered_json{{"child", {{"number", -1}}}, {"custom", true}}));
+}
+
+TEST_CASE("Key-value maps preserve order and serialize borrowed values once")
+{
+  std::vector<uint8_t> bytes;
+  records::Custom custom;
+  int key_calls = 0;
+  int value_calls = 0;
+  write_map(
+    bytes,
+    [&] {
+      ++key_calls;
+      return "nested";
+    }(),
+    map("child", records::Child{-1}, "kind", records::Kind::first),
+    "custom",
+    custom,
+    "value",
+    [&] {
+      ++value_calls;
+      return 42;
+    }(),
+    "literal",
+    "text");
+  CHECK(key_calls == 1);
+  CHECK(value_calls == 1);
+  CHECK(custom.calls == 1);
+  CHECK(
+    bytes ==
+    nlohmann::ordered_json::to_msgpack(nlohmann::ordered_json{
+      {"nested", {{"child", {{"number", -1}}}, {"kind", "first"}}},
+      {"custom", true},
+      {"value", 42},
+      {"literal", "text"}}));
+}
+
+TEST_CASE("Key-value maps write empty and single-entry headers")
+{
+  std::vector<uint8_t> bytes;
+  write_map(bytes);
+  CHECK(bytes == std::vector<uint8_t>{0x80});
+
+  bytes.clear();
+  const records::Custom custom;
+  const std::string key = "custom";
+  write_map(bytes, key, custom);
+  CHECK(custom.calls == 1);
+  CHECK(
+    bytes ==
+    nlohmann::ordered_json::to_msgpack(
+      nlohmann::ordered_json{{"custom", true}}));
+}
+
+TEST_CASE("Optional-field macros omit absent values and preserve nested ADL")
+{
+  std::vector<uint8_t> bytes;
+  write_msgpack(bytes, records::EmptyOptional{});
+  CHECK(bytes == std::vector<uint8_t>{0x80});
+  for (unsigned mask = 0; mask < 8; ++mask)
+  {
+    records::OptionalRecord record{7, std::nullopt, std::nullopt};
+    auto expected = nlohmann::ordered_json{{"number", 7}};
+    if (mask & 1)
+    {
+      record.nested.emplace();
+      expected["nested"] = nlohmann::ordered_json::object();
+      if (mask & 2)
+      {
+        record.nested->child = records::Child{-1};
+        expected["nested"]["child"] = {{"number", -1}};
+      }
+    }
+    if (mask & 4)
+    {
+      record.flag = false;
+      expected["flag"] = false;
+    }
+    bytes.clear();
+    write_msgpack(bytes, record);
+    CHECK(bytes == nlohmann::ordered_json::to_msgpack(expected));
+  }
+}
+
+TEST_CASE("Required-field macros preserve field order and nested ADL")
+{
+  std::vector<uint8_t> bytes;
+  write_msgpack(bytes, records::Empty{});
+  CHECK(bytes == std::vector<uint8_t>{0x80});
+  bytes.clear();
+  write_msgpack(bytes, records::Child{-1});
+  CHECK(
+    bytes ==
+    std::vector<uint8_t>{0x81, 0xa6, 'n', 'u', 'm', 'b', 'e', 'r', 0xff});
+  bytes.clear();
+  const records::Record record{{128}, {-33}, records::Kind::first, {}, "text"};
+  write_msgpack(bytes, record);
+  std::vector<uint8_t> expected;
+  write_map_header(expected, 5);
+  write_str(expected, "number");
+  write_uint(expected, 128);
+  write_str(expected, "child");
+  write_map_header(expected, 1);
+  write_str(expected, "number");
+  write_int(expected, -33);
+  write_str(expected, "kind");
+  write_str(expected, "first");
+  write_str(expected, "custom");
+  write_bool(expected, true);
+  write_str(expected, "text");
+  write_str(expected, "text");
+  CHECK(bytes == expected);
+  CHECK(record.custom.calls == 1);
+  CHECK(json::from_msgpack(bytes)["child"]["number"] == -33);
+}
 
 namespace
 {

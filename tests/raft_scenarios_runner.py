@@ -12,6 +12,8 @@ from heapq import merge
 from raft_scenarios_gen import generate_scenarios
 from raft_trace import as_log_lines, check_connection_timeout, run_driver
 
+import msgpack
+
 
 @contextmanager
 def block(fd, title, level, lang=None, lines=None):
@@ -139,6 +141,10 @@ if __name__ == "__main__":
         action="store_true",
         help="Capture traces from a driver built with CCF_RAFT_TRACING=ON",
     )
+    parser.add_argument(
+        "--compare-driver",
+        help="Compare ordered trace payloads with this baseline driver",
+    )
     parser.add_argument("files", nargs="*", type=str, help="Path to scenario files")
     parser.add_argument(
         "-o",
@@ -149,6 +155,8 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+    if args.compare_driver and not args.raft_tracing:
+        parser.error("--compare-driver requires --raft-tracing")
 
     err_list = []
     test_result = True
@@ -173,6 +181,17 @@ if __name__ == "__main__":
         records = []
         if args.raft_tracing:
             proc, records = run_driver(args.driver, scenario)
+            if args.compare_driver:
+                baseline, baseline_records = run_driver(args.compare_driver, scenario)
+                assert baseline.returncode == 0, baseline.stderr
+                assert len(records) == len(baseline_records), scenario
+                for index, (record, previous) in enumerate(
+                    zip(records, baseline_records)
+                ):
+                    # Repacking retains map order but excludes process IDs and time.
+                    assert msgpack.packb(record["msg"]) == msgpack.packb(
+                        previous["msg"]
+                    ), (scenario, index, record["msg"], previous["msg"])
         else:
             proc = subprocess.run(
                 [args.driver, os.path.realpath(scenario)],

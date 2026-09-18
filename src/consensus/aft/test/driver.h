@@ -522,11 +522,12 @@ public:
 #ifdef CCF_RAFT_TRACING
     if (dropped)
     {
-      aft::trace::emit_drop_pending_to(
-        _nodes.at(node_id).raft->get_state_for_trace(),
-        packet,
-        node_id,
-        tgt_node_id);
+      aft::trace::drop_pending_to(
+        aft::trace::StateWithoutIndicesView{
+          _nodes.at(node_id).raft->get_state_for_trace()},
+        node_id.value(),
+        tgt_node_id.value(),
+        packet);
     }
 #else
     (void)node_id;

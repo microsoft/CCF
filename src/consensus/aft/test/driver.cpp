@@ -92,10 +92,7 @@ int main(int argc, char** argv)
 #ifdef CCF_RAFT_TRACING
     if (!line.empty())
     {
-      ccf::tracing::emit(aft::trace::raft_trace_tag, 1, [&](auto& out) {
-        ccf::msgpack::write_str(out, "cmd");
-        ccf::msgpack::write_str(out, line);
-      });
+      ccf::tracing::emit(aft::trace::raft_trace_tag, "cmd", line);
     }
 #endif
     // Steps which don't alter state don't need to recheck invariants

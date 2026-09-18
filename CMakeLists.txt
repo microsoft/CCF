@@ -757,6 +757,7 @@ if(BUILD_TESTS)
     add_unit_test(
       tracing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tracing/test/fluentd.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tracing/test/events.cpp
     )
     target_compile_options(tracing_test PRIVATE -UCCF_RAFT_TRACING)
     target_link_options(

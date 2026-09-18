@@ -71,7 +71,7 @@ namespace ccf::tracing
       std::atomic<bool> stopping = false;
       std::atomic<bool> connected = false;
       std::chrono::steady_clock::time_point deadline;
-      std::chrono::steady_clock::time_point retry_after = {};
+      std::chrono::steady_clock::time_point retry_after;
       uint64_t reported = 0;
       int fd = -1;
       std::thread consumer;
@@ -101,7 +101,7 @@ namespace ccf::tracing
         consumer = std::thread([this] { run(); });
       }
 
-      bool expired() const
+      [[nodiscard]] bool expired() const
       {
         return stopping.load(std::memory_order_acquire) &&
           std::chrono::steady_clock::now() >= deadline;
@@ -318,7 +318,7 @@ namespace ccf::tracing
     static bool wait_for_connection(std::chrono::milliseconds timeout)
     {
       const auto* t = transport().get();
-      if (!t)
+      if (t == nullptr)
       {
         return false;
       }
@@ -349,12 +349,14 @@ namespace ccf::tracing
     static bool enqueue(std::span<const uint8_t> bytes)
     {
       auto* t = transport().get();
-      if (!t)
+      if (t == nullptr)
       {
         return false;
       }
       auto* q = bound_queue();
-      if (!q || t->stopping.load(std::memory_order_acquire) || !q->push(bytes))
+      if (
+        q == nullptr || t->stopping.load(std::memory_order_acquire) ||
+        !q->push(bytes))
       {
         t->dropped.fetch_add(1, std::memory_order_relaxed);
         return false;
