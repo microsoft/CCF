@@ -19,9 +19,9 @@
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
 #include "node/endpoint_context_impl.h"
+#include "node/internal_tables_access.h"
 #include "node/node_configuration_subsystem.h"
 #include "node/rpc/rpc_handler.h"
-#include "service/internal_tables_access.h"
 
 #define FMT_HEADER_ONLY
 
