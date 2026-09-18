@@ -2343,9 +2343,12 @@ TEST_CASE("Reads pause while the node-wide inbound budget is exhausted")
   REQUIRE(stalled_at <= limit + (1024 * 1024));
 
   // Releasing the budget must wake the transport and let the rest through -
-  // the gate pauses reads, it does not drop or truncate anything.
+  // the gate pauses reads, it does not drop or truncate anything. The gate
+  // state is not checked immediately after the release: consumed() wakes the
+  // loop thread synchronously, and with the client still holding megabytes
+  // ready to send, the server can read and re-saturate a 64KiB budget before
+  // this thread gets to look. Resumption is proven by the drain below.
   admission->consumed(admission->bytes_pending());
-  REQUIRE_FALSE(admission->saturated());
 
   const auto resume_deadline =
     std::chrono::steady_clock::now() + std::chrono::seconds(20);
