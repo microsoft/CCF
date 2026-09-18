@@ -3,6 +3,7 @@
 import http
 import json
 import os
+import time
 
 import ccf.cose
 import infra.checker
@@ -275,6 +276,24 @@ def test_custom_endpoints_kv_restrictions(network, args):
                 mode="readwrite",
             )
         },
+        "/try_read_retargeted": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="try_read_retargeted",
+            )
+        },
+        "/try_read_historical": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="try_read_historical",
+            )
+        },
+        "/try_read_current_via_historical_handle": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="try_read_current_via_historical_handle",
+            )
+        },
     }
 
     with open(
@@ -334,6 +353,40 @@ def test_custom_endpoints_kv_restrictions(network, args):
         r = c.post("/app/try_write", {"table": "public:programmability.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
+        LOG.info("The JS registry's entire table namespace is read-only")
+        for suffix in [
+            "modules",
+            "modules_quickjs_bytecode",
+            "modules_quickjs_version",
+            "metadata",
+            "interpreter_flush",
+            "runtime_options",
+            "recent_actions",
+            "audit.input",
+            "audit.info",
+            "my_table",
+            "nested.table",
+            "",
+        ]:
+            table = f"public:custom_endpoints.{suffix}"
+            r = c.post("/app/try_read", {"table": table})
+            assert r.status_code == http.HTTPStatus.OK.value, (table, r.status_code)
+            r = c.post("/app/try_write", {"table": table})
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, (
+                table,
+                r.status_code,
+            )
+            assert "managed by the endpoint registry" in r.body.text(), r.body.text()
+
+        LOG.info("Tables outside the registry's namespace remain writable")
+        for table in [
+            "public:custom_endpoints",
+            "public:custom_endpoints_other.my_table",
+            "custom_endpoints.my_table",
+        ]:
+            r = c.post("/app/try_write", {"table": table})
+            assert r.status_code == http.HTTPStatus.OK.value, (table, r.status_code)
+
         LOG.info("Cannot grant access to gov/internal tables")
         r = c.post("/app/try_read", {"table": "public:ccf.gov.foo"})
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
@@ -355,6 +408,119 @@ def test_custom_endpoints_kv_restrictions(network, args):
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
         r = c.post("/app/try_write", {"table": "ccf.internal.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        LOG.info("Restrictions cannot be bypassed by re-targeting a method")
+        # Reading via a handle the endpoint _is_ permitted to use must not
+        # grant access to a table it is not
+        r = c.post(
+            "/app/try_read_retargeted",
+            {"table": "my_js_table", "via": "my_js_table"},
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+        r = c.post(
+            "/app/try_read_retargeted",
+            {"table": "programmability.foo", "via": "my_js_table"},
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+        r = c.post(
+            "/app/try_read_retargeted",
+            {"table": "ccf.gov.foo", "via": "my_js_table"},
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+    # Obtain a seqno for the historical queries.
+    with primary.client(user.local_id) as c:
+        r = c.post("/app/try_write", {"table": "my_js_table"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        c.wait_for_commit(r)
+        seqno = r.headers[infra.clients.CCF_TX_ID_HEADER].split(".")[1]
+
+    def post_until_available(client, path, body):
+        r = client.post(path, body)
+        end_time = time.time() + 10
+        while (
+            r.status_code == http.HTTPStatus.ACCEPTED.value and time.time() < end_time
+        ):
+            time.sleep(0.5)
+            r = client.post(path, body)
+        return r
+
+    with primary.client() as c:
+        LOG.info("Restrictions confine the historical KV too")
+        r = post_until_available(
+            c, "/app/try_read_historical", {"table": "my_js_table", "seqno": seqno}
+        )
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
+        for table in ("programmability.foo", "public:programmability.foo"):
+            r = post_until_available(
+                c, "/app/try_read_historical", {"table": table, "seqno": seqno}
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        LOG.info("A historical handle cannot be used against the current KV")
+        r = post_until_available(
+            c,
+            "/app/try_read_current_via_historical_handle",
+            {"table": "my_js_table", "seqno": seqno},
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+    return network
+
+
+def test_custom_endpoints_resizable_body(network, args):
+    """Regression test for a heap over-read in the JS response-body copy path
+    when returning a length-tracking typed array over a resizable ArrayBuffer
+    that was shrunk after the view was constructed. The copy must be clamped
+    against the backing buffer's real current size, not the typed array's
+    stale construction-time byteLength.
+    """
+    primary, _ = network.find_primary()
+    user = network.users[0]
+
+    module_name = "resizable_body.js"
+
+    endpoints = {
+        "/shrunk_body": {
+            "get": endpoint_properties(
+                js_module=module_name,
+                js_function="shrunk_body",
+            )
+        },
+    }
+
+    with open(
+        os.path.join(os.path.dirname(__file__), "programmability", module_name)
+    ) as module_file:
+        module = module_file.read()
+
+    bundle_with_content = {
+        "metadata": {"endpoints": endpoints},
+        "modules": [{"name": module_name, "module": module}],
+    }
+
+    signed_bundle = sign_payload(
+        network.identity(user.local_id), "custom_endpoints", bundle_with_content
+    )
+    with primary.client() as c:
+        r = c.put(
+            "/app/custom_endpoints",
+            body=signed_bundle,
+            headers={"Content-Type": "application/cose"},
+        )
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+    with primary.client() as c:
+        LOG.info("Shrunk resizable buffer: response body clamped to new size")
+        for shrunk in (1, 3, 128):
+            r = c.get(f"/app/shrunk_body?n={shrunk}")
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+            assert len(r.body.data()) == shrunk, (
+                len(r.body.data()),
+                shrunk,
+            )
+            assert all(b == 0xAB for b in r.body.data()), r.body.data()
 
     return network
 
@@ -599,6 +765,71 @@ def deploy_npm_app_custom(network, args):
     return network
 
 
+def run_governance_registry(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+        module_name = "restrictions.js"
+        with open(
+            os.path.join(os.path.dirname(__file__), "programmability", module_name)
+        ) as module_file:
+            module = module_file.read()
+        bundle = {
+            "metadata": {
+                "endpoints": {
+                    f"/{operation}": {
+                        "post": endpoint_properties(
+                            module_name, operation, mode="readwrite"
+                        )
+                    }
+                    for operation in ("try_read", "try_write")
+                }
+            },
+            "modules": [{"name": module_name, "module": module}],
+        }
+        network.consortium.set_js_app_from_bundle(primary, bundle)
+
+        with primary.client() as c:
+            LOG.info("The governance registry does not reserve application namespaces")
+            for table in (
+                "public:custom_endpoints.modules",
+                "public:custom_endpoints.my_table",
+                "public:custom_endpoints.nested.table",
+                "public:custom_endpoints.",
+                "custom_endpoints.my_table",
+            ):
+                for operation in ("try_read", "try_write"):
+                    r = c.post(f"/app/{operation}", {"table": table})
+                    assert r.status_code == http.HTTPStatus.OK, (
+                        table,
+                        operation,
+                        r.status_code,
+                        r.body.text(),
+                    )
+
+            LOG.info("The governance registry's reassigned tables remain read-only")
+            for table in (
+                "public:ccf.gov.modules",
+                "public:ccf.gov.endpoints",
+                "public:ccf.gov.interpreter.flush",
+                "public:ccf.gov.modules_quickjs_version",
+                "public:ccf.gov.modules_quickjs_bytecode",
+                "public:ccf.gov.js_runtime_options",
+            ):
+                r = c.post("/app/try_read", {"table": table})
+                assert r.status_code == http.HTTPStatus.OK, (table, r.body.text())
+                r = c.post("/app/try_write", {"table": table})
+                assert r.status_code == http.HTTPStatus.BAD_REQUEST, (
+                    table,
+                    r.body.text(),
+                )
+
+
 def run(args):
     with infra.network.network(
         args.nodes,
@@ -618,6 +849,7 @@ def run(args):
         network = test_custom_endpoints(network, args)
         network = test_custom_endpoints_circular_includes(network, args)
         network = test_custom_endpoints_kv_restrictions(network, args)
+        network = test_custom_endpoints_resizable_body(network, args)
         network = test_custom_role_definitions(network, args)
         network = test_custom_endpoints_js_options(network, args)
 
@@ -637,6 +869,16 @@ if __name__ == "__main__":
         js_app_bundle=None,
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=2,
+        initial_member_count=1,
+    )
+
+    cr.add(
+        "governance_registry",
+        run_governance_registry,
+        package="js_generic",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        initial_user_count=0,
         initial_member_count=1,
     )
 

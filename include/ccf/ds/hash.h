@@ -6,7 +6,10 @@
 
 #include <array>
 #include <cstdint>
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #include <small_vector/SmallVector.h>
+#pragma clang diagnostic pop
 #include <string_view>
 #include <vector>
 

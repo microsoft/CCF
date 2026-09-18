@@ -12,7 +12,7 @@ Startup
     - CCF is installed (see :doc:`/build_apps/install_bin`)
 
 The quickest way to start a CCF sandbox is to use the ``sandbox.sh`` script available as part of the CCF install, specifying the :doc:`enclave image </build_apps/build_app>` to run.
-``sandbox.sh`` is a thin wrapper around ``start_network.py``. It ensures the necessary Python dependencies are available and sets some sensible default values.
+``sandbox.sh`` is a thin wrapper around ``start_network.py``. It ensures the necessary Python dependencies are available. Node configuration options use the defaults and descriptions from the :doc:`cchost configuration schema </operations/configuration>`, rather than defaults selected by the end-to-end test infrastructure. Explicit command-line options still override these defaults.
 ``sandbox.sh`` is a demonstration tool, and not intended for use in production deployments.
 There are a large number of additional configuration options, documented by passing the ``--help`` argument. You may wish to pass ``-v`` which will make the script significantly more verbose, printing the precise ``curl`` commands which were used to communicate with the test network.
 

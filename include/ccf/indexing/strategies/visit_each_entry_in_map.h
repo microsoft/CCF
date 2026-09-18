@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/byte_vector.h"
+#include "ccf/ds/locking.h"
 #include "ccf/indexing/strategy.h"
-#include "ccf/pal/locking.h"
 
 namespace ccf::indexing::strategies
 {
@@ -17,7 +17,7 @@ namespace ccf::indexing::strategies
     std::string map_name;
 
     // Protect access to current_txid
-    ccf::pal::Mutex current_txid_lock;
+    ccf::ds::Mutex current_txid_lock;
 
     ccf::TxID current_txid = {};
 

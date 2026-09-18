@@ -3,6 +3,7 @@
 import contextlib
 import functools
 import http
+import http.client
 import os
 import random
 import resource
@@ -55,6 +56,101 @@ def interface_caps(i):
             "max_open_sessions_soft": 5,
         },
     }
+
+
+def run_unsecured_connection_cap_test(args):
+    interface_name = "unsecured_interface"
+    soft_cap = 3
+    for i, node_spec in enumerate(args.nodes):
+        node_spec.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
+            host=f"127.{i}.0.1",
+            max_open_sessions_soft=soft_cap,
+            endorsement=infra.interfaces.Endorsement(
+                infra.interfaces.EndorsementAuthority.Unsecured
+            ),
+            accepted_endpoints=["/node/version"],
+        )
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_nodes()
+        rpc_interface = primary.host.rpc_interfaces[interface_name]
+
+        with contextlib.ExitStack() as es:
+            for _ in range(soft_cap):
+                connection = socket.create_connection(
+                    (rpc_interface.public_host, rpc_interface.public_port),
+                    timeout=1,
+                )
+                es.callback(connection.close)
+
+            end_time = time.time() + 3
+            while time.time() < end_time:
+                metrics = get_session_metrics(primary)
+                interface_metrics = metrics["interfaces"][interface_name]
+                if interface_metrics["active"] == soft_cap:
+                    break
+                time.sleep(0.1)
+            assert interface_metrics["active"] == soft_cap, interface_metrics
+
+            with contextlib.closing(
+                http.client.HTTPConnection(
+                    rpc_interface.public_host,
+                    rpc_interface.public_port,
+                    timeout=1,
+                )
+            ) as capped_connection:
+                capped_connection.request(
+                    "GET", "/node/version", headers={"Content-Length": "0"}
+                )
+                try:
+                    response = capped_connection.getresponse()
+                except http.client.RemoteDisconnected:
+                    pass
+                else:
+                    assert (
+                        response.status == http.HTTPStatus.SERVICE_UNAVAILABLE
+                    ), response.status
+                    response.read()
+
+            with primary.client() as client:
+                response = client.get("/node/commit")
+                assert response.status_code == http.HTTPStatus.OK, response
+
+            metrics = get_session_metrics(primary)
+            interface_metrics = metrics["interfaces"][interface_name]
+            assert interface_metrics["peak"] == soft_cap + 1, interface_metrics
+
+
+def run_removed_quic_tests(args):
+    for node_spec in args.nodes:
+        node_spec.rpc_interfaces["removed_quic"] = infra.interfaces.RPCInterface(
+            host="127.0.0.1",
+            transport="udp",
+            app_protocol="QUIC",
+        )
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_nodes()
+        interface = primary.host.rpc_interfaces["removed_quic"]
+
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.settimeout(1)
+            sock.sendto(b"QUIC echo is not supported", (interface.host, interface.port))
+            try:
+                response, _ = sock.recvfrom(1024)
+            except TimeoutError:
+                pass
+            else:
+                raise AssertionError(f"Removed QUIC protocol replied: {response!r}")
+        metrics = get_session_metrics(primary)
+        assert metrics["interfaces"]["removed_quic"]["active"] == 0, metrics
+        assert metrics["interfaces"]["removed_quic"]["active"] == 0, metrics
 
 
 def run_connection_caps_tests(args):
@@ -340,8 +436,10 @@ def node_tcp_socket(node):
     interface = node.n2n_interface
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((interface.host, interface.port))
-    yield s
-    s.close()
+    try:
+        yield s
+    finally:
+        s.close()
 
 
 # NB: This does rudimentary smoke testing. See fuzzing.py for more thorough test
@@ -462,6 +560,20 @@ if __name__ == "__main__":
     cr.add(
         "idletimeout",
         run_idle_timeout_tests,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+    )
+
+    cr.add(
+        "unsecured_caps",
+        run_unsecured_connection_cap_test,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+    )
+
+    cr.add(
+        "removed_quic",
+        run_removed_quic_tests,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.nodes(cr.args, 1),
     )

@@ -8,7 +8,10 @@
 #include <array>
 #include <cstring>
 #include <limits>
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #include <small_vector/SmallVector.h>
+#pragma clang diagnostic pop
 #include <span>
 #include <tuple>
 #include <type_traits>

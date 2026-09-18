@@ -2,10 +2,15 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ds/internal_logger.h"
+#include "ds/time_bound_logger.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <chrono>
 #include <doctest/doctest.h>
+#include <memory>
 #include <thread>
+#include <utility>
+#include <vector>
 
 TEST_CASE("Thread IDs are provided by the logger headers")
 {
@@ -46,6 +51,89 @@ public:
 using TestTextLogger = TestLogger<ccf::logger::TextConsoleLogger>;
 using TestJsonLogger = TestLogger<ccf::logger::JsonConsoleLogger>;
 
+class ScopedLoggerConfig
+{
+  const ccf::LoggerLevel previous_level = ccf::logger::config::level();
+  const std::chrono::microseconds previous_default_max_time =
+    ccf::ds::TimeBoundLogger::default_max_time;
+  std::vector<std::unique_ptr<ccf::logger::AbstractLogger>> previous_loggers;
+
+public:
+  ScopedLoggerConfig() :
+    previous_loggers(std::exchange(ccf::logger::config::loggers(), {}))
+  {}
+
+  ScopedLoggerConfig(const ScopedLoggerConfig&) = delete;
+  ScopedLoggerConfig& operator=(const ScopedLoggerConfig&) = delete;
+
+  ~ScopedLoggerConfig()
+  {
+    ccf::logger::config::loggers() = std::move(previous_loggers);
+    ccf::logger::config::level() = previous_level;
+    ccf::ds::TimeBoundLogger::default_max_time = previous_default_max_time;
+  }
+};
+
+TEST_CASE("Time-bound logger duration formatting")
+{
+  using ccf::ds::TimeBoundLogger;
+  using namespace std::chrono_literals;
+
+  CHECK(TimeBoundLogger::human_time(0us) == "  0.000us");
+  CHECK(TimeBoundLogger::human_time(999us) == "999.000us");
+  CHECK(TimeBoundLogger::human_time(1000us) == "  1.000ms");
+  CHECK(TimeBoundLogger::human_time(999999us) == "999.999ms");
+  CHECK(TimeBoundLogger::human_time(1s) == "  1.000s");
+}
+
+TEST_CASE("Time-bound logger captures the configured default")
+{
+  using ccf::ds::TimeBoundLogger;
+  using namespace std::chrono_literals;
+
+  const ScopedLoggerConfig restore_config;
+  TimeBoundLogger::default_max_time = 1s;
+  TimeBoundLogger first("first");
+  TimeBoundLogger::default_max_time = 2s;
+  TimeBoundLogger second("second");
+  TimeBoundLogger explicit_threshold("explicit", 3s);
+
+  CHECK(first.max_time == 1s);
+  CHECK(second.max_time == 2s);
+  CHECK(explicit_threshold.max_time == 3s);
+}
+
+TEST_CASE("Time-bound logger reports slow operations at the expected level")
+{
+  using ccf::ds::TimeBoundLogger;
+  using namespace std::chrono_literals;
+
+  std::vector<std::string> logs;
+  const ScopedLoggerConfig restore_config;
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
+  ccf::logger::config::loggers().emplace_back(
+    std::make_unique<TestTextLogger>(logs));
+
+  {
+    TimeBoundLogger timer("fast", 1h);
+    timer.start_time -= 30min;
+  }
+  {
+    TimeBoundLogger timer("slow", 1h);
+    timer.start_time -= 2h;
+  }
+  {
+    TimeBoundLogger timer("very slow", 1h);
+    timer.start_time -= 200h;
+  }
+
+  REQUIRE(logs.size() == 2);
+  CHECK(logs[0].contains("info"));
+  CHECK(logs[0].contains("): slow"));
+  CHECK(logs[1].contains("fail"));
+  CHECK(logs[1].contains("): very slow"));
+}
+
 TEST_CASE("Framework logging macros")
 {
   std::vector<std::string> logs;
@@ -59,9 +147,9 @@ TEST_CASE("Framework logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("info") != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Hello A") != std::string::npos);
+    REQUIRE(log.contains("info"));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Hello A"));
 
     logs.clear();
   }
@@ -72,9 +160,9 @@ TEST_CASE("Framework logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("fail") != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Hello B") != std::string::npos);
+    REQUIRE(log.contains("fail"));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Hello B"));
 
     logs.clear();
   }
@@ -85,9 +173,9 @@ TEST_CASE("Framework logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("fatal") != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Hello C") != std::string::npos);
+    REQUIRE(log.contains("fatal"));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Hello C"));
 
     logs.clear();
   }
@@ -108,10 +196,10 @@ TEST_CASE("Application logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("info") != std::string::npos);
-    REQUIRE(log.find("[app]") != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Hello A") != std::string::npos);
+    REQUIRE(log.contains("info"));
+    REQUIRE(log.contains("[app]"));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Hello A"));
 
     logs.clear();
   }
@@ -122,10 +210,10 @@ TEST_CASE("Application logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("fail") != std::string::npos);
-    REQUIRE(log.find("[app]") != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Hello B") != std::string::npos);
+    REQUIRE(log.contains("fail"));
+    REQUIRE(log.contains("[app]"));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Hello B"));
 
     logs.clear();
   }
@@ -136,10 +224,10 @@ TEST_CASE("Application logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("fatal") != std::string::npos);
-    REQUIRE(log.find("[app]") != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Hello C") != std::string::npos);
+    REQUIRE(log.contains("fatal"));
+    REQUIRE(log.contains("[app]"));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Hello C"));
 
     logs.clear();
   }
@@ -167,10 +255,10 @@ TEST_CASE("Custom logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("info") != std::string::npos);
-    REQUIRE(log.find(custom_tag) != std::string::npos);
-    REQUIRE(log.find("logger.cpp") != std::string::npos);
-    REQUIRE(log.find("Some message") != std::string::npos);
+    REQUIRE(log.contains("info"));
+    REQUIRE(log.contains(custom_tag));
+    REQUIRE(log.contains("logger.cpp"));
+    REQUIRE(log.contains("Some message"));
 
     logs.clear();
   }
@@ -181,21 +269,20 @@ TEST_CASE("Custom logging macros")
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
-    REQUIRE(log.find("info") != std::string::npos);
+    REQUIRE(log.contains("info"));
     // Search for smaller prefixes of the long tag, expect that one is
     // eventually present
     std::string truncated_tag = custom_long_tag;
     while (truncated_tag.size() > 0)
     {
-      const auto search = log.find(truncated_tag);
-      if (search != std::string::npos)
+      if (log.contains(truncated_tag))
       {
         break;
       }
       truncated_tag.resize(truncated_tag.size() - 1);
     }
     REQUIRE(truncated_tag.size() > 0);
-    REQUIRE(log.find("Some other message") != std::string::npos);
+    REQUIRE(log.contains("Some other message"));
 
     logs.clear();
   }

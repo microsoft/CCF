@@ -322,4 +322,25 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
     )
 
+    # Each of these builds its own single-node network, so they run
+    # concurrently with everything else.
+    for name, target in (
+        ("join_old_snapshot", reconfiguration.run_join_old_snapshot),
+        (
+            "join_no_snapshot",
+            reconfiguration.run_join_no_snapshot_against_original_primary,
+        ),
+        ("join_old_snapshot_ipv6", reconfiguration.run_join_old_snapshot_ipv6),
+        (
+            "join_no_snapshot_ipv6",
+            reconfiguration.run_join_no_snapshot_against_original_primary_ipv6,
+        ),
+    ):
+        cr.add(
+            name,
+            target,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.nodes(cr.args, 1),
+        )
+
     cr.run()

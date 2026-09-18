@@ -113,7 +113,9 @@ class BlockingWriter(FastHttpUser):
             if response.status_code == EXPECTED_STATUS:
                 response.success()
             else:
-                response.failure(f"Unexpected status {response.status_code}")
+                response.failure(
+                    infra.locust_benchmark_support.describe_unexpected_status(response)
+                )
 
 
 infra.locust_benchmark_support.register_steady_state_listeners(events)

@@ -10,17 +10,21 @@
 #include "ds/serialized.h"
 #include "kv/ledger_chunker.h"
 #include "kv/serialised_entry_format.h"
+#include "ledger/filenames.h"
+#include "snapshots/filenames.h"
 #include "snapshots/snapshot_writer.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #include <fcntl.h>
+#include <limits>
 #include <random>
 #include <string>
 #include <sys/file.h>
 #include <unistd.h>
 
 using namespace asynchost;
+using namespace ccf::ledger;
 
 static constexpr auto ledger_dir = "ledger_dir";
 static constexpr auto ledger_dir_read_only = "ledger_dir_ro";
@@ -113,7 +117,7 @@ size_t number_of_committed_files_in_ledger_dir(bool allow_recovery = false)
     auto file_name = f.path().string();
     if (
       (allow_recovery && is_ledger_file_name_recovery(file_name) &&
-       file_name.find(ledger_committed_suffix) != std::string::npos) ||
+       file_name.contains(ledger_committed_suffix)) ||
       is_ledger_file_name_committed(file_name))
     {
       committed_file_count++;
@@ -1662,7 +1666,7 @@ TEST_CASE("Recovery resilience")
 
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_name_committed(f.path().filename()))
+      if (!ccf::ledger::is_ledger_file_name_committed(f.path().filename()))
       {
         corrupt_ledger_file(f.path(), false, true /* corrupt_first_hdr */);
       }
@@ -1687,7 +1691,7 @@ TEST_CASE("Recovery resilience")
 
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_name_committed(f.path().filename()))
+      if (!ccf::ledger::is_ledger_file_name_committed(f.path().filename()))
       {
         corrupt_ledger_file(
           f.path(), false, false, true /* corrupt_last_entry */);
@@ -1771,7 +1775,7 @@ TEST_CASE("Snapshot file name" * doctest::test_suite("snapshot"))
   std::vector<size_t> snapshot_idx_interval_ranges = {
     10, 1000, 10000, std::numeric_limits<size_t>::max() - 2};
 
-  using namespace snapshots;
+  using namespace ccf::snapshots;
 
   for (auto const& snapshot_idx_interval_range : snapshot_idx_interval_ranges)
   {
@@ -1818,7 +1822,7 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   auto snap_ro_dir = AutoDeleteFolder(snapshot_dir_read_only);
   fs::create_directory(snapshot_dir_read_only);
 
-  using namespace snapshots;
+  using namespace ccf::snapshots;
   SnapshotWriter snapshots(snapshot_dir);
 
   const std::vector<fs::path> find_dirs{snapshot_dir, snapshot_dir_read_only};
@@ -1883,6 +1887,37 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
     const auto& snapshot = latest_committed_snapshot->filename();
     REQUIRE(get_snapshot_idx_from_file_name(snapshot) == new_snapshot_idx);
   }
+}
+
+TEST_CASE(
+  "Snapshot writer preserves full-width sequence numbers" *
+  doctest::test_suite("snapshot"))
+{
+  auto snap_dir = AutoDeleteFolder(snapshot_dir);
+  ccf::snapshots::SnapshotWriter writer(snapshot_dir);
+
+  const ccf::SeqNo evidence_idx = std::numeric_limits<ccf::SeqNo>::max();
+  const ccf::SeqNo snapshot_idx = evidence_idx - 1;
+  writer.persist_snapshot(
+    snapshot_idx, evidence_idx, dummy_snapshot, dummy_receipt);
+
+  const auto expected_path = fs::path(snapshot_dir) /
+    fmt::format("snapshot_{}_{}.committed", snapshot_idx, evidence_idx);
+  REQUIRE(fs::exists(expected_path));
+  CHECK(
+    ccf::snapshots::find_latest_committed_snapshot_in_directory(snapshot_dir) ==
+    expected_path);
+  CHECK(
+    ccf::snapshots::get_snapshot_idx_from_file_name(
+      expected_path.filename().string()) == snapshot_idx);
+  CHECK(
+    ccf::snapshots::get_snapshot_evidence_idx_from_file_name(
+      expected_path.filename().string()) == evidence_idx);
+
+  auto expected_data = dummy_snapshot;
+  expected_data.insert(
+    expected_data.end(), dummy_receipt.begin(), dummy_receipt.end());
+  CHECK(files::slurp(expected_path.string()) == expected_data);
 }
 
 TEST_CASE("Chunking according to entry header flag")
@@ -2301,9 +2336,9 @@ TEST_CASE("Recover both ledger dirs")
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
       const auto file_name = f.path().filename();
-      if (asynchost::is_ledger_file_name_committed(file_name))
+      if (ccf::ledger::is_ledger_file_name_committed(file_name))
       {
-        const auto idx = asynchost::get_start_idx_from_file_name(file_name);
+        const auto idx = ccf::ledger::get_start_idx_from_file_name(file_name);
         if (idx > last_file_idx)
         {
           last_committed_file = file_name;

@@ -5,7 +5,8 @@
 //!
 //! This crate is intentionally verification-only. It exposes:
 //!
-//! - [`CborValue`] for parsing CBOR/COSE envelopes;
+//! - [`CborValue`] (re-exported from `tee-attestation-verification-cbor`)
+//!   for parsing CBOR/COSE envelopes;
 //! - [`synchronous::cose_verify1`] for COSE_Sign1 signature verification when a
 //!   synchronous crypto backend is selected;
 //! - [`asynchronous::cose_verify1`] for COSE_Sign1 signature verification when
@@ -15,7 +16,7 @@
 //!
 //! COSE_Sign1 is CBOR tag 18 over an array containing protected-header bytes,
 //! an unprotected-header map, payload, and signature. Parse the envelope with
-//! [`CborValue::from_bytes`], import the signer public key through the active
+//! [`CborValue::parse_nondet`], import the signer public key through the active
 //! backend, then pass the envelope components to the verifier.
 //!
 //! ```no_run
@@ -28,7 +29,7 @@
 //! #     cose_sign1: &[u8],
 //! #     signer_spki_der: &[u8],
 //! # ) -> Result<(), Box<dyn std::error::Error>> {
-//! let envelope = CborValue::from_bytes(cose_sign1)?;
+//! let envelope = CborValue::parse_nondet(cose_sign1)?;
 //! let sign1 = match envelope {
 //!     CborValue::Tagged { tag: 18, payload } => *payload,
 //!     _ => return Err("expected COSE_Sign1 tag".into()),
@@ -55,10 +56,9 @@
 //! # }
 //! ```
 
-mod cbor;
 mod cose;
 
-pub use cbor::{CborValue, MAX_CBOR_NESTING_DEPTH};
+pub use cbor::{CborValue, Det, Mode, Nondet, MAX_CBOR_NESTING_DEPTH};
 pub use cose::*;
 
 #[cfg(sync_crypto)]

@@ -9,13 +9,18 @@ import e2e_tutorial
 import infra.checker
 import infra.e2e_args
 import infra.network
+import infra.openapi
 import infra.proc
 import nobuiltins
 import openapi_spec_validator
 import packaging.version
 from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
+from openapi_core import OpenAPI
+from openapi_core.datatypes import RequestParameters
+from openapi_core.validation.response.exceptions import InvalidData
 from packaging import version
+from werkzeug.datastructures import Headers, ImmutableMultiDict
 
 
 def is_newer_openapi_version(fetched_version, file_version):
@@ -26,6 +31,55 @@ def is_newer_openapi_version(fetched_version, file_version):
         return version.parse(fetched_version) > version.parse(file_version)
     except packaging.version.InvalidVersion:
         return fetched_version > file_version
+
+
+def validate_nullable_consensus_primary(schema):
+    api = OpenAPI.from_dict(schema)
+    request = infra.openapi._Request(
+        host_url="https://localhost",
+        path="/node/consensus",
+        method="get",
+        parameters=RequestParameters(
+            query=ImmutableMultiDict(),
+            header=Headers(),
+            cookie=ImmutableMultiDict(),
+            path={},
+        ),
+        body=None,
+        content_type="",
+    )
+    details = {
+        "configs": [],
+        "acks": {},
+        "membership_state": "Active",
+        "current_view": 0,
+        "ticking": False,
+    }
+
+    def validate_response(details):
+        response = infra.openapi._Response(
+            status_code=http.HTTPStatus.OK,
+            headers=Headers({"content-type": "application/json"}),
+            data=json.dumps({"details": details}).encode(),
+            content_type="application/json",
+        )
+        api.validate_response(request, response)
+
+    validate_response({**details, "primary_id": None})
+
+    for invalid_details in (
+        {**details, "primary_id": "not-a-node-id"},
+        details,
+    ):
+        try:
+            validate_response(invalid_details)
+        except InvalidData:
+            pass
+        else:
+            raise AssertionError(
+                f"Invalid consensus details passed schema validation: "
+                f"{invalid_details}"
+            )
 
 
 def run(args):
@@ -99,6 +153,8 @@ def run(args):
 
         try:
             openapi_spec_validator.validate_spec(response_body)
+            if target_file_path == "node_openapi.json":
+                validate_nullable_consensus_primary(response_body)
         except Exception as e:
             LOG.error(f"Validation of {prefix} schema failed")
             LOG.error(e)
@@ -264,14 +320,24 @@ if __name__ == "__main__":
         initial_member_count=1,
     )
 
-    cr.add(
-        "operations",
-        e2e_operations.run,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
-        initial_user_count=1,
-        ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
-    )
+    # These groups run concurrently, each on its own network.
+    for name, target in (
+        ("operations-offline", e2e_operations.run_offline_ledger_tools),
+        ("operations-snapshots", e2e_operations.run_snapshot_manual_and_retention),
+        ("operations-chunks", e2e_operations.run_ledger_chunk_operations),
+        ("operations-config", e2e_operations.run_node_config_checks),
+        ("operations-cose", e2e_operations.run_cose_checks),
+        ("operations-tb-snapshots", e2e_operations.run_time_based_snapshots),
+        ("operations-persistence", e2e_operations.run_snapshot_persistence),
+    ):
+        cr.add(
+            name,
+            target,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+            initial_user_count=1,
+            ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
+        )
 
     cr.add(
         "download",
@@ -291,12 +357,23 @@ if __name__ == "__main__":
         ledger_chunk_bytes="50MB",
     )
 
-    cr.add(
-        "download-snapshot",
-        e2e_operations.run_backup_snapshot_download,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=1,
-    )
+    for name, target in (
+        ("download-snapshot", e2e_operations.run_backup_snapshot_download),
+        (
+            "download-snapshot-limits",
+            e2e_operations.run_backup_snapshot_download_limits,
+        ),
+        (
+            "download-snapshot-failures",
+            e2e_operations.run_backup_snapshot_download_failures,
+        ),
+    ):
+        cr.add(
+            name,
+            target,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+            initial_user_count=1,
+        )
 
     cr.run()

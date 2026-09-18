@@ -1,0 +1,216 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+#pragma once
+
+#include "ccf/node/session.h"
+#include "tasks/ordered_tasks.h"
+#include "tasks/task.h"
+#include "tasks/task_system.h"
+#include "tcp/msg_types.h"
+
+#include <span>
+#include <string>
+
+namespace ccf
+{
+  class ThreadedSession : public Session,
+                          public std::enable_shared_from_this<ThreadedSession>
+  {
+  private:
+    std::shared_ptr<ccf::tasks::OrderedTasks> task_scheduler;
+    std::atomic<bool> is_closing = false;
+
+    struct SessionDataTask : public ccf::tasks::ITaskAction
+    {
+      std::vector<uint8_t> data;
+      std::shared_ptr<ThreadedSession> self;
+
+      // The caller has already built a buffer for us, so take it rather than
+      // copying a request or response which may be arbitrarily large.
+      SessionDataTask(
+        std::vector<uint8_t>&& d, std::shared_ptr<ThreadedSession> s) :
+        data(std::move(d)),
+        self(std::move(s))
+      {}
+    };
+
+    struct HandleIncomingDataTask : public SessionDataTask
+    {
+      using SessionDataTask::SessionDataTask;
+
+      void do_action() override
+      {
+        // The transport is holding this data against a node-wide budget until
+        // we say we are done with it, so report on every exit path - including
+        // the early return below, and an exception out of the parser.
+        struct ReportConsumed
+        {
+          ThreadedSession& session;
+          size_t bytes;
+          ~ReportConsumed()
+          {
+            session.on_inbound_consumed(bytes);
+          }
+        } report{*self, data.size()};
+
+        if (self->is_closing.load())
+        {
+          return;
+        }
+
+        self->handle_incoming_data_thread(std::move(data));
+      }
+
+      [[nodiscard]] const std::string& get_name() const override
+      {
+        static const std::string name =
+          "ThreadedSession::HandleIncomingDataTask";
+        return name;
+      }
+    };
+
+    struct SendDataTask : public SessionDataTask
+    {
+      using SessionDataTask::SessionDataTask;
+
+      void do_action() override
+      {
+        self->send_data_thread(std::move(data));
+      }
+
+      [[nodiscard]] const std::string& get_name() const override
+      {
+        static const std::string name = "ThreadedSession::SendDataTask";
+        return name;
+      }
+    };
+
+  public:
+    ThreadedSession(int64_t session_id)
+    {
+      task_scheduler = ccf::tasks::OrderedTasks::create(
+        ccf::tasks::get_main_job_board(),
+        fmt::format("Session {}", session_id));
+    }
+
+    ~ThreadedSession() override
+    {
+      task_scheduler->cancel_task();
+    }
+
+    // Implement Session::handle_incoming_data by dispatching a thread message
+    // that eventually invokes the virtual handle_incoming_data_thread()
+    void handle_incoming_data(std::vector<uint8_t>&& data) override
+    {
+      task_scheduler->add_action(std::make_shared<HandleIncomingDataTask>(
+        std::move(data), shared_from_this()));
+    }
+
+    virtual void handle_incoming_data_thread(std::vector<uint8_t>&& data) = 0;
+
+    // Called once the data from a single handle_incoming_data() has been
+    // processed, so that the transport can resume reading. Sessions which have
+    // no transport to report to leave this as a no-op; the transport then
+    // reclaims their share when the connection closes.
+    virtual void on_inbound_consumed(size_t /*bytes*/) {}
+
+    // Implement Session::sent_data by dispatching a thread message
+    // that eventually invokes the virtual send_data_thread()
+    void send_data(std::vector<uint8_t>&& data) override
+    {
+      task_scheduler->add_action(
+        std::make_shared<SendDataTask>(std::move(data), shared_from_this()));
+    }
+
+    virtual void send_data_thread(std::vector<uint8_t>&& data) = 0;
+
+    void close_session() override
+    {
+      is_closing.store(true);
+
+      task_scheduler->add_action(ccf::tasks::make_basic_action(
+        [self = shared_from_this()]() { self->close_session_thread(); }));
+    }
+
+    virtual void close_session_thread() = 0;
+  };
+
+  // A protocol session (HTTP/HTTP2/...) running over a transport that owns the
+  // TLS connection (the host-side OpenSSL connection). It receives and emits
+  // plaintext: inbound bytes are already decrypted, and outbound bytes are
+  // handed to a SessionWriter which encrypts and writes them. The peer
+  // certificate and SNI (captured by the transport at handshake) are provided
+  // for caller authentication.
+  class PlaintextSession : public ThreadedSession
+  {
+  public:
+    virtual bool parse(std::span<const uint8_t> data) = 0;
+
+  protected:
+    ::tcp::ConnID session_id;
+    // Not owned. The writer is the transport's per-interface bridge, which is
+    // owned by the RPCConnectionManager and outlives every session on that
+    // interface: the manager is only destroyed if node creation fails, before
+    // any session exists, and is otherwise never destroyed. That matters
+    // because a queued task holds a shared_ptr to its session, so a session
+    // can outlive its removal from the transport's connection map. If the
+    // manager ever becomes destructible on the normal path, this must become a
+    // weak_ptr.
+    ccf::SessionWriter& session_writer;
+    std::vector<uint8_t> peer_cert_;
+    // Set once parse() has reported that it will process no more data (a parse
+    // error, an oversized request, a protocol-level shutdown). The protocol
+    // session has already emitted its error response and closed the session by
+    // that point, but the transport may still deliver bytes which were already
+    // in flight. Feeding those to a parser which has errored produces
+    // duplicate responses on a socket which is closing, so drop them instead.
+    //
+    // Only touched from handle_incoming_data_thread(), which runs on this
+    // session's own OrderedTasks and is therefore serialised.
+    bool parsing_finished = false;
+
+    PlaintextSession(
+      ::tcp::ConnID session_id_,
+      ccf::SessionWriter& writer,
+      std::vector<uint8_t> peer_cert = {}) :
+      ThreadedSession(session_id_),
+      session_id(session_id_),
+      session_writer(writer),
+      peer_cert_(std::move(peer_cert))
+    {}
+
+  public:
+    const std::vector<uint8_t>& peer_cert() const
+    {
+      return peer_cert_;
+    }
+
+    void send_data_thread(std::vector<uint8_t>&& data) override
+    {
+      session_writer.write_outbound(session_id, std::move(data));
+    }
+
+    void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
+    {
+      if (parsing_finished)
+      {
+        return;
+      }
+
+      if (!parse({data.data(), data.size()}))
+      {
+        parsing_finished = true;
+      }
+    }
+
+    void on_inbound_consumed(size_t bytes) override
+    {
+      session_writer.inbound_consumed(session_id, bytes);
+    }
+
+    void close_session_thread() override
+    {
+      session_writer.close_socket(session_id);
+    }
+  };
+}

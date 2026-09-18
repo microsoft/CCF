@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/locking.h"
 #include "ccf/endpoint_registry.h"
 #include "ccf/http_status.h"
 #include "ccf/node/node_configuration_interface.h"
 #include "ccf/node_context.h"
-#include "ccf/pal/locking.h"
 #include "ccf/rpc_exception.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/signed_req.h"
@@ -14,15 +14,14 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
-#include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
-#include "http/http_rpc_context.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
 #include "node/endpoint_context_impl.h"
+#include "node/internal_tables_access.h"
 #include "node/node_configuration_subsystem.h"
-#include "service/internal_tables_access.h"
+#include "node/rpc/rpc_handler.h"
 
 #define FMT_HEADER_ONLY
 
@@ -41,7 +40,7 @@ namespace ccf
     ccf::AbstractNodeContext& node_context;
 
   private:
-    ccf::pal::Mutex open_lock;
+    ccf::ds::Mutex open_lock;
     std::atomic<bool> is_open_{false};
 
     std::atomic<ccf::kv::Consensus*> consensus{nullptr};
@@ -900,8 +899,7 @@ namespace ccf
             };
           }
 
-          ccf::kv::CommitResult result =
-            tx.commit(ctx->claims, nullptr, ws_observer);
+          ccf::kv::CommitResult result = tx.commit(ctx->claims, ws_observer);
 
           switch (result)
           {
@@ -1089,7 +1087,7 @@ namespace ccf
 
     void open() override
     {
-      std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
+      std::lock_guard<ccf::ds::Mutex> mguard(open_lock);
       if (!is_open_.load(std::memory_order_relaxed))
       {
         LOG_INFO_FMT("Opening frontend");

@@ -91,11 +91,15 @@ class Writer(FastHttpUser):
             name=self.request_name,
             catch_response=True,
         ) as response:
-            # The transport reports status 0 when the connection itself fails.
+            # Anything other than the expected status is a failure, including
+            # the 5xx returned when a transaction is invalidated, and the 0
+            # reported when the connection itself failed.
             if response.status_code == EXPECTED_STATUS:
                 response.success()
             else:
-                response.failure(f"Unexpected status {response.status_code}")
+                response.failure(
+                    infra.locust_benchmark_support.describe_unexpected_status(response)
+                )
 
 
 infra.locust_benchmark_support.register_steady_state_listeners(events)

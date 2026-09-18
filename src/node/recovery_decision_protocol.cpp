@@ -4,12 +4,12 @@
 #include "node/recovery_decision_protocol.h"
 
 #include "ccf/crypto/verifier.h"
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
-#include "http/curl.h"
+#include "http_client/curl.h"
 #include "node_state.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
@@ -246,7 +246,7 @@ namespace ccf
           ccf::crypto::cert_der_to_pem(node_config->service_cert_der);
         LOG_INFO_FMT("{}", service_cert.str());
 
-        RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
+        node_state->request_restart();
       }
       case recovery_decision_protocol::StateMachine::OPENING:
       {
@@ -427,7 +427,7 @@ namespace ccf
         }
 
         // Send a timeout to the internal handlers
-        curl::UniqueCURL curl_handle;
+        http_client::UniqueCURL curl_handle;
 
         const auto cert = node_state->get_self_signed_certificate();
         const auto privkey_pem = node_state->node_sign_kp->private_key_pem();
@@ -449,10 +449,10 @@ namespace ccf
           location.address,
           get_actor_prefix(ActorsType::nodes));
 
-        curl::UniqueSlist headers;
+        http_client::UniqueSlist headers;
         headers.append("Content-Type: application/json");
 
-        auto curl_request = std::make_unique<curl::CurlRequest>(
+        auto curl_request = std::make_unique<http_client::CurlRequest>(
           std::move(curl_handle),
           HTTP_PUT,
           std::move(url),
@@ -460,7 +460,7 @@ namespace ccf
           nullptr,
           nullptr,
           std::nullopt);
-        curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+        http_client::CurlmLibuvContextSingleton::get_instance()->attach_request(
           std::move(curl_request));
       },
       "RecoveryDecisionProtocolFailover");
@@ -492,7 +492,7 @@ namespace ccf
     const crypto::Pem& self_signed_node_cert,
     const crypto::Pem& privkey_pem)
   {
-    curl::UniqueCURL curl_handle;
+    http_client::UniqueCURL curl_handle;
 
     // disable SSL verification as no confidential information is sent
     curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 0L);
@@ -515,14 +515,14 @@ namespace ccf
       get_actor_prefix(ActorsType::nodes),
       endpoint);
 
-    curl::UniqueSlist headers;
+    http_client::UniqueSlist headers;
     headers.append("Content-Type", "application/json");
 
-    auto body = std::make_unique<curl::RequestBody>(request);
+    auto body = std::make_unique<http_client::RequestBody>(request);
 
     auto response_callback =
       [](
-        std::unique_ptr<ccf::curl::CurlRequest>&& request,
+        std::unique_ptr<ccf::http_client::CurlRequest>&& request,
         CURLcode curl_code,
         long status_code) {
         LOG_TRACE_FMT(
@@ -534,7 +534,7 @@ namespace ccf
           status_code);
       };
 
-    auto curl_request = std::make_unique<curl::CurlRequest>(
+    auto curl_request = std::make_unique<http_client::CurlRequest>(
       std::move(curl_handle),
       HTTP_PUT,
       std::move(url),
@@ -548,14 +548,14 @@ namespace ccf
       curl_request->get_method().c_str(),
       curl_request->get_url());
 
-    curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
+    http_client::CurlmLibuvContextSingleton::get_instance()->attach_request(
       std::move(curl_request));
   }
 
   recovery_decision_protocol::RequestNodeInfo&
   RecoveryDecisionProtocolSubsystem::get_node_info(kv::ReadOnlyTx& tx)
   {
-    std::lock_guard<pal::Mutex> guard(recovery_decision_protocol_lock);
+    std::lock_guard<ds::Mutex> guard(recovery_decision_protocol_lock);
 
     if (node_info_cache.has_value())
     {
@@ -570,7 +570,7 @@ namespace ccf
         "Node {} not found in nodes table", node_state->get_node_id()));
     }
     {
-      std::lock_guard<pal::Mutex> ns_guard(node_state->lock);
+      std::lock_guard<ds::Mutex> ns_guard(node_state->lock);
       node_info_cache = recovery_decision_protocol::RequestNodeInfo{
         .quote_info = node_info_opt->quote_info,
         .location = get_location(),
@@ -633,7 +633,7 @@ namespace ccf
   RecoveryDecisionProtocolSubsystem::get_iamopen_request(kv::ReadOnlyTx& tx)
   {
     {
-      std::lock_guard<pal::Mutex> guard(recovery_decision_protocol_lock);
+      std::lock_guard<ds::Mutex> guard(recovery_decision_protocol_lock);
       if (iamopen_request_cache.has_value())
       {
         return iamopen_request_cache.value();
@@ -655,7 +655,7 @@ namespace ccf
     auto& node_info = get_node_info(tx);
 
     {
-      std::lock_guard<pal::Mutex> guard(recovery_decision_protocol_lock);
+      std::lock_guard<ds::Mutex> guard(recovery_decision_protocol_lock);
       iamopen_request_cache = recovery_decision_protocol::IAmOpenRequest{};
       iamopen_request_cache->info = node_info;
       iamopen_request_cache->prev_service_fingerprint =

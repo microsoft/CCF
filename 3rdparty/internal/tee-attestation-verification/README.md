@@ -11,8 +11,9 @@ and returning authenticated report claims to callers.
 
 | Path | Package | Purpose |
 |---|---|---|
+| `cbor/` | `tee-attestation-verification-cbor` | CBOR values over deterministic and non-deterministic EverCBOR. |
 | `crypto/` | `tee-attestation-verification-crypto` | Backend abstraction for certificate handling, certificate-chain verification, and signature verification. |
-| `cose/` | `tee-attestation-verification-cose` | COSE signing and verification helpers. |
+| `cose/` | `tee-attestation-verification-cose` | COSE_Sign1 verification helpers. |
 | `caci/` | `tee-attestation-verification-caci` | CACI UVM endorsement verification against SEV-SNP attestations and DID x509 roots of trust. |
 | `attestation/` | `tee-attestation-verification-lib` | Public attestation verification APIs, SEV-SNP report types, and KDS support. |
 | `ffi/` | `tee-attestation-verification-ffi` | Native C ABI, WebAssembly bindings, and a Linux x64 .NET binding and NuGet package for the Rust domain crates. |
@@ -23,6 +24,8 @@ Read the crate-specific docs for API details:
 
 - [`attestation/README.md`](attestation/README.md)
 - [`caci/README.md`](caci/README.md)
+- [`cose/README.md`](cose/README.md)
+- [`crypto/README.md`](crypto/README.md)
 - [`ffi/README.md`](ffi/README.md)
 
 ## Component dependencies
@@ -33,6 +36,7 @@ Arrows point from each dependency to the workspace crates that directly depend o
 flowchart LR
     attestation["attestation (SNP)"]
     caci[caci]
+    cbor[cbor]
     cose[cose]
     crypto[crypto]
     ffi[ffi]
@@ -41,6 +45,7 @@ flowchart LR
     attestation --> caci
     cose --> caci
     crypto --> caci
+    cbor --> cose
     crypto --> cose
     attestation --> ffi
     caci --> ffi
@@ -50,22 +55,23 @@ flowchart LR
 
 ## Crypto backend selection
 
-To be compliant in multiple environments, we provide backends using openssl and webcrypto, as well as a pure rust backend.
-At least one target-compatible backend must be enabled:
+The default feature set enables every backend selector. The build selects the
+target-compatible backend:
 
 | Feature | Platforms | sync | async | Notes |
 |---|---|---:|---:|---|
-| `crypto_openssl` | Native | yes | yes | Native OpenSSL-backed verification. |
+| `crypto_openssl` | Native non-Windows | yes | yes | Native OpenSSL-backed verification. |
 | `crypto_webcrypto` | WASM | no | yes | Browser/Node WebCrypto-backed verification. |
-| `crypto_pure_rust` | Native, WASM | yes | yes | Portable RustCrypto-backed verification. |
+| `crypto_windows` | Windows | yes | yes | Windows CNG and Crypt32-backed verification. |
 
-These features are forwarded by the domain crates and the `tee-attestation-verification-ffi` crate to the crypto sub-crate.
+Use explicit backend features with `--no-default-features` for backend-specific
+testing.
 
 ## Quick start
 
 ```toml
 [dependencies]
-tee-attestation-verification-lib = { git = "https://github.com/microsoft/TEE-Attestation-Verification", tag = "tav-X.X.X", features = ["crypto_openssl"] }
+tee-attestation-verification-lib = { git = "https://github.com/microsoft/TEE-Attestation-Verification", tag = "tav-X.X.X" }
 ```
 
 ```rust

@@ -14,7 +14,7 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/x509_time_fmt.h"
-#include "crypto/cbor.h"
+#include "crypto/cbor_tags.h"
 #include "crypto/certs.h"
 #include "crypto/cose.h"
 #include "crypto/csr.h"
@@ -25,12 +25,14 @@
 #include "crypto/openssl/verifier.h"
 #include "crypto/openssl/x509_time.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <ctime>
 #include <doctest/doctest.h>
 #include <optional>
 #include <span>
+#include <tav/cbor.hpp>
 
 using namespace std;
 using namespace ccf::crypto;
@@ -205,6 +207,82 @@ TEST_CASE("Check verifier handles nested certs for both PEM and DER inputs")
   auto pem_key_from_pem = pem_verifier->public_key_pem();
   CHECK(pem_key_from_der.str() == pem_key_from_pem.str());
   CHECK(pem_key_from_der.str() == pem_key_for_nested_cert);
+}
+
+TEST_CASE("Verifier rejects unloadable public key")
+{
+  // A certificate can be structurally valid X.509, and so be accepted by
+  // d2i_X509/PEM_read_bio_X509, while the key in its SubjectPublicKeyInfo
+  // cannot be loaded. X509_get_pubkey() then returns nullptr, which must be
+  // reported rather than dereferenced.
+  const auto kp = make_ec_key_pair();
+  auto cert_der = cert_pem_to_der(generate_self_signed_cert(kp, "CN=name"));
+  const auto public_key = kp->public_key_der();
+
+  // The certificate embeds the subject public key verbatim, so it can be
+  // found and modified in the encoded certificate.
+  auto key_in_cert = std::search(
+    cert_der.begin(), cert_der.end(), public_key.begin(), public_key.end());
+  REQUIRE(key_in_cert != cert_der.end());
+  // Invert the last byte of the encoded key, which is the end of the EC
+  // point's y coordinate, so that the point no longer satisfies the curve
+  // equation. The surrounding ASN.1 is untouched, so the certificate still
+  // parses.
+  *(key_in_cert + public_key.size() - 1) ^= 0xff;
+
+  const auto expected_error =
+    doctest::Contains("OpenSSL error loading certificate public key:");
+  CHECK_THROWS_WITH_AS(
+    make_verifier(cert_der), expected_error, std::invalid_argument);
+  CHECK_THROWS_WITH_AS(
+    make_verifier(fmt::format(
+      "-----BEGIN CERTIFICATE-----\n{}\n-----END CERTIFICATE-----",
+      b64_from_raw(cert_der))),
+    expected_error,
+    std::invalid_argument);
+}
+
+TEST_CASE("Verifier rejects unsupported public key type")
+{
+  const auto issuer = make_ec_key_pair();
+  const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto subject = make_eddsa_key_pair(CurveID::CURVE25519);
+  const auto cert_pem = create_endorsed_cert(
+    subject->public_key_pem(),
+    "CN=unsupported key type",
+    {},
+    make_verifier(issuer_cert)->validity_period(),
+    issuer->private_key_pem(),
+    issuer_cert);
+
+  CHECK_THROWS_WITH_AS(
+    make_verifier(cert_pem), "unsupported public key type", std::logic_error);
+}
+
+TEST_CASE("Private PEM imports enforce key family")
+{
+  const auto ec = make_ec_key_pair();
+  const auto rsa = make_rsa_key_pair();
+  const auto ec_pem = ec->private_key_pem();
+  const auto rsa_pem = rsa->private_key_pem();
+  const auto eddsa_pem = make_eddsa_key_pair()->private_key_pem();
+
+  CHECK(make_ec_key_pair(ec_pem)->public_key_der() == ec->public_key_der());
+  CHECK(make_rsa_key_pair(rsa_pem)->public_key_der() == rsa->public_key_der());
+  for (const auto& pem : {rsa_pem, eddsa_pem})
+  {
+    CHECK_THROWS_WITH_AS(
+      make_ec_key_pair(pem),
+      "Cannot construct ECKeyPair_OpenSSL from non-EC key",
+      std::logic_error);
+  }
+  for (const auto& pem : {ec_pem, eddsa_pem})
+  {
+    CHECK_THROWS_WITH_AS(
+      make_rsa_key_pair(pem),
+      "Cannot construct RSAKeyPair_OpenSSL from non-RSA key",
+      std::logic_error);
+  }
 }
 
 TEST_CASE("Sign, verify, with ECKeyPair")
@@ -628,8 +706,8 @@ void run_csr(bool corrupt_csr = false)
 
   std::string valid_from_, valid_to_;
   std::tie(valid_from_, valid_to_) = v.validity_period();
-  REQUIRE(valid_from_.find(valid_from) != std::string::npos);
-  REQUIRE(valid_to_.find(valid_to) != std::string::npos);
+  REQUIRE(valid_from_.contains(valid_from));
+  REQUIRE(valid_to_.contains(valid_to));
 }
 
 TEST_CASE("2-digit years")
@@ -1249,13 +1327,14 @@ TEST_CASE("COSE algorithm validation")
 {
   INFO("EC key curves must match COSE algorithm");
   {
-    // P-256 (secp256r1) requires COSE alg -7
+    // P-256 (secp256r1) requires COSE alg ES256(-7) or ESP256(-9)
     auto p256_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP256R1);
     auto p256_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
       ccf::crypto::make_ec_public_key(p256_kp->public_key_pem()));
 
-    // Correct algorithm should work
+    // Correct algorithms should work
     REQUIRE_NOTHROW(p256_pubkey->check_is_cose_compatible(-7));
+    REQUIRE_NOTHROW(p256_pubkey->check_is_cose_compatible(-9));
 
     // Wrong algorithms should throw
     REQUIRE_THROWS_WITH(
@@ -1264,6 +1343,12 @@ TEST_CASE("COSE algorithm validation")
     REQUIRE_THROWS_WITH(
       p256_pubkey->check_is_cose_compatible(-36),
       "secp256r1 key cannot be used with COSE algorithm -36");
+    REQUIRE_THROWS_WITH(
+      p256_pubkey->check_is_cose_compatible(-51),
+      "secp256r1 key cannot be used with COSE algorithm -51");
+    REQUIRE_THROWS_WITH(
+      p256_pubkey->check_is_cose_compatible(-52),
+      "secp256r1 key cannot be used with COSE algorithm -52");
 
     // Unknown COSE algorithm for EC keys should throw
     REQUIRE_THROWS_WITH(
@@ -1273,13 +1358,14 @@ TEST_CASE("COSE algorithm validation")
       p256_pubkey->check_is_cose_compatible(42),
       "secp256r1 key cannot be used with COSE algorithm 42");
 
-    // P-384 (secp384r1) requires COSE alg -35
+    // P-384 (secp384r1) requires COSE alg ES384(-35) or ESP384(-51)
     auto p384_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
     auto p384_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
       ccf::crypto::make_ec_public_key(p384_kp->public_key_pem()));
 
-    // Correct algorithm should work
+    // Correct algorithms should work
     REQUIRE_NOTHROW(p384_pubkey->check_is_cose_compatible(-35));
+    REQUIRE_NOTHROW(p384_pubkey->check_is_cose_compatible(-51));
 
     // Wrong algorithms should throw
     REQUIRE_THROWS_WITH(
@@ -1288,6 +1374,12 @@ TEST_CASE("COSE algorithm validation")
     REQUIRE_THROWS_WITH(
       p384_pubkey->check_is_cose_compatible(-36),
       "secp384r1 key cannot be used with COSE algorithm -36");
+    REQUIRE_THROWS_WITH(
+      p384_pubkey->check_is_cose_compatible(-9),
+      "secp384r1 key cannot be used with COSE algorithm -9");
+    REQUIRE_THROWS_WITH(
+      p384_pubkey->check_is_cose_compatible(-52),
+      "secp384r1 key cannot be used with COSE algorithm -52");
 
     // Unknown COSE algorithm for EC keys should throw
     REQUIRE_THROWS_WITH(
@@ -1297,13 +1389,14 @@ TEST_CASE("COSE algorithm validation")
       p384_pubkey->check_is_cose_compatible(-100),
       "secp384r1 key cannot be used with COSE algorithm -100");
 
-    // P-521 (secp521r1) requires COSE alg -36
+    // P-521 (secp521r1) requires COSE alg ES512(-36) or ESP512(-52)
     auto p521_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP521R1);
     auto p521_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
       ccf::crypto::make_ec_public_key(p521_kp->public_key_pem()));
 
-    // Correct algorithm should work
+    // Correct algorithms should work
     REQUIRE_NOTHROW(p521_pubkey->check_is_cose_compatible(-36));
+    REQUIRE_NOTHROW(p521_pubkey->check_is_cose_compatible(-52));
 
     // Wrong algorithms should throw
     REQUIRE_THROWS_WITH(
@@ -1312,6 +1405,12 @@ TEST_CASE("COSE algorithm validation")
     REQUIRE_THROWS_WITH(
       p521_pubkey->check_is_cose_compatible(-35),
       "secp521r1 key cannot be used with COSE algorithm -35");
+    REQUIRE_THROWS_WITH(
+      p521_pubkey->check_is_cose_compatible(-9),
+      "secp521r1 key cannot be used with COSE algorithm -9");
+    REQUIRE_THROWS_WITH(
+      p521_pubkey->check_is_cose_compatible(-51),
+      "secp521r1 key cannot be used with COSE algorithm -51");
 
     // Unknown COSE algorithm for EC keys should throw
     REQUIRE_THROWS_WITH(

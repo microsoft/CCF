@@ -7,8 +7,8 @@
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 #include "node/history.h"
+#include "node/internal_tables_access.h"
 #include "node/share_manager.h"
-#include "service/internal_tables_access.h"
 
 namespace ccf::gov::endpoints
 {
@@ -232,8 +232,21 @@ namespace ccf::gov::endpoints
           // Check signed digest matches expected digest in KV
           const auto expected_digest = ack->state_digest;
           const auto signed_body = ccf::parse_json_safe(cose_ident.content);
+          const auto state_digest_it = signed_body.find("stateDigest");
+          if (
+            state_digest_it == signed_body.end() ||
+            !state_digest_it.value().is_string())
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidInput,
+              "Signed request body is not a JSON object containing required "
+              "string field \"stateDigest\"");
+            return;
+          }
           const auto actual_digest =
-            signed_body["stateDigest"].template get<std::string>();
+            state_digest_it.value().template get<std::string>();
           if (expected_digest != actual_digest)
           {
             detail::set_gov_error(

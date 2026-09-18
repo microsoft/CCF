@@ -97,6 +97,8 @@ class LocalRemote(CmdMixin):
         self.stack_trace = os.path.join(self.root, "stack_trace")
         self._shutdown_timeout = 10
         self.pid_file = kwargs.get("pid_file")
+        self.node_container_image = kwargs.get("node_container_image")
+        self.container_name = None
         self.profiled_pid = None
         self.profiled_pidfd = None
 
@@ -178,14 +180,46 @@ class LocalRemote(CmdMixin):
         """
         cmd = self.get_cmd()
         LOG.info(f"[{self.hostname}] {cmd} (env: {self.env.keys()})")
+        docker = None
+        if self.node_container_image:
+            docker = shutil.which("docker")
+            if docker is None:
+                raise RuntimeError(
+                    "docker is required when a node container image is specified"
+                )
         self.stdout = open(self.out, "wb")  # noqa: SIM115 - closed in stop()
         self.stderr = open(self.err, "wb")  # noqa: SIM115 - closed in stop()
+        launch_cmd = self.cmd
+        launch_env = self.env
+        if self.node_container_image:
+            container_suffix = re.sub(r"[^a-zA-Z0-9_.-]", "-", self.name)
+            self.container_name = f"ccf-{os.getpid()}-{container_suffix}"
+            root = os.path.abspath(self.root)
+            launch_cmd = [
+                docker,
+                "run",
+                "--rm",
+                "--name",
+                self.container_name,
+                "--network",
+                "host",
+                "--user",
+                f"{os.getuid()}:{os.getgid()}",
+                "--volume",
+                f"{root}:{root}",
+                "--workdir",
+                root,
+            ]
+            for key, value in self.env.items():
+                launch_cmd.extend(["--env", f"{key}={value}"])
+            launch_cmd.extend([self.node_container_image, *self.cmd])
+            launch_env = os.environ.copy()
         self.proc = subprocess.Popen(
-            self.cmd,
+            launch_cmd,
             cwd=self.root,
             stdout=self.stdout,
             stderr=self.stderr,
-            env=self.env,
+            env=launch_env,
         )
 
     def suspend(self):
@@ -227,6 +261,32 @@ class LocalRemote(CmdMixin):
         return self.proc.pid
 
     def _send_signal(self, sig):
+        if self.node_container_image:
+            if self.proc is None or self.proc.poll() is not None:
+                return
+            docker = shutil.which("docker")
+            if docker is None:
+                raise RuntimeError(
+                    "docker is required when a node container image is specified"
+                )
+            result = subprocess.run(
+                [
+                    docker,
+                    "kill",
+                    "--signal",
+                    signal.Signals(sig).name,
+                    self.container_name,
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0 and self.proc.poll() is None:
+                raise RuntimeError(
+                    f"Unable to signal container {self.container_name}: "
+                    f"{result.stderr.strip()}"
+                )
+            return
         try:
             if self._profiling_enabled() and self.pid_file:
                 try:
@@ -245,6 +305,9 @@ class LocalRemote(CmdMixin):
         return self.out, self.err
 
     def get_stack_trace(self, timeout=20):
+        if self.node_container_image:
+            LOG.info("Stack traces are not available for containerised nodes")
+            return None
         if shutil.which("lldb") != "":
             # To avoid errors on decoding lldb output as utf-8.
             # We shoud find a way to force lldb to use utf-8.
@@ -341,15 +404,29 @@ class LocalRemote(CmdMixin):
         Empty the temporary directory if it exists,
         and populate it with the initial set of files.
         """
-        self._setup_files(use_links)
+        self._setup_files(use_links and self.node_container_image is None)
 
     def get_cmd(self, include_dir=True):
         cmd = f"cd {self.root} && " if include_dir else ""
+        if self.node_container_image:
+            root = os.path.abspath(self.root)
+            cmd += (
+                "docker run --rm --network host "
+                f"--volume {root}:{root} --workdir {root} "
+                f"{self.node_container_image} "
+            )
         cmd += f'{" ".join(self.cmd)} 1> {self.out} 2> {self.err}'
         return cmd
 
     def debug_node_cmd(self):
         cmd = " ".join(self.cmd)
+        if self.node_container_image:
+            root = os.path.abspath(self.root)
+            return (
+                "docker run --rm --network host "
+                f"--volume {root}:{root} --workdir {root} "
+                f"{self.node_container_image} {DBG} -- {cmd}"
+            )
         return f"cd {self.root} && {DBG} -- {cmd}"
 
     def check_done(self, timeout=5, interval=0.2):
@@ -405,6 +482,7 @@ class CCFRemote:
         node_address=None,
         config_file=None,
         join_timer_s=None,
+        pending_node_timeout=None,
         sig_ms_interval=None,
         jwt_key_refresh_interval_s=None,
         jwt_key_refresh_max_response_size="1MB",
@@ -580,6 +658,11 @@ class CCFRemote:
             )
 
         # Configuration file
+        v = (
+            ccf._versionifier.to_python_version(version)
+            if version is not None
+            else None
+        )
         if config_file:
             LOG.info(
                 f"Node {self.local_node_id}: Using configuration file {config_file}"
@@ -611,6 +694,7 @@ class CCFRemote:
                 curve_id=curve_id.name.title(),
                 host_log_level=log_level.title(),
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
+                pending_node_timeout=pending_node_timeout,
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
                 jwt_key_refresh_max_response_size=jwt_key_refresh_max_response_size,
@@ -657,6 +741,13 @@ class CCFRemote:
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
 
+                # Releases before 7.0.16 reject this unknown HTTP configuration field.
+                if v is not None and v < Version("7.0.16"):
+                    for interface in j["network"]["rpc_interfaces"].values():
+                        interface["http_configuration"].pop(
+                            "max_request_target_size", None
+                        )
+
                 # Enclave config removed from 7.x onwards.
                 if major_version is not None and major_version < 7:
                     enclave_platform = infra.platform_detection.get_platform()
@@ -695,11 +786,6 @@ class CCFRemote:
             os.path.basename(config_file),
         ]
 
-        v = (
-            ccf._versionifier.to_python_version(version)
-            if version is not None
-            else None
-        )
         if v is None or v >= Version("7.0.0.dev0"):
             cmd += [
                 "--log-level",

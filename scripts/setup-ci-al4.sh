@@ -74,22 +74,18 @@ install_build_dependencies() {
         clang  \
         cmake  \
         ninja-build  \
+        patch  \
         which  \
         openssl  \
         openssl-devel  \
         libuv-devel  \
         libnghttp2-devel  \
         libcurl-devel  \
-        libarrow-devel  \
-        parquet-libs-devel  \
         doxygen  \
         clang-tools-extra-devel  \
         rust  \
         cargo  \
         libstdc++-devel
-    # Azure Linux 4 beta does not publish libbacktrace-static yet; the Azure
-    # Linux 3.0 RPM contains only backtrace.h and libbacktrace.a and works here.
-    dnf install -y https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64/Packages/l/libbacktrace-static-13.2.0-7.azl3.x86_64.rpm
 }
 
 install_test_dependencies() {

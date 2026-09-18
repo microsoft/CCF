@@ -1,4 +1,5 @@
 bucket_a:
+  docs
   tls_groups_test
   lts_compatibility
 
@@ -7,6 +8,7 @@ bucket_b:
   recovery_stale_snapshot_join_test
   recovery_intermediate_snapshot_join_test
   recovery_snapshot_endorsements_test
+  e2e_logging_http2
   schema_test
   nodes_test
 
@@ -23,13 +25,13 @@ bucket_c:
   programmability_and_jwt
   e2e_limits
   e2e_redirects
-  e2e_logging_http2
   tls_stress_test
 
 no_bucket:
   map_bench
   logger_bench
   json_bench
+  msgpack_bench
   ring_buffer_bench
   ledger_bench
   crypto_bench
@@ -39,6 +41,7 @@ no_bucket:
   merkle_bench
   hash_bench
   http_bench
+  js_interpreter_bench
   task_bench
   recovery_test_suite
   reconfiguration_test_suite

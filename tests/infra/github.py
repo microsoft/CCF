@@ -41,10 +41,19 @@ END_OF_LIFE_MAJOR_VERSIONS = [1, 2, 3, 4, 5]
 
 
 def get_version_from_install(install_dir):
-    with open(
-        os.path.join(install_dir, INSTALL_VERSION_FILE_PATH), "r", encoding="utf-8"
-    ) as version_file:
-        return f"{TAG_RELEASE_PREFIX}{version_file.read()}"
+    long_version_file_path = os.path.join(install_dir, "share/VERSION_LONG")
+    version_file_path = (
+        long_version_file_path
+        if os.path.isfile(long_version_file_path)
+        else os.path.join(install_dir, INSTALL_VERSION_FILE_PATH)
+    )
+    with open(version_file_path, encoding="utf-8") as version_file:
+        version = version_file.read().strip()
+        return (
+            version
+            if version.startswith(TAG_RELEASE_PREFIX)
+            else f"{TAG_RELEASE_PREFIX}{version}"
+        )
 
 
 def is_release_branch(branch_name):
@@ -146,7 +155,10 @@ def get_major_version_from_branch_name(branch_name):
 
 def get_devel_package_prefix_with_platform(tag_name, platform="snp"):
     tag_components = tag_name.split("-")
-    tag_components[0] += f"_{platform}_devel"
+    if get_version_from_tag_name(tag_name) >= Version("7.0.0.dev1"):
+        tag_components[0] += "_devel"
+    else:
+        tag_components[0] += f"_{platform}_devel"
     return "-".join(tag_components)
 
 
@@ -309,7 +321,11 @@ class Repository:
     def install_release(self, tag, platform="snp"):
         stripped_tag = strip_release_tag_name(tag)
         install_directory = f"{INSTALL_DIRECTORY_PREFIX}{stripped_tag}"
-        if get_version_from_tag_name(tag) >= Version("3.0.0-rc1"):
+        if (
+            Version("3.0.0-rc1")
+            <= get_version_from_tag_name(tag)
+            < Version("7.0.0.dev1")
+        ):
             install_path = os.path.abspath(
                 os.path.join(
                     install_directory, f"{INSTALL_DIRECTORY_SUB_PATH}_{platform}"

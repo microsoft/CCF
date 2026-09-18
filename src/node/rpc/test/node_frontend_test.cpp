@@ -3,14 +3,22 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/node/node_configuration_interface.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"
+#include "node/http_node_client.h"
+#include "node/internal_tables_access.h"
 #include "node/rpc/node_frontend.h"
+#include "node/rpc/self_cert_auth.h"
 #include "node_stub.h"
-#include "service/internal_tables_access.h"
+
+#include <latch>
+#include <limits>
+#include <thread>
+#include <vector>
 
 using namespace ccf;
 using namespace nlohmann;
@@ -22,10 +30,11 @@ auto node_id = 0;
 TResponse frontend_process(
   NodeRpcFrontend& frontend,
   const json& json_params,
-  const std::string& method,
-  const ccf::crypto::Pem& caller)
+  const std::string& path,
+  const ccf::crypto::Pem& caller,
+  llhttp_method method = HTTP_POST)
 {
-  ::http::Request r(method);
+  ::http::Request r(path, method);
   const auto body = json_params.is_null() ? std::string() : json_params.dump();
   r.set_body(body);
   auto serialise_request = r.build_request();
@@ -47,6 +56,37 @@ TResponse frontend_process(
   return processor.received.front();
 }
 
+class TestNodeRpcFrontend : public NodeRpcFrontend
+{
+public:
+  using NodeRpcFrontend::NodeRpcFrontend;
+
+  std::shared_ptr<ccf::RpcContextImpl> last_request;
+
+  void process(std::shared_ptr<ccf::RpcContextImpl> ctx) override
+  {
+    NodeRpcFrontend::process(ctx);
+    last_request = std::move(ctx);
+  }
+
+  ccf::endpoints::EndpointRegistry& get_node_endpoints()
+  {
+    return node_endpoints;
+  }
+};
+
+class StubNodeConfiguration : public NodeConfigurationInterface
+{
+public:
+  StartupConfig config = {};
+  NodeConfigurationState state = {config, {}, true};
+
+  const NodeConfigurationState& get() override
+  {
+    return state;
+  }
+};
+
 void require_ledger_secrets_equal(
   const LedgerSecretsMap& first, const LedgerSecretsMap& second)
 {
@@ -56,6 +96,133 @@ void require_ledger_secrets_equal(
     first.end(),
     second.begin(),
     [](const auto& a, const auto& b) { return (*a.second == *b.second); }));
+}
+
+TEST_CASE("Self certificate authentication")
+{
+  NetworkState network;
+  auto tx = network.tables->create_tx();
+  StubNodeContext context;
+  SelfCertAuthnPolicy policy(context);
+  CHECK(policy.get_security_scheme_name() == "self_cert");
+
+  const auto self_kp = ccf::crypto::make_ec_key_pair();
+  const auto self_cert = self_kp->self_sign("CN=Self", valid_from, valid_to);
+  const auto self_der = ccf::crypto::make_verifier(self_cert)->cert_der();
+  std::string error_reason;
+  const auto authenticate = [&](const std::vector<uint8_t>& cert) {
+    error_reason.clear();
+    auto session =
+      std::make_shared<ccf::SessionContext>(ccf::InvalidSessionId, cert);
+    ::http::Request request("/node/create", HTTP_POST);
+    auto rpc_ctx = ccf::make_rpc_context(session, request.build_request());
+    return policy.authenticate(tx, rpc_ctx, error_reason);
+  };
+
+  CHECK(authenticate(self_der) == nullptr);
+  CHECK(error_reason == "Only the node itself can call this endpoint.");
+
+  context.node_id = ccf::compute_node_id_from_kp(self_kp);
+  CHECK(!tx.ro(network.nodes)->has(context.node_id));
+  const auto identity = authenticate(self_der);
+  REQUIRE(identity != nullptr);
+  const auto* cert_identity =
+    dynamic_cast<const AnyCertAuthnIdentity*>(identity.get());
+  REQUIRE(cert_identity != nullptr);
+  CHECK(cert_identity->cert == self_der);
+  CHECK(error_reason.empty());
+
+  CHECK(authenticate(self_cert.raw()) != nullptr);
+
+  const auto issuer = make_test_network_ident();
+  const auto endorsed_cert = ccf::crypto::create_endorsed_cert(
+    self_kp->create_csr("CN=Self"),
+    valid_from,
+    valid_to,
+    issuer->priv_key,
+    issuer->cert);
+  CHECK(authenticate(endorsed_cert.raw()) != nullptr);
+
+  const auto other_kp = ccf::crypto::make_ec_key_pair();
+  const auto other_cert = other_kp->self_sign("CN=Self", valid_from, valid_to);
+  CHECK(authenticate(other_cert.raw()) == nullptr);
+  CHECK(error_reason == "Only the node itself can call this endpoint.");
+
+  NodeInfo other_node;
+  other_node.status = NodeStatus::TRUSTED;
+  tx.rw(network.nodes)->put(ccf::compute_node_id_from_kp(other_kp), other_node);
+  CHECK(authenticate(other_cert.raw()) == nullptr);
+  CHECK(error_reason == "Only the node itself can call this endpoint.");
+
+  CHECK(authenticate({}) == nullptr);
+  CHECK(error_reason == "No caller certificate");
+
+  const auto expired_cert =
+    self_kp->self_sign("CN=Self", "20200101000000Z", "20200102000000Z");
+  CHECK(authenticate(expired_cert.raw()) == nullptr);
+  CHECK(error_reason.contains("after certificate's Not After"));
+
+  const auto future_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() + 24h);
+  const auto future_cert = self_kp->self_sign(
+    "CN=Self",
+    future_from,
+    ccf::crypto::compute_cert_valid_to_string(future_from, 1));
+  CHECK(authenticate(future_cert.raw()) == nullptr);
+  CHECK(error_reason.contains("before certificate's Not Before"));
+}
+
+TEST_CASE("Pending-node cleanup uses renewed client certificates")
+{
+  NetworkState network;
+  network.tables->set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  StubNodeContext context;
+  context.install_subsystem(std::make_shared<StubNodeConfiguration>());
+
+  const auto self_kp = ccf::crypto::make_ec_key_pair();
+  context.node_id = ccf::compute_node_id_from_kp(self_kp);
+  auto node_cert =
+    self_kp->self_sign("CN=Self", "20200101000000Z", "20200102000000Z");
+
+  const auto pending_node_id =
+    ccf::compute_node_id_from_kp(ccf::crypto::make_ec_key_pair());
+  {
+    auto tx = network.tables->create_tx();
+    NodeInfo pending_node;
+    pending_node.encryption_pub_key = dummy_enc_pubk;
+    pending_node.status = NodeStatus::PENDING;
+    pending_node.pending_last_seen = 0;
+    tx.rw(network.nodes)->put(pending_node_id, pending_node);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  auto frontend = std::make_shared<TestNodeRpcFrontend>(network, context);
+  frontend->open();
+  auto rpc_map = std::make_shared<ccf::RPCMap>();
+  rpc_map->register_frontend<ccf::ActorsType::nodes>(frontend);
+  HTTPNodeClient client(rpc_map, self_kp, [&]() { return node_cert; });
+
+  ::http::Request request(
+    "/node/network/nodes/remove_expired_pending", HTTP_POST);
+  request.set_header(ccf::http::headers::CONTENT_LENGTH, "0");
+  CHECK_FALSE(client.make_request(request));
+  REQUIRE(frontend->last_request != nullptr);
+  CHECK(
+    frontend->last_request->get_response_status() == HTTP_STATUS_UNAUTHORIZED);
+  {
+    auto tx = network.tables->create_tx();
+    CHECK(tx.ro(network.nodes)->has(pending_node_id));
+  }
+
+  node_cert = self_kp->self_sign("CN=Self", valid_from, valid_to);
+  const auto success = client.make_request(request);
+  const auto response = frontend->last_request->serialise_response();
+  INFO(std::string(response.begin(), response.end()));
+  REQUIRE(success);
+  {
+    auto tx = network.tables->create_tx();
+    CHECK_FALSE(tx.ro(network.nodes)->has(pending_node_id));
+  }
 }
 
 TEST_CASE("Add a node to an opening service")
@@ -177,6 +344,52 @@ TEST_CASE("Add a node to an opening service")
   }
 }
 
+TEST_CASE("JWT refresh metrics are thread-safe")
+{
+  NetworkState network;
+  StubNodeContext context;
+  TestNodeRpcFrontend frontend(network, context);
+  frontend.open();
+
+  constexpr size_t worker_count = 4;
+  constexpr size_t iterations = 1'000;
+  std::latch start(worker_count);
+  std::vector<std::thread> workers;
+  workers.reserve(worker_count);
+
+  const ccf::endpoints::RequestCompletedEvent successful_refresh{
+    "POST", "/jwt_keys/refresh", HTTP_STATUS_OK};
+  const ccf::endpoints::RequestCompletedEvent failed_refresh{
+    "POST", "/jwt_keys/refresh", HTTP_STATUS_INTERNAL_SERVER_ERROR};
+
+  auto& node_endpoints = frontend.get_node_endpoints();
+  for (size_t i = 0; i < worker_count; ++i)
+  {
+    workers.emplace_back([&]() {
+      start.arrive_and_wait();
+      for (size_t j = 0; j < iterations; ++j)
+      {
+        node_endpoints.handle_event_request_completed(successful_refresh);
+        node_endpoints.handle_event_request_completed(failed_refresh);
+      }
+    });
+  }
+
+  for (auto& worker : workers)
+  {
+    worker.join();
+  }
+
+  const auto response = frontend_process(
+    frontend, json(), "jwt_keys/refresh/metrics", member_cert, HTTP_GET);
+  REQUIRE(response.status == HTTP_STATUS_OK);
+
+  const auto metrics = parse_response_body<JWTRefreshMetrics>(response);
+  CHECK(metrics.attempts == worker_count * iterations * 2);
+  CHECK(metrics.successes == worker_count * iterations);
+  CHECK(metrics.failures == worker_count * iterations);
+}
+
 TEST_CASE("Add a node to an open service")
 {
   NetworkState network;
@@ -190,6 +403,8 @@ TEST_CASE("Add a node to an open service")
 
   StubNodeContext context;
   context.node_operation->is_public = true;
+  auto node_configuration = std::make_shared<StubNodeConfiguration>();
+  context.install_subsystem(node_configuration);
   NodeRpcFrontend frontend(network, context);
   frontend.open();
 
@@ -215,8 +430,6 @@ TEST_CASE("Add a node to an open service")
   ccf::crypto::ECKeyPairPtr node_kp = ccf::crypto::make_ec_key_pair();
   const auto caller = node_kp->self_sign("CN=Joiner", valid_from, valid_to);
 
-  auto tx = network.tables->create_tx();
-
   const auto node_public_encryption_key =
     ccf::crypto::make_ec_key_pair()->public_key_pem();
 
@@ -226,6 +439,7 @@ TEST_CASE("Add a node to an open service")
 
   INFO("Add node once service is open");
   {
+    auto tx = network.tables->create_tx();
     auto http_response = frontend_process(frontend, join_input, "join", caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
 
@@ -277,6 +491,7 @@ TEST_CASE("Add a node to an open service")
 
   INFO("Trust node and attempt to join");
   {
+    auto tx = network.tables->create_tx();
     // In a real scenario, nodes are trusted via member governance.
     auto joining_node_id = ccf::compute_node_id_from_kp(node_kp);
     InternalTablesAccess::trust_node(
@@ -312,6 +527,166 @@ TEST_CASE("Add a node to an open service")
     CHECK(
       response.network_info->endorsed_certificate.value() ==
       dummy_endorsed_certificate);
+  }
+
+  INFO("Expired Pending nodes are removed");
+  {
+    const auto self_kp = ccf::crypto::make_ec_key_pair();
+    const auto self_caller =
+      self_kp->self_sign("CN=Self", valid_from, valid_to);
+    context.node_id = ccf::compute_node_id_from_kp(self_kp);
+
+    CHECK(
+      std::chrono::milliseconds(StartupConfig{}.pending_node_timeout) ==
+      std::chrono::hours(1));
+
+    ccf::crypto::ECKeyPairPtr expired_node_kp = ccf::crypto::make_ec_key_pair();
+    const auto expired_node_caller =
+      expired_node_kp->self_sign("CN=Expired Joiner", valid_from, valid_to);
+    const auto expired_node_id = ccf::compute_node_id_from_kp(expired_node_kp);
+
+    JoinNetworkNodeToNode::In expired_join_input;
+    expired_join_input.public_encryption_key =
+      ccf::crypto::make_ec_key_pair()->public_key_pem();
+    expired_join_input.certificate_signing_request =
+      expired_node_kp->create_csr("CN=Expired Joiner");
+    expired_join_input.node_info_network.node_to_node_interface
+      .published_address = "localhost:1234";
+
+    auto http_response = frontend_process(
+      frontend, expired_join_input, "join", expired_node_caller);
+    CHECK(http_response.status == HTTP_STATUS_OK);
+
+    {
+      auto verify_tx = network.tables->create_tx();
+      auto nodes = verify_tx.ro(network.nodes);
+      const auto node_info = nodes->get(expired_node_id);
+      REQUIRE(node_info.has_value());
+      REQUIRE(node_info->pending_last_seen.has_value());
+
+      nlohmann::json node_info_json = node_info.value();
+      CHECK(
+        node_info_json.get<NodeInfo>().pending_last_seen ==
+        node_info->pending_last_seen);
+      node_info_json.erase("pending_last_seen");
+      CHECK(!node_info_json.get<NodeInfo>().pending_last_seen.has_value());
+    }
+
+    const auto get_node = [&](const NodeId& id) {
+      auto verify_tx = network.tables->create_tx();
+      const auto node_info = verify_tx.ro(network.nodes)->get(id);
+      REQUIRE(node_info.has_value());
+      return node_info.value();
+    };
+    const auto now_ms = []() {
+      return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+    };
+    const auto set_last_seen =
+      [&](const NodeId& id, std::optional<int64_t> last_seen) {
+        auto age_tx = network.tables->create_tx();
+        auto nodes = age_tx.rw(network.nodes);
+        auto node_info = nodes->get(id);
+        REQUIRE(node_info.has_value());
+        node_info->pending_last_seen = last_seen;
+        nodes->put(id, node_info.value());
+        REQUIRE(age_tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      };
+    const auto cleanup = [&]() {
+      const auto response = frontend_process(
+        frontend, nullptr, "network/nodes/remove_expired_pending", self_caller);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+      CHECK(!response.headers.contains(ccf::http::headers::LOCATION));
+    };
+
+    for (const auto timestamp :
+         {std::optional<int64_t>{},
+          std::optional<int64_t>{-1},
+          std::optional<int64_t>{std::numeric_limits<int64_t>::max()}})
+    {
+      set_last_seen(expired_node_id, timestamp);
+      const auto before = now_ms();
+      cleanup();
+      const auto last_seen = get_node(expired_node_id).pending_last_seen;
+      REQUIRE(last_seen.has_value());
+      CHECK(last_seen.value() >= before);
+      CHECK(last_seen.value() <= now_ms());
+    }
+
+    const auto stale_pending_last_seen = now_ms() -
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::minutes(31))
+        .count();
+    set_last_seen(expired_node_id, stale_pending_last_seen);
+
+    auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+    consensus->state = ccf::kv::test::StubConsensus::Backup;
+    frontend.set_consensus_and_history(consensus.get(), nullptr);
+    context.node_operation->can_replicate_result = false;
+
+    http_response = frontend_process(
+      frontend, expired_join_input, "join", expired_node_caller);
+    CHECK(http_response.status != HTTP_STATUS_OK);
+    CHECK(
+      get_node(expired_node_id).pending_last_seen == stale_pending_last_seen);
+
+    cleanup();
+    CHECK(
+      get_node(expired_node_id).pending_last_seen == stale_pending_last_seen);
+
+    consensus->state = ccf::kv::test::StubConsensus::Primary;
+    context.node_operation->can_replicate_result = true;
+    const auto before_retry = now_ms();
+    http_response = frontend_process(
+      frontend, expired_join_input, "join", expired_node_caller);
+    CHECK(http_response.status == HTTP_STATUS_OK);
+    const auto refreshed = get_node(expired_node_id).pending_last_seen;
+    REQUIRE(refreshed.has_value());
+    CHECK(refreshed.value() >= before_retry);
+    CHECK(refreshed.value() <= now_ms());
+    cleanup();
+    CHECK(get_node(expired_node_id).pending_last_seen == refreshed);
+
+    const auto expired = now_ms() -
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::hours(2))
+        .count();
+    const auto trusted_node_id = ccf::compute_node_id_from_kp(node_kp);
+    set_last_seen(expired_node_id, expired);
+    set_last_seen(trusted_node_id, expired);
+
+    for (const auto timeout : {"0s", "1h"})
+    {
+      node_configuration->config.pending_node_timeout = {timeout};
+      for (const auto& other_caller : {caller, expired_node_caller})
+      {
+        const auto response = frontend_process(
+          frontend,
+          nullptr,
+          "network/nodes/remove_expired_pending",
+          other_caller);
+        CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
+        check_error_message(
+          response, "Only the node itself can call this endpoint.");
+        CHECK(get_node(expired_node_id).pending_last_seen == expired);
+        CHECK(get_node(trusted_node_id).pending_last_seen == expired);
+      }
+    }
+
+    node_configuration->config.pending_node_timeout = {"0s"};
+    cleanup();
+    CHECK(get_node(expired_node_id).pending_last_seen == expired);
+    CHECK(get_node(expired_node_id).status == NodeStatus::PENDING);
+
+    node_configuration->config.pending_node_timeout = {"1h"};
+    cleanup();
+    {
+      auto verify_tx = network.tables->create_tx();
+      CHECK(!verify_tx.ro(network.nodes)->has(expired_node_id));
+    }
+    CHECK(get_node(trusted_node_id).status == NodeStatus::TRUSTED);
+    CHECK(get_node(trusted_node_id).pending_last_seen == expired);
   }
 }
 

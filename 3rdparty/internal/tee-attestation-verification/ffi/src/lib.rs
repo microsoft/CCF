@@ -177,7 +177,7 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
     format!("internal error: {message}")
 }
 
-#[cfg(all(not(target_family = "wasm"), sync_crypto))]
+#[cfg(not(target_family = "wasm"))]
 mod c_ffi;
 mod cbor_view;
 #[cfg(any(target_family = "wasm", test))]

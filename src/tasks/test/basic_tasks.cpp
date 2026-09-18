@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 #include "tasks/worker.h"
@@ -96,6 +96,133 @@ TEST_CASE("JobBoard" * doctest::test_suite("basic_tasks"))
   REQUIRE_FALSE(b.load());
   second_task->do_task();
   REQUIRE(b.load());
+}
+
+TEST_CASE("JobBoard external work beacon" * doctest::test_suite("basic_tasks"))
+{
+  constexpr auto short_wait = std::chrono::milliseconds(10);
+
+  auto work_beacon = std::make_shared<ccf::ds::WorkBeacon>();
+  ccf::tasks::JobBoard job_board;
+  job_board.set_work_beacon(work_beacon);
+
+  const auto first = ccf::tasks::make_basic_task([]() {});
+  const auto second = ccf::tasks::make_basic_task([]() {});
+
+  SUBCASE("Pending work notifications are coalesced")
+  {
+    job_board.add_task(first);
+    REQUIRE(work_beacon->wait_for_work_with_timeout(short_wait));
+
+    job_board.add_task(second);
+    REQUIRE_FALSE(work_beacon->wait_for_work_with_timeout(short_wait));
+
+    REQUIRE(job_board.get_task() == first);
+    REQUIRE(job_board.get_task() == second);
+
+    job_board.add_task(first);
+    REQUIRE(job_board.get_task() == first);
+    job_board.add_task(second);
+
+    REQUIRE(work_beacon->wait_for_work_with_timeout(short_wait));
+    REQUIRE_FALSE(work_beacon->wait_for_work_with_timeout(short_wait));
+  }
+
+  SUBCASE("Direct worker handoff does not notify the external consumer")
+  {
+    ccf::tasks::Task received = nullptr;
+    std::thread worker(
+      [&]() { received = job_board.wait_for_task(std::chrono::seconds(1)); });
+
+    while (job_board.get_summary().idle_workers == 0)
+    {
+      std::this_thread::yield();
+    }
+
+    job_board.add_task(first);
+    worker.join();
+
+    REQUIRE(received == first);
+    REQUIRE_FALSE(work_beacon->wait_for_work_with_timeout(short_wait));
+  }
+
+  SUBCASE("Idle workers can be woken without assigning tasks")
+  {
+    constexpr size_t worker_count = 4;
+    std::vector<ccf::tasks::Task> received(worker_count);
+    std::vector<std::thread> workers;
+    for (size_t i = 0; i < worker_count; ++i)
+    {
+      workers.emplace_back([&, i]() {
+        received[i] = job_board.wait_for_task(std::chrono::seconds(10));
+      });
+    }
+
+    while (job_board.get_summary().idle_workers != worker_count)
+    {
+      std::this_thread::yield();
+    }
+
+    job_board.stop_waiters();
+    for (auto& worker : workers)
+    {
+      worker.join();
+    }
+
+    for (const auto& task : received)
+    {
+      REQUIRE(task == nullptr);
+    }
+
+    REQUIRE(job_board.wait_for_task(std::chrono::seconds(10)) == nullptr);
+  }
+
+  SUBCASE("Existing pending work is notified when a beacon is registered")
+  {
+    job_board.set_work_beacon(nullptr);
+    job_board.add_task(first);
+    job_board.set_work_beacon(work_beacon);
+
+    REQUIRE(work_beacon->wait_for_work_with_timeout(short_wait));
+    REQUIRE(job_board.get_task() == first);
+  }
+
+  SUBCASE("A bounded consumer continues without waiting through a backlog")
+  {
+    constexpr size_t max_tasks_per_iteration = 256;
+    constexpr size_t num_tasks = max_tasks_per_iteration + 100;
+    for (size_t i = 0; i < num_tasks; ++i)
+    {
+      job_board.add_task(ccf::tasks::make_basic_task([]() {}));
+    }
+
+    size_t completed = 0;
+    bool should_wait_for_work = true;
+    while (completed < num_tasks)
+    {
+      if (should_wait_for_work)
+      {
+        REQUIRE(work_beacon->wait_for_work_with_timeout(short_wait));
+      }
+
+      size_t completed_this_iteration = 0;
+      while (completed_this_iteration < max_tasks_per_iteration)
+      {
+        auto task = job_board.get_task();
+        if (task == nullptr)
+        {
+          break;
+        }
+
+        ++completed;
+        ++completed_this_iteration;
+      }
+
+      should_wait_for_work = completed_this_iteration < max_tasks_per_iteration;
+    }
+
+    REQUIRE(job_board.get_summary().pending_tasks == 0);
+  }
 }
 
 TEST_CASE("Cancellation" * doctest::test_suite("basic_tasks"))
@@ -312,21 +439,21 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
   // Custom logger that captures log messages for assertion
   struct CapturingLogger : public ccf::logger::AbstractLogger
   {
-    ccf::pal::Mutex mutex;
+    ccf::ds::Mutex mutex;
     std::vector<std::string> messages CCF_GUARDED_BY(mutex);
 
     void write(const ccf::logger::LogLine& ll) override
     {
-      ccf::pal::MutexGuard lock(mutex);
+      ccf::ds::MutexGuard lock(mutex);
       messages.push_back(ll.msg);
     }
 
     bool contains(const std::string& substring)
     {
-      ccf::pal::MutexGuard lock(mutex);
+      ccf::ds::MutexGuard lock(mutex);
       for (const auto& m : messages)
       {
-        if (m.find(substring) != std::string::npos)
+        if (m.contains(substring))
         {
           return true;
         }
@@ -336,7 +463,7 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
 
     void clear()
     {
-      ccf::pal::MutexGuard lock(mutex);
+      ccf::ds::MutexGuard lock(mutex);
       messages.clear();
     }
   };

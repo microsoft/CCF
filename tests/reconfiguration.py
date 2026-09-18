@@ -224,13 +224,16 @@ def test_add_node_with_corrupted_ledger(network, args):
         fetch_recent_snapshot=False,
     )
 
-    # Find an uncommitted ledger file in the node's main ledger directory
+    # Find an uncommitted ledger file in the node's main ledger directory,
+    # skipping any chunk which the target node had already marked as ignored
     ledger_dir = new_node.remote.get_main_ledger_dir()
     ledger_files = sorted(
         [
             f
             for f in os.listdir(ledger_dir)
-            if f.startswith("ledger_") and not f.endswith(".committed")
+            if f.startswith("ledger_")
+            and not f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
+            and not f.endswith(ccf.ledger.IGNORED_FILE_SUFFIX)
         ],
         key=lambda f: ccf.ledger.range_from_filename(f)[0],
     )
@@ -1238,9 +1241,6 @@ def run_all(args, ipv6=False):
     if ipv6:
         assert_no_ipv4_in_node_configs(network)
 
-    run_join_old_snapshot(args, ipv6=ipv6)
-    run_join_no_snapshot_against_original_primary(args, ipv6=ipv6)
-
 
 def run_join_old_snapshot(const_args, ipv6=False):
     txs = app.LoggingTxs("user0")
@@ -1410,10 +1410,29 @@ def run_join_no_snapshot_against_original_primary(const_args, ipv6=False):
             ), f"Joiner should have started from a fetched snapshot, got startup_seqno={body['startup_seqno']}"
 
 
-def run_ipv6(args):
+def _assert_ipv6_available():
     assert infra.net.ipv6_loopback_available(), (
         "IPv6 loopback (::1) is not available; CI enables IPv6 via the "
         "container --sysctl net.ipv6.conf.*.disable_ipv6=0 (see .github/workflows)"
     )
 
+
+def run_ipv6(args):
+    _assert_ipv6_available()
+
     run_all(args, ipv6=True)
+
+
+# Each of these builds its own single-node network and shares no state with
+# run_all, so they are registered as their own sub-tests and run concurrently
+# to minimise end-to-end test duration.
+def run_join_old_snapshot_ipv6(args):
+    _assert_ipv6_available()
+
+    run_join_old_snapshot(args, ipv6=True)
+
+
+def run_join_no_snapshot_against_original_primary_ipv6(args):
+    _assert_ipv6_available()
+
+    run_join_no_snapshot_against_original_primary(args, ipv6=True)
