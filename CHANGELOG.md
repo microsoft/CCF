@@ -11,11 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- C++ callers can use `ccf::crypto::KeyAesGcm::make_context()` to explicitly own and reuse a pre-keyed AES-GCM context when they can ensure it is not accessed concurrently.
-
-### Changed
-
-- AES-GCM encryption now replaces an existing output cipher with an empty cipher when encrypting empty plaintext, and AES-GCM decryption clears its plaintext output when authentication fails. Previously these calls could leave stale output from an earlier operation.
+- C++ callers can use `ccf::crypto::KeyAesGcm::make_context()` to explicitly own and reuse a pre-keyed AES-GCM context when they can ensure it is not accessed concurrently. AES-GCM encryption and decryption also now consistently replace their output vectors, clearing them for empty plaintext or failed authentication rather than leaving stale output from an earlier operation (#8402).
 
 ### Removed
 
