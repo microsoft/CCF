@@ -147,8 +147,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-          # Recovery and schema dynamically select all three logging variants.
-          ninja js_generic logging logging_cose_only logging_cose_only_allow_join_dual programmability nobuiltins
+          ninja bucket_b
         shell: bash
 
       - name: "Test virtual"
@@ -205,8 +204,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-          # bucket_c and partitions, including the Python-driven Raft scenarios.
-          ninja js_generic logging logging_cose_only programmability raft_driver
+          ninja bucket_c partitions
         shell: bash
 
       - name: "Test virtual"
@@ -278,8 +276,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
-          # SNP unit/e2e tests, code_update, and the explicitly run ledger bench.
-          ninja logging programmability snp_ioctl_test snp_attestation_test ledger_bench
+          ninja snp code_update_test ledger_bench
         shell: bash
 
       - name: "Tests"
