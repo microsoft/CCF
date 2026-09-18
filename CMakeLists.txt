@@ -1152,6 +1152,11 @@ if(BUILD_TESTS)
       SRCS src/http/test/http_bench.cpp
       LINK_LIBS http_parser
     )
+    add_picobench(
+      js_interpreter_bench
+      SRCS src/js/test/interpreter_bench.cpp
+      LINK_LIBS ccf_js ccf_kv ccf_endpoints http_parser
+    )
 
     add_picobench(
       task_bench
