@@ -110,7 +110,7 @@ lake exe cache get
 lake exe mk_all --check --lib DisasterRecovery
 lake build --wfail
 lake lint
-lake exe canonical-checks
+lake test
 ```
 
 `lake build --wfail` treats build warnings, including uses of `sorry` and
@@ -121,7 +121,8 @@ lake exe canonical-checks
 axioms, and `native_decide` dependencies are rejected.
 
 The build compiles the reviewed statements and their proof implementations;
-`lake exe canonical-checks` separately exercises the transition model.
+`lake test` runs the configured `canonical-checks` executable to exercise the
+transition model.
 `mk_all --check` verifies that `DisasterRecovery.lean` imports every library
 module, preventing newly added proofs from being silently omitted from the
 build and audit. Run `lake exe mk_all --lib DisasterRecovery` to refresh the

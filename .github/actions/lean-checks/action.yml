@@ -1,0 +1,49 @@
+name: Check Lean package
+description: Build a Lean package and run its configured axiom audit and tests
+
+inputs:
+  working-directory:
+    description: Lean package directory relative to the repository root
+    required: true
+  library:
+    description: Lean library whose generated import root must be complete
+    required: true
+  lean-bin-path:
+    description: >-
+      Optional directory to prepend to PATH for this action's own steps only,
+      for callers that provide a Lean toolchain without registering it as an
+      elan-managed shim on the runner's persistent PATH. Left unset, the
+      existing PATH is used as-is.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Restore Mathlib cache
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+      env:
+        LEAN_BIN_PATH: ${{ inputs.lean-bin-path }}
+      run: |
+        set -euo pipefail
+        if [ -n "$LEAN_BIN_PATH" ]; then
+          export PATH="$LEAN_BIN_PATH:$PATH"
+        fi
+        lake exe cache get
+
+    - name: Build and check Lean package
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+      env:
+        LEAN_LIBRARY: ${{ inputs.library }}
+        LEAN_BIN_PATH: ${{ inputs.lean-bin-path }}
+      run: |
+        set -euo pipefail
+        if [ -n "$LEAN_BIN_PATH" ]; then
+          export PATH="$LEAN_BIN_PATH:$PATH"
+        fi
+        lake exe mk_all --check --lib "$LEAN_LIBRARY"
+        lake build --wfail
+        lake lint
+        lake test
