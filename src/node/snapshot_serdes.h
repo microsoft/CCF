@@ -25,6 +25,7 @@ namespace ccf
   {
     ccf::kv::Version seqno;
     std::vector<uint8_t> raw;
+    std::optional<ccf::crypto::Pem> authenticated_service_cert;
 
     StartupSnapshotInfo(ccf::kv::Version s, std::vector<uint8_t>&& r) :
       seqno(s),

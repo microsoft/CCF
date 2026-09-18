@@ -362,6 +362,128 @@ TEST_CASE(
   }
 }
 
+TEST_CASE(
+  "Suppress snapshot writes before restoring hooks" *
+  doctest::test_suite("snapshot"))
+{
+  using Map = MapTypes::StringString;
+  constexpr auto map_name = "public:snapshot_secrets";
+  constexpr ccf::kv::Version snapshot_version = 2;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+
+  for (const auto map_version : {snapshot_version, snapshot_version + 2})
+  {
+    ccf::kv::untyped::State state;
+    state = state.put(
+      Map::KeySerialiser::to_serialised("snapshot"),
+      {map_version,
+       map_version,
+       Map::ValueSerialiser::to_serialised("forged")});
+    ccf::kv::StoreSnapshot snapshot(snapshot_version);
+    snapshot.add_map_snapshot(std::make_unique<ccf::kv::untyped::Map::Snapshot>(
+      map_name,
+      ccf::kv::SecurityDomain::PUBLIC,
+      map_version,
+      state.make_snapshot()));
+    const auto raw = snapshot.serialise(encryptor);
+
+    for (const auto existing_map : {false, true})
+    {
+      for (const auto suppress_map_hook : {false, true})
+      {
+        for (const auto suppress_global_hook : {false, true})
+        {
+          CAPTURE(map_version);
+          CAPTURE(existing_map);
+          CAPTURE(suppress_map_hook);
+          CAPTURE(suppress_global_hook);
+          ccf::kv::Store store;
+          store.set_encryptor(encryptor);
+          if (existing_map)
+          {
+            auto tx = store.create_tx();
+            tx.rw<Map>(map_name)->put("existing", "replaced");
+            REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+          }
+
+          using ObservedWrites =
+            std::vector<std::pair<ccf::kv::Version, Map::Write>>;
+          ObservedWrites local_writes;
+          ObservedWrites global_writes;
+          const auto install_hooks = [&]() {
+            store.set_map_hook(
+              map_name,
+              Map::wrap_map_hook(
+                [&](ccf::kv::Version v, const Map::Write& w)
+                  -> ccf::kv::ConsensusHookPtr {
+                  local_writes.emplace_back(v, w);
+                  return nullptr;
+                }));
+            store.set_global_hook(
+              map_name,
+              Map::wrap_commit_hook(
+                [&](ccf::kv::Version v, const Map::Write& w) {
+                  global_writes.emplace_back(v, w);
+                }));
+          };
+          install_hooks();
+          if (suppress_map_hook)
+          {
+            store.unset_map_hook(map_name);
+          }
+          if (suppress_global_hook)
+          {
+            store.unset_global_hook(map_name);
+          }
+
+          ccf::kv::ConsensusHookPtrs hooks;
+          REQUIRE(
+            store.deserialise_snapshot(
+              raw.data(), raw.size(), hooks, nullptr, true) ==
+            ccf::kv::ApplyResult::PASS);
+          REQUIRE(store.current_version() == snapshot_version);
+          REQUIRE(hooks.empty());
+          REQUIRE(local_writes.size() == (suppress_map_hook ? 0 : 1));
+          REQUIRE(global_writes.empty());
+
+          install_hooks();
+          store.compact(snapshot_version);
+          const ObservedWrites snapshot_writes = {
+            {map_version, {{"snapshot", "forged"}}}};
+          if (suppress_map_hook && suppress_global_hook)
+          {
+            REQUIRE(global_writes.empty());
+          }
+          else
+          {
+            // Either installed hook preserves the writes, even at a future
+            // map version, for a subsequently restored global hook.
+            REQUIRE(global_writes == snapshot_writes);
+          }
+          local_writes.clear();
+          global_writes.clear();
+
+          while (store.current_version() < map_version)
+          {
+            auto tx = store.create_tx();
+            tx.rw(num_map)->put(0, store.current_version());
+            REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+          }
+          auto tx = store.create_tx();
+          tx.rw<Map>(map_name)->put("broadcast", "trusted");
+          REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+          const ObservedWrites broadcast_writes = {
+            {tx.commit_version(), {{"broadcast", "trusted"}}}};
+          REQUIRE(local_writes == broadcast_writes);
+          store.compact(tx.commit_version());
+          store.compact(tx.commit_version());
+          REQUIRE(global_writes == broadcast_writes);
+        }
+      }
+    }
+  }
+}
+
 TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
 {
   ccf::kv::Store store;

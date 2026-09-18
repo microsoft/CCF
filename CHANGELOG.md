@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.17]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.17
 
+### Fixed
+
+- Joining nodes can fetch previous-service snapshots during recovery. Receipt signatures are checked against the snapshot's authenticated service identity before private recovery completes, rather than requiring the new service identity to have signed the snapshot.
+
 ### Removed
 
 - Removed the unused ringbuffer writer from the public research `CustomProtocolSubsystemInterface::Essentials` structure. Custom protocol extensions can no longer access `Essentials::writer` (#8395).
