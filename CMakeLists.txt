@@ -465,6 +465,15 @@ if(CCF_RAFT_TRACING)
   add_compile_definitions(CCF_RAFT_TRACING)
 endif()
 
+option(
+  CCF_RECOVERY_TRACE
+  "Enable committed recovery-decision-protocol tracing"
+  OFF
+)
+if(CCF_RECOVERY_TRACE)
+  add_compile_definitions(CCF_RECOVERY_TRACE)
+endif()
+
 # Build common library for CCF enclaves
 set(
   CCF_IMPL_SOURCE
@@ -1031,6 +1040,7 @@ if(BUILD_TESTS)
     add_unit_test(
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/recovery_decision_protocol.cpp
       ${CCF_DIR}/src/node/quote.cpp
       ${CCF_DIR}/src/node/uvm_endorsements.cpp
       ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
