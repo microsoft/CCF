@@ -14,7 +14,7 @@
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "node/hooks.h"
-#include "service/internal_tables_access.h"
+#include "node/internal_tables_access.h"
 
 #include <doctest/doctest.h>
 
