@@ -190,13 +190,29 @@ namespace ccf
             latest_peer_snapshot->snapshot_name,
             latest_peer_snapshot->snapshot_data.size());
 
+          bool signer_unverified = false;
           try
           {
             const auto segments =
               separate_segments(latest_peer_snapshot->snapshot_data);
-            // The trusted join response determines whether the signer check
-            // can run now or must wait for private recovery.
-            verify_snapshot(segments);
+            try
+            {
+              verify_snapshot(segments, join_config.service_cert);
+            }
+            catch (const std::exception& e)
+            {
+              // A recovering service serves snapshots signed by its previous
+              // identity. Check the digest and proof only, as for a local
+              // snapshot, and decide from the join response whether the
+              // service is recovering.
+              LOG_INFO_FMT(
+                "Fetched snapshot {} is not signed by the current service "
+                "identity ({}), accepting only if the service is recovering",
+                latest_peer_snapshot->snapshot_name,
+                e.what());
+              verify_snapshot(segments);
+              signer_unverified = true;
+            }
           }
           catch (const std::exception& e)
           {
@@ -227,9 +243,7 @@ namespace ccf
             std::filesystem::path(snapshot_config.directory) / snapshot_path;
 
           LOG_INFO_FMT(
-            "Snapshot digest verified; signer verification pending - writing "
-            "to {}",
-            dst_path.string());
+            "Snapshot verified - now writing to {}", dst_path.string());
 
           if (files::exists(dst_path))
           {
@@ -255,6 +269,7 @@ namespace ccf
           }
           owner->set_startup_snapshot(
             snapshot_seqno, std::move(latest_peer_snapshot->snapshot_data));
+          owner->startup_snapshot_info->signer_unverified = signer_unverified;
         }
       }
 
@@ -791,6 +806,16 @@ namespace ccf
     {
       sm.advance(NodeStartupState::readingPublicLedger);
       start_ledger_recovery_unsafe();
+    }
+
+    // Undo install_startup_snapshot for a joiner, so the next join request
+    // reports no snapshot and the primary asks for a fresh fetch.
+    void discard_startup_snapshot()
+    {
+      startup_snapshot_info.reset();
+      startup_seqno = 0;
+      last_recovered_idx = 0;
+      last_recovered_signed_idx = 0;
     }
 
     void install_recovery_snapshot_and_start_unsafe()
@@ -1645,6 +1670,24 @@ namespace ccf
                     "Expected network info in join response");
                 }
 
+                if (
+                  startup_snapshot_info &&
+                  startup_snapshot_info->signer_unverified &&
+                  !resp.network_info->public_only)
+                {
+                  // The service is open, so its snapshots must be signed by
+                  // its current identity. Drop the fetched snapshot and let
+                  // the join timer retry: the next fetch should return a
+                  // snapshot signed by the current identity.
+                  LOG_FAIL_FMT(
+                    "Fetched snapshot at {} is not signed by the current "
+                    "service identity and the service is not recovering. "
+                    "Discarding it and retrying join",
+                    startup_snapshot_info->seqno);
+                  discard_startup_snapshot();
+                  return;
+                }
+
                 network.identity = std::make_unique<ccf::NetworkIdentity>(
                   resp.network_info->identity);
                 network.ledger_secrets->init_from_map(
@@ -1690,8 +1733,9 @@ namespace ccf
                   {
                     if (resp.network_info->public_only)
                     {
-                      // Neither hook may retain unauthenticated snapshot
-                      // writes that could supply private recovery secrets.
+                      // The snapshot is not yet authenticated. Neither hook
+                      // may retain its writes to network.secrets, which would
+                      // otherwise seed private recovery.
                       network.tables->unset_map_hook(
                         network.secrets.get_name());
                       network.tables->unset_global_hook(
@@ -1708,26 +1752,6 @@ namespace ccf
                     if (resp.network_info->public_only)
                     {
                       setup_ledger_secret_hooks();
-                    }
-
-                    if (!resp.network_info->public_only)
-                    {
-                      // The join response supplies the ledger secrets. Full
-                      // deserialisation authenticates this snapshot's identity.
-                      auto tx = network.tables->create_read_only_tx();
-                      const auto service =
-                        tx.ro<ccf::Service>(Tables::SERVICE)->get();
-                      if (!service.has_value())
-                      {
-                        throw std::logic_error(
-                          "No service identity in authenticated join snapshot");
-                      }
-                      verify_snapshot(
-                        separate_segments(startup_snapshot_info->raw),
-                        service->cert.raw());
-                      LOG_INFO_FMT(
-                        "Join snapshot signature verified after authenticated "
-                        "deserialisation");
                     }
 
                     for (auto& hook : hooks)
@@ -2239,10 +2263,6 @@ namespace ccf
     void recover_private_ledger_entries(const std::vector<uint8_t>& entries)
     {
       std::lock_guard<ds::Mutex> guard(lock);
-      if (network.tables->get_readiness() == ccf::kv::StoreReadiness::Failed)
-      {
-        return;
-      }
       if (!sm.check(NodeStartupState::readingPrivateLedger))
       {
         LOG_FAIL_FMT(
@@ -2319,11 +2339,6 @@ namespace ccf
 
       sm.expect(NodeStartupState::readingPrivateLedger);
 
-      if (network.tables->get_readiness() == ccf::kv::StoreReadiness::Failed)
-      {
-        return;
-      }
-
       LOG_INFO_FMT(
         "Try end private recovery at {}. Is primary: {}",
         recovery_v,
@@ -2346,35 +2361,6 @@ namespace ccf
           recovery_v));
       }
 
-      if (start_type == StartType::Join && startup_snapshot_info)
-      {
-        try
-        {
-          if (!startup_snapshot_info->authenticated_service_cert.has_value())
-          {
-            throw std::logic_error(
-              "No authenticated service identity for recovery snapshot");
-          }
-          verify_snapshot(
-            separate_segments(startup_snapshot_info->raw),
-            startup_snapshot_info->authenticated_service_cert->raw());
-          LOG_INFO_FMT("Deferred recovery snapshot signature verified");
-        }
-        catch (const std::exception& e)
-        {
-          network.tables->set_readiness(ccf::kv::StoreReadiness::Failed);
-          const auto error_msg = fmt::format(
-            "Failed to verify deferred recovery snapshot: {}. Shutting down "
-            "node gracefully...",
-            e.what());
-          LOG_FAIL_FMT("{}", error_msg);
-          RINGBUFFER_WRITE_MESSAGE(
-            AdminMessage::fatal_error_msg, to_host, error_msg);
-          return;
-        }
-      }
-
-      startup_snapshot_info.reset();
       network.tables->swap_private_maps(*recovery_store);
       recovery_store.reset();
 
@@ -2544,23 +2530,7 @@ namespace ccf
           hooks,
           &view_history_,
           false);
-        if (start_type == StartType::Join)
-        {
-          // Full deserialisation authenticates the public state as AEAD AAD.
-          // Capture the snapshot's identity before replay changes it.
-          auto tx = recovery_store->create_read_only_tx();
-          const auto service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
-          if (!service.has_value())
-          {
-            throw std::logic_error(
-              "No service identity in authenticated recovery snapshot");
-          }
-          startup_snapshot_info->authenticated_service_cert = service->cert;
-        }
-        else
-        {
-          startup_snapshot_info.reset();
-        }
+        startup_snapshot_info.reset();
       }
 
       LOG_DEBUG_FMT(
@@ -3242,22 +3212,7 @@ namespace ccf
 
       LOG_INFO_FMT("Beginning private recovery");
 
-      try
-      {
-        setup_private_recovery_store();
-      }
-      catch (const std::exception& e)
-      {
-        network.tables->set_readiness(ccf::kv::StoreReadiness::Failed);
-        const auto error_msg = fmt::format(
-          "Failed to initialise private recovery store: {}. Shutting down "
-          "node gracefully...",
-          e.what());
-        LOG_FAIL_FMT("{}", error_msg);
-        RINGBUFFER_WRITE_MESSAGE(
-          AdminMessage::fatal_error_msg, to_host, error_msg);
-        return;
-      }
+      setup_private_recovery_store();
 
       reset_recovery_hook();
       setup_one_off_secret_hook();

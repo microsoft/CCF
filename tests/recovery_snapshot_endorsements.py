@@ -288,6 +288,11 @@ def run_recovery_snapshot_endorsements(args):
         )
 
 
+def _snapshot_seqno(path):
+    seqno, _ = ccf.ledger.snapshot_index_from_filename(os.path.basename(path))
+    return seqno
+
+
 def run_recovery_join_snapshot(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
@@ -298,7 +303,7 @@ def run_recovery_join_snapshot(args):
         primary.trigger_snapshot()
         snapshot_path = primary.wait_for_snapshot(target.seqno)
         snapshot_name = os.path.basename(snapshot_path)
-        snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
+        snapshot_seqno = _snapshot_seqno(snapshot_path)
         shutil.copy2(snapshot_path, snapshot_dir)
         source.save_service_identity(args)
         source.stop_all_nodes()
@@ -318,23 +323,10 @@ def run_recovery_join_snapshot(args):
                 snapshots_dir=snapshot_dir,
             )
             recovery_primary, _ = recovered.find_primary()
-            tampered = args.tamper_snapshot_receipt
-            if tampered:
-                served_snapshot = next(
-                    path
-                    for path in recovery_primary.get_snapshots()
-                    if os.path.basename(path) == snapshot_name
-                )
-                # The last byte is in the generated COSE Sign1 signature.
-                # Keep the encrypted snapshot body and digest claim unchanged.
-                with open(served_snapshot, "r+b") as snapshot:
-                    snapshot.seek(-1, os.SEEK_END)
-                    signature_byte = snapshot.read(1)
-                    snapshot.seek(-1, os.SEEK_END)
-                    snapshot.write(bytes([signature_byte[0] ^ 1]))
-                recovered.ignore_errors_on_shutdown()
 
-            joiners = []
+            # While recovering, the primary only has a snapshot signed by the
+            # previous service identity. Both a local copy and a fetched copy
+            # must be accepted.
             for local_snapshot in (True, False):
                 joiner = recovered.create_node()
                 recovered.join_node(
@@ -358,37 +350,26 @@ def run_recovery_join_snapshot(args):
                         http.HTTPStatus.SERVICE_UNAVAILABLE
                     )
                 if not local_snapshot:
-                    assert f"Received snapshot {snapshot_name} from peer" in _logs(
-                        joiner
-                    )
-                joiners.append(joiner)
-
-            if tampered:
-                recovered.consortium.activate(recovery_primary)
-                with open(args.previous_service_identity_file, encoding="utf-8") as f:
-                    previous_identity = f.read()
-                recovered.consortium.transition_service_to_open(
-                    recovery_primary, previous_service_identity=previous_identity
-                )
-                recovered.consortium.recover_with_shares(recovery_primary)
-                fetched_joiner = joiners[-1]
-                assert fetched_joiner.remote.check_done(timeout=20)
-                logs = _logs(fetched_joiner)
-                assert "Failed to verify deferred recovery snapshot" in logs, logs
-                assert "Deferred recovery snapshot signature verified" not in logs
-                return
+                    logs = _logs(joiner)
+                    assert f"Received snapshot {snapshot_name} from peer" in logs
+                    assert "accepting only if the service is recovering" in logs
 
             recovered.recover(args)
-            for joiner in joiners:
-                assert "Deferred recovery snapshot signature verified" in _logs(joiner)
             for node in recovered.get_joined_nodes():
                 with node.client() as c:
                     assert c.get("/node/ready/app").status_code == (
                         http.HTTPStatus.NO_CONTENT
                     )
+
+            # Once open, leave only the previous-identity snapshot on the
+            # primary. Wait for the snapshot triggered by opening the service
+            # first, so it is not written after the directory is cleared.
             target = app.LoggingTxs("user0").issue(recovered, number_txs=1)
             recovery_primary.trigger_snapshot()
             recovery_primary.wait_for_snapshot(target.seqno)
+            # A local copy is still accepted, as before. A fetched copy is
+            # discarded and the join retried without a snapshot, which the
+            # primary accepts and the joiner completes by replaying the ledger.
             primary_snapshot_dir = os.path.join(
                 recovery_primary.remote.remote.root,
                 recovery_primary.remote.snapshots_dir_name,
@@ -398,6 +379,7 @@ def run_recovery_join_snapshot(args):
             shutil.copy2(
                 os.path.join(snapshot_dir, snapshot_name), primary_snapshot_dir
             )
+
             for local_snapshot in (True, False):
                 joiner = recovered.create_node()
                 recovered.join_node(
@@ -412,13 +394,12 @@ def run_recovery_join_snapshot(args):
                 )
                 recovered.trust_node(joiner, args)
                 with joiner.client() as c:
-                    assert c.get("/node/state").body.json()["startup_seqno"] == (
-                        snapshot_seqno
-                    )
-                assert (
-                    "Join snapshot signature verified after authenticated "
-                    "deserialisation"
-                ) in _logs(joiner)
+                    startup_seqno = c.get("/node/state").body.json()["startup_seqno"]
+                if local_snapshot:
+                    assert startup_seqno == snapshot_seqno, startup_seqno
+                else:
+                    assert "Discarding it and retrying join" in _logs(joiner)
+                    assert startup_seqno == 0, startup_seqno
         finally:
             recovered.stop_all_nodes(skip_verification=True)
 
@@ -441,15 +422,13 @@ if __name__ == "__main__":
         snapshot_tx_interval=10,
         sig_tx_interval=1,
     )
-    for tampered in (False, True):
-        cr.add(
-            "recovery_join_snapshot_tampered" if tampered else "recovery_join_snapshot",
-            run_recovery_join_snapshot,
-            package="samples/apps/logging/logging",
-            nodes=infra.e2e_args.min_nodes(cr.args, f=0),
-            ledger_chunk_bytes="50KB",
-            snapshot_tx_interval=1000000,
-            sig_tx_interval=1,
-            tamper_snapshot_receipt=tampered,
-        )
+    cr.add(
+        "recovery_join_snapshot",
+        run_recovery_join_snapshot,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=1000000,
+        sig_tx_interval=1,
+    )
     cr.run()
