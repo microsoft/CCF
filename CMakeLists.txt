@@ -852,7 +852,11 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_client.cpp
     )
 
-    add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
+    add_unit_test(
+      js_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/uvm_endorsements.cpp
+    )
     target_link_libraries(
       js_test
       PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto http_parser
@@ -1154,6 +1158,11 @@ if(BUILD_TESTS)
       SRCS src/http/test/http_bench.cpp
       LINK_LIBS http_parser
     )
+    add_picobench(
+      js_interpreter_bench
+      SRCS src/js/test/interpreter_bench.cpp
+      LINK_LIBS ccf_js ccf_kv ccf_endpoints http_parser
+    )
 
     add_picobench(
       task_bench
@@ -1392,7 +1401,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
     LABEL snp
     BUCKET bucket_c
-    BUILD_DEPENDS programmability logging
+    BUILD_DEPENDS programmability logging js_generic
   )
 
   # This test uses large requests (so too slow for SAN)
