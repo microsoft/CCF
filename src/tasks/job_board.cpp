@@ -71,6 +71,7 @@ namespace ccf::tasks
       CCF_GUARDED_BY(mutex) = std::make_shared<std::vector<WorkerThreadPtr>>();
 
     ccf::ds::WorkBeaconPtr work_beacon CCF_GUARDED_BY(mutex) = nullptr;
+    bool stopping CCF_GUARDED_BY(mutex) = false;
 
     // Collection of delayed tasks, that may be ready for execution on a future
     // tick
@@ -154,6 +155,11 @@ namespace ccf::tasks
         // Check if there are pending tasks to be executed
         if (pending_tasks.empty())
         {
+          if (stopping)
+          {
+            return nullptr;
+          }
+
           // When the task queue is empty, append this thread to
           // waiting_worker_threads and wait on a condition_variable
           WorkerThreadPtr waiting_worker =
@@ -185,6 +191,17 @@ namespace ccf::tasks
       }
 
       return to_return;
+    }
+
+    void stop_waiters()
+    {
+      ccf::ds::MutexGuard lock(mutex);
+      // Enclave shutdown is terminal, so future waits must not block either.
+      stopping = true;
+      for (const auto& worker : *waiting_worker_threads)
+      {
+        worker->cv.notify_one();
+      }
     }
 
     void add_timed_task(
@@ -276,6 +293,11 @@ namespace ccf::tasks
   Task JobBoard::wait_for_task(const std::chrono::milliseconds& timeout)
   {
     return pimpl->wait_for_task(timeout);
+  }
+
+  void JobBoard::stop_waiters()
+  {
+    pimpl->stop_waiters();
   }
 
   JobBoard::Summary JobBoard::get_summary()

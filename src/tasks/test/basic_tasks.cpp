@@ -146,6 +146,37 @@ TEST_CASE("JobBoard external work beacon" * doctest::test_suite("basic_tasks"))
     REQUIRE_FALSE(work_beacon->wait_for_work_with_timeout(short_wait));
   }
 
+  SUBCASE("Idle workers can be woken without assigning tasks")
+  {
+    constexpr size_t worker_count = 4;
+    std::vector<ccf::tasks::Task> received(worker_count);
+    std::vector<std::thread> workers;
+    for (size_t i = 0; i < worker_count; ++i)
+    {
+      workers.emplace_back([&, i]() {
+        received[i] = job_board.wait_for_task(std::chrono::seconds(10));
+      });
+    }
+
+    while (job_board.get_summary().idle_workers != worker_count)
+    {
+      std::this_thread::yield();
+    }
+
+    job_board.stop_waiters();
+    for (auto& worker : workers)
+    {
+      worker.join();
+    }
+
+    for (const auto& task : received)
+    {
+      REQUIRE(task == nullptr);
+    }
+
+    REQUIRE(job_board.wait_for_task(std::chrono::seconds(10)) == nullptr);
+  }
+
   SUBCASE("Existing pending work is notified when a beacon is registered")
   {
     job_board.set_work_beacon(nullptr);
