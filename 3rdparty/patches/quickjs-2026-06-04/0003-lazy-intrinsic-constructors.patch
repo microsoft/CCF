@@ -1,5 +1,5 @@
 diff --git a/quickjs.c b/quickjs.c
-index fa5a7a9d01..5024ae4c7c 100644
+index fa5a7a9d01..6055f5e4f6 100644
 --- a/quickjs.c
 +++ b/quickjs.c
 @@ -505,7 +505,10 @@ typedef enum {
@@ -310,8 +310,8 @@ index fa5a7a9d01..5024ae4c7c 100644
 +    switch (intrinsic) {
 +    case JS_LAZY_INTRINSIC_DATE:
 +        assert(atom == JS_ATOM_Date);
-+        if (JS_IsNull(ctx->class_proto[JS_CLASS_DATE])) {
-+            value = JS_CreateIntrinsicDate(ctx, JS_NEW_CTOR_NO_GLOBAL);
++        if (JS_EnsureIntrinsicDate(ctx)) {
++            value = JS_EXCEPTION;
 +        } else if (!JS_IsNull(ctx->lazy_date_ctor)) {
 +            value = ctx->lazy_date_ctor;
 +            ctx->lazy_date_ctor = JS_NULL;
