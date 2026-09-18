@@ -253,6 +253,27 @@ Service identity and status.
         WaitingForRecoveryShares -- member shares reassembly--> Open;
         Open-- "start in recovery"-->Recovering;
 
+``service.signing_identities``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Public keys for verifying service COSE signatures.
+
+**Key** Identity type as a little-endian 64-bit unsigned integer.
+
+.. doxygenenum:: ccf::IdentityType
+   :project: CCF
+
+**Value** Represented as JSON.
+
+.. doxygenenum:: ccf::IdentityKind
+   :project: CCF
+
+.. doxygenstruct:: ccf::Identity
+   :project: CCF
+   :members:
+
+For legacy ledgers, an empty table falls back to ``service.info.cert`` for ``CLASSICAL``.
+
 ``service.config``
 ~~~~~~~~~~~~~~~~~~
 

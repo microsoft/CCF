@@ -14,9 +14,9 @@
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
-#include "enclave/interface.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
+#include "node/rpc/ringbuffer_messages.h"
 #include "node/uvm_endorsements.h"
 
 #include <nlohmann/json.hpp>

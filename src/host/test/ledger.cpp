@@ -10,6 +10,7 @@
 #include "ds/serialized.h"
 #include "kv/ledger_chunker.h"
 #include "kv/serialised_entry_format.h"
+#include "ledger/filenames.h"
 #include "snapshots/filenames.h"
 #include "snapshots/snapshot_writer.h"
 
@@ -23,6 +24,7 @@
 #include <unistd.h>
 
 using namespace asynchost;
+using namespace ccf::ledger;
 
 static constexpr auto ledger_dir = "ledger_dir";
 static constexpr auto ledger_dir_read_only = "ledger_dir_ro";
@@ -1526,7 +1528,7 @@ TEST_CASE("Recovery resilience")
 
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_name_committed(f.path().filename()))
+      if (!ccf::ledger::is_ledger_file_name_committed(f.path().filename()))
       {
         corrupt_ledger_file(f.path(), false, true /* corrupt_first_hdr */);
       }
@@ -1551,7 +1553,7 @@ TEST_CASE("Recovery resilience")
 
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_name_committed(f.path().filename()))
+      if (!ccf::ledger::is_ledger_file_name_committed(f.path().filename()))
       {
         corrupt_ledger_file(
           f.path(), false, false, true /* corrupt_last_entry */);
@@ -2196,9 +2198,9 @@ TEST_CASE("Recover both ledger dirs")
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
       const auto file_name = f.path().filename();
-      if (asynchost::is_ledger_file_name_committed(file_name))
+      if (ccf::ledger::is_ledger_file_name_committed(file_name))
       {
-        const auto idx = asynchost::get_start_idx_from_file_name(file_name);
+        const auto idx = ccf::ledger::get_start_idx_from_file_name(file_name);
         if (idx > last_file_idx)
         {
           last_committed_file = file_name;

@@ -8,6 +8,26 @@ import infra.bencher
 from loguru import logger as LOG
 
 benchmark_specs = {
+    "js_interpreter_bench.csv": [
+        {
+            "_name": "QuickJS standard context lifecycle",
+            "Suite": "QuickJS interpreter lifecycle",
+            "Benchmark": "create_quickjs_standard_context",
+            "D": "100",
+        },
+        {
+            "_name": "CCF common context lifecycle",
+            "Suite": "CCF interpreter lifecycle",
+            "Benchmark": "create_ccf_common_context",
+            "D": "100",
+        },
+        {
+            "_name": "CCF fresh JS invocation",
+            "Suite": "CCF fresh invocation",
+            "Benchmark": "create_compile_evaluate_and_call",
+            "D": "100",
+        },
+    ],
     "kv_bench.csv": [
         {
             "_name": "KV serialisation",
