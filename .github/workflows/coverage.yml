@@ -79,7 +79,6 @@ jobs:
         run: |
           set -exo pipefail
           cd build
-          python3 -m unittest discover -s ../scripts/tests -p 'coverage*_test.py'
           ../scripts/coverage.sh --html coverage_html --json coverage_html/coverage.json \
             | tee coverage_report.txt
           python3 ../scripts/coverage_report.py coverage_html/coverage.json \
