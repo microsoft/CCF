@@ -1213,74 +1213,72 @@ namespace ccf::node
         "for partial downloads.")
       .install();
 
-    auto get_committed_ledger_prefix =
-      [&](ccf::endpoints::CommandEndpointContext& ctx) {
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CACHE_CONTROL, "no-store");
+    auto get_prefix_chunk = [&](ccf::endpoints::CommandEndpointContext& ctx) {
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::CACHE_CONTROL, "no-store");
 
-        std::string chunk_name;
-        std::string error;
-        if (!ccf::endpoints::get_path_param(
-              ctx.rpc_ctx->get_request_path_params(),
-              "chunk_name",
-              chunk_name,
-              error))
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidResourceName,
-            std::move(error));
-          return;
-        }
+      std::string chunk_name;
+      std::string error;
+      if (!ccf::endpoints::get_path_param(
+            ctx.rpc_ctx->get_request_path_params(),
+            "chunk_name",
+            chunk_name,
+            error))
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidResourceName,
+          std::move(error));
+        return;
+      }
 
-        const auto range =
-          ccf::ledger::get_ledger_committed_prefix_range_from_file_name(
-            chunk_name);
-        if (!range.has_value())
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidResourceName,
-            fmt::format(
-              "{} is not a valid committed ledger prefix name", chunk_name));
-          return;
-        }
+      const auto range =
+        ccf::ledger::get_ledger_committed_prefix_range_from_file_name(
+          chunk_name);
+      if (!range.has_value())
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidResourceName,
+          fmt::format(
+            "{} is not a valid committed ledger prefix name", chunk_name));
+        return;
+      }
 
-        auto read_ledger_subsystem =
-          node_context.get_subsystem<ccf::AbstractReadLedgerSubsystemInterface>();
-        if (read_ledger_subsystem == nullptr)
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "LedgerReadSubsystem is not available");
-          return;
-        }
+      auto read_ledger_subsystem =
+        node_context.get_subsystem<ccf::AbstractReadLedgerSubsystemInterface>();
+      if (read_ledger_subsystem == nullptr)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "LedgerReadSubsystem is not available");
+        return;
+      }
 
-        auto contents = read_ledger_subsystem->read_committed_ledger_prefix(
-          range->first, range->second);
-        if (!contents.has_value())
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            fmt::format(
-              "This node cannot provide committed ledger prefix {}",
-              chunk_name));
-          return;
-        }
+      auto contents = read_ledger_subsystem->read_committed_ledger_prefix(
+        range->first, range->second);
+      if (!contents.has_value())
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          fmt::format(
+            "This node cannot provide committed ledger prefix {}", chunk_name));
+        return;
+      }
 
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CCF_LEDGER_CHUNK_NAME, chunk_name);
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CCF_LEDGER_CHUNK_KIND, "committed-prefix");
-        fill_range_response_from_contents(ctx, std::move(contents.value()));
-      };
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::CCF_LEDGER_CHUNK_NAME, chunk_name);
+      ctx.rpc_ctx->set_response_header(
+        ccf::http::headers::CCF_LEDGER_CHUNK_KIND, "committed-prefix");
+      fill_range_response_from_contents(ctx, std::move(contents.value()));
+    };
     registry
       .make_command_endpoint(
         "/ledger_chunk/committed_prefix/{chunk_name}",
         HTTP_HEAD,
-        get_committed_ledger_prefix,
+        get_prefix_chunk,
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_openapi_response(
@@ -1304,7 +1302,7 @@ namespace ccf::node
       .make_command_endpoint(
         "/ledger_chunk/committed_prefix/{chunk_name}",
         HTTP_GET,
-        get_committed_ledger_prefix,
+        get_prefix_chunk,
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_openapi_response<ds::openapi::Binary>(
