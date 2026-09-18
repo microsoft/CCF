@@ -22,7 +22,7 @@
 #include "node/history.h"
 #include "view_straddling_common.h"
 
-#include <chrono>
+#include <atomic>
 
 using namespace straddling;
 
@@ -34,19 +34,16 @@ namespace
   // the history would see.
   class PausableHistory : public ccf::MerkleTxHistory
   {
-    std::mutex lock;
-    std::condition_variable cv;
-    bool armed = false;
-    bool reached = false;
-    bool resume = false;
+    std::atomic<bool> armed = false;
 
   public:
     using ccf::MerkleTxHistory::MerkleTxHistory;
 
+    CommitPause pause;
+
     void arm()
     {
-      std::lock_guard<std::mutex> guard(lock);
-      armed = true;
+      armed.store(true);
     }
 
     void append_entry(
@@ -56,29 +53,10 @@ namespace
     {
       ccf::MerkleTxHistory::append_entry(digest, expected_term_of_next_version);
 
-      std::unique_lock<std::mutex> guard(lock);
-      if (armed)
+      if (armed.exchange(false))
       {
-        armed = false;
-        reached = true;
-        cv.notify_all();
-        cv.wait(guard, [this]() { return resume; });
+        pause.pause();
       }
-    }
-
-    bool wait_until_reached(std::chrono::milliseconds timeout)
-    {
-      std::unique_lock<std::mutex> guard(lock);
-      return cv.wait_for(guard, timeout, [this]() { return reached; });
-    }
-
-    void release()
-    {
-      {
-        std::lock_guard<std::mutex> guard(lock);
-        resume = true;
-      }
-      cv.notify_all();
     }
   };
 
@@ -119,14 +97,14 @@ TEST_CASE(
   INFO("A enters Store::commit, passes its view check, then is descheduled");
   CommitPause commit_pause;
   std::optional<ccf::kv::CommitResult> stale_result;
-  std::thread stale_worker([&]() {
+  Worker stale_worker({&commit_pause, &fixture.history->pause}, [&]() {
     stale_result = fixture.store->commit(
       stale_txid,
       std::make_unique<PausingMovePendingTx>(
         std::move(stale_info), commit_pause),
       false);
   });
-  commit_pause.wait_until_paused();
+  REQUIRE(commit_pause.wait_until_paused());
 
   INFO("Lose leadership and win a later election, rolling back to seqno 1");
   fixture.reelect();
@@ -140,14 +118,14 @@ TEST_CASE(
   INFO("Resume A, and observe the history once its append has completed");
   fixture.history->arm();
   commit_pause.release();
-  REQUIRE(fixture.history->wait_until_reached(std::chrono::seconds(5)));
+  REQUIRE(fixture.history->pause.wait_until_paused());
   {
     const auto [observed_txid, observed_root, observed_term] =
       fixture.history->get_replicated_state_txid_and_root();
     CHECK(observed_txid.seqno == 1);
     CHECK(observed_root == baseline_root);
   }
-  fixture.history->release();
+  fixture.history->pause.release();
   stale_worker.join();
 
   INFO("Consensus rejects A, and history, KV and ledger agree");

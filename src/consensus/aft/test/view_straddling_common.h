@@ -10,11 +10,13 @@
 #include "kv/test/null_encryptor.h"
 #include "test_common.h"
 
+#include <chrono>
 #include <condition_variable>
 #include <doctest/doctest.h>
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <vector>
 
 namespace straddling
 {
@@ -43,6 +45,11 @@ namespace straddling
     }
   };
 
+  // Upper bound on how long the test thread waits for a worker to reach a
+  // pause point. Generous, so that it never fires under sanitizers, but far
+  // shorter than the test runner's own timeout.
+  static constexpr std::chrono::seconds pause_timeout{10};
+
   struct CommitPause
   {
     std::mutex lock;
@@ -63,10 +70,15 @@ namespace straddling
       resume_cv.wait(guard, [this]() { return resume; });
     }
 
-    void wait_until_paused()
+    // Returns false if no worker reached pause() in time, for instance because
+    // Store::commit() returned without calling PendingTx::call(). Callers
+    // REQUIRE the result, so that a broken interleaving fails the test rather
+    // than hanging it.
+    [[nodiscard]] bool wait_until_paused(
+      std::chrono::milliseconds timeout = pause_timeout)
     {
       std::unique_lock<std::mutex> guard(lock);
-      paused_cv.wait(guard, [this]() { return paused; });
+      return paused_cv.wait_for(guard, timeout, [this]() { return paused; });
     }
 
     void release()
@@ -76,6 +88,43 @@ namespace straddling
         resume = true;
       }
       resume_cv.notify_one();
+    }
+  };
+
+  // Owns a worker thread which parks on one or more CommitPauses. On
+  // destruction it releases them all and joins, so that a failed REQUIRE on
+  // the test thread neither leaves a blocked worker behind nor terminates on
+  // a joinable std::thread. Successful paths join explicitly.
+  class Worker
+  {
+    std::vector<CommitPause*> pauses;
+    std::thread thread;
+
+  public:
+    template <typename Fn>
+    Worker(std::vector<CommitPause*> pauses_, Fn&& fn) :
+      pauses(std::move(pauses_)),
+      thread(std::forward<Fn>(fn))
+    {}
+
+    Worker(const Worker&) = delete;
+    Worker& operator=(const Worker&) = delete;
+
+    ~Worker()
+    {
+      for (auto* pause : pauses)
+      {
+        pause->release();
+      }
+      join();
+    }
+
+    void join()
+    {
+      if (thread.joinable())
+      {
+        thread.join();
+      }
     }
   };
 

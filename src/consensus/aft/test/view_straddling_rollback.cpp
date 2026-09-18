@@ -66,14 +66,14 @@ TEST_CASE(
   INFO("A enters Store::commit, passes its view check, then is descheduled");
   CommitPause stale_pause;
   std::optional<ccf::kv::CommitResult> stale_result;
-  std::thread stale_worker([&]() {
+  Worker stale_worker({&stale_pause}, [&]() {
     stale_result = fixture.store->commit(
       stale_txid,
       std::make_unique<PausingMovePendingTx>(
         std::move(stale_info), stale_pause),
       false);
   });
-  stale_pause.wait_until_paused();
+  REQUIRE(stale_pause.wait_until_paused());
 
   INFO("Lose leadership and win a later election, rolling back to seqno 1");
   const auto reelection_view = fixture.reelect();
@@ -88,12 +88,12 @@ TEST_CASE(
   current_tx.rw(fixture.table)->put(2, 3);
   CommitPause current_pause;
   std::optional<ccf::kv::CommitResult> current_result;
-  std::thread current_worker([&]() {
+  Worker current_worker({&current_pause}, [&]() {
     current_result = current_tx.commit(
       ccf::empty_claims(),
       [&current_pause](const auto&, const auto&) { current_pause.pause(); });
   });
-  current_pause.wait_until_paused();
+  REQUIRE(current_pause.wait_until_paused());
   REQUIRE(current_tx.get_txid() == ccf::TxID(reelection_view, 2));
   REQUIRE(fixture.store->current_txid() == ccf::TxID(reelection_view, 2));
   REQUIRE(read_value(*fixture.store, fixture.table, 2) == 3);
