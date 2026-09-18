@@ -268,9 +268,10 @@ TEST_CASE("Lazy intrinsic constructors preserve standard behavior")
     JS_ReadObject(read_date_ctx, serialized, serialized_size, 0));
   js_free(native_date_ctx, serialized);
   REQUIRE_FALSE(read_date.is_exception());
-  date_constructor = read_date_ctx.get_global_property("Date");
+  auto read_date_constructor = read_date_ctx.get_global_property("Date");
   CHECK(
-    JS_IsInstanceOf(read_date_ctx, read_date.val, date_constructor.val) == 1);
+    JS_IsInstanceOf(
+      read_date_ctx, read_date.val, read_date_constructor.val) == 1);
   auto json = read_date_ctx.json_stringify(read_date);
   CHECK(read_date_ctx.to_str(json) == R"("1970-01-01T00:00:00.042Z")");
 }
