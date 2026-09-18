@@ -11,6 +11,7 @@
 #include "ds/work_beacon.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
+#include "indexing/indexer.h"
 #include "js/interpreter_cache.h"
 #include "kv/ledger_chunker.h"
 #include "node/commit_callback_subsystem.h"
@@ -180,7 +181,6 @@ namespace ccf
         consensus_config,
         rpc_map,
         rpcsessions,
-        indexer,
         commit_callbacks,
         signature_cache,
         sig_tx_interval,
@@ -385,6 +385,13 @@ namespace ccf
               last_tick_time += elapsed_ms;
 
               node->tick(elapsed_ms);
+              // Indexing strategies follow the commit point, which is only
+              // meaningful once the node is part of the network
+              const auto committed = node->get_committed_txid();
+              if (committed.has_value())
+              {
+                indexer->update_strategies(elapsed_ms, committed.value());
+              }
               historical_state_cache->tick(elapsed_ms);
               ccf::tasks::tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
