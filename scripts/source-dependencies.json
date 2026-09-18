@@ -35,6 +35,7 @@
     "http": ["ccf-api", "crypto", "ds"],
     "http_client": ["ccf-api", "ds", "uv"],
     "snapshots": ["ccf-api", "ds", "http", "http_client"],
+    "indexing": ["ccf-api", "crypto", "ds", "kv", "node", "tasks"],
     "ledger": [],
     "tls": ["ccf-api", "crypto", "ds", "tasks", "tcp"],
     "host": [
