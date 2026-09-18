@@ -353,6 +353,40 @@ def test_custom_endpoints_kv_restrictions(network, args):
         r = c.post("/app/try_write", {"table": "public:programmability.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
+        LOG.info("The JS registry's entire table namespace is read-only")
+        for suffix in [
+            "modules",
+            "modules_quickjs_bytecode",
+            "modules_quickjs_version",
+            "metadata",
+            "interpreter_flush",
+            "runtime_options",
+            "recent_actions",
+            "audit.input",
+            "audit.info",
+            "my_table",
+            "nested.table",
+            "",
+        ]:
+            table = f"public:custom_endpoints.{suffix}"
+            r = c.post("/app/try_read", {"table": table})
+            assert r.status_code == http.HTTPStatus.OK.value, (table, r.status_code)
+            r = c.post("/app/try_write", {"table": table})
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, (
+                table,
+                r.status_code,
+            )
+            assert "managed by the endpoint registry" in r.body.text(), r.body.text()
+
+        LOG.info("Tables outside the registry's namespace remain writable")
+        for table in [
+            "public:custom_endpoints",
+            "public:custom_endpoints_other.my_table",
+            "custom_endpoints.my_table",
+        ]:
+            r = c.post("/app/try_write", {"table": table})
+            assert r.status_code == http.HTTPStatus.OK.value, (table, r.status_code)
+
         LOG.info("Cannot grant access to gov/internal tables")
         r = c.post("/app/try_read", {"table": "public:ccf.gov.foo"})
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
@@ -731,6 +765,71 @@ def deploy_npm_app_custom(network, args):
     return network
 
 
+def run_governance_registry(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+        module_name = "restrictions.js"
+        with open(
+            os.path.join(os.path.dirname(__file__), "programmability", module_name)
+        ) as module_file:
+            module = module_file.read()
+        bundle = {
+            "metadata": {
+                "endpoints": {
+                    f"/{operation}": {
+                        "post": endpoint_properties(
+                            module_name, operation, mode="readwrite"
+                        )
+                    }
+                    for operation in ("try_read", "try_write")
+                }
+            },
+            "modules": [{"name": module_name, "module": module}],
+        }
+        network.consortium.set_js_app_from_bundle(primary, bundle)
+
+        with primary.client() as c:
+            LOG.info("The governance registry does not reserve application namespaces")
+            for table in (
+                "public:custom_endpoints.modules",
+                "public:custom_endpoints.my_table",
+                "public:custom_endpoints.nested.table",
+                "public:custom_endpoints.",
+                "custom_endpoints.my_table",
+            ):
+                for operation in ("try_read", "try_write"):
+                    r = c.post(f"/app/{operation}", {"table": table})
+                    assert r.status_code == http.HTTPStatus.OK, (
+                        table,
+                        operation,
+                        r.status_code,
+                        r.body.text(),
+                    )
+
+            LOG.info("The governance registry's reassigned tables remain read-only")
+            for table in (
+                "public:ccf.gov.modules",
+                "public:ccf.gov.endpoints",
+                "public:ccf.gov.interpreter.flush",
+                "public:ccf.gov.modules_quickjs_version",
+                "public:ccf.gov.modules_quickjs_bytecode",
+                "public:ccf.gov.js_runtime_options",
+            ):
+                r = c.post("/app/try_read", {"table": table})
+                assert r.status_code == http.HTTPStatus.OK, (table, r.body.text())
+                r = c.post("/app/try_write", {"table": table})
+                assert r.status_code == http.HTTPStatus.BAD_REQUEST, (
+                    table,
+                    r.body.text(),
+                )
+
+
 def run(args):
     with infra.network.network(
         args.nodes,
@@ -770,6 +869,16 @@ if __name__ == "__main__":
         js_app_bundle=None,
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=2,
+        initial_member_count=1,
+    )
+
+    cr.add(
+        "governance_registry",
+        run_governance_registry,
+        package="js_generic",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        initial_user_count=0,
         initial_member_count=1,
     )
 
