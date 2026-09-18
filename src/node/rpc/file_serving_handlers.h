@@ -8,6 +8,7 @@
 #include "ccf/http_etag.h"
 #include "ccf/service/tables/nodes.h"
 #include "http/http_digest.h"
+#include "ledger/filenames.h"
 #include "node/rpc/ledger_interface.h"
 #include "snapshots/filenames.h"
 
@@ -867,7 +868,7 @@ namespace ccf::node
             "ledger_{}-{}{}",
             prefix_range->start_idx,
             prefix_range->end_idx,
-            asynchost::ledger_committed_prefix_suffix);
+            ccf::ledger::ledger_committed_prefix_suffix);
           const auto redirect_url = fmt::format(
             "https://{}/node/ledger_chunk/committed_prefix/{}",
             address.value(),
@@ -1233,7 +1234,7 @@ namespace ccf::node
         }
 
         const auto range =
-          asynchost::get_ledger_committed_prefix_range_from_file_name(
+          ccf::ledger::get_ledger_committed_prefix_range_from_file_name(
             chunk_name);
         if (!range.has_value())
         {
@@ -1246,7 +1247,7 @@ namespace ccf::node
         }
 
         auto read_ledger_subsystem =
-          node_context.get_subsystem<ccf::ReadLedgerSubsystem>();
+          node_context.get_subsystem<ccf::AbstractReadLedgerSubsystemInterface>();
         if (read_ledger_subsystem == nullptr)
         {
           ctx.rpc_ctx->set_error(

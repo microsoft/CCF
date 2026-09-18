@@ -28,7 +28,7 @@ namespace asynchost
       return ledger.committed_ledger_path_with_idx(idx);
     }
 
-    [[nodiscard]] std::optional<CommittedLedgerPrefixRange>
+    [[nodiscard]] std::optional<ccf::CommittedLedgerPrefixRange>
     committed_ledger_prefix_range_with_idx(size_t idx) override
     {
       const auto range = ledger.committed_ledger_prefix_range_with_idx(idx);
@@ -37,7 +37,7 @@ namespace asynchost
         return std::nullopt;
       }
 
-      return CommittedLedgerPrefixRange{
+      return ccf::CommittedLedgerPrefixRange{
         .start_idx = range->first, .end_idx = range->second};
     }
 

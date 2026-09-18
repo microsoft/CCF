@@ -540,7 +540,7 @@ namespace asynchost
     std::optional<std::vector<uint8_t>> read_entries_as_completed_chunk(
       size_t from, size_t to)
     {
-      std::unique_lock<ccf::pal::Mutex> guard(file_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(file_lock);
 
       const auto [raw_entries_size, end_idx] = entries_size(from, to);
       if (raw_entries_size == 0 || end_idx != to)
@@ -584,7 +584,7 @@ namespace asynchost
       }
 
       {
-        TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
           "Reading committed ledger prefix {} to {} ({} bytes) - fread({})",
           from,
           to,
@@ -1830,7 +1830,7 @@ namespace asynchost
     [[nodiscard]] std::optional<std::pair<size_t, size_t>>
     committed_ledger_prefix_range_with_idx(size_t idx)
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       if (idx == 0 || idx <= end_of_committed_files_idx || idx > committed_idx)
       {
@@ -1852,7 +1852,7 @@ namespace asynchost
     [[nodiscard]] std::optional<std::vector<uint8_t>>
     read_committed_ledger_prefix(size_t from, size_t to)
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state_lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       if (from == 0 || to < from || to > committed_idx)
       {
