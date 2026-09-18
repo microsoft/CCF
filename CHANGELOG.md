@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- ML-DSA-44/65/87 key-pair and public-key APIs for key generation, PKCS#8/SPKI PEM and DER import/export, and pure ML-DSA signing and verification with optional context strings. These APIs are compiled only with OpenSSL 3.5 or newer (#8378).
 - Pending node entries are now automatically removed when they stop retrying joins for the configurable `pending_node_timeout` delay (1 hour by default). Set it to `0s` to disable automatic removal (#8173).
 
 ### Changed
