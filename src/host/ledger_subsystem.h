@@ -126,6 +126,20 @@ namespace asynchost
       shutdown();
     }
 
+    // Runs fn after every mutation submitted before this call, and before any
+    // submitted after it. Returns false, without running fn, once shutdown has
+    // begun.
+    //
+    // Temporary: node-to-node messages still travel over the ringbuffer, on a
+    // different queue from ledger mutations, but AppendEntries attachment on
+    // the host must observe the appends the enclave emitted ahead of it. Remove
+    // when node-to-node transport leaves the ringbuffer.
+    template <typename F>
+    bool run_in_mutation_order(std::string name, F&& fn)
+    {
+      return submit_ordered(std::move(name), std::forward<F>(fn));
+    }
+
     bool init(
       ::consensus::Index idx, ::consensus::Index recovery_start_idx) override
     {
