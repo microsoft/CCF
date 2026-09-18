@@ -5,13 +5,10 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/locking.h"
 #include "ccf/ds/nonstd.h"
-#include "consensus/ledger_enclave_types.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "ds/messaging.h"
 #include "ds/serialized.h"
 #include "ds/time_bound_logger.h"
-#include "ds/worker_shutdown_gate.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "ledger/filenames.h"
@@ -25,7 +22,6 @@
 #include <string>
 #include <sys/types.h>
 #include <tuple>
-#include <uv.h>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -77,6 +73,7 @@ namespace asynchost
   {
     std::vector<uint8_t> data;
     size_t end_idx{};
+    bool limit_exceeded = false;
   };
 
   class LedgerFile
@@ -510,7 +507,7 @@ namespace asynchost
       auto [size, to_] = entries_size(from, to, max_size);
       if (size == 0)
       {
-        return std::nullopt;
+        return LedgerReadResult{{}, from, true};
       }
       std::vector<uint8_t> entries(size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
@@ -806,8 +803,6 @@ namespace asynchost
   class Ledger
   {
   private:
-    ringbuffer::WriterPtr to_enclave;
-
     // Main ledger directory (write and read)
     const fs::path ledger_dir;
 
@@ -843,9 +838,6 @@ namespace asynchost
     // Set during recovery to mark files as temporary until the recovery is
     // complete
     std::optional<size_t> recovery_start_idx = std::nullopt;
-
-    std::shared_ptr<ccf::ds::WorkerShutdownGate> shutdown_gate =
-      std::make_shared<ccf::ds::WorkerShutdownGate>();
 
     [[nodiscard]] auto get_it_contains_idx(size_t idx) const
     {
@@ -989,14 +981,13 @@ namespace asynchost
       return last_file;
     }
 
-    std::optional<LedgerReadResult> read_entries_range(
+    std::optional<LedgerReadResult> read_entries_range_unsafe(
       size_t from,
       size_t to,
       bool read_cache_only = false,
-      std::optional<size_t> max_entries_size = std::nullopt)
+      std::optional<size_t> max_entries_size = std::nullopt,
+      bool clamp_to_last_idx = true)
     {
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
-
       // Note: if max_entries_size is set, this returns contiguous ledger
       // entries on a best effort basis, so that the returned entries fit in
       // max_entries_size but without maximising the number of entries returned.
@@ -1008,7 +999,7 @@ namespace asynchost
       // During recovery or other low-knowledge batch operations, we might
       // request entries past the end of the ledger - truncate to the true end
       // here.
-      if (to > last_idx)
+      if (clamp_to_last_idx && to > last_idx)
       {
         to = last_idx;
       }
@@ -1025,6 +1016,7 @@ namespace asynchost
           LOG_FAIL_FMT("Cannot find ledger file for seqno {}", idx);
           return std::nullopt;
         }
+
         auto to_ = std::min(f_from->get_last_idx(), to);
         std::optional<size_t> max_size = std::nullopt;
         if (max_entries_size.has_value())
@@ -1034,6 +1026,11 @@ namespace asynchost
         auto v = f_from->read_entries(idx, to_, max_size);
         if (!v.has_value())
         {
+          break;
+        }
+        if (v->limit_exceeded)
+        {
+          rr.limit_exceeded = rr.data.empty();
           break;
         }
         rr.end_idx = v->end_idx;
@@ -1052,12 +1049,23 @@ namespace asynchost
         idx = to_ + 1;
       }
 
-      if (!rr.data.empty())
+      if (!rr.data.empty() || rr.limit_exceeded)
       {
         return rr;
       }
 
       return std::nullopt;
+    }
+
+    std::optional<LedgerReadResult> read_entries_range(
+      size_t from,
+      size_t to,
+      bool read_cache_only = false,
+      std::optional<size_t> max_entries_size = std::nullopt)
+    {
+      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      return read_entries_range_unsafe(
+        from, to, read_cache_only, max_entries_size);
     }
 
     void ignore_ledger_file(const std::string& file_name)
@@ -1130,10 +1138,8 @@ namespace asynchost
   public:
     Ledger(
       const fs::path& ledger_dir,
-      ringbuffer::AbstractWriterFactory& writer_factory,
       size_t max_read_cache_files = ledger_max_read_cache_files_default,
       const std::vector<std::string>& read_ledger_dirs_ = {}) :
-      to_enclave(writer_factory.create_writer_to_inside()),
       ledger_dir(ledger_dir),
       read_ledger_dirs(read_ledger_dirs_.begin(), read_ledger_dirs_.end()),
       max_read_cache_files(max_read_cache_files)
@@ -1324,11 +1330,7 @@ namespace asynchost
 
     Ledger(const Ledger& that) = delete;
 
-    ~Ledger()
-    {
-      // Reject queued workers and wait for workers already using this Ledger.
-      shutdown_gate->shutdown_and_wait();
-    }
+    ~Ledger() = default;
 
     void init(size_t idx, size_t recovery_start_idx_ = 0)
     {
@@ -1394,6 +1396,9 @@ namespace asynchost
       last_idx_on_init = last_idx;
       last_idx = idx;
       committed_idx = idx;
+      // Files renamed above are no longer immutable, so they must not be
+      // classified as committed for concurrent readers.
+      end_of_committed_files_idx = std::min(end_of_committed_files_idx, idx);
       if (recovery_start_idx_ > 0)
       {
         // Do not set recovery idx and create recovery chunks
@@ -1473,7 +1478,37 @@ namespace asynchost
 
       // Locking is done in read_entries_range
 
+      auto result = read_entries_range(from, to, false, max_entries_size);
+      if (result.has_value() && result->limit_exceeded)
+      {
+        return std::nullopt;
+      }
+      return result;
+    }
+
+    std::optional<LedgerReadResult> read_entries_with_limit_status(
+      size_t from, size_t to, size_t max_entries_size)
+    {
+      ccf::ds::TimeBoundLogger log_if_slow(
+        fmt::format("Reading ledger entries from {} to {}", from, to));
+
       return read_entries_range(from, to, false, max_entries_size);
+    }
+
+    std::optional<LedgerReadResult> read_committed_entries(
+      size_t from,
+      size_t to,
+      std::optional<size_t> max_entries_size = std::nullopt)
+    {
+      ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
+        "Reading committed ledger entries from {} to {}", from, to));
+
+      return read_entries_range_unsafe(
+        from,
+        to,
+        true /* read cache only */,
+        max_entries_size,
+        false /* do not access mutable last_idx */);
     }
 
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
@@ -1744,206 +1779,6 @@ namespace asynchost
       std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
       return init_idx;
-    }
-
-    struct AsyncLedgerGet
-    {
-      // Filled on construction
-      Ledger* ledger{};
-      size_t from_idx{};
-      size_t to_idx{};
-      size_t max_size{};
-
-      std::shared_ptr<ccf::ds::WorkerShutdownGate> gate;
-
-      // First argument is ledger entries (or nullopt if not found)
-      // Second argument is uv status code, which may indicate a cancellation
-      using ResultCallback =
-        std::function<void(std::optional<LedgerReadResult>&&, int)>;
-      ResultCallback result_cb;
-
-      // Final result
-      std::optional<LedgerReadResult> read_result = std::nullopt;
-    };
-
-    static void on_ledger_get_async(uv_work_t* req)
-    {
-      auto* data = static_cast<AsyncLedgerGet*>(req->data);
-
-      auto gate = data->gate;
-      if (!gate->try_register())
-      {
-        LOG_DEBUG_FMT(
-          "Skipping async ledger read {} to {} because Ledger is shutting "
-          "down",
-          data->from_idx,
-          data->to_idx);
-        return;
-      }
-
-      ccf::ds::WorkerShutdownGate::UnregisterGuard guard{gate};
-
-      data->read_result = data->ledger->read_entries_range(
-        data->from_idx, data->to_idx, true, data->max_size);
-    }
-
-    static void on_ledger_get_async_complete(uv_work_t* req, int status)
-    {
-      auto* data = static_cast<AsyncLedgerGet*>(req->data);
-
-      data->result_cb(std::move(data->read_result), status);
-
-      delete data; // NOLINT(cppcoreguidelines-owning-memory)
-      delete req; // NOLINT(cppcoreguidelines-owning-memory)
-    }
-
-    static void write_ledger_get_range_response(
-      const ringbuffer::WriterPtr& to_enclave_,
-      size_t from_idx,
-      size_t to_idx,
-      std::optional<LedgerReadResult>&& read_result,
-      ::consensus::LedgerRequestPurpose purpose)
-    {
-      if (read_result.has_value())
-      {
-        RINGBUFFER_WRITE_MESSAGE(
-          ::consensus::ledger_entry_range,
-          to_enclave_,
-          from_idx,
-          read_result->end_idx,
-          purpose,
-          read_result->data);
-      }
-      else
-      {
-        RINGBUFFER_WRITE_MESSAGE(
-          ::consensus::ledger_no_entry_range,
-          to_enclave_,
-          from_idx,
-          to_idx,
-          purpose);
-      }
-    }
-
-    void write_ledger_get_range_response(
-      size_t from_idx,
-      size_t to_idx,
-      std::optional<LedgerReadResult>&& read_result,
-      ::consensus::LedgerRequestPurpose purpose)
-    {
-      write_ledger_get_range_response(
-        to_enclave, from_idx, to_idx, std::move(read_result), purpose);
-    }
-
-    void register_message_handlers(
-      messaging::Dispatcher<ringbuffer::Message>& disp)
-    {
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        disp,
-        ::consensus::ledger_init,
-        [this](const uint8_t* data, size_t size) {
-          auto idx = serialized::read<::consensus::Index>(data, size);
-          auto recovery_start_index =
-            serialized::read<::consensus::Index>(data, size);
-          init(idx, recovery_start_index);
-        });
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        disp,
-        ::consensus::ledger_append,
-        [this](const uint8_t* data, size_t size) {
-          auto committable = serialized::read<bool>(data, size);
-          write_entry(data, size, committable);
-        });
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        disp,
-        ::consensus::ledger_truncate,
-        [this](const uint8_t* data, size_t size) {
-          auto idx = serialized::read<::consensus::Index>(data, size);
-          auto recovery_mode = serialized::read<bool>(data, size);
-          truncate(idx, recovery_mode);
-          if (recovery_mode)
-          {
-            set_recovery_start_idx(idx);
-          }
-        });
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        disp,
-        ::consensus::ledger_commit,
-        [this](const uint8_t* data, size_t size) {
-          auto idx = serialized::read<::consensus::Index>(data, size);
-          commit(idx);
-        });
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ::consensus::ledger_open, [this](const uint8_t*, size_t) {
-          complete_recovery();
-        });
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        disp,
-        ::consensus::ledger_get_range,
-        [this](const uint8_t* data, size_t size) {
-          auto [from_idx, to_idx, purpose] =
-            ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
-
-          // Ledger entries response has metadata so cap total entries size
-          // accordingly
-          auto max_entries_size = to_enclave->get_max_message_size() -
-            ::consensus::ledger_range_response_metadata_size;
-
-          if (is_in_committed_file(to_idx))
-          {
-            // Start an asynchronous job to do this, since it is committed and
-            // can be accessed independently (and in parallel)
-            // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-            auto* work_handle = new uv_work_t;
-
-            {
-              // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-              auto* job = new AsyncLedgerGet;
-              job->ledger = this;
-              job->from_idx = from_idx;
-              job->to_idx = to_idx;
-              job->max_size = max_entries_size;
-              job->gate = shutdown_gate;
-              job->result_cb = [to_enclave_ = to_enclave,
-                                from_idx_ = from_idx,
-                                to_idx_ = to_idx,
-                                purpose_ =
-                                  purpose](auto&& read_result, int /*status*/) {
-                // NB: Even if status is cancelled (and entry is empty), we
-                // want to write this result back to the enclave
-                Ledger::write_ledger_get_range_response(
-                  to_enclave_,
-                  from_idx_,
-                  to_idx_,
-                  std::forward<decltype(read_result)>(read_result),
-                  purpose_);
-              };
-
-              work_handle->data = job;
-            }
-
-            uv_queue_work(
-              uv_default_loop(),
-              work_handle,
-              &on_ledger_get_async,
-              &on_ledger_get_async_complete);
-          }
-          else
-          {
-            // Read synchronously, since this accesses uncommitted state and
-            // must accurately reflect changing files
-            write_ledger_get_range_response(
-              from_idx,
-              to_idx,
-              read_entries(from_idx, to_idx, max_entries_size),
-              purpose);
-          }
-        });
     }
   };
 }

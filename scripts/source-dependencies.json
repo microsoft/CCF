@@ -51,6 +51,7 @@
       "pal",
       "service",
       "snapshots",
+      "tasks",
       "uv"
     ],
     "enclave": [
