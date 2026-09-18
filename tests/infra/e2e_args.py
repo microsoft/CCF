@@ -433,7 +433,7 @@ def cli_args(
         "--worker-threads",
         help="number of worker threads inside the enclave",
         type=int,
-        default=0,
+        default=1,
     )
     parser.add_argument(
         "--pdb", help="Break to debugger on exception", action="store_true"

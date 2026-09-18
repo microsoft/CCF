@@ -729,8 +729,8 @@
     },
     "worker_threads": {
       "type": "integer",
-      "default": 0,
-      "description": "Number of additional threads processing incoming client requests",
+      "default": 1,
+      "description": "Number of additional threads processing incoming client requests. A value of 0 is accepted and treated as 1, since at least one worker thread is required",
       "minimum": 0
     },
     "memory": {
