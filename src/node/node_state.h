@@ -47,6 +47,7 @@
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
 #include "node/rpc/abstract_rpc_sessions.h"
+#include "node/runtime_control.h"
 #include "node/signature_cache_subsystem.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
@@ -430,6 +431,7 @@ namespace ccf
       nullptr;
 
     std::atomic<bool> stop_noticed = false;
+    ccf::AbstractRuntimeControl& runtime_control;
 
     //
     // kv store, replication, and I/O
@@ -792,12 +794,14 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
       std::shared_ptr<AbstractRPCSessions> rpcsessions,
-      ccf::crypto::CurveID curve_id_) :
+      ccf::crypto::CurveID curve_id_,
+      ccf::AbstractRuntimeControl& runtime_control_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(curve_id_)),
       self(compute_node_id_from_kp(node_sign_kp)),
       node_encrypt_kp(ccf::crypto::make_rsa_key_pair()),
+      runtime_control(runtime_control_),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -1463,8 +1467,7 @@ namespace ccf
                     target_address,
                     max_join_response_size);
                   LOG_FAIL_FMT("{}", error_msg);
-                  RINGBUFFER_WRITE_MESSAGE(
-                    AdminMessage::fatal_error_msg, to_host, error_msg);
+                  runtime_control.report_fatal_error(error_msg);
                   return;
                 }
 
@@ -1489,8 +1492,7 @@ namespace ccf
                   curl_easy_strerror(curl_response),
                   static_cast<int>(curl_response));
                 LOG_FAIL_FMT("{}", error_msg);
-                RINGBUFFER_WRITE_MESSAGE(
-                  AdminMessage::fatal_error_msg, to_host, error_msg);
+                runtime_control.report_fatal_error(error_msg);
                 return;
               }
 
@@ -1567,8 +1569,7 @@ namespace ccf
                   status,
                   std::string(data.begin(), data.end()));
                 LOG_FAIL_FMT("{}", error_msg);
-                RINGBUFFER_WRITE_MESSAGE(
-                  AdminMessage::fatal_error_msg, to_host, error_msg);
+                runtime_control.report_fatal_error(error_msg);
                 return;
               }
 
@@ -1716,8 +1717,7 @@ namespace ccf
                       "node gracefully...",
                       e.what());
                     LOG_FAIL_FMT("{}", error_msg);
-                    RINGBUFFER_WRITE_MESSAGE(
-                      AdminMessage::fatal_error_msg, to_host, error_msg);
+                    runtime_control.report_fatal_error(error_msg);
                     return;
                   }
                 }
@@ -2726,6 +2726,11 @@ namespace ccf
     {
       consensus->nominate_successor();
       stop_noticed = true;
+    }
+
+    void request_restart()
+    {
+      runtime_control.request_restart();
     }
 
     bool has_received_stop_notice() override
