@@ -477,7 +477,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.8";
+      openapi_info.document_version = "5.0.9";
     }
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)

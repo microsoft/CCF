@@ -28,6 +28,25 @@ namespace asynchost
       return ledger.committed_ledger_path_with_idx(idx);
     }
 
+    [[nodiscard]] std::optional<ccf::CommittedLedgerPrefixRange>
+    committed_ledger_prefix_range_with_idx(size_t idx) override
+    {
+      const auto range = ledger.committed_ledger_prefix_range_with_idx(idx);
+      if (!range.has_value())
+      {
+        return std::nullopt;
+      }
+
+      return ccf::CommittedLedgerPrefixRange{
+        .start_idx = range->first, .end_idx = range->second};
+    }
+
+    [[nodiscard]] std::optional<std::vector<uint8_t>>
+    read_committed_ledger_prefix(size_t from, size_t to) override
+    {
+      return ledger.read_committed_ledger_prefix(from, to);
+    }
+
     [[nodiscard]] size_t get_init_idx() override
     {
       return ledger.get_init_idx();
