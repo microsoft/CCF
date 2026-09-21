@@ -896,6 +896,12 @@ if(BUILD_TESTS)
       PRIVATE http_parser ccf_kv ccf_endpoints ccf_tasks
     )
     add_unit_test(
+      open_recovered_service_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/open_recovered_service.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/local_sealing.cpp
+    )
+    target_link_libraries(open_recovered_service_test PRIVATE ccf_kv)
+    add_unit_test(
       network_identity_subsystem_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/network_identity_subsystem.cpp
     )
