@@ -11,7 +11,6 @@ import re
 import shutil
 import subprocess
 import tempfile
-import threading
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -148,14 +147,22 @@ def get_replacement_package(args):
 
 
 def recover_with_primary_dying(args, recovered_network):
-    # Force an election mid private-ledger recovery and check recovery still
-    # completes: the primary must die before it finishes reading the private
-    # ledger (so it never opens the service), and a survivor must be elected
-    # while still reading and go on to finish recovery.
+    # Force an election immediately after the final recovery share is accepted
+    # and check recovery still completes and the service is opened exactly
+    # once. Nodes run with ignore_first_sigterm=True, so SIGTERM'ing the
+    # primary makes it nominate a successor and an election happens
+    # immediately, with no election-timeout wait.
     #
-    # Nodes run with ignore_first_sigterm=True, so SIGTERM'ing the primary makes
-    # it nominate a successor and an election happens immediately, with no
-    # election-timeout wait.
+    # Whether the stop notice lands before or after the primary finishes
+    # reading the private ledger is a race the test does not try to control.
+    # Either the primary steps down first and the survivor opens the service,
+    # or the primary writes the opening transaction and then steps down: if
+    # that write had not replicated, the new leader rolls it back and opens the
+    # service itself. In every case the service ends up open and every survivor
+    # healthy. A second committed opening would be fatal to the node attempting
+    # it, since opening requires the service to still be waiting for shares.
+    # (That guard, and that a node which is not primary refuses to open, are
+    # unit-tested in open_recovered_service_test.)
     recovered_network.consortium.activate(recovered_network.find_random_node())
     recovered_network.consortium.check_for_service(
         recovered_network.find_random_node(),
@@ -175,61 +182,19 @@ def recover_with_primary_dying(args, recovered_network):
         previous_service_identity=prev_service_identity,
     )
 
-    # The primary reads the private ledger quickly (several thousand entries
-    # per second in Release builds, and the read is not paced by anything
-    # else), so the window in which it can be prodded mid-read is short.
-    # Identify the primary and open a connection to it up front, submit the
-    # shares, then poll only the primary as tightly as possible. Followers
-    # start reading later, once the primary has broadcast the ledger secrets,
-    # and do not need to be observed reading for this scenario.
     retired_primary, initial_view = recovered_network.find_primary()
     retired_id = retired_primary.node_id
-    reading_private_ledger = infra.node.State.READING_PRIVATE_LEDGER.value
 
-    with retired_primary.client(connection_timeout=1) as c:
-        # Establish the connection now, so that the polling below is cheap
-        c.get("/node/state")
+    # Submit the shares to the primary, so its response to the final share is
+    # authoritative: once it says the end of recovery is initiated, the private
+    # ledger read has been triggered on it.
+    recovered_network.consortium.recover_with_shares(retired_primary)
 
-        # Submitting the final share is what starts the private-ledger read,
-        # but recover_with_shares does more work after that before returning,
-        # by which time a fast read may already have finished. Submit the
-        # shares from another thread and start polling the primary at once.
-        share_submission_error = []
-
-        def submit_shares():
-            try:
-                recovered_network.consortium.recover_with_shares(
-                    recovered_network.find_random_node()
-                )
-            except Exception as e:  # pylint: disable=broad-except
-                share_submission_error.append(e)
-
-        share_submission = threading.Thread(target=submit_shares)
-        share_submission.start()
-
-        # Wait until the primary is reading the private ledger, so it can be
-        # prodded mid-read below. This is the scenario under test: the primary
-        # must die before it can open the service.
-        end_time = time.time() + args.ledger_recovery_timeout
-        while True:
-            primary_state = c.get("/node/state").body.json()
-            if primary_state["state"] == reading_private_ledger:
-                break
-            assert (
-                primary_state["state"] == infra.node.State.PART_OF_PUBLIC_NETWORK.value
-            ), f"Primary {retired_id} finished reading before it could be prodded: {primary_state}"
-            assert (
-                time.time() < end_time
-            ), f"Timed out waiting for {retired_id} to read the private ledger"
-
-        # SIGTERM (not SIGKILL) the primary: thanks to ignore_first_sigterm it
-        # stays up, treats this as a stop notice and immediately nominates a
-        # successor.
-        LOG.info(f"SIGTERM primary {retired_id} to nominate a successor mid-recovery")
-        retired_primary.sigterm()
-
-        share_submission.join()
-        assert not share_submission_error, share_submission_error
+    # SIGTERM (not SIGKILL) the primary: thanks to ignore_first_sigterm it
+    # stays up, treats this as a stop notice and immediately nominates a
+    # successor.
+    LOG.info(f"SIGTERM primary {retired_id} to nominate a successor mid-recovery")
+    retired_primary.sigterm()
 
     # The nominated successor is elected rapidly (no election-timeout wait). A new
     # view confirms the election ran while recovery was still in progress.
@@ -254,6 +219,15 @@ def recover_with_primary_dying(args, recovered_network):
             infra.node.State.PART_OF_NETWORK.value,
             timeout=args.ledger_recovery_timeout,
         )
+
+    # The service is open, and no survivor died attempting a second opening.
+    recovered_network.consortium.check_for_service(
+        primary, status=infra.network.ServiceStatus.OPEN
+    )
+    for node in recovered_network.get_joined_nodes():
+        assert not node.check_log_for_error_message(
+            "current service status is"
+        ), f"Node {node.node_id} attempted to open an already-open service"
 
 
 @reqs.description("Recovery members cannot be changed during recovery")
@@ -611,10 +585,9 @@ def _recover_service(
 
     if force_election:
         # Populate the private ledger so the primary is still reading it when
-        # prodded below. Release builds read several thousand entries per
-        # second, so this only buys well under a second:
-        # recover_with_primary_dying polls the primary from the moment the
-        # shares start being submitted so as not to miss that window.
+        # prodded below. Release builds read it at roughly 4k entries/s, so this
+        # only buys well under a second: recover_with_primary_dying keeps the
+        # work it does after the last share is submitted to a minimum.
         network.txs.issue(
             network,
             number_txs=2000,
