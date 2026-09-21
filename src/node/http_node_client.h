@@ -3,6 +3,7 @@
 #pragma once
 
 #include "node/node_client.h"
+#include "node/rpc/http_rpc_context.h"
 
 #include <chrono>
 

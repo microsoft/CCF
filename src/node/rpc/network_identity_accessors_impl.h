@@ -59,7 +59,7 @@ namespace ccf
       result.endorsement =
         tx.template ro<ccf::PreviousServiceIdentityEndorsement>(
             ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-          ->get();
+          ->get(ccf::IdentityType::CLASSICAL);
 
       return result;
     }
@@ -98,7 +98,7 @@ namespace ccf
         htx
           .template ro<ccf::PreviousServiceIdentityEndorsement>(
             ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-          ->get();
+          ->get(ccf::IdentityType::CLASSICAL);
       if (!endorsement.has_value())
       {
         throw std::runtime_error(std::format(

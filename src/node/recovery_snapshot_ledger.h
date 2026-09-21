@@ -4,9 +4,9 @@
 
 #include "ccf/node/startup_config.h"
 #include "ds/internal_logger.h"
-#include "host/ledger_filenames.h"
 #include "kv/kv_serialiser.h"
 #include "kv/serialised_entry_format.h"
+#include "ledger/filenames.h"
 #include "node/rpc/network_identity_chain_helpers.h"
 #include "service/tables/previous_service_identity.h"
 
@@ -79,9 +79,16 @@ namespace ccf
         {
           continue;
         }
+        // The surrounding code does not yet support multi-identity verification
+        // from the previous service, so only CLASSICAL is verified.
         if (
-          result.endorsement.has_value() ||
-          key != ccf::PreviousServiceIdentityEndorsement::create_unit())
+          key !=
+          ccf::kv::serialisers::BlitSerialiser<
+            ccf::IdentityType>::to_serialised(ccf::IdentityType::CLASSICAL))
+        {
+          continue;
+        }
+        if (result.endorsement.has_value())
         {
           throw std::logic_error(
             "Invalid previous service identity endorsement table write");
@@ -168,12 +175,13 @@ namespace ccf
           const auto name = it->path().filename().string();
           if (
             !name.starts_with("ledger_") ||
-            asynchost::is_ledger_file_ignored(name))
+            ccf::ledger::is_ledger_file_ignored(name))
           {
             continue;
           }
 
-          const auto committed = asynchost::is_ledger_file_name_committed(name);
+          const auto committed =
+            ccf::ledger::is_ledger_file_name_committed(name);
           if (read_only && !committed)
           {
             continue;
@@ -183,8 +191,8 @@ namespace ccf
           {
             files.push_back(
               {it->path(),
-               asynchost::get_start_idx_from_file_name(name),
-               asynchost::get_last_idx_from_file_name(name),
+               ccf::ledger::get_start_idx_from_file_name(name),
+               ccf::ledger::get_last_idx_from_file_name(name),
                committed});
           }
           catch (const std::exception& e)

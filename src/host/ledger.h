@@ -14,7 +14,7 @@
 #include "ds/worker_shutdown_gate.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
-#include "ledger_filenames.h"
+#include "ledger/filenames.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -45,8 +45,9 @@ namespace asynchost
       // (i.e. those with a last idx) are considered here.
       auto f_name = f.path().filename();
       if (
-        is_ledger_file_name_ignored(f_name) ||
-        (!allow_recovery_files && is_ledger_file_name_recovery(f_name)))
+        ccf::ledger::is_ledger_file_name_ignored(f_name) ||
+        (!allow_recovery_files &&
+         ccf::ledger::is_ledger_file_name_recovery(f_name)))
       {
         continue;
       }
@@ -55,8 +56,8 @@ namespace asynchost
       std::optional<size_t> last_idx = std::nullopt;
       try
       {
-        start_idx = get_start_idx_from_file_name(f_name);
-        last_idx = get_last_idx_from_file_name(f_name);
+        start_idx = ccf::ledger::get_start_idx_from_file_name(f_name);
+        last_idx = ccf::ledger::get_last_idx_from_file_name(f_name);
       }
       catch (const std::exception& e)
       {
@@ -136,8 +137,8 @@ namespace asynchost
     {
       if (recovery)
       {
-        file_name =
-          std::format("{}{}", file_name.string(), ledger_recovery_file_suffix);
+        file_name = std::format(
+          "{}{}", file_name.string(), ccf::ledger::ledger_recovery_file_suffix);
       }
 
       auto file_path = dir / file_name;
@@ -181,8 +182,8 @@ namespace asynchost
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
 
-      committed = is_ledger_file_name_committed(file_name);
-      start_idx = get_start_idx_from_file_name(file_name);
+      committed = ccf::ledger::is_ledger_file_name_committed(file_name);
+      start_idx = ccf::ledger::get_start_idx_from_file_name(file_name);
 
       const auto* const mode = committed ? "rb" : "r+b";
 
@@ -753,7 +754,8 @@ namespace asynchost
 
     void open()
     {
-      auto new_file_name = remove_recovery_suffix(file_name.c_str());
+      auto new_file_name =
+        ccf::ledger::remove_recovery_suffix(file_name.c_str());
       rename(new_file_name, true /* close_and_reopen */);
       recovery = false;
       LOG_DEBUG_FMT("Open recovery ledger file {}", new_file_name.string());
@@ -786,12 +788,14 @@ namespace asynchost
         file_name_prefix,
         start_idx,
         get_last_idx(),
-        ledger_committed_suffix);
+        ccf::ledger::ledger_committed_suffix);
 
       if (recovery)
       {
-        committed_file_name =
-          std::format("{}{}", committed_file_name, ledger_recovery_file_suffix);
+        committed_file_name = std::format(
+          "{}{}",
+          committed_file_name,
+          ccf::ledger::ledger_recovery_file_suffix);
       }
 
       if (!rename(committed_file_name))
@@ -1067,13 +1071,13 @@ namespace asynchost
 
     void ignore_ledger_file(const std::string& file_name)
     {
-      if (is_ledger_file_name_ignored(file_name))
+      if (ccf::ledger::is_ledger_file_name_ignored(file_name))
       {
         return;
       }
 
       auto ignored_file_name =
-        std::format("{}{}", file_name, ledger_ignored_file_suffix);
+        std::format("{}{}", file_name, ccf::ledger::ledger_ignored_file_suffix);
       {
         ccf::ds::TimeBoundLogger log_if_slow(std::format(
           "Ignoring ledger file - rename({} to {})",
@@ -1089,7 +1093,7 @@ namespace asynchost
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         auto file_name = f.path().filename();
-        auto start_idx = get_start_idx_from_file_name(file_name);
+        auto start_idx = ccf::ledger::get_start_idx_from_file_name(file_name);
         if (start_idx > idx)
         {
           ccf::ds::TimeBoundLogger log_if_slow(std::format(
@@ -1119,8 +1123,8 @@ namespace asynchost
       {
         auto file_name = f.path().filename();
         if (
-          idx == get_start_idx_from_file_name(file_name) &&
-          !is_ledger_file_ignored(file_name))
+          idx == ccf::ledger::get_start_idx_from_file_name(file_name) &&
+          !ccf::ledger::is_ledger_file_ignored(file_name))
         {
           return std::make_shared<LedgerFile>(
             ledger_dir, file_name, true /* from_existing_file */);
@@ -1156,11 +1160,11 @@ namespace asynchost
         for (auto const& f : fs::directory_iterator(read_dir))
         {
           auto file_name = f.path().filename();
-          auto last_idx_ = get_last_idx_from_file_name(file_name);
+          auto last_idx_ = ccf::ledger::get_last_idx_from_file_name(file_name);
           if (
             !last_idx_.has_value() ||
-            !is_ledger_file_name_committed(file_name) ||
-            is_ledger_file_name_ignored(file_name))
+            !ccf::ledger::is_ledger_file_name_committed(file_name) ||
+            ccf::ledger::is_ledger_file_name_ignored(file_name))
           {
             LOG_DEBUG_FMT(
               "Read-only ledger file {} is ignored as not committed",
@@ -1203,7 +1207,7 @@ namespace asynchost
         {
           auto file_name = f.path().filename();
 
-          if (is_ledger_file_ignored(file_name))
+          if (ccf::ledger::is_ledger_file_ignored(file_name))
           {
             LOG_INFO_FMT(
               "Ignoring ledger file {} in main ledger directory",
@@ -1214,9 +1218,10 @@ namespace asynchost
             continue;
           }
 
-          const auto file_end_idx = get_last_idx_from_file_name(file_name);
+          const auto file_end_idx =
+            ccf::ledger::get_last_idx_from_file_name(file_name);
 
-          if (is_ledger_file_name_committed(file_name))
+          if (ccf::ledger::is_ledger_file_name_committed(file_name))
           {
             if (!file_end_idx.has_value())
             {
@@ -1360,10 +1365,11 @@ namespace asynchost
       {
         auto file_name = f.path().filename();
         if (
-          is_ledger_file_name_committed(file_name) &&
-          (get_start_idx_from_file_name(file_name) > idx))
+          ccf::ledger::is_ledger_file_name_committed(file_name) &&
+          (ccf::ledger::get_start_idx_from_file_name(file_name) > idx))
         {
-          auto last_idx_file = get_last_idx_from_file_name(file_name);
+          auto last_idx_file =
+            ccf::ledger::get_last_idx_from_file_name(file_name);
           if (!last_idx_file.has_value())
           {
             throw std::logic_error(std::format(
@@ -1384,13 +1390,13 @@ namespace asynchost
             files::rename(
               ledger_dir / file_name,
               ledger_dir /
-                remove_suffix(
+                ccf::ledger::remove_suffix(
                   file_name.string(),
                   std::format(
                     "{}{}{}",
-                    ledger_last_idx_delimiter,
+                    ccf::ledger::ledger_last_idx_delimiter,
                     last_idx_file.value(),
-                    ledger_committed_suffix)));
+                    ccf::ledger::ledger_committed_suffix)));
           }
         }
       }

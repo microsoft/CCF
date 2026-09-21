@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# Verifies that the e2e tests in each ctest CI runner bucket (bucket_a,
+# Verifies that the tests in each ctest CI runner bucket (bucket_a,
 # bucket_b, bucket_c) match the frozen snapshot at tests/ci-buckets.txt.
 # Unit tests are excluded (runner A selects them with `ctest -L unit`).
 
@@ -14,14 +14,15 @@ SNAPSHOT="$ROOT_DIR/tests/ci-buckets.txt"
 
 cd "$ROOT_DIR" || exit 1
 
-# Always configure a fresh build dir with default flags. If the defaults
-# change in a way that shifts test inventory, the snapshot diff will catch it.
+# Use defaults plus the opt-in documentation test selected by Virtual A.
+# Changes to the default test inventory must still match the snapshot.
 BUILD_DIR=$(mktemp -d) || { echo "mktemp failed" >&2; exit 1; }
 ACTUAL=$(mktemp) || { echo "mktemp failed" >&2; rm -rf "$BUILD_DIR"; exit 1; }
 trap 'rm -rf "$BUILD_DIR"; rm -f "$ACTUAL"' EXIT
 
 echo "Configuring build dir for bucket check: $BUILD_DIR"
 if ! cmake -GNinja -S "$ROOT_DIR" -B "$BUILD_DIR" \
+       -DDOCS_PYTHON="$(command -v python3)" \
       >"$BUILD_DIR/configure.log" 2>&1; then
   cat "$BUILD_DIR/configure.log" >&2
   echo "cmake configure failed; cannot run test bucket check" >&2

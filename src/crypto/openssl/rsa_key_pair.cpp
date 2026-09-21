@@ -39,6 +39,11 @@ namespace ccf::crypto
     {
       throw std::runtime_error("could not parse PEM");
     }
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+    {
+      throw std::logic_error(
+        "Cannot construct RSAKeyPair_OpenSSL from non-RSA key");
+    }
   }
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const JsonWebKeyRSAPrivate& jwk)

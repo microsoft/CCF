@@ -261,6 +261,32 @@ TEST_CASE("Verifier rejects unsupported public key type")
     make_verifier(cert_pem), "unsupported public key type", std::logic_error);
 }
 
+TEST_CASE("Private PEM imports enforce key family")
+{
+  const auto ec = make_ec_key_pair();
+  const auto rsa = make_rsa_key_pair();
+  const auto ec_pem = ec->private_key_pem();
+  const auto rsa_pem = rsa->private_key_pem();
+  const auto eddsa_pem = make_eddsa_key_pair()->private_key_pem();
+
+  CHECK(make_ec_key_pair(ec_pem)->public_key_der() == ec->public_key_der());
+  CHECK(make_rsa_key_pair(rsa_pem)->public_key_der() == rsa->public_key_der());
+  for (const auto& pem : {rsa_pem, eddsa_pem})
+  {
+    CHECK_THROWS_WITH_AS(
+      make_ec_key_pair(pem),
+      "Cannot construct ECKeyPair_OpenSSL from non-EC key",
+      std::logic_error);
+  }
+  for (const auto& pem : {ec_pem, eddsa_pem})
+  {
+    CHECK_THROWS_WITH_AS(
+      make_rsa_key_pair(pem),
+      "Cannot construct RSAKeyPair_OpenSSL from non-RSA key",
+      std::logic_error);
+  }
+}
+
 TEST_CASE("Sign, verify, with ECKeyPair")
 {
   for (const auto curve : supported_curves)

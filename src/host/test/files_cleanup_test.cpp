@@ -4,6 +4,7 @@
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "host/files_cleanup_timer.h"
+#include "ledger/filenames.h"
 
 #include <format>
 
@@ -15,6 +16,7 @@
 
 namespace fs = std::filesystem;
 using namespace asynchost;
+using namespace ccf::ledger;
 using namespace asynchost::files_cleanup;
 
 // Creates a unique temporary directory using mkdtemp to avoid cross-test
@@ -666,7 +668,7 @@ TEST_CASE("FilesCleanupImpl: constructor accepts all nullopt (no cleanup)")
     "/tmp/snapshots", std::nullopt, "/tmp/ledger", {}, std::nullopt));
 }
 
-// ---- ledger_filenames.h tests ----
+// ---- ledger/filenames.h tests ----
 
 TEST_CASE("get_start_idx_from_file_name: parses start index")
 {

@@ -5,7 +5,7 @@
 #include "ccf/crypto/hash_provider.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ds/time_bound_logger.h"
-#include "ledger_filenames.h"
+#include "ledger/filenames.h"
 #include "snapshots/filenames.h"
 #include "timer.h"
 
@@ -54,14 +54,14 @@ namespace asynchost
 
         auto file_name = entry.path().filename().string();
 
-        if (!is_ledger_file_name_committed(file_name))
+        if (!ccf::ledger::is_ledger_file_name_committed(file_name))
         {
           continue;
         }
 
         try
         {
-          auto start_idx = get_start_idx_from_file_name(file_name);
+          auto start_idx = ccf::ledger::get_start_idx_from_file_name(file_name);
           result.emplace_back(start_idx, entry.path());
         }
         catch (const std::exception& e)
@@ -368,7 +368,8 @@ namespace asynchost
         // onwards for disaster recovery.
         if (snapshot_watermark.has_value())
         {
-          auto end_idx = get_last_idx_from_file_name(path.filename().string());
+          auto end_idx =
+            ccf::ledger::get_last_idx_from_file_name(path.filename().string());
           if (
             end_idx.has_value() &&
             end_idx.value() >= snapshot_watermark.value())

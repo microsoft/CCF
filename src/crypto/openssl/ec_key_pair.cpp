@@ -72,6 +72,11 @@ namespace ccf::crypto
     {
       throw std::runtime_error("could not parse PEM");
     }
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
+    {
+      throw std::logic_error(
+        "Cannot construct ECKeyPair_OpenSSL from non-EC key");
+    }
   }
 
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)

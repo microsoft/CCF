@@ -9,8 +9,8 @@
 #include "ccf/js/extensions/ccf/kv.h"
 #include "ccf/js/extensions/snp_attestation.h"
 #include "ccf/js/registry.h"
+#include "ccf/js/samples/governance_driven_registry.h"
 #include "ccf/service/tables/modules.h"
-#include "enclave/http_rpc_context.h"
 #include "js/extensions/ccf/scoped_cleanse.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache.h"
@@ -18,16 +18,78 @@
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/untyped_map.h"
+#include "node/rpc/http_rpc_context.h"
 #include "node/rpc/test/node_stub.h"
 #include "node/tx_receipt_impl.h"
 
 #include <format>
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include <condition_variable>
 #include <doctest/doctest.h>
+#include <future>
+#include <mutex>
 #include <random>
 
 using namespace ccf::js;
+
+TEST_CASE("JS interpreters are constructed concurrently")
+{
+  using namespace std::chrono_literals;
+
+  const auto run =
+    [](const std::optional<ccf::endpoints::InterpreterReusePolicy>& reuse) {
+      ccf::js::InterpreterCache cache(1);
+      std::mutex lock;
+      std::condition_variable cv;
+      size_t active = 0;
+      size_t max_active = 0;
+      bool release = false;
+
+      cache.set_interpreter_factory([&](TxAccess access) {
+        {
+          std::unique_lock guard(lock);
+          ++active;
+          max_active = std::max(max_active, active);
+          if (active == 2)
+          {
+            release = true;
+            cv.notify_all();
+          }
+          else
+          {
+            cv.wait_for(guard, 30s, [&] { return release; });
+          }
+          --active;
+        }
+        return std::make_shared<ccf::js::core::Context>(access);
+      });
+
+      auto first = std::async(std::launch::async, [&] {
+        return cache.get_interpreter(TxAccess::APP_RW, reuse, 0);
+      });
+      auto second = std::async(std::launch::async, [&] {
+        return cache.get_interpreter(TxAccess::APP_RW, reuse, 0);
+      });
+
+      const auto first_interpreter = first.get();
+      const auto second_interpreter = second.get();
+      REQUIRE(max_active == 2);
+      if (reuse.has_value())
+      {
+        REQUIRE(first_interpreter == second_interpreter);
+      }
+      else
+      {
+        REQUIRE(first_interpreter != second_interpreter);
+      }
+    };
+
+  run(std::optional<ccf::endpoints::InterpreterReusePolicy>{});
+  run(ccf::endpoints::InterpreterReusePolicy{
+    .kind = ccf::endpoints::InterpreterReusePolicy::Kind::KeyBased,
+    .key = "test"});
+}
 
 TEST_CASE("Runtime limits cover top-level module evaluation")
 {
@@ -532,6 +594,254 @@ bool table_contains(ccf::kv::Tx& tx, const std::string& table_name)
 {
   auto* handle = tx.ro<KVMap>(table_name);
   return handle->has({'k'});
+}
+
+TEST_CASE("Interpreter cache without a clearing override")
+{
+  class LegacyInterpreterCache : public AbstractInterpreterCache
+  {
+    InterpreterCache cache{1};
+
+  public:
+    std::shared_ptr<core::Context> get_interpreter(
+      TxAccess access,
+      const std::optional<ccf::endpoints::InterpreterReusePolicy>& reuse,
+      size_t freshness_marker) override
+    {
+      return cache.get_interpreter(access, reuse, freshness_marker);
+    }
+
+    void set_max_cached_interpreters(size_t max) override
+    {
+      cache.set_max_cached_interpreters(max);
+    }
+
+    void set_interpreter_factory(const InterpreterFactory& factory) override
+    {
+      cache.set_interpreter_factory(factory);
+    }
+  };
+
+  LegacyInterpreterCache cache;
+  CHECK_THROWS_WITH_AS(
+    cache.clear_cached_interpreters(),
+    "Interpreter cache does not support clearing",
+    std::logic_error);
+}
+
+TEST_CASE("JS registry namespace restrictions")
+{
+  class ReassignedRegistry : public DynamicJSEndpointRegistry
+  {
+  public:
+    ReassignedRegistry(ccf::AbstractNodeContext& context) :
+      DynamicJSEndpointRegistry(context)
+    {
+      modules_map = "public:relocated.modules";
+      metadata_map = "public:relocated.metadata";
+      interpreter_flush_map = "public:relocated.interpreter_flush";
+      modules_quickjs_version_map = "public:relocated.modules_quickjs_version";
+      modules_quickjs_bytecode_map =
+        "public:relocated.modules_quickjs_bytecode";
+      runtime_options_map = "public:relocated.runtime_options";
+      recent_actions_map = "public:relocated.recent_actions";
+      audit_input_map = "public:relocated.audit.input";
+      audit_info_map = "public:relocated.audit.info";
+    }
+  };
+
+  ccf::AbstractNodeContext context;
+  context.install_subsystem(std::make_shared<ccf::StubNodeStateCache>());
+  context.install_subsystem(std::make_shared<InterpreterCache>(1));
+
+  std::unique_ptr<BaseDynamicJSEndpointRegistry> registry =
+    std::make_unique<DynamicJSEndpointRegistry>(context);
+  const NamespaceRestriction app_restriction =
+    [](const std::string& name, std::string& explanation) {
+      if (
+        name == "public:app_restricted" ||
+        name == "public:custom_endpoints.app_restricted")
+      {
+        explanation = "Restricted by the application";
+        return KVAccessPermissions::ILLEGAL;
+      }
+      return KVAccessPermissions::READ_WRITE;
+    };
+
+  bool protect_registry_tables = true;
+  bool uses_default_namespace = true;
+  bool restrict_app_table = false;
+  bool reenable_after_execution = false;
+  std::set<std::string> additional_managed_tables;
+  auto mode = ccf::endpoints::Mode::ReadWrite;
+  SUBCASE("Registry protection applies without calling the setter") {}
+  SUBCASE("Governance registry protects its reassigned tables only")
+  {
+    registry = std::make_unique<GovernanceDrivenJSRegistry>(context);
+    uses_default_namespace = false;
+    additional_managed_tables = {
+      ccf::Tables::MODULES,
+      ccf::endpoints::Tables::ENDPOINTS,
+      ccf::Tables::INTERPRETER_FLUSH,
+      ccf::Tables::MODULES_QUICKJS_VERSION,
+      ccf::Tables::MODULES_QUICKJS_BYTECODE,
+      ccf::Tables::JSENGINE};
+  }
+  SUBCASE("Reassigned tables outside the registry namespace")
+  {
+    registry = std::make_unique<ReassignedRegistry>(context);
+    additional_managed_tables = {
+      "public:relocated.modules",
+      "public:relocated.metadata",
+      "public:relocated.interpreter_flush",
+      "public:relocated.modules_quickjs_version",
+      "public:relocated.modules_quickjs_bytecode",
+      "public:relocated.runtime_options",
+      "public:relocated.recent_actions",
+      "public:relocated.audit.input",
+      "public:relocated.audit.info"};
+    SUBCASE("Reassigned tables are protected by default") {}
+    SUBCASE("Reassigned table protection can be disabled")
+    {
+      registry->set_js_kv_namespace_restriction({}, false);
+      protect_registry_tables = false;
+    }
+  }
+  SUBCASE("Setter protects registry tables by default")
+  {
+    registry->set_js_kv_namespace_restriction(app_restriction);
+    restrict_app_table = true;
+  }
+  SUBCASE("Empty callback preserves default registry protection")
+  {
+    registry->set_js_kv_namespace_restriction({});
+  }
+  SUBCASE("Opt-out preserves the app restriction")
+  {
+    registry->set_js_kv_namespace_restriction(app_restriction, false);
+    protect_registry_tables = false;
+    restrict_app_table = true;
+  }
+  SUBCASE("Empty callback and opt-out disable all namespace restrictions")
+  {
+    registry->set_js_kv_namespace_restriction({}, false);
+    protect_registry_tables = false;
+  }
+  SUBCASE("Full opt-out preserves read-only execution")
+  {
+    registry->set_js_kv_namespace_restriction({}, false);
+    protect_registry_tables = false;
+    mode = ccf::endpoints::Mode::ReadOnly;
+  }
+  SUBCASE("One-argument setter re-enables registry protection")
+  {
+    registry->set_js_kv_namespace_restriction({}, false);
+    protect_registry_tables = false;
+    reenable_after_execution = true;
+  }
+
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  Bundle bundle;
+  auto& properties = bundle.metadata.endpoints["/write"]["POST"];
+  properties.js_module = "/write.js";
+  properties.js_function = "write";
+  properties.mode = mode;
+  properties.interpreter_reuse =
+    ccf::endpoints::InterpreterReusePolicy{.key = "namespace-restrictions"};
+  bundle.modules.push_back({"/write.js", R"JS(
+const handles = new Map();
+export function write(request) {
+  try {
+    const table = request.body.text();
+    if (!handles.has(table)) {
+      handles.set(table, ccf.kv[table]);
+    }
+    handles.get(table).set(
+      new Uint8Array([107]).buffer, new Uint8Array([118]).buffer);
+  } catch (e) {
+    return {statusCode: 400, body: e.message};
+  }
+  return {statusCode: 200};
+}
+)JS"});
+  {
+    auto tx = store.create_tx();
+    REQUIRE(
+      registry->install_custom_endpoints_v1(tx, bundle) == ccf::ApiResult::OK);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  auto check_write = [&](const std::string& table, bool permitted) {
+    INFO(table);
+    auto rpc_ctx = std::make_shared<http::HttpRpcContext>(
+      std::make_shared<ccf::SessionContext>(0, std::vector<uint8_t>{}),
+      ccf::HttpVersion::HTTP1,
+      HTTP_POST,
+      "/write",
+      ccf::http::HeaderMap{},
+      std::vector<uint8_t>(table.begin(), table.end()));
+    auto tx = store.create_tx();
+    // Remove any earlier write so a rejected attempt must leave the key absent.
+    tx.rw<KVMap>(table)->remove({'k'});
+    auto endpoint = registry->find_endpoint(tx, *rpc_ctx);
+    REQUIRE(endpoint != nullptr);
+    ccf::endpoints::EndpointContext endpoint_ctx(rpc_ctx, tx);
+    registry->execute_endpoint(endpoint, endpoint_ctx);
+    CHECK(
+      rpc_ctx->get_response_status() ==
+      (permitted ? HTTP_STATUS_OK : HTTP_STATUS_BAD_REQUEST));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    auto read_tx = store.create_tx();
+    CHECK(table_contains(read_tx, table) == permitted);
+  };
+
+  const bool read_write = mode == ccf::endpoints::Mode::ReadWrite;
+  for (const auto& table : additional_managed_tables)
+  {
+    check_write(table, !protect_registry_tables && read_write);
+  }
+
+  const bool can_write_default_namespace =
+    (!protect_registry_tables || !uses_default_namespace) && read_write;
+  for (const auto* suffix :
+       {"modules",
+        "modules_quickjs_bytecode",
+        "modules_quickjs_version",
+        "metadata",
+        "interpreter_flush",
+        "runtime_options",
+        "recent_actions",
+        "audit.input",
+        "audit.info",
+        "my_table"})
+  {
+    check_write(
+      std::format("public:custom_endpoints.{}", suffix),
+      can_write_default_namespace);
+  }
+  check_write(
+    "public:custom_endpoints.app_restricted",
+    can_write_default_namespace && !restrict_app_table);
+  check_write("public:app_restricted", !restrict_app_table && read_write);
+  check_write("public:ordinary_app_table", read_write);
+  check_write("public:relocated.ordinary_app_table", read_write);
+  check_write("public:ccf.gov.table", false);
+  check_write("public:ccf.internal.table", false);
+  check_write("ccf.gov.table", false);
+  check_write("ccf.internal.table", false);
+
+  if (reenable_after_execution)
+  {
+    registry->set_js_kv_namespace_restriction(app_restriction);
+    check_write("public:custom_endpoints.my_table", false);
+    check_write("public:app_restricted", false);
+    check_write("public:ordinary_app_table", true);
+
+    registry->set_js_kv_namespace_restriction({}, false);
+    check_write("public:custom_endpoints.my_table", true);
+    check_write("public:app_restricted", true);
+  }
 }
 
 // Access is resolved once, when a handle is created. These cases confirm that

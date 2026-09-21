@@ -24,10 +24,13 @@ namespace ccf::tasks
     JobBoard();
     ~JobBoard();
 
+    void set_work_beacon(ccf::ds::WorkBeaconPtr work_beacon);
+
     void add_task(Task t);
     Task get_task();
 
     Task wait_for_task(const std::chrono::milliseconds& timeout);
+    void stop_waiters();
 
     struct Summary
     {

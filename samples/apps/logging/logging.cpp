@@ -4,8 +4,6 @@
 // This app's includes
 #include "logging_schema.h"
 
-#include <format>
-
 // Sample apps common
 #include "../common/default_on_commit.h"
 
@@ -31,6 +29,7 @@
 #include "ccf/version.h"
 
 #include <charconv>
+#include <format>
 #include <utility>
 
 using namespace std;

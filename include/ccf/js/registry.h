@@ -15,6 +15,8 @@
 
 #include <charconv>
 #include <format>
+#include <set>
+#include <string>
 
 namespace ccf::js
 {
@@ -42,7 +44,14 @@ namespace ccf::js
     std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
       nullptr;
 
+    // App-provided restriction, see set_js_kv_namespace_restriction
     ccf::js::NamespaceRestriction namespace_restriction;
+
+    const std::string registry_managed_prefix;
+    bool registry_tables_protected = true;
+
+    [[nodiscard]] ccf::js::NamespaceRestriction
+    get_effective_namespace_restriction() const;
 
     using PreExecutionHook = std::function<void(ccf::js::core::Context&)>;
 
@@ -62,6 +71,13 @@ namespace ccf::js
     std::string modules_quickjs_version_map;
     std::string modules_quickjs_bytecode_map;
     std::string runtime_options_map;
+
+    /**
+     * Registry-managed tables, resolved at request time. Subclasses should
+     * extend this set for tables outside kv_prefix + ".".
+     */
+    [[nodiscard]] virtual std::set<std::string> get_registry_managed_tables()
+      const;
 
   public:
     BaseDynamicJSEndpointRegistry(
@@ -102,10 +118,15 @@ namespace ccf::js
       const std::string& module_name);
 
     /**
-     * Pass a function to control which maps can be accessed by JS endpoints.
+     * Set the JS KV restriction. By default, registry-managed tables and the
+     * kv_prefix + "." namespace are also read-only.
+     * Pass false to apply only restriction, or ({}, false) for no namespace
+     * restrictions. Platform permissions still apply. Clears cached
+     * interpreters.
      */
     void set_js_kv_namespace_restriction(
-      const ccf::js::NamespaceRestriction& restriction);
+      const ccf::js::NamespaceRestriction& restriction,
+      bool protect_registry_tables = true);
 
     /**
      * Set options to control JS execution. Some hard limits may be applied to
@@ -159,6 +180,17 @@ namespace ccf::js
     std::string recent_actions_map;
     std::string audit_input_map;
     std::string audit_info_map;
+
+    [[nodiscard]] std::set<std::string> get_registry_managed_tables()
+      const override
+    {
+      auto tables =
+        BaseDynamicJSEndpointRegistry::get_registry_managed_tables();
+      tables.insert(recent_actions_map);
+      tables.insert(audit_input_map);
+      tables.insert(audit_info_map);
+      return tables;
+    }
 
   public:
     DynamicJSEndpointRegistry(

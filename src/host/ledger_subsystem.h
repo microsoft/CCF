@@ -5,15 +5,22 @@
 #include "host/ledger.h"
 #include "node/rpc/ledger_interface.h"
 
-namespace ccf
+#include <filesystem>
+#include <optional>
+
+namespace asynchost
 {
-  class ReadLedgerSubsystem : public AbstractReadLedgerSubsystemInterface
+  // Host-owned adapter exposing the concrete ledger to the node through the
+  // read-only subsystem interface. The host constructs it beside the ledger
+  // and hands it to the enclave entry point, so the node never depends on the
+  // ledger implementation.
+  class ReadLedgerSubsystem : public ccf::AbstractReadLedgerSubsystemInterface
   {
   protected:
-    asynchost::Ledger& ledger;
+    Ledger& ledger;
 
   public:
-    ReadLedgerSubsystem(asynchost::Ledger& ledger_) : ledger(ledger_) {}
+    ReadLedgerSubsystem(Ledger& ledger_) : ledger(ledger_) {}
 
     [[nodiscard]] std::optional<std::filesystem::path>
     committed_ledger_path_with_idx(size_t idx) override

@@ -20,6 +20,7 @@
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"
 #include "node/gov/gov_endpoint_registry.h"
+#include "node/internal_tables_access.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/gov_logging.h"
@@ -27,7 +28,6 @@
 #include "node/rpc/serialization.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
-#include "service/internal_tables_access.h"
 #include "service/tables/config.h"
 #include "service/tables/endpoints.h"
 
