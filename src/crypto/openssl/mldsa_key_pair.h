@@ -35,7 +35,7 @@ namespace ccf::crypto
       std::span<const uint8_t> contents,
       std::span<const uint8_t> context = {}) const override;
 
-    bool verify(
+    [[nodiscard]] bool verify(
       std::span<const uint8_t> contents,
       std::span<const uint8_t> signature,
       std::span<const uint8_t> context = {}) override;

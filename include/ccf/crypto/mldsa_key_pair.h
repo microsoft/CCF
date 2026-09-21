@@ -51,7 +51,7 @@ namespace ccf::crypto
       std::span<const uint8_t> context = {}) const = 0;
 
     /// Invalid signatures return false; provider errors throw.
-    virtual bool verify(
+    [[nodiscard]] virtual bool verify(
       std::span<const uint8_t> contents,
       std::span<const uint8_t> signature,
       std::span<const uint8_t> context = {}) = 0;

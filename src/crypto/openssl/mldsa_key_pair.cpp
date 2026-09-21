@@ -85,7 +85,10 @@ namespace ccf::crypto
   std::vector<uint8_t> MLDSAKeyPair_OpenSSL::private_key_der() const
   {
     OpenSSL::Unique_BIO bio;
-    OpenSSL::CHECK1(i2d_PrivateKey_bio(bio, key));
+    // i2d_PrivateKey_bio prefers a type-specific structure and only falls
+    // back to PKCS#8, so request the PrivateKeyInfo encoder explicitly.
+    OpenSSL::CHECK1(
+      i2d_PKCS8PrivateKey_bio(bio, key, nullptr, nullptr, 0, nullptr, nullptr));
     const auto data = OpenSSL::bio_contents(bio);
     return {data.begin(), data.end()};
   }

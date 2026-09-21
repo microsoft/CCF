@@ -339,8 +339,12 @@ TEST_CASE("ML-DSA message and context boundaries")
       const auto plain_signature = key->sign(message);
       CHECK_THROWS((void)key->sign(message, oversized_context));
       CHECK_THROWS(
-        public_key->verify(message, plain_signature, oversized_context));
-      CHECK_THROWS(key->verify(message, plain_signature, oversized_context));
+        (void)public_key->verify(message, plain_signature, oversized_context));
+      CHECK_THROWS(
+        (void)key->verify(message, plain_signature, oversized_context));
+      // A rejected context throws even when the signature size is invalid.
+      CHECK_THROWS((void)public_key->verify(message, {}, oversized_context));
+      CHECK_THROWS((void)key->verify(message, {}, oversized_context));
       CHECK(public_key->verify(message, key->sign(message)));
     }
   }

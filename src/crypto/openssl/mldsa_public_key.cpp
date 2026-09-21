@@ -73,14 +73,6 @@ namespace ccf::crypto
     std::span<const uint8_t> signature,
     std::span<const uint8_t> context)
   {
-    const auto signature_size = EVP_PKEY_get_size(key);
-    OpenSSL::CHECKPOSITIVE(signature_size);
-    if (signature.size() != static_cast<size_t>(signature_size))
-    {
-      LOG_TRACE_FMT("ML-DSA signature has an invalid size");
-      return false;
-    }
-
     OpenSSL::Unique_EVP_MD_CTX ctx;
     EVP_PKEY_CTX* pctx = nullptr;
     OpenSSL::CHECK1(EVP_DigestVerifyInit_ex(
@@ -88,6 +80,16 @@ namespace ccf::crypto
     if (!context.empty())
     {
       mldsa::set_context(pctx, context);
+    }
+
+    // The context is bound first so that a rejected context throws
+    // regardless of the signature, as documented by the interface.
+    const auto signature_size = EVP_PKEY_get_size(key);
+    OpenSSL::CHECKPOSITIVE(signature_size);
+    if (signature.size() != static_cast<size_t>(signature_size))
+    {
+      LOG_TRACE_FMT("ML-DSA signature has an invalid size");
+      return false;
     }
 
     const auto rc = EVP_DigestVerify(
