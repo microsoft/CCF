@@ -75,7 +75,7 @@ jobs:
 
   vmss-virtual-b:
     name: "AL4 VMSS Virtual B" # End-to-end tests (bucket_b)
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-b]
     container:
       image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -143,7 +143,7 @@ jobs:
 
   vmss-virtual-c:
     name: "AL4 VMSS Virtual C" # End-to-end tests (bucket_c)
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0

@@ -132,6 +132,12 @@ namespace ccf::js
       lru.set_max_size(max);
     }
 
+    void clear_cached_interpreters() override
+    {
+      ccf::ds::MutexGuard guard(lock);
+      lru.clear();
+    }
+
     void set_interpreter_factory(const InterpreterFactory& ip) override
     {
       if (ip != nullptr)
