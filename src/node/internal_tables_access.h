@@ -224,7 +224,6 @@ namespace ccf
     {
       auto* member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
       auto* member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto* member_acks = tx.rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
 
       auto member_cert_der =
         ccf::crypto::make_verifier(member_pub_info.cert)->cert_der();
@@ -283,18 +282,6 @@ namespace ccf
           id, member_pub_info.encryption_pub_key.value());
       }
 
-      auto* tree_h =
-        tx.ro<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE);
-      auto tree = tree_h->get();
-      if (!tree.has_value())
-      {
-        member_acks->put(id, MemberAck());
-      }
-      else
-      {
-        MerkleTreeHistory history(tree.value());
-        member_acks->put(id, MemberAck(history.get_root()));
-      }
       return id;
     }
 
