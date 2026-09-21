@@ -13,6 +13,7 @@ import suite.test_requirements as reqs
 @reqs.supports_methods(
     "/app/header-validation",
     "/app/health",
+    "/app/invalid-error-status",
     "/app/panic",
     "/app/records/{key}",
 )
@@ -26,6 +27,12 @@ def test_basic_rust(network, args):
         response = anonymous.get("/app/health")
         assert response.status_code == http.HTTPStatus.OK, response
         assert response.body.data() == b"OK", response.body
+
+        response = anonymous.get("/app/invalid-error-status")
+        assert response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, response
+        error = response.body.json()["error"]
+        assert error["code"] == "InvalidStatus", error
+        assert error["message"] == "Unsupported status", error
 
         response = anonymous.get("/app/header-validation")
         assert response.status_code == http.HTTPStatus.NO_CONTENT, response

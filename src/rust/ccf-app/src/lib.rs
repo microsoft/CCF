@@ -235,34 +235,10 @@ pub struct EndpointError {
     pub message: String,
 }
 
-// Known 4xx/5xx HTTP error status codes matching HTTP_STATUS_MAP in include/ccf/http_status.h.
-fn is_known_error_status(status: u16) -> bool {
-    matches!(
-        status,
-        400..=426
-            | 428..=431
-            | 440
-            | 444
-            | 449..=451
-            | 460
-            | 463
-            | 494..=499
-            | 500..=511
-            | 520..=527
-            | 529..=530
-            | 561
-            | 598..=599
-    )
-}
-
 impl EndpointError {
     pub fn new(status: u16, code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
-            status: if is_known_error_status(status) {
-                status
-            } else {
-                500
-            },
+            status,
             code: code.into(),
             message: message.into(),
         }
@@ -758,11 +734,8 @@ mod tests {
     }
 
     #[test]
-    fn normalizes_invalid_error_status() {
-        assert_eq!(EndpointError::new(200, "Error", "message").status, 500);
-        assert_eq!(EndpointError::new(404, "Error", "message").status, 404);
-        assert_eq!(EndpointError::new(432, "Error", "message").status, 500);
-        assert_eq!(EndpointError::new(600, "Error", "message").status, 500);
+    fn preserves_error_status_for_bridge_validation() {
+        assert_eq!(EndpointError::new(432, "Error", "message").status, 432);
     }
 
     #[test]

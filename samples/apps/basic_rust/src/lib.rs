@@ -45,6 +45,19 @@ fn register(registry: &mut Registry) -> Result<(), BridgeError> {
         panic!("test panic")
     })?;
 
+    registry.read_only(
+        "/invalid-error-status",
+        "GET",
+        Auth::None,
+        |_| -> EndpointResult {
+            Err(EndpointError::new(
+                432,
+                "InvalidStatus",
+                "Unsupported status",
+            ))
+        },
+    )?;
+
     registry.read_only("/health", "GET", Auth::None, |context| {
         context.set_status(200)?;
         context.set_body(b"OK")?;

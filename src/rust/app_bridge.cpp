@@ -602,17 +602,19 @@ extern "C"
     ccf_rust_slice message)
   {
     if (
-      ctx == nullptr || status < 400 || !is_known_http_status(status) ||
-      !is_valid_utf8(code) || code.len == 0 || !is_valid_utf8(message))
+      ctx == nullptr || !is_valid_utf8(code) || code.len == 0 ||
+      !is_valid_utf8(message))
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
     try
     {
-      ctx->rpc->set_error(
-        static_cast<ccf::http_status>(status),
-        to_string(code),
-        to_string(message));
+      // Keep the host's HTTP_STATUS_MAP as the single source of truth.
+      const auto response_status =
+        status >= 400 && is_known_http_status(status) ?
+        static_cast<ccf::http_status>(status) :
+        HTTP_STATUS_INTERNAL_SERVER_ERROR;
+      ctx->rpc->set_error(response_status, to_string(code), to_string(message));
       return CCF_RUST_OK;
     }
     catch (...)

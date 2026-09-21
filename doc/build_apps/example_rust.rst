@@ -53,7 +53,10 @@ Request and response contexts, transactions, and map handles borrow the callback
 context and cannot be retained. Values returned by KV ``get`` are owned copies.
 The SDK requires Rust's ``unwind`` panic strategy so that panics are caught at
 the ABI boundary and become HTTP 500 errors. Builds using ``panic = "abort"``
-are rejected. C++ exceptions are also contained by the bridge.
+are rejected. C++ exceptions are also contained by the bridge. When a handler
+returns an ``EndpointError`` with a status that is not a known HTTP error
+status, the host bridge emits HTTP 500 while preserving the error code and
+message.
 
 KV values and keys
 ------------------
