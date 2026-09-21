@@ -2386,17 +2386,47 @@ def run(args):
 
 def test_cose_set_member(network, args):
     primary, _ = network.find_primary()
+
+    def assert_member_requires_state_digest_update(member):
+        with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+            response = c.get(f"/gov/service/members/{member.service_id}")
+            assert response.status_code == http.HTTPStatus.OK, response
+            assert response.body.json()["status"] == "Accepted", response
+
+            response = c.get(f"/gov/members/state-digests/{member.service_id}")
+            assert response.status_code == http.HTTPStatus.NOT_FOUND, response
+
+        with primary.api_versioned_client(
+            *member.auth(write=True), api_version=args.gov_api_version
+        ) as c:
+            response = c.post(
+                f"/gov/members/state-digests/{member.service_id}:ack",
+                body={"stateDigest": ""},
+            )
+            assert response.status_code == http.HTTPStatus.FORBIDDEN, response
+            assert response.body.json()["error"]["code"] == "AuthorizationFailed"
+
     new_member = network.consortium.generate_and_add_new_member(
         primary,
         args.participants_curve,
         recovery_role=RecoveryRole.NonParticipant,
     )
+    assert_member_requires_state_digest_update(new_member)
+    new_member.ack(primary)
 
-    with primary.api_versioned_client(api_version=args.gov_api_version) as c:
-        response = c.get(f"/gov/service/members/{new_member.service_id}")
-        assert response.status_code == http.HTTPStatus.OK, response
-        assert response.body.json()["status"] == "Accepted", response
+    proposal_body, careful_vote = network.consortium.make_proposal(
+        "set_member",
+        cert=new_member.cert,
+        encryption_pub_key=None,
+        member_data={"reset": True},
+        recovery_role=None,
+    )
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(primary, proposal, careful_vote)
 
+    assert_member_requires_state_digest_update(new_member)
     new_member.ack(primary)
 
 
