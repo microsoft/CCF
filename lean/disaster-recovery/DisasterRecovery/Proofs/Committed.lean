@@ -1,17 +1,17 @@
-import DisasterRecovery.Protocol.Committed
+import DisasterRecovery.Proofs.Predicates
 import DisasterRecovery.Proofs.Quorum
 import Mathlib.Tactic
 
 /-!
 Machine-checked proof implementations. Review the system-level statements in
-`DisasterRecovery.Properties` and assumptions in `DisasterRecovery.Protocol.Committed`.
+`DisasterRecovery.Properties` and ghost predicates in `DisasterRecovery.Proofs.Predicates`.
 -/
 
 namespace DisasterRecovery.Proofs.Committed
 
-open Protocol
-open Model hiding Config
-open Global Protocol.Invariants Protocol.Quorum Protocol.Committed
+open Execution
+open Execution.Local hiding Config
+open Execution.Global Predicates
 open DisasterRecovery.Proofs.Invariants DisasterRecovery.Proofs.Quorum
 
 lemma prefix_refl (txid : TxID) : TxID.EarlierThan txid txid := by

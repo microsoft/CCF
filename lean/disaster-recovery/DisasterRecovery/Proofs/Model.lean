@@ -1,115 +1,110 @@
-import DisasterRecovery.Protocol.Model
-import Mathlib.Tactic.Lemma
-
-/-!
-Machine-checked proof implementations. Review the system-level statements in
-`DisasterRecovery.Properties` and definitions in `DisasterRecovery.Protocol.Model`.
--/
+import DisasterRecovery.Properties
+import DisasterRecovery.Proofs.History
+import DisasterRecovery.Proofs.Observed
 
 namespace DisasterRecovery.Proofs.Model
 
-open Protocol.Model
+open DisasterRecovery.Model.Local
+open Properties.Helpers
 
-lemma valid_timeout_requires_alignment
-    (state : NodeState)
-    (h : validTimeout state true = true) :
-    state.phase = state.timeoutState := by
-  simpa [validTimeout] using h
+theorem reachable_history {config : DisasterRecovery.Model.Config}
+    {state : DisasterRecovery.Model.State}
+    (reachable : DisasterRecovery.Model.Reachable config state) :
+    Nonempty (Properties.History.History config state) := by
+  induction reachable with
+  | initial initialized => exact ⟨⟨_, [], initialized, .nil _⟩⟩
+  | @step before after action reachable transition ih =>
+      obtain ⟨history⟩ := ih
+      exact ⟨⟨history.initial,
+        history.steps ++ [{ before, action, after }],
+        history.initialized, history.valid.append (.cons transition (.nil _))⟩⟩
 
-lemma gossip_freezes_after_choice
-    (config : Config)
-    (state : NodeState)
-    (source : Location)
-    (txid : TxID)
-    (h : state.chosen.isSome = true) :
-    let output := step config state (.receiveGossip source txid .accepted)
-    output.state = state /\ output.accepted = false := by
-  cases chosen : state.chosen <;> simp_all [step, rejected]
+lemma reachable_well_formed {config : DisasterRecovery.Model.Config}
+    {state : DisasterRecovery.Model.State}
+    (reachable : DisasterRecovery.Model.Reachable config state) :
+    WellFormed config state := by
+  obtain ⟨execution, ghostReachable, projection⟩ := Lifting.model_reachable_lifts reachable
+  have wf := Invariants.reachable_well_formed ghostReachable
+  subst state
+  refine {
+    nodeKeys := wf.nodeKeys
+    nodeKeysNodup := wf.nodeKeysNodup
+    nodeLocations := wf.nodeLocations
+    activeNodup := wf.activeNodup
+    activeConfigured := wf.activeConfigured
+    networkSourceActive := ?_
+    history := History.history_well_formed
+  }
+  intro envelope member
+  rcases List.mem_map.mp member with ⟨sent, pending, rfl⟩
+  exact wf.sentSourceActive sent (wf.networkSent sent pending)
 
-lemma rejected_gossip_stutters
-    (config : Config)
-    (state : NodeState)
-    (source : Location)
-    (txid : TxID) :
-    let output := step config state (.receiveGossip source txid .rejected)
-    output.state = state /\ output.accepted = false := by
-  simp [step, rejected]
+lemma reachable_quorum_invariant {config : DisasterRecovery.Model.Config}
+    {state : DisasterRecovery.Model.State}
+    (reachable : DisasterRecovery.Model.Reachable config state) :
+    QuorumInvariant config state := by
+  obtain ⟨execution, ghostReachable, projection⟩ := Lifting.model_reachable_lifts reachable
+  have wf := Invariants.reachable_well_formed ghostReachable
+  have invariant := Quorum.reachable_quorum_invariant ghostReachable
+  subst state
+  refine {
+    votesNodup := invariant.votesNodup
+    votesConfigured := ?_
+    quorumThreshold := Observed.reachable_quorum_thresholds ghostReachable
+    history := History.history_quorum_invariant
+  }
+  intro entry member voter vote
+  obtain ⟨sent, sentMember, source, _, _⟩ := invariant.votesSent entry member voter vote
+  exact wf.activeConfigured voter
+    (by simpa [source] using wf.sentSourceActive sent sentMember)
 
-lemma duplicate_vote_is_idempotent
-    (source : Location)
-    (votes : List Location)
-    (h : votes.contains source = true) :
-    insertVote source votes = votes := by
-  unfold insertVote
-  rw [h]
-  simp
+lemma quorum_opener_unique {config : DisasterRecovery.Model.Config}
+    {state : DisasterRecovery.Model.State} {first second : Location}
+    (reachable : DisasterRecovery.Model.Reachable config state)
+    (firstOpened : QuorumOpened state first)
+    (secondOpened : QuorumOpened state second) :
+    first = second := by
+  obtain ⟨execution, ghostReachable, projection⟩ := Lifting.model_reachable_lifts reachable
+  rcases firstOpened with ⟨firstState, firstMember, firstKind⟩
+  rcases secondOpened with ⟨secondState, secondMember, secondKind⟩
+  subst state
+  exact Observed.current_quorum_unique ghostReachable
+    (first, firstState) (second, secondState) firstMember secondMember firstKind secondKind
 
-lemma opening_rejects_iamopen
-    (config : Config)
-    (state : NodeState)
-    (source : Location) :
-    let opening := { state with phase := .opening }
-    let output := step config opening (.receiveIAmOpen source .accepted)
-    output.state = opening /\ output.accepted = false := by
-  simp [step, rejected]
+lemma full_gossip_selection_preserves_commit
+    {config : DisasterRecovery.Model.Config} {state : DisasterRecovery.Model.State}
+    {opener : Location} {committed : TxID}
+    (history : Properties.History.History config state)
+    (full : Properties.History.FullGossipSelection history opener)
+    (durable : DurableCommit config committed) :
+    exists recovered,
+      DisasterRecovery.Model.recoveredTxID config opener = some recovered /\
+      TxID.EarlierThan committed recovered := by
+  obtain ⟨ghost, linked⟩ := History.history_correspondence history
+  obtain ⟨voter, sourceState, sent, complete⟩ := full
+  have ghostFull : Predicates.FullGossipSelection config ghost opener :=
+    ⟨{ source := voter, target := opener, payload := .vote, sourceState },
+      (linked.sent _).mpr sent, rfl, rfl, complete⟩
+  exact Committed.full_gossip_selection_preserves_commit linked.reachable ghostFull durable
 
-lemma open_rejects_iamopen
-    (config : Config)
-    (state : NodeState)
-    (source : Location) :
-    let opened := { state with phase := .open }
-    let output := step config opened (.receiveIAmOpen source .accepted)
-    output.state = opened /\ output.accepted = false := by
-  simp [step, rejected]
+lemma quorum_history_opener_unique
+    {config : DisasterRecovery.Model.Config} {state : DisasterRecovery.Model.State}
+    {first second : Location}
+    (history : Properties.History.History config state)
+    (firstOpened : Properties.History.QuorumOpened history first)
+    (secondOpened : Properties.History.QuorumOpened history second) :
+    first = second := by
+  obtain ⟨ghost, linked⟩ := History.history_correspondence history
+  obtain ⟨firstEdge, firstMember, firstNode, firstOutput, firstObserved, firstEffect⟩ := firstOpened
+  obtain ⟨secondEdge, secondMember, secondNode, secondOutput, secondObserved, secondEffect⟩ := secondOpened
+  exact Quorum.quorum_opener_unique linked.reachable
+    ⟨_, linked.openings firstEdge firstMember firstOutput firstObserved .quorum firstEffect,
+      firstNode, rfl⟩
+    ⟨_, linked.openings secondEdge secondMember secondOutput secondObserved .quorum secondEffect,
+      secondNode, rfl⟩
 
-lemma aligned_voting_timeout_without_votes_stutters
-    (config : Config)
-    (state : NodeState) :
-    let waiting := {
-      state with
-      phase := .voting
-      timeoutState := .voting
-      votes := []
-    }
-    step config waiting .timeout = { state := waiting } := by
-  simp [step, advance, validTimeout, voteQuorum]
-
-lemma aligned_opening_timeout_completes
-    (config : Config)
-    (state : NodeState) :
-    let opening := {
-      state with
-      phase := .opening
-      timeoutState := .opening
-    }
-    let output := step config opening .timeout
-    output.state.phase = .open /\
-      output.state.timeoutState = .opening /\
-      output.effects = [.completed] := by
-  simp [step, advance, validTimeout, advanceTimeoutLane, advanceTimeoutState]
-
-lemma quorum_advance_opens
-    (config : Config)
-    (state : NodeState)
-    (phase : state.phase = .voting)
-    (quorum : state.votes.length >= voteQuorum config) :
-    let output := (advance config state false).get!
-    output.state.phase = .opening /\
-      output.state.openKind = some .quorum /\
-      output.effects = [.opening .quorum] := by
-  simp [advance, phase, quorum, validTimeout, advanceTimeoutLane]
-
-lemma aligned_empty_gossip_timeout_aborts
-    (config : Config)
-    (state : NodeState) :
-    let waiting := {
-      state with
-      phase := .gossiping
-      timeoutState := .gossiping
-      gossips := []
-    }
-    let output := step config waiting .timeout
-    output.state = waiting /\ output.accepted = false := by
-  simp [step, advance, validTimeout, rejected, maximumGossip]
+lemma quorum_open_preserves_commit : Properties.QuorumOpenPreservesCommit := by
+  intro config state opener committed history _opened full durable
+  exact full_gossip_selection_preserves_commit history full durable
 
 end DisasterRecovery.Proofs.Model

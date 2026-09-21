@@ -1,134 +1,66 @@
-import DisasterRecovery.Proofs.Committed
-import DisasterRecovery.Proofs.Invariants
-import DisasterRecovery.Proofs.Model
-import DisasterRecovery.Proofs.Quorum
-
-/-!
-# Human-reviewed system properties
-
-Review these statements together with the definitions and assumptions in
-`DisasterRecovery.Protocol`. Each theorem explicitly applies a machine-checked
-lemma from `DisasterRecovery.Proofs`; changing a statement must preserve that
-checked connection. Intermediate facts remain lemmas in the proof modules.
--/
+import DisasterRecovery.Properties.Helpers
 
 namespace DisasterRecovery.Properties
 
-section Local
+open Model.Local
 
-open Protocol.Model
+def GossipFreezesAfterChoice : Prop :=
+  forall (config : Config) (state : NodeState) (source : Location) (txid : TxID),
+    state.chosen.isSome = true ->
+      transition config state (.receiveGossip source txid .accepted) =
+        some (rejected state "gossip-frozen")
 
-/-! ## Local safety -/
+def RejectedGossipStutters : Prop :=
+  forall (config : Config) (state : NodeState) (source : Location) (txid : TxID),
+    transition config state (.receiveGossip source txid .rejected) =
+      some (rejected state "quote-or-certificate")
 
-theorem gossip_freezes_after_choice
-    (config : Config)
-    (state : NodeState)
-    (source : Location)
-    (txid : TxID)
-    (chosen : state.chosen.isSome = true) :
-    let output := step config state (.receiveGossip source txid .accepted)
-    output.state = state /\ output.accepted = false :=
-  Proofs.Model.gossip_freezes_after_choice config state source txid chosen
-
-theorem rejected_gossip_stutters
-    (config : Config)
-    (state : NodeState)
-    (source : Location)
-    (txid : TxID) :
-    let output := step config state (.receiveGossip source txid .rejected)
-    output.state = state /\ output.accepted = false :=
-  Proofs.Model.rejected_gossip_stutters config state source txid
-
-theorem quorum_advance_opens
-    (config : Config)
-    (state : NodeState)
-    (phase : state.phase = .voting)
-    (quorum : state.votes.length >= voteQuorum config) :
+def QuorumAdvanceOpens : Prop :=
+  forall (config : Config) (state : NodeState),
+    state.phase = .voting ->
+    state.votes.length >= voteQuorum config ->
     let output := (advance config state false).get!
     output.state.phase = .opening /\
       output.state.openKind = some .quorum /\
-      output.effects = [.opening .quorum] :=
-  Proofs.Model.quorum_advance_opens config state phase quorum
+      output.effects = [.opening .quorum]
 
-theorem aligned_opening_timeout_completes
-    (config : Config)
-    (state : NodeState) :
-    let opening := {
-      state with
-      phase := .opening
-      timeoutState := .opening
-    }
-    let output := step config opening .timeout
-    output.state.phase = .open /\
-      output.state.timeoutState = .opening /\
-      output.effects = [.completed] :=
-  Proofs.Model.aligned_opening_timeout_completes config state
+def AlignedOpeningTimeoutCompletes : Prop :=
+  forall (config : Config) (state : NodeState),
+    let opening := { state with phase := .opening, timeoutState := .opening }
+    transition config opening .timeout =
+      some { state := { opening with phase := .open }, effects := [.completed] }
 
-end Local
+def ReachableWellFormed : Prop :=
+  forall {config : Model.Config} {state : Model.State},
+    Model.Reachable config state -> Helpers.WellFormed config state
 
-section Global
+def ReachableQuorumInvariant : Prop :=
+  forall {config : Model.Config} {state : Model.State},
+    Model.Reachable config state -> Helpers.QuorumInvariant config state
 
-open Protocol.Model hiding Config
-open Protocol.Global Protocol.Invariants Protocol.Quorum Protocol.Committed
+def QuorumOpenerUnique : Prop :=
+  forall {config : Model.Config} {state : Model.State} {first second : Location},
+    Model.Reachable config state ->
+    Helpers.QuorumOpened state first -> Helpers.QuorumOpened state second -> first = second
 
-/-! ## Reachability and quorum safety -/
+def QuorumHistoryOpenerUnique : Prop :=
+  forall {config : Model.Config} {state : Model.State} {first second : Location}
+    (history : History.History config state),
+    History.QuorumOpened history first -> History.QuorumOpened history second -> first = second
 
-theorem reachable_well_formed
-    {config : Config}
-    {state : State}
-    (reachable : Reachable config state) :
-    WellFormed config state :=
-  Proofs.Invariants.reachable_well_formed reachable
+def FullGossipSelectionPreservesCommit : Prop :=
+  forall {config : Model.Config} {state : Model.State} {opener : Location} {committed : TxID}
+    (history : History.History config state),
+    History.FullGossipSelection history opener -> Helpers.DurableCommit config committed ->
+    exists recovered, Model.recoveredTxID config opener = some recovered /\
+      Helpers.TxID.EarlierThan committed recovered
 
-theorem reachable_quorum_invariant
-    {config : Config}
-    {state : State}
-    (reachable : Reachable config state) :
-    QuorumInvariant config state :=
-  Proofs.Quorum.reachable_quorum_invariant reachable
-
-theorem quorum_opener_unique
-    {config : Config}
-    {state : State}
-    {first second : Location}
-    (reachable : Reachable config state)
-    (firstOpened : QuorumOpened state first)
-    (secondOpened : QuorumOpened state second) :
-    first = second :=
-  Proofs.Quorum.quorum_opener_unique
-    reachable firstOpened secondOpened
-
-/-! ## Committed-prefix safety -/
-
-theorem full_gossip_selection_preserves_commit
-    {config : Config}
-    {state : State}
-    {opener : Location}
-    {committed : TxID}
-    (reachable : Reachable config state)
-    (full : FullGossipSelection config state opener)
-    (durable : DurableCommit config committed) :
-    exists recovered,
-      recoveredTxID config opener = some recovered /\
-        TxID.EarlierThan committed recovered :=
-  Proofs.Committed.full_gossip_selection_preserves_commit
-    reachable full durable
-
-theorem quorum_open_preserves_commit
-    {config : Config}
-    {state : State}
-    {opener : Location}
-    {committed : TxID}
-    (reachable : Reachable config state)
-    (opened : QuorumOpened state opener)
-    (full : FullGossipSelection config state opener)
-    (durable : DurableCommit config committed) :
-    exists recovered,
-      recoveredTxID config opener = some recovered /\
-        TxID.EarlierThan committed recovered :=
-  Proofs.Committed.quorum_open_preserves_commit
-    reachable opened full durable
-
-end Global
+def QuorumOpenPreservesCommit : Prop :=
+  forall {config : Model.Config} {state : Model.State} {opener : Location} {committed : TxID}
+    (history : History.History config state),
+    Helpers.QuorumOpened state opener ->
+    History.FullGossipSelection history opener -> Helpers.DurableCommit config committed ->
+    exists recovered, Model.recoveredTxID config opener = some recovered /\
+      Helpers.TxID.EarlierThan committed recovered
 
 end DisasterRecovery.Properties

@@ -1,27 +1,17 @@
-import DisasterRecovery.Protocol.Model
+import DisasterRecovery.Proofs.ExecutionLocal
 
-namespace DisasterRecovery.Protocol.Global
+/-! Proof-only execution with send snapshots and terminal-effect histories. -/
 
-open Model
+namespace DisasterRecovery.Proofs.Execution.Global
 
-structure Config where
-  protocol : Model.Config
-  recovered : List (Prod Location TxID)
-deriving Repr, BEq
+open Shared (TransitionSystem)
+open Local
 
-def Config.Valid (config : Config) : Prop :=
-  config.protocol.isValid = true /\
-    config.protocol.expectedLocations.Nodup /\
-    config.recovered.map Prod.fst = config.protocol.expectedLocations
-
+abbrev Config := Model.Config
+abbrev Config.Valid (config : Config) := Model.Config.Valid config
 def recoveredTxID (config : Config) (source : Location) : Option TxID :=
   (config.recovered.find? fun entry => entry.1 == source).map Prod.snd
-
-inductive Payload where
-  | gossip (txid : TxID)
-  | vote
-  | iAmOpen
-deriving Repr, BEq, ReflBEq, LawfulBEq
+abbrev Payload := DisasterRecovery.Model.Local.Message
 
 structure Envelope where
   source : Location
@@ -149,20 +139,17 @@ def next (config : Config) (state : State) : Action -> Option State
       pure
         (recordEffects target output.state output.effects { state with system })
 
-inductive Reachable (config : Config) : State -> Prop where
-  | initial
-      (active : List Location)
-      (valid : config.Valid)
-      (nodup : active.Nodup)
-      (configured :
-        forall node, node ∈ active ->
-          node ∈ config.protocol.expectedLocations) :
-      Reachable config (Global.initial config active)
-  | step
-      {state nextState : State}
-      {action : Action}
-      (reachable : Reachable config state)
-      (transition : next config state action = some nextState) :
-      Reachable config nextState
+def transitionSystem (config : Config) : TransitionSystem State Action where
+  init := fun state =>
+    exists active : List Location,
+      config.Valid /\
+      active.Nodup /\
+      (forall node, node ∈ active ->
+        node ∈ config.protocol.expectedLocations) /\
+      state = initial config active
+  step := next config
 
-end DisasterRecovery.Protocol.Global
+abbrev Reachable (config : Config) : State -> Prop :=
+  (transitionSystem config).Reachable
+
+end DisasterRecovery.Proofs.Execution.Global

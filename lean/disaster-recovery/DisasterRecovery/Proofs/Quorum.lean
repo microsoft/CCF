@@ -1,18 +1,20 @@
-import DisasterRecovery.Protocol.Quorum
+import DisasterRecovery.Proofs.Predicates
 import DisasterRecovery.Proofs.Invariants
 import Mathlib.Tactic
 
 /-!
 Machine-checked proof implementations. Review the system-level statements in
-`DisasterRecovery.Properties` and definitions in `DisasterRecovery.Protocol.Quorum`.
+`DisasterRecovery.Properties` and ghost predicates in `DisasterRecovery.Proofs.Predicates`.
 -/
 
 namespace DisasterRecovery.Proofs.Quorum
 
-open Protocol
-open Model hiding Config
-open Global Protocol.Invariants Protocol.Quorum
+open Execution
+open Execution.Local hiding Config
+open Execution.Global Predicates
 open DisasterRecovery.Proofs.Invariants
+
+attribute [local simp] Execution.Local.transitionSystem rejectionReason guard failure
 
 lemma insertVote_nodup
     (source : Location)
@@ -42,18 +44,20 @@ lemma mem_insertVote
     exact unsorted.symm
 
 lemma step_preserves_votes_nodup
-    (config : Model.Config)
+    (config : Execution.Local.Config)
     (state : NodeState)
     (event : Event)
     (nodup : state.votes.Nodup) :
     (step config state event).state.votes.Nodup := by
-  cases event <;>
+  cases event
+  all_goals try cases_type Validation
+  all_goals
     simp [step, rejected, advance, advanceTimeoutLane]
   all_goals
     repeat first | split | simp_all [insertVote_nodup]
 
 lemma step_votes_shape
-    (config : Model.Config)
+    (config : Execution.Local.Config)
     (state : NodeState)
     (event : Event) :
     (step config state event).state.votes = state.votes \/
@@ -68,7 +72,7 @@ lemma step_votes_shape
   all_goals repeat first | split | simp_all
 
 lemma step_vote_origin
-    (config : Model.Config)
+    (config : Execution.Local.Config)
     (state : NodeState)
     (event : Event)
     (voter : Location)
@@ -86,29 +90,33 @@ lemma step_vote_origin
       exact Or.inr sourceEq
 
 lemma step_preserves_non_gossiping
-    (config : Model.Config)
+    (config : Execution.Local.Config)
     (state : NodeState)
     (event : Event)
     (pastGossip : state.phase ≠ .gossiping) :
     (step config state event).state.phase ≠ .gossiping := by
-  cases event <;>
+  cases event
+  all_goals try cases_type Validation
+  all_goals
     simp [step, rejected, advance, advanceTimeoutLane]
   all_goals repeat first | split | simp_all
 
 lemma voting_step_preserves_choice
-    (config : Model.Config)
+    (config : Execution.Local.Config)
     (state : NodeState)
     (event : Event)
     (pastGossip : state.phase ≠ .gossiping)
     (stillVoting : (step config state event).state.phase = .voting) :
     state.phase = .voting /\
       (step config state event).state.chosen = state.chosen := by
-  cases event <;>
+  cases event
+  all_goals try cases_type Validation
+  all_goals
     simp [step, rejected, advance, advanceTimeoutLane] at stillVoting ⊢
   all_goals repeat first | split at stillVoting | split | simp_all
 
 lemma step_preserves_voting_selection
-    (config : Model.Config)
+    (config : Execution.Local.Config)
     (state : NodeState)
     (event : Event)
     (before :
@@ -164,7 +172,7 @@ lemma retry_vote_state
       simp [messageForEffect] at created
 
 lemma opening_effect_state
-    (config : Model.Config)
+    (config : Execution.Local.Config)
     (state : NodeState)
     (event : Event)
     (kind : OpenKind)
@@ -180,7 +188,7 @@ lemma opening_effect_state
     repeat first | split at opening | split | simp_all | aesop
 
 lemma quorum_effect_has_threshold
-    (config : Model.Config)
+    (config : Execution.Local.Config)
     (state : NodeState)
     (event : Event)
     (opening :
@@ -340,7 +348,7 @@ lemma eventFor_vote_source
     simp_all [eventFor, acceptedVoteSource]
 
 lemma systemStep_preserves_votes_nodup
-    {config : Model.Config}
+    {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -365,7 +373,7 @@ lemma systemStep_preserves_votes_nodup
   · exact nodup previous previousMember
 
 lemma systemStep_preserves_voting_selections
-    {config : Model.Config}
+    {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -397,7 +405,7 @@ lemma systemStep_preserves_voting_selections
       (by simpa [notTarget] using voting)
 
 lemma systemStep_output_location
-    {config : Model.Config}
+    {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -425,7 +433,7 @@ lemma systemStep_output_location
             entry.1 == target) found)
 
 lemma systemStep_output_mem
-    {config : Model.Config}
+    {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -446,7 +454,7 @@ lemma systemStep_output_mem
   simp [keyEq, outputEq]
 
 lemma systemStep_opening_effect_state
-    {config : Model.Config}
+    {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -464,7 +472,7 @@ lemma systemStep_opening_effect_state
   exact opening_effect_state config node event kind opening
 
 lemma systemStep_quorum_effect_has_threshold
-    {config : Model.Config}
+    {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -483,46 +491,46 @@ lemma initial_node_votes_nodup
     (config : Config)
     (active : List Location) :
     NodeVotesNodup (initial config active) := by
-  simp [NodeVotesNodup, Global.initial, initialSystem, initialNode]
+  simp [NodeVotesNodup, Execution.Global.initial, initialSystem, initialNode]
 
 lemma initial_node_votes_sent
     (config : Config)
     (active : List Location) :
     NodeVotesSent (initial config active) := by
-  simp [NodeVotesSent, Global.initial, initialSystem, initialNode]
+  simp [NodeVotesSent, Execution.Global.initial, initialSystem, initialNode]
 
 lemma initial_sent_votes_functional
     (config : Config)
     (active : List Location) :
     SentVotesFunctional (initial config active) := by
-  simp [SentVotesFunctional, SentVote, Global.initial]
+  simp [SentVotesFunctional, SentVote, Execution.Global.initial]
 
 lemma initial_sent_vote_stable
     (config : Config)
     (active : List Location) :
     SentVoteStable (initial config active) := by
-  simp [SentVoteStable, Global.initial]
+  simp [SentVoteStable, Execution.Global.initial]
 
 lemma initial_voting_selections
     (config : Config)
     (active : List Location) :
     VotingSelectionsValid (initial config active) := by
-  simp [VotingSelectionsValid, Global.initial, initialSystem, initialNode]
+  simp [VotingSelectionsValid, Execution.Global.initial, initialSystem, initialNode]
 
 lemma initial_sent_votes_selected
     (config : Config)
     (active : List Location) :
     SentVotesSelected (initial config active) := by
-  simp [SentVotesSelected, Global.initial]
+  simp [SentVotesSelected, Execution.Global.initial]
 
 lemma initial_openings_valid
     (config : Config)
     (active : List Location) :
     OpeningsValid config (initial config active) := by
-  simp [OpeningsValid, Global.initial]
+  simp [OpeningsValid, Execution.Global.initial]
 
 lemma systemStep_preserves_node_votes_sent
-    {config : Model.Config}
+    {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -608,7 +616,7 @@ lemma eq_of_key_eq
         · exact ih tailNodup firstTail secondTail keyEq
 
 lemma systemStep_preserves_vote_stability
-    {config : Model.Config}
+    {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -872,7 +880,7 @@ lemma timeout_preserves_node_votes_sent
     · exact oldVote
   have introducedVote :
       forall newVoter,
-        acceptedVoteSource Event.timeout = some newVoter ->
+        acceptedVoteSource (.timeout : Event) = some newVoter ->
           SentVote afterState newVoter target := by
     intro newVoter introduced
     simp [acceptedVoteSource] at introduced
@@ -1290,7 +1298,8 @@ lemma reachable_quorum_invariant
     (reachable : Reachable config state) :
     QuorumInvariant config state := by
   induction reachable with
-  | initial active valid nodup configured =>
+  | initial initialized =>
+      rcases initialized with ⟨active, _, _, _, rfl⟩
       exact initial_quorum_invariant config active
   | step reachable transition invariant =>
       exact next_preserves_quorum_invariant

@@ -24,4 +24,4 @@ name = "DisasterRecovery"
 
 [[lean_exe]]
 name = "canonical-checks"
-root = "CanonicalTests"
+root = "DisasterRecovery.Tests.CanonicalTests"
