@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.17]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.17
 
-### Added
+### Fixed
 
-- C++ callers can use `ccf::crypto::KeyAesGcm::make_context()` to explicitly own and reuse a pre-keyed AES-GCM context when they can ensure it is not accessed concurrently. AES-GCM encryption and decryption also now consistently replace their output vectors, clearing them for empty plaintext or failed authentication rather than leaving stale output from an earlier operation (#8402).
+- JS registry tables and their configured namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. The governance-driven registry uses `public:ccf.gov.*` and leaves application namespaces unchanged. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`; platform permissions still apply (#8359).
 
 ### Removed
 
