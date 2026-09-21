@@ -169,7 +169,10 @@ namespace ccf
       ccf::tasks::add_delayed_task(retry_task, std::chrono::seconds(delay_s));
     }
 
-    void send_curl_get(
+  protected:
+    // Issues an outbound HTTPS GET. Virtual so that unit tests can substitute
+    // the transport, without a live libcurl/libuv context.
+    virtual void send_curl_get(
       const std::string& url,
       ccf::http_client::CurlRequest::ResponseCallback callback)
     {
@@ -221,7 +224,7 @@ namespace ccf
       max_response_size(max_response_size)
     {}
 
-    ~JwtKeyAutoRefresh()
+    virtual ~JwtKeyAutoRefresh()
     {
       stop();
     }
