@@ -550,13 +550,38 @@ impl Map<'_, '_> {
     }
 }
 
-type ReadHandler =
-    dyn for<'a> Fn(&mut ReadOnlyContext<'a>) -> EndpointResult + Send + Sync + 'static;
-type WriteHandler = dyn for<'a> Fn(&mut WriteContext<'a>) -> EndpointResult + Send + Sync + 'static;
+/// Marker trait for endpoint handlers that may be invoked repeatedly.
+///
+/// CCF may discard a transaction and invoke the handler again when transaction
+/// execution conflicts. Handlers must not perform non-transactional side
+/// effects that are unsafe to repeat.
+pub trait RetrySafeHandler: Send + Sync {}
+
+impl<T> RetrySafeHandler for T where T: Send + Sync {}
+
+trait ReadHandler:
+    for<'a> Fn(&mut ReadOnlyContext<'a>) -> EndpointResult + RetrySafeHandler + 'static
+{
+}
+
+impl<T> ReadHandler for T where
+    T: for<'a> Fn(&mut ReadOnlyContext<'a>) -> EndpointResult + RetrySafeHandler + 'static
+{
+}
+
+trait WriteHandler:
+    for<'a> Fn(&mut WriteContext<'a>) -> EndpointResult + RetrySafeHandler + 'static
+{
+}
+
+impl<T> WriteHandler for T where
+    T: for<'a> Fn(&mut WriteContext<'a>) -> EndpointResult + RetrySafeHandler + 'static
+{
+}
 
 enum Handler {
-    Read(Box<ReadHandler>),
-    Write(Box<WriteHandler>),
+    Read(Box<dyn ReadHandler>),
+    Write(Box<dyn WriteHandler>),
 }
 
 unsafe extern "C" fn invoke_handler(
@@ -635,7 +660,7 @@ impl Registry {
         handler: F,
     ) -> BridgeResult<()>
     where
-        F: for<'a> Fn(&mut ReadOnlyContext<'a>) -> EndpointResult + Send + Sync + 'static,
+        F: for<'a> Fn(&mut ReadOnlyContext<'a>) -> EndpointResult + RetrySafeHandler + 'static,
     {
         self.register(path, method, auth, Handler::Read(Box::new(handler)))
     }
@@ -648,7 +673,7 @@ impl Registry {
         handler: F,
     ) -> BridgeResult<()>
     where
-        F: for<'a> Fn(&mut WriteContext<'a>) -> EndpointResult + Send + Sync + 'static,
+        F: for<'a> Fn(&mut WriteContext<'a>) -> EndpointResult + RetrySafeHandler + 'static,
     {
         self.register(path, method, auth, Handler::Write(Box::new(handler)))
     }
