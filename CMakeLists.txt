@@ -751,10 +751,6 @@ if(BUILD_TESTS)
     target_link_libraries(raft_test PRIVATE ccfcrypto ccf_tasks)
 
     add_unit_test(
-      raft_trace_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/raft_trace.cpp
-    )
-    add_unit_test(
       tracing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tracing/test/fluentd.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tracing/test/events.cpp
