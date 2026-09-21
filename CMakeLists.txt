@@ -132,6 +132,11 @@ option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
+option(
+  TEST_MLDSA
+  "Run ML-DSA key tests, which require OpenSSL 3.5 or newer"
+  OFF
+)
 option(USE_SNMALLOC "Link against snmalloc" ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
@@ -782,6 +787,12 @@ if(BUILD_TESTS)
       crypto_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
     )
+    if(TEST_MLDSA)
+      target_sources(
+        crypto_test
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/mldsa.cpp
+      )
+    endif()
     target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
     target_link_libraries(crypto_test PRIVATE ccfcrypto)
 
