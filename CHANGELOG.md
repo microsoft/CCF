@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.17]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.17
 
+### Changed
+
+- JWT/JWK auto-refresh and SEV-SNP endorsement fetches now verify outbound TLS connections against the node host's system trust store, which can be overridden with the `SSL_CERT_FILE` and `SSL_CERT_DIR` environment variables. The `set_ca_cert_bundle` and `remove_ca_cert_bundle` governance actions, `ca_cert_bundle_name` JWT issuer metadata, and `/gov/service/jwk` CA bundle reporting have been removed (#8027).
+
 ### Fixed
 
 - JS registry tables and their configured namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. The governance-driven registry uses `public:ccf.gov.*` and leaves application namespaces unchanged. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`; platform permissions still apply (#8359).

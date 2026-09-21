@@ -43,6 +43,27 @@ namespace
     }
   };
 
+  // Fails every outbound request synchronously, so that each refresh attempt
+  // fails without wall-clock waits or external HTTP servers.
+  class FailingTransportRefresh : public ccf::JwtKeyAutoRefresh
+  {
+  public:
+    using ccf::JwtKeyAutoRefresh::JwtKeyAutoRefresh;
+
+  protected:
+    void send_curl_get(
+      const std::string& url,
+      ccf::http_client::CurlRequest::ResponseCallback) override
+    {
+      // These tests only ever reach the OpenID metadata request, whose URL is
+      // the issuer followed by the well-known suffix.
+      static constexpr std::string_view suffix =
+        "/.well-known/openid-configuration";
+      REQUIRE(url.ends_with(suffix));
+      send_refresh_jwt_keys_error(url.substr(0, url.size() - suffix.size()));
+    }
+  };
+
   struct Fixture
   {
     ccf::NetworkState network;
@@ -60,7 +81,7 @@ namespace
       consensus->force_become_primary();
       auto rpc_map = std::make_shared<ccf::RPCMap>();
       rpc_map->register_frontend<ccf::ActorsType::nodes>(endpoint);
-      refresh = std::make_shared<ccf::JwtKeyAutoRefresh>(
+      refresh = std::make_shared<FailingTransportRefresh>(
         refresh_interval_s,
         network,
         consensus,
@@ -80,8 +101,6 @@ namespace
     void set_issuer(const ccf::JwtIssuer& name, bool auto_refresh = true)
     {
       auto tx = network.tables->create_tx();
-      // A missing CA bundle makes each attempt fail synchronously, without
-      // wall-clock waits or external HTTP servers.
       tx.rw(network.jwt_issuers)
         ->put(name, ccf::JwtIssuerMetadata{std::nullopt, auto_refresh});
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
@@ -184,11 +203,11 @@ TEST_CASE("JWT response failures schedule an initial retry")
   SUBCASE("Metadata HTTP error")
   {
     f.refresh->handle_jwt_metadata_response(
-      f.issuer, "", HTTP_STATUS_SERVICE_UNAVAILABLE, {});
+      f.issuer, HTTP_STATUS_SERVICE_UNAVAILABLE, {});
   }
   SUBCASE("Malformed metadata")
   {
-    f.refresh->handle_jwt_metadata_response(f.issuer, "", HTTP_STATUS_OK, {});
+    f.refresh->handle_jwt_metadata_response(f.issuer, HTTP_STATUS_OK, {});
   }
   SUBCASE("JWKS HTTP error")
   {

@@ -886,13 +886,16 @@ namespace ccf::gov::endpoints
               [&response_body](
                 const ccf::JwtIssuer& issuer_id,
                 const ccf::JwtIssuerMetadata& metadata) {
+                // Legacy ca_cert_bundle_name metadata is intentionally not
+                // reported: CA bundles are no longer managed by governance.
                 response_body.issuers.emplace(
-                  issuer_id,
-                  api::JwtIssuer{
-                    metadata.auto_refresh, metadata.ca_cert_bundle_name});
+                  issuer_id, api::JwtIssuer{metadata.auto_refresh});
                 return true;
               });
           }
+
+          // caCertBundles is retained in the response for schema
+          // compatibility, but is always empty.
 
           // Populate keys field
           {
@@ -918,19 +921,6 @@ namespace ccf::gov::endpoints
                 }
                 return true;
               });
-          }
-
-          // Populate caCertBundles field
-          {
-            auto cert_bundles_handle =
-              ctx.tx.template ro<ccf::CACertBundlePEMs>(
-                ccf::Tables::CA_CERT_BUNDLE_PEMS);
-            cert_bundles_handle->foreach([&response_body](
-                                           const std::string& bundle_name,
-                                           const std::string& bundle_value) {
-              response_body.ca_cert_bundles.emplace(bundle_name, bundle_value);
-              return true;
-            });
           }
 
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
