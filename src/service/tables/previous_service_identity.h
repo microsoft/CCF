@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/kv/value.h"
+#include "service/tables/identity_types.h"
 
 #include <string>
 #include <vector>
@@ -41,7 +42,8 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     CoseEndorsement, previous_version, endorsement_epoch_end);
 
-  using PreviousServiceIdentityEndorsement = ServiceValue<CoseEndorsement>;
+  using PreviousServiceIdentityEndorsement =
+    ServiceMap<IdentityType, CoseEndorsement>;
 
   namespace Tables
   {
