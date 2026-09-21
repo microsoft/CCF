@@ -40,7 +40,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import ObjectIdentifier, load_pem_x509_certificate
 from infra.log_capture import flush_info
-from infra.member import AckException
+from infra.member import AckException, RecoveryRole
 from infra.runner import ConcurrentRunner
 from infra.tx_status import TxStatus
 from loguru import logger as LOG
@@ -2384,6 +2384,22 @@ def run(args):
         do_main_tests(network, args)
 
 
+def test_cose_set_member(network, args):
+    primary, _ = network.find_primary()
+    new_member = network.consortium.generate_and_add_new_member(
+        primary,
+        args.participants_curve,
+        recovery_role=RecoveryRole.NonParticipant,
+    )
+
+    with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        response = c.get(f"/gov/service/members/{new_member.service_id}")
+        assert response.status_code == http.HTTPStatus.OK, response
+        assert response.body.json()["status"] == "Accepted", response
+
+    new_member.ack(primary)
+
+
 def run_multi_bucket_indexing(args):
     os.makedirs(args.workspace, exist_ok=True)
     node_data_json_file = os.path.join(
@@ -2643,6 +2659,12 @@ def do_main_tests(network, args):
         test_cose_config(network, args)
         if not args.http2:
             test_blocking_calls(network, args)
+
+    # These tests require a service which has only ever emitted COSE signatures,
+    # unlike a service upgraded from Dual mode with legacy signatures in its ledger.
+    is_cose_only_from_genesis = args.package.endswith("_cose_only")
+    if is_cose_only_from_genesis and not args.http2:
+        test_cose_set_member(network, args)
 
 
 def run_parsing_errors(args):
