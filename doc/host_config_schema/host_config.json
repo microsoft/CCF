@@ -6,16 +6,16 @@
   "properties": {
     "observability": {
       "type": "object",
-      "description": "Startup-only observability settings. Absent fluentd configuration disables trace export.",
+      "description": "Observability settings applied at startup.",
       "properties": {
         "fluentd": {
           "type": "object",
-          "description": "Exports [tag, EventTime, {'process_id': string, 'h_ts': process sequence, 'msg': event}] to a trusted local in_forward listener over plaintext TCP, without authentication or acknowledgements. Generic tracing is independent of CCF_RAFT_TRACING. Setting CCF_RAFT_TRACING=ON enables Raft instrumentation, using the ccf.raft_trace tag and retaining node IDs. Sequence numbers are assigned before enqueue; delivery can be out of order or lossy. The consumer logs each 65536 dropped records and drains for at most two seconds at shutdown. One owning record queue per producer feeds one TCP connection. Queue synchronization is lock-free, but record allocation may lock. Nodes do not wait for a collector before starting.",
+          "description": "Optional trace export to a trusted Fluentd in_forward listener over unauthenticated, unencrypted TCP. Delivery is best effort; collector outages do not prevent node startup. Raft events require a build with CCF_RAFT_TRACING=ON.",
           "properties": {
             "host": {
               "type": "string",
               "minLength": 1,
-              "description": "Hostname or IPv4/IPv6 address, resolved once at startup. Resolution failure prevents startup; collector outage does not."
+              "description": "Collector hostname or IP address. Resolution failure prevents startup."
             },
             "port": {
               "type": "string",
@@ -28,7 +28,7 @@
               "minimum": 1,
               "maximum": 1048576,
               "default": 4096,
-              "description": "Per-producer record slots, not a byte budget. Full queues and records over 1MiB are rejected before allocation. Allocation failure also drops the record. Accepted records own their bytes until the consumer finishes sending or drops them. There is no aggregate byte limit."
+              "description": "Maximum queued records per producer thread, not bytes. Full queues drop new records."
             }
           },
           "required": ["host", "port"]

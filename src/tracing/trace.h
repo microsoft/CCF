@@ -3,13 +3,14 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "msgpack/fields.h"
 #include "msgpack/fluentd_event_time.h"
+#include "msgpack/serialization.h"
 #include "tracing/fluentd_sink.h"
 
 #include <atomic>
 #include <chrono>
 #include <string>
+#include <tuple>
 #include <unistd.h>
 #include <vector>
 
@@ -58,12 +59,19 @@ namespace ccf::tracing
       buffer,
       msgpack::FluentdEventTime::make(std::chrono::system_clock::now()));
     msgpack::write_map_header(buffer, 3);
-    msgpack::write_key(buffer, "process_id");
+    msgpack::write_str(buffer, "process_id");
     msgpack::write_str(buffer, process_identity());
-    msgpack::write_key(buffer, "h_ts");
+    msgpack::write_str(buffer, "h_ts");
     msgpack::write_uint(buffer, sequence);
-    msgpack::write_key(buffer, "msg");
-    msgpack::write_map(buffer, args...);
+    msgpack::write_str(buffer, "msg");
+    msgpack::write_map_header(buffer, sizeof...(Args) / 2);
+    using msgpack::write_msgpack;
+    const auto refs = std::tie(args...);
+    [&]<size_t... I>(std::index_sequence<I...>) {
+      ((msgpack::write_str(buffer, std::get<2 * I>(refs)),
+        write_msgpack(buffer, std::get<2 * I + 1>(refs))),
+       ...);
+    }(std::make_index_sequence<sizeof...(Args) / 2>{});
     FluentdSink::enqueue(buffer);
   }
 }

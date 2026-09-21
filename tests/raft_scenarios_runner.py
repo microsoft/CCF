@@ -91,7 +91,7 @@ def preprocess_for_trace_validation(log):
     assert signature["msg"]["globally_committable"], signature
     commit = head()
     assert commit["msg"]["function"] == "commit", commit
-    assert commit["msg"]["args"]["idx"] == 2, commit
+    assert commit["msg"]["idx"] == 2, commit
     # Commit becomes bootstrap, the entry point into the trace validation
     commit["msg"]["function"] = "bootstrap"
     log_by_node[initial_node].insert(0, commit)
@@ -103,6 +103,22 @@ def preprocess_for_trace_validation(log):
 
 def noop(log):
     return log
+
+
+def flatten_legacy_trace(message):
+    """Adapt baseline-driver payloads from before commit/configuration flattening."""
+    if "args" not in message:
+        return message
+    function = message.get("function")
+    if function not in ("commit", "add_configuration"):
+        return message
+    flattened = {}
+    for key, value in message.items():
+        if key == "args":
+            flattened.update(value if function == "commit" else value["configuration"])
+        else:
+            flattened[key] = value
+    return flattened
 
 
 def separate_log_lines(text, preprocess):
@@ -143,7 +159,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--compare-driver",
-        help="Compare ordered trace payloads with this baseline driver",
+        help="Compare ordered trace payloads, flattening legacy baseline arguments",
     )
     parser.add_argument("files", nargs="*", type=str, help="Path to scenario files")
     parser.add_argument(
@@ -190,7 +206,7 @@ if __name__ == "__main__":
                 ):
                     # Repacking retains map order but excludes process IDs and time.
                     assert msgpack.packb(record["msg"]) == msgpack.packb(
-                        previous["msg"]
+                        flatten_legacy_trace(previous["msg"])
                     ), (scenario, index, record["msg"], previous["msg"])
         else:
             proc = subprocess.run(

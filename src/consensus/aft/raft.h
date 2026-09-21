@@ -511,7 +511,7 @@ namespace aft
         "Configurations: add new configuration at {}: {{{}}}", idx, conf);
 
 #ifdef CCF_RAFT_TRACING
-      trace::emit_add_configuration(*state, configurations, idx, conf);
+      trace::add_configuration(*state, configurations, idx, conf, idx);
 #endif
 
       // Detect when we are retired by observing a configuration
@@ -2472,7 +2472,7 @@ namespace aft
       }
 
 #ifdef CCF_RAFT_TRACING
-      trace::commit(*state, ccf::msgpack::map("idx", idx), configurations);
+      trace::commit(*state, idx, configurations);
 #endif
 
       compact_committable_indices(idx);

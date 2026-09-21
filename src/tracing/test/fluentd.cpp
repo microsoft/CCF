@@ -153,28 +153,15 @@ TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
   }) == 1);
 }
 
-TEST_CASE("Direct map encoding does not allocate into a reserved buffer")
+TEST_CASE("Nested object encoding does not allocate into a reserved buffer")
 {
   std::vector<uint8_t> bytes;
   bytes.reserve(2048);
   const auto before = allocations;
-  ccf::msgpack::write_map(
-    bytes,
-    "signed",
-    -1,
-    "unsigned",
-    uint64_t(42),
-    "bool",
-    true,
-    "nested",
-    request_trace::Nested{7, false},
-    "args",
-    ccf::msgpack::map("idx", 3),
-    "literal",
-    "value");
+  request_trace::write_msgpack(bytes, request_trace::Nested{7, false});
   const auto after = allocations;
   CHECK(after == before);
-  CHECK(nlohmann::json::from_msgpack(bytes)["nested"]["number"] == 7);
+  CHECK(nlohmann::json::from_msgpack(bytes)["number"] == 7);
 }
 
 TEST_CASE("SPSC callback retains ownership until it returns")

@@ -62,21 +62,43 @@ namespace aft
         static_cast<uint32_t>(state.retirement_committable_idx.has_value()) +
         static_cast<uint32_t>(state.retired_committed_idx.has_value()) +
         static_cast<uint32_t>(include_indices));
-    write_pair(out, "node_id", state.node_id.value());
-    write_pair(out, "current_view", state.current_view);
-    write_pair(out, "last_idx", state.last_idx);
-    write_pair(out, "commit_idx", state.commit_idx);
-    write_pair(out, "leadership_state", state.leadership_state.load());
-    write_pair(out, "membership_state", state.membership_state);
-    write_pair(out, "pre_vote_enabled", state.pre_vote_enabled);
-    write_optional(out, "retirement_phase", state.retirement_phase);
-    write_optional(out, "retirement_idx", state.retirement_idx);
-    write_optional(
-      out, "retirement_committable_idx", state.retirement_committable_idx);
-    write_optional(out, "retired_committed_idx", state.retired_committed_idx);
+    write_str(out, "node_id");
+    write_msgpack(out, state.node_id.value());
+    write_str(out, "current_view");
+    write_msgpack(out, state.current_view);
+    write_str(out, "last_idx");
+    write_msgpack(out, state.last_idx);
+    write_str(out, "commit_idx");
+    write_msgpack(out, state.commit_idx);
+    write_str(out, "leadership_state");
+    write_msgpack(out, state.leadership_state.load());
+    write_str(out, "membership_state");
+    write_msgpack(out, state.membership_state);
+    write_str(out, "pre_vote_enabled");
+    write_msgpack(out, state.pre_vote_enabled);
+    if (state.retirement_phase.has_value())
+    {
+      write_str(out, "retirement_phase");
+      write_msgpack(out, *state.retirement_phase);
+    }
+    if (state.retirement_idx.has_value())
+    {
+      write_str(out, "retirement_idx");
+      write_msgpack(out, *state.retirement_idx);
+    }
+    if (state.retirement_committable_idx.has_value())
+    {
+      write_str(out, "retirement_committable_idx");
+      write_msgpack(out, *state.retirement_committable_idx);
+    }
+    if (state.retired_committed_idx.has_value())
+    {
+      write_str(out, "retired_committed_idx");
+      write_msgpack(out, *state.retired_committed_idx);
+    }
     if (include_indices)
     {
-      write_key(out, "committable_indices");
+      write_str(out, "committable_indices");
       const auto count = static_cast<uint32_t>(
         std::min<size_t>(state.committable_indices.size(), 2));
       write_array_header(out, count);
@@ -105,11 +127,11 @@ namespace ccf::kv
     msgpack::write_map_header(out, msgpack::container_size(nodes.size()));
     for (const auto& [node_id, node_info] : nodes)
     {
-      msgpack::write_key(out, node_id.value());
-      msgpack::write_map(
-        out,
-        "address",
-        ccf::make_net_address(node_info.hostname, node_info.port));
+      msgpack::write_str(out, node_id.value());
+      msgpack::write_map_header(out, 1);
+      msgpack::write_str(out, "address");
+      msgpack::write_str(
+        out, ccf::make_net_address(node_info.hostname, node_info.port));
     }
   }
 
@@ -185,29 +207,9 @@ namespace aft::trace
     step_down_and_nominate_successor, raft_trace_tag, state, configurations);
   DECLARE_TRACE_EVENT(
     replicate, raft_trace_tag, state, view, seqno, globally_committable);
-  // This event preserves the nested args.configuration wire shape without
-  // constructing/copying a Configuration.
-  inline void emit_add_configuration(
-    const State& state,
-    const std::list<ccf::kv::Configuration>& configurations,
-    Index idx,
-    const ccf::kv::Configuration::Nodes& nodes)
-  {
-    ccf::tracing::emit(
-      raft_trace_tag,
-      "function",
-      "add_configuration",
-      "state",
-      state,
-      "configurations",
-      configurations,
-      "args",
-      ccf::msgpack::map(
-        "configuration",
-        ccf::msgpack::map("idx", idx, "nodes", nodes, "rid", idx)));
-  }
-
-  DECLARE_TRACE_EVENT(commit, raft_trace_tag, state, args, configurations);
+  DECLARE_TRACE_EVENT(
+    add_configuration, raft_trace_tag, state, configurations, idx, nodes, rid);
+  DECLARE_TRACE_EVENT(commit, raft_trace_tag, state, idx, configurations);
   DECLARE_TRACE_EVENT(
     drop_pending_to, raft_trace_tag, state, from_node_id, to_node_id, packet);
 }

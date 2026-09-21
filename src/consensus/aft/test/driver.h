@@ -512,31 +512,6 @@ public:
     log(node_id, tgt_node_id, s, dropped);
   }
 
-  template <typename Packet>
-  void trace_dropped_packet(
-    const ccf::NodeId& node_id,
-    const ccf::NodeId& tgt_node_id,
-    const Packet& packet,
-    bool dropped)
-  {
-#ifdef CCF_RAFT_TRACING
-    if (dropped)
-    {
-      aft::trace::drop_pending_to(
-        aft::trace::StateWithoutIndicesView{
-          _nodes.at(node_id).raft->get_state_for_trace()},
-        node_id.value(),
-        tgt_node_id.value(),
-        packet);
-    }
-#else
-    (void)node_id;
-    (void)tgt_node_id;
-    (void)packet;
-    (void)dropped;
-#endif
-  }
-
   void log_msg_details(
     ccf::NodeId node_id,
     ccf::NodeId tgt_node_id,
@@ -546,49 +521,58 @@ public:
     const uint8_t* data = contents.data();
     size_t size = contents.size();
 
+    const auto log_packet = [&](const auto& packet) {
+      log_msg_details(node_id, tgt_node_id, packet, dropped);
+#ifdef CCF_RAFT_TRACING
+      if (dropped)
+      {
+        aft::trace::drop_pending_to(
+          aft::trace::StateWithoutIndicesView{
+            _nodes.at(node_id).raft->get_state_for_trace()},
+          node_id.value(),
+          tgt_node_id.value(),
+          packet);
+      }
+#endif
+    };
+
     const auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
     switch (msg_type)
     {
       case (aft::RaftMsgType::raft_request_vote):
       {
         auto rv = *(aft::RequestVote*)data;
-        log_msg_details(node_id, tgt_node_id, rv, dropped);
-        trace_dropped_packet(node_id, tgt_node_id, rv, dropped);
+        log_packet(rv);
         break;
       }
       case (aft::RaftMsgType::raft_request_pre_vote):
       {
         auto rpv = *(aft::RequestPreVote*)data;
-        log_msg_details(node_id, tgt_node_id, rpv, dropped);
-        trace_dropped_packet(node_id, tgt_node_id, rpv, dropped);
+        log_packet(rpv);
         break;
       }
       case (aft::RaftMsgType::raft_request_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
-        log_msg_details(node_id, tgt_node_id, rvr, dropped);
-        trace_dropped_packet(node_id, tgt_node_id, rvr, dropped);
+        log_packet(rvr);
         break;
       }
       case (aft::RaftMsgType::raft_request_pre_vote_response):
       {
         auto rvr = *(aft::RequestPreVoteResponse*)data;
-        log_msg_details(node_id, tgt_node_id, rvr, dropped);
-        trace_dropped_packet(node_id, tgt_node_id, rvr, dropped);
+        log_packet(rvr);
         break;
       }
       case (aft::RaftMsgType::raft_append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
-        log_msg_details(node_id, tgt_node_id, ae, dropped);
-        trace_dropped_packet(node_id, tgt_node_id, ae, dropped);
+        log_packet(ae);
         break;
       }
       case (aft::RaftMsgType::raft_append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
-        log_msg_details(node_id, tgt_node_id, aer, dropped);
-        trace_dropped_packet(node_id, tgt_node_id, aer, dropped);
+        log_packet(aer);
         break;
       }
       case (aft::RaftMsgType::raft_append_entries_signed_response):
@@ -599,8 +583,7 @@ public:
       case (aft::RaftMsgType::raft_propose_request_vote):
       {
         auto prv = *(aft::ProposeRequestVote*)data;
-        log_msg_details(node_id, tgt_node_id, prv, dropped);
-        trace_dropped_packet(node_id, tgt_node_id, prv, dropped);
+        log_packet(prv);
         break;
       }
       default:

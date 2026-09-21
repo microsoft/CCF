@@ -129,8 +129,8 @@ def table(lines):
             tag = "S"
         # Display commit index changes on the Cmt line itself by updating the
         # state with the argument passed to commit
-        if "args" in entry["msg"] and "idx" in entry["msg"]["args"]:
-            entry["msg"]["state"]["commit_idx"] = entry["msg"]["args"]["idx"]
+        if entry["msg"]["function"] == "commit":
+            entry["msg"]["state"]["commit_idx"] = entry["msg"]["idx"]
         states = [
             (
                 node_to_state.get(node),

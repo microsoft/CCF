@@ -251,6 +251,7 @@ if __name__ == "__main__":
                 sys.executable,
                 args.scenarios_runner,
                 args.raft_driver,
+                "--raft-tracing",
                 "--output",
                 trace_dir,
                 args.scenario,

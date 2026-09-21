@@ -102,6 +102,13 @@ def run_driver(driver, scenario, timeout=60):
         assert not collector.is_alive(), "Collector failed to stop"
     if errors:
         raise errors[0]
+    if not records:
+        with pathlib.Path(scenario).open(encoding="utf-8") as source:
+            for line in source:
+                line = line.split("#", 1)[0].rstrip(" \t\n\r\f\v")
+                if line.startswith("===="):
+                    break
+                assert not line, f"No Raft trace records captured for {scenario}"
     records.sort(key=lambda record: record["h_ts"])
     for sequence, record in enumerate(records):
         assert record["h_ts"] == sequence, "Missing or duplicate trace sequence"

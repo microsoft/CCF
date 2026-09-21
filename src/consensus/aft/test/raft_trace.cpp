@@ -126,7 +126,8 @@ TEST_CASE("Raft trace State matches JSON, including absent optional fields")
   }
 }
 
-TEST_CASE("Raft events preserve field order and nested argument shapes")
+TEST_CASE(
+  "Raft events preserve field order and flatten configuration arguments")
 {
   using nlohmann::ordered_json;
   aft::State state(ccf::NodeId("node"));
@@ -145,23 +146,8 @@ TEST_CASE("Raft events preserve field order and nested argument shapes")
       {"view", 4},
       {"seqno", 7},
       {"globally_committable", true}});
-  bytes.clear();
-  ccf::msgpack::write_map(bytes, "idx", 7);
-  CHECK(bytes == ordered_json::to_msgpack(ordered_json{{"idx", 7}}));
   const ccf::kv::Configuration::Nodes nodes = {
     {ccf::NodeId("node"), {"::1", "456"}}};
-  bytes.clear();
-  ccf::msgpack::write_map(
-    bytes,
-    "configuration",
-    ccf::msgpack::map("idx", 7, "nodes", nodes, "rid", 7));
-  CHECK(
-    bytes ==
-    ordered_json::to_msgpack(ordered_json{
-      {"configuration",
-       {{"idx", 7},
-        {"nodes", {{"node", {{"address", "[::1]:456"}}}}},
-        {"rid", 7}}}}));
 
   const std::list<ccf::kv::Configuration> configurations = {{7, nodes, 7}};
   const ordered_json configuration_json = {
@@ -173,20 +159,18 @@ TEST_CASE("Raft events preserve field order and nested argument shapes")
      {"state", state_json},
      {"configurations", configurations_json}});
   check_record(
-    [&] {
-      aft::trace::emit_add_configuration(state, configurations, 7, nodes);
-    },
+    [&] { aft::trace::add_configuration(state, configurations, 7, nodes, 7); },
     {{"function", "add_configuration"},
      {"state", state_json},
      {"configurations", configurations_json},
-     {"args", {{"configuration", configuration_json}}}});
+     {"idx", 7},
+     {"nodes", configuration_json["nodes"]},
+     {"rid", 7}});
   check_record(
-    [&] {
-      aft::trace::commit(state, ccf::msgpack::map("idx", 7), configurations);
-    },
+    [&] { aft::trace::commit(state, 7, configurations); },
     {{"function", "commit"},
      {"state", state_json},
-     {"args", {{"idx", 7}}},
+     {"idx", 7},
      {"configurations", configurations_json}});
   check_record(
     [&] { aft::trace::execute_append_entries_sync(state, "peer"); },
