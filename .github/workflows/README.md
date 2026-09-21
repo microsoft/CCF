@@ -16,20 +16,7 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 
 Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
 
-After the baseline tests, the job rebuilds `basic` with `CCF_RAFT_TRACING=ON` and
-runs the `fluentd_emission` perf test, so tracing never affects the baselines.
-The test runs the existing blocking-write Locust workload twice on two nodes,
-first with export off and then with export on, from the same tracing-enabled
-executable. A local TCP listener speaks the Fluentd Forward protocol and counts
-the records and bytes it decodes, without storing them. The listener is not a
-Fluentd instance, and its counts do not prove that no records were dropped. The
-run with export on requires Raft events from both nodes.
-
-Throughput and latency go to `bencher.json` with the other perf results. The
-record and byte counts go to `<label>_received.json` files in the logs artifact.
-
-To run the test locally, build `basic` with `-DCCF_RAFT_TRACING=ON`, then run
-`cd build && ./tests.sh -VV -C perf -R '^fluentd_emission$' --no-tests=error`.
+Also compares two-node throughput and latency with Fluentd trace export disabled and enabled, using a local TCP collector. This runs after the existing benchmarks with a separate tracing-enabled build.
 
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
