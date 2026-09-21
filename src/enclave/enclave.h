@@ -98,7 +98,7 @@ namespace ccf
       writer_factory(std::move(writer_factory_)),
       work_beacon(std::move(work_beacon_)),
       runtime_control(runtime_control_),
-      ledger_subsystem(std::move(ledger_subsystem)),
+      ledger_subsystem(ledger_subsystem),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCConnectionManager>(rpc_map))
     {

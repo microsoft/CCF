@@ -15,7 +15,7 @@ namespace consensus
 
   using Index = uint64_t;
 
-  enum class LedgerRangeStatus
+  enum class LedgerRangeStatus : uint8_t
   {
     Found,
     NotFound,

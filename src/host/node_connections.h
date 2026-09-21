@@ -650,7 +650,6 @@ namespace asynchost
       outbound_connection->write(frame.size(), frame.data());
     }
 
-  private:
     // Decide which of two simultaneously-created connections with a peer to
     // keep. Both nodes evaluate this for the same pair and must agree: the node
     // with the lower ID keeps the connection it opened, and the node with the
