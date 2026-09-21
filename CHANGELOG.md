@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.17]
+
+[7.0.17]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.17
+
+### Added
+
+- Added best-effort trace export to Fluentd over unauthenticated, unencrypted TCP, configured through [`observability.fluentd`](doc/host_config_schema/host_config.json). Raft events require `CCF_RAFT_TRACING=ON` (#8386).
+
 ## [7.0.16]
 
 [7.0.16]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.16
@@ -34,10 +42,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [7.0.15]
 
 [7.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.15
-
-### Added
-
-- Added generic tracing over plaintext TCP to a trusted, local Fluentd `in_forward` listener, enabled by startup `observability.fluentd` configuration. Export is best-effort, without authentication, TLS, acknowledgements, or durable delivery. Each producer has an owning record queue with `queue_capacity` defaulting to 4096 slots and a separate 1MiB record limit. See the [host configuration schema](doc/host_config_schema/host_config.json) for record fields, queue limits, and shutdown behaviour. Raft instrumentation requires `CCF_RAFT_TRACING=ON`, which remains off by default. The Raft test driver waits up to five seconds for a configured collector and fails on connection timeout or exporter drops.
 
 ### Fixed
 
