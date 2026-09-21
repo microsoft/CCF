@@ -45,7 +45,7 @@ handlers through ``Registry::read_write`` and ``Registry::read_only``.
 Endpoint execution
 ------------------
 
-Handlers may run concurrently and must be ``Send`` and ``Sync``. CCF may also
+Handlers may run concurrently and must implement ``Send`` and ``Sync``. CCF may also
 retry a read-write handler when a transaction conflicts, so handlers should be
 deterministic and should not perform non-transactional side effects.
 
