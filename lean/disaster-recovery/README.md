@@ -28,29 +28,34 @@ timeout lane, retries, duplicate receives, strict-majority voting, failover,
 restart, and completion.
 
 `Local.transitionSystem config location` uses `NodeState` directly for standalone
-exploration. `Local.transition` exposes each transition's effects, including sends,
-opening, restart, completion, and rejection diagnostics. Effects are outputs,
+exploration. `Local.transition` exposes state changes and non-send effects,
+including opening, restart, completion, and rejection diagnostics. Effects are outputs,
 not accumulated node history. An ignored receive returns unchanged node state
 with a diagnostic; it is not a disabled action.
 
 `DisasterRecovery.Shared.Capabilities` defines the host-provided send callback:
-`send : Message -> Node -> ST σ Unit`. The host owns a scoped mutable outbox.
+`send : Message -> Node -> Effect Node Message Unit`. The host owns the outbox.
 Its callback appends messages without inspecting the network or recipient state.
-Local receives the callback, not the reference.
+Local receives the callback and does not construct or thread the outbox.
+`Effect Node Message` is `StateM (List (Prod Node Message))`, with transparent
+accumulation semantics rather than opaque mutable references.
 
-`Local.step host config recovered state event` returns `Option (ST σ NodeState)`.
+`Local.step host config recovered state event` returns
+`Option (Effect Location Message NodeState)`.
 The outer `Option` decides enabledness before any sends execute. An enabled
 computation returns the next state and cannot subsequently return "disabled".
-The DR step runs the local transition once, disables empty retries, and supplies
-the node's recovered transaction ID when sending gossip.
+Receive and timeout steps run the local transition once. Retry branches call
+`host.send` directly, supplying the node's recovered transaction ID for gossip.
+They do not build or convert intermediate send-effect lists. Their guards disable
+empty retries before any send executes.
 
 `DisasterRecovery.Shared.Global` supplies the reusable network. Its state
 contains only node states, active nodes, and queued messages. Envelopes contain only source,
 target, and payload. `Global.Protocol` supplies local initial predicates,
-optional `ST` computations, and receive and autonomous-input adapters.
+optional effect computations, and receive and autonomous-input adapters.
 `Global.lift` constructs a network transition system from that interface.
 `Global.runStep` supplies the send callback and executes an enabled computation
-with `runST`, returning its state and collected messages.
+on an empty outbox, returning its state and collected messages.
 
 Delivery atomically consumes one queued occurrence, runs the receiving node,
 and appends its outgoing messages with that node as their source. The local step
@@ -134,6 +139,8 @@ configuration and lockfile, and the CI workflow are part of that review surface.
 ## Proof coverage and limits
 
 `DisasterRecovery.Proofs.Local` proves local transition-safety properties.
+It also proves that the send callback cannot affect DR's enabledness or returned
+node state, even when the computation starts with a nonempty output accumulator.
 
 Ghost executions retain the send-time evidence and event histories needed by
 the safety proofs. `Proofs.ExecutionLocal` and `Proofs.Execution` define the
@@ -191,7 +198,7 @@ this stage.
 | ----------------------------------------------- | --------------- | ---------------------------------------------------- |
 | `DisasterRecovery/Model.lean`                   | Human           | DR configuration and network composition             |
 | `DisasterRecovery/Shared/TransitionSystem.lean` | Human           | Shared initial-state and optional-transition API     |
-| `DisasterRecovery/Shared/Capabilities.lean`     | Human           | Host-provided scoped send callback                   |
+| `DisasterRecovery/Shared/Capabilities.lean`     | Human           | Host-provided send callback and accumulating effects |
 | `DisasterRecovery/Shared/Execution.lean`        | Human           | Protocol-independent runs and contiguous traces      |
 | `DisasterRecovery/Properties.lean`              | Human           | Named property statements without proof dependencies |
 | `DisasterRecovery/Proof.lean`                   | Human           | Theorem links establishing the named properties      |
@@ -207,12 +214,6 @@ this stage.
 | `DisasterRecovery/Tests/History.lean`           | Human           | Actual-send and model-history regression cases       |
 
 ## Validation
-
-The mutable-send implementation is an implementation checkpoint. Executable
-canonical checks and the property dependency check pass, but the existing
-correspondence proofs still target the former `Shared.Step` interface. The full
-proof build and axiom audit require proof migration before this checkpoint is
-merge-ready.
 
 Run from this directory:
 

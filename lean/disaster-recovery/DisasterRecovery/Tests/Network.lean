@@ -29,8 +29,18 @@ private def protocol : Global.Protocol Nat Nat Input Nat Input where
   receive := .receive
   internal := id
 
-example (host : Capabilities σ Nat Nat) (node state : Nat) :
+example (host : Capabilities Nat Nat) (node state : Nat) :
     protocol.step host node state .blocked = none := rfl
+
+example (node state : Nat) :
+    Global.runStep protocol node state .blocked = none := rfl
+
+example (node state : Nat) :
+    Global.runStep protocol node state (.receive 0 99) = none := rfl
+
+example (node state : Nat) :
+    Global.runStep protocol node state .burst =
+      some (state + 1, [(0, 1), (0, 2)]) := rfl
 
 private def initial : Global.State Nat Nat Nat := {
   nodes := [(0, 0), (1, 0)]
@@ -76,7 +86,7 @@ def run : IO Unit := do
     "enabled send burst was disabled"
   expect (Global.nodeState burst 1 == some 1 &&
       burst.network == [message, message, reply, { reply with payload := 2 }])
-    "mutable sends were reordered, lost, or executed more than once"
+    "accumulated sends were reordered, lost, or executed more than once"
 
   let synthetic <- requireSome (machine.step queued (.local 1 (.receive 0 5)))
     "generic network disallowed a synthetic local receive"

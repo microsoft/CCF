@@ -5,6 +5,7 @@ namespace DisasterRecovery.Proofs.Lifting
 
 open Shared
 open DisasterRecovery.Model.Local
+open Execution.Local (messages)
 
 def eraseEnvelope (envelope : Execution.Global.Envelope) : Model.Envelope :=
   { source := envelope.source, target := envelope.target, payload := envelope.payload }
@@ -19,13 +20,13 @@ def eraseAction : Execution.Global.Action -> Model.Action
   | .deliver envelope => .deliver (eraseEnvelope envelope)
 
 def eraseOutput (output : Execution.Local.StepOutput) : Result :=
-  { state := output.state, effects := output.effects }
+  { state := output.state, effects := output.effects.filterMap Execution.Local.Effect.diagnostic }
 
 lemma advance_erases (config : Config) (state : NodeState) (timeout : Bool) :
     (Execution.Local.advance config state timeout).map eraseOutput =
       advance config state timeout := by
   simp [Execution.Local.advance, advance]
-  repeat first | split | simp_all [eraseOutput]
+  repeat first | split | simp_all [eraseOutput, Execution.Local.Effect.diagnostic]
 
 lemma advance_accepted (config : Config) (state : NodeState) (timeout : Bool)
     (output : Execution.Local.StepOutput)
@@ -39,6 +40,11 @@ lemma transition_erases (config : Config) (state : NodeState) (event : Event)
     (h : transition config state event = some output) :
     eraseOutput (Execution.Local.step config state event) = output := by
   cases event <;> try cases_type Validation
+  case retry =>
+    cases phase : state.phase <;> cases chosen : state.chosen <;>
+      simpa [transition, Execution.Local.step, Execution.Local.transitionSystem,
+        eraseOutput, phase, chosen, List.filterMap_cons, List.filterMap_map, Function.comp_def,
+        Execution.Local.Effect.diagnostic] using h
   all_goals
     simp [transition, Execution.Local.step, Execution.Local.transitionSystem,
       Execution.Local.rejectionReason, Execution.Local.rejected, rejected,
@@ -47,9 +53,9 @@ lemma transition_erases (config : Config) (state : NodeState) (event : Event)
     repeat first
       | split at h
       | split
-      | (simp_all [eraseOutput])
+      | (simp_all [eraseOutput, Execution.Local.Effect.diagnostic])
       | (rw [← advance_erases] at h; cases ha : Execution.Local.advance _ _ _ <;>
-          simp_all [eraseOutput])
+          simp_all [eraseOutput, Execution.Local.Effect.diagnostic])
 
 lemma timeout_accepted (config : Config) (state : NodeState) (output : Result)
     (h : transition config state .timeout = some output) :
@@ -94,13 +100,13 @@ lemma first_matching_envelope
         · simp [first, selected]
 
 lemma transition_messages_empty (config : Config) (state : NodeState)
-    (event : Event) (output : Result) (recovered : TxID)
-    (notRetry : event ≠ .retry)
-    (h : transition config state event = some output) :
-    messages recovered output.effects = [] := by
+    (event : Event) (recovered : TxID)
+    (notRetry : event ≠ .retry) :
+    messages recovered (Execution.Local.step config state event).effects = [] := by
   cases event <;> try cases_type Validation
-  all_goals simp [transition, rejected, advance] at h
-  all_goals repeat first | split at h | simp_all [messages] | subst output
+  all_goals simp [Execution.Local.step, Execution.Local.transitionSystem,
+    Execution.Local.rejected, Execution.Local.advance, guard, failure]
+  all_goals repeat first | split | simp_all [messages]
 
 lemma retry_messages_erases (config : Model.Config) (source : Location)
     (state : NodeState) (recovered : TxID)
@@ -119,34 +125,71 @@ lemma retry_messages_erases (config : Model.Config) (source : Location)
         simp [messages, List.filterMap_cons, Execution.Global.messageForEffect,
           found', eraseEnvelope] at ih ⊢ <;> exact ih
 
-private lemma send_messages_run {Node Message : Type} (outgoing : List (Node × Message)) :
-    (forM (m := Step Node Message) outgoing fun entry => Step.send entry.1 entry.2).run =
-      some ((), outgoing) := by
-  induction outgoing with
-  | nil => rfl
+private lemma send_messages_run {Node Message : Type}
+    (targets : List Node) (message : Message) (accumulated : List (Node × Message)) :
+    (List.foldlM (m := Shared.Effect Node Message)
+      (fun (_ : PUnit) target => modify (· ++ [(target, message)])) PUnit.unit targets).run accumulated =
+      (PUnit.unit, accumulated ++ targets.map (fun target => (target, message))) := by
+  induction targets generalizing accumulated with
+  | nil => simp only [List.foldlM_nil, List.map_nil, List.append_nil]; rfl
   | cons head tail ih =>
-      rw [List.forM_cons]
-      change ((forM (m := Step Node Message) tail fun entry => Step.send entry.1 entry.2).run.bind
-        fun (result, sent) => some (result, head :: sent)) = _
+      change (List.foldlM (m := Shared.Effect Node Message)
+        (fun (_ : PUnit) target => modify (· ++ [(target, message)])) PUnit.unit tail).run
+          (accumulated ++ [(head, message)]) = _
       rw [ih]
-      rfl
+      simp
 
 lemma local_step_run (config : Config) (recovered : TxID)
     (state : NodeState) (event : Event) :
-    (step config recovered state event).run = (do
+    (step { send := fun message target => modify (· ++ [(target, message)]) }
+      config recovered state event).map (fun execute => execute.run []) = (do
       let output <- transition config state event
-      let outgoing := messages recovered output.effects
+      let outgoing := messages recovered (Execution.Local.step config state event).effects
       match event with
       | .retry => guard (!outgoing.isEmpty)
       | _ => pure ()
       pure (output.state, outgoing)) := by
-  cases trans : transition config state event with
-  | none =>
-      simp [step, Step.ofOption, trans, bind, pure]
-  | some output =>
-      cases event <;>
-        simp [step, Step.ofOption, trans, bind, pure, guard, failure, send_messages_run]
-      split <;> simp_all
+  cases event with
+  | retry =>
+      cases phase : state.phase <;> cases chosen : state.chosen <;>
+        simp [step, phase, transition, Execution.Local.step, Execution.Local.transitionSystem,
+          chosen, messages, List.filterMap_map, guard, failure]
+      all_goals try split
+      all_goals simp_all [send_messages_run, pure]
+      all_goals rfl
+  | receiveGossip source txid validation =>
+      rw [transition_messages_empty config state _ recovered (by intro h; cases h)]
+      simp [step, bind, pure]; rfl
+  | receiveVote source validation =>
+      rw [transition_messages_empty config state _ recovered (by intro h; cases h)]
+      simp [step, bind, pure]; rfl
+  | receiveIAmOpen source validation =>
+      rw [transition_messages_empty config state _ recovered (by intro h; cases h)]
+      simp [step, bind, pure]; rfl
+  | timeout =>
+      rw [transition_messages_empty config state _ recovered (by intro h; cases h)]
+      simp [step, bind, pure]; rfl
+
+lemma model_step_run (config : Model.Config) (node : Location)
+    (state : NodeState) (event : Event) :
+    Global.runStep (Model.protocol config) node state event = (do
+      let recovered <- Model.recoveredTxID config node
+      let output <- transition config.protocol state event
+      let outgoing := messages recovered (Execution.Local.step config.protocol state event).effects
+      match event with
+      | .retry => guard (!outgoing.isEmpty)
+      | _ => pure ()
+      pure (output.state, outgoing)) := by
+  cases recovered : Model.recoveredTxID config node with
+  | none => simp [Global.runStep, Model.protocol, recovered]
+  | some txid =>
+      simp only [Global.runStep, Model.protocol, recovered, bind, Option.bind_some, pure]
+      calc
+        _ = (step { send := fun message target => modify (· ++ [(target, message)]) }
+            config.protocol txid state event).map (fun execute => execute.run []) := by
+          cases step { send := fun message target => modify (· ++ [(target, message)]) }
+              config.protocol txid state event <;> rfl
+        _ = _ := local_step_run config.protocol txid state event
 
 lemma runLocal_some (config : Model.Config) (before after : Model.State)
     (node : Location) (event : Event)
@@ -156,15 +199,16 @@ lemma runLocal_some (config : Model.Config) (before after : Model.State)
       Model.nodeState before node = some state /\
       transition config.protocol state event = some output /\
       Model.recoveredTxID config node = some recovered /\
-      (event = .retry -> messages recovered output.effects ≠ []) /\
+      (event = .retry -> messages recovered (Execution.Local.step config.protocol state event).effects ≠ []) /\
       after = {
         before with
         nodes := Global.replaceNode node output.state before.nodes
-        network := before.network ++ (messages recovered output.effects).map
+        network := before.network ++ (messages recovered
+          (Execution.Local.step config.protocol state event).effects).map
           (fun (target, payload) => { source := node, target, payload })
       } := by
-  simp [Global.runLocal, Model.protocol, Step.ofOption, bind, pure,
-    local_step_run, Option.bind_eq_some_iff, guard, failure] at h
+  simp [Global.runLocal, model_step_run,
+    Option.bind_eq_some_iff, guard, failure] at h
   rcases h with ⟨active, state, found, next, sent,
     ⟨recovered, recoveredFound, output, trans, rest⟩, result⟩
   refine ⟨state, output, recovered, active, found, trans, recoveredFound, ?_⟩
@@ -195,7 +239,7 @@ lemma replace_found
 
 @[simp]
 lemma erase_recordEffects (node : Location) (state : NodeState)
-    (effects : List Effect) (before : Execution.Global.State) :
+    (effects : List Execution.Local.Effect) (before : Execution.Global.State) :
     erase (Execution.Global.recordEffects node state effects before) = erase before := by
   simp [erase]
 
@@ -231,15 +275,12 @@ lemma step_lifts (config : Model.Config)
           have projectedOutput := transition_erases config.protocol state .retry output trans
           have outputState : output.state = state :=
             (congrArg Result.state projectedOutput).symm
-          have outputEffects := congrArg Result.effects projectedOutput
-          change (Execution.Local.step config.protocol state .retry).effects = output.effects
-            at outputEffects
           have projectedMessages := retry_messages_erases config node state recovered recoveredFound
-          rw [outputEffects] at projectedMessages
           have hasMessages : Execution.Global.retryMessages config node state ≠ [] := by
             intro empty
             rw [empty] at projectedMessages
-            have emptyOutput : messages recovered output.effects = [] := by
+            have emptyOutput : messages recovered
+                (Execution.Local.step config.protocol state .retry).effects = [] := by
               simpa using projectedMessages.symm
             exact nonempty rfl emptyOutput
           refine ⟨.retry node, {
@@ -258,8 +299,8 @@ lemma step_lifts (config : Model.Config)
             ⟨state, output, recovered, active, found, trans, _, _, result⟩
           have system := systemStep_of_transition config before node .timeout state output found trans
           have accepted := timeout_accepted config.protocol state output trans
-          have noMessages := transition_messages_empty config.protocol state .timeout output recovered
-            (by intro impossible; cases impossible) trans
+          have noMessages := transition_messages_empty config.protocol state .timeout recovered
+            (by intro impossible; cases impossible)
           refine ⟨.timeout node,
             Execution.Global.recordEffects node
               (Execution.Local.step config.protocol state .timeout).state
@@ -297,8 +338,8 @@ lemma step_lifts (config : Model.Config)
       have system := systemStep_of_transition config before decorated.target
         (Execution.Global.eventFor decorated) state output ghostFound ghostTrans
       have noMessages := transition_messages_empty config.protocol state
-        (receive envelope.source envelope.payload) output recovered
-        (by cases envelope.payload <;> simp [receive]) trans
+        (receive envelope.source envelope.payload) recovered
+        (by cases envelope.payload <;> simp [receive])
       refine ⟨.deliver decorated,
         Execution.Global.recordEffects decorated.target
           (Execution.Local.step config.protocol state (Execution.Global.eventFor decorated)).state
@@ -324,16 +365,13 @@ lemma empty_retry_disabled (config : Model.Config) (before : Execution.Global.St
   · cases actual : Model.next config (erase before) (.local source .retry) with
     | none => rfl
     | some after =>
-        obtain ⟨current, output, recovered, _, selected, trans, recoveredFound, nonempty, _⟩ :=
+        obtain ⟨current, _, recovered, _, selected, _, recoveredFound, nonempty, _⟩ :=
           runLocal_some config (erase before) after source .retry actual
         change Execution.Global.nodeState before source = some current at selected
         rw [found] at selected
         cases selected
         have projected := retry_messages_erases config source state recovered recoveredFound
-        have effects := congrArg Result.effects
-          (transition_erases config.protocol state .retry output trans)
-        change (Execution.Local.step config.protocol state .retry).effects = output.effects at effects
-        rw [empty, effects] at projected
+        rw [empty] at projected
         exact False.elim (nonempty rfl (by simpa using projected.symm))
 
 theorem model_initial_lifts (config : Model.Config) (state : Model.State)

@@ -83,7 +83,7 @@ example : ¬ SentVote beforeSend "A" "A" := by
       simpa [initial, Model.initial, config, Model.nodeState, Global.nodeState] using found.symm
     subst snapshot
     have runEq :
-        ((Model.protocol config).step "A" (initialNode "A") .retry).run =
+        Global.runStep (Model.protocol config) "A" (initialNode "A") .retry =
           some (initialNode "A", [("A", .gossip recovered)]) := rfl
     rw [runEq] at run
     cases run
@@ -102,7 +102,7 @@ example : ¬ FullGossipSelection beforeSend "A" := by
       simpa [initial, Model.initial, config, Model.nodeState, Global.nodeState] using found.symm
     subst snapshot
     have runEq :
-        ((Model.protocol config).step "A" (initialNode "A") .retry).run =
+        Global.runStep (Model.protocol config) "A" (initialNode "A") .retry =
           some (initialNode "A", [("A", .gossip recovered)]) := rfl
     rw [runEq] at run
     cases run

@@ -8,6 +8,7 @@ open Shared
 open Model.Local
 open Properties.History
 open Lifting
+open Execution.Local (messages)
 
 inductive Decoration (config : Model.Config) :
     Execution.Global.State -> List Transition -> Execution.Global.State -> Prop where
@@ -51,16 +52,14 @@ lemma history_lifts {config : Model.Config} {state : Model.State}
 
 lemma retry_run_messages (config : Model.Config) (source : Location) (state : NodeState)
     (after : NodeState) (outgoing : List (Location × Message))
-    (run : ((Model.protocol config).step source state .retry).run = some (after, outgoing)) :
+    (run : Global.runStep (Model.protocol config) source state .retry = some (after, outgoing)) :
     exists recovered,
       Model.recoveredTxID config source = some recovered /\
       outgoing = messages recovered (Execution.Local.step config.protocol state .retry).effects := by
-  simp [Model.protocol, Step.ofOption, bind, pure, local_step_run,
+  simp [model_step_run,
     Option.bind_eq_some_iff, guard, failure] at run
-  rcases run with ⟨recovered, found, output, trans, rest⟩
-  have effects := congrArg Result.effects
-    (transition_erases config.protocol state .retry output trans.1)
-  exact ⟨recovered, found, rest.2.symm.trans (congrArg (messages recovered) effects.symm)⟩
+  rcases run with ⟨recovered, found, output, _, rest⟩
+  exact ⟨recovered, found, rest.2.2.symm⟩
 
 lemma sentAt_retry_iff {config : Model.Config} {before after : Execution.Global.State}
     {source : Location} {state : NodeState}
@@ -119,10 +118,9 @@ lemma sentAt_retry_iff {config : Model.Config} {before after : Execution.Global.
       messages recovered (Execution.Local.step config.protocol state .retry).effects, ?_, ?_⟩
     · simpa [eraseEnvelope, sourceEq, stateEq, Model.nodeState, Global.nodeState,
         erase, Execution.Global.nodeState] using found
-    · have result : transition config.protocol state .retry =
-          some { state, effects := (Execution.Local.step config.protocol state .retry).effects } := rfl
-      simp [eraseEnvelope, sourceEq, stateEq, Model.protocol, Step.ofOption, bind, pure,
-        local_step_run, recoveredFound, result, guard, failure, outgoingNonempty]
+    · have result : transition config.protocol state .retry = some { state } := rfl
+      simp [eraseEnvelope, sourceEq, stateEq, model_step_run,
+        recoveredFound, result, guard, failure, outgoingNonempty]
     · have mapped : eraseEnvelope envelope ∈
           (Execution.Global.retryMessages config source state).map eraseEnvelope :=
         List.mem_map.mpr ⟨envelope, member, rfl⟩
@@ -202,7 +200,7 @@ lemma decoration_actors {config : Model.Config} {before after : Execution.Global
         exact next_actor_active step
       · exact ih edge member
 
-lemma opening_recorded (node : Location) (state : NodeState) (effects : List Effect)
+lemma opening_recorded (node : Location) (state : NodeState) (effects : List Execution.Local.Effect)
     (before : Execution.Global.State) (kind : OpenKind)
     (member : .opening kind ∈ effects) :
     ({ node, kind, state } : Execution.Global.Opening) ∈
@@ -230,8 +228,7 @@ lemma next_opening_recorded {config : Model.Config} {before after : Execution.Gl
   | retry source =>
       simp [event, eraseAction, transition] at trans
       subst output
-      cases phase : state.phase <;> simp [phase] at member
-      cases chosen : state.chosen <;> simp [chosen] at member
+      simp at member
   | timeout target =>
       change Execution.Global.nodeState before target = some state at found
       change transition config.protocol state .timeout = some output at trans
@@ -241,10 +238,14 @@ lemma next_opening_recorded {config : Model.Config} {before after : Execution.Gl
       obtain ⟨_, _, rfl⟩ := step
       have effects := congrArg Result.effects projected
       have states := congrArg Result.state projected
-      change (Execution.Local.step config.protocol state .timeout).effects = output.effects at effects
+      change (Execution.Local.step config.protocol state .timeout).effects.filterMap
+        Execution.Local.Effect.diagnostic = output.effects at effects
       change (Execution.Local.step config.protocol state .timeout).state = output.state at states
       rw [← states]
-      exact opening_recorded _ _ _ _ _ (by simpa only [effects] using member)
+      apply opening_recorded
+      rw [← effects, List.mem_filterMap] at member
+      obtain ⟨effect, present, diagnostic⟩ := member
+      cases effect <;> simp_all [Execution.Local.Effect.diagnostic]
   | deliver envelope =>
       change Execution.Global.nodeState before envelope.target = some state at found
       change transition config.protocol state (Execution.Global.eventFor envelope) = some output at trans
@@ -255,12 +256,16 @@ lemma next_opening_recorded {config : Model.Config} {before after : Execution.Gl
       obtain ⟨_, _, rfl⟩ := step
       have effects := congrArg Result.effects projected
       have states := congrArg Result.state projected
-      change (Execution.Local.step config.protocol state (Execution.Global.eventFor envelope)).effects =
+      change (Execution.Local.step config.protocol state (Execution.Global.eventFor envelope)).effects.filterMap
+        Execution.Local.Effect.diagnostic =
         output.effects at effects
       change (Execution.Local.step config.protocol state (Execution.Global.eventFor envelope)).state =
         output.state at states
       rw [← states]
-      exact opening_recorded _ _ _ _ _ (by simpa only [effects] using member)
+      apply opening_recorded
+      rw [← effects, List.mem_filterMap] at member
+      obtain ⟨effect, present, diagnostic⟩ := member
+      cases effect <;> simp_all [Execution.Local.Effect.diagnostic]
 
 lemma decoration_openings {config : Model.Config} {before after : Execution.Global.State} {steps}
     (decorated : Decoration config before steps after) :

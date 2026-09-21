@@ -22,8 +22,8 @@ deriving Repr, BEq
 
 structure Protocol (Node LocalState LocalAction Message Input : Type) where
   init : Node -> LocalState -> Prop
-  step : {σ : Type} -> Capabilities σ Node Message ->
-    Node -> LocalState -> LocalAction -> Option (ST σ LocalState)
+  step : Capabilities Node Message ->
+    Node -> LocalState -> LocalAction -> Option (Effect Node Message LocalState)
   receive : Node -> Message -> LocalAction
   internal : Input -> LocalAction
 
@@ -44,16 +44,12 @@ def removeOne [BEq α] (value : α) : List α -> List α
 def runStep
     (protocol : Protocol Node LocalState LocalAction Message Input)
     (node : Node) (state : LocalState) (action : LocalAction) :
-    Option (LocalState × List (Node × Message)) := runST fun σ => do
-  let outgoing <- (ST.mkRef [] : ST σ (ST.Ref σ (List (Node × Message))))
-  let host : Capabilities σ Node Message := {
-    send := fun message target => outgoing.modify (· ++ [(target, message)])
+    Option (LocalState × List (Node × Message)) := do
+  let host : Capabilities Node Message := {
+    send := fun message target => modify (· ++ [(target, message)])
   }
-  match protocol.step host node state action with
-  | none => return none
-  | some execute =>
-      let next <- execute
-      return some (next, <- outgoing.get)
+  let execute <- protocol.step host node state action
+  pure (execute.run [])
 
 def runLocal [BEq Node]
     (protocol : Protocol Node LocalState LocalAction Message Input)

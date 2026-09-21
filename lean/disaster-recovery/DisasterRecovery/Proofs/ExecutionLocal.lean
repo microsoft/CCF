@@ -10,10 +10,35 @@ namespace DisasterRecovery.Proofs.Execution.Local
 open Shared (TransitionSystem)
 
 export DisasterRecovery.Model.Local (
-  Location TxID Phase OpenKind Validation Config NodeState Event Effect
+  Location TxID Phase OpenKind Validation Config NodeState Event
   phaseName openKindName initialNode voteQuorum validTimeout txScoreGreater
   selectMaximum maximumGossip insertGossip insertVote advanceTimeoutState
   advanceTimeoutLane expectedSource stateKey)
+
+inductive Effect where
+  | sendGossip (destination : Location)
+  | sendVote (destination : Location)
+  | sendIAmOpen (destination : Location)
+  | opening (kind : OpenKind)
+  | restart (chosen : Location)
+  | completed
+  | rejected (reason : String)
+deriving Repr, BEq, Hashable
+
+def Effect.diagnostic : Effect -> Option Model.Local.Effect
+  | .opening kind => some (.opening kind)
+  | .restart chosen => some (.restart chosen)
+  | .completed => some .completed
+  | .rejected reason => some (.rejected reason)
+  | _ => none
+
+def messages (recovered : TxID) (effects : List Effect) : List (Location × Model.Local.Message) :=
+  effects.filterMap fun effect =>
+    match effect with
+    | .sendGossip target => some (target, .gossip recovered)
+    | .sendVote target => some (target, .vote)
+    | .sendIAmOpen target => some (target, .iAmOpen)
+    | _ => none
 
 structure StepOutput where
   state : NodeState

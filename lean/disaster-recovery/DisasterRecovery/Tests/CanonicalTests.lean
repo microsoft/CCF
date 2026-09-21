@@ -164,19 +164,48 @@ def main : IO UInt32 := do
   let joining <- runLocal config initial (.receiveIAmOpen "B" .accepted)
   expect (joining.state.phase == .joining && joining.state.restartRequested)
     "IAmOpen did not request joining restart"
-  let retry <- runLocal config second.state .retry
-  expect (retry.effects == [.sendVote "B", .sendGossip "A", .sendGossip "B"])
-    "voting retry did not send vote before continuing gossip"
-  expect
-    (messages { view := 1, seqno := 10 } retry.effects ==
-      [("B", .vote), ("A", .gossip { view := 1, seqno := 10 }),
-        ("B", .gossip { view := 1, seqno := 10 })])
-    "local send effects were not converted to complete messages"
-
   let globalConfig : Model.Config := {
     protocol := config
     recovered := [("A", { view := 1, seqno := 10 }), ("B", { view := 2, seqno := 1 })]
   }
+  let (retried, outgoing) <- requireSome
+    (Global.runStep (Model.protocol globalConfig) "A" second.state .retry)
+    "voting retry was disabled"
+  expect (retried == second.state &&
+      outgoing == [("B", .vote), ("A", .gossip { view := 1, seqno := 10 }),
+        ("B", .gossip { view := 1, seqno := 10 })])
+    "voting retry did not send vote before continuing gossip"
+  expect
+    ((Global.runStep (Model.protocol globalConfig) "A" complete.state .retry).isNone)
+    "completed retry must be disabled without sending or replaying completion"
+  let gossip : List (Location × Message) := [
+    ("A", .gossip { view := 1, seqno := 10 }),
+    ("B", .gossip { view := 1, seqno := 10 })
+  ]
+  let retryCases : List (NodeState × Option (List (Location × Message))) := [
+    (initial, some gossip),
+    ({ initial with chosen := some "B" }, some gossip),
+    ({ initial with phase := .voting }, some gossip),
+    ({ initial with phase := .opening }, some [("B", .iAmOpen)]),
+    ({ initial with phase := .joining }, none),
+    ({ initial with phase := .open }, none)
+  ]
+  for (before, expected) in retryCases do
+    expect
+      (Global.runStep (Model.protocol globalConfig) "A" before .retry ==
+        expected.map (fun sent => (before, sent)))
+      s!"direct retry sends differ in {repr before.phase}"
+  let noPeers := { globalConfig with protocol := { config with expectedLocations := [] } }
+  expect ((Global.runStep (Model.protocol noPeers) "A" initial .retry).isNone)
+    "empty gossip retry must be disabled"
+  expect
+    (Global.runStep (Model.protocol noPeers) "A" second.state .retry ==
+      some (second.state, [("B", .vote)]))
+    "a vote-only retry must remain enabled"
+  expect
+    ((Global.runStep (Model.protocol noPeers) "A"
+      { initial with phase := .opening } .retry).isNone)
+    "opening retry without recipients must be disabled"
   let globalInitial := Model.initial globalConfig ["A", "B"]
   expect ((Model.next globalConfig globalInitial (.local "A" .timeout)).isNone)
     "global empty-gossip timeout must remain disabled"

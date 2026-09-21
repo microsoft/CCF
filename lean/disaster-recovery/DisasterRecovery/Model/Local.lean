@@ -73,9 +73,6 @@ def receive (source : Location) : Message -> Event
   | .iAmOpen => .receiveIAmOpen source .accepted
 
 inductive Effect where
-  | sendGossip (destination : Location)
-  | sendVote (destination : Location)
-  | sendIAmOpen (destination : Location)
   | opening (kind : OpenKind)
   | restart (chosen : Location)
   | completed
@@ -86,14 +83,6 @@ structure Result where
   state : NodeState
   effects : List Effect := []
 deriving Repr, BEq, Inhabited
-
-def messages (recovered : TxID) (effects : List Effect) : List (Location × Message) :=
-  effects.filterMap fun effect =>
-    match effect with
-    | .sendGossip target => some (target, .gossip recovered)
-    | .sendVote target => some (target, .vote)
-    | .sendIAmOpen target => some (target, .iAmOpen)
-    | _ => none
 
 def phaseName : Phase -> String
   | .gossiping => "GOSSIPING"
@@ -252,33 +241,34 @@ def transition (config : Config) (state : NodeState) : Event -> Option Result
     | .timeout =>
         advance config state true
     | .retry =>
-        let effects :=
-          match state.phase with
-          | .gossiping =>
-              config.expectedLocations.map .sendGossip
-          | .voting =>
-              match state.chosen with
-              | none => config.expectedLocations.map .sendGossip
-              | some chosen =>
-                  .sendVote chosen :: config.expectedLocations.map .sendGossip
-          | .opening =>
-              (config.expectedLocations.filter
-                (fun location => location != state.location)).map .sendIAmOpen
-          | .joining | .open => []
-        pure { state, effects }
+        pure { state }
 
-def step (host : Capabilities σ Location Message) (config : Config)
+def step (host : Capabilities Location Message) (config : Config)
     (recovered : TxID) (state : NodeState) (event : Event) :
-    Option (ST σ NodeState) := do
-  let output <- transition config state event
-  let outgoing := messages recovered output.effects
+    Option (Shared.Effect Location Message NodeState) := do
   match event with
-  | .retry => guard (!outgoing.isEmpty)
-  | _ => pure ()
-  pure do
-    for (target, message) in outgoing do
-      host.send message target
-    return output.state
+  | .retry =>
+      match state.phase with
+      | .gossiping | .voting =>
+          let voteTarget := if state.phase == .voting then state.chosen else none
+          guard (voteTarget.isSome || !config.expectedLocations.isEmpty)
+          pure do
+            if let some target := voteTarget then
+              host.send .vote target
+            for target in config.expectedLocations do
+              host.send (.gossip recovered) target
+            return state
+      | .opening =>
+          let targets := config.expectedLocations.filter (· != state.location)
+          guard (!targets.isEmpty)
+          pure do
+            for target in targets do
+              host.send .iAmOpen target
+            return state
+      | .joining | .open => none
+  | _ =>
+      let output <- transition config state event
+      pure (pure output.state)
 
 def transitionSystem (config : Config) (location : Location) :
     TransitionSystem NodeState Event where
