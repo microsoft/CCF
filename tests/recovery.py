@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import base64
-import contextlib
 import copy
 import hashlib
 import http
@@ -12,6 +11,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -175,61 +175,61 @@ def recover_with_primary_dying(args, recovered_network):
         previous_service_identity=prev_service_identity,
     )
 
-    # Reading the private ledger only takes a fraction of a second in Release
-    # builds (roughly 4k entries/s), so everything done between the last share
-    # being accepted and the SIGTERM below eats into the window in which the
-    # primary can be prodded mid-read. Identify the primary and open a
-    # connection to every node up front, rather than paying for a fresh TLS
-    # session per request once the read is underway.
-    nodes = recovered_network.get_joined_nodes()
+    # The primary reads the private ledger quickly (several thousand entries
+    # per second in Release builds, and the read is not paced by anything
+    # else), so the window in which it can be prodded mid-read is short.
+    # Identify the primary and open a connection to it up front, submit the
+    # shares, then poll only the primary as tightly as possible. Followers
+    # start reading later, once the primary has broadcast the ledger secrets,
+    # and do not need to be observed reading for this scenario.
     retired_primary, initial_view = recovered_network.find_primary()
     retired_id = retired_primary.node_id
     reading_private_ledger = infra.node.State.READING_PRIVATE_LEDGER.value
 
-    with contextlib.ExitStack() as stack:
-        clients = {
-            node: stack.enter_context(node.client(connection_timeout=1))
-            for node in nodes
-        }
-        # Establish the connections now, so that the polling below is cheap
-        for c in clients.values():
-            c.get("/node/state")
+    with retired_primary.client(connection_timeout=1) as c:
+        # Establish the connection now, so that the polling below is cheap
+        c.get("/node/state")
 
-        recovered_network.consortium.recover_with_shares(
-            recovered_network.find_random_node()
-        )
+        # Submitting the final share is what starts the private-ledger read,
+        # but recover_with_shares does more work after that before returning,
+        # by which time a fast read may already have finished. Submit the
+        # shares from another thread and start polling the primary at once.
+        share_submission_error = []
 
-        # Wait until every node is reading the private ledger, so the primary
-        # can be prodded mid-read below.
-        pending = set(nodes)
+        def submit_shares():
+            try:
+                recovered_network.consortium.recover_with_shares(
+                    recovered_network.find_random_node()
+                )
+            except Exception as e:  # pylint: disable=broad-except
+                share_submission_error.append(e)
+
+        share_submission = threading.Thread(target=submit_shares)
+        share_submission.start()
+
+        # Wait until the primary is reading the private ledger, so it can be
+        # prodded mid-read below. This is the scenario under test: the primary
+        # must die before it can open the service.
         end_time = time.time() + args.ledger_recovery_timeout
-        while pending:
-            for node in list(pending):
-                if (
-                    clients[node].get("/node/state").body.json()["state"]
-                    == reading_private_ledger
-                ):
-                    pending.remove(node)
-            if pending:
-                assert (
-                    time.time() < end_time
-                ), f"Timed out waiting for {[n.node_id for n in pending]} to read the private ledger"
-                time.sleep(0.01)
-
-        # Confirm the primary is still mid-read right before we prod it: this is
-        # the scenario under test (the primary must die before it can open the
-        # service). Checking here, rather than re-checking every node after the
-        # election, avoids racing the fast private-ledger read.
-        primary_state = clients[retired_primary].get("/node/state").body.json()
-        assert (
-            primary_state["state"] == reading_private_ledger
-        ), f"Primary {retired_id} finished reading before it could be prodded: {primary_state}"
+        while True:
+            primary_state = c.get("/node/state").body.json()
+            if primary_state["state"] == reading_private_ledger:
+                break
+            assert (
+                primary_state["state"] == infra.node.State.PART_OF_PUBLIC_NETWORK.value
+            ), f"Primary {retired_id} finished reading before it could be prodded: {primary_state}"
+            assert (
+                time.time() < end_time
+            ), f"Timed out waiting for {retired_id} to read the private ledger"
 
         # SIGTERM (not SIGKILL) the primary: thanks to ignore_first_sigterm it
         # stays up, treats this as a stop notice and immediately nominates a
         # successor.
         LOG.info(f"SIGTERM primary {retired_id} to nominate a successor mid-recovery")
         retired_primary.sigterm()
+
+        share_submission.join()
+        assert not share_submission_error, share_submission_error
 
     # The nominated successor is elected rapidly (no election-timeout wait). A new
     # view confirms the election ran while recovery was still in progress.
@@ -611,9 +611,10 @@ def _recover_service(
 
     if force_election:
         # Populate the private ledger so the primary is still reading it when
-        # prodded below. Release builds read it at roughly 4k entries/s, so this
-        # only buys well under a second: recover_with_primary_dying keeps the
-        # work it does after the last share is submitted to a minimum.
+        # prodded below. Release builds read several thousand entries per
+        # second, so this only buys well under a second:
+        # recover_with_primary_dying polls the primary from the moment the
+        # shares start being submitted so as not to miss that window.
         network.txs.issue(
             network,
             number_txs=2000,
