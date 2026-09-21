@@ -20,12 +20,7 @@ concurrency:
 jobs:
   benchmark_pr:
     name: Benchmark PR
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=bab_benchmark_pr-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     if: ${{ (github.event.action == 'labeled' && github.event.label.name == 'bench-ab') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'bench-ab')) }}
     env:
       BRANCH_PERF_ARTIFACT: perf-bench-virtual-pr-${{ github.event.pull_request.number }}

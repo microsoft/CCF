@@ -19,12 +19,7 @@ env:
 jobs:
   coverage_virtual:
     name: "Coverage Virtual"
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=ci_coverage-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -71,6 +66,13 @@ jobs:
 
           # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+        shell: bash
+
+      - name: "Run partitions tests"
+        run: |
+          set -ex
+          cd build
+          ./tests.sh --timeout 360 --output-on-failure -C partitions -L '^partitions$' --no-tests=error
         shell: bash
 
       - name: "Generate coverage reports"

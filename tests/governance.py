@@ -38,8 +38,16 @@ def test_create_endpoint(network, args):
     primary, _ = network.find_nodes()
     with primary.client("user0") as c:
         r = c.post("/node/create", validate_openapi=False)
-        assert r.status_code == http.HTTPStatus.FORBIDDEN.value
-        assert r.body.json()["error"]["message"] == "Node is not in initial state."
+        # Callers other than the node itself are rejected by the self_cert
+        # authentication policy before the handler runs
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value
+        error = r.body.json()["error"]
+        assert error["code"] == "InvalidAuthenticationInfo"
+        assert error["details"][0]["auth_policy"] == "self_cert"
+        assert (
+            error["details"][0]["message"]
+            == "Only the node itself can call this endpoint."
+        )
     return network
 
 

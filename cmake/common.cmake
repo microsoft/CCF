@@ -56,9 +56,72 @@ function(add_san_test_properties name)
   endif()
 endfunction()
 
-# Unit test wrapper
+# Every test name is also a build target which builds everything that test
+# launches at run time (e.g. `ninja code_update_test`). Tests whose command is
+# their own executable already satisfy this; tests driven by scripts declare
+# their dependencies via add_test_target.
+function(add_test_target name)
+  if(TARGET ${name})
+    message(
+      FATAL_ERROR
+      "Cannot create build target for test '${name}': target already exists"
+    )
+  endif()
+
+  foreach(DEPENDENCY IN LISTS ARGN)
+    if(NOT TARGET ${DEPENDENCY})
+      message(
+        FATAL_ERROR
+        "Unknown build dependency '${DEPENDENCY}' for test '${name}'"
+      )
+    endif()
+  endforeach()
+
+  add_custom_target(${name})
+  if(ARGN)
+    add_dependencies(${name} ${ARGN})
+  endif()
+endfunction()
+
+# Attach CTest labels to a test and mirror each label as an aggregate build
+# target depending on the test's own target, so that `ninja <label>` builds
+# exactly what `ctest -L <label>` needs (e.g. `ninja bucket_c`). Always use
+# this rather than setting the LABELS property directly, otherwise the two
+# views diverge. The test must already have a same-named build target.
+function(add_test_label test)
+  if(NOT TARGET ${test})
+    message(
+      FATAL_ERROR
+      "Test '${test}' has no build target of the same name; use add_test_target or BUILD_DEPENDS"
+    )
+  endif()
+
+  foreach(LABEL IN LISTS ARGN)
+    set_property(TEST ${test} APPEND PROPERTY LABELS ${LABEL})
+    # A label equal to the test name needs no aggregate: the test's own
+    # target already builds exactly that label's requirements.
+    if("${LABEL}" STREQUAL "${test}")
+      continue()
+    endif()
+
+    get_property(LABEL_TARGETS GLOBAL PROPERTY CCF_TEST_LABEL_TARGETS)
+    if(NOT TARGET ${LABEL})
+      add_custom_target(${LABEL})
+      set_property(GLOBAL APPEND PROPERTY CCF_TEST_LABEL_TARGETS ${LABEL})
+    elseif(NOT LABEL IN_LIST LABEL_TARGETS)
+      message(
+        FATAL_ERROR
+        "Test label '${LABEL}' collides with an existing build target"
+      )
+    endif()
+    add_dependencies(${LABEL} ${test})
+  endforeach()
+endfunction()
+
+# Unit test wrapper. The test is always labelled `unit`; LABELS adds further
+# labels.
 function(add_unit_test name)
-  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "DETECT_DEADLOCKS" "" "")
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "DETECT_DEADLOCKS" "" "LABELS")
 
   add_executable(${name} ${PARSED_ARGS_UNPARSED_ARGUMENTS})
   target_include_directories(
@@ -71,7 +134,7 @@ function(add_unit_test name)
   add_warning_checks(${name})
 
   add_test(NAME ${name} COMMAND ${name})
-  set_property(TEST ${name} APPEND PROPERTY LABELS unit)
+  add_test_label(${name} unit ${PARSED_ARGS_LABELS})
 
   if(COVERAGE)
     set_property(
@@ -133,15 +196,17 @@ endfunction()
 #
 # BUCKET assigns the test to one of the CI runner buckets (bucket_a, bucket_b,
 # bucket_c) so that .github/workflows/ci.yml can select the per-runner test set
-# with `ctest -L bucket_X`. Every PR-CI e2e test must be in exactly one bucket;
-# scripts/test-buckets-checks.sh flags unbucketed tests in `no_bucket:`.
+# with `ctest -L bucket_X` and build it with `ninja bucket_X`. BUILD_DEPENDS
+# lists the CMake targets the test may launch at run time. Every PR-CI e2e test
+# must be in exactly one bucket; scripts/test-buckets-checks.sh flags
+# unbucketed tests in `no_bucket:`.
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0
     PARSED_ARGS
     "DETECT_DEADLOCKS"
     "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET;TSAN_SUPPRESSIONS"
-    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
+    "CONSTITUTION;ADDITIONAL_ARGS;BUILD_DEPENDS;CONFIGURATIONS"
   )
 
   if(NOT PARSED_ARGS_CONSTITUTION)
@@ -171,6 +236,13 @@ function(add_e2e_test)
         ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms ${NODE_TICK_MS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
+    if(NOT PARSED_ARGS_BUILD_DEPENDS)
+      message(
+        FATAL_ERROR
+        "End-to-end test '${PARSED_ARGS_NAME}' must specify BUILD_DEPENDS"
+      )
+    endif()
+    add_test_target(${PARSED_ARGS_NAME} ${PARSED_ARGS_BUILD_DEPENDS})
 
     # Make python test client framework importable
     set_property(
@@ -226,20 +298,12 @@ function(add_e2e_test)
       )
     endif()
 
-    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS e2e)
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY LABELS ${PARSED_ARGS_LABEL}
+    add_test_label(
+      ${PARSED_ARGS_NAME}
+      e2e
+      ${PARSED_ARGS_LABEL}
+      ${PARSED_ARGS_BUCKET}
     )
-
-    if(PARSED_ARGS_BUCKET)
-      set_property(
-        TEST ${PARSED_ARGS_NAME}
-        APPEND
-        PROPERTY LABELS ${PARSED_ARGS_BUCKET}
-      )
-    endif()
 
     if(${PARSED_ARGS_CURL_CLIENT})
       set_property(
@@ -286,7 +350,7 @@ function(add_picobench name)
       bash -c
       "$<TARGET_FILE:${name}> --samples=10 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
   )
-  set_property(TEST ${name} APPEND PROPERTY LABELS benchmark)
+  add_test_label(${name} benchmark)
 
   add_san_test_properties(${name})
 endfunction()

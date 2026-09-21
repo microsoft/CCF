@@ -25,8 +25,14 @@ function(add_e2e_test)
     PARSED_ARGS
     "DETECT_DEADLOCKS"
     "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;BUCKET;TSAN_SUPPRESSIONS"
-    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
+    "CONSTITUTION;ADDITIONAL_ARGS;BUILD_DEPENDS;CONFIGURATIONS"
   )
+endfunction()
+
+function(add_test_target name)
+endfunction()
+
+function(add_test_label test)
 endfunction()
 
 function(add_picobench name)
@@ -46,6 +52,7 @@ function(add_fuzz_test name)
 endfunction()
 
 function(add_unit_test name)
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "DETECT_DEADLOCKS" "" "LABELS")
 endfunction()
 
 function(add_san_test_properties name)
@@ -64,6 +71,9 @@ function(add_tidy name)
 endfunction()
 
 function(enable_coverage name)
+endfunction()
+
+function(ccf_detect_stacktrace)
 endfunction()
 
 # Third-party: Corrosion (corrosion-rs/corrosion)
