@@ -35,6 +35,7 @@ namespace ccf
     ccf::LoggerLevel log_level,
     size_t num_worker_threads,
     const ccf::ds::WorkBeaconPtr& work_beacon,
+    ccf::AbstractRuntimeControl& runtime_control,
     const std::shared_ptr<AbstractReadLedgerSubsystemInterface>&
       ledger_subsystem)
   {
@@ -118,6 +119,7 @@ namespace ccf
         ccf_config.consensus,
         ccf_config.node_certificate.curve_id,
         work_beacon,
+        runtime_control,
         ledger_subsystem);
       // NOLINTEND(cppcoreguidelines-owning-memory)
     }
@@ -194,5 +196,29 @@ namespace ccf
       return s;
     }
     return false;
+  }
+
+  bool enclave_request_stop()
+  {
+    auto* enclave = e.load();
+    if (enclave == nullptr)
+    {
+      return false;
+    }
+
+    enclave->request_stop();
+    return true;
+  }
+
+  bool enclave_request_stop_notice()
+  {
+    auto* enclave = e.load();
+    if (enclave == nullptr)
+    {
+      return false;
+    }
+
+    enclave->request_stop_notice();
+    return true;
   }
 }

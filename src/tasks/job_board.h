@@ -30,6 +30,7 @@ namespace ccf::tasks
     Task get_task();
 
     Task wait_for_task(const std::chrono::milliseconds& timeout);
+    void stop_waiters();
 
     struct Summary
     {

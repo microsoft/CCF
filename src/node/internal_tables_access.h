@@ -601,9 +601,10 @@ namespace ccf
 
       endorsement.endorsing_key = service_key.public_key_der();
 
-      if (previous_identity_endorsement->has())
+      if (previous_identity_endorsement->has(IdentityType::CLASSICAL))
       {
-        const auto prev_endorsement = previous_identity_endorsement->get();
+        const auto prev_endorsement =
+          previous_identity_endorsement->get(IdentityType::CLASSICAL);
         if (!prev_endorsement.has_value())
         {
           throw std::logic_error("Failed to get previous endorsement");
@@ -626,7 +627,8 @@ namespace ccf
           active_service->current_service_create_txid.value());
 
         endorsement.previous_version =
-          previous_identity_endorsement->get_version_of_previous_write();
+          previous_identity_endorsement->get_version_of_previous_write(
+            IdentityType::CLASSICAL);
 
         key_to_endorse = prev_endorsement->endorsing_key;
 
@@ -716,7 +718,7 @@ namespace ccf
       }
       endorsement.endorsement = cose_buf.to_vector();
 
-      previous_identity_endorsement->put(endorsement);
+      previous_identity_endorsement->put(IdentityType::CLASSICAL, endorsement);
       return true;
     }
 

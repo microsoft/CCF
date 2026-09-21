@@ -7,8 +7,8 @@
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 #include "node/history.h"
+#include "node/internal_tables_access.h"
 #include "node/share_manager.h"
-#include "service/internal_tables_access.h"
 
 namespace ccf::gov::endpoints
 {
