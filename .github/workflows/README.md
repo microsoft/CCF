@@ -42,12 +42,16 @@ File: `copilot-setup-steps.yml`
 
 Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests. Runs on PRs, merge queue runs, manually, and once a week, regardless of commits.
 
+The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
+
 File: `ci.yml`
 3rd party dependencies: None
 
 # Continuous Integration AL4
 
 Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readiness for the move from Azure Linux 3, which `ci.yml` builds against. Runs daily on `main` on week days, and manually. It deliberately does not run on PRs, to keep PR feedback fast and limit pool usage.
+
+Its Virtual A, B, and C jobs use the same pool distribution as the main continuous integration workflow.
 
 File: `ci-al4.yml`
 3rd party dependencies: None
