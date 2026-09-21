@@ -119,7 +119,7 @@ TEST_CASE("Opening a recovered service")
   const auto endorsement =
     ro.ro<ccf::PreviousServiceIdentityEndorsement>(
         ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-      ->get();
+      ->get(ccf::IdentityType::CLASSICAL);
   REQUIRE(endorsement.has_value());
   REQUIRE(endorsement->endorsing_key == ts.service_key->public_key_der());
 }
