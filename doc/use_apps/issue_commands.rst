@@ -133,7 +133,7 @@ Acking state digest:
        | ``ccf.gov.msg.created_at = <creation timestamp>``
    * - Content
      - | { "stateDigest": "<hex digest>" }
-       | This should be the object returned by a previous call to ``GET /gov/members/state-digests/{memberId}``
+       | This should be the object returned by a previous call to ``POST /gov/members/state-digests/{memberId}:update``. Subsequent calls to ``GET /gov/members/state-digests/{memberId}`` return the same object until it is updated again.
 
 Recovery
 """"""""

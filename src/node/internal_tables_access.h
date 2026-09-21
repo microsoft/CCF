@@ -224,7 +224,6 @@ namespace ccf
     {
       auto* member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
       auto* member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto* member_acks = tx.rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
 
       auto member_cert_der =
         ccf::crypto::make_verifier(member_pub_info.cert)->cert_der();
@@ -283,18 +282,6 @@ namespace ccf
           id, member_pub_info.encryption_pub_key.value());
       }
 
-      auto* tree_h =
-        tx.ro<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE);
-      auto tree = tree_h->get();
-      if (!tree.has_value())
-      {
-        member_acks->put(id, MemberAck());
-      }
-      else
-      {
-        MerkleTreeHistory history(tree.value());
-        member_acks->put(id, MemberAck(history.get_root()));
-      }
       return id;
     }
 
@@ -601,9 +588,10 @@ namespace ccf
 
       endorsement.endorsing_key = service_key.public_key_der();
 
-      if (previous_identity_endorsement->has())
+      if (previous_identity_endorsement->has(IdentityType::CLASSICAL))
       {
-        const auto prev_endorsement = previous_identity_endorsement->get();
+        const auto prev_endorsement =
+          previous_identity_endorsement->get(IdentityType::CLASSICAL);
         if (!prev_endorsement.has_value())
         {
           throw std::logic_error("Failed to get previous endorsement");
@@ -626,7 +614,8 @@ namespace ccf
           active_service->current_service_create_txid.value());
 
         endorsement.previous_version =
-          previous_identity_endorsement->get_version_of_previous_write();
+          previous_identity_endorsement->get_version_of_previous_write(
+            IdentityType::CLASSICAL);
 
         key_to_endorse = prev_endorsement->endorsing_key;
 
@@ -716,7 +705,7 @@ namespace ccf
       }
       endorsement.endorsement = cose_buf.to_vector();
 
-      previous_identity_endorsement->put(endorsement);
+      previous_identity_endorsement->put(IdentityType::CLASSICAL, endorsement);
       return true;
     }
 
