@@ -764,26 +764,28 @@ namespace ccf::historical
     {
       LOG_TRACE_FMT("fetch_entries_range({}, {})", from, to);
 
-      if (
-        !ledger_reader->get_range(
-          static_cast<::consensus::Index>(from),
-          static_cast<::consensus::Index>(to),
-          [this](::consensus::LedgerRangeResult&& result) {
-            if (result.status == ::consensus::LedgerRangeStatus::NotFound)
-            {
-              handle_no_entry_range(result.from, result.to);
-            }
-            else if (result.status == ::consensus::LedgerRangeStatus::TooLarge)
-            {
-              LOG_FAIL_FMT(
-                "Ledger entry at {} exceeds ledger.max_read_size", result.from);
-              handle_no_entry_range(result.from, result.to);
-            }
-            else
-            {
-              handle_ledger_entries(result.from, result.to, result.entries);
-            }
-          }))
+      if (!ledger_reader->get_range(
+            static_cast<::consensus::Index>(from),
+            static_cast<::consensus::Index>(to),
+            [this](::consensus::LedgerRangeResult&& result) {
+              if (result.status == ::consensus::LedgerRangeStatus::NotFound)
+              {
+                handle_no_entry_range(result.from, result.to);
+              }
+              else if (
+                result.status == ::consensus::LedgerRangeStatus::TooLarge)
+              {
+                LOG_FAIL_FMT(
+                  "Ledger entry at {} exceeds the ledger range read budget "
+                  "(memory.max_msg_size minus response metadata)",
+                  result.from);
+                handle_no_entry_range(result.from, result.to);
+              }
+              else
+              {
+                handle_ledger_entries(result.from, result.to, result.entries);
+              }
+            }))
       {
         LOG_FAIL_FMT(
           "Ledger rejected historical range read {} to {}", from, to);

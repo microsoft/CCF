@@ -2613,28 +2613,35 @@ TEST_CASE("Reads of committed recovery chunks are ordered with open")
   REQUIRE(after_open->entries == entry);
 }
 
-TEST_CASE("Typed ledger shutdown completes accepted work and rejects new work")
+TEST_CASE("Typed ledger shutdown completes accepted mutations only")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
   Ledger ledger(ledger_dir);
   ccf::tasks::JobBoard job_board;
   LedgerSubsystem subsystem(ledger, 1024, job_board);
 
-  // Accepted before shutdown, not yet executed by any worker.
-  REQUIRE(subsystem.append(make_ledger_entry(1), true));
-  REQUIRE(subsystem.commit(1));
-  bool read_completed = false;
-  REQUIRE(subsystem.get_range(1, 1, [&](consensus::LedgerRangeResult&& r) {
-    REQUIRE(r.status == consensus::LedgerRangeStatus::Found);
-    read_completed = true;
+  // Accepted before shutdown, not yet executed by any worker: a mutation, a
+  // read whose callback would (like recovery) chain a further read, and a
+  // mutation queued behind that read.
+  REQUIRE(subsystem.append(
+    make_ledger_entry(1, ccf::kv::FORCE_LEDGER_CHUNK_AFTER), true));
+  size_t callbacks = 0;
+  bool resubmit_accepted = true;
+  REQUIRE(subsystem.get_range(1, 1, [&](consensus::LedgerRangeResult&&) {
+    ++callbacks;
+    resubmit_accepted = subsystem.get_range(
+      2, 2, [&](consensus::LedgerRangeResult&&) { ++callbacks; });
   }));
+  REQUIRE(subsystem.commit(1));
 
   subsystem.shutdown();
 
-  // The accepted mutations reached the ledger, in order, and the accepted
-  // read of uncommitted state was answered.
+  // Both mutations reached the ledger, in order, but the read was skipped so
+  // its callback could neither run receiver code nor chain more reads.
   REQUIRE(ledger.get_last_idx() == 1);
-  REQUIRE(read_completed);
+  REQUIRE(ledger.is_in_committed_file(1));
+  REQUIRE(callbacks == 0);
+  REQUIRE(resubmit_accepted);
 
   // Nothing new is accepted, and nothing is left for a worker to run.
   REQUIRE_FALSE(subsystem.append(make_ledger_entry(2), false));
@@ -2642,6 +2649,34 @@ TEST_CASE("Typed ledger shutdown completes accepted work and rejects new work")
     1, 1, [](consensus::LedgerRangeResult&&) { REQUIRE(false); }));
   run_all_tasks(job_board);
   REQUIRE(ledger.get_last_idx() == 1);
+  REQUIRE(callbacks == 0);
+}
+
+TEST_CASE("Typed ledger read callbacks cannot resubmit during shutdown")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  Ledger ledger(ledger_dir);
+  auto entry = make_ledger_entry(1, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+  ledger.write_entry(entry.data(), entry.size(), true);
+  ledger.commit(1);
+
+  ccf::tasks::JobBoard job_board;
+  LedgerSubsystem subsystem(ledger, 1024, job_board);
+
+  // Dispatch a committed read but do not run it; it is now a plain task on
+  // the board rather than a lane action.
+  bool callback_ran = false;
+  REQUIRE(subsystem.get_range(
+    1, 1, [&](consensus::LedgerRangeResult&&) { callback_ran = true; }));
+  job_board.get_task()->do_task();
+  auto committed_read = job_board.get_task();
+  REQUIRE(committed_read != nullptr);
+
+  subsystem.shutdown();
+
+  // A committed read task which starts after shutdown is skipped as well.
+  committed_read->do_task();
+  REQUIRE_FALSE(callback_ran);
 }
 
 int main(int argc, char** argv)

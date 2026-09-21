@@ -3799,7 +3799,8 @@ namespace ccf
                 result.status == ::consensus::LedgerRangeStatus::TooLarge)
               {
                 throw std::logic_error(fmt::format(
-                  "Ledger entry at {} exceeds ledger.max_read_size",
+                  "Ledger entry at {} exceeds the ledger range read budget "
+                  "(memory.max_msg_size minus response metadata)",
                   result.from));
               }
               else if (is_reading_public_ledger())

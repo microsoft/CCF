@@ -10,6 +10,7 @@
 #include "tasks/ordered_tasks.h"
 #include "tasks/task_system.h"
 
+#include <atomic>
 #include <filesystem>
 #include <mutex>
 #include <optional>
@@ -35,6 +36,11 @@ namespace asynchost
 
     std::shared_ptr<ccf::ds::WorkerShutdownGate> shutdown_gate =
       std::make_shared<ccf::ds::WorkerShutdownGate>();
+    // Set at the start of shutdown(), before the lane is drained. Rejects new
+    // submissions and suppresses read callbacks, while still letting queued
+    // mutations reach disk.
+    std::shared_ptr<std::atomic<bool>> draining =
+      std::make_shared<std::atomic<bool>>(false);
     std::once_flag shutdown_once;
 
     // Enqueues fn on the ordered lane. Returns false, without enqueuing, once
@@ -43,7 +49,7 @@ namespace asynchost
     template <typename F>
     bool submit_ordered(std::string name, F&& fn)
     {
-      if (shutdown_gate->is_shutting_down())
+      if (draining->load() || shutdown_gate->is_shutting_down())
       {
         return false;
       }
@@ -196,6 +202,20 @@ namespace asynchost
       return submit_ordered(
         "Ledger range classification",
         [this, from, to, callback = std::move(callback)]() mutable {
+          if (draining->load())
+          {
+            // A read answered during shutdown would have its receiver submit
+            // further work (recovery reads the next batch from its callback),
+            // and the receiver may itself be tearing down. Drop it, as the
+            // old design dropped responses the enclave had stopped reading.
+            LOG_DEBUG_FMT(
+              "Skipping ledger read {} to {} because the ledger subsystem is "
+              "shutting down",
+              from,
+              to);
+            return;
+          }
+
           if (!ledger.is_in_committed_file(to))
           {
             callback(read_mutable_range(from, to));
@@ -204,12 +224,13 @@ namespace asynchost
 
           job_board.add_task(ccf::tasks::make_basic_task(
             [gate = shutdown_gate,
+             is_draining = draining,
              ledger_ = &ledger,
              from,
              to,
              read_size = max_read_size,
              callback = std::move(callback)]() mutable {
-              if (!gate->try_register())
+              if (is_draining->load() || !gate->try_register())
               {
                 LOG_DEBUG_FMT(
                   "Skipping committed ledger read {} to {} because the ledger "
@@ -237,19 +258,22 @@ namespace asynchost
       return ledger.get_init_idx();
     }
 
-    // Completes work already accepted, then rejects new submissions and waits
-    // for in-flight storage actions and callbacks. Idempotent.
+    // Completes mutations already accepted, then rejects new submissions and
+    // waits for in-flight storage actions and callbacks. Idempotent.
     //
     // The caller must ensure no task worker can be executing the lane when
     // this is called; the host calls it after the enclave threads have
     // joined. Draining here is what the old design achieved by reading the
     // remaining ringbuffer messages before stopping the loop: a mutation which
-    // append() or commit() accepted must reach disk. Committed-read tasks the
-    // drain dispatches are never run and their callbacks never fire, as with
-    // any other queued work at shutdown.
+    // append() or commit() accepted must reach disk. Queued reads are skipped
+    // and their callbacks never fire: answering them would run receiver code
+    // (and, for recovery, submit further reads) on this thread after the
+    // enclave has stopped.
     void shutdown() override
     {
       std::call_once(shutdown_once, [this]() {
+        draining->store(true);
+
         size_t pending = 0;
         bool active = false;
         bool paused = false;
