@@ -131,7 +131,7 @@ namespace ccf::crypto
     [[nodiscard]] virtual size_t key_size() const = 0;
   };
 
-  std::unique_ptr<KeyAesGcm> make_key_aes_gcm(std::span<const uint8_t> rawKey);
+  std::unique_ptr<KeyAesGcm> make_key_aes_gcm(std::span<const uint8_t> raw_key);
 
   /** Check for unsupported AES key sizes
    * @p num_bits Key size in bits

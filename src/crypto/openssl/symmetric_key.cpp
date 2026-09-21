@@ -207,10 +207,10 @@ namespace ccf::crypto
     };
   }
 
-  KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey) :
-    key(std::vector<uint8_t>(rawKey.data(), rawKey.data() + rawKey.size())),
-    evp_cipher(get_gcm_cipher(rawKey)),
-    evp_cipher_wrap_pad(get_wrap_pad_cipher(rawKey))
+  KeyAesGcm_OpenSSL::KeyAesGcm_OpenSSL(std::span<const uint8_t> raw_key) :
+    key(std::vector<uint8_t>(raw_key.data(), raw_key.data() + raw_key.size())),
+    evp_cipher(get_gcm_cipher(raw_key)),
+    evp_cipher_wrap_pad(get_wrap_pad_cipher(raw_key))
   {}
 
   KeyAesGcm_OpenSSL::~KeyAesGcm_OpenSSL()

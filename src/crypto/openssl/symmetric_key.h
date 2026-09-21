@@ -17,7 +17,7 @@ namespace ccf::crypto
     const EVP_CIPHER* evp_cipher_wrap_pad;
 
   public:
-    KeyAesGcm_OpenSSL(std::span<const uint8_t> rawKey);
+    KeyAesGcm_OpenSSL(std::span<const uint8_t> raw_key);
     KeyAesGcm_OpenSSL(const KeyAesGcm_OpenSSL& that) = delete;
     ~KeyAesGcm_OpenSSL() override;
 
