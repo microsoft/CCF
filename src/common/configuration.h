@@ -65,7 +65,11 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Ledger);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Ledger);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCFConfig::Ledger, directory, read_only_directories, chunk_size);
+    CCFConfig::Ledger,
+    directory,
+    read_only_directories,
+    chunk_size,
+    max_transaction_size);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::LedgerSignatures);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::LedgerSignatures);
@@ -141,9 +145,11 @@ namespace ccf
     attestation,
     snapshots,
     files_cleanup,
+    pending_node_timeout,
     node_to_node_message_limit,
     historical_cache_soft_limit,
-    identity_history_fetch);
+    identity_history_fetch,
+    idle_connection_timeout);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
   DECLARE_JSON_REQUIRED_FIELDS(

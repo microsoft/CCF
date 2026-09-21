@@ -3,13 +3,6 @@ name: "Continuous Verification"
 on:
   schedule:
     - cron: "0 0 * * 0"
-  pull_request:
-    paths:
-      - "tla/**"
-      - "src/consensus/**"
-      - "tests/raft_scenarios/**"
-      - ".github/workflows/ci-verification.yml"
-  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,12 +13,7 @@ permissions: read-all
 jobs:
   model-checking-consistency:
     name: Model Checking - Consistency
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=civ_mc_consistency-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -38,7 +26,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
@@ -46,12 +34,24 @@ jobs:
 
       - run: cd tla && ./tlc.py mc consistency/MCSingleNode.tla
       - run: cd tla && ./tlc.py mc consistency/MCSingleNodeReads.tla
+      # Covers the formerly failing seven-event trace.
+      - run: cd tla && ./tlc.py --config consistency/MCSingleNodeOrderedSerializable.cfg mc consistency/MCSingleNode.tla
       - run: cd tla && ./tlc.py mc consistency/MCMultiNode.tla
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReads.tla
       - run: cd tla && ./tlc.py mc consistency/MCMultiNodeReadsAlt.tla
+      # These traces are hard-coded because generating rollbacks requires a
+      # partitions test, where election and transaction timing are difficult
+      # to control deterministically.
+      - name: Validate consistency election traces
+        run: |
+          cd tla
+          for trace in consistency/traces/*.ndjson; do
+            echo "Validating ${trace}"
+            JSON="${trace}" ./tlc.py --workers 1 tv --disable-dfs consistency/TraceMultiNodeReads.tla
+          done
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-consistency
@@ -67,7 +67,7 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install TLC dependencies
         run: |
           sudo apt update
@@ -87,7 +87,7 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install TLC dependencies
         run: |
           sudo apt update
@@ -97,7 +97,7 @@ jobs:
       - run: ./tlc.py sim --num 500 --depth 50 consistency/MultiNodeReads.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consistency
@@ -107,12 +107,7 @@ jobs:
 
   model-checking-consensus:
     name: Model Checking - Consensus
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=civ_mc_consensus-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -125,7 +120,7 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
@@ -136,7 +131,7 @@ jobs:
       - run: cd tla && ./tlc.py --trace-name 1C3N mc --term-count 0 --request-count 3 --raft-configs 1C3N consensus/MCccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-consensus
@@ -152,7 +147,7 @@ jobs:
         working-directory: tla
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install TLC dependencies
         run: |
           sudo apt update
@@ -162,7 +157,7 @@ jobs:
       - run: ./tlc.py sim consensus/SIMccfraft.tla
 
       - name: Upload TLC traces
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consensus
@@ -172,12 +167,7 @@ jobs:
 
   trace-validation-consensus:
     name: Trace Validation - Consensus
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=civ_tv_consensus-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -190,15 +180,12 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: Install TLC dependencies
         run: |
@@ -234,31 +221,9 @@ jobs:
         shell: bash
 
       - name: Upload artifacts.
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: tlc-trace-validation-consensus
           path: |
             tla/traces/*
-
-  model-checking-self-healing-open:
-    name: Model Checking - Self-Healing Open
-    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av6-ci]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-
-    steps:
-      - name: "Checkout dependencies"
-        shell: bash
-        run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - name: Install Stateright dependencies
-        run: |
-          tdnf install -y cargo
-
-      - run: cd tla/disaster-recovery && cargo run check

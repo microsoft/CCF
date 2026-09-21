@@ -1,20 +1,20 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import time
 import os
+import random
 import subprocess
-import matplotlib.pyplot as plt
-import pandas as pd
-from shutil import copyfileobj
+import time
+from contextlib import contextmanager
 from enum import Enum, auto
+from shutil import copyfileobj
+
+import matplotlib.pyplot as plt
+import polars as pl
+from loguru import logger as LOG
+
 import infra.concurrency
 import infra.interfaces
-import random
-from contextlib import contextmanager
-
-
-from loguru import logger as LOG
 
 # Interval (s) at which the network is polled to find out
 # when the load client should be restarted
@@ -142,36 +142,42 @@ class LoadClient:
         self._aggregate_results()
 
     def _render_results(self):
-        df = pd.read_csv(
+        request_column_name = "Requests/s"
+        failure_column_name = "Failures/s"
+        df = pl.read_csv(
             os.path.join(self.network.common_dir, RESULTS_CSV_FILE_NAME),
-            keep_default_na=False,
-        ).set_index("Timestamp")
-        df.index = pd.to_datetime(df.index, unit="s")
+            columns=["Timestamp", request_column_name, failure_column_name],
+        ).with_columns(pl.from_epoch("Timestamp", time_unit="s"))
+        timestamps = df["Timestamp"].to_list()
 
         fig, ax1 = plt.subplots()
         plt.title(f"Load for {self.title}")
 
         # Throughput
         color = "tab:blue"
-        request_column_name = "Requests/s"
         ax1.set_xlabel("time")
         ax1.set_ylabel(request_column_name, color=color)
         request_column_max = df[request_column_name].max()
+        if request_column_max is None:
+            raise RuntimeError("Locust load results contain no request rates")
         ax1.tick_params(axis="y", labelcolor=color)
         ax1.tick_params(axis="x", rotation=90)
         if request_column_max > 0:
             ax1.set_ylim(0, request_column_max)
-        ax1.scatter(df.index, df[request_column_name], marker=".", color=color)
+        ax1.scatter(
+            timestamps, df[request_column_name].to_list(), marker=".", color=color
+        )
 
         # Failures
         ax2 = ax1.twinx()
         color = "tab:red"
-        failure_column_name = "Failures/s"
         ax2.set_ylabel(failure_column_name, color=color)
         ax2.tick_params(axis="y", labelcolor=color)
         if request_column_max > 0:
             ax2.set_ylim(0, request_column_max)
-        ax2.scatter(df.index, df[failure_column_name], marker=".", color=color)
+        ax2.scatter(
+            timestamps, df[failure_column_name].to_list(), marker=".", color=color
+        )
 
         # Network events
         extra_ticks = []
@@ -269,7 +275,6 @@ class ServiceLoad(infra.concurrency.StoppableThread):
             except Exception as e:
                 LOG.warning(f"Error finding nodes: {e}")
             time.sleep(NETWORK_POLL_INTERVAL_S)
-        return
 
 
 @contextmanager

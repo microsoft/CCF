@@ -1,30 +1,30 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-from base64 import b64encode, b64decode
+import copy
+import http
+import json
+import os
+import shutil
+import tempfile
+import time
+from base64 import b64decode, b64encode
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
+
+import infra.clients
+import infra.commit
+import infra.crypto
 import infra.e2e_args
 import infra.network
 import infra.path
+import infra.platform_detection
 import infra.proc
 import infra.utils
-import infra.crypto
-import infra.platform_detection
-import infra.clients
-import infra.commit
 import suite.test_requirements as reqs
-import os
+from infra import snp
 from infra.checker import Checker, check_can_progress
 from infra.crypto import create_signed_statement
-import infra.snp as snp
-import tempfile
-import shutil
-import http
-import json
-from hashlib import sha256
-import copy
-import time
-
-
+from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
 CERTIFICATE_VALID_FROM_OFFSET = timedelta(seconds=1)
@@ -45,8 +45,20 @@ def test_verify_quotes(network, args):
         trusted_virtual_measurements = policy["virtual"]["measurements"]
         trusted_virtual_host_data = policy["virtual"]["hostData"]
 
-        r = uc.get("/node/attestations")
-        all_quotes = r.body.json()["attestations"]
+    with primary.client() as c:
+        r = c.get("/node/attestations")
+        assert r.status_code == http.HTTPStatus.OK, r
+        all_attestations = r.body.json()["attestations"]
+
+        r = c.get("/node/quotes")
+        assert r.status_code == http.HTTPStatus.OK, r
+        all_quotes = r.body.json()["quotes"]
+
+        quotes_by_node = {quote["node_id"]: quote for quote in all_quotes}
+        attestations_by_node = {
+            attestation["node_id"]: attestation for attestation in all_attestations
+        }
+        assert quotes_by_node == attestations_by_node
         assert len(all_quotes) >= len(
             network.get_joined_nodes()
         ), f"There are {len(network.get_joined_nodes())} joined nodes, yet got only {len(all_quotes)} quotes: {json.dumps(all_quotes, indent=2)}"
@@ -112,8 +124,8 @@ def test_verify_quotes(network, args):
     return network
 
 
-def get_trusted_uvm_endorsements(node):
-    with node.api_versioned_client(api_version=args.gov_api_version) as client:
+def get_trusted_uvm_endorsements(node, gov_api_version):
+    with node.api_versioned_client(api_version=gov_api_version) as client:
         r = client.get("/gov/service/join-policy")
         assert r.status_code == http.HTTPStatus.OK, r
         return r.body.json()["snp"]["uvmEndorsements"]
@@ -169,7 +181,7 @@ def test_endorsements_tables(network, args):
 
     LOG.info("SNP UVM endorsement table")
 
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     assert (
         len(uvm_endorsements) == 1
     ), f"Expected one UVM endorsement, {uvm_endorsements}"
@@ -181,7 +193,7 @@ def test_endorsements_tables(network, args):
     LOG.debug("Add new feed for same DID")
     new_feed = "New feed"
     network.consortium.add_snp_uvm_endorsement(primary, did=did, feed=new_feed, svn=svn)
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     did, value = next(iter(uvm_endorsements.items()))
     assert len(value) == 2
     assert value[new_feed]["svn"] == svn
@@ -191,7 +203,7 @@ def test_endorsements_tables(network, args):
     network.consortium.add_snp_uvm_endorsement(
         primary, did=did, feed=new_feed, svn=new_svn
     )
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     assert (
         len(uvm_endorsements) == 1
     ), f"Expected one UVM endorsement, {uvm_endorsements}"
@@ -203,21 +215,21 @@ def test_endorsements_tables(network, args):
     network.consortium.add_snp_uvm_endorsement(
         primary, did=new_did, feed=new_feed, svn=svn
     )
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     assert len(uvm_endorsements) == 2
     assert new_did in uvm_endorsements
     assert new_feed in uvm_endorsements[new_did]
 
     LOG.debug("Remove new DID")
     network.consortium.remove_snp_uvm_endorsement(primary, did=new_did, feed=new_feed)
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     assert len(uvm_endorsements) == 1
     assert new_did not in uvm_endorsements
     assert did in uvm_endorsements
 
     LOG.debug("Remove new issuer for original DID")
     network.consortium.remove_snp_uvm_endorsement(primary, did=did, feed=new_feed)
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     assert len(uvm_endorsements) == 1
     _, value = next(iter(uvm_endorsements.items()))
     assert new_feed not in value
@@ -350,7 +362,7 @@ def test_tcb_version_tables(network, args):
     assert cpuid.lower() == cpuid, f"Expected lowercase CPUID, {cpuid}"
 
     assert (
-        "hexstring" in tcb_version.keys()
+        "hexstring" in tcb_version
     ), "Prepopulated TCB version should include the orginal hex tcb"
     assert (
         tcb_version["hexstring"] == tcb_version["hexstring"].lower()
@@ -390,7 +402,7 @@ def test_tcb_version_tables(network, args):
         versions = r.body.json()["snp"]["tcbVersions"]
         assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
         assert (
-            "hexstring" not in versions[cpuid].keys()
+            "hexstring" not in versions[cpuid]
         ), "TCB version should not include the hexstring tcb if set with the old API"
 
     LOG.info("Checking new nodes are allowed to join using expanded api")
@@ -408,7 +420,7 @@ def test_tcb_version_tables(network, args):
         versions = r.body.json()["snp"]["tcbVersions"]
         assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
         assert (
-            "hexstring" in versions[cpuid].keys()
+            "hexstring" in versions[cpuid]
         ), "TCB version should include the orginal hexstring tcb"
         assert (
             versions[cpuid]["hexstring"] == permissive_tcb_version_raw
@@ -668,6 +680,32 @@ def test_add_node_via_code_policy(network, args):
         payload=bytes.fromhex(host_data), sub="Some feed", svn=500, eku="2.999"
     )
     transparent_statement = register_signed_statement(primary, signed_statement)
+
+    # --- Statement IAT is outside the signing certificate validity period ---
+    invalid_iat_statement, invalid_iat_issuer = create_signed_statement(
+        payload=bytes.fromhex(host_data),
+        sub="Some feed",
+        svn=500,
+        eku="2.999",
+        iat=1,
+    )
+    invalid_iat_transparent_statement = register_signed_statement(
+        primary, invalid_iat_statement
+    )
+    invalid_iat_joiner_args = prepare_joiner_with_statement(
+        args, network, invalid_iat_transparent_statement
+    )
+    network.consortium.set_node_join_policy(
+        primary,
+        make_node_join_policy(
+            invalid_iat_issuer,
+            min_svn=500,
+            receipt_issuer=receipt_issuer,
+            receipt_subject=receipt_subject,
+        ),
+    )
+    assert_node_join_fails(network, invalid_iat_joiner_args)
+
     joiner_args = prepare_joiner_with_statement(args, network, transparent_statement)
 
     # --- Policy 1: SVN too low (requires >= 501, statement has 500) ---
@@ -1010,7 +1048,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
                         for host_data, security_policy in entries
                     }
                 elif infra.platform_detection.is_virtual():
-                    return set(host_data for host_data, _ in entries)
+                    return {host_data for host_data, _ in entries}
                 else:
                     raise ValueError(
                         f"Unsupported platform: {infra.platform_detection.get_platform()}"
@@ -1053,7 +1091,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
     new_nodes = []
 
     LOG.info("Start fresh nodes running new code")
-    for _ in range(0, len(old_nodes)):
+    for _ in range(len(old_nodes)):
         new_node = network.create_node()
         network.join_node(new_node, replacement_package, args, from_snapshot=False)
         new_nodes.append(new_node)
@@ -1168,12 +1206,12 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
     LOG.info("Remove KV endorsements roots of trust (expect failure)")
     primary, _ = network.find_nodes()
 
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary, args.gov_api_version)
     assert (
         len(uvm_endorsements) == 1
     ), f"Expected one UVM endorsement, {uvm_endorsements}"
     did, value = next(iter(uvm_endorsements.items()))
-    feed, data = next(iter(value.items()))
+    feed, _data = next(iter(value.items()))
 
     network.consortium.remove_snp_uvm_endorsement(primary, did, feed)
 
@@ -1188,7 +1226,7 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
     return network
 
 
-def run(args):
+def run_attestation_checks(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
@@ -1204,9 +1242,10 @@ def run(args):
         # Host data/security policy
         test_host_data_tables(network, args)
         test_add_node_with_untrusted_host_data(network, args)
-        test_add_node_via_code_policy(network, args)
 
         if infra.platform_detection.is_snp():
+            test_add_node_via_code_policy(network, args)
+
             # Virtual has no security policy, _only_ host data (unassociated with anything)
             test_add_node_with_stubbed_security_policy(network, args)
             test_start_node_with_mismatched_host_data(network, args)
@@ -1217,29 +1256,58 @@ def run(args):
             test_endorsements_tables(network, args)
             test_add_node_with_no_uvm_endorsements(network, args)
 
-        if not infra.platform_detection.is_snp():
-            # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
-            test_proposal_invalidation(network, args)
-
-            # This is in practice equivalent to either "unknown measurement" or "unknown host data", but is explicitly
-            # testing that (without artifically removing/corrupting those values) a replacement package differs
-            # in one of these values
-            test_add_node_with_different_package(network, args)
-            test_update_all_nodes_atomically(network, args)
-            # Upgrade back to the original package to keep sequential coverage
-            # and exercise consecutive full-network upgrades.
-            test_update_all_nodes(network, args)
-
-        # Run again at the end to confirm current nodes are acceptable
-        test_verify_quotes(network, args)
-
-        if infra.platform_detection.is_snp():
+            test_verify_quotes(network, args)
             test_add_node_with_no_uvm_endorsements_in_kv(network, args)
 
 
-if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
+def run_node_join_policy(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
 
-    args.package = "samples/apps/logging/logging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    run(args)
+        test_add_node_via_code_policy(network, args)
+
+
+def run_code_updates(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+
+        # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
+        test_proposal_invalidation(network, args)
+
+        # This is in practice equivalent to either "unknown measurement" or "unknown host data", but is explicitly
+        # testing that (without artifically removing/corrupting those values) a replacement package differs
+        # in one of these values
+        test_add_node_with_different_package(network, args)
+        test_update_all_nodes_atomically(network, args)
+        # Upgrade back to the original package to keep sequential coverage
+        # and exercise consecutive full-network upgrades.
+        test_update_all_nodes(network, args)
+
+        test_verify_quotes(network, args)
+
+
+if __name__ == "__main__":
+    cr = ConcurrentRunner()
+
+    targets = [("attestation", run_attestation_checks)]
+    if not infra.platform_detection.is_snp():
+        targets.extend(
+            [
+                ("join-policy", run_node_join_policy),
+                ("code-updates", run_code_updates),
+            ]
+        )
+
+    for name, target in targets:
+        cr.add(
+            name,
+            target,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        )
+
+    cr.run()

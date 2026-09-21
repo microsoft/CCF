@@ -1,39 +1,60 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import json
 import os
+import re
+import shlex
+import shutil
+import signal
+import subprocess
 import time
 from enum import Enum, auto
-import subprocess
-import infra.interfaces
-import infra.path
-import signal
-import re
-import shutil
-import infra.platform_detection
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-import json
-import infra.snp as snp
+from typing import ClassVar
+
 import ccf._versionifier
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from loguru import logger as LOG
 from packaging.version import (  # type: ignore
     Version,
 )
 
-from loguru import logger as LOG
+import infra.interfaces
+import infra.path
+import infra.platform_detection
+from infra import snp
 
 DBG = os.getenv("DBG", "lldb")
 
 # Duration after which unresponsive node is declared as crashed on startup
 REMOTE_STARTUP_TIMEOUT_S = 5
 FILE_TIMEOUT_S = 60
+# See doc/overview/performance.rst for the rationale behind these defaults.
+DEFAULT_PERF_RECORD_ARGS = "-m 16 -e task-clock:u -F 99 -g --call-graph dwarf --quiet"
 
 
-class CmdMixin(object):
+class CmdMixin:
     perfable = True
 
     @property
     def cmd(self):
         if self.perfable and os.getenv("CCF_PERF"):
-            return ["perf", "record"] + self._cmd
+            perf_args = os.getenv("CCF_PERF_ARGS", DEFAULT_PERF_RECORD_ARGS)
+            try:
+                parsed_perf_args = shlex.split(perf_args)
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid CCF_PERF_ARGS {perf_args!r}; expected a shell-style "
+                    "argument string"
+                ) from e
+            return [
+                "perf",
+                "record",
+                *parsed_perf_args,
+                "-o",
+                "perf.data",
+                "--",
+                *self._cmd,
+            ]
         else:
             return self._cmd
 
@@ -75,6 +96,11 @@ class LocalRemote(CmdMixin):
         self.err = os.path.join(self.root, "err")
         self.stack_trace = os.path.join(self.root, "stack_trace")
         self._shutdown_timeout = 10
+        self.pid_file = kwargs.get("pid_file")
+        self.node_container_image = kwargs.get("node_container_image")
+        self.container_name = None
+        self.profiled_pid = None
+        self.profiled_pidfd = None
 
     @property
     def shutdown_timeout(self):
@@ -93,26 +119,26 @@ class LocalRemote(CmdMixin):
         return addr
 
     def _rc(self, cmd):
-        LOG.info("[{}] {}".format(self.hostname, cmd))
+        LOG.info(f"[{self.hostname}] {cmd}")
         return subprocess.call(cmd, shell=True)
 
     def cp(self, src_path, dst_path):
         if os.path.isdir(src_path):
-            assert self._rc("rm -rf {}".format(os.path.join(dst_path))) == 0
-            assert self._rc("cp -r {} {}".format(src_path, dst_path)) == 0
+            assert self._rc(f"rm -rf {os.path.join(dst_path)}") == 0
+            assert self._rc(f"cp -r {src_path} {dst_path}") == 0
         else:
-            assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
+            assert self._rc(f"cp {src_path} {dst_path}") == 0
 
     def _setup_files(self, use_links: bool):
-        assert self._rc("rm -rf {}".format(self.root)) == 0
-        assert self._rc("mkdir -p {}".format(self.root)) == 0
+        assert self._rc(f"rm -rf {self.root}") == 0
+        assert self._rc(f"mkdir -p {self.root}") == 0
         for path in self.exe_files:
             dst_path = os.path.normpath(os.path.join(self.root, os.path.basename(path)))
             src_path = os.path.normpath(os.path.join(os.getcwd(), path))
             if use_links:
-                assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
+                assert self._rc(f"ln -s {src_path} {dst_path}") == 0
             else:
-                assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
+                assert self._rc(f"cp {src_path} {dst_path}") == 0
         for path in self.data_files:
             if len(path) > 0:
                 dst_path = os.path.join(self.root, os.path.basename(path))
@@ -154,29 +180,134 @@ class LocalRemote(CmdMixin):
         """
         cmd = self.get_cmd()
         LOG.info(f"[{self.hostname}] {cmd} (env: {self.env.keys()})")
-        self.stdout = open(self.out, "wb")
-        self.stderr = open(self.err, "wb")
+        docker = None
+        if self.node_container_image:
+            docker = shutil.which("docker")
+            if docker is None:
+                raise RuntimeError(
+                    "docker is required when a node container image is specified"
+                )
+        self.stdout = open(self.out, "wb")  # noqa: SIM115 - closed in stop()
+        self.stderr = open(self.err, "wb")  # noqa: SIM115 - closed in stop()
+        launch_cmd = self.cmd
+        launch_env = self.env
+        if self.node_container_image:
+            container_suffix = re.sub(r"[^a-zA-Z0-9_.-]", "-", self.name)
+            self.container_name = f"ccf-{os.getpid()}-{container_suffix}"
+            root = os.path.abspath(self.root)
+            launch_cmd = [
+                docker,
+                "run",
+                "--rm",
+                "--name",
+                self.container_name,
+                "--network",
+                "host",
+                "--user",
+                f"{os.getuid()}:{os.getgid()}",
+                "--volume",
+                f"{root}:{root}",
+                "--workdir",
+                root,
+            ]
+            for key, value in self.env.items():
+                launch_cmd.extend(["--env", f"{key}={value}"])
+            launch_cmd.extend([self.node_container_image, *self.cmd])
+            launch_env = os.environ.copy()
         self.proc = subprocess.Popen(
-            self.cmd,
+            launch_cmd,
             cwd=self.root,
             stdout=self.stdout,
             stderr=self.stderr,
-            env=self.env,
+            env=launch_env,
         )
 
     def suspend(self):
-        self.proc.send_signal(signal.SIGSTOP)
+        self._send_signal(signal.SIGSTOP)
 
     def resume(self):
-        self.proc.send_signal(signal.SIGCONT)
+        self._send_signal(signal.SIGCONT)
 
     def hangup(self):
-        self.proc.send_signal(signal.SIGHUP)
+        self._send_signal(signal.SIGHUP)
+
+    def _profiling_enabled(self):
+        return self.perfable and os.getenv("CCF_PERF")
+
+    def _open_profiled_pidfd(self):
+        if self.profiled_pidfd is not None:
+            return self.profiled_pidfd
+
+        pid_path = os.path.join(self.root, self.pid_file)
+        deadline = time.monotonic() + REMOTE_STARTUP_TIMEOUT_S
+        while time.monotonic() < deadline:
+            try:
+                with open(pid_path, encoding="utf-8") as f:
+                    self.profiled_pid = int(f.read())
+                self.profiled_pidfd = os.pidfd_open(self.profiled_pid)
+                return self.profiled_pidfd
+            except (OSError, ValueError):
+                if self.proc.poll() is not None:
+                    break
+                time.sleep(0.05)
+
+        raise RuntimeError(f"Unable to open profiled process from {pid_path}")
+
+    def _target_pid(self):
+        if self._profiling_enabled() and self.pid_file:
+            self._open_profiled_pidfd()
+            return self.profiled_pid
+
+        return self.proc.pid
+
+    def _send_signal(self, sig):
+        if self.node_container_image:
+            if self.proc is None or self.proc.poll() is not None:
+                return
+            docker = shutil.which("docker")
+            if docker is None:
+                raise RuntimeError(
+                    "docker is required when a node container image is specified"
+                )
+            result = subprocess.run(
+                [
+                    docker,
+                    "kill",
+                    "--signal",
+                    signal.Signals(sig).name,
+                    self.container_name,
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0 and self.proc.poll() is None:
+                raise RuntimeError(
+                    f"Unable to signal container {self.container_name}: "
+                    f"{result.stderr.strip()}"
+                )
+            return
+        try:
+            if self._profiling_enabled() and self.pid_file:
+                try:
+                    profiled_pidfd = self._open_profiled_pidfd()
+                except RuntimeError:
+                    if self.proc.poll() is None:
+                        self.proc.send_signal(sig)
+                else:
+                    signal.pidfd_send_signal(profiled_pidfd, sig)
+            else:
+                self.proc.send_signal(sig)
+        except ProcessLookupError:
+            pass
 
     def get_logs(self):
         return self.out, self.err
 
     def get_stack_trace(self, timeout=20):
+        if self.node_container_image:
+            LOG.info("Stack traces are not available for containerised nodes")
+            return None
         if shutil.which("lldb") != "":
             # To avoid errors on decoding lldb output as utf-8.
             # We shoud find a way to force lldb to use utf-8.
@@ -186,7 +317,7 @@ class LocalRemote(CmdMixin):
                     "lldb",
                     "--batch",  # Ensure non-interactive
                     "-p",
-                    f"{self.proc.pid}",
+                    f"{self._target_pid()}",
                     "--one-line",
                     "thread backtrace all",
                     "--one-line",
@@ -199,7 +330,6 @@ class LocalRemote(CmdMixin):
                     command,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    universal_newlines=True,
                     errors=errors,
                     text=True,
                     timeout=timeout,
@@ -225,18 +355,18 @@ class LocalRemote(CmdMixin):
             )
 
     def sigterm(self):
-        self.proc.terminate()
+        self._send_signal(signal.SIGTERM)
 
     def sigkill(self):
-        self.proc.send_signal(signal.SIGKILL)
+        self._send_signal(signal.SIGKILL)
 
     def stop(self):
         """
         Disconnect the client, and therefore shut down the command as well.
         """
-        LOG.info("[{}] closing".format(self.hostname))
+        LOG.info(f"[{self.hostname}] closing")
         if self.proc:
-            self.proc.terminate()
+            self.sigterm()
             try:
                 self.proc.wait(self._shutdown_timeout)
             except subprocess.TimeoutExpired:
@@ -252,25 +382,51 @@ class LocalRemote(CmdMixin):
             if exit_code is not None and exit_code < 0:
                 signal_str = signal.strsignal(-exit_code)
                 LOG.error(f"{self.hostname} exited with signal: {signal_str}")
+            profile_error = None
+            if self._profiling_enabled():
+                if exit_code != 0:
+                    profile_error = f"perf record exited with code {exit_code}"
+                perf_data = os.path.join(self.root, "perf.data")
+                if not os.path.isfile(perf_data) or os.path.getsize(perf_data) == 0:
+                    profile_error = f"perf record did not produce {perf_data}"
             if self.stdout:
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
+            if self.profiled_pidfd is not None:
+                os.close(self.profiled_pidfd)
+                self.profiled_pidfd = None
+            if profile_error:
+                raise RuntimeError(profile_error)
 
     def setup(self, use_links=True):
         """
         Empty the temporary directory if it exists,
         and populate it with the initial set of files.
         """
-        self._setup_files(use_links)
+        self._setup_files(use_links and self.node_container_image is None)
 
     def get_cmd(self, include_dir=True):
         cmd = f"cd {self.root} && " if include_dir else ""
+        if self.node_container_image:
+            root = os.path.abspath(self.root)
+            cmd += (
+                "docker run --rm --network host "
+                f"--volume {root}:{root} --workdir {root} "
+                f"{self.node_container_image} "
+            )
         cmd += f'{" ".join(self.cmd)} 1> {self.out} 2> {self.err}'
         return cmd
 
     def debug_node_cmd(self):
         cmd = " ".join(self.cmd)
+        if self.node_container_image:
+            root = os.path.abspath(self.root)
+            return (
+                "docker run --rm --network host "
+                f"--volume {root}:{root} --workdir {root} "
+                f"{self.node_container_image} {DBG} -- {cmd}"
+            )
         return f"cd {self.root} && {DBG} -- {cmd}"
 
     def check_done(self, timeout=5, interval=0.2):
@@ -298,9 +454,9 @@ class LocalRemote(CmdMixin):
             return self._get_perf(result)
 
 
-class CCFRemote(object):
+class CCFRemote:
     TEMPLATE_CONFIGURATION_FILE = "config.jinja"
-    DEPS = []
+    DEPS: ClassVar[list[str]] = []
 
     def __init__(
         self,
@@ -326,6 +482,7 @@ class CCFRemote(object):
         node_address=None,
         config_file=None,
         join_timer_s=None,
+        pending_node_timeout=None,
         sig_ms_interval=None,
         jwt_key_refresh_interval_s=None,
         jwt_key_refresh_max_response_size="1MB",
@@ -501,6 +658,11 @@ class CCFRemote(object):
             )
 
         # Configuration file
+        v = (
+            ccf._versionifier.to_python_version(version)
+            if version is not None
+            else None
+        )
         if config_file:
             LOG.info(
                 f"Node {self.local_node_id}: Using configuration file {config_file}"
@@ -532,6 +694,7 @@ class CCFRemote(object):
                 curve_id=curve_id.name.title(),
                 host_log_level=log_level.title(),
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
+                pending_node_timeout=pending_node_timeout,
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
                 jwt_key_refresh_max_response_size=jwt_key_refresh_max_response_size,
@@ -578,6 +741,13 @@ class CCFRemote(object):
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
 
+                # Releases before 7.0.16 reject this unknown HTTP configuration field.
+                if v is not None and v < Version("7.0.16"):
+                    for interface in j["network"]["rpc_interfaces"].values():
+                        interface["http_configuration"].pop(
+                            "max_request_target_size", None
+                        )
+
                 # Enclave config removed from 7.x onwards.
                 if major_version is not None and major_version < 7:
                     enclave_platform = infra.platform_detection.get_platform()
@@ -616,11 +786,6 @@ class CCFRemote(object):
             os.path.basename(config_file),
         ]
 
-        v = (
-            ccf._versionifier.to_python_version(version)
-            if version is not None
-            else None
-        )
         if v is None or v >= Version("7.0.0.dev0"):
             cmd += [
                 "--log-level",
@@ -712,7 +877,7 @@ class CCFRemote(object):
         try:
             self.remote.stop()
         except Exception:
-            LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
+            LOG.exception(f"Failed to shut down {self.local_node_id} cleanly")
 
     def check_done(self, timeout=5, interval=0.2):
         return self.remote.check_done(timeout=timeout, interval=interval)

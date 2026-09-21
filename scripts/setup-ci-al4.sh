@@ -5,6 +5,7 @@
 set -exo pipefail
 
 H2SPEC_VERSION="v2.6.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 retry() {
     local description=$1
@@ -17,13 +18,25 @@ retry() {
 
     local attempt=1
     local delay
+    local max_attempts=5
+    local status
     while true; do
-        if "$@"; then
+        # Calling a function from an if condition disables errexit within it,
+        # so a later successful command can mask an earlier failure.
+        set +e
+        (
+            set -e
+            "$@"
+        )
+        status=$?
+        set -e
+
+        if (( status == 0 )); then
             return
         fi
 
-        if (( attempt == 3 )); then
-            echo "'$description' failed after 3 attempts"
+        if (( attempt == max_attempts )); then
+            echo "'$description' failed after $max_attempts attempts"
             return 1
         fi
 
@@ -61,22 +74,18 @@ install_build_dependencies() {
         clang  \
         cmake  \
         ninja-build  \
+        patch  \
         which  \
         openssl  \
         openssl-devel  \
         libuv-devel  \
         libnghttp2-devel  \
         libcurl-devel  \
-        libarrow-devel  \
-        parquet-libs-devel  \
         doxygen  \
         clang-tools-extra-devel  \
         rust  \
         cargo  \
         libstdc++-devel
-    # Azure Linux 4 beta does not publish libbacktrace-static yet; the Azure
-    # Linux 3.0 RPM contains only backtrace.h and libbacktrace.a and works here.
-    dnf install -y https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64/Packages/l/libbacktrace-static-13.2.0-7.azl3.x86_64.rpm
 }
 
 install_test_dependencies() {
@@ -129,14 +138,11 @@ install_packaging_and_python() {
         # For packaging
         rpm-build
         # For end to end tests and scripts
-        python3-pip
+        python3
         python3-devel
     )
     dnf -y install "${packages[@]}"
-
-    if ! python3 -m pip install uv==0.11.19 --break-system-packages; then
-        python3 -m pip install uv==0.11.19
-    fi
+    bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin
 }
 
 retry "Source control dependencies" install_source_control

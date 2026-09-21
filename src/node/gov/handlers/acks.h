@@ -7,11 +7,23 @@
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 #include "node/history.h"
+#include "node/internal_tables_access.h"
 #include "node/share_manager.h"
-#include "service/internal_tables_access.h"
 
 namespace ccf::gov::endpoints
 {
+  namespace api
+  {
+    struct StateDigest
+    {
+      ccf::MemberId member_id;
+      std::string state_digest;
+    };
+    DECLARE_JSON_TYPE(StateDigest);
+    DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
+      StateDigest, member_id, "memberId", state_digest, "stateDigest");
+  }
+
   // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   inline void init_ack_handlers(
     ccf::BaseEndpointRegistry& registry,
@@ -23,7 +35,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           // Get memberId from path parameter
           std::string error;
@@ -57,9 +69,7 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          auto response_body = nlohmann::json::object();
-          response_body["memberId"] = member_id_str;
-          response_body["stateDigest"] = ack->state_digest;
+          const api::StateDigest response_body{member_id, ack->state_digest};
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
           return;
         }
@@ -71,7 +81,8 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_state_digest),
         no_auth_required)
-      .set_openapi_hidden(true)
+      .set_auto_schema<void, api::StateDigest>()
+      .set_openapi_summary("Get a member's state digest")
       .install();
 
     auto update_state_digest = [&](auto& ctx, ApiVersion api_version) {
@@ -79,7 +90,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           // Get memberId from path parameter
           std::string error;
@@ -146,9 +157,7 @@ namespace ccf::gov::endpoints
           ack.state_digest = history.get_root().hex_str();
           acks_handle->put(member_id, ack);
 
-          auto body = nlohmann::json::object();
-          body["memberId"] = member_id_str;
-          body["stateDigest"] = ack.state_digest;
+          const api::StateDigest body{member_id, ack.state_digest};
           ctx.rpc_ctx->set_response_json(body, HTTP_STATUS_OK);
           return;
         }
@@ -160,7 +169,8 @@ namespace ccf::gov::endpoints
         HTTP_POST,
         api_version_adapter(update_state_digest),
         detail::member_sig_only_policies("state_digest"))
-      .set_openapi_hidden(true)
+      .set_auto_schema<ds::openapi::Cose, api::StateDigest>()
+      .set_openapi_summary("Update a member's state digest")
       .install();
 
     auto ack_state_digest = [&](auto& ctx, ApiVersion api_version) {
@@ -168,7 +178,7 @@ namespace ccf::gov::endpoints
       {
         case ApiVersion::preview_v1:
         case ApiVersion::v1:
-        default:
+        case ApiVersion::Latest:
         {
           // Get memberId from path parameter
           std::string error;
@@ -222,8 +232,21 @@ namespace ccf::gov::endpoints
           // Check signed digest matches expected digest in KV
           const auto expected_digest = ack->state_digest;
           const auto signed_body = ccf::parse_json_safe(cose_ident.content);
+          const auto state_digest_it = signed_body.find("stateDigest");
+          if (
+            state_digest_it == signed_body.end() ||
+            !state_digest_it.value().is_string())
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidInput,
+              "Signed request body is not a JSON object containing required "
+              "string field \"stateDigest\"");
+            return;
+          }
           const auto actual_digest =
-            signed_body["stateDigest"].template get<std::string>();
+            state_digest_it.value().template get<std::string>();
           if (expected_digest != actual_digest)
           {
             detail::set_gov_error(
@@ -342,7 +365,8 @@ namespace ccf::gov::endpoints
         HTTP_POST,
         api_version_adapter(ack_state_digest),
         {std::make_shared<MemberCOSESign1AuthnPolicy>("ack")})
-      .set_openapi_hidden(true)
+      .set_auto_schema<ds::openapi::Cose, void>()
+      .set_openapi_summary("Acknowledge a member's state digest")
       .install();
   }
 }

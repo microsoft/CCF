@@ -26,6 +26,15 @@ namespace ccf::ds::openapi
   struct Cose
   {};
 
+  /** Tag type representing an arbitrary binary body (application/octet-stream).
+   */
+  struct Binary
+  {};
+
+  /** Tag type representing JavaScript source (text/javascript). */
+  struct Javascript
+  {};
+
   inline void fill_json_schema(
     nlohmann::json& schema, [[maybe_unused]] const Cose* cose)
   {
@@ -36,6 +45,29 @@ namespace ccf::ds::openapi
   inline std::string schema_name([[maybe_unused]] const Cose* cose)
   {
     return "Cose";
+  }
+
+  inline void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const Binary* binary)
+  {
+    schema["type"] = "string";
+    schema["format"] = "binary";
+  }
+
+  inline std::string schema_name([[maybe_unused]] const Binary* binary)
+  {
+    return "Binary";
+  }
+
+  inline void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const Javascript* javascript)
+  {
+    schema["type"] = "string";
+  }
+
+  inline std::string schema_name([[maybe_unused]] const Javascript* javascript)
+  {
+    return "Javascript";
   }
 }
 
@@ -403,6 +435,40 @@ namespace ccf::ds::openapi
         return components_ref_object(name);
       }
     }
+
+    /** Produces the schema for a field which is marked as required (ie -
+     * always present in the JSON object), but whose C++ type is
+     * std::optional<T>. Such fields are always serialised, but may hold a
+     * JSON null when the C++ value is std::nullopt (for instance, a
+     * consensus's primary_id while no primary is currently known). The
+     * produced schema therefore describes the inner type T, additionally
+     * allowing a null value.
+     *
+     * OpenAPI 3.0 does not support "type": "null", and "nullable" only
+     * affects a "type" defined in the same schema object. The second "anyOf"
+     * branch therefore describes only null, while the first retains all
+     * constraints from the inner schema.
+     */
+    template <typename T>
+    nlohmann::json add_required_schema_component()
+    {
+      if constexpr (ccf::nonstd::is_specialization<T, std::optional>::value)
+      {
+        auto inner = add_schema_component<typename T::value_type>();
+        auto schema = nlohmann::json::object();
+        schema["anyOf"] = nlohmann::json::array(
+          {inner,
+           nlohmann::json{
+             {"type", "object"},
+             {"nullable", true},
+             {"enum", nlohmann::json::array({nullptr})}}});
+        return schema;
+      }
+      else
+      {
+        return add_schema_component<T>();
+      }
+    }
   };
 
   template <typename T>
@@ -415,6 +481,14 @@ namespace ccf::ds::openapi
     else if constexpr (std::is_same_v<T, Cose>)
     {
       return http::headervalues::contenttype::COSE;
+    }
+    else if constexpr (std::is_same_v<T, Binary>)
+    {
+      return http::headervalues::contenttype::OCTET_STREAM;
+    }
+    else if constexpr (std::is_same_v<T, Javascript>)
+    {
+      return http::headervalues::contenttype::JAVASCRIPT;
     }
     else
     {

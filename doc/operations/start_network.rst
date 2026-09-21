@@ -52,13 +52,17 @@ To add a new node to an existing opening network, other nodes should be started 
 
 The joining node takes the certificate of the existing network to join via ``service_certificate_file`` configuration entry and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``join.target_rpc_address`` configuration entry.
 
+.. note:: The joining node verifies the target node's TLS certificate against the ``service_certificate_file`` (which is the only trust anchor used for this connection) and checks that it matches the ``join.target_rpc_address`` host. Operators must therefore ensure that the target node's certificate subject alternative names - derived from its RPC interface ``published_address`` values, or set explicitly via ``node_certificate.subject_alt_names`` - include the address used in ``join.target_rpc_address``.
+
 The join configuration option should be set in the :ref:`operations/configuration:``command.join``` section of the JSON configuration.
 
-A new node can only join an existing CCF network if its hardware attestation is valid  [#remote_attestation]_. and runs an enclave application that is :ref:`trusted by the consortium <governance/common_member_operations:Updating Code Version>`.
+A new node can only join an existing CCF network if its hardware attestation is valid [#remote_attestation]_ and it runs an application that is :ref:`trusted by the consortium <governance/common_member_operations:Updating Code Version>`.
 
 If the network has not yet been opened by members (see :ref:`governance/open_network:Opening the Network`), the joining node becomes part of the network immediately. Otherwise, if the network has already been opened to users, members need to trust the joining node before it can become part of the network and participate in the consensus (see :ref:`governance/common_member_operations:Trusting a New Node`).
 
 The ``Pending`` joining node automatically polls the service (interval configurable via ``join.retry_timeout`` configuration entry) until the members have successfully transitioned the node to the ``Trusted`` state. It is only then that the joining node transitions to the ``PartOfNetwork`` state and starts updating its ledger.
+
+The primary automatically removes a ``Pending`` node that has stopped sending join requests for longer than the ``pending_node_timeout`` configuration entry (1 hour by default). Cleanup runs at least once per minute. Set ``pending_node_timeout`` to ``0s`` to disable automatic removal; positive values must be at least ``1ms``.
 
 .. tip:: After the node has been trusted by members, operators should poll the :http:GET:`/node/state` endpoint on the newly added node, using the node's self-signed certificate as TLS CA, until the ``{"state": "PartOfNetwork"}`` is reported. This status confirms that the replication of the ledger has started on this node.
 

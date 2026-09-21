@@ -1,0 +1,43 @@
+# Queue the messages produced by replication, elections, and nomination, then
+# render their compact labels for scenario diagnostics.
+start_node,0
+emit_signature,2
+trust_nodes,2,1,2
+emit_signature,2
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_state_sync
+
+# Heartbeat and successful append response.
+periodic_one,0,10
+summarise_messages,0,1
+dispatch_single,0,1
+summarise_messages,1,0
+dispatch_single,1,0
+
+# Pre-vote request/response, then regular vote request/response.
+drop_pending,0
+drop_pending,1
+drop_pending,2
+periodic_one,1,100
+summarise_messages,1,2
+dispatch_single,1,2
+summarise_messages,2,1
+dispatch_single,2,1
+assert_detail,1,leadership_state,Candidate
+summarise_messages,1,2
+dispatch_single,1,2
+summarise_messages,2,1
+dispatch_single,2,1
+assert_detail,1,leadership_state,Leader
+
+# Leadership nomination proposal.
+drop_pending,1
+nominate_successor,1
+summarise_messages,1,0
+summarise_messages,1,2
+drop_pending,1
+loop_until_sync

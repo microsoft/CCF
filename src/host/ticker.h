@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "node/rpc/ringbuffer_messages.h"
 #include "timer.h"
 
 #include <chrono>
@@ -26,5 +27,5 @@ namespace asynchost
     }
   };
 
-  using Ticker = proxy_ptr<Timer<TickerImpl>>;
+  using Ticker = ccf::uv::proxy_ptr<Timer<TickerImpl>>;
 }

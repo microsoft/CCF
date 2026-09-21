@@ -14,5 +14,4 @@ warnings = "deny"
 
 [dependencies]
 openssl-sys = "0.9"
-cborrs = { git = "https://github.com/project-everest/everparse.git", rev = "f4cd5ffa183edd5cc824d66588012bcf8d0bdccd" } # v2026.02.25
-cborrs-nondet = { git = "https://github.com/project-everest/everparse.git", rev = "f4cd5ffa183edd5cc824d66588012bcf8d0bdccd" } # v2026.02.25
+cbor = { package = "tee-attestation-verification-cbor", path = "../tee-attestation-verification/cbor" }

@@ -7,7 +7,7 @@ Patch an LTS release
 CCF releases are cut from branches named ``release/N.x`` where ``N`` is the major release number.
 Patching a release, ie. issuing a ``N.0.x+1`` version when the current version is ``N.0.x`` involves the following steps:
 
-#. Apply commits to ``release/N.0.x``, and/or cherry-pick them from ``main``
+#. Apply commits to ``release/N.x``, and/or cherry-pick them from ``main``
 #. Tag head of ``release/N.x`` as ``ccf-N.0.x+1``
 
 Create an LTS release

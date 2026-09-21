@@ -5,7 +5,6 @@
 #include "ds/work_beacon.h"
 #include "tasks/task.h"
 
-#include <mutex>
 #include <optional>
 #include <queue>
 
@@ -14,7 +13,7 @@ namespace ccf::tasks
   class JobBoard
   {
     struct PImpl;
-    std::unique_ptr<PImpl> pimpl = nullptr;
+    std::unique_ptr<PImpl> pimpl;
 
     void add_timed_task(
       Task task,
@@ -25,10 +24,13 @@ namespace ccf::tasks
     JobBoard();
     ~JobBoard();
 
+    void set_work_beacon(ccf::ds::WorkBeaconPtr work_beacon);
+
     void add_task(Task t);
     Task get_task();
 
     Task wait_for_task(const std::chrono::milliseconds& timeout);
+    void stop_waiters();
 
     struct Summary
     {

@@ -1,34 +1,34 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
 import http
+import json
+import os
+import random
+import tempfile
+from datetime import datetime, timezone
+from hashlib import sha256
+
+import governance_api
+import governance_history
+import governance_js
+import infra.crypto
+import infra.e2e_args
+import infra.interfaces
+import infra.log_capture
+import infra.logging_app as app
 import infra.member
+import infra.net
 import infra.network
 import infra.path
 import infra.proc
-import infra.net
-from infra.node import CCFVersion
-import infra.e2e_args
 import infra.proposal
-import suite.test_requirements as reqs
-import infra.logging_app as app
-import json
 import jinja2
-import infra.crypto
-from datetime import datetime, timezone
-import governance_js
-from infra.runner import ConcurrentRunner
-import governance_history
-import tempfile
-import infra.interfaces
-import infra.log_capture
-import governance_api
-from hashlib import sha256
-import random
-
+import js_compaction_conflict
 import memberclient
 import membership
-
+import suite.test_requirements as reqs
+from infra.node import CCFVersion
+from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
 
@@ -36,9 +36,17 @@ from loguru import logger as LOG
 def test_create_endpoint(network, args):
     primary, _ = network.find_nodes()
     with primary.client("user0") as c:
-        r = c.post("/node/create")
-        assert r.status_code == http.HTTPStatus.FORBIDDEN.value
-        assert r.body.json()["error"]["message"] == "Node is not in initial state."
+        r = c.post("/node/create", validate_openapi=False)
+        # Callers other than the node itself are rejected by the self_cert
+        # authentication policy before the handler runs
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value
+        error = r.body.json()["error"]
+        assert error["code"] == "InvalidAuthenticationInfo"
+        assert error["details"][0]["auth_policy"] == "self_cert"
+        assert (
+            error["details"][0]["message"]
+            == "Only the node itself can call this endpoint."
+        )
     return network
 
 
@@ -140,7 +148,8 @@ def test_no_quote(network, args):
         )
     ) as uc:
         r = uc.get("/node/quotes/self")
-        assert r.status_code == http.HTTPStatus.NOT_FOUND
+        assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE, r
+        assert r.body.json()["error"]["code"] == "FrontendNotOpen"
     return network
 
 
@@ -264,7 +273,8 @@ def test_all_members(network, args):
                 enc_pub_key_file = os.path.join(
                     primary.common_dir, member.member_info["encryption_public_key_file"]
                 )
-                recovery_enc_key = open(enc_pub_key_file, encoding="utf-8").read()
+                with open(enc_pub_key_file, encoding="utf-8") as enc_pub_key:
+                    recovery_enc_key = enc_pub_key.read()
                 assert response_pub_enc_key == recovery_enc_key
             else:
                 assert response_pub_enc_key is None
@@ -307,7 +317,29 @@ def test_all_members(network, args):
 @reqs.description("Test ack state digest updates")
 def test_ack_state_digest_update(network, args):
     for node in network.get_joined_nodes():
-        network.consortium.get_any_active_member().update_ack_state_digest(node)
+        member = network.consortium.get_any_active_member()
+        updated = member.update_ack_state_digest(node)
+        updated_digest = updated.body.json()
+        assert updated_digest["memberId"] == member.service_id
+        assert len(bytes.fromhex(updated_digest["stateDigest"])) == 32
+
+        with node.client() as c:
+            c.wait_for_commit(updated)
+        with node.api_versioned_client(api_version=args.gov_api_version) as c:
+            r = c.get(f"/gov/members/state-digests/{member.service_id}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.json() == updated_digest
+
+        for invalid_body in ({}, {"stateDigest": 42}):
+            with node.api_versioned_client(
+                *member.auth(write=True), api_version=args.gov_api_version
+            ) as c:
+                r = c.post(
+                    f"/gov/members/state-digests/{member.service_id}:ack",
+                    body=invalid_body,
+                )
+                assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+                assert r.body.json()["error"]["code"] == "InvalidInput", r
     return network
 
 
@@ -369,7 +401,7 @@ def test_each_node_cert_renewal(network, args):
                         )
                     except Exception as e:
                         if expected_exception is None:
-                            raise e
+                            raise
                         assert isinstance(e, expected_exception)
                         continue
                     else:
@@ -465,7 +497,7 @@ def test_service_cert_renewal_extended(network, args):
 
     # Confirm that we can renew the service certificate multiple times
     # without issue
-    for _ in range(0, 5):
+    for _ in range(5):
         new_duration = random.randint(1, 100)
         LOG.info(f"Renewing service certificate for {new_duration} days")
         renew_service_certificate(network, args, now, new_duration)
@@ -555,24 +587,34 @@ def gov(args):
         test_create_endpoint(network, args)
         test_consensus_status(network, args)
         test_member_data(network, args)
-        network = test_all_members(network, args)
-        test_user(network, args)
-        test_jinja_templates(network, args)
-        test_no_quote(network, args)
-        test_node_data(network, args)
         test_ack_state_digest_update(network, args)
-        test_each_node_cert_renewal(network, args)
-        test_binding_proposal_to_service_identity(network, args)
-        test_all_nodes_cert_renewal(network, args)
-        test_service_cert_renewal(network, args)
-        test_service_cert_renewal_extended(network, args)
+
+        # test_all_members stops this network and recovers into a new one, which
+        # the enclosing context manager does not own: it still holds the
+        # original. Stop the recovered network here, or its nodes outlive the
+        # test. That includes the deliberately untrusted nodes added by
+        # test_no_quote and test_node_data, which then sit in a join retry loop
+        # for the rest of the CI job.
+        recovered_network = test_all_members(network, args)
+        try:
+            test_user(recovered_network, args)
+            test_jinja_templates(recovered_network, args)
+            test_no_quote(recovered_network, args)
+            test_node_data(recovered_network, args)
+            test_each_node_cert_renewal(recovered_network, args)
+            test_binding_proposal_to_service_identity(recovered_network, args)
+            test_all_nodes_cert_renewal(recovered_network, args)
+            test_service_cert_renewal(recovered_network, args)
+            test_service_cert_renewal_extended(recovered_network, args)
+        finally:
+            recovered_network.stop_all_nodes(skip_verification=True)
 
 
 # These tests requiring starting up + shutting down a node with specific
 # requirements, so are run in a standalone network
 def single_node(args):
     def test_desc(s):
-        LOG.opt(colors=True).info(f"<magenta>Test: {s}</>")
+        LOG.info(f"Test: {s}")
 
     test_desc("Node data on start node")
     with tempfile.NamedTemporaryFile(mode="w+") as ntf:
@@ -670,6 +712,16 @@ def single_node(args):
                 else:
                     assert False, "Expected to throw"
 
+            # Stalls the node for the default JS execution time limit, which
+            # would trigger an election in a multi-node network
+            test_desc("Execution time limit on evaluation of proposed constitution")
+            governance_js.test_set_constitution_evaluation_timeout(network, args)
+
+            # Same reasoning: module-scope loop in a ballot stalls the primary
+            # for at least the default execution time limit.
+            test_desc("Module-scope runtime limits on ballots")
+            governance_js.test_ballot_module_scope_restrictions(network, args)
+
             LOG.info("Stopping network to read node logs")
 
     test_desc("Checking logging after node shutdown")
@@ -679,14 +731,15 @@ def single_node(args):
     }
     warn_counts = {k: 0 for k in {validate_warn, apply_warn}}
     out_path, _ = primary.get_logs()
-    for line in open(out_path, "r", encoding="utf-8").readlines():
-        for k in info_counts.keys():
-            if k in line and "[info ]" in line:
-                info_counts[k] += 1
+    with open(out_path, "r", encoding="utf-8") as output:
+        for line in output:
+            for k in info_counts:
+                if k in line and "[info ]" in line:
+                    info_counts[k] += 1
 
-        for k in warn_counts.keys():
-            if k in line and "[fail ]" in line:
-                warn_counts[k] += 1
+            for k in warn_counts:
+                if k in line and "[fail ]" in line:
+                    warn_counts[k] += 1
 
     LOG.debug("Found following info line occurrences in node output:")
     for k, v in info_counts.items():
@@ -825,6 +878,17 @@ if __name__ == "__main__":
         memberclient.run,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=1),
+    )
+
+    cr.add(
+        "js_compaction_conflict",
+        js_compaction_conflict.run,
+        package="js_generic",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        # The endpoint under test occupies one thread for as long as it
+        # executes, so others are needed to serve the concurrent writes.
+        worker_threads=2,
     )
 
     cr.run()

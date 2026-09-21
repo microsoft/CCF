@@ -4,22 +4,28 @@
 #include "node/snapshotter.h"
 
 #include "crypto/openssl/hash.h"
+#include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "ds/ring_buffer.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/history.h"
+#include "node/recovery_snapshot_ledger.h"
+#include "node/snapshot_serdes.h"
+#include "snapshots/filenames.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include <chrono>
 #include <doctest/doctest.h>
+#include <filesystem>
+#include <fstream>
 #include <string>
+#include <unistd.h>
 
-constexpr auto buffer_size = 1024 * 16;
 auto node_kp = ccf::crypto::make_ec_key_pair();
 
 using StringString = ccf::kv::Map<std::string, std::string>;
-using rb_msg = std::pair<ringbuffer::Message, size_t>;
+namespace fs = std::filesystem;
 
 void run_one_task()
 {
@@ -30,63 +36,313 @@ void run_one_task()
   }
 }
 
-auto read_ringbuffer_out(ringbuffer::Circuit& circuit)
+struct ScopedSnapshotDir
 {
-  std::optional<rb_msg> idx = std::nullopt;
-  circuit.read_from_inside().read(
-    -1, [&idx](ringbuffer::Message m, const uint8_t* data, size_t size) {
-      switch (m)
-      {
-        case ::consensus::snapshot_allocate:
-        case ::consensus::snapshot_commit:
-        {
-          auto idx_ = serialized::read<::consensus::Index>(data, size);
-          idx = {m, idx_};
-          break;
-        }
-        default:
-        {
-          REQUIRE(false);
-        }
-      }
-    });
+  fs::path path;
 
-  return idx;
+  ScopedSnapshotDir()
+  {
+    const auto unique_name = fmt::format(
+      "ccf-snapshotter-test-{}-{}",
+      ::getpid(),
+      std::chrono::steady_clock::now().time_since_epoch().count());
+    path = fs::temp_directory_path() / unique_name;
+    fs::create_directories(path);
+  }
+
+  ~ScopedSnapshotDir()
+  {
+    std::error_code ec;
+    fs::remove_all(path, ec);
+  }
+};
+
+void write_current_ledger_file(
+  const fs::path& path, const std::vector<std::vector<uint8_t>>& entries)
+{
+  std::ofstream ledger_file(path, std::ios::binary);
+  REQUIRE(ledger_file);
+  const size_t positions_offset = 0;
+  ledger_file.write(
+    reinterpret_cast<const char*>(&positions_offset), sizeof(positions_offset));
+  for (const auto& entry : entries)
+  {
+    ledger_file.write(
+      reinterpret_cast<const char*>(entry.data()),
+      static_cast<std::streamsize>(entry.size()));
+  }
+  REQUIRE(ledger_file);
 }
 
-auto read_snapshot_allocate_out(ringbuffer::Circuit& circuit)
+TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
 {
-  std::optional<std::tuple<::consensus::Index, size_t, uint32_t>>
-    snapshot_allocate_out = std::nullopt;
-  circuit.read_from_inside().read(
-    -1,
-    [&snapshot_allocate_out](
-      ringbuffer::Message m, const uint8_t* data, size_t size) {
-      switch (m)
-      {
-        case ::consensus::snapshot_allocate:
-        {
-          auto idx = serialized::read<::consensus::Index>(data, size);
-          serialized::read<::consensus::Index>(data, size);
-          auto requested_size = serialized::read<size_t>(data, size);
-          auto generation_count = serialized::read<uint32_t>(data, size);
+  ScopedSnapshotDir ledger_dir;
+  ccf::kv::Store source_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  source_store.set_encryptor(encryptor);
+  source_store.set_consensus(consensus);
+  source_store.initialise_term(2);
 
-          snapshot_allocate_out = {idx, requested_size, generation_count};
-          break;
-        }
-        case ::consensus::snapshot_commit:
-        {
-          REQUIRE(false);
-          break;
-        }
-        default:
-        {
-          REQUIRE(false);
-        }
-      }
-    });
+  std::vector<std::vector<uint8_t>> entries;
+  {
+    auto tx = source_store.create_tx();
+    tx.rw<StringString>("public:unrelated")->put("key", "value");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    auto latest_entry =
+      consensus->get_latest_data().value_or(std::vector<uint8_t>{});
+    REQUIRE_FALSE(latest_entry.empty());
+    entries.push_back(std::move(latest_entry));
+  }
+  {
+    ccf::CoseEndorsement endorsement;
+    endorsement.endorsement = {0xd2, 0x01};
+    endorsement.endorsing_key = {0x02, 0x03};
+    endorsement.endorsement_epoch_begin = {2, 1};
+    endorsement.endorsement_epoch_end = ccf::TxID{4, 1};
+    endorsement.previous_version = 1;
 
-  return snapshot_allocate_out;
+    auto tx = source_store.create_tx();
+    tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+        ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+      ->put(ccf::IdentityType::CLASSICAL, endorsement);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    auto latest_entry =
+      consensus->get_latest_data().value_or(std::vector<uint8_t>{});
+    REQUIRE_FALSE(latest_entry.empty());
+    entries.push_back(std::move(latest_entry));
+  }
+
+  const ccf::SnapshotSegments first_entry{
+    std::span<const uint8_t>(entries.front()), {}};
+  REQUIRE_NOTHROW(ccf::verify_snapshot_seqno(first_entry, encryptor, 1));
+  REQUIRE_THROWS(ccf::verify_snapshot_seqno(first_entry, encryptor, 2));
+
+  auto malformed_entry = entries.front();
+  const auto public_domain_size_offset =
+    sizeof(ccf::kv::SerialisedEntryHeader) + encryptor->get_header_length();
+  const auto invalid_public_domain_size = malformed_entry.size();
+  std::memcpy(
+    malformed_entry.data() + public_domain_size_offset,
+    &invalid_public_domain_size,
+    sizeof(invalid_public_domain_size));
+
+  const ccf::SnapshotSegments malformed_snapshot{
+    std::span<const uint8_t>(malformed_entry), {}};
+  REQUIRE_THROWS(ccf::verify_snapshot_seqno(malformed_snapshot, encryptor, 1));
+
+  ScopedSnapshotDir malformed_ledger_dir;
+  write_current_ledger_file(
+    malformed_ledger_dir.path / "ledger_1", {malformed_entry});
+  ccf::CCFConfig::Ledger malformed_ledger_config;
+  malformed_ledger_config.directory = malformed_ledger_dir.path.string();
+  REQUIRE_THROWS(ccf::scan_recovery_snapshot_ledger_files(
+    malformed_ledger_config, encryptor, 0));
+
+  write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
+
+  ccf::CCFConfig::Ledger ledger_config;
+  ledger_config.directory = ledger_dir.path.string();
+  const auto scan =
+    ccf::scan_recovery_snapshot_ledger_files(ledger_config, encryptor, 1);
+  REQUIRE(scan.endorsements.size() == 1);
+  REQUIRE(scan.endorsements.front().write_version == 2);
+
+  const auto target_key = ccf::crypto::make_ec_key_pair()->public_key_der();
+  REQUIRE_THROWS(ccf::validate_recovery_snapshot_endorsement_chain(
+    scan.endorsements, target_key, 1));
+}
+
+TEST_CASE("Recovery snapshot endorsement scan bounds candidate endorsements")
+{
+  ScopedSnapshotDir ledger_dir;
+  ccf::kv::Store source_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  source_store.set_encryptor(encryptor);
+  source_store.set_consensus(consensus);
+  source_store.initialise_term(2);
+
+  std::vector<std::vector<uint8_t>> entries;
+  for (size_t i = 0; i < ccf::MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_COUNT + 1; ++i)
+  {
+    ccf::CoseEndorsement endorsement;
+    endorsement.endorsement = {0xd2, 0x01};
+    endorsement.endorsing_key = {0x02, 0x03};
+    endorsement.endorsement_epoch_begin = {2, i + 1};
+    endorsement.endorsement_epoch_end = ccf::TxID{4, i + 1};
+    endorsement.previous_version = 1;
+
+    auto tx = source_store.create_tx();
+    tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+        ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+      ->put(ccf::IdentityType::CLASSICAL, endorsement);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    auto latest_entry =
+      consensus->get_latest_data().value_or(std::vector<uint8_t>{});
+    REQUIRE_FALSE(latest_entry.empty());
+    entries.push_back(std::move(latest_entry));
+  }
+
+  write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
+
+  ccf::CCFConfig::Ledger ledger_config;
+  ledger_config.directory = ledger_dir.path.string();
+  REQUIRE_THROWS(
+    ccf::scan_recovery_snapshot_ledger_files(ledger_config, encryptor, 0));
+}
+
+TEST_CASE(
+  "Recovery snapshot endorsement scan bounds total serialised record size")
+{
+  ScopedSnapshotDir ledger_dir;
+  ccf::kv::Store source_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  source_store.set_encryptor(encryptor);
+  source_store.set_consensus(consensus);
+  source_store.initialise_term(2);
+
+  std::vector<std::vector<uint8_t>> entries;
+  for (size_t i = 0; i < 3; ++i)
+  {
+    ccf::CoseEndorsement endorsement;
+    endorsement.endorsement = {0xd2, 0x01};
+    endorsement.endorsing_key.resize(
+      ccf::MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_SERIALISED_SIZE / 4, 0x02);
+    endorsement.endorsement_epoch_begin = {2, i + 1};
+    endorsement.endorsement_epoch_end = ccf::TxID{4, i + 1};
+    endorsement.previous_version = 1;
+
+    const auto record_size =
+      ccf::PreviousServiceIdentityEndorsement::ValueSerialiser::to_serialised(
+        endorsement)
+        .size();
+    REQUIRE(record_size < ccf::MAX_RECOVERY_SNAPSHOT_ENDORSEMENT_RECORD_SIZE);
+    REQUIRE(
+      record_size * 3 >
+      ccf::MAX_RECOVERY_SNAPSHOT_ENDORSEMENTS_SERIALISED_SIZE);
+
+    auto tx = source_store.create_tx();
+    tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+        ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+      ->put(ccf::IdentityType::CLASSICAL, endorsement);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    auto latest_entry =
+      consensus->get_latest_data().value_or(std::vector<uint8_t>{});
+    REQUIRE_FALSE(latest_entry.empty());
+    entries.push_back(std::move(latest_entry));
+  }
+
+  write_current_ledger_file(ledger_dir.path / "ledger_1", entries);
+
+  ccf::CCFConfig::Ledger ledger_config;
+  ledger_config.directory = ledger_dir.path.string();
+  REQUIRE_THROWS(
+    ccf::scan_recovery_snapshot_ledger_files(ledger_config, encryptor, 0));
+}
+
+TEST_CASE("Recovery snapshot ledger file ordering is deterministic")
+{
+  ScopedSnapshotDir root_dir;
+  const auto main_dir = root_dir.path / "main";
+  const auto read_only_dir = root_dir.path / "read_only";
+  fs::create_directories(main_dir);
+  fs::create_directories(read_only_dir);
+
+  const auto main_long = main_dir / "ledger_1-5.committed";
+  const auto read_only_long = read_only_dir / "ledger_1-5.committed";
+  const std::vector<fs::path> paths = {
+    main_long,
+    read_only_long,
+    read_only_dir / "ledger_1-3.committed",
+    main_dir / "ledger_1-2.committed",
+    main_dir / "ledger_1"};
+  for (const auto& path : paths)
+  {
+    std::ofstream file(path);
+    REQUIRE(file);
+    file.put(0);
+  }
+
+  ccf::CCFConfig::Ledger ledger_config;
+  ledger_config.directory = main_dir.string();
+  ledger_config.read_only_directories = {read_only_dir.string()};
+  const auto files = ccf::find_recovery_snapshot_ledger_files(ledger_config);
+
+  REQUIRE(files.size() == paths.size());
+  REQUIRE(files[0].path == std::min(main_long, read_only_long));
+  REQUIRE(files[1].path == std::max(main_long, read_only_long));
+  REQUIRE(files[2].end_idx == 3);
+  REQUIRE(files[3].end_idx == 2);
+  REQUIRE_FALSE(files[4].end_idx.has_value());
+}
+
+TEST_CASE("Recovery snapshot endorsement scan bounds ledger entry allocation")
+{
+  ScopedSnapshotDir ledger_dir;
+  const auto ledger_path = ledger_dir.path / "ledger_1";
+  {
+    std::ofstream ledger_file(ledger_path, std::ios::binary);
+    REQUIRE(ledger_file);
+    const size_t positions_offset = 0;
+    ledger_file.write(
+      reinterpret_cast<const char*>(&positions_offset),
+      sizeof(positions_offset));
+    ccf::kv::SerialisedEntryHeader header{};
+    header.size = ccf::MAX_RECOVERY_SNAPSHOT_LEDGER_ENTRY_SIZE + 1;
+    ledger_file.write(reinterpret_cast<const char*>(&header), sizeof(header));
+    ledger_file.seekp(
+      static_cast<std::streamoff>(header.size) - 1, std::ios::cur);
+    ledger_file.put(0);
+    REQUIRE(ledger_file);
+  }
+
+  ccf::CCFConfig::Ledger ledger_config;
+  ledger_config.directory = ledger_dir.path.string();
+  REQUIRE_THROWS(ccf::scan_recovery_snapshot_ledger_files(
+    ledger_config, std::make_shared<ccf::kv::NullTxEncryptor>(), 0));
+}
+
+std::optional<fs::path> latest_committed_snapshot_path(const fs::path& dir)
+{
+  return ccf::snapshots::find_latest_committed_snapshot_in_directory(dir);
+}
+
+std::optional<::consensus::Index> latest_committed_snapshot_idx(
+  const fs::path& dir)
+{
+  auto path = latest_committed_snapshot_path(dir);
+  if (!path.has_value())
+  {
+    return std::nullopt;
+  }
+
+  return ccf::snapshots::get_snapshot_idx_from_file_name(path->filename());
+}
+
+std::optional<::consensus::Index> latest_committed_snapshot_evidence_idx(
+  const fs::path& dir)
+{
+  auto path = latest_committed_snapshot_path(dir);
+  if (!path.has_value())
+  {
+    return std::nullopt;
+  }
+
+  return ccf::snapshots::get_snapshot_evidence_idx_from_file_name(
+    path->filename());
+}
+
+std::vector<uint8_t> read_latest_committed_snapshot_data(const fs::path& dir)
+{
+  auto path = latest_committed_snapshot_path(dir);
+  if (!path.has_value())
+  {
+    throw std::logic_error("No committed snapshot");
+  }
+
+  return files::slurp(path.value());
 }
 
 void issue_transactions(ccf::NetworkState& network, size_t tx_count)
@@ -125,7 +381,8 @@ bool record_signature(
     "b96881e8c6f9265af8");
 
   bool requires_snapshot = snapshotter->record_committable(idx);
-  snapshotter->record_cose_signature(idx, dummy_cose_sig);
+  snapshotter->record_cose_signatures(
+    idx, {{ccf::IdentityType::CLASSICAL, dummy_cose_sig}});
   snapshotter->record_serialised_tree(idx, history->serialise_tree(idx));
 
   return requires_snapshot;
@@ -155,23 +412,19 @@ TEST_CASE("Regular snapshotting")
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
 
-  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
-
-  std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
-    std::make_unique<ringbuffer::WriterFactory>(eio);
+  ScopedSnapshotDir snapshot_dir;
 
   size_t snapshot_tx_interval = 10;
 
   issue_transactions(network, snapshot_tx_interval);
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network.tables, snapshot_tx_interval);
+    snapshot_dir.path.string(), network.tables, snapshot_tx_interval);
 
   size_t commit_idx = 0;
   size_t snapshot_idx = snapshot_tx_interval;
   size_t snapshot_evidence_idx = snapshot_idx + 1;
+  size_t last_committed_snapshot_idx = 0;
 
   INFO("Generate snapshot before interval has no effect");
   {
@@ -182,43 +435,7 @@ TEST_CASE("Regular snapshotting")
 
     REQUIRE_THROWS_AS(
       read_latest_snapshot_evidence(network.tables), std::logic_error);
-    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
-  }
-
-  INFO("Malicious host");
-  {
-    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
-
-    // Note: even if commit_idx > snapshot_tx_interval, the snapshot is
-    // generated at snapshot_idx
-    commit_idx = snapshot_idx + 1;
-    snapshotter->commit(commit_idx, true);
-
-    run_one_task();
-    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx_, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-
-    // Incorrect generation count
-    {
-      auto snapshot = std::vector<uint8_t>(snapshot_size);
-      REQUIRE_FALSE(snapshotter->write_snapshot(snapshot, snapshot_count + 1));
-    }
-
-    // Incorrect size
-    {
-      auto snapshot = std::vector<uint8_t>(snapshot_size + 1);
-      REQUIRE_FALSE(snapshotter->write_snapshot(snapshot, snapshot_count));
-    }
-
-    // Even if snapshot is now valid, pending snapshot was previously
-    // discarded because of incorrect size
-    {
-      auto snapshot = std::vector<uint8_t>(snapshot_size);
-      REQUIRE_FALSE(snapshotter->write_snapshot(snapshot, snapshot_count));
-    }
+    REQUIRE_FALSE(latest_committed_snapshot_idx(snapshot_dir.path).has_value());
   }
 
   INFO("Generate first snapshot");
@@ -233,33 +450,27 @@ TEST_CASE("Regular snapshotting")
     snapshotter->commit(commit_idx, true);
 
     run_one_task();
+    // Snapshot evidence is committed to the KV, but the snapshot is not
+    // released to the host until its evidence is globally committed
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx_, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-
-    // Commit before snapshot is stored has no effect
-    issue_transactions(network, 1);
-    record_snapshot_evidence(snapshotter, snapshot_idx_, snapshot_evidence_idx);
-    commit_idx = snapshot_idx_ + 2;
-    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
-    snapshotter->commit(commit_idx, true);
-    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
-
-    // Correct size
-    auto snapshot = std::vector<uint8_t>(snapshot_size, 0x00);
-    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
-    // Snapshot is successfully populated
-    REQUIRE(snapshot != std::vector<uint8_t>(snapshot_size, 0x00));
+    REQUIRE_FALSE(latest_committed_snapshot_idx(snapshot_dir.path).has_value());
   }
 
   INFO("Commit first snapshot");
   {
+    issue_transactions(network, 1);
+    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_evidence_idx);
+    commit_idx = snapshot_idx + 2;
+    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
+    // The persist action runs on the task system once commit evidence is
+    // durable
+    run_one_task();
+    REQUIRE(latest_committed_snapshot_idx(snapshot_dir.path) == snapshot_idx);
     REQUIRE(
-      read_ringbuffer_out(eio) ==
-      rb_msg({::consensus::snapshot_commit, snapshot_idx}));
+      latest_committed_snapshot_evidence_idx(snapshot_dir.path) ==
+      snapshot_evidence_idx);
+    last_committed_snapshot_idx = snapshot_idx;
   }
 
   INFO("Subsequent commit before next snapshot idx has no effect");
@@ -267,7 +478,9 @@ TEST_CASE("Regular snapshotting")
     commit_idx = snapshot_idx + 2;
     snapshotter->commit(commit_idx, true);
     run_one_task();
-    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+    REQUIRE(
+      latest_committed_snapshot_idx(snapshot_dir.path) ==
+      last_committed_snapshot_idx);
   }
 
   issue_transactions(network, snapshot_tx_interval - 2);
@@ -283,12 +496,9 @@ TEST_CASE("Regular snapshotting")
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx_, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-    auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+    REQUIRE(
+      latest_committed_snapshot_idx(snapshot_dir.path) ==
+      last_committed_snapshot_idx);
   }
 
   INFO("Commit second snapshot");
@@ -300,9 +510,12 @@ TEST_CASE("Regular snapshotting")
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
 
     snapshotter->commit(commit_idx, true);
+    run_one_task();
+    REQUIRE(latest_committed_snapshot_idx(snapshot_dir.path) == snapshot_idx);
     REQUIRE(
-      read_ringbuffer_out(eio) ==
-      rb_msg({::consensus::snapshot_commit, snapshot_idx}));
+      latest_committed_snapshot_evidence_idx(snapshot_dir.path) ==
+      snapshot_evidence_idx);
+    last_committed_snapshot_idx = snapshot_idx;
   }
 }
 
@@ -318,21 +531,17 @@ TEST_CASE("Rollback before snapshot is committed")
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
 
-  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
-
-  std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
-    std::make_unique<ringbuffer::WriterFactory>(eio);
+  ScopedSnapshotDir snapshot_dir;
 
   size_t snapshot_tx_interval = 10;
   issue_transactions(network, snapshot_tx_interval);
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network.tables, snapshot_tx_interval);
+    snapshot_dir.path.string(), network.tables, snapshot_tx_interval);
 
   size_t snapshot_idx = 0;
   size_t commit_idx = 0;
+  size_t last_committed_snapshot_idx = 0;
 
   INFO("Generate snapshot");
   {
@@ -342,13 +551,7 @@ TEST_CASE("Rollback before snapshot is committed")
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx_, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-    auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+    REQUIRE_FALSE(latest_committed_snapshot_idx(snapshot_dir.path).has_value());
   }
 
   INFO("Rollback evidence and commit past it");
@@ -361,10 +564,10 @@ TEST_CASE("Rollback before snapshot is committed")
     snapshotter->commit(snapshot_tx_interval + 1, true);
 
     // Snapshot previously generated is not committed
-    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+    REQUIRE_FALSE(latest_committed_snapshot_idx(snapshot_dir.path).has_value());
 
     snapshotter->commit(snapshot_tx_interval + 2, true);
-    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+    REQUIRE_FALSE(latest_committed_snapshot_idx(snapshot_dir.path).has_value());
   }
 
   INFO("Snapshot again and commit evidence");
@@ -377,13 +580,7 @@ TEST_CASE("Rollback before snapshot is committed")
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == new_snapshot_idx);
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx_, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-    REQUIRE(new_snapshot_idx == snapshot_idx_);
-    auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+    REQUIRE_FALSE(latest_committed_snapshot_idx(snapshot_dir.path).has_value());
 
     // Commit evidence
     issue_transactions(network, 1);
@@ -392,9 +589,10 @@ TEST_CASE("Rollback before snapshot is committed")
       snapshotter, new_snapshot_idx, new_snapshot_idx + 1);
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
+    run_one_task();
     REQUIRE(
-      read_ringbuffer_out(eio) ==
-      rb_msg({::consensus::snapshot_commit, new_snapshot_idx}));
+      latest_committed_snapshot_idx(snapshot_dir.path) == new_snapshot_idx);
+    last_committed_snapshot_idx = new_snapshot_idx;
   }
 
   INFO("Force a snapshot");
@@ -409,13 +607,9 @@ TEST_CASE("Rollback before snapshot is committed")
 
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == new_snapshot_idx);
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx_, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-    REQUIRE(new_snapshot_idx == snapshot_idx_);
-    auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+    REQUIRE(
+      latest_committed_snapshot_idx(snapshot_dir.path) ==
+      last_committed_snapshot_idx);
 
     REQUIRE(!network.tables->flag_enabled(
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
@@ -427,11 +621,9 @@ TEST_CASE("Rollback before snapshot is committed")
       snapshotter, new_snapshot_idx, new_snapshot_idx + 1);
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
-    REQUIRE(
-      read_ringbuffer_out(eio) ==
-      rb_msg({::consensus::snapshot_commit, new_snapshot_idx}));
-
     run_one_task();
+    REQUIRE(
+      latest_committed_snapshot_idx(snapshot_dir.path) == new_snapshot_idx);
   }
 
   INFO("Rollback after forced snapshot uses released forced baseline");
@@ -462,18 +654,13 @@ TEST_CASE("Snapshot status updates preserve future queued snapshot")
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
 
-  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
-
-  std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
-    std::make_unique<ringbuffer::WriterFactory>(eio);
+  ScopedSnapshotDir snapshot_dir;
 
   size_t snapshot_tx_interval = 10;
   issue_transactions(network, snapshot_tx_interval);
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network.tables, snapshot_tx_interval);
+    snapshot_dir.path.string(), network.tables, snapshot_tx_interval);
   REQUIRE(record_signature(history, snapshotter, snapshot_tx_interval));
 
   issue_transactions(network, snapshot_tx_interval);
@@ -494,10 +681,10 @@ TEST_CASE("Snapshot status updates preserve future queued snapshot")
   snapshotter->commit(2 * snapshot_tx_interval, true);
   run_one_task();
 
-  auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-  REQUIRE(snapshot_allocate_msg.has_value());
-  const auto snapshot_idx = std::get<0>(snapshot_allocate_msg.value());
-  REQUIRE(snapshot_idx == 2 * snapshot_tx_interval);
+  // The snapshot was generated at the expected idx, as confirmed by the
+  // snapshot evidence recorded in the KV store.
+  REQUIRE(
+    read_latest_snapshot_evidence(network.tables) == 2 * snapshot_tx_interval);
 }
 
 TEST_CASE("Snapshot status restore uses persisted timestamp baseline")
@@ -515,15 +702,14 @@ TEST_CASE("Snapshot status restore uses persisted timestamp baseline")
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
 
-  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
-
-  std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
-    std::make_unique<ringbuffer::WriterFactory>(eio);
+  ScopedSnapshotDir snapshot_dir;
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network.tables, 100, 2, std::chrono::seconds(1));
+    snapshot_dir.path.string(),
+    network.tables,
+    100,
+    2,
+    std::chrono::seconds(1));
 
   snapshotter->init_from_snapshot_status({
     .version = 0,
@@ -557,18 +743,14 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
   auto encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
   network.tables->set_encryptor(encryptor);
 
-  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
-  std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
-    std::make_unique<ringbuffer::WriterFactory>(eio);
+  ScopedSnapshotDir snapshot_dir;
 
   size_t snapshot_tx_interval = 10;
 
   issue_transactions(network, snapshot_tx_interval);
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network.tables, snapshot_tx_interval);
+    snapshot_dir.path.string(), network.tables, snapshot_tx_interval);
 
   size_t snapshot_idx = snapshot_tx_interval + 1;
 
@@ -603,13 +785,21 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
   {
     run_one_task();
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
-    REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx_, snapshot_size, snapshot_count] =
-      snapshot_allocate_msg.value();
-    REQUIRE(snapshot_idx == snapshot_idx_);
-    auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+
+    // Globally commit the snapshot evidence so that the snapshot is released
+    // to the host, carrying the serialised snapshot bytes.
+    issue_transactions(network, 1);
+    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_idx + 1);
+    auto commit_idx = snapshot_idx + 2;
+    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
+    snapshotter->commit(commit_idx, true);
+
+    // The persist action runs on the task system, writing the serialised
+    // snapshot bytes to disk.
+    run_one_task();
+
+    REQUIRE(latest_committed_snapshot_idx(snapshot_dir.path) == snapshot_idx);
+    auto snapshot_data = read_latest_committed_snapshot_data(snapshot_dir.path);
 
     // Snapshot can be deserialised to backup store
     ccf::NetworkState backup_network;
@@ -626,10 +816,13 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
 
     ccf::kv::ConsensusHookPtrs hooks;
     std::vector<ccf::kv::Version> view_history;
+    const auto snapshot_segments = ccf::separate_segments(snapshot_data);
     REQUIRE(
       backup_network.tables->deserialise_snapshot(
-        snapshot.data(), snapshot.size(), hooks, &view_history) ==
-      ccf::kv::ApplyResult::PASS);
+        snapshot_segments.header_and_body.data(),
+        snapshot_segments.header_and_body.size(),
+        hooks,
+        &view_history) == ccf::kv::ApplyResult::PASS);
   }
 }
 

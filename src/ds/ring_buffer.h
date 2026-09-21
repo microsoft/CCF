@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/mem.h"
 #include "ring_buffer_types.h"
 
 #include <atomic>
@@ -394,7 +393,7 @@ namespace ringbuffer
       // Standard says memcpy(x, null, 0) is undefined, so avoid it
       if (size > 0)
       {
-        ccf::pal::safe_memcpy(bd.data + index, bytes, size);
+        std::memcpy(bd.data + index, bytes, size);
       }
 
       return {index + size};

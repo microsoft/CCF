@@ -1,20 +1,32 @@
 Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
 
+All jobs run on 1ES hosted pools targeted by pool name only, for example `runs-on: [gha-vmss-d16av7-ci]`.
+
+# Shared actions
+
+## Azure Linux CI dependencies
+
+The local composite action in `.github/actions/install-ci-dependencies/action.yml` installs Azure Linux 3 and 4 CI dependencies and caches downloaded RPM and npm packages. Cache keys separate runner architectures, hash the relevant dependency inputs, and include the date of the most recent Sunday at midnight UTC. The RPM key also separates package managers, while the npm key separates jobs so each job can save the packages it downloads. The weekly date makes GitHub Actions create refreshed immutable caches each week.
+
+At a weekly rollover, restore keys first reuse the latest cache for the same dependency inputs and then fall back to a compatible cache for the same architecture. The package managers refresh registry metadata and download only missing or updated packages. `actions/cache` saves each populated directory automatically after a successful job when the exact weekly key was not restored.
+
+The action also assigns uv a writable cache directory outside `/github/home/.cache`, because some tests clear that directory. A weekly cache persists uv's content-addressed package cache, keyed on the pinned uv installer, `python/pyproject.toml`, and the `python-requirements` input, which each workflow sets to the requirements files it installs so unrelated jobs do not invalidate each other's cache; jobs that do not install Python packages disable this cache entirely with `cache-python-packages: false`. CI dependency setup uses `uv pip` so cached packages remain reusable, with workflows configuring the package index through `UV_INDEX_URL`. Pip is not used for package installation because the PyPI proxy redirects artifacts to short-lived URLs that pip cannot reuse across jobs.
+
 # Maintained
 
 ## Bencher
 
-Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run.
+Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
-Tests are run on two different testbeds for comparison: gha-vmss-d16av6-ci (d16av6 VMs) and gha-c-aci-ci (C-ACI with 16 cores and 32Gb RAM).
+Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP).
 
 File: `bencher.yml`
 3rd party dependencies: None
 
 ## Bencher A/B
 
-Builds and runs CCF performance tests, and performs a comparison to main. Triggered on PRs that have the label `bench-ab`.
+Builds and runs CCF performance tests on the PR branch, then renders radar charts comparing up to five recent branch runs against the recent trend on `main`. Two nested shaded blue bands show the shared seven-run-half-life EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs. Both branch and `main` histories are restored from cumulative perf artifacts, and the orange branch lines progress from the faintest oldest run to the strongest latest run. Triggered on PRs that have the label `bench-ab`.
 
 File: `bencher-ab.yml`
 3rd party dependencies: None
@@ -31,6 +43,22 @@ File: `copilot-setup-steps.yml`
 Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests. Runs on PRs, merge queue runs, manually, and once a week, regardless of commits.
 
 File: `ci.yml`
+3rd party dependencies: None
+
+# Continuous Integration AL4
+
+Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readiness for the move from Azure Linux 3, which `ci.yml` builds against. Runs daily on `main` on week days, and manually. It deliberately does not run on PRs, to keep PR feedback fast and limit pool usage.
+
+File: `ci-al4.yml`
+3rd party dependencies: None
+
+# Cross-platform LTS
+
+Builds configurable CCF release install trees on Azure Linux 3 and Azure Linux 4 in parallel, then runs the LTS live-upgrade test directly on a VMSS runner. By default, it upgrades from the previous stable CCF release to the latest stable release; both versions can be overridden using the manual inputs in [`cross-platform-lts.yml`](cross-platform-lts.yml). Separate runtime images install only the required shared-library packages and copy in the matching install tree. Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking. Runs weekly and manually, but not on pull requests because both full builds and the compatibility test are expensive.
+
+Shared workflow environment values define the Python version, base images, runner pool labels, install archive filename, and test workspace.
+
+File: `cross-platform-lts.yml`
 3rd party dependencies: None
 
 # Coverage
@@ -62,19 +90,52 @@ File: `codeql-analysis.yml`
 
 # Continuous Verification
 
-Runs quick verification jobs: trace validation, simulation and short model checking configurations. Triggered on PRs that affect tla/, src/consensus, tests/raft_scenarios, or the workflow itself, weekly, and manually.
+Runs the standard model checking, simulation, trace validation, and counterexample jobs each week.
 
 File: `ci-verification.yml`
 3rd party dependencies: None
 
 # Long Verification
 
-Runs more expensive verification jobs, such as model checking with reconfiguration.
-
-- Runs weekly.
-- Can be manually run on a PR by setting `run-long-verification` label.
+Runs the longer consensus model checking and simulation jobs each week.
 
 File: `long-verification.yml`
+3rd party dependencies: None
+
+# TLA Shallow Verification
+
+Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
+
+- Simulates the consistency and consensus specifications on a GitHub-hosted runner. The simulation job has a 10-minute timeout.
+- Builds the Raft scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
+
+File: `tla-shallow.yml`
+3rd party dependencies: None
+
+# Lean
+
+Runs all Lean verification for the repository. Future Lean checks should be
+added as jobs to this workflow.
+
+The disaster recovery job builds the canonical model with `lake build --wfail`,
+audits its transitive axiom dependencies with `lake lint`, and runs its
+executable canonical behavior checks on Ubuntu 26.04 on relevant pull requests.
+The build and audit include both the human-reviewed model and system properties
+and the proof implementation files marked as generated for review purposes.
+The standard `mk_all --check` command ensures that the audit root imports every
+library module, so newly added proofs cannot silently escape the checks.
+
+File: `lean.yml`
+3rd party dependencies: None
+
+# Vendored Dependency Verification
+
+Verifies that files under `3rdparty/` match the Git commits or release artifacts
+recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main`
+that change vendored sources, the manifest, the verifier, or this workflow. It
+can also be run manually.
+
+File: `vendor-verification.yml`
 3rd party dependencies: None
 
 # Release

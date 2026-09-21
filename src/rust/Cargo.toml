@@ -1,0 +1,15 @@
+[package]
+name = "ccf-rs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+tav-ffi = { package = "tee-attestation-verification-ffi", path = "../../3rdparty/internal/tee-attestation-verification/ffi", default-features = false, features = ["crypto_openssl"] }
+cose-rs = { path = "../cose/cose_rs" }
+
+[profile.release]
+lto = true
+codegen-units = 1

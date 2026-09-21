@@ -731,13 +731,11 @@ export interface CCF {
   historical: CCFHistorical;
 
   /**
-   * Toggles implementation of Date global API between using untrusted host time
-   * (when enabled)and returning 0 (when disabled). By default this is disabled.
+   * @deprecated This function has no effect and will be removed in a future release.
    *
-   * Returns the previous value, allowing a global default to be maintained.
+   * Returns `enable` for compatibility.
    *
-   * @param enable If true, then subsequent calls to Date.now() will return untrusted
-   * host time
+   * @param enable The value returned by this function
    */
   enableUntrustedDateTime(enable: boolean): boolean;
 

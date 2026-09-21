@@ -1,15 +1,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.e2e_args
-import infra.clients
-import infra.network
 import http
-import time
 import random
+import time
 
-from loguru import logger as LOG
-
+import infra.clients
+import infra.e2e_args
+import infra.network
 from ccf.tx_id import TxID
+from loguru import logger as LOG
 
 
 def large_message(idx):

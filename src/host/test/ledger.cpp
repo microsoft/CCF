@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
 #include "host/ledger.h"
 
 #include "ccf/crypto/sha256_hash.h"
@@ -9,15 +10,21 @@
 #include "ds/serialized.h"
 #include "kv/ledger_chunker.h"
 #include "kv/serialised_entry_format.h"
-#define TEST_MODE_EXECUTE_SYNC_INLINE
-#include "snapshots/snapshot_manager.h"
+#include "ledger/filenames.h"
+#include "snapshots/filenames.h"
+#include "snapshots/snapshot_writer.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
+#include <fcntl.h>
+#include <limits>
 #include <random>
 #include <string>
+#include <sys/file.h>
+#include <unistd.h>
 
 using namespace asynchost;
+using namespace ccf::ledger;
 
 static constexpr auto ledger_dir = "ledger_dir";
 static constexpr auto ledger_dir_read_only = "ledger_dir_ro";
@@ -110,7 +117,7 @@ size_t number_of_committed_files_in_ledger_dir(bool allow_recovery = false)
     auto file_name = f.path().string();
     if (
       (allow_recovery && is_ledger_file_name_recovery(file_name) &&
-       file_name.find(ledger_committed_suffix) != std::string::npos) ||
+       file_name.contains(ledger_committed_suffix)) ||
       is_ledger_file_name_committed(file_name))
     {
       committed_file_count++;
@@ -1139,6 +1146,84 @@ size_t number_open_fd()
   return fd_count;
 }
 
+int get_open_fd_for_file(const fs::path& file)
+{
+  std::vector<int> matching_fds;
+  for (auto const& fd : fs::directory_iterator("/proc/self/fd"))
+  {
+    std::error_code ec;
+    if (fs::equivalent(fd.path(), file, ec) && !ec)
+    {
+      matching_fds.push_back(std::stoi(fd.path().filename()));
+    }
+  }
+
+  if (matching_fds.size() != 1)
+  {
+    throw std::logic_error(fmt::format(
+      "Expected exactly one open file descriptor for {}, found {}",
+      file,
+      matching_fds.size()));
+  }
+
+  return matching_fds.front();
+}
+
+// flock locks are associated with an open file description. Renaming a file
+// while its handle remains open preserves the lock, whereas closing that handle
+// releases it. A separately opened descriptor can therefore acquire the lock
+// after complete_recovery() only if the original ledger handle was closed and
+// replaced. This remains true even if fopen() reuses the same descriptor
+// number.
+void lock_open_file_description(const fs::path& file)
+{
+  const auto fd = get_open_fd_for_file(file);
+  errno = 0;
+  if (flock(fd, LOCK_EX | LOCK_NB) != 0)
+  {
+    const auto lock_errno = errno;
+    throw std::logic_error(fmt::format(
+      "Failed to lock open file {}: {}",
+      file,
+      ccf::nonstd::strerror(lock_errno != 0 ? lock_errno : EIO)));
+  }
+}
+
+void require_file_lock_released(const fs::path& file)
+{
+  const auto fd = files::open_fd(file, O_RDWR);
+  if (fd == -1)
+  {
+    throw std::logic_error(fmt::format(
+      "Failed to open file {} to check its lock: {}",
+      file,
+      ccf::nonstd::strerror(errno)));
+  }
+
+  errno = 0;
+  const auto lock_rc = flock(fd, LOCK_EX | LOCK_NB);
+  const auto lock_errno = errno;
+  errno = 0;
+  const auto close_rc = close(fd);
+  const auto close_errno = errno;
+
+  if (lock_rc != 0)
+  {
+    throw std::logic_error(fmt::format(
+      "Original open file description for {} was not closed: {}",
+      file,
+      ccf::nonstd::strerror(lock_errno != 0 ? lock_errno : EIO)));
+  }
+
+  if (close_rc != 0)
+  {
+    throw std::logic_error(fmt::format(
+      "Failed to close file descriptor for {}: {}",
+      file,
+      ccf::nonstd::strerror(close_errno != 0 ? close_errno : EIO)));
+  }
+}
+
 TEST_CASE("Limit number of open files")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
@@ -1443,7 +1528,7 @@ TEST_CASE("Recovery resilience")
 
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_name_committed(f.path().filename()))
+      if (!ccf::ledger::is_ledger_file_name_committed(f.path().filename()))
       {
         corrupt_ledger_file(f.path(), false, true /* corrupt_first_hdr */);
       }
@@ -1468,7 +1553,7 @@ TEST_CASE("Recovery resilience")
 
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
-      if (!asynchost::is_ledger_file_name_committed(f.path().filename()))
+      if (!ccf::ledger::is_ledger_file_name_committed(f.path().filename()))
       {
         corrupt_ledger_file(
           f.path(), false, false, true /* corrupt_last_entry */);
@@ -1552,7 +1637,7 @@ TEST_CASE("Snapshot file name" * doctest::test_suite("snapshot"))
   std::vector<size_t> snapshot_idx_interval_ranges = {
     10, 1000, 10000, std::numeric_limits<size_t>::max() - 2};
 
-  using namespace snapshots;
+  using namespace ccf::snapshots;
 
   for (auto const& snapshot_idx_interval_range : snapshot_idx_interval_ranges)
   {
@@ -1599,8 +1684,10 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   auto snap_ro_dir = AutoDeleteFolder(snapshot_dir_read_only);
   fs::create_directory(snapshot_dir_read_only);
 
-  using namespace snapshots;
-  SnapshotManager snapshots(snapshot_dir, wf, snapshot_dir_read_only);
+  using namespace ccf::snapshots;
+  SnapshotWriter snapshots(snapshot_dir);
+
+  const std::vector<fs::path> find_dirs{snapshot_dir, snapshot_dir_read_only};
 
   size_t snapshot_interval = 5;
   size_t snapshot_count = 5;
@@ -1608,14 +1695,8 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
 
   INFO("Generate snapshots");
   {
-    for (size_t i = 1; i < snapshot_interval * snapshot_count;
-         i += snapshot_interval)
-    {
-      // Note: Evidence is assumed to be at snapshot idx + 1
-      snapshots.add_pending_snapshot(i, i + 1, dummy_snapshot.size());
-    }
-
-    REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
+    REQUIRE_FALSE(
+      find_latest_committed_snapshot_in_directories(find_dirs).has_value());
   }
 
   INFO("Commit snapshots");
@@ -1624,10 +1705,10 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
          i += snapshot_interval)
     {
       // Note: Evidence is assumed to be at snapshot idx + 1
-      snapshots.commit_snapshot(i, dummy_receipt.data(), dummy_receipt.size());
+      snapshots.persist_snapshot(i, i + 1, dummy_snapshot, dummy_receipt);
 
       auto latest_committed_snapshot =
-        snapshots.find_latest_committed_snapshot();
+        find_latest_committed_snapshot_in_directories(find_dirs);
       REQUIRE(latest_committed_snapshot.has_value());
       REQUIRE(latest_committed_snapshot->parent_path() == snapshot_dir);
       const auto& snapshot = latest_committed_snapshot->filename();
@@ -1647,7 +1728,8 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
       fs::remove(f.path());
     }
 
-    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    auto latest_committed_snapshot =
+      find_latest_committed_snapshot_in_directories(find_dirs);
     REQUIRE(latest_committed_snapshot.has_value());
     REQUIRE(latest_committed_snapshot->parent_path() == snapshot_dir_read_only);
     const auto& snapshot = latest_committed_snapshot->filename();
@@ -1657,17 +1739,47 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   INFO("Commit and retrieve new snapshot");
   {
     size_t new_snapshot_idx = last_snapshot_idx + 1;
-    snapshots.add_pending_snapshot(
-      new_snapshot_idx, new_snapshot_idx + 1, dummy_snapshot.size());
-    snapshots.commit_snapshot(
-      new_snapshot_idx, dummy_receipt.data(), dummy_receipt.size());
+    snapshots.persist_snapshot(
+      new_snapshot_idx, new_snapshot_idx + 1, dummy_snapshot, dummy_receipt);
 
-    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    auto latest_committed_snapshot =
+      find_latest_committed_snapshot_in_directories(find_dirs);
     REQUIRE(latest_committed_snapshot.has_value());
     REQUIRE(latest_committed_snapshot->parent_path() == snapshot_dir);
     const auto& snapshot = latest_committed_snapshot->filename();
     REQUIRE(get_snapshot_idx_from_file_name(snapshot) == new_snapshot_idx);
   }
+}
+
+TEST_CASE(
+  "Snapshot writer preserves full-width sequence numbers" *
+  doctest::test_suite("snapshot"))
+{
+  auto snap_dir = AutoDeleteFolder(snapshot_dir);
+  ccf::snapshots::SnapshotWriter writer(snapshot_dir);
+
+  const ccf::SeqNo evidence_idx = std::numeric_limits<ccf::SeqNo>::max();
+  const ccf::SeqNo snapshot_idx = evidence_idx - 1;
+  writer.persist_snapshot(
+    snapshot_idx, evidence_idx, dummy_snapshot, dummy_receipt);
+
+  const auto expected_path = fs::path(snapshot_dir) /
+    fmt::format("snapshot_{}_{}.committed", snapshot_idx, evidence_idx);
+  REQUIRE(fs::exists(expected_path));
+  CHECK(
+    ccf::snapshots::find_latest_committed_snapshot_in_directory(snapshot_dir) ==
+    expected_path);
+  CHECK(
+    ccf::snapshots::get_snapshot_idx_from_file_name(
+      expected_path.filename().string()) == snapshot_idx);
+  CHECK(
+    ccf::snapshots::get_snapshot_evidence_idx_from_file_name(
+      expected_path.filename().string()) == evidence_idx);
+
+  auto expected_data = dummy_snapshot;
+  expected_data.insert(
+    expected_data.end(), dummy_receipt.begin(), dummy_receipt.end());
+  CHECK(files::slurp(expected_path.string()) == expected_data);
 }
 
 TEST_CASE("Chunking according to entry header flag")
@@ -1845,6 +1957,82 @@ TEST_CASE("Recovery")
     read_entry_from_ledger(ledger, recovery_idx + 1);
   }
 
+  SUBCASE("Reopen active file when completing recovery")
+  {
+    Ledger ledger(ledger_dir, wf);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+
+    initialise_ledger(entry_submitter, entries_per_chunk, 1);
+    ledger.commit(entry_submitter.get_last_idx());
+
+    ledger.set_recovery_start_idx(entry_submitter.get_last_idx());
+    entry_submitter.write(true);
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+
+    const auto recovery_file = fs::path(ledger_dir) /
+      fmt::format("ledger_{}{}",
+                  entry_submitter.get_last_idx(),
+                  ledger_recovery_file_suffix);
+    lock_open_file_description(recovery_file);
+
+    const auto file_count = number_of_files_in_ledger_dir();
+    const auto fd_count = number_open_fd();
+    ledger.complete_recovery();
+
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
+    REQUIRE(number_of_files_in_ledger_dir() == file_count);
+    REQUIRE(number_open_fd() == fd_count);
+    require_file_lock_released(remove_recovery_suffix(recovery_file.string()));
+
+    entry_submitter.write(true);
+    const auto post_recovery_idx = entry_submitter.get_last_idx();
+    REQUIRE(number_of_files_in_ledger_dir() == file_count);
+    read_entry_from_ledger(ledger, post_recovery_idx);
+
+    entry_submitter.write(true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+    ledger.commit(entry_submitter.get_last_idx());
+    read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
+  }
+
+  SUBCASE("Reopen uncommitted completed file when completing recovery")
+  {
+    Ledger ledger(ledger_dir, wf);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+
+    initialise_ledger(entry_submitter, entries_per_chunk, 1);
+    ledger.commit(entry_submitter.get_last_idx());
+
+    ledger.set_recovery_start_idx(entry_submitter.get_last_idx());
+    entry_submitter.write(true);
+    const auto first_recovery_idx = entry_submitter.get_last_idx();
+    entry_submitter.write(true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+
+    const auto recovery_file = fs::path(ledger_dir) /
+      fmt::format("ledger_{}{}",
+                  first_recovery_idx,
+                  ledger_recovery_file_suffix);
+    lock_open_file_description(recovery_file);
+
+    const auto file_count = number_of_files_in_ledger_dir();
+    const auto fd_count = number_open_fd();
+    ledger.complete_recovery();
+
+    REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
+    REQUIRE(number_of_files_in_ledger_dir() == file_count);
+    REQUIRE(number_open_fd() == fd_count);
+    require_file_lock_released(remove_recovery_suffix(recovery_file.string()));
+
+    entry_submitter.truncate(first_recovery_idx);
+    entry_submitter.write(true);
+    REQUIRE(number_of_files_in_ledger_dir() == file_count);
+    read_entry_from_ledger(ledger, entry_submitter.get_last_idx());
+
+    entry_submitter.write(true, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+    ledger.commit(entry_submitter.get_last_idx());
+    read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
+  }
+
   SUBCASE("Enable and complete recovery")
   {
     Ledger ledger(ledger_dir, wf);
@@ -2010,9 +2198,9 @@ TEST_CASE("Recover both ledger dirs")
     for (auto const& f : fs::directory_iterator(ledger_dir))
     {
       const auto file_name = f.path().filename();
-      if (asynchost::is_ledger_file_name_committed(file_name))
+      if (ccf::ledger::is_ledger_file_name_committed(file_name))
       {
-        const auto idx = asynchost::get_start_idx_from_file_name(file_name);
+        const auto idx = ccf::ledger::get_start_idx_from_file_name(file_name);
         if (idx > last_file_idx)
         {
           last_committed_file = file_name;
@@ -2146,6 +2334,64 @@ TEST_CASE("Ledger init with existing files")
     ledger.write_entry(e.data(), e.size(), true);
     ledger.write_entry(e.data(), e.size(), true);
   }
+}
+
+TEST_CASE("Async ledger reads survive concurrent destruction")
+{
+  // Stress test: queue multiple async reads via the real message dispatch path,
+  // then immediately destroy the Ledger. The shutdown gate ensures no
+  // use-after-free occurs - workers either complete their read or are skipped.
+  // This test is best run under TSAN/ASAN for full value.
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  const size_t chunk_threshold = 30;
+  const size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
+
+  // Create a dedicated ringbuffer and processor for this test since we need
+  // to send messages to the Ledger (simulating the enclave).
+  constexpr auto test_buffer_size = 64 * 1024;
+  auto test_in_buf = std::make_unique<ringbuffer::TestBuffer>(test_buffer_size);
+  auto test_out_buf =
+    std::make_unique<ringbuffer::TestBuffer>(test_buffer_size);
+  ringbuffer::Circuit test_circuit(test_in_buf->bd, test_out_buf->bd);
+  ringbuffer::WriterFactory test_wf(test_circuit);
+
+  auto ledger = std::make_unique<Ledger>(ledger_dir, test_wf);
+  TestEntrySubmitter entry_submitter(*ledger, chunk_threshold);
+
+  const size_t end_of_first_chunk_idx =
+    initialise_ledger(entry_submitter, entries_per_chunk, 3);
+  ledger->commit(end_of_first_chunk_idx);
+  REQUIRE(ledger->is_in_committed_file(end_of_first_chunk_idx));
+
+  // Set up message dispatch.
+  messaging::BufferProcessor bp("async_test");
+  ledger->register_message_handlers(bp.get_dispatcher());
+
+  // Queue several async reads by writing ringbuffer messages and dispatching.
+  // Write to the "from outside" buffer (simulating enclave -> host messages),
+  // then dispatch via the buffer processor.
+  auto to_host_writer = test_wf.create_writer_to_outside();
+  constexpr size_t num_reads = 10;
+  for (size_t i = 0; i < num_reads; ++i)
+  {
+    RINGBUFFER_WRITE_MESSAGE(
+      ::consensus::ledger_get_range,
+      to_host_writer,
+      ::consensus::Index(1),
+      ::consensus::Index(end_of_first_chunk_idx),
+      ::consensus::LedgerRequestPurpose::Recovery);
+    bp.read_all(test_circuit.read_from_inside());
+  }
+
+  // Destroy while reads may still be in the threadpool. The shutdown gate
+  // ensures destruction blocks until active workers finish, and rejects
+  // workers that haven't started yet.
+  ledger.reset();
+
+  // Run any pending completion callbacks (some may report empty results due to
+  // the shutdown gate rejecting them, which is the correct behaviour).
+  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 }
 
 int main(int argc, char** argv)

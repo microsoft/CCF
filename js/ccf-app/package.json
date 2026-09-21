@@ -18,8 +18,9 @@
     "pretest": "node -e \"require('node:fs').rmSync('.test', { recursive: true, force: true })\"",
     "test": "tsc -p test/tsconfig.json && node --test .test/test/*.test.js",
     "posttest": "node -e \"require('node:fs').rmSync('.test', { recursive: true, force: true })\"",
-    "docs": "typedoc",
-    "docs:watch": "rm -rf html && typedoc --watch --preserveWatchOutput"
+    "docs:prepare": "npm --prefix doc install --no-package-lock --no-audit --no-fund",
+    "docs": "npm run docs:prepare && npm --prefix doc run docs --",
+    "docs:watch": "rm -rf html && npm run docs:prepare && npm --prefix doc run docs -- --watch --preserveWatchOutput"
   },
   "author": "Microsoft",
   "license": "Apache-2.0",
@@ -27,8 +28,7 @@
     "@types/node": "^26.0.1",
     "@types/node-forge": "^1.0.0",
     "node-forge": "^1.2.0",
-    "typedoc": "^0.28.18",
-    "typescript": "^6.0.2"
+    "typescript": "^7.0.2"
   },
   "bin": {
     "ccf-build-bundle": "scripts/build_bundle.js"

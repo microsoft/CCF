@@ -5,6 +5,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
+#include "ccf/ds/locking.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "crypto/openssl/hash.h"
@@ -14,16 +15,19 @@
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
+#include "node/internal_tables_access.h"
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
-#include "service/internal_tables_access.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
+#include <latch>
 #include <string>
+#include <thread>
+#include <type_traits>
 
 using namespace ccf;
 using namespace std;
@@ -211,6 +215,7 @@ public:
     };
     endpoints
       .make_command_endpoint("/command", HTTP_POST, command, no_auth_required)
+      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
       .install();
 
     auto read_only = [](auto& ctx) {
@@ -459,10 +464,73 @@ auto member_session =
 auto anonymous_session =
   make_shared<ccf::SessionContext>(ccf::InvalidSessionId, anonymous_caller_der);
 
+static_assert(
+  std::is_const_v<decltype(user_session->caller_cert)>,
+  "Session caller certificates must remain immutable");
+
 UserId user_id;
 
 MemberId member_id;
 MemberId invalid_member_id;
+
+class TestNodeConfiguration : public NodeConfigurationInterface
+{
+private:
+  StartupConfig config;
+  NodeConfigurationState state;
+
+public:
+  TestNodeConfiguration() : state{config, {}, true}
+  {
+    NodeInfoNetwork_v2::NetInterface interface;
+    interface.redirections = NodeInfoNetwork_v2::NetInterface::Redirections{};
+    config.network.rpc_interfaces.emplace("test_interface", interface);
+  }
+
+  const NodeConfigurationState& get() override
+  {
+    return state;
+  }
+};
+
+class BlockingUserEndpointRegistry : public UserEndpointRegistry
+{
+  std::latch& init_started;
+  std::latch& continue_init;
+
+public:
+  std::atomic<size_t> init_count{0};
+  std::atomic<size_t> tick_count{0};
+
+  BlockingUserEndpointRegistry(
+    ccf::AbstractNodeContext& context,
+    std::latch& init_started_,
+    std::latch& continue_init_) :
+    UserEndpointRegistry(context),
+    init_started(init_started_),
+    continue_init(continue_init_)
+  {}
+
+  void init_handlers() override
+  {
+    ++init_count;
+    init_started.count_down();
+    continue_init.wait();
+    UserEndpointRegistry::init_handlers();
+  }
+
+  void tick(std::chrono::milliseconds) override
+  {
+    ++tick_count;
+  }
+};
+
+void publish_frontend_state(RpcHandler& frontend, NetworkState& network)
+{
+  const auto consensus = network.tables->get_consensus();
+  const auto history = network.tables->get_history();
+  frontend.set_consensus_and_history(consensus.get(), history.get());
+}
 
 void prepare_callers(NetworkState& network)
 {
@@ -486,6 +554,101 @@ void prepare_callers(NetworkState& network)
   CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 }
 
+TEST_CASE("Frontend opens atomically")
+{
+  NetworkState network;
+  prepare_callers(network);
+  ccf::StubNodeContext context;
+  std::latch init_started(1);
+  std::latch continue_init(1);
+  BlockingUserEndpointRegistry registry(context, init_started, continue_init);
+  RpcFrontend frontend(*network.tables, registry, context);
+
+  REQUIRE_FALSE(frontend.is_open());
+
+  std::thread opener([&frontend]() { frontend.open(); });
+  init_started.wait();
+  CHECK_FALSE(frontend.is_open());
+  frontend.tick(std::chrono::milliseconds(1));
+  CHECK(registry.tick_count.load() == 0);
+  continue_init.count_down();
+  opener.join();
+
+  REQUIRE(frontend.is_open());
+  frontend.tick(std::chrono::milliseconds(1));
+  frontend.open();
+  REQUIRE(registry.init_count.load() == 1);
+  REQUIRE(registry.tick_count.load() == 1);
+}
+
+TEST_CASE("Frontend state publication is thread-safe")
+{
+  NetworkState network;
+  prepare_callers(network);
+  TestUserFrontend frontend(*network.tables);
+
+  auto first_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  auto second_consensus =
+    std::make_shared<ccf::kv::test::BackupStubConsensus>();
+  const auto history = network.tables->get_history();
+
+  constexpr size_t iterations = 1'000;
+  std::latch start(2);
+  std::thread publisher([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      ccf::kv::Consensus* current_consensus = first_consensus.get();
+      if (i % 2 != 0)
+      {
+        current_consensus = second_consensus.get();
+      }
+      frontend.set_consensus_and_history(current_consensus, history.get());
+      std::this_thread::yield();
+    }
+  });
+
+  auto request = create_simple_request("/tx");
+  request.set_method(HTTP_GET);
+  request.set_query_param("transaction_id", "1.1");
+  const auto serialised_request = request.build_request();
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, anonymous_caller_der);
+
+  bool all_requests_succeeded = true;
+  start.arrive_and_wait();
+  for (size_t i = 0; i < iterations; ++i)
+  {
+    auto rpc_ctx = ccf::make_rpc_context(session, serialised_request);
+    frontend.process(rpc_ctx);
+    all_requests_succeeded &= rpc_ctx->get_response_status() == HTTP_STATUS_OK;
+    std::this_thread::yield();
+  }
+
+  publisher.join();
+  REQUIRE(all_requests_succeeded);
+}
+
+TEST_CASE("Redirect resolution handles unpublished consensus")
+{
+  NetworkState network;
+  prepare_callers(network);
+  TestUserFrontend frontend(*network.tables);
+  frontend.context.install_subsystem(std::make_shared<TestNodeConfiguration>());
+
+  const auto request = create_simple_request("/empty_function_no_auth");
+  const auto serialised_request = request.build_request();
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, anonymous_caller_der, "test_interface");
+  auto rpc_ctx = ccf::make_rpc_context(session, serialised_request);
+
+  frontend.process(rpc_ctx);
+
+  REQUIRE(!rpc_ctx->response_is_pending);
+  REQUIRE(rpc_ctx->get_response_status() == HTTP_STATUS_SERVICE_UNAVAILABLE);
+}
+
 TEST_CASE("SignedReq to and from json")
 {
   SignedReq sr;
@@ -501,6 +664,11 @@ TEST_CASE("SignedReq to and from json")
 
 TEST_CASE("process with caller")
 {
+  CHECK(
+    user_session->caller_cert_sha256 ==
+    ccf::crypto::Sha256Hash(user_caller_der).hex_str());
+  CHECK(anonymous_session->caller_cert.empty());
+
   NetworkState network;
   prepare_callers(network);
   TestUserFrontend frontend(*network.tables);
@@ -572,9 +740,7 @@ TEST_CASE("process with caller")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(
-        error_msg.find("Could not find matching user certificate") !=
-        std::string::npos);
+      CHECK(error_msg.contains("Could not find matching user certificate"));
     }
 
     INFO("Anonymous caller");
@@ -584,7 +750,7 @@ TEST_CASE("process with caller")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(error_msg.find("No caller user certificate") != std::string::npos);
+      CHECK(error_msg.contains("No caller user certificate"));
     }
   }
 }
@@ -784,7 +950,7 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(llhttp_method_name(HTTP_GET)) != std::string::npos);
+        CHECK(v.contains(llhttp_method_name(HTTP_GET)));
       }
     }
 
@@ -805,7 +971,7 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(llhttp_method_name(HTTP_POST)) != std::string::npos);
+        CHECK(v.contains(llhttp_method_name(HTTP_POST)));
       }
     }
 
@@ -827,11 +993,11 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(llhttp_method_name(HTTP_PUT)) != std::string::npos);
-        CHECK(v.find(llhttp_method_name(HTTP_DELETE)) != std::string::npos);
+        CHECK(v.contains(llhttp_method_name(HTTP_PUT)));
+        CHECK(v.contains(llhttp_method_name(HTTP_DELETE)));
         if (verb != HTTP_OPTIONS)
         {
-          CHECK(v.find(llhttp_method_name(verb)) == std::string::npos);
+          CHECK(!v.contains(llhttp_method_name(verb)));
         }
       }
     }
@@ -968,6 +1134,43 @@ TEST_CASE("Alternative endpoints")
   }
 }
 
+TEST_CASE("KV readiness gate")
+{
+  NetworkState network;
+  prepare_callers(network);
+  TestAlternativeHandlerTypes frontend(*network.tables);
+
+  const auto call = [&frontend](const std::string& path, llhttp_method verb) {
+    ::http::Request request(path, verb);
+    auto rpc_ctx = ccf::make_rpc_context(user_session, request.build_request());
+    frontend.process(rpc_ctx);
+    return parse_response(rpc_ctx->serialise_response());
+  };
+
+  for (const auto readiness :
+       {ccf::kv::StoreReadiness::Unavailable,
+        ccf::kv::StoreReadiness::InstallingSnapshot,
+        ccf::kv::StoreReadiness::Failed})
+  {
+    network.tables->set_readiness(readiness);
+
+    INFO("Transactionless commands remain available");
+    CHECK(call("/command", HTTP_POST).status == HTTP_STATUS_OK);
+
+    INFO("KV-backed endpoints are unavailable");
+    const auto response = call("/read_only", HTTP_GET);
+    CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"]["code"] ==
+      ccf::errors::FrontendNotOpen);
+  }
+
+  network.tables->set_readiness(ccf::kv::StoreReadiness::Ready);
+
+  INFO("KV-backed dispatch resumes when the Store is ready");
+  CHECK(call("/read_only", HTTP_GET).status == HTTP_STATUS_OK);
+}
+
 TEST_CASE("Templated paths")
 {
   NetworkState network;
@@ -1042,6 +1245,48 @@ TEST_CASE("Decoded Templated paths")
   }
 }
 
+TEST_CASE("Forwarded request target limit" * doctest::test_suite("forwarding"))
+{
+  constexpr size_t forwarding_limit = 100 * 1024 * 1024;
+  auto target_size = forwarding_limit;
+  SUBCASE("At the forwarding limit") {}
+  SUBCASE("Above the forwarding limit")
+  {
+    target_size += 1;
+  }
+  const std::string prefix = "/app/empty_function?padding=";
+  const auto target = prefix + std::string(target_size - prefix.size(), 'a');
+  const auto packed = ::http::Request(target, HTTP_POST).build_request();
+
+  ccf::http::ParserConfiguration config;
+  config.max_request_target_size = "101MB";
+  {
+    ::http::SimpleRequestProcessor processor;
+    ::http::RequestParser ingress(processor, config);
+    ingress.execute(packed.data(), packed.size());
+    REQUIRE(processor.received.size() == 1);
+    CHECK(processor.received.front().url == target);
+  }
+
+  if (target_size > forwarding_limit)
+  {
+    CHECK_THROWS_AS(
+      ccf::make_fwd_rpc_context(user_session, packed, ccf::FrameFormat::http),
+      ::http::RequestTargetTooLongException);
+  }
+  else
+  {
+    auto forwarded =
+      ccf::make_fwd_rpc_context(user_session, packed, ccf::FrameFormat::http);
+    REQUIRE(forwarded != nullptr);
+    CHECK(forwarded->get_request_path() == "/app/empty_function");
+    CHECK(
+      forwarded->get_request_query() ==
+      std::string_view(target).substr(target.find('?') + 1));
+    CHECK(forwarded->get_serialised_request() == packed);
+  }
+}
+
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 {
   NetworkState network_primary;
@@ -1064,6 +1309,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto backup_consensus =
     std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
+  publish_frontend_state(user_frontend_primary, network_primary);
+  publish_frontend_state(user_frontend_backup, network_backup);
 
   auto simple_call = create_simple_request();
   auto serialized_call = simple_call.build_request();
@@ -1089,6 +1336,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   {
     INFO("Read command is not forwarded to primary");
     TestUserFrontend user_frontend_backup_read(*network_backup.tables);
+    publish_frontend_state(user_frontend_backup_read, network_backup);
     REQUIRE(channel_stub->is_empty());
 
     user_frontend_backup_read.process(backup_ctx);
@@ -1122,6 +1370,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     };
 
     prepare_callers(network_primary);
+    publish_frontend_state(user_frontend_primary, network_primary);
 
     {
       INFO("Valid caller");
@@ -1162,6 +1411,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     TestUserFrontend user_frontend_backup_read(*network_backup.tables);
     user_frontend_backup_read.set_cmd_forwarder(backup_forwarder);
+    publish_frontend_state(user_frontend_backup_read, network_backup);
     REQUIRE(channel_stub->is_empty());
 
     user_frontend_backup_read.process(backup_ctx);
@@ -1212,6 +1462,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_consensus =
     std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
+  publish_frontend_state(node_frontend_primary, network_primary);
+  publish_frontend_state(node_frontend_backup, network_backup);
 
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
@@ -1263,9 +1515,21 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_consensus =
     std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
+  publish_frontend_state(user_frontend_primary, network_primary);
+  publish_frontend_state(user_frontend_backup, network_backup);
 
   auto write_req = create_simple_request();
+  write_req.set_query_param(
+    "padding",
+    std::string(ccf::http::default_max_request_target_size.count_bytes(), 'a'));
   auto serialized_call = write_req.build_request();
+
+  ccf::http::ParserConfiguration ingress_config;
+  ingress_config.max_request_target_size = "32KB";
+  ::http::SimpleRequestProcessor ingress_processor;
+  ::http::RequestParser ingress_parser(ingress_processor, ingress_config);
+  ingress_parser.execute(serialized_call.data(), serialized_call.size());
+  REQUIRE(ingress_processor.received.size() == 1);
 
   auto ctx = ccf::make_rpc_context(user_session, serialized_call);
   user_frontend_backup.process(ctx);
@@ -1278,6 +1542,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
       ccf::kv::test::FirstBackupNodeId,
       forwarded_msg.data(),
       forwarded_msg.size());
+  REQUIRE(fwd_ctx != nullptr);
 
   user_frontend_primary.process_forwarded(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
@@ -1314,6 +1579,8 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_consensus =
     std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
+  publish_frontend_state(member_frontend_primary, network_primary);
+  publish_frontend_state(member_frontend_backup, network_backup);
 
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
@@ -1443,23 +1710,29 @@ public:
 
   struct WaitPoint
   {
-    std::mutex m;
-    std::condition_variable cv;
-    bool ready = false;
+    ccf::ds::Mutex m;
+    ccf::ds::ConditionVariable cv;
+    bool ready CCF_GUARDED_BY(m) = false;
 
     void wait()
     {
-      std::unique_lock lock(m);
-      cv.wait(lock, [this] { return ready; });
+      ccf::ds::MutexGuard lock(m);
+      cv.wait(lock, [this]() CCF_REQUIRES(m) { return ready; });
     }
 
     void notify()
     {
       {
-        std::lock_guard lock(m);
+        ccf::ds::MutexGuard lock(m);
         ready = true;
       }
       cv.notify_one();
+    }
+
+    void reset()
+    {
+      ccf::ds::MutexGuard lock(m);
+      ready = false;
     }
   };
 
@@ -1600,10 +1873,10 @@ TEST_CASE("Manual conflicts")
                     std::function<void()>&& read_write_op,
                     std::shared_ptr<ccf::SessionContext> session = user_session,
                     ccf::http_status expected_status = HTTP_STATUS_OK) {
-    frontend.registry.before_read.ready = false;
-    frontend.registry.after_read.ready = false;
-    frontend.registry.before_write.ready = false;
-    frontend.registry.after_write.ready = false;
+    frontend.registry.before_read.reset();
+    frontend.registry.after_read.reset();
+    frontend.registry.before_write.reset();
+    frontend.registry.after_write.reset();
 
     std::thread worker(call_pausable, session, expected_status);
 

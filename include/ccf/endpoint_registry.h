@@ -9,6 +9,7 @@
 #include "ccf/rpc_context.h"
 #include "ccf/tx.h"
 
+#include <atomic>
 #include <charconv>
 #include <functional>
 #include <llhttp/llhttp.h>
@@ -172,8 +173,18 @@ namespace ccf::endpoints
       std::map<RESTVerb, std::shared_ptr<PathTemplatedEndpoint>>>
       templated_endpoints;
 
-    ccf::kv::Consensus* consensus = nullptr;
-    ccf::kv::TxHistory* history = nullptr;
+    std::atomic<ccf::kv::Consensus*> consensus{nullptr};
+    std::atomic<ccf::kv::TxHistory*> history{nullptr};
+
+    [[nodiscard]] ccf::kv::Consensus* get_consensus() const
+    {
+      return consensus.load(std::memory_order_acquire);
+    }
+
+    [[nodiscard]] ccf::kv::TxHistory* get_history() const
+    {
+      return history.load(std::memory_order_acquire);
+    }
 
   public:
     EndpointRegistry(std::string method_prefix_) :
@@ -249,8 +260,13 @@ namespace ccf::endpoints
 
     virtual void init_handlers();
 
+    EndpointDefinitionPtr find_endpoint_without_kv(ccf::RpcContext& rpc_ctx);
+
     virtual EndpointDefinitionPtr find_endpoint(
       [[maybe_unused]] ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx);
+
+    void execute_command_endpoint(
+      EndpointDefinitionPtr e, CommandEndpointContext& ctx);
 
     virtual void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& ctx);

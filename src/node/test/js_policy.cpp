@@ -77,8 +77,7 @@ TEST_CASE("Policy error handling")
     )";
     auto result = apply_node_join_policy(policy, inputs);
     REQUIRE(result.has_value());
-    REQUIRE(
-      result.value().find("Unexpected return value") != std::string::npos);
+    REQUIRE(result.value().contains("Unexpected return value"));
   }
 
   SUBCASE("Returns undefined gives unexpected return value")
@@ -90,8 +89,7 @@ TEST_CASE("Policy error handling")
     )";
     auto result = apply_node_join_policy(policy, inputs);
     REQUIRE(result.has_value());
-    REQUIRE(
-      result.value().find("Unexpected return value") != std::string::npos);
+    REQUIRE(result.value().contains("Unexpected return value"));
   }
 
   SUBCASE("Returns null gives unexpected return value")
@@ -103,8 +101,7 @@ TEST_CASE("Policy error handling")
     )";
     auto result = apply_node_join_policy(policy, inputs);
     REQUIRE(result.has_value());
-    REQUIRE(
-      result.value().find("Unexpected return value") != std::string::npos);
+    REQUIRE(result.value().contains("Unexpected return value"));
   }
 
   SUBCASE("Returns number gives unexpected return value")
@@ -116,8 +113,7 @@ TEST_CASE("Policy error handling")
     )";
     auto result = apply_node_join_policy(policy, inputs);
     REQUIRE(result.has_value());
-    REQUIRE(
-      result.value().find("Unexpected return value") != std::string::npos);
+    REQUIRE(result.value().contains("Unexpected return value"));
   }
 
   SUBCASE("Throws is reported as error")
@@ -129,9 +125,8 @@ TEST_CASE("Policy error handling")
     )";
     auto result = apply_node_join_policy(policy, inputs);
     REQUIRE(result.has_value());
-    REQUIRE(
-      result.value().find("Code update policy threw") != std::string::npos);
-    REQUIRE(result.value().find("intentional failure") != std::string::npos);
+    REQUIRE(result.value().contains("Code update policy threw"));
+    REQUIRE(result.value().contains("intentional failure"));
   }
 
   SUBCASE("Syntax error")
@@ -143,9 +138,7 @@ TEST_CASE("Policy error handling")
     )";
     auto result = apply_node_join_policy(policy, inputs);
     REQUIRE(result.has_value());
-    REQUIRE(
-      result.value().find("Invalid code update policy module") !=
-      std::string::npos);
+    REQUIRE(result.value().contains("Invalid code update policy module"));
   }
 
   SUBCASE("Missing apply export")
@@ -157,9 +150,7 @@ TEST_CASE("Policy error handling")
     )";
     auto result = apply_node_join_policy(policy, inputs);
     REQUIRE(result.has_value());
-    REQUIRE(
-      result.value().find("Invalid code update policy module") !=
-      std::string::npos);
+    REQUIRE(result.value().contains("Invalid code update policy module"));
   }
 
   SUBCASE("Empty policy string")
@@ -167,9 +158,7 @@ TEST_CASE("Policy error handling")
     const std::string policy;
     auto result = apply_node_join_policy(policy, inputs);
     REQUIRE(result.has_value());
-    REQUIRE(
-      result.value().find("Invalid code update policy module") !=
-      std::string::npos);
+    REQUIRE(result.value().contains("Invalid code update policy module"));
   }
 
   SUBCASE("Runtime error in JS")
@@ -181,8 +170,7 @@ TEST_CASE("Policy error handling")
     )";
     auto result = apply_node_join_policy(policy, inputs);
     REQUIRE(result.has_value());
-    REQUIRE(
-      result.value().find("Code update policy threw") != std::string::npos);
+    REQUIRE(result.value().contains("Code update policy threw"));
   }
 
   SUBCASE("Infinite loop is handled")
@@ -195,8 +183,7 @@ TEST_CASE("Policy error handling")
     )";
     auto result = apply_node_join_policy(policy, inputs);
     REQUIRE(result.has_value());
-    REQUIRE(
-      result.value().find("Code update policy threw") != std::string::npos);
+    REQUIRE(result.value().contains("Code update policy threw"));
   }
 
   SUBCASE("Empty inputs")

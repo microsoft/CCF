@@ -1,33 +1,34 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from contextlib import contextmanager, closing
-from enum import Enum, auto
-import functools
-import infra.crypto
-import infra.remote
-from datetime import datetime, timedelta, timezone
-import infra.net
-import infra.path
-import infra.interfaces
-import infra.clients
-import ccf.ledger
-from ccf.tx_id import TxID
-import os
-import socket
-import re
-import ipaddress
-import ssl
 import copy
-import json
-import time
+import functools
 import http
+import ipaddress
+import json
+import os
+import re
+import socket
+import ssl
+import tempfile
+import time
+import urllib.parse
+from contextlib import closing, contextmanager
+from datetime import datetime, timedelta, timezone
+from enum import Enum, auto
 
 import ccf._versionifier
-
+import ccf.ledger
+from ccf.tx_id import TxID
+from loguru import logger as LOG
 from packaging.version import Version  # type: ignore
 
-from loguru import logger as LOG
+import infra.clients
+import infra.crypto
+import infra.interfaces
+import infra.net
+import infra.path
+import infra.remote
 
 BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
@@ -173,7 +174,7 @@ class Node:
         self.verify_ca_by_default = True
 
         if isinstance(self.host, str):
-            raise ValueError("Translate host to HostSpec before you get here")
+            raise TypeError("Translate host to HostSpec before you get here")
 
         for interface_name, rpc_interface in self.host.rpc_interfaces.items():
             # Expand "localhost" to a concrete address first, so the IPv6
@@ -211,23 +212,24 @@ class Node:
                     host=rpc_interface.host, port=node_port
                 )
 
-            # LedgerChunkRead operator feature is only supported from 7.0.0-dev7 onwards
-            if self.version is not None and Version(
-                strip_version(self.version)
-            ) <= Version("7.0.0-dev6"):
-                if rpc_interface.enabled_operator_features:
-                    if "LedgerChunkRead" in rpc_interface.enabled_operator_features:
-                        rpc_interface.enabled_operator_features.remove(
-                            "LedgerChunkRead"
-                        )
+            # These helpers use the underscored ledger chunk endpoint, which is
+            # only supported from 7.0.0-dev13 onwards.
+            if (
+                self.version is not None
+                and Version(strip_version(self.version)) <= Version("7.0.0-dev12")
+                and rpc_interface.enabled_operator_features
+                and "LedgerChunkRead" in rpc_interface.enabled_operator_features
+            ):
+                rpc_interface.enabled_operator_features.remove("LedgerChunkRead")
 
             # SnapshotCreate operator feature is only supported from 7.0.0-dev14 onwards
-            if self.version is not None and Version(
-                strip_version(self.version)
-            ) <= Version("7.0.0-dev13"):
-                if rpc_interface.enabled_operator_features:
-                    if "SnapshotCreate" in rpc_interface.enabled_operator_features:
-                        rpc_interface.enabled_operator_features.remove("SnapshotCreate")
+            if (
+                self.version is not None
+                and Version(strip_version(self.version)) <= Version("7.0.0-dev13")
+                and rpc_interface.enabled_operator_features
+                and "SnapshotCreate" in rpc_interface.enabled_operator_features
+            ):
+                rpc_interface.enabled_operator_features.remove("SnapshotCreate")
 
     def __hash__(self):
         return self.local_node_id
@@ -324,7 +326,7 @@ class Node:
         if self.version is None or Version(strip_version(self.version)) > Version(
             "7.0.0-dev1"
         ):
-            lib_path = lib_name
+            lib_path = infra.path.build_bin_path(lib_name, binary_dir=self.binary_dir)
         else:
             lib_path = infra.path.build_lib_path(
                 lib_name,
@@ -382,15 +384,15 @@ class Node:
                 f.write(f"exec {' '.join(self.remote.remote.cmd)}\n")
                 f.write("fi\n")
 
-            print("")
+            print()
             print(
                 "================= Please run the below command on "
                 + self.get_public_rpc_host()
                 + " and press enter to continue ================="
             )
-            print("")
+            print()
             print(self.remote.debug_node_cmd())
-            print("")
+            print()
             input("Press Enter to continue...")
         else:
             self.remote.start()
@@ -466,7 +468,7 @@ class Node:
                 )
                 self._resolve_address(rpc_address_file, self.host.rpc_interfaces)
                 #  In the infra, public RPC port is always the same as local RPC port
-                for _, interface in self.host.rpc_interfaces.items():
+                for interface in self.host.rpc_interfaces.values():
                     interface.public_port = interface.port
         else:
             # Legacy 1.x nodes
@@ -535,7 +537,7 @@ class Node:
         start_time = time.time()
         while time.time() < start_time + timeout:
             try:
-                with self.client(connection_timeout=timeout, *args, **kwargs) as nc:
+                with self.client(*args, connection_timeout=timeout, **kwargs) as nc:
                     rep = nc.get("/node/commit")
                     if rep.status_code == 200:
                         self.network_state = infra.node.NodeNetworkState.joined
@@ -549,15 +551,289 @@ class Node:
         raise TimeoutError(f"Node {self.local_node_id} failed to join the network")
 
     def get_ledger_public_tables_at(self, seqno):
+        if not self.is_stopped():
+            LOG.warning(
+                "Parsing ledger files directly from live node {}",
+                self.local_node_id,
+            )
         ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
         assert ledger.last_committed_chunk_range[1] >= seqno
         tx = ledger.get_transaction(seqno)
         return tx.get_public_domain().get_tables()
 
     def get_ledger_public_state_at(self, seqno):
+        if not self.is_stopped():
+            LOG.warning(
+                "Parsing ledger files directly from live node {}",
+                self.local_node_id,
+            )
         ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
         assert ledger.last_committed_chunk_range[1] >= seqno
         return ledger.get_latest_public_state()
+
+    def wait_for_ledger_chunk(self, seqno, timeout=5):
+        end_time = time.time() + timeout
+        with self.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            while time.time() < end_time:
+                r = c.head(
+                    f"/node/ledger_chunk?since={seqno}",
+                    allow_redirects=True,
+                )
+                if r.status_code == http.HTTPStatus.OK:
+                    chunk_name = os.path.basename(
+                        r.headers["x-ms-ccf-ledger-chunk-name"]
+                    )
+                    start_seqno, end_seqno = ccf.ledger.range_from_filename(chunk_name)
+                    assert (
+                        end_seqno is not None and start_seqno <= seqno <= end_seqno
+                    ), f"Ledger chunk {chunk_name} does not cover seqno {seqno}"
+                    return chunk_name
+
+                if r.status_code != http.HTTPStatus.NOT_FOUND:
+                    raise RuntimeError(
+                        f"Unexpected response while waiting for ledger chunk "
+                        f"covering seqno {seqno}: {r}"
+                    )
+                time.sleep(0.1)
+
+        raise TimeoutError(
+            f"Could not download ledger chunk covering seqno {seqno} from "
+            f"node {self.local_node_id} after {timeout}s"
+        )
+
+    def _get_local_ledger_start_seqno(self):
+        with self.client() as c:
+            # Recovery input may not be locally served, even after a startup snapshot.
+            if self.remote.start_type == infra.remote.StartType.recover:
+                r = c.get("/node/network")
+                assert r.status_code == http.HTTPStatus.OK, r
+                return TxID.from_str(r.body.json()["current_service_create_txid"]).seqno
+
+            r = c.get("/node/state")
+            assert r.status_code == http.HTTPStatus.OK, r
+            startup_seqno = r.body.json()["startup_seqno"]
+            if startup_seqno != 0:
+                return startup_seqno + 1
+
+            return 1
+
+    def _download_ledger(
+        self,
+        ledger_dir,
+        target_seqno,
+        timeout=5,
+        local_only=False,
+        start_seqno=None,
+    ):
+        ledger_paths = []
+
+        def save_chunk(response, requested_seqno):
+            chunk_name = os.path.basename(
+                response.headers["x-ms-ccf-ledger-chunk-name"]
+            )
+            start_seqno, end_seqno = ccf.ledger.range_from_filename(chunk_name)
+            assert (
+                end_seqno is not None and start_seqno <= requested_seqno <= end_seqno
+            ), f"Ledger chunk {chunk_name} does not cover seqno {requested_seqno}"
+
+            chunk_path = os.path.join(ledger_dir, chunk_name)
+            with open(chunk_path, "wb") as chunk_file:
+                chunk_file.write(response.body.data())
+            ledger_paths.append(chunk_path)
+            return end_seqno
+
+        if start_seqno is not None:
+            next_seqno = start_seqno
+        elif local_only:
+            next_seqno = self._get_local_ledger_start_seqno()
+        else:
+            next_seqno = 1
+        end_time = time.time() + timeout
+
+        with self.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+
+            def get_chunk(seqno, allow_redirects):
+                try:
+                    return c.get(
+                        f"/node/ledger_chunk?since={seqno}",
+                        allow_redirects=allow_redirects,
+                    )
+                except (
+                    infra.clients.CCFConnectionException,
+                    infra.clients.CCFIOException,
+                ):
+                    # A node which does not hold a chunk redirects to another
+                    # node, which may since have been retired and stopped.
+                    # Treat that as the chunk being unavailable.
+                    return None
+
+            while next_seqno <= target_seqno:
+                r = get_chunk(next_seqno, not local_only)
+                if (
+                    local_only
+                    and r is not None
+                    and r.status_code == http.HTTPStatus.PERMANENT_REDIRECT
+                ):
+                    chunk_url = urllib.parse.urlparse(r.headers["Location"])
+                    if chunk_url.query:
+                        if time.time() >= end_time:
+                            raise TimeoutError(
+                                f"Could not download local ledger through seqno "
+                                f"{target_seqno} from node {self.local_node_id} "
+                                f"after {timeout}s"
+                            )
+                        time.sleep(0.1)
+                        continue
+                    r = c.get(chunk_url.path, allow_redirects=False)
+
+                if r is None or r.status_code == http.HTTPStatus.NOT_FOUND:
+                    if (
+                        not local_only
+                        and not ledger_paths
+                        and start_seqno is None
+                        and next_seqno < target_seqno
+                    ):
+                        r = get_chunk(target_seqno, True)
+                        if r is not None and r.status_code == http.HTTPStatus.OK:
+                            save_chunk(r, target_seqno)
+                            return ledger_paths
+
+                    if time.time() >= end_time:
+                        raise TimeoutError(
+                            f"Could not download ledger through seqno "
+                            f"{target_seqno} from node {self.local_node_id} "
+                            f"after {timeout}s"
+                        )
+                    time.sleep(0.1)
+                    continue
+
+                if r.status_code != http.HTTPStatus.OK:
+                    raise RuntimeError(
+                        f"Unexpected response while downloading ledger chunk "
+                        f"covering seqno {next_seqno}: {r}"
+                    )
+
+                end_seqno = save_chunk(r, next_seqno)
+                next_seqno = end_seqno + 1
+                end_time = time.time() + timeout
+
+        return ledger_paths
+
+    @contextmanager
+    def download_ledger(
+        self,
+        target_seqno,
+        timeout=5,
+        local_only=False,
+        start_seqno=None,
+    ):
+        with tempfile.TemporaryDirectory(
+            prefix=f"{self.local_node_id}.ledger.downloaded.",
+            dir=self.common_dir,
+        ) as ledger_dir:
+            yield self._download_ledger(
+                ledger_dir,
+                target_seqno,
+                timeout=timeout,
+                local_only=local_only,
+                start_seqno=start_seqno,
+            )
+
+    @contextmanager
+    def get_ledger_from_api(
+        self,
+        target_seqno,
+        timeout=5,
+        local_only=False,
+        start_seqno=None,
+        **kwargs,
+    ):
+        kwargs.setdefault("committed_only", True)
+        with self.download_ledger(
+            target_seqno,
+            timeout=timeout,
+            local_only=local_only,
+            start_seqno=start_seqno,
+        ) as ledger_paths:
+            yield ccf.ledger.Ledger(ledger_paths, **kwargs)
+
+    @contextmanager
+    def get_ledger_chunk_from_api(self, seqno, timeout=5):
+        with self.get_ledger_from_api(
+            seqno,
+            timeout=timeout,
+            start_seqno=seqno,
+        ) as ledger:
+            yield ledger
+
+    def _download_snapshot(self, snapshot_dir, timeout):
+        end_time = time.time() + timeout
+        with self.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            while True:
+                r = c.get("/node/snapshot", allow_redirects=True)
+                if r.status_code == http.HTTPStatus.OK:
+                    break
+                if (
+                    r.status_code != http.HTTPStatus.NOT_FOUND
+                    and r.status_code < http.HTTPStatus.INTERNAL_SERVER_ERROR
+                ):
+                    raise RuntimeError(
+                        f"Unexpected response while downloading latest snapshot: {r}"
+                    )
+                if time.time() >= end_time:
+                    raise TimeoutError(
+                        f"Could not download latest snapshot from node "
+                        f"{self.local_node_id} after {timeout}s; last response: {r}"
+                    )
+                time.sleep(0.1)
+
+            snapshot_name = os.path.basename(r.headers["x-ms-ccf-snapshot-name"])
+            snapshot_path = os.path.join(snapshot_dir, snapshot_name)
+            with open(snapshot_path, "wb") as snapshot_file:
+                snapshot_file.write(r.body.data())
+
+        return snapshot_path
+
+    def get_public_state_from_api(self, target_seqno, timeout=5):
+        with tempfile.TemporaryDirectory(
+            prefix=f"{self.local_node_id}.snapshot.downloaded.",
+            dir=self.common_dir,
+        ) as snapshot_dir:
+            snapshot_path = self._download_snapshot(snapshot_dir, timeout)
+            with ccf.ledger.Snapshot(snapshot_path) as snapshot:
+                public_domain = snapshot.get_public_domain()
+                public_tables = public_domain.get_tables()
+                latest_seqno = public_domain.get_seqno()
+
+        if latest_seqno >= target_seqno:
+            return public_tables, latest_seqno
+
+        with self.get_ledger_from_api(
+            target_seqno,
+            timeout=timeout,
+            local_only=False,
+            start_seqno=latest_seqno + 1,
+            committed_only=True,
+        ) as ledger:
+            for transaction in ledger.transactions():
+                public_domain = transaction.get_public_domain()
+                if public_domain.get_seqno() <= latest_seqno:
+                    continue
+                latest_seqno = public_domain.get_seqno()
+                for table_name, records in public_domain.get_tables().items():
+                    table = public_tables.setdefault(table_name, {})
+                    table.update(records)
+                    public_tables[table_name] = {
+                        key: value for key, value in table.items() if value is not None
+                    }
+
+        return public_tables, latest_seqno
 
     def get_main_ledger_dir(self):
         """
@@ -569,6 +845,11 @@ class Node:
         """
         Triage committed and un-committed (i.e. current) ledger files
         """
+        if not self.is_stopped():
+            LOG.warning(
+                "Copying ledger files directly from live node {}",
+                self.local_node_id,
+            )
         main_ledger_dir, read_only_ledger_dirs = self.remote.get_ledger(
             f"{self.local_node_id}.ledger"
         )
@@ -595,6 +876,59 @@ class Node:
                     infra.path.copy_dir(os.path.join(ro_dir, f), committed_ledger_dir)
 
         return current_ledger_dir, [committed_ledger_dir]
+
+    def get_snapshots(self, *, include_read_only=False) -> list[str]:
+        """List committed snapshot paths on this node, ordered by snapshot seqno.
+
+        Paths are node-owned: copy them before modifying them or relying on them
+        surviving cleanup. Read-only startup snapshots are excluded by default.
+        """
+        directories = [self.remote.snapshots_dir_name]
+        if include_read_only and self.remote.read_only_snapshots_dir_name is not None:
+            directories.append(self.remote.read_only_snapshots_dir_name)
+
+        snapshots = []
+        for directory in directories:
+            path = os.path.join(self.remote.remote.root, directory)
+            try:
+                with os.scandir(path) as entries:
+                    snapshots.extend(
+                        entry.path
+                        for entry in entries
+                        if entry.name.startswith("snapshot_")
+                        and ccf.ledger.is_snapshot_file_committed(entry.name)
+                        and entry.is_file()
+                    )
+            except FileNotFoundError:
+                LOG.debug(f"Snapshot directory does not exist yet: {path}")
+
+        return sorted(snapshots, key=ccf.ledger.snapshot_index_from_filename)
+
+    def wait_for_snapshot(self, target_seqno, timeout=20) -> str:
+        """Wait for a committed snapshot in this node's writable directory.
+
+        The snapshot state must include target_seqno. This does not emit
+        transactions, trigger snapshots, or copy files.
+        """
+        LOG.info(
+            f"Waiting for node {self.local_node_id} snapshot including seqno {target_seqno}"
+        )
+        end_time = time.monotonic() + timeout
+        while True:
+            snapshots = self.get_snapshots()
+            for snapshot in snapshots:
+                if ccf.ledger.snapshot_index_from_filename(snapshot)[0] >= target_seqno:
+                    LOG.info(f"Found committed snapshot {snapshot}")
+                    return snapshot
+
+            remaining = end_time - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"Could not find committed snapshot on node {self.local_node_id} "
+                    f"including seqno {target_seqno} after {timeout}s; "
+                    f"snapshot files: {snapshots}"
+                )
+            time.sleep(min(0.1, remaining))
 
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         (
@@ -753,6 +1087,8 @@ class Node:
 
         if hasattr(self, "client_impl"):
             akwargs["impl_type"] = self.client_impl
+        if hasattr(self, "openapi_validator"):
+            akwargs["openapi_validator"] = self.openapi_validator
 
         return cls(rpc_interface.public_host, rpc_interface.public_port, **akwargs)
 

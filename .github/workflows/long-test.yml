@@ -21,12 +21,7 @@ jobs:
   long-asan:
     if: &check_trigger_conditions ${{ (github.event.action == 'labeled' && github.event.label.name == 'run-long-test') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-long-test')) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     name: "ASAN"
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=long_asan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -40,15 +35,12 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug (Long Test)"
         run: |
@@ -67,7 +59,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-asan
           path: |
@@ -76,17 +68,13 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
 
   long-tsan:
     if: *check_trigger_conditions
     name: "TSAN"
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=long_tsan-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --privileged --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -100,15 +88,12 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug (Long Test)"
         run: |
@@ -127,7 +112,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-tsan
           path: |
@@ -136,6 +121,7 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
 
   # All e2e tests without sanitizers in debug mode; needed because:
@@ -144,12 +130,7 @@ jobs:
   long-e2e-debug:
     if: *check_trigger_conditions
     name: Long e2e - Debug
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=long_e2e_debug-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -163,15 +144,12 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build"
         run: |
@@ -187,7 +165,7 @@ jobs:
           cd build
           ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
 
-      - name: "Run CBOR fuzz test"
+      - name: "Run fuzz tests"
         run: |
           set -o pipefail
           set -ex
@@ -195,13 +173,21 @@ jobs:
           cd build_fuzz
           rm -f CMakeCache.txt
           cmake -GNinja -DFUZZING=ON -DSAN=ON -DUSE_SNMALLOC=OFF ..
-          ninja cbor_fuzz_test
-          mkdir -p /tmp/cbor_fuzz_live
-          ./cbor_fuzz_test /tmp/cbor_fuzz_live ../src/crypto/test/cbor_fuzz_corpus -max_total_time=60
+          ninja cbor_fuzz_test msgpack_fuzz_test
+          mkdir -p fuzz-live/cbor fuzz-live/msgpack fuzz-artifacts/cbor fuzz-artifacts/msgpack
+          ./cbor_fuzz_test fuzz-live/cbor ../src/crypto/test/cbor_fuzz_corpus \
+            -max_total_time=60 \
+            -artifact_prefix="$PWD/fuzz-artifacts/cbor/"
+          ./msgpack_fuzz_test fuzz-live/msgpack ../src/msgpack/test/msgpack_fuzz_corpus \
+            -max_total_time=60 \
+            -max_len=4096 \
+            -timeout=2 \
+            -rss_limit_mb=1024 \
+            -artifact_prefix="$PWD/fuzz-artifacts/msgpack/"
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-e2e-debug
           path: |
@@ -210,18 +196,15 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/workspace/**/openapi_coverage.json
+            build_fuzz/fuzz-artifacts/**
           if-no-files-found: ignore
 
   # All e2e tests in release mode (same as release build).
   long-e2e-release:
     if: *check_trigger_conditions
     name: Long e2e - Release
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=long_e2e_release-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -235,15 +218,12 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build"
         run: |
@@ -261,7 +241,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-e2e-release
           path: |
@@ -270,6 +250,7 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
 
   # Relatively short-running tests suites combined together to reduce executors
@@ -280,12 +261,7 @@ jobs:
   e2e-long-combined:
     if: *check_trigger_conditions
     name: Long Shuffled/LTS/Snmalloc
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av6-ci,
-        "JobId=long_e2e_shuffled-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -299,15 +275,12 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build"
         run: |
@@ -347,7 +320,7 @@ jobs:
 
       - name: "Upload logs"
         if: success() || failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-long-combined
           path: |
@@ -356,4 +329,5 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore

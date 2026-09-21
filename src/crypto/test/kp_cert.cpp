@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/crypto/ec_key_pair.h"
+#include "common/cli_helper.h"
 #include "crypto/certs.h"
-#include "ds/cli_helper.h"
 
 #include <CLI11/CLI11.hpp>
 

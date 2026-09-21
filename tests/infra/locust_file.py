@@ -1,9 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import locust.stats
-from locust import HttpUser, task, events, constant_throughput
 import json
+from typing import ClassVar
+
+import locust.stats
+from locust import HttpUser, constant_throughput, events, task
 
 # Scope for logging txs so that they do not conflict
 # with the txs recorded by the actual tests
@@ -32,7 +34,7 @@ class Submitter(HttpUser):
     last_msg_id = 0
 
     # Round-robin between all hosts specified at startup
-    hosts = []
+    hosts: ClassVar[list[str]] = []
     current_host_idx = 0
     rate = 0
 

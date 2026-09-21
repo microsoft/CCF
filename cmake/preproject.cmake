@@ -77,7 +77,11 @@ function(add_warning_checks name)
       -Wno-unused-function
       -Wshadow
       -Wswitch-enum
+      # GCC does not implement Clang's capability-based thread safety analysis.
+      # https://clang.llvm.org/docs/ThreadSafetyAnalysis.html
+      $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-Wthread-safety>
   )
 endfunction()
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)

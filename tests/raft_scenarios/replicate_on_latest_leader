@@ -1,0 +1,30 @@
+# Keep the term-2 leader isolated while node 1 wins term 3. A write addressed to
+# the latest leader must select node 1 rather than the stale primary.
+pre_vote_enabled,false
+start_node,0
+emit_signature,2
+trust_nodes,2,1,2
+emit_signature,2
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_state_sync
+
+drop_pending,0
+drop_pending,1
+drop_pending,2
+periodic_one,1,100
+drop_pending_to,1,0
+dispatch_single,1,2
+dispatch_single,2,1
+assert_detail,0,leadership_state,Leader
+assert_detail,1,leadership_state,Leader
+assert_detail,0,current_view,2
+assert_detail,1,current_view,3
+
+replicate,latest,latest leader write
+assert_last_txid,0,2.4
+assert_last_txid,1,3.5
+loop_until_sync

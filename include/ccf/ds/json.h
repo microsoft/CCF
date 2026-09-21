@@ -456,8 +456,8 @@ namespace std
     const auto it = j.find(JSON_FIELD); \
     if (it == j.end()) \
     { \
-      throw ccf::JsonParseError( \
-        "Missing required field '" JSON_FIELD "' in object: " + j.dump()); \
+      throw ccf::JsonParseError("Missing required field '" JSON_FIELD \
+                                "' in object"); \
     } \
     try \
     { \
@@ -496,7 +496,7 @@ namespace std
 #define FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT( \
   TYPE, C_FIELD, JSON_FIELD) \
   j["properties"][JSON_FIELD] = \
-    ccf::ds::json::schema_element<decltype(TYPE::C_FIELD)>(); \
+    ccf::ds::json::required_schema_element<decltype(TYPE::C_FIELD)>(); \
   j["required"].push_back(JSON_FIELD);
 #define FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL( \
   TYPE, C_FIELD, JSON_FIELD) \
@@ -523,7 +523,7 @@ namespace std
 #define ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT( \
   TYPE, C_FIELD, JSON_FIELD) \
   j["properties"][JSON_FIELD] = \
-    doc.template add_schema_component<decltype(TYPE::C_FIELD)>(); \
+    doc.template add_required_schema_component<decltype(TYPE::C_FIELD)>(); \
   j["required"].push_back(JSON_FIELD);
 #define ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL( \
   TYPE, C_FIELD, JSON_FIELD) \
@@ -800,7 +800,7 @@ namespace std
   { \
     if (!j.is_object()) \
     { \
-      throw ccf::JsonParseError("Expected object, found: " + j.dump()); \
+      throw ccf::JsonParseError("Expected object"); \
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
@@ -836,7 +836,7 @@ namespace std
   { \
     if (!j.is_object()) \
     { \
-      throw ccf::JsonParseError("Expected object, found: " + j.dump()); \
+      throw ccf::JsonParseError("Expected object"); \
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(READ_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__) \

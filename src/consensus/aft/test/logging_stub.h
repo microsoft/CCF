@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/locking.h"
 #include "ccf/entity_id.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/raft_types.h"
@@ -20,7 +21,7 @@ namespace aft
   protected:
     ccf::NodeId _id;
 
-    std::mutex ledger_access;
+    ccf::ds::Mutex ledger_access;
 
   public:
     std::vector<std::vector<uint8_t>> ledger;
@@ -38,7 +39,7 @@ namespace aft
       ccf::kv::Term term,
       ccf::kv::Version index)
     {
-      std::lock_guard<std::mutex> lock(ledger_access);
+      ccf::ds::MutexGuard lock(ledger_access);
 
       // The payload that we eventually deserialise must include the
       // ledger entry as well as the View and Index that identify it, and
@@ -82,7 +83,7 @@ namespace aft
 
     std::optional<std::vector<uint8_t>> get_entry_by_idx(size_t idx)
     {
-      std::lock_guard<std::mutex> lock(ledger_access);
+      ccf::ds::MutexGuard lock(ledger_access);
 
       // Ledger indices are 1-based, hence the -1
       if (idx > 0 && idx <= ledger.size())
@@ -149,6 +150,7 @@ namespace aft
     using MessageList =
       std::deque<std::pair<ccf::NodeId, std::vector<uint8_t>>>;
     MessageList messages;
+    std::map<ccf::NodeId, std::pair<std::string, std::string>> node_addresses;
 
     ChannelStubProxy() {}
 
@@ -195,7 +197,9 @@ namespace aft
       const ccf::NodeId& peer_id,
       const std::string& peer_hostname,
       const std::string& peer_service) override
-    {}
+    {
+      node_addresses[peer_id] = {peer_hostname, peer_service};
+    }
 
     void close_channel(const ccf::NodeId& peer_id) override {}
 
@@ -436,21 +440,6 @@ namespace aft
       {
         return index;
       }
-
-      bool support_async_execution() override
-      {
-        return false;
-      }
-
-      bool is_public_only() override
-      {
-        return false;
-      }
-
-      bool should_rollback_to_last_committed() override
-      {
-        return false;
-      }
     };
 
     virtual std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
@@ -467,8 +456,6 @@ namespace aft
     {
       return false;
     }
-
-    void unset_flag(ccf::kv::AbstractStore::StoreFlag) {}
   };
 
   class LoggingStubStoreConfig : public LoggingStubStore

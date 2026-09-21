@@ -3,8 +3,8 @@
 
 #include "ccf/endpoints/authentication/cert_auth.h"
 
+#include "ccf/ds/locking.h"
 #include "ccf/ds/x509_time_fmt.h"
-#include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
@@ -26,7 +26,7 @@ namespace ccf
 
     using DER = std::vector<uint8_t>;
 
-    ccf::pal::Mutex periods_lock;
+    ccf::ds::Mutex periods_lock;
     LRU<DER, ValidityPeriod> periods;
 
     ValidityPeriodsCache(size_t max_periods = DEFAULT_MAX_PERIODS) :
@@ -35,7 +35,7 @@ namespace ccf
 
     ValidityPeriod get_validity_period(const DER& der)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(periods_lock);
+      std::lock_guard<ccf::ds::Mutex> guard(periods_lock);
 
       auto it = periods.find(der);
       if (it == periods.end())
@@ -109,7 +109,8 @@ namespace ccf
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
-    const auto& caller_cert = ctx->get_session_context()->caller_cert;
+    const auto& session = ctx->get_session_context();
+    const auto& caller_cert = session->caller_cert;
     if (caller_cert.empty())
     {
       error_reason = "No caller user certificate";
@@ -122,7 +123,7 @@ namespace ccf
       return nullptr;
     }
 
-    auto caller_id = ccf::crypto::Sha256Hash(caller_cert).hex_str();
+    const auto& caller_id = session->caller_cert_sha256;
 
     auto* user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
     if (user_certs->has(caller_id))
@@ -147,14 +148,15 @@ namespace ccf
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
-    const auto& caller_cert = ctx->get_session_context()->caller_cert;
+    const auto& session = ctx->get_session_context();
+    const auto& caller_cert = session->caller_cert;
     if (caller_cert.empty())
     {
       error_reason = "No caller member certificate";
       return nullptr;
     }
 
-    auto caller_id = ccf::crypto::Sha256Hash(caller_cert).hex_str();
+    const auto& caller_id = session->caller_cert_sha256;
 
     auto* member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
     if (member_certs->has(caller_id))

@@ -30,12 +30,12 @@ The response body (the JSON value ``true``) indicates that the request was execu
 Signing
 -------
 
-In some situations CCF requires signed requests, for example for member votes. Only one signing scheme is supported as of 4.x:
+In some situations CCF requires signed requests, for example for member votes. CCF supports one signing scheme:
 
 COSE Sign1
 ~~~~~~~~~~
 
-CCF accepts signed requests in `COSE Sign1 <https://www.rfc-editor.org/rfc/rfc8152#section-4.2>`_ format.
+CCF accepts signed requests in `COSE Sign1 <https://www.rfc-editor.org/rfc/rfc8152.html#section-4.2>`_ format.
 
 CCF identifies the signing identity for a request via the SHA-256 digest of its certificate, represented as a hex string.
 That value must be set in the ``kid`` protected header. Additional protected headers may be necessary, for example governance endpoints
@@ -53,8 +53,6 @@ To make governance commands idempotent, and to prevent potential replay attacks 
 A fixed-sized window of proposal request digests is kept by CCF, and newly submitted proposal requests must not collide with existing entries nor be older than the median proposal request in the window. The size of the window is defined in :ref:`audit/builtin_maps:``service.config```.
 
 The timestamp must be submitted as a integer number of seconds since Unix epoch (Thursday 1 January 1970 00:00:00 UT).
-
-.. warning:: HTTP request signing could be used in previous versions of CCF, but has been removed as of 4.0, in favour of COSE Sign1.
 
 COSE Schemas
 ^^^^^^^^^^^^
@@ -148,7 +146,7 @@ Submitting recovery share:
    * - Operation
      - ``POST /gov/recovery/members/{memberId}:recover``
    * - Protected headers
-     - | ``ccf.gov.msg.type = encrypted_recovery_share``
+     - | ``ccf.gov.msg.type = recovery_share``
        | ``ccf.gov.msg.created_at = <creation timestamp>``
    * - Content
      - { "share": "<base64-encoded decrypted share>" }

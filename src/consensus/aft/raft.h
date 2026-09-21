@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
@@ -31,25 +31,25 @@
     CCF_LOG_FMT(TRACE, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     state->leadership_state, \
+     state->leadership_state.load(), \
      state->membership_state __VA_OPT__(, ) __VA_ARGS__)
 #  define RAFT_DEBUG_FMT(s, ...) \
     CCF_LOG_FMT(DEBUG, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     state->leadership_state, \
+     state->leadership_state.load(), \
      state->membership_state __VA_OPT__(, ) __VA_ARGS__)
 #  define RAFT_INFO_FMT(s, ...) \
     CCF_LOG_FMT(INFO, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     state->leadership_state, \
+     state->leadership_state.load(), \
      state->membership_state __VA_OPT__(, ) __VA_ARGS__)
 #  define RAFT_FAIL_FMT(s, ...) \
     CCF_LOG_FMT(FAIL, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     state->leadership_state, \
+     state->leadership_state.load(), \
      state->membership_state __VA_OPT__(, ) __VA_ARGS__)
 #else
 #  define RAFT_TRACE_FMT LOG_TRACE_FMT
@@ -249,6 +249,11 @@ namespace aft
 
     std::optional<ccf::NodeId> primary() override
     {
+      // leader_id is written under state->lock, and unlike is_primary() this
+      // is not called from Store::commit() under the KV version lock, so it
+      // can be read under the lock rather than made atomic. std::optional<
+      // NodeId> could not be made atomic in any case.
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       return leader_id;
     }
 
@@ -259,17 +264,18 @@ namespace aft
 
     bool is_primary() override
     {
-      return state->leadership_state == ccf::kv::LeadershipState::Leader;
+      return state->leadership_state.load() == ccf::kv::LeadershipState::Leader;
     }
 
     bool is_candidate() override
     {
-      return state->leadership_state == ccf::kv::LeadershipState::Candidate;
+      return state->leadership_state.load() ==
+        ccf::kv::LeadershipState::Candidate;
     }
 
     bool can_replicate() override
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state->lock);
       return can_replicate_unsafe();
     }
 
@@ -284,14 +290,15 @@ namespace aft
       {
         return false;
       }
-      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
-      return state->leadership_state == ccf::kv::LeadershipState::Leader &&
+      std::unique_lock<ccf::ds::Mutex> guard(state->lock);
+      return state->leadership_state.load() ==
+        ccf::kv::LeadershipState::Leader &&
         (state->last_idx - state->commit_idx >= max_uncommitted_tx_count);
     }
 
     Consensus::SignatureDisposition get_signature_disposition() override
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state->lock);
       if (can_sign_unsafe())
       {
         if (should_sign)
@@ -305,7 +312,8 @@ namespace aft
 
     bool is_backup() override
     {
-      return state->leadership_state == ccf::kv::LeadershipState::Follower;
+      return state->leadership_state.load() ==
+        ccf::kv::LeadershipState::Follower;
     }
 
     bool is_active() const
@@ -322,12 +330,6 @@ namespace aft
     {
       return state->membership_state == ccf::kv::MembershipState::Retired &&
         state->retirement_phase == ccf::kv::RetirementPhase::RetiredCommitted;
-    }
-
-    bool is_retired_completed() const
-    {
-      return state->membership_state == ccf::kv::MembershipState::Retired &&
-        state->retirement_phase == ccf::kv::RetirementPhase::Completed;
     }
 
     void set_retired_committed(
@@ -396,7 +398,7 @@ namespace aft
     {
       // When receiving append entries as a follower, all security domains will
       // be deserialised
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       public_only = false;
     }
 
@@ -410,7 +412,7 @@ namespace aft
           "Can't force leadership if there is already a leader");
       }
 
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       state->current_view += starting_view_change;
       become_leader(true);
     }
@@ -429,7 +431,7 @@ namespace aft
           "Can't force leadership if there is already a leader");
       }
 
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       state->current_view = term;
       state->last_idx = index;
       state->commit_idx = commit_idx_;
@@ -447,7 +449,7 @@ namespace aft
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
       state->last_idx = index;
       state->commit_idx = index;
@@ -466,26 +468,26 @@ namespace aft
 
     Index get_committed_seqno() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       return get_commit_idx_unsafe();
     }
 
     Term get_view() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       return state->current_view;
     }
 
     std::pair<Term, Index> get_committed_txid() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       ccf::SeqNo commit_idx = get_commit_idx_unsafe();
       return {get_term_internal(commit_idx), commit_idx};
     }
 
     Term get_view(Index idx) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       return get_term_internal(idx);
     }
 
@@ -591,18 +593,18 @@ namespace aft
 
     Configuration::Nodes get_latest_configuration() override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       return get_latest_configuration_unsafe();
     }
 
     ccf::kv::ConsensusDetails get_details() override
     {
       ccf::kv::ConsensusDetails details;
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       details.primary_id = leader_id;
       details.current_view = state->current_view;
       details.ticking = ticking;
-      details.leadership_state = state->leadership_state;
+      details.leadership_state = state->leadership_state.load();
       details.membership_state = state->membership_state;
       if (is_retired())
       {
@@ -623,9 +625,9 @@ namespace aft
 
     bool replicate(const ccf::kv::BatchVector& entries, Term term) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
-      if (state->leadership_state != ccf::kv::LeadershipState::Leader)
+      if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
       {
         RAFT_DEBUG_FMT(
           "Failed to replicate {} items: not leader", entries.size());
@@ -691,7 +693,7 @@ namespace aft
           RAFT_DEBUG_FMT(
             "membership: {} leadership: {}",
             state->membership_state,
-            state->leadership_state);
+            state->leadership_state.load());
           if (
             state->membership_state == ccf::kv::MembershipState::Retired &&
             state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
@@ -834,10 +836,10 @@ namespace aft
 
     void periodic(std::chrono::milliseconds elapsed) override
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state->lock);
       timeout_elapsed += elapsed;
 
-      if (state->leadership_state == ccf::kv::LeadershipState::Leader)
+      if (state->leadership_state.load() == ccf::kv::LeadershipState::Leader)
       {
         if (timeout_elapsed >= request_timeout)
         {
@@ -981,13 +983,15 @@ namespace aft
 
     bool can_replicate_unsafe()
     {
-      return state->leadership_state == ccf::kv::LeadershipState::Leader &&
+      return state->leadership_state.load() ==
+        ccf::kv::LeadershipState::Leader &&
         !is_retired_committed();
     }
 
     bool can_sign_unsafe()
     {
-      return state->leadership_state == ccf::kv::LeadershipState::Leader &&
+      return state->leadership_state.load() ==
+        ccf::kv::LeadershipState::Leader &&
         !is_retired_committed();
     }
 
@@ -1107,7 +1111,7 @@ namespace aft
       const uint8_t* data,
       size_t size)
     {
-      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
+      std::unique_lock<ccf::ds::Mutex> guard(state->lock);
 
       RAFT_DEBUG_FMT(
         "Recv {} to {} from {}: {}.{} to {}.{} in term {}",
@@ -1138,8 +1142,10 @@ namespace aft
       // follower if necessary
       if (
         state->current_view == r.term &&
-        (state->leadership_state == ccf::kv::LeadershipState::Candidate ||
-         state->leadership_state == ccf::kv::LeadershipState::PreVoteCandidate))
+        (state->leadership_state.load() ==
+           ccf::kv::LeadershipState::Candidate ||
+         state->leadership_state.load() ==
+           ccf::kv::LeadershipState::PreVoteCandidate))
       {
         become_aware_of_new_term(r.term);
       }
@@ -1307,7 +1313,22 @@ namespace aft
           {
             // If the current entry has already been deserialised, skip the
             // payload for that entry
-            ledger->skip_entry(data, size);
+            try
+            {
+              ledger->skip_entry(data, size);
+            }
+            catch (const std::logic_error& e)
+            {
+              // This should only fail if there is malformed data.
+              RAFT_FAIL_FMT(
+                "Recv {} to {} from {} but the data is malformed: {}",
+                r.msg,
+                state->node_id,
+                from,
+                e.what());
+              send_append_entries_response_nack(from);
+              return;
+            }
             continue;
           }
         }
@@ -1442,7 +1463,7 @@ namespace aft
                 state->view_history.update(r.prev_idx + 1, ds->get_term());
               }
 
-              commit_if_possible(r.leader_commit_idx);
+              commit_if_possible(std::min(r.leader_commit_idx, r.idx));
             }
             break;
           }
@@ -1451,15 +1472,6 @@ namespace aft
           case ccf::kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET:
           {
             break;
-          }
-
-          case ccf::kv::ApplyResult::PASS_BACKUP_SIGNATURE:
-          case ccf::kv::ApplyResult::PASS_BACKUP_SIGNATURE_SEND_ACK:
-          case ccf::kv::ApplyResult::PASS_NONCES:
-          case ccf::kv::ApplyResult::PASS_NEW_VIEW:
-          case ccf::kv::ApplyResult::PASS_APPLY:
-          {
-            throw std::logic_error("Unknown ApplyResult value");
           }
         }
       }
@@ -1472,7 +1484,7 @@ namespace aft
     {
       // After entries have been deserialised, try to commit the leader's
       // commit index and update our term history accordingly
-      commit_if_possible(r.leader_commit_idx);
+      commit_if_possible(std::min(r.leader_commit_idx, r.idx));
 
       // The term may have changed, and we have not have seen a signature yet.
       auto lci = last_committable_index();
@@ -1566,7 +1578,7 @@ namespace aft
     void recv_append_entries_response(
       const ccf::NodeId& from, AppendEntriesResponse r)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
       auto node = all_other_nodes.find(from);
       if (node == all_other_nodes.end())
@@ -1592,7 +1604,7 @@ namespace aft
 #endif
 
       // Ignore if we're not the leader.
-      if (state->leadership_state != ccf::kv::LeadershipState::Leader)
+      if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
       {
         RAFT_INFO_FMT(
           "Recv {} to {} from {}: no longer leader",
@@ -1846,7 +1858,7 @@ namespace aft
 
     void recv_request_vote(const ccf::NodeId& from, RequestVote r)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1863,7 +1875,7 @@ namespace aft
 
     void recv_request_pre_vote(const ccf::NodeId& from, RequestPreVote r)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1926,7 +1938,7 @@ namespace aft
       RequestVoteResponse r,
       ElectionType election_type)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1973,8 +1985,9 @@ namespace aft
       }
 
       if (
-        state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate &&
-        state->leadership_state != ccf::kv::LeadershipState::Candidate)
+        state->leadership_state.load() !=
+          ccf::kv::LeadershipState::PreVoteCandidate &&
+        state->leadership_state.load() != ccf::kv::LeadershipState::Candidate)
       {
         RAFT_INFO_FMT(
           "Recv {} to {} from: {}: we aren't a candidate",
@@ -1985,7 +1998,7 @@ namespace aft
       }
       if (
         election_type == ElectionType::RegularVote &&
-        state->leadership_state != ccf::kv::LeadershipState::Candidate)
+        state->leadership_state.load() != ccf::kv::LeadershipState::Candidate)
       {
         // Stale message from previous candidacy
         // Candidate(T) -> Follower(T) -> PreVoteCandidate(T)
@@ -1999,7 +2012,8 @@ namespace aft
       }
       if (
         election_type == ElectionType::PreVote &&
-        state->leadership_state != ccf::kv::LeadershipState::PreVoteCandidate)
+        state->leadership_state.load() !=
+          ccf::kv::LeadershipState::PreVoteCandidate)
       {
         // To receive a PreVoteResponse, we must have been a PreVoteCandidate in
         // that term.
@@ -2052,7 +2066,7 @@ namespace aft
     void recv_propose_request_vote(
       const ccf::NodeId& from, ProposeRequestVote r)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -2102,7 +2116,7 @@ namespace aft
         return;
       }
 
-      state->leadership_state = ccf::kv::LeadershipState::PreVoteCandidate;
+      state->leadership_state.store(ccf::kv::LeadershipState::PreVoteCandidate);
       leader_id.reset();
 
       reset_votes_for_me();
@@ -2147,7 +2161,7 @@ namespace aft
         return;
       }
 
-      state->leadership_state = ccf::kv::LeadershipState::Candidate;
+      state->leadership_state.store(ccf::kv::LeadershipState::Candidate);
       leader_id.reset();
 
       voted_for = state->node_id;
@@ -2204,7 +2218,7 @@ namespace aft
         store->initialise_term(state->current_view);
       }
 
-      state->leadership_state = ccf::kv::LeadershipState::Leader;
+      state->leadership_state.store(ccf::kv::LeadershipState::Leader);
       leader_id = state->node_id;
       should_sign = true;
 
@@ -2258,7 +2272,7 @@ namespace aft
       restart_election_timeout();
       reset_last_ack_timeouts();
 
-      state->leadership_state = ccf::kv::LeadershipState::Follower;
+      state->leadership_state.store(ccf::kv::LeadershipState::Follower);
       RAFT_INFO_FMT(
         "Becoming follower {}: {}.{}",
         state->node_id,
@@ -2282,18 +2296,19 @@ namespace aft
     {
       RAFT_DEBUG_FMT("Becoming aware of new term {}", term);
 
+      if (state->current_view != term)
+      {
+        voted_for.reset();
+      }
       state->current_view = term;
-      voted_for.reset();
       reset_votes_for_me();
       become_follower();
       is_new_follower = true;
     }
 
   private:
-    void send_propose_request_vote()
+    std::optional<ccf::NodeId> find_successor()
     {
-      ProposeRequestVote prv{.term = state->current_view};
-
       std::optional<ccf::NodeId> successor = std::nullopt;
       Index max_match_idx = 0;
       ccf::kv::ReconfigurationId reconf_id_of_max_match = 0;
@@ -2332,19 +2347,22 @@ namespace aft
           }
         }
       }
-      if (successor.has_value())
-      {
-        RAFT_INFO_FMT("Proposing that {} becomes candidate", successor.value());
-        channels->send_authenticated(
-          successor.value(), ccf::NodeMsgType::consensus_msg, prv);
-      }
+      return successor;
+    }
+
+    void send_propose_request_vote(const ccf::NodeId& successor)
+    {
+      ProposeRequestVote prv{.term = state->current_view};
+      RAFT_INFO_FMT("Proposing that {} becomes candidate", successor);
+      channels->send_authenticated(
+        successor, ccf::NodeMsgType::consensus_msg, prv);
     }
     void become_retired(Index idx, ccf::kv::RetirementPhase phase)
     {
       RAFT_INFO_FMT(
         "Becoming retired, phase {} (leadership {}): {}: {} at {}",
         phase,
-        state->leadership_state,
+        state->leadership_state.load(),
         state->node_id,
         state->current_view,
         idx);
@@ -2374,13 +2392,10 @@ namespace aft
       }
       else if (phase == ccf::kv::RetirementPhase::RetiredCommitted)
       {
-        if (state->leadership_state == ccf::kv::LeadershipState::Leader)
-        {
-          send_propose_request_vote();
-        }
+        nominate_successor_unsafe();
 
         leader_id.reset();
-        state->leadership_state = ccf::kv::LeadershipState::None;
+        state->leadership_state.store(ccf::kv::LeadershipState::None);
       }
 
       state->membership_state = ccf::kv::MembershipState::Retired;
@@ -2432,7 +2447,7 @@ namespace aft
 
       if (is_elected)
       {
-        switch (state->leadership_state)
+        switch (state->leadership_state.load())
         {
           case ccf::kv::LeadershipState::PreVoteCandidate:
             become_candidate();
@@ -2455,7 +2470,7 @@ namespace aft
     // idx.
     void update_commit()
     {
-      if (state->leadership_state != ccf::kv::LeadershipState::Leader)
+      if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
       {
         throw std::logic_error(
           "update_commit() must only be called while this node is leader");
@@ -2764,9 +2779,10 @@ namespace aft
       return *state;
     }
 
-    void nominate_successor() override
+  private:
+    void nominate_successor_unsafe()
     {
-      if (state->leadership_state != ccf::kv::LeadershipState::Leader)
+      if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
       {
         RAFT_DEBUG_FMT(
           "Not proposing request vote from {} since not leader",
@@ -2776,16 +2792,28 @@ namespace aft
 
       LOG_INFO_FMT("Nominating successor for {}", state->node_id);
 
+      const auto successor = find_successor();
+
+      if (successor.has_value())
+      {
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "step_down_and_nominate_successor";
-      j["state"] = *state;
-      COMMITTABLE_INDICES(j["state"], state);
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
+        nlohmann::json j = {};
+        j["function"] = "step_down_and_nominate_successor";
+        j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
+        j["configurations"] = configurations;
+        RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      send_propose_request_vote();
+        send_propose_request_vote(successor.value());
+      }
+    }
+
+  public:
+    void nominate_successor() override
+    {
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
+      nominate_successor_unsafe();
     }
 
   private:
@@ -2812,16 +2840,13 @@ namespace aft
 
         if (all_other_nodes.find(node_info.first) == all_other_nodes.end())
         {
-          if (!channels->have_channel(node_info.first))
-          {
-            RAFT_DEBUG_FMT(
-              "Configurations: create node channel with {}", node_info.first);
+          RAFT_DEBUG_FMT(
+            "Configurations: associate node address for {}", node_info.first);
 
-            channels->associate_node_address(
-              node_info.first,
-              node_info.second.hostname,
-              node_info.second.port);
-          }
+          // An incoming channel may predate this configuration. The host still
+          // needs the peer's address to reconnect after that channel closes.
+          channels->associate_node_address(
+            node_info.first, node_info.second.hostname, node_info.second.port);
 
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
@@ -2829,7 +2854,8 @@ namespace aft
           all_other_nodes.try_emplace(
             node_info.first, node_info.second, index, 0);
 
-          if (state->leadership_state == ccf::kv::LeadershipState::Leader)
+          if (
+            state->leadership_state.load() == ccf::kv::LeadershipState::Leader)
           {
             send_append_entries(node_info.first, index);
           }

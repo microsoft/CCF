@@ -1,11 +1,11 @@
 Using Member Keys Stored in HSM
 ===============================
 
-This page explains how members' identity certificates and encryption keys stored in an `HSM <https://en.wikipedia.org/wiki/Hardware_security_module>`_ can be used with CCF. The following guide describes the usage of `Azure Key Vault <https://azure.microsoft.com/en-gb/services/key-vault>`_
+This page explains how members' identity certificates and encryption keys stored in an `HSM <https://en.wikipedia.org/wiki/Hardware_security_module>`_ can be used with CCF. The following guide describes the usage of `Azure Key Vault <https://azure.microsoft.com/en-gb/products/key-vault/>`_
 
 .. note::
 
-    It is assumed that CCF members already have access to an existing Azure Key Vault. See `these instructions <https://docs.microsoft.com/en-us/azure/key-vault/general/quick-create-portal#create-a-vault>`_ for more details on how to create one. Using the `Azure CLI <https://docs.microsoft.com/en-us/cli/azure/install-azure-cli>`_, it is possible to check the list of available Key Vault instances:
+    It is assumed that CCF members already have access to an existing Premium-tier Azure Key Vault, which is required for HSM-protected keys. See `these instructions <https://learn.microsoft.com/en-us/azure/key-vault/general/quick-create-portal#create-a-vault>`_ for more details on how to create one. Using the `Azure CLI <https://learn.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest>`_, it is possible to check the list of available Key Vault instances:
 
     .. code-block:: bash
 
@@ -16,7 +16,7 @@ This page explains how members' identity certificates and encryption keys stored
 Certificate and Key Generation
 ------------------------------
 
-Members' identity certificates should be generated on the `secp384r1` elliptic curve, using the `az keyvault certificate create <https://docs.microsoft.com/en-us/cli/azure/keyvault/certificate?view=azure-cli-latest#az-keyvault-certificate-create>`_ command, with the following ``identity_cert_policy_example.json`` policy:
+Members' identity certificates should be generated on the `secp384r1` elliptic curve, using the `az keyvault certificate create <https://learn.microsoft.com/en-us/cli/azure/keyvault/certificate?view=azure-cli-latest#az-keyvault-certificate-create>`_ command, with the following ``akv_identity_cert_policy.json`` policy:
 
 .. include:: akv_identity_cert_policy.json
     :literal:
@@ -24,19 +24,19 @@ Members' identity certificates should be generated on the `secp384r1` elliptic c
 .. code-block:: bash
 
     $ export IDENTITY_CERT_NAME="<identity-cert-name>"
-    $ az keyvault certificate create --vault-name $VAULT_NAME -n $IDENTITY_CERT_NAME -p @identity_cert_policy_example.json
+    $ az keyvault certificate create --vault-name $VAULT_NAME -n $IDENTITY_CERT_NAME -p @akv_identity_cert_policy.json
     # Outputs certificate details
 
     # Corresponding private key is accessible at the same URL (substituting /certificate/ with /key/)
     $ az keyvault key show --vault-name $VAULT_NAME --name $IDENTITY_CERT_NAME
     # Outputs key information, including kid url
 
-Members' encryption keys should be RSA 2048 keys, generated with the `az keyvault key create <https://docs.microsoft.com/en-us/cli/azure/keyvault/key?view=azure-cli-latest#az-keyvault-key-create>`_ command:
+Members' encryption keys should be RSA 2048 keys, generated with the `az keyvault key create <https://learn.microsoft.com/en-us/cli/azure/keyvault/key?view=azure-cli-latest#az-keyvault-key-create>`_ command:
 
 .. code-block:: bash
 
     $ export ENCRYPTION_KEY_NAME="<encryption-key-name>"
-    $ az keyvault key create --vault-name $VAULT_NAME --name $ENCRYPTION_KEY_NAME --kty RSA --ops decrypt
+    $ az keyvault key create --vault-name $VAULT_NAME --name $ENCRYPTION_KEY_NAME --kty RSA-HSM --ops decrypt
     # Outputs key details, including kid url
 
 The identity certificate and public encryption key can be downloaded to a PEM file and be passed on to members to be registered in a CCF service as a trusted member identity (see :ref:`governance/adding_member:Registering a New Member`). Alternatively, if the service has not yet been started, the public member identity can be passed on to operators and registered via the ``command.start.members`` configuration entry (see :ref:`operations/start_network:Starting the First Node`):
@@ -52,7 +52,7 @@ The identity certificate and public encryption key can be downloaded to a PEM fi
 Signing Governance Requests
 ---------------------------
 
-As the Azure CLI (``az keyvault ...``) does not currently support signing/verifying, it is required to use the `corresponding REST API <https://docs.microsoft.com/en-us/rest/api/keyvault/keys/sign/sign>`_ instead. To do so, it is necessary to create a service principal that will be used for authentication:
+The following example uses the `Key Vault REST API <https://learn.microsoft.com/en-us/rest/api/keyvault/keys/sign/sign>`_ to sign. To do so, it is necessary to create a service principal that will be used for authentication:
 
 .. code-block:: bash
 
@@ -67,7 +67,7 @@ As the Azure CLI (``az keyvault ...``) does not currently support signing/verify
         $ az ad sp credential reset --name <app_id>
         # Returns client id (appId), updated client secret (password)
 
-Once created, the service principal should be given access to Key Vault in Azure. This can be done through the Azure Portal, under the "Access policies" setting of the vault. The service principal should be given access to the vault with "Sign" key permission. See `here <https://docs.microsoft.com/en-us/azure/key-vault/general/assign-access-policy-portal>`_ for more details.
+Once created, the service principal should be granted the "Sign" key permission using the vault's configured authorization model.
 
 Then, the following command should be run to retrieve an access token, replacing the values for ``<appid>``, ``<password>`` and ``<tenant>`` with the service principal credentials:
 
@@ -145,5 +145,3 @@ The retrieved encrypted recovery share can be decrypted with the encryption key 
     # Outputs base64 decrypted share
 
 The decrypted recovery share can then be submitted to the CCF recovered service (see :ref:`governance/accept_recovery:Submitting Recovery Shares`).
-
-.. warning:: HTTP request signing could be used in previous versions of CCF, but has been removed as of 4.0, in favour of COSE Sign1.

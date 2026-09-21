@@ -13,7 +13,7 @@ def ephemeral_range():
             "/proc/sys/net/ipv4/ip_local_port_range", encoding="utf-8"
         ) as port_range:
             return tuple(int(port) for port in port_range.read().split())
-    except IOError:
+    except OSError:
         pass
 
     # WSL
@@ -32,7 +32,7 @@ def ephemeral_range():
             str(output)
         )
         if not match:
-            raise ValueError("Failed to match start port in {}".format(output))
+            raise ValueError(f"Failed to match start port in {output}")
         return (int(match.group("port")), 65535)
     except (OSError, ValueError, IndexError):
         pass
@@ -53,36 +53,16 @@ def probably_free_local_port(host):
             s.bind((host, port))
             s.close()
             return port
-        except socket.error:
+        except OSError:
             pass
-    raise RuntimeError("Couldn't get a free port after {} tries!".format(tries))
-
-
-def probably_free_remote_port(host):
-    tries = 1000
-    for _ in range(tries):
-        port = rr(*EPHEMERAL_RANGE)
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            s.connect((host, port))
-            s.close()
-        except socket.error:
-            return port
-    raise RuntimeError("Couldn't get a free port after {} tries!".format(tries))
-
-
-def two_different(finder, *args, **kwargs):
-    one, two = finder(*args, **kwargs), finder(*args, **kwargs)
-    while two == one:
-        two = finder(*args, **kwargs)
-    return (one, two)
+    raise RuntimeError(f"Couldn't get a free port after {tries} tries!")
 
 
 def expand_localhost(ipv6=False):
     if ipv6:
         return "::1"
     else:
-        return ".".join((str(b) for b in (127, rr(1, 255), rr(1, 255), rr(2, 255))))
+        return ".".join(str(b) for b in (127, rr(1, 255), rr(1, 255), rr(2, 255)))
 
 
 def ipv6_loopback_available():

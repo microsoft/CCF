@@ -42,4 +42,10 @@ fi
 echo "Checking headers are included..."
 "$SCRIPT_DIR"/headers-are-included.sh || STATUS=1
 
+# 4. Source component dependencies: enforce the declared dependency policy
+echo "Checking source component dependencies..."
+python3 "$SCRIPT_DIR/check-source-dependencies.py" \
+  --root "$ROOT_DIR" \
+  --config "$SCRIPT_DIR/source-dependencies.json" || STATUS=1
+
 exit $STATUS

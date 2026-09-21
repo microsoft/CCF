@@ -5,18 +5,12 @@ version = 4
 [[package]]
 name = "cborrs"
 version = "0.1.0"
-source = "git+https://github.com/project-everest/everparse.git?rev=f4cd5ffa183edd5cc824d66588012bcf8d0bdccd#f4cd5ffa183edd5cc824d66588012bcf8d0bdccd"
-dependencies = [
- "static_assertions",
-]
+source = "git+https://github.com/project-everest/everparse.git?rev=950bc93838ac2faae51126d8acd0637cf8c8a569#950bc93838ac2faae51126d8acd0637cf8c8a569"
 
 [[package]]
 name = "cborrs-nondet"
 version = "0.1.0"
-source = "git+https://github.com/project-everest/everparse.git?rev=f4cd5ffa183edd5cc824d66588012bcf8d0bdccd#f4cd5ffa183edd5cc824d66588012bcf8d0bdccd"
-dependencies = [
- "static_assertions",
-]
+source = "git+https://github.com/project-everest/everparse.git?rev=950bc93838ac2faae51126d8acd0637cf8c8a569#950bc93838ac2faae51126d8acd0637cf8c8a569"
 
 [[package]]
 name = "cc"
@@ -32,9 +26,8 @@ dependencies = [
 name = "cose-openssl"
 version = "0.1.0"
 dependencies = [
- "cborrs",
- "cborrs-nondet",
  "openssl-sys",
+ "tee-attestation-verification-cbor",
 ]
 
 [[package]]
@@ -81,10 +74,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
-name = "static_assertions"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+name = "tee-attestation-verification-cbor"
+version = "1.0.8"
+dependencies = [
+ "cborrs",
+ "cborrs-nondet",
+]
 
 [[package]]
 name = "vcpkg"

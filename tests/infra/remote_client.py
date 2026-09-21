@@ -1,16 +1,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import os
-import infra.network
-import infra.remote
+from typing import ClassVar
 
 from loguru import logger as LOG
+
+import infra.network
+import infra.remote
 
 DBG = os.getenv("DBG", "cgdb")
 
 
-class CCFRemoteClient(object):
-    DEPS = []
+class CCFRemoteClient:
+    DEPS: ClassVar[list[str]] = []
     LINES_RESULT_FROM_END = 8
 
     def __init__(
@@ -24,7 +26,6 @@ class CCFRemoteClient(object):
         label,
         config,
         command_args,
-        piccolo_run=False,
     ):
         """
         Creates a ccf client on a remote host.
@@ -51,17 +52,11 @@ class CCFRemoteClient(object):
             self.DEPS += [verify_path]
             client_command_args[v_index + 1] = os.path.basename(verify_path)
 
-        if piccolo_run:
-            cmd = [
-                self.BIN,
-                f"--server-address={node_host}:{node_port}",
-            ] + client_command_args
-        else:
-            cmd = [
-                self.BIN,
-                f"--rpc-address={node_host}:{node_port}",
-                f"--config={os.path.basename(config)}",
-            ] + client_command_args
+        cmd = [
+            self.BIN,
+            f"--rpc-address={node_host}:{node_port}",
+            f"--config={os.path.basename(config)}",
+        ] + client_command_args
 
         self.remote = infra.remote.LocalRemote(
             name, host, [self.BIN], self.DEPS, cmd, workspace, self.common_dir
@@ -90,67 +85,12 @@ class CCFRemoteClient(object):
             remote_file_dst = f"{self.name}_{csv}"
             self.remote.get(csv, self.common_dir, 1, remote_file_dst)
             if csv == "perf_summary.csv":
-                with open("perf_summary.csv", "a", encoding="utf-8") as csvfd:
-                    with open(
-                        os.path.join(self.common_dir, remote_file_dst),
-                        "r",
-                        encoding="utf-8",
-                    ) as r:
-                        csvfd.write(r.read())
-
-    def check_done(self, timeout=5, interval=0.2):
-        return self.remote.check_done(timeout=timeout, interval=interval)
-
-    def get_result(self):
-        return self.remote.get_result(self.LINES_RESULT_FROM_END)
-
-
-class CCFRemoteCmd(object):
-    DEPS = []
-    LINES_RESULT_FROM_END = 8
-
-    def __init__(self, name, host, bin_path, common_dir, workspace, dependencies):
-        """
-        Creates a ccf client on a remote host.
-        """
-        self.host = host
-        self.name = name
-        self.BIN = infra.path.build_bin_path(bin_path)
-        self.common_dir = common_dir
-
-        self.DEPS = dependencies
-        self.remote = infra.remote.LocalRemote(
-            name,
-            host,
-            [self.BIN],
-            self.DEPS,
-            [],
-            workspace,
-            self.common_dir,
-            pid_file="cmd.pid",
-        )
-        # We do not want to record perf data for the remote client
-        # and we may not be able to without additional setup depending
-        # on their use of mmap
-        self.remote.perfable = False
-
-        self.description = self.name
-
-    def setup(self):
-        self.remote.setup()
-        LOG.success(f"Remote client {self.name} setup")
-
-    def setcmd(self, cmd):
-        self.remote._cmd = cmd
-
-    def start(self):
-        self.remote.start()
-
-    def debug_node_cmd(self):
-        return self.remote.debug_node_cmd()
-
-    def stop(self):
-        self.remote.stop()
+                with open("perf_summary.csv", "a", encoding="utf-8") as csvfd, open(
+                    os.path.join(self.common_dir, remote_file_dst),
+                    "r",
+                    encoding="utf-8",
+                ) as r:
+                    csvfd.write(r.read())
 
     def check_done(self, timeout=5, interval=0.2):
         return self.remote.check_done(timeout=timeout, interval=interval)

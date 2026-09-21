@@ -183,7 +183,7 @@ Procedure
 - Members should use the ``set_constitution`` proposal action to update the constitution scripts.
 - See :ref:`bundle deployment procedure <build_apps/js_app_bundle:Deployment>` to update the JavaScript/TypeScript application.
 
-6. Finally, once the code upgrade process has been successful, the old code version (i.e. the code version run by nodes 0, 1 and 2) can be removed using the ``remove_snp_host_data`` proposal action.
+6. Finally, once the code upgrade process has been successful, the platform-specific trusted values for the old code version (i.e. the version run by nodes 0, 1 and 2) can be removed. On SNP this may include ``remove_snp_host_data``, ``remove_snp_measurement``, or both, depending on which values were registered.
 
 Notes
 -----
@@ -200,7 +200,7 @@ Instead of explicitly trusting host data values, members can set a **code update
 
     CCF currently only supports **self-issued** transparent statements: the service itself acts as the transparency service, issuing receipts over signed statements registered on its own ledger.
 
-The policy receives an array of transparent statements and must return ``true`` to accept or a string describing the rejection reason. Any other return value is treated as an error. Structural validation (non-empty fields, receipt signature verification, claims digest binding) is performed by CCF before the policy runs; the policy only needs to compare values.
+The policy receives an array of transparent statements and must return ``true`` to accept or a string describing the rejection reason. Any other return value is treated as an error. Structural validation (non-empty fields, statement and receipt signature verification, statement ``iat`` validation against the ``x5chain`` certificate validity period when present, and claims digest binding) is performed by CCF before the policy runs; the policy only needs to compare values.
 
 Policy Input Schema
 ~~~~~~~~~~~~~~~~~~~

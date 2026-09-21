@@ -2,9 +2,13 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/pal/measurement.h"
+#include "crypto/cbor_helpers.h"
+#include "crypto/cbor_tags.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "node/uvm_endorsements.h"
+
+#include <tav/cbor.hpp>
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <cstdlib>
@@ -177,6 +181,40 @@ TEST_CASE("Check Test endorsement for UVM 0.2.10")
   REQUIRE(endorsements.did == ccf::default_uvm_roots_of_trust[0].did);
   REQUIRE(endorsements.feed == ccf::default_uvm_roots_of_trust[0].feed);
   REQUIRE(endorsements.svn == "104");
+
+  const auto parsed = tav::cbor::nondet_parse(endorsement);
+  const auto cose_sign1 = parsed.tag_at(ccf::cbor::tag::COSE_SIGN_1);
+  const auto protected_header_raw = cose_sign1.array_at(0);
+  const auto protected_header =
+    tav::cbor::nondet_parse(protected_header_raw.as_bytes());
+  const auto cwt_claims = protected_header.map_at(
+    tav::cbor::make_signed(ccf::cose::header::iana::CWT_CLAIMS));
+
+  auto edited_claims = ccf::cbor::with_entry(
+    cwt_claims,
+    ccf::cwt::header::iana::IAT,
+    tav::cbor::make_tagged(
+      ccf::cbor::tag::EPOCH_DATE_TIME, tav::cbor::make_signed(0)));
+  const auto edited_header = ccf::cbor::with_entry(
+    protected_header,
+    ccf::cose::header::iana::CWT_CLAIMS,
+    std::move(edited_claims));
+
+  const auto protected_header_bytes = edited_header.nondet_serialize();
+  auto edited_sign1 = ccf::cbor::with_element(
+    cose_sign1, 0, tav::cbor::make_bytes(protected_header_bytes));
+  const auto edited_envelope = tav::cbor::make_tagged(
+    ccf::cbor::tag::COSE_SIGN_1, std::move(edited_sign1));
+  auto invalid_iat_endorsement = edited_envelope.nondet_serialize();
+
+  REQUIRE_THROWS_WITH_AS(
+    ccf::verify_uvm_endorsements_against_roots_of_trust(
+      invalid_iat_endorsement,
+      uvm_measurement,
+      ccf::default_uvm_roots_of_trust),
+    "CWT iat 0 in UVM endorsements is outside x5chain common validity period "
+    "[20250515185703Z, 20260515185703Z]",
+    ccf::cose::COSEDecodeError);
 }
 
 TEST_CASE("Check UVM roots of trust matching")

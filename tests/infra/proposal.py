@@ -6,13 +6,13 @@ from enum import Enum
 
 class ProposalNotCreated(Exception):
     def __init__(self, response):
-        super(ProposalNotCreated, self).__init__()
+        super().__init__()
         self.response = response
 
 
 class ProposalNotAccepted(Exception):
     def __init__(self, proposal, response):
-        super(ProposalNotAccepted, self).__init__()
+        super().__init__()
         self.proposal = proposal
         self.response = response
 

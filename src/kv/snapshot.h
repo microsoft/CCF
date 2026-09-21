@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "kv/kv_serialiser.h"
 #include "kv/kv_types.h"
 
 namespace ccf::kv
@@ -51,7 +52,7 @@ namespace ccf::kv
       // - Because snapshot generation and ledger rekey can be interleaved,
       // consider historical ledger secrets when encrypting snapshot (see
       // https://github.com/microsoft/CCF/issues/3796).
-      KvStoreSerialiser serialiser(
+      RawKvStoreSerialiser serialiser(
         encryptor,
         {0, version},
         ccf::kv::EntryType::Snapshot,

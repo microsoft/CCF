@@ -54,7 +54,7 @@ Service Certificate
 
 The service certificate is output by the first node of a service at startup at the location specified by the ``command.service_certificate_file`` :doc:`configuration entry </operations/configuration>`. Operators can set the validity period for this certificate using the ``command.start.initial_service_certificate_validity_days`` :doc:`configuration entry </operations/configuration>`. The default value is set to 1 day and it is expected that members will issue :ref:`proposal to renew the certificate before it expires <governance/common_member_operations:Renewing Service Certificate>`, when the service is open. The initial service certificate is valid from the current system time when the first node is started.
 
-The ``command.start.service_configuration.maximum_service_certificate_validity_days`` :doc:`configuration entry </operations/configuration>` (defaults to 365 days) can be used to set the maximum allowed validity period for nodes certificates when they are renewed by members. It is used as the default value for the validity period when the service certificate is renewed but the validity period is omitted.
+The ``command.start.service_configuration.maximum_service_certificate_validity_days`` :doc:`configuration entry </operations/configuration>` (defaults to 365 days) can be used to set the maximum allowed validity period for the service certificate when it is renewed by members. It is used as the default value for the validity period when the service certificate is renewed but the validity period is omitted.
 
 .. tip::
 

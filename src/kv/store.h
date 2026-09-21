@@ -3,8 +3,8 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "ccf/ds/locking.h"
 #include "ccf/kv/read_only_store.h"
-#include "ccf/pal/locking.h"
 #include "deserialise.h"
 #include "ds/internal_logger.h"
 #include "kv/committable_tx.h"
@@ -15,12 +15,21 @@
 #include "kv_types.h"
 
 #define FMT_HEADER_ONLY
+#include <algorithm>
 #include <atomic>
 #include <fmt/format.h>
 #include <memory>
 
 namespace ccf::kv
 {
+  enum class StoreReadiness : uint8_t
+  {
+    Unavailable,
+    InstallingSnapshot,
+    Ready,
+    Failed
+  };
+
   class StoreState
   {
   protected:
@@ -30,16 +39,16 @@ namespace ccf::kv
     using Maps = std::map<
       std::string,
       std::pair<ccf::kv::Version, std::shared_ptr<untyped::Map>>>;
-    ccf::pal::Mutex maps_lock;
+    ccf::ds::Mutex maps_lock;
     Maps maps;
 
-    ccf::pal::Mutex version_lock;
+    ccf::ds::Mutex version_lock;
     std::atomic<Version> version = 0;
     Version last_new_map = ccf::kv::NoVersion;
     std::atomic<Version> compacted = 0;
 
     // Calls to Store::commit are made atomic by taking this lock.
-    ccf::pal::Mutex commit_lock;
+    ccf::ds::Mutex commit_lock;
 
     // Term at which write future transactions should be committed.
     std::atomic<Term> term_of_next_version = 0;
@@ -63,7 +72,7 @@ namespace ccf::kv
   public:
     void clear()
     {
-      std::scoped_lock<ccf::pal::Mutex, ccf::pal::Mutex> mguard(
+      std::scoped_lock<ccf::ds::Mutex, ccf::ds::Mutex> mguard(
         maps_lock, version_lock);
 
       maps.clear();
@@ -92,11 +101,12 @@ namespace ccf::kv
     Hooks global_hooks;
     MapHooks map_hooks;
 
-    std::shared_ptr<Consensus> consensus = nullptr;
+    std::atomic<std::shared_ptr<Consensus>> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
     std::shared_ptr<ILedgerChunker> chunker = nullptr;
     EncryptorPtr encryptor = nullptr;
     SnapshotterPtr snapshotter = nullptr;
+    size_t max_transaction_size = max_serialised_entry_size;
 
     // Generally we will only accept deserialised views if they are contiguous -
     // at Version N we reject everything but N+1. The exception is when a Store
@@ -113,6 +123,8 @@ namespace ccf::kv
     // may be called from different threads without a common lock.
     std::atomic<uint8_t> flags = 0;
 
+    std::atomic<StoreReadiness> readiness = StoreReadiness::Ready;
+
     bool commit_deserialised(
       OrderedChanges& changes,
       Version v,
@@ -121,6 +133,12 @@ namespace ccf::kv
       ccf::kv::ConsensusHookPtrs& hooks,
       bool track_deletes_on_missing_keys) override
     {
+      std::unique_lock<ccf::ds::Mutex> maps_guard(maps_lock, std::defer_lock);
+      if (!new_maps.empty())
+      {
+        maps_guard.lock();
+      }
+
       auto c = apply_changes(
         changes,
         [v](bool) { return std::make_tuple(v, v - 1); },
@@ -134,17 +152,12 @@ namespace ccf::kv
         return false;
       }
       {
-        std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
         version = v;
         last_replicated = version;
         term_of_last_version = term;
       }
       return true;
-    }
-
-    bool has_map_internal(const std::string& name)
-    {
-      return maps.contains(name);
     }
 
     Version next_version_unsafe()
@@ -180,17 +193,29 @@ namespace ccf::kv
 
     Store(const Store& that) = delete;
 
+    void set_readiness(StoreReadiness readiness_)
+    {
+      readiness.store(readiness_, std::memory_order_release);
+    }
+
+    [[nodiscard]] StoreReadiness get_readiness() const
+    {
+      return readiness.load(std::memory_order_acquire);
+    }
+
+    [[nodiscard]] bool is_ready() const
+    {
+      return get_readiness() == StoreReadiness::Ready;
+    }
+
     std::shared_ptr<Consensus> get_consensus() override
     {
-      // We need to use std::atomic_load<std::shared_ptr<T>>
-      // after clang supports it.
-      // https://en.cppreference.com/w/Template:cpp/compiler_support/20
-      return std::atomic_load(&consensus);
+      return consensus.load();
     }
 
     void set_consensus(const std::shared_ptr<Consensus>& consensus_)
     {
-      std::atomic_store(&consensus, consensus_);
+      consensus.store(consensus_);
     }
 
     std::shared_ptr<TxHistory> get_history() override
@@ -223,6 +248,30 @@ namespace ccf::kv
       return encryptor;
     }
 
+    void set_max_transaction_size(size_t max_transaction_size_)
+    {
+      // The limit covers the whole ledger entry, so it can never usefully
+      // exceed the largest entry the header can describe, nor the largest
+      // buffer the allocator can produce
+      static const size_t max_allocatable = std::vector<uint8_t>().max_size();
+      const auto effective_max =
+        std::min(max_serialised_entry_size, max_allocatable);
+      if (max_transaction_size_ > effective_max)
+      {
+        throw std::logic_error(fmt::format(
+          "Configured maximum transaction size {} exceeds the largest "
+          "serialisable ledger entry size {}",
+          max_transaction_size_,
+          effective_max));
+      }
+      max_transaction_size = max_transaction_size_;
+    }
+
+    [[nodiscard]] size_t get_max_transaction_size() const override
+    {
+      return max_transaction_size;
+    }
+
     void set_snapshotter(const SnapshotterPtr& snapshotter_)
     {
       snapshotter = snapshotter_;
@@ -244,7 +293,7 @@ namespace ccf::kv
     std::shared_ptr<AbstractMap> get_map(
       ccf::kv::Version v, const std::string& map_name) override
     {
-      std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
+      std::lock_guard<ccf::ds::Mutex> mguard(maps_lock);
       return get_map_internal(v, map_name);
     }
 
@@ -363,7 +412,7 @@ namespace ccf::kv
       return snapshot;
     }
 
-    void lock_maps() override
+    void lock_maps() CCF_ACQUIRE(maps_lock) override
     {
       maps_lock.lock();
       for (auto& it : maps)
@@ -373,7 +422,7 @@ namespace ccf::kv
       }
     }
 
-    void unlock_maps() override
+    void unlock_maps() CCF_RELEASE(maps_lock) override
     {
       for (auto& it : maps)
       {
@@ -387,6 +436,9 @@ namespace ccf::kv
       std::unique_ptr<AbstractSnapshot> snapshot) override
     {
       auto e = get_encryptor();
+      // Snapshots capture the entire committed state and are legitimately
+      // larger than any single transaction, so max_transaction_size does not
+      // apply to them.
       return snapshot->serialise(e);
     }
 
@@ -398,7 +450,7 @@ namespace ccf::kv
       bool public_only = false) override
     {
       auto e = get_encryptor();
-      auto d = KvStoreDeserialiser(
+      auto d = RawKvStoreDeserialiser(
         e,
         public_only ? ccf::kv::SecurityDomain::PUBLIC :
                       std::optional<ccf::kv::SecurityDomain>());
@@ -416,7 +468,7 @@ namespace ccf::kv
       std::vector<uint8_t> hash_at_snapshot;
       std::vector<Version> view_history_;
       {
-        std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
+        std::lock_guard<ccf::ds::Mutex> mguard(maps_lock);
 
         for (auto& it : maps)
         {
@@ -513,7 +565,7 @@ namespace ccf::kv
         }
 
         {
-          std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+          std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
           version = v;
           last_replicated = v;
         }
@@ -553,7 +605,7 @@ namespace ccf::kv
         chunker->compacted_to(v);
       }
 
-      std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
+      std::lock_guard<ccf::ds::Mutex> mguard(maps_lock);
 
       if (v > current_version())
       {
@@ -579,7 +631,7 @@ namespace ccf::kv
       }
 
       {
-        std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
         compacted = v;
 
         auto h = get_history();
@@ -602,20 +654,10 @@ namespace ccf::kv
       // at the specified version.
       // No transactions can be prepared or committed during rollback.
 
-      if (snapshotter)
-      {
-        snapshotter->rollback(tx_id.seqno);
-      }
-
-      if (chunker)
-      {
-        chunker->rolled_back_to(tx_id.seqno);
-      }
-
-      std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
+      std::lock_guard<ccf::ds::Mutex> mguard(maps_lock);
 
       {
-        std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
         if (tx_id.seqno < compacted)
         {
           throw std::logic_error(fmt::format(
@@ -639,6 +681,17 @@ namespace ccf::kv
 
         if (tx_id.seqno >= version)
         {
+          if (snapshotter)
+          {
+            snapshotter->rollback(tx_id.seqno);
+          }
+          if (chunker)
+          {
+            // Nothing local is discarded here, but the rollback target may be
+            // at or beyond the Store's current version. Clamp so this cannot
+            // move chunk metadata forward past the Store.
+            chunker->rolled_back_to(std::min<Version>(tx_id.seqno, version));
+          }
           return;
         }
 
@@ -650,6 +703,16 @@ namespace ccf::kv
         unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
+        if (snapshotter)
+        {
+          snapshotter->rollback(tx_id.seqno);
+        }
+        if (chunker)
+        {
+          // Keep this ordered with append_entry_size() below, so a commit
+          // cannot restore chunk metadata after this rollback.
+          chunker->rolled_back_to(tx_id.seqno);
+        }
         auto e = get_encryptor();
         if (e)
         {
@@ -694,7 +757,7 @@ namespace ccf::kv
     {
       // Note: This should only be called once, when the store is first
       // initialised. term_of_next_version is later updated via rollback.
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       if (term_of_next_version != 0)
       {
         throw std::logic_error("term_of_next_version is already initialised");
@@ -727,7 +790,7 @@ namespace ccf::kv
       // deserialisation will then fail.
       auto e = get_encryptor();
 
-      auto d = KvStoreDeserialiser(
+      auto d = RawKvStoreDeserialiser(
         e,
         public_only ? ccf::kv::SecurityDomain::PUBLIC :
                       std::optional<ccf::kv::SecurityDomain>());
@@ -775,7 +838,7 @@ namespace ccf::kv
       // rather than with the actual value read. As a result, they don't
       // need snapshot isolation on the map state, and so do not need to
       // lock each of the maps before creating the transaction.
-      std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
+      std::lock_guard<ccf::ds::Mutex> mguard(maps_lock);
 
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
@@ -878,14 +941,14 @@ namespace ccf::kv
     ccf::TxID current_txid() override
     {
       // Must lock in case the version or read term is being incremented.
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       return current_txid_unsafe();
     }
 
     std::pair<TxID, Term> current_txid_and_commit_term() override
     {
       // Must lock in case the version or commit term is being incremented.
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       return {current_txid_unsafe(), term_of_next_version};
     }
 
@@ -911,7 +974,7 @@ namespace ccf::kv
         return CommitResult::SUCCESS;
       }
 
-      std::lock_guard<ccf::pal::Mutex> cguard(commit_lock);
+      std::lock_guard<ccf::ds::Mutex> cguard(commit_lock);
 
       LOG_DEBUG_FMT(
         "Store::commit {}{}",
@@ -929,11 +992,12 @@ namespace ccf::kv
       auto h = get_history();
 
       {
-        std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-        if (txid.view != term_of_next_version && get_consensus()->is_primary())
+        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+        if (txid.view != term_of_next_version)
         {
           // This can happen when a transaction started before a view change,
-          // but tries to commit after the view change is complete.
+          // but tries to commit after the view change is complete. Reject it
+          // even after stepping down, before it can enter pending_txs.
           LOG_DEBUG_FMT(
             "Want to commit for term {} but term is {}",
             txid.view,
@@ -1026,7 +1090,18 @@ namespace ccf::kv
 
         if (chunker)
         {
-          chunker->append_entry_size(data_shared->size());
+          std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+          // A rollback can only discard this batch's writes by truncating,
+          // which requires its target to be below `version` and therefore
+          // increments rollback_count. A rollback that does not truncate
+          // leaves the writes intact, but may still move the term on, which
+          // consensus will reject - so both are checked here.
+          if (
+            previous_rollback_count == rollback_count &&
+            replication_view == term_of_next_version)
+          {
+            chunker->append_entry_size(data_shared->size());
+          }
         }
 
         LOG_DEBUG_FMT(
@@ -1047,7 +1122,7 @@ namespace ccf::kv
 
       if (c->replicate(batch, replication_view))
       {
-        std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
         if (
           last_replicated == previous_last_replicated &&
           previous_rollback_count == rollback_count)
@@ -1063,7 +1138,7 @@ namespace ccf::kv
 
     bool should_schedule_snapshot()
     {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       if (snapshotter)
       {
         return snapshotter->should_schedule_snapshot(last_committable);
@@ -1071,9 +1146,31 @@ namespace ccf::kv
       return false;
     }
 
+    std::optional<bool> should_create_ledger_chunk_for_reserved_tx(
+      Version version,
+      Term expected_term,
+      Version expected_rollback_count) override
+    {
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      if (
+        term_of_next_version != expected_term ||
+        rollback_count != expected_rollback_count)
+      {
+        return std::nullopt;
+      }
+
+      const auto should_create_chunk =
+        should_create_ledger_chunk_unsafe(version);
+      if (should_create_chunk && chunker)
+      {
+        chunker->produced_chunk_at(version);
+      }
+      return should_create_chunk;
+    }
+
     bool should_create_ledger_chunk(Version version) override
     {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       return should_create_ledger_chunk_unsafe(version);
     }
 
@@ -1103,25 +1200,39 @@ namespace ccf::kv
       return r;
     }
 
-    void lock_map_set() override
+    void lock_map_set() CCF_ACQUIRE(maps_lock) override
     {
       maps_lock.lock();
     }
 
-    void unlock_map_set() override
+    void unlock_map_set() CCF_RELEASE(maps_lock) override
     {
       maps_lock.unlock();
     }
 
     bool check_rollback_count(Version count) override
     {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       return rollback_count == count;
     }
 
-    std::tuple<Version, Version> next_version(bool commit_new_map) override
+    std::optional<std::tuple<Version, Version, Version>> next_version(
+      bool commit_new_map, Term expected_commit_term) override
     {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      // If rollback updates the term before this lock is acquired, reject the
+      // transaction before map writes are applied. If version allocation wins
+      // the race, rollback observes the new version and truncates those writes.
+      if (term_of_next_version != expected_commit_term)
+      {
+        LOG_DEBUG_FMT(
+          "Refusing to assign a version to a transaction from term {} because "
+          "the current term is {}",
+          expected_commit_term,
+          term_of_next_version);
+        return std::nullopt;
+      }
+
       Version v = next_version_unsafe();
 
       auto previous_last_new_map = last_new_map;
@@ -1130,18 +1241,12 @@ namespace ccf::kv
         last_new_map = v;
       }
 
-      return std::make_tuple(v, previous_last_new_map);
-    }
-
-    Version next_version() override
-    {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-      return next_version_unsafe();
+      return std::make_tuple(v, previous_last_new_map, rollback_count);
     }
 
     TxID next_txid() override
     {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       next_version_unsafe();
 
       return {term_of_next_version, version};
@@ -1149,7 +1254,7 @@ namespace ccf::kv
 
     size_t committable_gap() override
     {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       return version - last_committable;
     }
 
@@ -1180,7 +1285,7 @@ namespace ccf::kv
         }
       }
 
-      std::scoped_lock<ccf::pal::Mutex, ccf::pal::Mutex> guard_both_store_maps(
+      std::scoped_lock<ccf::ds::Mutex, ccf::ds::Mutex> guard_both_store_maps(
         maps_lock, store.maps_lock);
 
       // Each entry is (Name, MyMap, TheirMap)
@@ -1320,25 +1425,47 @@ namespace ccf::kv
 
     ReservedTx create_reserved_tx(const TxID& tx_id)
     {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       return {this, term_of_last_version, tx_id, rollback_count};
+    }
+
+    bool apply_tx_flags(
+      Version tx_version,
+      Term expected_term,
+      Version expected_rollback_count,
+      bool force_ledger_chunk,
+      bool snapshot_at_next_signature) override
+    {
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      if (
+        term_of_next_version != expected_term ||
+        rollback_count != expected_rollback_count)
+      {
+        return false;
+      }
+
+      if (force_ledger_chunk && chunker)
+      {
+        chunker->force_end_of_chunk(tx_version);
+      }
+
+      if (snapshot_at_next_signature)
+      {
+        set_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      }
+
+      return true;
     }
 
     void set_flag(StoreFlag f) override
     {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       set_flag_unsafe(f);
-    }
-
-    void unset_flag(StoreFlag f) override
-    {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-      unset_flag_unsafe(f);
     }
 
     bool flag_enabled(StoreFlag f) override
     {
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       return flag_enabled_unsafe(f);
     }
 

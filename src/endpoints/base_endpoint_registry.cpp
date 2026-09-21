@@ -24,20 +24,22 @@ namespace ccf
   {
     try
     {
-      if (consensus != nullptr)
+      auto* current_consensus = get_consensus();
+      if (current_consensus != nullptr)
       {
         if (since < 1)
         {
           reason = ccf::InvalidArgsReason::ViewSmallerThanOne;
           return ApiResult::InvalidArgs;
         }
-        auto latest_view = consensus->get_view();
+        auto latest_view = current_consensus->get_view();
         if (since > latest_view)
         {
           // asking for something in the future
           return ApiResult::NotFound;
         }
-        const auto view_history = consensus->get_view_history_since(since);
+        const auto view_history =
+          current_consensus->get_view_history_since(since);
         for (ccf::View i = 0; i < view_history.size(); i++)
         {
           const auto view = i + since;
@@ -67,9 +69,10 @@ namespace ccf
   {
     try
     {
-      if (consensus != nullptr)
+      auto* current_consensus = get_consensus();
+      if (current_consensus != nullptr)
       {
-        tx_status = consensus->evaluate_tx_status(view, seqno);
+        tx_status = current_consensus->evaluate_tx_status(view, seqno);
       }
       else
       {
@@ -88,11 +91,12 @@ namespace ccf
   ApiResult BaseEndpointRegistry::get_last_committed_txid_v1(
     ccf::View& view, ccf::SeqNo& seqno)
   {
-    if (consensus != nullptr)
+    auto* current_consensus = get_consensus();
+    if (current_consensus != nullptr)
     {
       try
       {
-        const auto [v, s] = consensus->get_committed_txid();
+        const auto [v, s] = current_consensus->get_committed_txid();
         view = v;
         seqno = s;
         return ApiResult::OK;
@@ -199,9 +203,10 @@ namespace ccf
   {
     try
     {
-      if (consensus != nullptr)
+      auto* current_consensus = get_consensus();
+      if (current_consensus != nullptr)
       {
-        const auto v = consensus->get_view(seqno);
+        const auto v = current_consensus->get_view(seqno);
         if (v != ccf::VIEW_UNKNOWN)
         {
           view = v;

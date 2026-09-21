@@ -1,0 +1,10 @@
+# A single-node leader has no eligible peer to nominate. The request must leave
+# it leading normally without queueing a proposal.
+start_node,0
+emit_signature,2
+assert_detail,0,leadership_state,Leader
+
+nominate_successor,0
+assert_detail,0,leadership_state,Leader
+
+loop_until_sync

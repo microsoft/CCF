@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import sys
 import json
+import sys
+
 import rich
 from gelidum import freeze
 
@@ -128,10 +129,10 @@ def table(entries):
             continue
         node_id = action["context"]["i"]
 
-        def last_recvd():
-            (msg,) = set(freeze(d) for d in pre[1]["messages"][node_id]) - set(
+        def last_recvd(pre=pre, post=post, node_id=node_id):
+            (msg,) = {freeze(d) for d in pre[1]["messages"][node_id]} - {
                 freeze(d) for d in post[1]["messages"][node_id]
-            )
+            }
             return msg
 
         tag = " "

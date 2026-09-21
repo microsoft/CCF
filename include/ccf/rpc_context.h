@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/frame_format.h"
 #include "ccf/http_consts.h"
@@ -25,7 +26,8 @@ namespace ccf
     size_t client_session_id = InvalidSessionId;
 
     // Contains DER encoding of original caller
-    std::vector<uint8_t> caller_cert;
+    const std::vector<uint8_t> caller_cert;
+    const std::string caller_cert_sha256;
     bool is_forwarding = false;
 
     // Only set for RPC sessions (i.e. non-forwarded and non-internal)
@@ -45,6 +47,7 @@ namespace ccf
       const std::optional<ListenInterfaceID>& interface_id_ = std::nullopt) :
       client_session_id(client_session_id_),
       caller_cert(caller_cert_),
+      caller_cert_sha256(crypto::Sha256Hash(caller_cert).hex_str()),
       interface_id(interface_id_)
     {}
 

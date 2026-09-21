@@ -1,0 +1,39 @@
+# Node 2 receives an order to retire, but the reconfiguration remains unsigned
+# and uncommitted. It wins a new-term election with quorums from both active
+# configurations, rolls back the abandoned reconfiguration, and becomes active.
+start_node,0
+emit_signature,2
+trust_nodes,2,1,2
+emit_signature,2
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_state_sync
+
+swap_nodes,2,out,2
+periodic_one,0,10
+drop_pending_to,0,1
+dispatch_single,0,2
+assert_detail,2,membership_state,Retired
+assert_detail,2,retirement_phase,Ordered
+assert_last_txid,2,2.5
+drop_pending,2
+
+periodic_one,2,100
+assert_detail,2,leadership_state,PreVoteCandidate
+dispatch_single,2,0
+dispatch_single,0,2
+dispatch_single,2,1
+dispatch_single,1,2
+assert_detail,2,leadership_state,Candidate
+dispatch_single,2,0
+dispatch_single,0,2
+dispatch_single,2,1
+dispatch_single,1,2
+assert_detail,2,leadership_state,Leader
+assert_detail,2,membership_state,Active
+assert_absent_config,2,5
+assert_last_txid,2,2.4
+loop_until_sync

@@ -11,21 +11,23 @@ Tips for interacting with CCF to diagnose issues
 
 Below are descriptions of CLI commands and how they are useful for diagnosing CCF issues:
 
-**“What node is handling my requests?”**
+**"What node is handling my requests?"**
 
 .. code-block:: bash 
 
     curl https://example-ccf-domain.com/node/network/nodes/self -i
 
-This is useful to identify which node is handling queries. The node ID can be found in the ``location`` header as shown in the example command output below:
+This identifies which node is handling queries. Selected fields from the response body include:
 
-.. code-block:: bash
+.. code-block:: json
 
-    HTTP/1.1 308 Permanent Redirect
-    content-length: 0
-    location: https://example-ccf-domain/node/network/nodes/<Node ID>
+    {
+      "node_id": "<Node ID>",
+      "primary": true,
+      "status": "Trusted"
+    }
 
-**“What CCF version is running?”**
+**"What CCF version is running?"**
 
 .. code-block:: bash
 
@@ -33,18 +35,18 @@ This is useful to identify which node is handling queries. The node ID can be fo
 
 This is useful to confirm the version that is running.
 
-**“What nodes are part of the current network?”**
+**"What nodes are part of the current network?"**
 
 .. code-block:: bash
 
     curl https://example-ccf-domain.com/node/network/nodes
 
-This will show information for all nodes in the network. In a healthy network all nodes will show ``“status”: “Trusted”``, and one node only will show ``“primary” = true``. This is the healthy state of the network. 
-Around upgrades/restarts/migrations nodes will transition through unhealthy states temporarily. If the network remains in an unhealthly state for a long time, this indicates there is an issue. 
+This shows information for all nodes recorded in the network, including pending or retired nodes. In a healthy steady state, all nodes participating in consensus show ``"status": "Trusted"``, and exactly one shows ``"primary": true``.
+Around upgrades, restarts, or migrations, nodes may transition through other states temporarily. If the network remains in an unhealthy state for a long time, this indicates there is an issue.
 
 You can obtain this information for a single node by querying the :http:GET:`/node/network/nodes/{node_id}` endpoint, where ``{node id}`` can be obtained from the :http:GET:`/node/network/nodes/self` endpoint described above. Take note of the ``node_data`` field in the response which contains useful correlation IDs.
 
-**“Is the network in the middle of a reconfiguration?”**
+**"Is the network in the middle of a reconfiguration?"**
 
 .. code-block:: bash
 
@@ -52,7 +54,7 @@ You can obtain this information for a single node by querying the :http:GET:`/no
 
 This has a few bits of data that might help us diagnose a partitioned/faulty network. In particular, most of the time there should be a single entry in the ``configs`` list. During an upgrade/restart/migration, there may be multiple values. If multiple values persist for a long time, it suggests something went wrong during the reconfiguration.
 
-**“Is the CCF network stable?”**
+**"Is the CCF network stable?"**
 
 .. code-block:: bash
 
@@ -96,7 +98,7 @@ Error Codes
 ``StartupSeqnoIsOld``
 ~~~~~~~~~~~~~~~~~~~~~
 
-Returned when a node tries to join a network with too old a snapshot, or no snapshot at all.
+Returned when a node tries to join with a snapshot older than the minimum required by the target service. This includes joining without a snapshot when the target node itself started from one.
 See :ref:`this page <operations/ledger_snapshot:Join or Recover From Snapshot>` for more information.
 
 **Resolution:** This can be resolved by trying to join again with a fresh snapshot.

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "node/node_client.h"
+#include "node/rpc/http_rpc_context.h"
 
 #include <chrono>
 
@@ -14,19 +15,18 @@ namespace ccf
     HTTPNodeClient(
       std::shared_ptr<ccf::RPCMap> rpc_map,
       ccf::crypto::ECKeyPairPtr node_sign_kp,
-      const ccf::crypto::Pem& self_signed_node_cert_,
-      const std::optional<ccf::crypto::Pem>& endorsed_node_cert_) :
+      std::function<ccf::crypto::Pem()> get_node_certificate_) :
       NodeClient(
-        rpc_map, node_sign_kp, self_signed_node_cert_, endorsed_node_cert_)
+        std::move(rpc_map),
+        std::move(node_sign_kp),
+        std::move(get_node_certificate_))
     {}
 
     ~HTTPNodeClient() override = default;
 
     bool make_request(::http::Request& request) override
     {
-      const auto& node_cert = endorsed_node_cert.has_value() ?
-        endorsed_node_cert.value() :
-        self_signed_node_cert;
+      const auto node_cert = get_node_certificate();
 
       std::vector<uint8_t> packed = request.build_request();
 

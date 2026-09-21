@@ -46,7 +46,8 @@ Notes:
   - Tests must be built and run with -DCOVERAGE=ON. The build system
     automatically sets LLVM_PROFILE_FILE so each test writes its own
     uniquely-named .profraw file.
-  - Coverage of code under 3rdparty/ is excluded from all reports.
+  - Reports include framework code under src/ and include/, excluding tests
+    and performance code.
   - Requires llvm-profdata and llvm-cov (any of -18 / -15 suffixed variants
     are also accepted).
 EOF
@@ -58,6 +59,8 @@ OUTPUT_FILE=""
 HTML_DIR=""
 SHOW_UNCOVERED=0
 BINARIES=()
+SOURCE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+FRAMEWORK_SOURCE_DIRS=("${SOURCE_DIR}/src" "${SOURCE_DIR}/include")
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -143,14 +146,17 @@ echo "Merging coverage data into '${OUTPUT_FILE}'..."
 # CCF/build/CCF/include/...  Setting -compilation-dir to the parent of
 # the real source tree lets llvm-cov resolve the mapped paths correctly:
 # e.g. CCF/include/... relative to /workspaces -> /workspaces/CCF/include/...
+# Path equivalence also handles source directories not named CCF.
 # ---------------------------------------------------------------------------
 COMPILATION_DIR=""
+PATH_EQUIVALENCE=""
 COMPILE_DB="${PROFRAW_DIR}/compile_commands.json"
 if [[ -f "${COMPILE_DB}" ]]; then
   prefix_map=$(grep -m1 -o '\-ffile-prefix-map=[^ "]*' "${COMPILE_DB}" | sed 's/-ffile-prefix-map=//' || true)
   if [[ -n "${prefix_map}" ]]; then
     real_path="${prefix_map%%=*}"
     COMPILATION_DIR=$(dirname "${real_path}")
+    PATH_EQUIVALENCE="${COMPILATION_DIR}/${prefix_map#*=},${real_path}"
     echo "Detected file-prefix-map, using compilation-dir: ${COMPILATION_DIR}"
   fi
 fi
@@ -164,12 +170,15 @@ build_cov_args() {
   for bin in "${BINARIES[@]:1}"; do
     args+=("-object" "${bin}")
   done
-  # Exclude third-party code from all reports
-  args+=("-ignore-filename-regex=3rdparty/")
+  # Exclude third-party and test code: coverage should measure the framework
+  # being tested, not the tests exercising it.
+  args+=("-ignore-filename-regex=3rdparty/|/test/|/tests/|_test\.(cpp|h)$|/perf/")
   # Override compilation directory so llvm-cov can resolve mapped source paths
   if [[ -n "${COMPILATION_DIR}" ]]; then
     args+=("-compilation-dir=${COMPILATION_DIR}")
+    args+=("-path-equivalence=${PATH_EQUIVALENCE}")
   fi
+  args+=("--sources" "${FRAMEWORK_SOURCE_DIRS[@]}")
   printf '%s\n' "${args[@]}"
 }
 

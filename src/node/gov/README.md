@@ -1,12 +1,19 @@
-This folder implements a new governance API.
-This API is defined in the root-level `typespec-ccf` folder, with a TypeSpec source generating an OpenAPI definition.
+This folder implements the governance API exposed under the `/gov` prefix.
 
-It aims to expose all of the functionality of the existing API, defined in `src/node/rpc/member_frontend.h`, but with naming and schemas compliant with Azure API standards.
+The API implemented by the running CCF build is selected by omitting the
+`api-version` query parameter or by passing `api-version=latest`. Its OpenAPI
+document is generated from the endpoint registrations and returned by
+`GET /gov/api`. `latest` is a moving alias and is not a compatibility pin.
 
-For a transition period (at least the 4.x release), both APIs will be offered. The plan is to eventually deprecate the old API.
+Older, dated API versions may also be accepted while they remain supported.
+`GET /gov/api?api-version=<dated-version>` returns the frozen OpenAPI document
+for that version.
 
 Implementation notes:
 
-- All endpoints validate and process an `api-version` parameter, modifying their behaviour accordingly.
-- To present both under the `/gov` prefix, the old frontend is a subclass of the new frontend.
-- The frontend implementation is split into distinct components which can be more easily moved around, rather than a single monolithic frontend implementation.
+- Endpoint registrations must describe their request and response types so the
+  generated `latest` document remains accurate.
+- All endpoints validate a supplied `api-version`. An omitted version selects
+  `latest`.
+- The frontend implementation is split into components for acknowledgements,
+  proposals, recovery, service state, and transactions.

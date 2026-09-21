@@ -23,7 +23,7 @@ Most of the call backs are for logging purposes, but the two important ones are:
 - `on_accept` on servers, which creates a new socket to communicate with the particular connecting client
 - `on_read`, which takes the data that is read and writes it to the `ring buffer`
 
-For note-to-node connections, the behaviours are:
+For node-to-node connections, the behaviours are:
 - `NodeServerBehaviour`, the main listening socket and, `on_accept`, creates a new socket to communicate with a particular connecting client
 - `NodeIncomingBehaviour`, the socket that is created above, that waits for input and passes that to the enclave
 - `NodeOutgoingBehaviour`, a socket that is created by the enclave (via ring buffer messages into the host), to connect to external nodes
@@ -38,13 +38,12 @@ Here's a diagram with the types of behaviours and their relationships:
 
   graph BT
       subgraph TCP
-          TCPBehaviour
-          TCPServerBehaviour
+          SocketBehaviour
       end
 
       subgraph RPCConnections
           RPCClientBehaviour
-          RCPServerBehaviour
+          RPCServerBehaviour
       end
 
       subgraph NodeConnections
@@ -54,12 +53,12 @@ Here's a diagram with the types of behaviours and their relationships:
           NodeServerBehaviour
       end
 
-          RPCClientBehaviour --> TCPBehaviour
-          NodeConnectionBehaviour --> TCPBehaviour
+          RPCClientBehaviour --> SocketBehaviour
+          RPCServerBehaviour --> SocketBehaviour
+          NodeConnectionBehaviour --> SocketBehaviour
           NodeIncomingBehaviour --> NodeConnectionBehaviour
           NodeOutgoingBehaviour --> NodeConnectionBehaviour
-          NodeServerBehaviour --> TCPServerBehaviour
-          RCPServerBehaviour --> TCPServerBehaviour
+          NodeServerBehaviour --> SocketBehaviour
 
 
 State machine

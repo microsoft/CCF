@@ -11,7 +11,7 @@ CCF will use the SEV-SNP platform features automatically on the supported hardwa
 Attestation
 -----------
 
-SNP attestation provide several fields needed to establish trust. Several deployment scenarios are possible.
+SNP attestation provides several fields needed to establish trust. Several deployment scenarios are possible.
 
 Confidential Azure Container Instance (ACI)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -48,7 +48,7 @@ AMD VCEK endorsements must be fetched, preferably from the THIM service, but con
 Non-Azure Deployment
 ~~~~~~~~~~~~~~~~~~~~
 
-For non-Azure deployments, the certificate chain for VCEK can be retrieved either from file, if already cached, or from an endorsement server, as specified in the :ref:`operations/configuration:``attestation.snp_endorsements_servers``` configuration section. For example, for the `well-known AMD endorsement server <https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/specifications/57230.pdf>`_, the value should be set to:
+For non-Azure deployments, the certificate chain for VCEK can be retrieved either from file, if already cached, or from an endorsement server, as specified in the :ref:`operations/configuration:``attestation.snp_endorsements_servers``` configuration section. For example, for the `well-known AMD endorsement server <https://docs.amd.com/v/u/en-US/57230>`_, the value should be set to:
 
 .. code-block:: json
 
@@ -77,7 +77,6 @@ The following governance proposals can be issued to add/remove these trusted val
 - ``add_snp_uvm_endorsement``/``remove_snp_uvm_endorsement``: To add/remove a trusted UVM endorsement (Azure deployment only).
 - ``add_snp_measurement``/``remove_snp_measurement``: To add/remove a trusted measurement.
 - ``set_snp_minimum_tcb_version_hex``/``remove_snp_minimum_tcb_version``: To add/remove a minimum trusted TCB version.
-  - ``set_snp_minimum_tcb_version`` was deprecated in CCF 6.0.9 and replaced by ``set_snp_minimum_tcb_version_hex``.
 
 Code update
 ~~~~~~~~~~~
@@ -176,7 +175,7 @@ Examples:
 Setting the minimum TCB Version using ``set_snp_minimum_tcb_version_hex``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The `set_snp_minimum_tcb_version_hex` governance action was introduced in CCF 6.0.9 to simplify the process of setting the minimum TCB version for a specific CPU model. This action allows you to specify the CPUID and the TCB version as hex-strings, which are then parsed and stored in the :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` table.
+The `set_snp_minimum_tcb_version_hex` governance action sets the minimum TCB version for a specific CPU model. This action allows you to specify the CPUID and the TCB version as hex-strings, which are then parsed and stored in the :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` table.
 To set the minimum TCB version for a specific CPU model, you can use the following governance action:
 
 .. code-block:: json
@@ -287,5 +286,5 @@ On C-ACI these files are available in the security context directory.
 
 .. rubric:: Footnotes
 
-.. [#security_policy] A `REGO <https://www.openpolicyagent.org/docs/latest/policy-language/>`_ policy checked by the utility VM (UVM) against the container. 
+.. [#security_policy] A `REGO <https://www.openpolicyagent.org/docs/policy-language>`_ policy checked by the utility VM (UVM) against the container.
 .. [#measurement] Digest of the initial memory pages for the SEV-SNP VM. 

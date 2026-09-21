@@ -1,23 +1,23 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.network
-import infra.crypto
-import ccf.ledger
-import ccf.signatures
-import infra.doc
-from infra.proposal import ProposalState
-import http
-import os
 import base64
+import http
 import json
-from loguru import logger as LOG
-import suite.test_requirements as reqs
+
+import ccf.ledger
 import ccf.read_ledger
-import infra.logging_app as app
-from ccf.tx_id import TxID
-from ccf.cose import cert_fingerprint
+import ccf.signatures
 import cwt
+import infra.crypto
+import infra.doc
+import infra.logging_app as app
+import infra.network
+import suite.test_requirements as reqs
+from ccf.cose import cert_fingerprint
+from ccf.tx_id import TxID
+from infra.proposal import ProposalState
+from loguru import logger as LOG
 
 
 def check_operations(ledger, operations):
@@ -158,14 +158,14 @@ def check_signatures(ledger):
                 assert cose_txid.seqno == gcm_seqno, (cose_txid, gcm_seqno)
 
             # Adjacent signatures only occur on a view change
-            if prev_sig_txid is not None:
-                if prev_sig_txid.seqno + 1 == sig_txid.seqno:
-                    # Reduced from assert while investigating cause
-                    # https://github.com/microsoft/CCF/issues/5078
-                    if sig_txid.view <= prev_sig_txid.view:
-                        LOG.error(
-                            f"Adjacent signatures at {prev_sig_txid} and {sig_txid}"
-                        )
+            if (
+                prev_sig_txid is not None
+                and prev_sig_txid.seqno + 1 == sig_txid.seqno
+                and sig_txid.view <= prev_sig_txid.view
+            ):
+                # Reduced from assert while investigating cause
+                # https://github.com/microsoft/CCF/issues/5078
+                LOG.error(f"Adjacent signatures at {prev_sig_txid} and {sig_txid}")
 
             prev_sig_txid = sig_txid
 
@@ -189,9 +189,9 @@ def check_all_tables_are_documented(table_names_in_ledger, doc_path):
             f"Experimental tables {experimental_table_names_in_ledger} were present in ledger"
         )
 
-    public_table_names_in_ledger = set(
-        [tn for tn in table_names_in_ledger if tn.startswith("public:ccf.")]
-    )
+    public_table_names_in_ledger = {
+        tn for tn in table_names_in_ledger if tn.startswith("public:ccf.")
+    }
     undocumented_tables = public_table_names_in_ledger - set(table_names)
     assert undocumented_tables == set(), undocumented_tables
 
@@ -205,25 +205,28 @@ def remove_prefix(s, prefix):
 @reqs.description("Check tables are documented")
 def test_tables_doc(network, args):
     primary, _ = network.find_primary()
-    ledger_directories = primary.remote.ledger_paths()
-    ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
-    table_names_in_ledger = ledger.get_latest_public_state()[0].keys()
+    target_seqno = network.create_and_wait_for_ledger_chunk(primary)
+    public_state, _ = primary.get_public_state_from_api(target_seqno)
+    table_names_in_ledger = public_state.keys()
     check_all_tables_are_documented(
         table_names_in_ledger, "../doc/audit/builtin_maps.rst"
     )
     return network
 
 
-@reqs.description("Test that all nodes' ledgers can be read")
+@reqs.description("Test that all nodes' API-readable ledger chunks can be read")
 def test_ledger_is_readable(network, args):
     primary, backups = network.find_nodes()
+    target_seqno = network.create_and_wait_for_ledger_chunk(primary)
     for node in (primary, *backups):
-        ledger_dirs = node.remote.ledger_paths()
-        LOG.info(f"Reading ledger from {ledger_dirs}")
-        ledger = ccf.ledger.Ledger(ledger_dirs, contiguous_suffix=True)
-        for chunk in ledger:
-            for _ in chunk:
-                pass
+        with node.get_ledger_from_api(
+            target_seqno,
+            local_only=True,
+            timeout=args.ledger_recovery_timeout,
+        ) as ledger:
+            for chunk in ledger:
+                for _ in chunk:
+                    pass
     return network
 
 
@@ -235,20 +238,20 @@ def test_read_ledger_utility(network, args):
     format_rule = [(".*records.*", {"key": fmt_str, "value": fmt_str})]
 
     network.txs.issue(network, number_txs=args.snapshot_tx_interval)
-    network.get_latest_ledger_public_state()
+    target_seqno = network.create_and_wait_for_ledger_chunk()
 
     primary, backups = network.find_nodes()
     for node in (primary, *backups):
-        ledger_dirs = node.remote.ledger_paths()
-        assert ccf.read_ledger.run(
-            paths=ledger_dirs,
-            print_mode=ccf.read_ledger.PrintMode.Contents,
-            tables_format_rules=format_rule,
-        )
+        with node.download_ledger(target_seqno, local_only=True) as ledger_paths:
+            assert ccf.read_ledger.run(
+                paths=ledger_paths,
+                print_mode=ccf.read_ledger.PrintMode.Contents,
+                tables_format_rules=format_rule,
+            )
 
-    snapshot_dir = network.get_committed_snapshots(primary)
+    snapshot_path = primary.wait_for_snapshot(target_seqno)
     assert ccf.read_ledger.run(
-        paths=[os.path.join(snapshot_dir, os.listdir(snapshot_dir)[-1])],
+        paths=[snapshot_path],
         print_mode=ccf.read_ledger.PrintMode.Contents,
         is_snapshot=True,
         tables_format_rules=format_rule,
@@ -273,7 +276,6 @@ def run(args):
 
         network.consortium.set_authenticate_session(args.authenticate_session)
 
-        ledger_directories = primary.remote.ledger_paths()
         LOG.info("Add new member proposal (implicit vote)")
         (
             new_member_proposal,
@@ -322,12 +324,11 @@ def run(args):
             (new_member_proposal.proposal_id, member.service_id, "withdraw")
         )
 
-        # Force ledger flush of all transactions so far
-        network.get_latest_ledger_public_state()
+        target_seqno = network.create_and_wait_for_ledger_chunk(primary)
 
-        ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
-        check_operations(ledger, governance_operations)
-        check_signatures(ledger)
+        with primary.get_ledger_from_api(target_seqno) as ledger:
+            check_operations(ledger, governance_operations)
+            check_signatures(ledger)
 
         test_ledger_is_readable(network, args)
         test_read_ledger_utility(network, args)

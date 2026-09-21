@@ -2,8 +2,8 @@
 # Licensed under the Apache 2.0 License.
 
 from packaging.version import (  # type: ignore
-    Version,
     InvalidVersion,
+    Version,
 )
 
 

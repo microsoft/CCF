@@ -1,18 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import re
 import os
-
-import subprocess
-import git
-import urllib
+import re
 import shutil
+import subprocess
+import urllib
+
+import git
 import requests
-
-from packaging.version import Version  # type: ignore
-
 from loguru import logger as LOG
+from packaging.version import Version  # type: ignore
 
 REPOSITORY_NAME = "microsoft/CCF"
 REMOTE_URL = f"https://github.com/{REPOSITORY_NAME}"
@@ -43,10 +41,19 @@ END_OF_LIFE_MAJOR_VERSIONS = [1, 2, 3, 4, 5]
 
 
 def get_version_from_install(install_dir):
-    with open(
-        os.path.join(install_dir, INSTALL_VERSION_FILE_PATH), "r", encoding="utf-8"
-    ) as version_file:
-        return f"{TAG_RELEASE_PREFIX}{version_file.read()}"
+    long_version_file_path = os.path.join(install_dir, "share/VERSION_LONG")
+    version_file_path = (
+        long_version_file_path
+        if os.path.isfile(long_version_file_path)
+        else os.path.join(install_dir, INSTALL_VERSION_FILE_PATH)
+    )
+    with open(version_file_path, encoding="utf-8") as version_file:
+        version = version_file.read().strip()
+        return (
+            version
+            if version.startswith(TAG_RELEASE_PREFIX)
+            else f"{TAG_RELEASE_PREFIX}{version}"
+        )
 
 
 def is_release_branch(branch_name):
@@ -148,7 +155,10 @@ def get_major_version_from_branch_name(branch_name):
 
 def get_devel_package_prefix_with_platform(tag_name, platform="snp"):
     tag_components = tag_name.split("-")
-    tag_components[0] += f"_{platform}_devel"
+    if get_version_from_tag_name(tag_name) >= Version("7.0.0.dev1"):
+        tag_components[0] += "_devel"
+    else:
+        tag_components[0] += f"_{platform}_devel"
     return "-".join(tag_components)
 
 
@@ -311,7 +321,11 @@ class Repository:
     def install_release(self, tag, platform="snp"):
         stripped_tag = strip_release_tag_name(tag)
         install_directory = f"{INSTALL_DIRECTORY_PREFIX}{stripped_tag}"
-        if get_version_from_tag_name(tag) >= Version("3.0.0-rc1"):
+        if (
+            Version("3.0.0-rc1")
+            <= get_version_from_tag_name(tag)
+            < Version("7.0.0.dev1")
+        ):
             install_path = os.path.abspath(
                 os.path.join(
                     install_directory, f"{INSTALL_DIRECTORY_SUB_PATH}_{platform}"
@@ -353,7 +367,10 @@ class Repository:
             assert False, f"Unsupported package type: {download_path}"
 
         # Write new file to avoid having to download install again
-        open(os.path.join(install_path, INSTALL_SUCCESS_FILE), "w+", encoding="utf-8")
+        with open(
+            os.path.join(install_path, INSTALL_SUCCESS_FILE), "w+", encoding="utf-8"
+        ):
+            pass
 
         LOG.info(f"CCF release {tag} successfully installed at {install_path}")
         return tag, install_path
@@ -480,7 +497,7 @@ if __name__ == "__main__":
         def has_release_for_tag_name(self, tag_name):
             # If tag_name is local branch, then the release from this tag
             # must be in progress
-            return True if tag_name != self.local_branch else False
+            return tag_name != self.local_branch
 
     def exp(prev=None, same=None):
         return {"previous LTS": prev, "same LTS": same}

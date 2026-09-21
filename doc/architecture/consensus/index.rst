@@ -70,12 +70,14 @@ Reconfiguration
 
 This discusses changes to the original Raft implementation that are not trivial. For more information on Raft please see the original `paper <https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf>`_.
 
-From a ledger and KV store perspective, reconfiguration is materialised in two separate transactions:
+For a live service, reconfiguration is materialised in two separate transactions:
 
   - Any transaction that contains at least one write to :ref:`audit/builtin_maps:``nodes.info``` setting a node's status to ``TRUSTED`` or ``RETIRED`` is a *reconfiguration transaction*.
   - Any transaction that contains at least one write to :ref:`audit/builtin_maps:``nodes.info``` setting a node's retired_committed to ``TRUE`` is a *retirement committed transaction*.
 
 In contrast to normal transactions, reconfiguration transactions will only commit when the necessary quorum of acknowledgements is reached in **both** the previous and the new configuration it defines.
+
+Disaster recovery is an exception to this retirement sequence. Replaying the public ledger reconstructs the previous service's trusted-node configuration in the new consensus instance. When the recovery service is created, its recovery transaction deletes the previous service's entries from ``nodes.info`` directly, and those deletions remove the old nodes from the new consensus configuration. The previous nodes do not transition through ``RETIRED`` or ``retired_committed`` because the old service is unavailable and does not participate in the recovery service's consensus. See :ref:`operations/recovery:Disaster Recovery`.
 
 The following sample illustrates the addition of a single node to a one-node network:
 
@@ -177,7 +179,7 @@ In our example above, the election timeout on Node 1 simply expires and causes N
 Retirement details
 ~~~~~~~~~~~~~~~~~~
 
-Retirement of a node runs through five phases, as indicated by the following diagram. It starts with a reconfiguration transaction (RTX), involves 
+Normal retirement of a node in a live service runs through five phases, as indicated by the following diagram. Previous-service nodes deleted during disaster recovery do not enter these phases. Live retirement starts with a reconfiguration transaction (RTX), involves
 two additional elements of state and ends with a retirement committed transaction (RTCX), whose commitment indicates that all future primaries are aware RTX is committed,
 and no longer require nodes in the old configuration to make progress.
 
@@ -214,10 +216,10 @@ If a node's ``RequestVote`` requests are able to reach the cluster, but it is un
 
 To mitigate this, the PreVote extension requires that a follower first become ``PreVoteCandidate`` and receive a quorum of speculative pre-votes, proving that they could be elected using the standard Raft election conditions, before becoming ``Candidate`` and potentially disrupting the cluster.
 
-More specifically, when a follower's election timeout elapses, it becomes a ``PreVoteCandidate`` for the current view and sends out ``RequestVote`` messages with the ``electionType`` set to ``ElectionType::PreVote``.
+More specifically, when a follower's election timeout elapses, it becomes a ``PreVoteCandidate`` for the current view and sends out ``RequestPreVote`` messages.
 If the ``PreVoteCandidate`` hears from a current leader, or a new leader, it reverts back to being a ``Follower``.
 Nodes receive this pre-vote request, and respond positively if node would have voted for the ``PreVoteCandidate``'s ledger during an election, (ie. if the ``PreVoteCandidate``'s ledger is at least as up to date as the receiver's ledger).
-If the ``PreVoteCandidate`` receives a quorum of positive pre-vote responses, it then becomes a ``Candidate``, increments its view, sends a ``RequestVote`` message with ``election_type`` set to ``ElectionType::RegularVote`` and the election proceeds as normal from here.
+If the ``PreVoteCandidate`` receives a quorum of positive pre-vote responses, it then becomes a ``Candidate``, increments its view, sends a ``RequestVote`` message and the election proceeds as normal from here.
 
 .. mermaid::
 
@@ -229,16 +231,16 @@ If the ``PreVoteCandidate`` receives a quorum of positive pre-vote responses, it
         Note over Node 0: Leader for view 2
 
         Note over Node 1: PreVoteCandidate in view 2
-        Node 1 ->> Node 2: RequestVote(ElectionType::PreVote, view=2)
+        Node 1 ->> Node 2: RequestPreVote(view=2)
 
         Note right of Node 2: No changes to Node 2's state
-        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::PreVote, view=2, granted=true)
+        Node 2 ->> Node 1: RequestPreVoteResponse(view=2, granted=true)
 
         Note over Node 1: Candidate in view 3
-        Node 1 ->> Node 2: RequestVote(ElectionType::RegularVote, view=3)
+        Node 1 ->> Node 2: RequestVote(view=3)
 
         Note right of Node 2: Updates view to 3 and votes for Node 1
-        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::RegularVote, view=3, granted=true)
+        Node 2 ->> Node 1: RequestVoteResponse(view=3, granted=true)
 
         Note over Node 1: Leader for view 3
 
@@ -258,16 +260,16 @@ This can be viewed as piggybacking the view information from that previous Candi
         Note over Node 2: Lagging Follower in view 1
 
         Note over Node 1: PreVoteCandidate in view 2
-        Node 1 ->> Node 2: RequestVote(ElectionType::PreVote, view=2)
+        Node 1 ->> Node 2: RequestPreVote(view=2)
 
         Note right of Node 2: Updates view to 2
-        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::PreVote, view=2, granted=true)
+        Node 2 ->> Node 1: RequestPreVoteResponse(view=2, granted=true)
 
         Note over Node 1: Candidate in view 3
-        Node 1 ->> Node 2: RequestVote(ElectionType::RegularVote, view=3)
+        Node 1 ->> Node 2: RequestVote(view=3)
 
         Note right of Node 2: Updates to view 3 and votes for Node 1
-        Node 2 ->> Node 1: RequestVoteResponse(ElectionType::RegularVote, view=3, granted=true)
+        Node 2 ->> Node 1: RequestVoteResponse(view=3, granted=true)
 
         Note over Node 1: Leader for view 3
 

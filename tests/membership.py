@@ -1,12 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.network
 import random
-import infra.proposal
+
 import infra.member
-
+import infra.network
+import infra.proposal
 import suite.test_requirements as reqs
-
 from loguru import logger as LOG
 
 
@@ -89,6 +88,10 @@ def test_set_recovery_threshold(network, args, recovery_threshold=None):
 
     primary, _ = network.find_primary()
     network.consortium.set_recovery_threshold(primary, recovery_threshold)
+    with primary.client() as c:
+        r = c.get("/node/service/configuration")
+        assert r.status_code == 200, r
+        assert r.body.json()["recovery_threshold"] == recovery_threshold
     return network
 
 

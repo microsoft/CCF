@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/locking.h"
+#include "ccf/ds/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/internal_logger.h"
@@ -12,6 +12,8 @@
 #include "node/snapshot_serdes.h"
 #include "service/tables/snapshot_evidence.h"
 #include "service/tables/snapshot_status.h"
+#include "snapshots/snapshot_writer.h"
+#include "tasks/ordered_tasks.h"
 #include "tasks/task_system.h"
 
 #include <chrono>
@@ -31,9 +33,10 @@ namespace ccf
     // snapshots are flushed on commit.
     static constexpr auto max_pending_snapshots_count = 5;
 
-    ringbuffer::AbstractWriterFactory& writer_factory;
+    // Writes committed snapshot files to disk, in-process, on a task thread.
+    snapshots::SnapshotWriter snapshot_writer;
 
-    ccf::pal::Mutex lock;
+    ccf::ds::Mutex lock;
 
     std::shared_ptr<ccf::kv::Store> store;
 
@@ -50,22 +53,34 @@ namespace ccf
     using Clock = std::chrono::system_clock;
     using TimePoint = Clock::time_point;
 
-    struct SnapshotInfo
+    // Serialise-produced outputs for a single snapshot. Populated by the
+    // serialise action and read by the persist action. Ordering within the
+    // per-generation OrderedTasks guarantees the serialise action completes
+    // before the persist action reads these.
+    struct SnapshotSerialisation
     {
-      ccf::kv::Version version = 0;
+      std::vector<uint8_t> serialised_snapshot;
       ccf::crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
       ccf::crypto::Sha256Hash snapshot_digest;
-      std::vector<uint8_t> serialised_snapshot;
+    };
 
-      // Prevents the receipt from being passed to the host (on commit) in case
-      // host has not yet allocated memory for the snapshot.
-      bool is_stored = false;
+    struct SnapshotInfo
+    {
+      ccf::kv::Version version = 0;
 
       std::optional<::consensus::Index> evidence_idx = std::nullopt;
 
-      std::optional<std::vector<uint8_t>> cose_sig = std::nullopt;
+      std::optional<CoseSignatureMap> cose_sigs = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
+
+      // Outputs of the serialise action, handed to the persist action.
+      std::shared_ptr<SnapshotSerialisation> serialised;
+
+      // Per-generation ordered task collection. The serialise action is added
+      // at schedule time, and the persist action once commit evidence is
+      // durable. OrderedTasks ensures the persist runs after the serialise.
+      std::shared_ptr<ccf::tasks::OrderedTasks> tasks;
 
       SnapshotInfo() = default;
     };
@@ -145,45 +160,36 @@ namespace ccf
       return latest_time;
     }
 
-    void commit_snapshot(
-      ::consensus::Index snapshot_idx,
-      const std::vector<uint8_t>& serialised_receipt)
-    {
-      // The snapshot_idx is used to retrieve the correct snapshot file
-      // previously generated.
-      auto to_host = writer_factory.create_writer_to_outside();
-      RINGBUFFER_WRITE_MESSAGE(
-        ::consensus::snapshot_commit,
-        to_host,
-        snapshot_idx,
-        serialised_receipt);
-    }
-
-    struct SnapshotTask : public ccf::tasks::BaseTask
+    struct SerialiseSnapshotAction : public ccf::tasks::ITaskAction
     {
       std::shared_ptr<Snapshotter> self;
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot;
       uint32_t generation_count;
       TimePoint timestamp;
+      std::shared_ptr<SnapshotSerialisation> serialised;
 
       const std::string name;
 
-      SnapshotTask(
+      SerialiseSnapshotAction(
         std::shared_ptr<Snapshotter> _self,
         std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot>&& _snapshot,
         uint32_t _generation_count,
-        TimePoint _timestamp) :
+        TimePoint _timestamp,
+        std::shared_ptr<SnapshotSerialisation> _serialised) :
         self(std::move(_self)),
         snapshot(std::move(_snapshot)),
         generation_count(_generation_count),
         timestamp(_timestamp),
+        serialised(std::move(_serialised)),
         name(fmt::format(
-          "snapshot@{}[{}]", snapshot->get_version(), generation_count))
+          "serialise-snapshot@{}[{}]",
+          snapshot->get_version(),
+          generation_count))
       {}
 
-      void do_task_implementation() override
+      void do_action() override
       {
-        self->snapshot_(std::move(snapshot), generation_count, timestamp);
+        self->serialise_snapshot_(std::move(snapshot), timestamp, serialised);
       }
 
       [[nodiscard]] const std::string& get_name() const override
@@ -192,31 +198,57 @@ namespace ccf
       }
     };
 
-    void snapshot_(
+    struct PersistSnapshotAction : public ccf::tasks::ITaskAction
+    {
+      std::shared_ptr<Snapshotter> self;
+      ccf::kv::Version version;
+      ::consensus::Index evidence_idx;
+      CoseSignatureMap cose_sigs;
+      std::vector<uint8_t> tree;
+      std::shared_ptr<SnapshotSerialisation> serialised;
+
+      const std::string name;
+
+      PersistSnapshotAction(
+        std::shared_ptr<Snapshotter> _self,
+        ccf::kv::Version _version,
+        ::consensus::Index _evidence_idx,
+        CoseSignatureMap _cose_sigs,
+        std::vector<uint8_t> _tree,
+        std::shared_ptr<SnapshotSerialisation> _serialised) :
+        self(std::move(_self)),
+        version(_version),
+        evidence_idx(_evidence_idx),
+        cose_sigs(std::move(_cose_sigs)),
+        tree(std::move(_tree)),
+        serialised(std::move(_serialised)),
+        name(fmt::format("persist-snapshot@{}", version))
+      {}
+
+      void do_action() override
+      {
+        self->persist_snapshot_(
+          version, evidence_idx, cose_sigs, tree, serialised);
+      }
+
+      [[nodiscard]] const std::string& get_name() const override
+      {
+        return name;
+      }
+    };
+
+    void serialise_snapshot_(
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot,
-      uint32_t generation_count,
-      TimePoint timestamp)
+      TimePoint timestamp,
+      const std::shared_ptr<SnapshotSerialisation>& serialised)
     {
       auto snapshot_version = snapshot->get_version();
 
-      {
-        std::unique_lock<ccf::pal::Mutex> guard(lock);
-        if (pending_snapshots.size() >= max_pending_snapshots_count)
-        {
-          LOG_FAIL_FMT(
-            "Skipping new snapshot generation as {} snapshots are already "
-            "pending",
-            pending_snapshots.size());
-          return;
-        }
-
-        // It is possible that the signature following the snapshot evidence is
-        // scheduled by another thread while the below snapshot evidence
-        // transaction is committed. To allow for such scenario, the evidence
-        // seqno is recorded via `record_snapshot_evidence_idx()` on a hook
-        // rather than here.
-        pending_snapshots[generation_count].version = snapshot_version;
-      }
+      // The pending_snapshots entry (with its version) is created at schedule
+      // time, before this action runs. The evidence seqno is recorded via
+      // `record_snapshot_evidence_idx()` on a hook rather than here, to allow
+      // for the signature following the snapshot evidence being scheduled by
+      // another thread while the below snapshot evidence transaction commits.
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
       auto serialised_snapshot_size = serialised_snapshot.size();
@@ -245,7 +277,7 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
-      auto rc = tx.commit(cd, nullptr, capture_ws_digest_and_commit_evidence);
+      auto rc = tx.commit(cd, capture_ws_digest_and_commit_evidence);
       if (rc != ccf::kv::CommitResult::SUCCESS)
       {
         LOG_FAIL_FMT(
@@ -257,32 +289,46 @@ namespace ccf
 
       auto evidence_version = tx.commit_version();
 
-      {
-        std::unique_lock<ccf::pal::Mutex> guard(lock);
-        pending_snapshots[generation_count].commit_evidence = commit_evidence;
-        pending_snapshots[generation_count].write_set_digest = ws_digest;
-        pending_snapshots[generation_count].snapshot_digest = cd.value();
-        pending_snapshots[generation_count].serialised_snapshot =
-          std::move(serialised_snapshot);
-      }
-
-      auto to_host = writer_factory.create_writer_to_outside();
-      RINGBUFFER_WRITE_MESSAGE(
-        ::consensus::snapshot_allocate,
-        to_host,
-        snapshot_version,
-        evidence_version,
-        serialised_snapshot_size,
-        generation_count);
+      // Hand the serialise outputs to the (later) persist action. No lock is
+      // required: the per-generation OrderedTasks guarantees this action
+      // completes before the persist action reads these.
+      serialised->commit_evidence = commit_evidence;
+      serialised->write_set_digest = ws_digest;
+      serialised->snapshot_digest = cd.value();
+      serialised->serialised_snapshot = std::move(serialised_snapshot);
 
       LOG_DEBUG_FMT(
-        "Request to allocate snapshot [{} bytes] for seqno {}, with evidence "
+        "Generated snapshot [{} bytes] for seqno {}, with evidence "
         "seqno {}: {}, ws digest: {}",
         serialised_snapshot_size,
         snapshot_version,
         evidence_version,
         cd.value(),
         ws_digest);
+    }
+
+    void persist_snapshot_(
+      ccf::kv::Version version,
+      ::consensus::Index evidence_idx,
+      const CoseSignatureMap& cose_sigs,
+      const std::vector<uint8_t>& tree,
+      const std::shared_ptr<SnapshotSerialisation>& serialised)
+    {
+      auto serialised_receipt = build_and_serialise_receipt(
+        cose_sigs,
+        tree,
+        evidence_idx,
+        serialised->write_set_digest,
+        serialised->commit_evidence,
+        std::move(serialised->snapshot_digest));
+
+      // The snapshot bytes and receipt are written out to a single snapshot
+      // file. This runs on a task thread (see PersistSnapshotAction).
+      snapshot_writer.persist_snapshot(
+        version,
+        evidence_idx,
+        serialised->serialised_snapshot,
+        serialised_receipt);
     }
 
     void update_indices(::consensus::Index idx)
@@ -317,19 +363,27 @@ namespace ccf
         auto& snapshot_info = it->second;
 
         if (
-          snapshot_info.is_stored && snapshot_info.evidence_idx.has_value() &&
+          snapshot_info.evidence_idx.has_value() &&
           idx > snapshot_info.evidence_idx.value() &&
-          snapshot_info.cose_sig.has_value() && snapshot_info.tree.has_value())
+          snapshot_info.cose_sigs.has_value() && snapshot_info.tree.has_value())
         {
-          auto serialised_receipt = build_and_serialise_receipt(
-            snapshot_info.cose_sig.value(),
-            snapshot_info.tree.value(),
-            snapshot_info.evidence_idx.value(),
-            snapshot_info.write_set_digest,
-            snapshot_info.commit_evidence,
-            std::move(snapshot_info.snapshot_digest));
+          // Commit evidence is durable. Enqueue the persist action on this
+          // generation's ordered task collection. OrderedTasks guarantees it
+          // runs after the serialise action (which produces the snapshot bytes
+          // and digests), so the persist action can safely read them. This
+          // takes the receipt construction and the snapshot_commit write off
+          // the consensus thread.
+          snapshot_info.tasks->add_action(
+            std::make_shared<PersistSnapshotAction>(
+              shared_from_this(),
+              snapshot_info.version,
+              snapshot_info.evidence_idx.value(),
+              std::move(snapshot_info.cose_sigs.value()),
+              std::move(snapshot_info.tree.value()),
+              snapshot_info.serialised));
 
-          commit_snapshot(snapshot_info.version, serialised_receipt);
+          // The OrderedTasks remains alive on the job board until it has run
+          // the persist action, so it is safe to drop our handle here.
           it = pending_snapshots.erase(it);
         }
         else
@@ -341,13 +395,13 @@ namespace ccf
 
   public:
     Snapshotter(
-      ringbuffer::AbstractWriterFactory& writer_factory_,
+      const std::string& snapshot_dir,
       std::shared_ptr<ccf::kv::Store>& store_,
       size_t snapshot_tx_interval_,
       size_t min_snapshot_tx_interval_ = 0,
       std::chrono::microseconds snapshot_time_interval_ =
         std::chrono::microseconds(0)) :
-      writer_factory(writer_factory_),
+      snapshot_writer(snapshot_dir),
       store(store_),
       snapshot_tx_interval(snapshot_tx_interval_),
       min_snapshot_tx_interval(min_snapshot_tx_interval_),
@@ -361,7 +415,7 @@ namespace ccf
       // After public recovery, the first node should have restored all
       // snapshot indices in next_snapshot_indices so that snapshot
       // generation can continue at the correct interval
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       last_snapshot_idx = next_snapshot_indices.back().idx;
       last_snapshot_time = Clock::now();
@@ -369,13 +423,13 @@ namespace ccf
 
     void set_snapshot_generation(bool enabled)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       snapshot_generation_enabled = enabled;
     }
 
     void init_from_snapshot_status(const SnapshotStatus& status)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       const auto timestamp = time_point_from_snapshot_status(status.timestamp);
       last_snapshot_idx = status.version;
@@ -383,50 +437,6 @@ namespace ccf
 
       next_snapshot_indices.clear();
       next_snapshot_indices.push_back({last_snapshot_idx, false, true});
-    }
-
-    bool write_snapshot(
-      std::span<uint8_t> snapshot_buf, uint32_t generation_count)
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-
-      auto search = pending_snapshots.find(generation_count);
-      if (search == pending_snapshots.end())
-      {
-        LOG_FAIL_FMT(
-          "Could not find pending snapshot to write for generation count {}",
-          generation_count);
-        return false;
-      }
-
-      auto& pending_snapshot = search->second;
-      if (snapshot_buf.size() != pending_snapshot.serialised_snapshot.size())
-      {
-        // Unreliable host: allocated snapshot buffer is not of expected
-        // size. The pending snapshot is discarded to reduce enclave memory
-        // usage.
-        LOG_FAIL_FMT(
-          "Host allocated snapshot buffer [{} bytes] is not of expected "
-          "size [{} bytes]. Discarding snapshot for seqno {}",
-          snapshot_buf.size(),
-          pending_snapshot.serialised_snapshot.size(),
-          pending_snapshot.version);
-        pending_snapshots.erase(search);
-        return false;
-      }
-
-      std::copy(
-        pending_snapshot.serialised_snapshot.begin(),
-        pending_snapshot.serialised_snapshot.end(),
-        snapshot_buf.begin());
-      pending_snapshot.is_stored = true;
-
-      LOG_DEBUG_FMT(
-        "Successfully copied snapshot at seqno {} to host memory [{} "
-        "bytes]",
-        pending_snapshot.version,
-        pending_snapshot.serialised_snapshot.size());
-      return true;
     }
 
     bool should_schedule_snapshot_unsafe(::consensus::Index threshold_idx)
@@ -465,7 +475,7 @@ namespace ccf
 
     bool should_schedule_snapshot(::consensus::Index threshold_idx) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
       return should_schedule_snapshot_unsafe(threshold_idx);
     }
 
@@ -473,7 +483,7 @@ namespace ccf
     {
       // Returns true if the committable idx will require the generation of a
       // snapshot, and thus a new ledger chunk
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       CCF_ASSERT_FMT(
         idx >= next_snapshot_indices.back().idx,
@@ -503,26 +513,27 @@ namespace ccf
       return false;
     }
 
-    void record_cose_signature(
-      ::consensus::Index idx, const std::vector<uint8_t>& cose_sig)
+    void record_cose_signatures(
+      ::consensus::Index idx, const CoseSignatureMap& cose_sigs)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       for (auto& [_, pending_snapshot] : pending_snapshots)
       {
         if (
           pending_snapshot.evidence_idx.has_value() &&
           idx > pending_snapshot.evidence_idx.value() &&
-          !pending_snapshot.cose_sig.has_value())
+          !pending_snapshot.cose_sigs.has_value())
         {
           LOG_TRACE_FMT(
-            "Recording COSE signature at {} for snapshot {} with evidence at "
-            "{}",
+            "Recording {} COSE signature(s) at {} for snapshot {} with "
+            "evidence at {}",
+            cose_sigs.size(),
             idx,
             pending_snapshot.version,
             pending_snapshot.evidence_idx.value());
 
-          pending_snapshot.cose_sig = cose_sig;
+          pending_snapshot.cose_sigs = cose_sigs;
         }
       }
     }
@@ -530,7 +541,7 @@ namespace ccf
     void record_serialised_tree(
       ::consensus::Index idx, const std::vector<uint8_t>& tree)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       for (auto& [_, pending_snapshot] : pending_snapshots)
       {
@@ -554,7 +565,7 @@ namespace ccf
     void record_snapshot_evidence_idx(
       ::consensus::Index idx, const SnapshotHash& snapshot)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       for (auto& [_, pending_snapshot] : pending_snapshots)
       {
@@ -574,7 +585,7 @@ namespace ccf
     // globally committed baseline aligned with replicated state.
     void record_snapshot_status(const SnapshotStatus& status)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       const auto timestamp = time_point_from_snapshot_status(status.timestamp);
       last_snapshot_idx = status.version;
@@ -590,15 +601,33 @@ namespace ccf
 
     void schedule_snapshot(::consensus::Index idx, TimePoint timestamp)
     {
+      // Called with lock held (from commit()).
       static uint32_t generation_count = 0;
 
-      auto task = std::make_shared<SnapshotTask>(
+      if (pending_snapshots.size() >= max_pending_snapshots_count)
+      {
+        LOG_FAIL_FMT(
+          "Skipping new snapshot generation as {} snapshots are already "
+          "pending",
+          pending_snapshots.size());
+        return;
+      }
+
+      const auto generation = generation_count++;
+
+      auto& info = pending_snapshots[generation];
+      info.version = idx;
+      info.serialised = std::make_shared<SnapshotSerialisation>();
+      info.tasks = ccf::tasks::OrderedTasks::create(
+        ccf::tasks::get_main_job_board(),
+        fmt::format("snapshot@{}[{}]", idx, generation));
+
+      info.tasks->add_action(std::make_shared<SerialiseSnapshotAction>(
         shared_from_this(),
         store->snapshot_unsafe_maps(idx),
-        generation_count++,
-        timestamp);
-
-      ccf::tasks::add_task(task);
+        generation,
+        timestamp,
+        info.serialised));
     }
 
     void commit(::consensus::Index idx, bool generate_snapshot) override
@@ -609,7 +638,7 @@ namespace ccf
       // that a snapshot was generated.
 
       ccf::kv::ScopedStoreMapsLock maps_lock(store);
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       // Prune all but one of the requested snapshots below idx and also take
       // the opportunity to release any pending snapshots which now have commit
@@ -667,7 +696,7 @@ namespace ccf
 
     void rollback(::consensus::Index idx) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      std::lock_guard<ccf::ds::Mutex> guard(lock);
 
       while (!next_snapshot_indices.empty() &&
              (next_snapshot_indices.back().idx > idx))

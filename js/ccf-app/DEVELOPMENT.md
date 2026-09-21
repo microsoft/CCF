@@ -43,11 +43,15 @@ However, all uncaught exceptions and output from `console.log()` are dumped to t
 
 ```sh
 npm run docs
-# or in watch mode with web server:
-npm run docs:serve
+# or in watch mode:
+npm run docs:watch
 ```
 
-typedoc's default theme is extended in `doc/theme` to add a backlink to CCF's main docs and add a version selector.
+TypeDoc and its supported TypeScript 6 compiler are isolated in `doc/package.json`,
+while application builds use the TypeScript version in the root `package.json`.
+The documentation toolchain is installed automatically by the commands above.
+
+TypeDoc's default theme is extended in `doc/theme` to add a backlink to CCF's main docs and add a version selector.
 
 When this package's docs are built within CCF's multi-version Sphinx-based documentation then additional environment variables are set to enable the version selector.
 
@@ -56,7 +60,7 @@ A dummy CCF version configuration can be simulated as follows to show the versio
 ```sh
 export SMV_CURRENT_VERSION=ccf-0.19.1
 export SMV_METADATA_PATH=$(pwd)/doc/theme/helpers/versions.sample.json
-npm run docs:serve
+npm run docs:watch
 ```
 
 ## Packaging

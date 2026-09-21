@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "tasks/job_board.h"
 
+#include "ccf/ds/locking.h"
+
 #include <chrono>
-#include <condition_variable>
 #include <map>
 
 namespace ccf::tasks
@@ -13,7 +14,7 @@ namespace ccf::tasks
   struct WaitingWorkerThread
   {
     // Ownership of a condition variable that a single thread will wait on
-    std::condition_variable cv;
+    ccf::ds::ConditionVariable cv;
 
     // Output variable to assign that thread a task
     Task& assigned_task;
@@ -46,20 +47,19 @@ namespace ccf::tasks
     using DelayedTasksByTime =
       std::map<std::chrono::milliseconds, DelayedTasks>;
 
-    std::atomic<std::chrono::milliseconds> total_elapsed =
+    ccf::ds::Mutex tasks_mutex;
+    std::chrono::milliseconds total_elapsed CCF_GUARDED_BY(tasks_mutex) =
       std::chrono::milliseconds(0);
-
-    std::mutex tasks_mutex;
-    DelayedTasksByTime tasks;
+    DelayedTasksByTime tasks CCF_GUARDED_BY(tasks_mutex);
   };
 
   struct JobBoard::PImpl
   {
     // Mutex protects access to both pending_tasks and waiting_worker_threads
-    std::mutex mutex;
+    ccf::ds::Mutex mutex;
 
     // Collection of tasks that are ready for execution
-    std::queue<Task> pending_tasks;
+    std::queue<Task> pending_tasks CCF_GUARDED_BY(mutex);
 
     // Collection describing idle worker threads. This takes shared pointers, to
     // ensure the objects remain valid even if the caller exits exceptionally
@@ -67,36 +67,70 @@ namespace ccf::tasks
     // shared pointer, so that the caller can ensure the lifetime persists past
     // a condition_variable wait.
     using WorkerThreadPtr = std::shared_ptr<WaitingWorkerThread>;
-    std::shared_ptr<std::vector<WorkerThreadPtr>> waiting_worker_threads =
-      std::make_shared<std::vector<WorkerThreadPtr>>();
+    std::shared_ptr<std::vector<WorkerThreadPtr>> waiting_worker_threads
+      CCF_GUARDED_BY(mutex) = std::make_shared<std::vector<WorkerThreadPtr>>();
+
+    ccf::ds::WorkBeaconPtr work_beacon CCF_GUARDED_BY(mutex) = nullptr;
+    bool stopping CCF_GUARDED_BY(mutex) = false;
 
     // Collection of delayed tasks, that may be ready for execution on a future
     // tick
     Delayed delayed;
 
-    void add_task(Task&& task)
+    void set_work_beacon(ccf::ds::WorkBeaconPtr work_beacon_)
     {
-      // Under lock
-      std::unique_lock<std::mutex> lock(mutex);
-
-      // First check if there is an idle worker waiting for a task
-      for (WorkerThreadPtr& worker : *waiting_worker_threads)
+      ccf::ds::WorkBeaconPtr beacon;
       {
-        // NB: Although waiting_worker_threads is modified under lock, it is
-        // possible that a second call to add_task arrives before the notified
-        // thread wakes up and removes itself from this collection. In this case
-        // we must avoid overwriting a previously-assigned task.
-        if (worker->assigned_task == nullptr)
+        ccf::ds::MutexGuard lock(mutex);
+        work_beacon = std::move(work_beacon_);
+        if (work_beacon != nullptr && !pending_tasks.empty())
         {
-          worker->assigned_task = std::move(task);
-          worker->cv.notify_one();
-          return;
+          beacon = work_beacon;
         }
       }
 
-      // There are no waiting_worker_threads currently, or none waiting for a
-      // task, so enqueue this task for later execution
-      pending_tasks.emplace(std::move(task));
+      if (beacon != nullptr)
+      {
+        beacon->notify_work_available_coalesced();
+      }
+    }
+
+    void add_task(Task&& task)
+    {
+      ccf::ds::WorkBeaconPtr beacon;
+      {
+        // Under lock
+        ccf::ds::MutexGuard lock(mutex);
+
+        // First check if there is an idle worker waiting for a task
+        for (WorkerThreadPtr& worker : *waiting_worker_threads)
+        {
+          // NB: Although waiting_worker_threads is modified under lock, it is
+          // possible that a second call to add_task arrives before the notified
+          // thread wakes up and removes itself from this collection. In this
+          // case we must avoid overwriting a previously-assigned task.
+          if (worker->assigned_task == nullptr)
+          {
+            worker->assigned_task = std::move(task);
+            worker->cv.notify_one();
+            return;
+          }
+        }
+
+        // There are no waiting_worker_threads currently, or none waiting for a
+        // task, so enqueue this task for later execution. Wake the external
+        // consumer only when the pending queue becomes non-empty.
+        if (pending_tasks.empty())
+        {
+          beacon = work_beacon;
+        }
+        pending_tasks.emplace(std::move(task));
+      }
+
+      if (beacon != nullptr)
+      {
+        beacon->notify_work_available_coalesced();
+      }
     }
 
     Task get_task()
@@ -111,7 +145,7 @@ namespace ccf::tasks
 
       {
         // Under lock
-        std::unique_lock<std::mutex> lock(mutex);
+        ccf::ds::MutexGuard lock(mutex);
 
         // Get local copy to extend life, even if this object dies while we're
         // waiting.
@@ -121,6 +155,11 @@ namespace ccf::tasks
         // Check if there are pending tasks to be executed
         if (pending_tasks.empty())
         {
+          if (stopping)
+          {
+            return nullptr;
+          }
+
           // When the task queue is empty, append this thread to
           // waiting_worker_threads and wait on a condition_variable
           WorkerThreadPtr waiting_worker =
@@ -154,23 +193,35 @@ namespace ccf::tasks
       return to_return;
     }
 
+    void stop_waiters()
+    {
+      ccf::ds::MutexGuard lock(mutex);
+      // Enclave shutdown is terminal, so future waits must not block either.
+      stopping = true;
+      for (const auto& worker : *waiting_worker_threads)
+      {
+        worker->cv.notify_one();
+      }
+    }
+
     void add_timed_task(
       Task task,
       std::chrono::milliseconds initial_delay,
       std::optional<std::chrono::milliseconds> periodic_delay)
     {
-      std::lock_guard<std::mutex> lock(delayed.tasks_mutex);
+      ccf::ds::MutexGuard lock(delayed.tasks_mutex);
 
-      const auto trigger_time = delayed.total_elapsed.load() + initial_delay;
+      const auto trigger_time = delayed.total_elapsed + initial_delay;
       delayed.tasks[trigger_time].emplace_back(task, periodic_delay);
     }
 
     void tick(std::chrono::milliseconds elapsed)
     {
-      elapsed += delayed.total_elapsed.load();
-
       {
-        std::lock_guard<std::mutex> lock(delayed.tasks_mutex);
+        ccf::ds::MutexGuard lock(delayed.tasks_mutex);
+        elapsed += delayed.total_elapsed;
+        delayed.total_elapsed = elapsed;
+
         auto end_it = delayed.tasks.upper_bound(elapsed);
 
         Delayed::DelayedTasksByTime repeats;
@@ -209,8 +260,6 @@ namespace ccf::tasks
             repeated_tasks.end());
         }
       }
-
-      delayed.total_elapsed.store(elapsed);
     }
   };
 
@@ -225,6 +274,11 @@ namespace ccf::tasks
   JobBoard::JobBoard() : pimpl(std::make_unique<PImpl>()) {}
 
   JobBoard::~JobBoard() = default;
+
+  void JobBoard::set_work_beacon(ccf::ds::WorkBeaconPtr work_beacon)
+  {
+    pimpl->set_work_beacon(std::move(work_beacon));
+  }
 
   void JobBoard::add_task(Task task)
   {
@@ -241,11 +295,16 @@ namespace ccf::tasks
     return pimpl->wait_for_task(timeout);
   }
 
+  void JobBoard::stop_waiters()
+  {
+    pimpl->stop_waiters();
+  }
+
   JobBoard::Summary JobBoard::get_summary()
   {
     Summary summary{};
     {
-      std::lock_guard<std::mutex> lock(pimpl->mutex);
+      ccf::ds::MutexGuard lock(pimpl->mutex);
       summary.pending_tasks = pimpl->pending_tasks.size();
       summary.idle_workers = pimpl->waiting_worker_threads->size();
     }

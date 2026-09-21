@@ -9,4 +9,4 @@ CCF can run on several hardware platforms/trusted execution environments, which 
     snp
     virtual
 
-CCF releases (RPM packages) are available for each platform.
+Current CCF releases provide a single RPM package supporting both SEV-SNP and insecure virtual operation.

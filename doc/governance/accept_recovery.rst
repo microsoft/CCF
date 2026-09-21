@@ -70,7 +70,7 @@ A member proposes to recover the network and other members can vote on the propo
       --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 \
       --signing-key member2_privk.pem \
       --signing-cert member2_cert.pem \
-      --content vote_accept.json
+      --content vote_accept.json \
     | curl https://<ccf-node-address>/gov/members/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots/e306e3a6eead2f4a3854302b41c3015bf12db9535ac0be1b8cf6584f84bca92b:submit?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
@@ -84,14 +84,14 @@ A member proposes to recover the network and other members can vote on the propo
 
 Once the proposal to recover the network has passed under the rules of the :term:`Constitution`, the recovered service is ready for members to submit their recovery shares.
 
-Note that the ``transition_service_to_open`` proposal takes two parameters: the previous and the next :term:`Service Identity` (x509 certificates in PEM format). This is to ensure that the correct network is recovered and to facilitate auditing, as well as to avoid forks. The previous :term:`Service Identity` is used to validate the snapshot the recovery node is started from; CCF will refuse to start from a snapshot where the signing node certificate is not endorsed by the previous :term:`Service Identity`. Since both identities are recorded on the ledger with the proposal, it is always clear at which point the identity changed.
+Note that the ``transition_service_to_open`` proposal takes two parameters: the previous and the next :term:`Service Identity` (X.509 certificates in PEM format). The previous identity must match the identity supplied to the recovery node at startup, while the next identity must match the recovered service's newly generated identity. Snapshot validation is performed earlier at node startup using the configured previous service identity. Since both identities are recorded on the ledger with the proposal, it is always clear at which point the identity changed.
 
 .. note:: The ``previous_service_identity`` argument to the ``transition_service_to_open`` proposal is required for recovery, but must not be provided when opening a new service as there is no previous identity.
 
 Submitting Recovery Shares
 --------------------------
 
-To restore private transactions and complete the recovery procedure, recovery members (i.e. members whose public encryption key has been registered in CCF) should submit their recovery shares. The number of members required to submit their shares is set by the ``recovery_threshold`` CCF configuration parameter and :ref:`can be updated by the consortium at any time <governance/common_member_operations:Updating Recovery Threshold>`.
+To restore private transactions and complete the recovery procedure, recovery members (i.e. members whose public encryption key has been registered in CCF) should submit their recovery shares. The number of members required to submit their shares is set by the ``recovery_threshold`` CCF configuration parameter and :ref:`can be updated by the consortium while the service is open <governance/common_member_operations:Updating Recovery Threshold>`.
 
 .. note:: The recovery members who submit their recovery shares do not necessarily have to be the members who previously accepted the recovery.
 
@@ -103,7 +103,7 @@ The recovery share retrieval, decryption and submission steps can be convenientl
 
     $ submit_recovery_share.sh https://<ccf-node-address> \
       --member-enc-privk member0_enc_privk.pem \
-      --cert member0_cert.pem \ 
+      --cert member0_cert.pem \
       --api-version 2024-07-01 \
       --key member0_privk.pem \
       --cacert service_cert.pem
@@ -129,7 +129,7 @@ When the recovery threshold is reached, the :http:POST:`/gov/recovery/members/{m
 
 Once the recovery of the private ledger is complete on a quorum of nodes that have joined the new network, the ledger is fully recovered and users are able to continue issuing business transactions.
 
-.. note:: Recovery shares are updated every time a new recovery member is added or removed and when the ledger is rekeyed. It also possible for members to update the recovery shares via the ``trigger_recovery_shares_refresh`` proposal.
+.. note:: Recovery shares are updated when recovery membership or the recovery threshold changes and when the ledger is rekeyed. It is also possible for members to update the recovery shares via the ``trigger_recovery_shares_refresh`` proposal.
 
 Summary Diagram
 ---------------

@@ -15,16 +15,40 @@ namespace ccf::endpoints
 
   Endpoint& Endpoint::require_operator_feature(OperatorFeature feature)
   {
+    const auto first_required_feature = required_operator_features.empty();
     required_operator_features.insert(feature);
+    if (!first_required_feature)
+    {
+      return *this;
+    }
+
+    schema_builders.emplace_back(
+      [](nlohmann::json& document, const Endpoint& endpoint) {
+        const auto http_verb = endpoint.dispatch.verb.get_http_method();
+        if (!http_verb.has_value())
+        {
+          return;
+        }
+
+        auto& path_operation = ds::openapi::path_operation(
+          ds::openapi::path(document, endpoint.full_uri_path),
+          http_verb.value());
+        auto& responses = ds::openapi::responses(path_operation);
+        if (!responses.contains(std::to_string(HTTP_STATUS_NOT_FOUND)))
+        {
+          ds::openapi::response(
+            path_operation,
+            HTTP_STATUS_NOT_FOUND,
+            "The required operator feature is not enabled on this interface.");
+        }
+      });
     return *this;
   }
 
   Endpoint& Endpoint::set_params_schema(const nlohmann::json& j)
   {
-    params_schema = j;
-
     schema_builders.emplace_back(
-      [](nlohmann::json& document, const Endpoint& endpoint) {
+      [j](nlohmann::json& document, const Endpoint& endpoint) {
         const auto http_verb = endpoint.dispatch.verb.get_http_method();
         if (!http_verb.has_value())
         {
@@ -36,8 +60,7 @@ namespace ccf::endpoints
         auto& rb = request_body(path_operation(
           ds::openapi::path(document, endpoint.full_uri_path),
           http_verb.value()));
-        schema(media_type(rb, http::headervalues::contenttype::JSON)) =
-          endpoint.params_schema;
+        schema(media_type(rb, http::headervalues::contenttype::JSON)) = j;
       });
 
     return *this;
@@ -46,11 +69,10 @@ namespace ccf::endpoints
   Endpoint& Endpoint::set_result_schema(
     const nlohmann::json& j, std::optional<http_status> status)
   {
-    result_schema = j;
-    success_status = status.value_or(HTTP_STATUS_OK);
+    const auto response_status = status.value_or(HTTP_STATUS_OK);
 
     schema_builders.emplace_back(
-      [j](nlohmann::json& document, const Endpoint& endpoint) {
+      [j, response_status](nlohmann::json& document, const Endpoint& endpoint) {
         const auto http_verb = endpoint.dispatch.verb.get_http_method();
         if (!http_verb.has_value())
         {
@@ -62,10 +84,9 @@ namespace ccf::endpoints
           path_operation(
             ds::openapi::path(document, endpoint.full_uri_path),
             http_verb.value()),
-          endpoint.success_status);
+          response_status);
 
-        schema(media_type(r, http::headervalues::contenttype::JSON)) =
-          endpoint.result_schema;
+        schema(media_type(r, http::headervalues::contenttype::JSON)) = j;
       });
 
     return *this;

@@ -31,13 +31,6 @@ function(add_ccf_app name)
     target_link_options(${name} PRIVATE LINKER:--no-undefined)
   endif()
 
-  # Tracked in https://github.com/microsoft/CCF/issues/7596. Workaround for a
-  # circular dependency between ccf.a and ccfcrypto.a
-  target_link_options(
-    ${name}
-    PRIVATE LINKER:--undefined=_ZN3ccf9threading21get_current_thread_idEv
-  )
-
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_san(${name})
@@ -72,6 +65,7 @@ function(add_ccf_static_library name)
   add_hardening(${name})
   add_tidy(${name})
   add_warning_checks(${name})
+  enable_coverage(${name})
 
   install(TARGETS ${name} EXPORT ccf DESTINATION lib)
 

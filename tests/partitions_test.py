@@ -1,31 +1,45 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.network
-import infra.net
-import infra.interfaces
+import contextlib
+import copy
+import http
+import os
+import pprint
+import subprocess
+import threading
+import time
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+
+import ccf.ledger
 import infra.e2e_args
-import infra.partitions
+import infra.interfaces
 import infra.logging_app as app
+import infra.net
+import infra.network
+import infra.partitions
 import suite.test_requirements as reqs
-from datetime import datetime, timedelta
+from ccf.tx_id import TxID
+from e2e_logging import verify_receipt
 from infra.checker import check_can_progress, check_does_not_progress
 from infra.log_capture import flush_info
-import pprint
+from infra.runner import ConcurrentRunner
 from infra.tx_status import TxStatus
-import time
-import http
-import contextlib
-import ccf.ledger
-import subprocess
-import copy
-from collections import defaultdict
-from ccf.tx_id import TxID
-import os
-from reconfiguration import test_ledger_invariants
-import threading
-
 from loguru import logger as LOG
+from reconfiguration import test_ledger_invariants
+
+# Arbitrary high record id, chosen to avoid clashing with ids used by other
+# tests sharing the same network/ledger.
+UNCOMMITTABLE_RECORD_ID_START = 420000
+COMMITTED_RECORD_ID = UNCOMMITTABLE_RECORD_ID_START - 1
+# Each uncommittable record repeats the test message this many times, so that
+# a handful of records comfortably exceed the small chunk size below and
+# reliably force a new ledger chunk to be written to disk while isolated.
+UNCOMMITTABLE_MESSAGE_REPEAT = 1024
+# Small chunk size so that the writes made while the primary is isolated are
+# guaranteed to roll over into new (uncommitted) ledger chunks quickly.
+UNCOMMITTABLE_TEST_LEDGER_CHUNK_BYTES = "16KB"
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -100,7 +114,7 @@ def test_partition_majority(network, args):
 @reqs.exactly_n_nodes(3)
 def test_isolate_primary_from_one_backup(network, args):
     p, backups = network.find_nodes()
-    b_0, b_1 = backups
+    b_0, _b_1 = backups
 
     # Issue one transaction, waiting for all nodes to be have reached
     # the same level of commit, so that nodes outside of partition can
@@ -176,28 +190,21 @@ def test_isolate_primary_from_one_backup(network, args):
             }, f"Primary {p.local_node_id} is no longer follower"
         time.sleep(0.1)
 
+    LOG.info("A stable majority is not enough while a backup is still isolated")
+    try:
+        network.wait_for_stability(timeout_multiplier=3)
+    except TimeoutError:
+        pass
+    else:
+        assert False, "Partitioned network reported full stability"
+
     # Explicitly drop rules before continuing
     rules.drop()
 
     # primary should now observe partitioned backup as primary
     network.wait_for_new_primary_in({b_0}, nodes=[p])
 
-    LOG.info(f"Check that new primary {b_0.local_node_id} reports stable acks")
-    last_ack = 0
-    end_time = time.time() + 2 * network.args.election_timeout_ms // 1000
-    while time.time() < end_time:
-        with b_0.client() as c:
-            acks = c.get("/node/consensus", log_capture=[]).body.json()["details"][
-                "acks"
-            ]
-            delayed_acks = [
-                ack
-                for ack in acks.values()
-                if ack["last_received_ms"] > args.election_timeout_ms
-            ]
-            if delayed_acks:
-                raise RuntimeError(f"New primary reported some delayed acks: {acks}")
-        time.sleep(0.1)
+    network.wait_for_stability()
 
     return network
 
@@ -320,7 +327,7 @@ def test_expired_certs(network, args):
     def set_certs(from_days_diff, validity_period_days, nodes):
         valid_from = str(
             infra.crypto.datetime_to_X509time(
-                datetime.utcnow() + timedelta(days=from_days_diff)
+                datetime.now(timezone.utc) + timedelta(days=from_days_diff)
             )
         )
         for node in nodes:
@@ -383,11 +390,7 @@ def test_expired_certs(network, args):
         check_can_progress(backup_a)
 
     # Restore connectivity with primary, an election may or may not happen
-    network.wait_for_primary_unanimity(min_view=r.view + 1)
-
-    # Dropped partition, and even primary unanimity, do not mean node connectivity has been instantaneously restored.
-    # Sleep through potential delays in reconnection.
-    time.sleep(3)
+    network.wait_for_stability(min_view=r.view + 1)
 
     # Set valid node certs so that future clients can speak to these nodes
     set_certs(from_days_diff=-1, validity_period_days=7, nodes=(primary, backup_a))
@@ -399,6 +402,84 @@ def test_expired_certs(network, args):
     return network
 
 
+@reqs.description("A node can use a rolled-back certificate renewal")
+@reqs.exactly_n_nodes(3)
+def test_rolled_back_node_certificate(network, args):
+    renewed_node, backups = network.find_nodes()
+    network.wait_for_all_nodes_to_commit(primary=renewed_node)
+
+    def get_stored_certificate(remote_node):
+        with remote_node.api_versioned_client(api_version=args.gov_api_version) as c:
+            r = c.get(f"/gov/service/nodes/{renewed_node.node_id}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            return r.body.json()["certificate"]
+
+    original_cert = get_stored_certificate(renewed_node)
+
+    LOG.info("Renew the primary's certificate while it is isolated")
+    with network.partitioner.partition(
+        [renewed_node], name="isolate primary during certificate renewal"
+    ):
+        renewal = network.consortium.set_node_certificate_validity(
+            renewed_node,
+            renewed_node,
+            valid_from=str(
+                infra.crypto.datetime_to_X509time(
+                    datetime.now(timezone.utc) - timedelta(days=1)
+                )
+            ),
+            validity_period_days=args.maximum_node_certificate_validity_days - 1,
+            wait_for_commit=False,
+        )
+
+        uncommitted_cert = get_stored_certificate(renewed_node)
+        assert uncommitted_cert != original_cert
+        assert (
+            infra.crypto.compute_public_key_der_hash_hex_from_pem(uncommitted_cert)
+            == renewed_node.node_id
+        )
+
+        new_primary, _ = network.wait_for_new_primary(renewed_node, nodes=backups)
+        rollback_tx = check_can_progress(new_primary)
+
+    LOG.info("Confirm the certificate renewal was rolled back")
+    new_primary = network.wait_for_primary_unanimity(nodes=backups)
+    with renewed_node.client() as c:
+        c.wait_for_commit(
+            rollback_tx,
+            timeout=network.election_duration * 4,
+        )
+    network.wait_for_node_commit_sync(timeout=network.election_duration * 4)
+    assert get_stored_certificate(renewed_node) == original_cert
+
+    with new_primary.client() as c:
+        r = c.get(
+            f"/node/tx?transaction_id="
+            f"{renewal.completed_view}.{renewal.completed_seqno}"
+        )
+        assert TxStatus(r.body.json()["status"]) == TxStatus.Invalid, r
+
+    LOG.info("Confirm the re-elected node can use the rolled-back certificate")
+    force_become_primary(network, args, renewed_node)
+    with renewed_node.client("user0") as c:
+        r = c.post(
+            "/app/log/public",
+            {"id": 7059, "msg": "Signed after certificate renewal rollback"},
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+        c.wait_for_commit(r)
+
+    receipt = renewed_node.get_receipt(
+        view=r.view,
+        seqno=r.seqno,
+    ).json()
+    assert receipt["node_id"] == renewed_node.node_id
+    assert receipt["cert"] == uncommitted_cert
+    verify_receipt(receipt, network.cert)
+
+    return network
+
+
 @reqs.description("Test election while reconfiguration is in flight")
 @reqs.at_least_n_nodes(3)
 def test_election_reconfiguration(network, args):
@@ -406,8 +487,6 @@ def test_election_reconfiguration(network, args):
     # Note: this test makes use of node-endorsed secondary RPC interface since
     # new nodes never observe commit of their configuration and thus never
     # open their service-endorsed primary RPC interface.
-    primary, backups = network.find_nodes()
-
     LOG.info("Join new nodes without trusting them just yet")
     new_nodes = []
     # Start N+1 new nodes to make sure they cannot elect one of them as a primary
@@ -427,6 +506,11 @@ def test_election_reconfiguration(network, args):
     # becoming primary afterwards
     network.wait_for_node_commit_sync()
 
+    # An election may have occurred while the new nodes were joining. Use the
+    # current roles so the partition does not isolate the actual primary.
+    primary = network.wait_for_primary_unanimity()
+    backups = network.find_backups(primary=primary)
+
     LOG.info("Isolate original backups and issue reconfiguration of another quorum")
     # Partition backups _from each other_
     with network.partitioner.partitions([backup] for backup in backups):
@@ -436,7 +520,7 @@ def test_election_reconfiguration(network, args):
         network.consortium.trust_nodes(
             primary,
             [n.node_id for n in new_nodes],
-            valid_from=datetime.utcnow(),
+            valid_from=datetime.now(timezone.utc),
             wait_for_commit=False,
         )
 
@@ -517,14 +601,14 @@ def test_join_rollback_on_primary_isolation(network, args):
         network.wait_for_new_primary(primary, nodes=backups)
 
     LOG.info("Check the pending join is retried after rollback")
-    primary = network.wait_for_primary_unanimity(nodes=backups)
+    primary = network.wait_for_stability()
     network.wait_for_node_in_store(
         primary,
         pending_node.node_id,
         ccf.ledger.NodeStatus.PENDING,
         timeout=args.ledger_recovery_timeout,
     )
-    valid_from = datetime.utcnow()
+    valid_from = datetime.now(timezone.utc)
     network.consortium.trust_node(
         primary,
         pending_node.node_id,
@@ -539,7 +623,8 @@ def test_join_rollback_on_primary_isolation(network, args):
     check_can_progress(primary)
 
     LOG.info("Trust a pending node on an isolated primary")
-    primary, backups = network.find_nodes()
+    primary = network.wait_for_stability()
+    backups = network.find_backups(primary=primary)
     host_spec = infra.interfaces.HostSpec()
     host_spec.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
     trusted_node = network.create_node(host_spec)
@@ -558,7 +643,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         network.consortium.trust_node(
             primary,
             trusted_node.node_id,
-            valid_from=datetime.utcnow(),
+            valid_from=datetime.now(timezone.utc),
             wait_for_commit=False,
         )
         trusted_node.wait_for_node_to_join(
@@ -575,14 +660,15 @@ def test_join_rollback_on_primary_isolation(network, args):
         network.wait_for_new_primary(primary, nodes=backups)
 
     LOG.info("Check the trusted transition is rolled back and can be retried")
-    primary = network.wait_for_primary_unanimity(nodes=backups)
+    # The rolled-back joiner is not yet a member of the stable configuration.
+    primary = network.wait_for_stability(nodes=[primary, *backups])
     network.wait_for_node_in_store(
         primary,
         trusted_node.node_id,
         ccf.ledger.NodeStatus.PENDING,
         timeout=args.ledger_recovery_timeout,
     )
-    valid_from = datetime.utcnow()
+    valid_from = datetime.now(timezone.utc)
     network.consortium.trust_node(
         primary,
         trusted_node.node_id,
@@ -595,6 +681,7 @@ def test_join_rollback_on_primary_isolation(network, args):
     )
     network.wait_for_all_nodes_to_commit(primary=primary)
     check_can_progress(primary)
+    network.wait_for_stability()
 
     return network
 
@@ -943,6 +1030,10 @@ def test_recovery_elections(orig_network, args):
         args.debug_nodes,
         existing_network=orig_network,
     )
+    # Make the backup which is not stalled below an unlikely election winner.
+    network.per_node_args_override[2] = {
+        "election_timeout_ms": args.election_timeout_ms * 10
+    }
     network.start_in_recovery(
         args,
         ledger_dir=current_ledger_dir,
@@ -1083,12 +1174,10 @@ def force_become_primary(network, args, target_node):
         # target becomes primary and emits signature
         # target replicates signature
         # then we can remove the partition
-        rules = network.partitioner.isolate_node(primary, target_node)
-        target_node.wait_for_leadership_state(
-            0, "Leader", timeout=2 * args.election_timeout_ms / 1000
-        )
-        network.wait_for_node_commit_sync(nodes=backups)
-        rules.drop()
+        timeout = 4 * network.observed_election_duration
+        with network.partitioner.isolate_node(primary, target_node):
+            target_node.wait_for_leadership_state(0, "Leader", timeout=timeout)
+            network.wait_for_node_commit_sync(nodes=backups, timeout=timeout)
         # Wait for the old primary to observe the new one
         network.wait_for_new_primary_in({target_node}, nodes=[primary])
         network.wait_for_primary_unanimity()
@@ -1115,6 +1204,179 @@ def force_become_primary(network, args, target_node):
         raise TimeoutError(
             f"Node {target_node.node_id} did not produce signature (and receipt) in current term after {timeout}s"
         )
+
+
+def _uncommitted_ledger_files(node):
+    ledger_dir = node.remote.current_ledger_path()
+    return {
+        f
+        for f in os.listdir(ledger_dir)
+        if f.startswith("ledger_")
+        and not f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
+        and not f.endswith(ccf.ledger.IGNORED_FILE_SUFFIX)
+    }
+
+
+def _wait_for_new_uncommitted_ledger_files(node, previous_files, timeout=10):
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        uncommitted_files = _uncommitted_ledger_files(node)
+        new_uncommitted_files = uncommitted_files - previous_files
+        if new_uncommitted_files:
+            LOG.info(
+                f"Found new uncommitted ledger file(s) on {node.local_node_id}: {sorted(new_uncommitted_files)}"
+            )
+            return new_uncommitted_files
+        time.sleep(0.1)
+
+    raise TimeoutError(
+        f"Node {node.local_node_id} did not write a new uncommitted ledger file"
+    )
+
+
+def _assert_ledger_files_contain_payload(ledger_dir, ledger_files, payload):
+    for ledger_file in ledger_files:
+        with open(os.path.join(ledger_dir, ledger_file), "rb") as f:
+            if payload in f.read():
+                return
+
+    raise AssertionError(
+        f"Expected to find payload in {sorted(ledger_files)} under {ledger_dir}"
+    )
+
+
+@reqs.description(
+    "Restart a retired primary in place with uncommitted and uncommittable ledger files"
+)
+@reqs.exactly_n_nodes(3)
+def test_in_place_restart_with_uncommittable_ledger(network, args):
+    old_primary, backups = network.find_nodes()
+
+    committed_msg = "Committed before primary isolation"
+    with old_primary.client("user0") as c:
+        r = c.post(
+            "/app/log/public",
+            {"id": COMMITTED_RECORD_ID, "msg": committed_msg},
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+        c.wait_for_commit(r)
+
+    network.consortium.force_ledger_chunk(old_primary)
+    network.wait_for_all_nodes_to_commit(primary=old_primary)
+    previous_uncommitted_files = _uncommitted_ledger_files(old_primary)
+
+    uncommitted_records = [UNCOMMITTABLE_RECORD_ID_START + i for i in range(3)]
+    uncommitted_msg = "Uncommittable while primary is isolated"
+    uncommitted_payload = (uncommitted_msg * UNCOMMITTABLE_MESSAGE_REPEAT).encode()
+
+    with network.partitioner.partition([old_primary]):
+        with old_primary.client("user0") as c:
+            for record_id in uncommitted_records:
+                r = c.post(
+                    "/app/log/public",
+                    {
+                        "id": record_id,
+                        "msg": uncommitted_payload.decode(),
+                    },
+                )
+                assert r.status_code == http.HTTPStatus.OK, r
+
+        new_uncommitted_files = _wait_for_new_uncommitted_ledger_files(
+            old_primary, previous_uncommitted_files
+        )
+        _assert_ledger_files_contain_payload(
+            old_primary.remote.current_ledger_path(),
+            new_uncommitted_files,
+            uncommitted_payload,
+        )
+
+        new_primary, _ = network.wait_for_new_primary(old_primary, nodes=backups)
+        network.retire_node(new_primary, old_primary)
+        old_node_id = old_primary.node_id
+        old_primary.stop()
+
+    ledger_dir, read_only_ledger_dirs = old_primary.remote.get_ledger(
+        f"{old_primary.local_node_id}.ledger_in_place"
+    )
+    assert _uncommitted_ledger_files(old_primary), (
+        "Expected the stopped primary's persisted ledger to contain "
+        "uncommitted files before restart"
+    )
+    _assert_ledger_files_contain_payload(
+        ledger_dir,
+        new_uncommitted_files,
+        uncommitted_payload,
+    )
+
+    network.join_node(
+        old_primary,
+        args.package,
+        args,
+        target_node=new_primary,
+        ledger_dir=ledger_dir,
+        read_only_ledger_dirs=read_only_ledger_dirs,
+        copy_ledger=False,
+        from_snapshot=False,
+        timeout=args.ledger_recovery_timeout,
+    )
+    assert old_primary.node_id != old_node_id
+
+    # Confirm that the infra has not deleted (or otherwise lost) the
+    # uncommitted ledger files that were present before the in-place restart.
+    restarted_uncommitted_files = _uncommitted_ledger_files(old_primary)
+    missing_uncommitted_files = new_uncommitted_files - restarted_uncommitted_files
+    assert not missing_uncommitted_files, (
+        "Uncommitted ledger files were unexpectedly missing after the "
+        f"in-place restart: {sorted(missing_uncommitted_files)}"
+    )
+    _assert_ledger_files_contain_payload(
+        old_primary.remote.current_ledger_path(),
+        new_uncommitted_files,
+        uncommitted_payload,
+    )
+
+    network.trust_node(old_primary, args)
+
+    new_primary, _ = network.find_primary()
+    with new_primary.client("user0") as c:
+        r = c.get(f"/app/log/public?id={COMMITTED_RECORD_ID}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() == {"msg": committed_msg}, r
+
+        for record_id in uncommitted_records:
+            r = c.get(f"/app/log/public?id={record_id}")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+
+    check_can_progress(new_primary)
+    network.stop_all_nodes(check_file_invariants=True)
+
+    return network
+
+
+def run_in_place_restart_uncommittable_ledger_check(const_args):
+    LOG.info(
+        "Confirm that in-place restart ignores uncommitted and uncommittable ledger files"
+    )
+    args = copy.deepcopy(const_args)
+    args.label += "_in_place_restart_uncommitted"
+    args.nodes = infra.e2e_args.nodes(args, 3)
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+        init_partitioner=True,
+    ) as network:
+        # Keep chunks small so isolated writes quickly create uncommitted files.
+        for i in range(3):
+            network.per_node_args_override[i] = {
+                "ledger_chunk_bytes": UNCOMMITTABLE_TEST_LEDGER_CHUNK_BYTES
+            }
+
+        network.start_and_open(args)
+        test_in_place_restart_with_uncommittable_ledger(network, args)
 
 
 def run_ledger_chunk_bytes_check(const_args):
@@ -1197,7 +1459,7 @@ def run_ledger_chunk_bytes_check(const_args):
         # When a node becomes primary, it may discover the current chunk is already over
         # the local chunk threshold, and should immediately terminate this chunk.
         # Confirm it has been correctly tracking chunk sizes while it was backup in this case.
-        smallest_node, smallest_size = nodes_and_sizes[0]
+        smallest_node, _smallest_size = nodes_and_sizes[0]
         for node, chunk_size in nodes_and_sizes[1:]:
             force_become_primary(network, args, node)
             with node.client("user0") as c:
@@ -1265,7 +1527,7 @@ def run_ledger_chunk_bytes_check(const_args):
                     for ledger_dir in (current, *committeds):
                         cmd = f"ls -alv {ledger_dir}"
                         LOG.warning(f"{cmd}")
-                        subprocess.run(cmd.split(" "))
+                        subprocess.run(cmd.split(" "), check=False)
 
                     ccf.read_ledger.run(
                         paths=[path],
@@ -1283,44 +1545,102 @@ def run_ledger_chunk_bytes_check(const_args):
         assert len(chunk_ends_to_expected_size) == 0
 
 
-def run(args):
-    txs = app.LoggingTxs("user0")
+@contextlib.contextmanager
+def partitioned_network(args):
+    """A fresh partitioned network for one group of tests.
 
+    Each group runs on its own network so that groups can run concurrently.
+    Every Partitioner owns a private iptables chain whose rules only match its
+    own nodes' addresses and ports, so co-existing groups do not interfere.
+    """
     with infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
-        txs=txs,
+        txs=app.LoggingTxs("user0"),
         init_partitioner=True,
     ) as network:
         network.start_and_open(args)
+        yield network
 
+
+def run_basic_partitions(args):
+    with partitioned_network(args) as network:
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
         test_new_joiner_helps_liveness(network, args)
+
+
+def run_certificate_partitions(args):
+    with partitioned_network(args) as network:
         test_expired_certs(network, args)
+        test_rolled_back_node_certificate(network, args)
+
+
+def run_isolate_and_reconnect(args):
+    with partitioned_network(args) as network:
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
+
+
+def run_reconfiguration_partitions(args):
+    with partitioned_network(args) as network:
         test_join_rollback_on_primary_isolation(network, args)
         test_election_reconfiguration(network, args)
+
+
+def run_forwarding_and_sessions(args):
+    with partitioned_network(args) as network:
         test_forwarding_timeout(network, args)
         test_invalidated_blocking_calls(network, args)
         # HTTP2 doesn't support forwarding
         if not args.http2:
             test_session_consistency(network, args)
-        network = test_recovery_elections(network, args)
-        test_ledger_invariants(network, args)
-    run_ledger_chunk_bytes_check(args)
+
+
+def run_recovery_elections(args):
+    with partitioned_network(args) as network:
+        # test_recovery_elections stops this network and recovers into a new
+        # one, which the context manager does not own: it still holds the
+        # original. Stop the returned network here, or its nodes outlive the
+        # test.
+        recovery_network = test_recovery_elections(network, args)
+        try:
+            test_ledger_invariants(recovery_network, args)
+        finally:
+            if recovery_network is not network:
+                recovery_network.stop_all_nodes(skip_verification=True)
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.package = "samples/apps/logging/logging"
-    args.snapshot_tx_interval = (
+    cr = ConcurrentRunner()
+    cr.args.snapshot_tx_interval = (
         20  # Increase snapshot frequency for faster reconfigurations
     )
 
-    run(args)
+    # Each group below runs on its own network, concurrently, and preserves the
+    # relative order of the tests it contains.
+    for name, target in (
+        ("basic", run_basic_partitions),
+        ("certs", run_certificate_partitions),
+        ("isolate-reconnect", run_isolate_and_reconnect),
+        ("reconfiguration", run_reconfiguration_partitions),
+        ("forwarding", run_forwarding_and_sessions),
+        ("recovery-elections", run_recovery_elections),
+        ("ledger-chunks", run_ledger_chunk_bytes_check),
+        ("in-place-restart", run_in_place_restart_uncommittable_ledger_check),
+    ):
+        cr.add(
+            name,
+            target,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        )
+
+    # These groups deliberately isolate nodes and wait for elections, so they
+    # are the most sensitive in the suite both to not getting CPU promptly and
+    # to contention on the shared iptables table: a starved or still-partitioned
+    # node looks like a failed election. Run few at once.
+    cr.run(max_concurrent=2)

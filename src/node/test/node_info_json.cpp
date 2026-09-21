@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/service/node_info_network.h"
-#include "ds/cli_helper.h"
+#include "common/cli_helper.h"
 #include "ds/internal_logger.h"
 
 #include <utility>

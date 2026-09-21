@@ -3,15 +3,21 @@
 
 #pragma once
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/ds/hex.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/receipt.h"
+#include "crypto/cbor_helpers.h"
 
-#include <crypto/cbor.h>
+#include <chrono>
+#include <crypto/cbor_tags.h>
 #include <crypto/cose.h>
 #include <crypto/cose_utils.h>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <tav/cbor.hpp>
 #include <variant>
 
 namespace ccf::cose
@@ -22,11 +28,19 @@ namespace ccf::cose
   static bool is_ecdsa_alg(int64_t cose_alg)
   {
     // https://www.iana.org/assignments/cose/cose.xhtml
+    // RFC 9864 deprecates the curve-agnostic ES identifiers in favour of the
+    // fully-specified ESP ones. Both are accepted, since the curve, and
+    // therefore the digest, is fixed by the verification key.
     constexpr int COSE_ALGORITHM_ES256 = -7;
     constexpr int COSE_ALGORITHM_ES384 = -35;
     constexpr int COSE_ALGORITHM_ES512 = -36;
+    constexpr int COSE_ALGORITHM_ESP256 = -9;
+    constexpr int COSE_ALGORITHM_ESP384 = -51;
+    constexpr int COSE_ALGORITHM_ESP512 = -52;
     return cose_alg == COSE_ALGORITHM_ES256 ||
-      cose_alg == COSE_ALGORITHM_ES384 || cose_alg == COSE_ALGORITHM_ES512;
+      cose_alg == COSE_ALGORITHM_ES384 || cose_alg == COSE_ALGORITHM_ES512 ||
+      cose_alg == COSE_ALGORITHM_ESP256 || cose_alg == COSE_ALGORITHM_ESP384 ||
+      cose_alg == COSE_ALGORITHM_ESP512;
   }
 
   static bool is_rsa_alg(int64_t cose_alg)
@@ -67,64 +81,117 @@ namespace ccf::cose
     CwtClaims cwt;
   };
 
-  static void decode_cwt_claims(const ccf::cbor::Value& cbor, CwtClaims& claims)
+  static void decode_cwt_claims(const tav::cbor::Value& cbor, CwtClaims& claims)
   {
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
 
-    const auto& cwt_claims = rethrow_with_msg(
-      [&]() -> auto& {
-        return cbor->map_at(make_signed(ccf::cose::header::iana::CWT_CLAIMS));
+    const auto cwt_claims = rethrow_with_msg(
+      [&]() {
+        return cbor.map_at(make_signed(ccf::cose::header::iana::CWT_CLAIMS));
       },
       "Parse CWT claims map");
 
     try
     {
-      claims.iat = cwt_claims->map_at(make_signed(ccf::cwt::header::iana::IAT))
-                     ->as_signed();
+      const auto& iat =
+        cwt_claims.map_at(make_signed(ccf::cwt::header::iana::IAT));
+      try
+      {
+        claims.iat = iat.as_signed();
+      }
+      catch (const DecodeError&)
+      {
+        // CWT NumericDate values MUST omit CBOR tags:
+        // https://www.rfc-editor.org/rfc/rfc8392.html#section-5
+        // This non-conforming fallback accepts CBOR tag 1 for UVM
+        // endorsement compatibility.
+        claims.iat = iat.tag_at(ccf::cbor::tag::EPOCH_DATE_TIME).as_signed();
+      }
     }
-    catch (const CBORDecodeError& err)
+    catch (const DecodeError& err)
     {
       std::ignore = err; // optional field
     }
 
     claims.iss = rethrow_with_msg(
       [&]() {
-        return cwt_claims->map_at(make_signed(ccf::cwt::header::iana::ISS))
-          ->as_string();
+        return cwt_claims.map_at(make_signed(ccf::cwt::header::iana::ISS))
+          .as_string();
       },
       fmt::format(
         "Parse CWT claim iss({}) field", ccf::cwt::header::iana::ISS));
 
     claims.sub = rethrow_with_msg(
       [&]() {
-        return cwt_claims->map_at(make_signed(ccf::cwt::header::iana::SUB))
-          ->as_string();
+        return cwt_claims.map_at(make_signed(ccf::cwt::header::iana::SUB))
+          .as_string();
       },
       fmt::format(
         "Parse CWT claim sub({}) field", ccf::cwt::header::iana::SUB));
 
     try
     {
-      claims.svn =
-        cwt_claims->map_at(make_string(ccf::cwt::header::custom::SVN))
-          ->as_signed();
+      claims.svn = cwt_claims.map_at(make_string(ccf::cwt::header::custom::SVN))
+                     .as_signed();
     }
-    catch (const CBORDecodeError& err)
+    catch (const DecodeError& err)
     {
-      std::ignore = err; // optional field
+      if (err.error_code() != Error::KEY_NOT_FOUND)
+      {
+        throw;
+      }
+    }
+  }
+
+  static void validate_cwt_iat_against_x5chain(
+    const CwtClaims& claims,
+    const std::vector<std::vector<uint8_t>>& x5chain,
+    std::string_view context)
+  {
+    if (!claims.iat.has_value())
+    {
+      return;
+    }
+
+    if (x5chain.empty())
+    {
+      throw COSEDecodeError(
+        fmt::format("No certificates in {} x5chain", context));
+    }
+
+    const auto common_validity_period =
+      ccf::crypto::OpenSSL::get_x509_chain_common_validity_period(x5chain);
+    if (!common_validity_period.has_value())
+    {
+      throw COSEDecodeError(fmt::format(
+        "Certificates in {} x5chain have no common validity period", context));
+    }
+
+    const auto iat = ccf::nonstd::SystemClock::time_point{
+      std::chrono::seconds{claims.iat.value()}};
+    if (
+      iat < common_validity_period->not_before ||
+      iat > common_validity_period->not_after)
+    {
+      throw COSEDecodeError(fmt::format(
+        "CWT iat {} in {} is outside x5chain common validity period [{}, {}]",
+        claims.iat.value(),
+        context,
+        ccf::ds::to_x509_time_string(common_validity_period->not_before),
+        ccf::ds::to_x509_time_string(common_validity_period->not_after)));
     }
   }
 
   static Sign1ProtectedHeader decode_sign1_protected_header(
-    const ccf::cbor::Value& phdr)
+    const tav::cbor::Value& phdr)
   {
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
     Sign1ProtectedHeader hdr;
 
     hdr.alg = rethrow_with_msg(
       [&]() {
-        return phdr->map_at(make_signed(ccf::cose::header::iana::ALG))
-          ->as_signed();
+        return phdr.map_at(make_signed(ccf::cose::header::iana::ALG))
+          .as_signed();
       },
       fmt::format(
         "Parse protected header alg({})", ccf::cose::header::iana::ALG));
@@ -132,17 +199,17 @@ namespace ccf::cose
     try
     {
       const auto& cty =
-        phdr->map_at(make_signed(ccf::cose::header::iana::CONTENT_TYPE));
+        phdr.map_at(make_signed(ccf::cose::header::iana::CONTENT_TYPE));
       try
       {
-        hdr.cty = std::string(cty->as_string());
+        hdr.cty = std::string(cty.as_string());
       }
-      catch (const CBORDecodeError&)
+      catch (const DecodeError&)
       {
-        hdr.cty = cty->as_signed();
+        hdr.cty = cty.as_signed();
       }
     }
-    catch (const CBORDecodeError& err)
+    catch (const DecodeError& err)
     {
       std::ignore = err; // optional field
     }
@@ -150,7 +217,7 @@ namespace ccf::cose
     hdr.x5chain = rethrow_with_msg(
       [&]() {
         const auto& x5chain_val =
-          phdr->map_at(make_signed(ccf::cose::header::iana::X5CHAIN));
+          phdr.map_at(make_signed(ccf::cose::header::iana::X5CHAIN));
         return ccf::cose::utils::parse_x5chain(x5chain_val);
       },
       fmt::format(
@@ -196,82 +263,85 @@ namespace ccf::cose
     std::vector<uint8_t> claims_digest;
   };
 
+  static void validate_sha256_bytes(
+    std::span<const uint8_t> bytes, std::string_view field)
+  {
+    if (bytes.size() != ccf::crypto::Sha256Hash::SIZE)
+    {
+      throw COSEDecodeError(fmt::format(
+        "Unsupported {} size: {} (expected {})",
+        field,
+        bytes.size(),
+        ccf::crypto::Sha256Hash::SIZE));
+    }
+  }
+
+  static ccf::crypto::Sha256Hash sha256_from_bytes(
+    std::span<const uint8_t> bytes, std::string_view field)
+  {
+    validate_sha256_bytes(bytes, field);
+    const std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> fixed{
+      bytes.data(), ccf::crypto::Sha256Hash::SIZE};
+    return ccf::crypto::Sha256Hash::from_span(fixed);
+  }
+
   static std::vector<uint8_t> recompute_merkle_root(const MerkleProof& proof)
   {
     auto ce_digest = ccf::crypto::Sha256Hash(proof.leaf.commit_evidence);
 
-    if (proof.leaf.write_set_digest.size() != ccf::crypto::Sha256Hash::SIZE)
-    {
-      throw COSEDecodeError(fmt::format(
-        "Unsupported write set digest size in Merkle proof leaf: {}",
-        proof.leaf.write_set_digest.size()));
-    }
-    if (proof.leaf.claims_digest.size() != ccf::crypto::Sha256Hash::SIZE)
-    {
-      throw COSEDecodeError(fmt::format(
-        "Unsupported claims digest size in Merkle proof leaf: {}",
-        proof.leaf.claims_digest.size()));
-    }
-
-    std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> wsd{
-      proof.leaf.write_set_digest.data(), ccf::crypto::Sha256Hash::SIZE};
-    std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> cd{
-      proof.leaf.claims_digest.data(), ccf::crypto::Sha256Hash::SIZE};
     auto leaf_digest = ccf::crypto::Sha256Hash(
-      ccf::crypto::Sha256Hash::from_span(wsd),
+      sha256_from_bytes(
+        proof.leaf.write_set_digest, "Merkle proof write set digest"),
       ce_digest,
-      ccf::crypto::Sha256Hash::from_span(cd));
+      sha256_from_bytes(
+        proof.leaf.claims_digest, "Merkle proof claims digest"));
 
     for (const auto& element : proof.path)
     {
+      const auto sibling =
+        sha256_from_bytes(element.second, "Merkle proof sibling");
       if (element.first != 0)
       {
-        std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> sibling{
-          element.second.data(), ccf::crypto::Sha256Hash::SIZE};
-        leaf_digest = ccf::crypto::Sha256Hash(
-          ccf::crypto::Sha256Hash::from_span(sibling), leaf_digest);
+        leaf_digest = ccf::crypto::Sha256Hash(sibling, leaf_digest);
       }
       else
       {
-        std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> sibling{
-          element.second.data(), ccf::crypto::Sha256Hash::SIZE};
-        leaf_digest = ccf::crypto::Sha256Hash(
-          leaf_digest, ccf::crypto::Sha256Hash::from_span(sibling));
+        leaf_digest = ccf::crypto::Sha256Hash(leaf_digest, sibling);
       }
     }
 
     return {leaf_digest.h.begin(), leaf_digest.h.end()};
   }
 
-  static void decode_ccf_claims(const ccf::cbor::Value& cbor, CcfClaims& claims)
+  static void decode_ccf_claims(const tav::cbor::Value& cbor, CcfClaims& claims)
   {
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
 
-    const auto& ccf_claims = rethrow_with_msg(
-      [&]() -> auto& {
-        return cbor->map_at(make_string(ccf::cose::header::custom::CCF_V1));
+    const auto ccf_claims = rethrow_with_msg(
+      [&]() {
+        return cbor.map_at(make_string(ccf::cose::header::custom::CCF_V1));
       },
       "Parse CCF claims map");
 
     claims.txid = rethrow_with_msg(
       [&]() {
-        return ccf_claims->map_at(make_string(ccf::cose::header::custom::TX_ID))
-          ->as_string();
+        return ccf_claims.map_at(make_string(ccf::cose::header::custom::TX_ID))
+          .as_string();
       },
       fmt::format(
         "Parse CCF claims TxID ({}) field", ccf::cose::header::custom::TX_ID));
   }
 
-  static CcfCoseReceiptPhdr decode_ccf_receipt_phdr(ccf::cbor::Value& cbor)
+  static CcfCoseReceiptPhdr decode_ccf_receipt_phdr(tav::cbor::Value& cbor)
   {
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
 
     CcfCoseReceiptPhdr phdr{};
 
     phdr.alg = rethrow_with_msg(
       [&]() {
-        return cbor->map_at(make_signed(ccf::cose::header::iana::ALG))
-          ->as_signed();
+        return cbor.map_at(make_signed(ccf::cose::header::iana::ALG))
+          .as_signed();
       },
       fmt::format(
         "Parse protected header alg({})", ccf::cose::header::iana::ALG));
@@ -279,7 +349,7 @@ namespace ccf::cose
     rethrow_with_msg(
       [&]() {
         const auto& bytes =
-          cbor->map_at(make_signed(ccf::cose::header::iana::KID))->as_bytes();
+          cbor.map_at(make_signed(ccf::cose::header::iana::KID)).as_bytes();
         phdr.kid.assign(bytes.begin(), bytes.end());
       },
       fmt::format(
@@ -287,8 +357,8 @@ namespace ccf::cose
 
     phdr.vds = rethrow_with_msg(
       [&]() {
-        return cbor->map_at(make_signed(ccf::cose::header::iana::VDS))
-          ->as_signed();
+        return cbor.map_at(make_signed(ccf::cose::header::iana::VDS))
+          .as_signed();
       },
       fmt::format(
         "Parse protected header vds({})", ccf::cose::header::iana::VDS));
@@ -306,47 +376,46 @@ namespace ccf::cose
   }
 
   static std::vector<MerkleProof> decode_merkle_proofs(
-    const ccf::cbor::Value& cbor)
+    const tav::cbor::Value& cbor)
   {
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
 
-    const auto& uhdr = rethrow_with_msg(
-      [&]() -> auto& { return cbor->array_at(1); },
-      "Parse unprotected header map");
+    const auto uhdr = rethrow_with_msg(
+      [&]() { return cbor.array_at(1); }, "Parse unprotected header map");
 
-    const auto& vdp = rethrow_with_msg(
-      [&]() -> auto& {
-        return uhdr->map_at(make_signed(ccf::cose::header::iana::VDP));
-      },
+    const auto vdp = rethrow_with_msg(
+      [&]() { return uhdr.map_at(make_signed(ccf::cose::header::iana::VDP)); },
       fmt::format("Parse vdp() map", ccf::cose::header::iana::VDP));
 
-    const auto& proofs_array = rethrow_with_msg(
-      [&]() -> auto& {
-        return vdp->map_at(
+    const auto proofs_array = rethrow_with_msg(
+      [&]() {
+        return vdp.map_at(
           make_signed(ccf::cose::header::iana::INCLUSION_PROOFS));
       },
       "Parse inclusion proofs");
 
     std::vector<MerkleProof> proofs;
 
-    rethrow_with_msg(
+    const auto proof_count = rethrow_with_msg(
       [&]() {
-        if (proofs_array->size() == 0)
+        const auto count = proofs_array.size();
+        if (count == 0)
         {
-          throw CBORDecodeError(Error::DECODE_FAILED, "Empty proofs array");
+          throw DecodeError(Error::DECODE_FAILED, "Empty proofs array");
         }
+        return count;
       },
       "Check proofs array");
 
-    for (size_t i = 0; i < proofs_array->size(); ++i)
+    for (size_t i = 0; i < proof_count; ++i)
     {
       auto cbor_proof = rethrow_with_msg(
-        [&]() { return parse(proofs_array->array_at(i)->as_bytes()); },
+        [&]() { return nondet_parse(proofs_array.array_at(i).as_bytes()); },
         "Parse an encoded proof");
 
-      const auto& leaf = rethrow_with_msg(
-        [&]() -> auto& {
-          return cbor_proof->map_at(
+      const auto leaf = rethrow_with_msg(
+        [&]() {
+          return cbor_proof.map_at(
             make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL));
         },
         "Parse proof: leaf");
@@ -356,52 +425,57 @@ namespace ccf::cose
       rethrow_with_msg(
         [&]() {
           const auto& bytes =
-            leaf->array_at(ccf::MerkleProofPathBranch::LEFT)->as_bytes();
+            leaf.array_at(ccf::MerkleProofPathBranch::LEFT).as_bytes();
+          validate_sha256_bytes(bytes, "Merkle proof write set digest");
           proof.leaf.write_set_digest.assign(bytes.begin(), bytes.end());
         },
         "Parse leaf at wsd");
 
       proof.leaf.commit_evidence = rethrow_with_msg(
         [&]() {
-          return leaf->array_at(ccf::MerkleProofPathBranch::RIGHT)->as_string();
+          return leaf.array_at(ccf::MerkleProofPathBranch::RIGHT).as_string();
         },
         "Parse leaf at ce");
 
       rethrow_with_msg(
         [&]() {
-          const auto& bytes = leaf->array_at(2)->as_bytes();
+          const auto& bytes = leaf.array_at(2).as_bytes();
+          validate_sha256_bytes(bytes, "Merkle proof claims digest");
           proof.leaf.claims_digest.assign(bytes.begin(), bytes.end());
         },
         "Parse leaf at cd");
 
-      const auto& cbor_path = rethrow_with_msg(
-        [&]() -> auto& {
-          return cbor_proof->map_at(
+      const auto cbor_path = rethrow_with_msg(
+        [&]() {
+          return cbor_proof.map_at(
             make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL));
         },
         "Parse proof: path");
 
-      rethrow_with_msg(
+      const auto path_length = rethrow_with_msg(
         [&]() {
-          if (cbor_path->size() == 0)
+          const auto length = cbor_path.size();
+          if (length == 0)
           {
-            throw CBORDecodeError(Error::DECODE_FAILED, "Empty path");
+            throw DecodeError(Error::DECODE_FAILED, "Empty path");
           }
+          return length;
         },
         "Check proof: path");
 
-      for (size_t j = 0; j < cbor_path->size(); j++)
+      for (size_t j = 0; j < path_length; j++)
       {
         std::pair<int64_t, std::vector<uint8_t>> path_item;
-        const auto& link = rethrow_with_msg(
-          [&]() -> auto& { return cbor_path->array_at(j); }, "Parse path link");
+        const auto link = rethrow_with_msg(
+          [&]() { return cbor_path.array_at(j); }, "Parse path link");
 
         path_item.first = static_cast<int64_t>(rethrow_with_msg(
-          [&]() { return simple_to_boolean(link->array_at(0)->as_simple()); },
+          [&]() { return simple_to_boolean(link.array_at(0).as_simple()); },
           "Parse path element at direction"));
         rethrow_with_msg(
           [&]() {
-            const auto& bytes = link->array_at(1)->as_bytes();
+            const auto& bytes = link.array_at(1).as_bytes();
+            validate_sha256_bytes(bytes, "Merkle proof sibling");
             path_item.second.assign(bytes.begin(), bytes.end());
           },
           "Parse path element at hash");
@@ -417,21 +491,22 @@ namespace ccf::cose
   static CcfCoseReceipt decode_ccf_receipt(
     const std::vector<uint8_t>& cose_sign1, bool recompute_root)
   {
-    using namespace ccf::cbor;
+    using namespace tav::cbor;
 
-    auto cose_cbor =
-      rethrow_with_msg([&]() { return parse(cose_sign1); }, "Parse COSE CBOR");
+    auto cose_cbor = rethrow_with_msg(
+      [&]() { return nondet_parse(cose_sign1); }, "Parse COSE CBOR");
 
-    const auto& cose_envelope = rethrow_with_msg(
-      [&]() -> auto& { return cose_cbor->tag_at(ccf::cbor::tag::COSE_SIGN_1); },
+    const auto cose_envelope = rethrow_with_msg(
+      [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
       "Parse COSE tag");
 
-    const auto& phdr_raw = rethrow_with_msg(
-      [&]() -> auto& { return cose_envelope->array_at(0); },
+    const auto phdr_raw = rethrow_with_msg(
+      [&]() { return cose_envelope.array_at(0); },
       "Parse raw protected header");
 
     auto phdr = rethrow_with_msg(
-      [&]() { return parse(phdr_raw->as_bytes()); }, "Parse protected header");
+      [&]() { return nondet_parse(phdr_raw.as_bytes()); },
+      "Parse protected header");
 
     CcfCoseReceipt receipt;
 

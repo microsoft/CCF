@@ -3,27 +3,26 @@
 
 import base64
 import datetime
-from typing import Tuple
-from cryptography.hazmat.primitives.asymmetric import ec
+
+import cbor2
+import ccf.cose
+import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec, utils
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
+    NoEncryption,
     PrivateFormat,
     PublicFormat,
-    NoEncryption,
 )
-from cryptography.hazmat.primitives.asymmetric import utils
-import ccf.cose
-import cbor2
-import pytest
 
 
 def make_private_key(curve: ec.EllipticCurve):
     return ec.generate_private_key(curve=curve)
 
 
-def make_pem_pair(priv) -> Tuple[str, str]:
+def make_pem_pair(priv) -> tuple[str, str]:
     pub = priv.public_key()
     priv_pem = priv.private_bytes(
         Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()
@@ -46,7 +45,7 @@ def i2osp(x: int, x_len: int) -> bytes:
         x //= 256
     for _ in range(x_len - len(digits)):
         digits.append(0)
-    return bytes.fromhex("".join("%.2x" % x for x in digits[::-1]))
+    return bytes.fromhex("".join(f"{x:02x}" for x in digits[::-1]))
 
 
 def hash_algo(priv: ec.EllipticCurvePrivateKey):
@@ -67,8 +66,10 @@ def make_self_signed_cert(priv, subject_name: str):
         .issuer_name(issuer)
         .public_key(priv.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.now())
-        .not_valid_after(datetime.datetime.now() + datetime.timedelta(days=30))
+        .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
+        .not_valid_after(
+            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)
+        )
         .sign(priv, hash_algo(priv))
     )
     return cert.public_bytes(Encoding.PEM).decode("ascii")
@@ -81,7 +82,7 @@ def test_create_cose_sign1_finish(curve):
     a signature as create_cose_sign1().
     """
     priv = make_private_key(curve)
-    priv_pem, pub_pem = make_pem_pair(priv)
+    priv_pem, _pub_pem = make_pem_pair(priv)
     cert = make_self_signed_cert(priv, "example.com")
 
     payload = b"Hello World"

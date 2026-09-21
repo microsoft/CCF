@@ -43,7 +43,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
     :fa:`database` :doc:`data_persistence`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Best practices and durability guarantees for ledger and snapshot files.
+    Best practices and durability considerations for ledger and snapshot files.
 
     ---
 

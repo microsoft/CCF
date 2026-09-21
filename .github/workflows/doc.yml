@@ -24,24 +24,27 @@ jobs:
 
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
+      - name: Install dependencies
+        uses: ./.github/actions/install-ci-dependencies
+        with:
+          python-requirements: doc/requirements.txt,doc/historical_ccf_requirements.txt
+
       - name: Setup Pages
         id: pages
-        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Build Documentation
         run: |
           set -x
-          ./scripts/setup-ci.sh
-          python3 -m venv env
+          python3 -m venv --without-pip env
           source env/bin/activate
-          pip install -U pip
-          pip install -U -e ./python
-          pip install -U -r doc/requirements.txt
-          pip install -U -r doc/historical_ccf_requirements.txt
+          uv pip install -e ./python
+          uv pip install -r doc/requirements.txt
+          uv pip install -r doc/historical_ccf_requirements.txt
           sphinx-multiversion -D smv_remote_whitelist=origin doc build/html
         shell: bash
 
@@ -54,7 +57,7 @@ jobs:
         shell: bash
 
       - name: Upload pages
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: build/html
 
@@ -74,4 +77,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

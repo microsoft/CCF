@@ -8,6 +8,7 @@
 
 #include "ccf/ds/x509_time_fmt.h"
 
+#include <algorithm>
 #include <chrono>
 #include <fmt/format.h>
 #include <memory>
@@ -21,6 +22,7 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
+#include <optional>
 
 namespace ccf::crypto::OpenSSL
 {
@@ -271,6 +273,64 @@ namespace ccf::crypto::OpenSSL
       Unique_SSL_OBJECT(cert, X509_free, check_null)
     {}
   };
+
+  struct X509ValidityPeriod
+  {
+    ccf::nonstd::SystemClock::time_point not_before;
+    ccf::nonstd::SystemClock::time_point not_after;
+  };
+
+  /**
+   * Extract the inclusive validity period common to every certificate in a
+   * DER-encoded chain.
+   *
+   * @return The common validity period, or std::nullopt if the chain is empty
+   * or its certificate validity periods do not overlap.
+   */
+  inline std::optional<X509ValidityPeriod>
+  get_x509_chain_common_validity_period(
+    const std::vector<std::vector<uint8_t>>& certificate_chain)
+  {
+    std::optional<X509ValidityPeriod> common_validity_period;
+
+    for (const auto& certificate : certificate_chain)
+    {
+      Unique_BIO certificate_bio(certificate);
+      Unique_X509 x509(certificate_bio, false, true);
+
+      std::tm not_before{};
+      std::tm not_after{};
+      CHECK1(ASN1_TIME_to_tm(X509_get0_notBefore(x509), &not_before));
+      CHECK1(ASN1_TIME_to_tm(X509_get0_notAfter(x509), &not_after));
+
+      const X509ValidityPeriod certificate_validity_period{
+        ccf::nonstd::SystemClock::from_time_t(timegm(&not_before)),
+        ccf::nonstd::SystemClock::from_time_t(timegm(&not_after))};
+
+      if (!common_validity_period.has_value())
+      {
+        common_validity_period = certificate_validity_period;
+      }
+      else
+      {
+        common_validity_period->not_before = std::max(
+          common_validity_period->not_before,
+          certificate_validity_period.not_before);
+        common_validity_period->not_after = std::min(
+          common_validity_period->not_after,
+          certificate_validity_period.not_after);
+      }
+    }
+
+    if (
+      common_validity_period.has_value() &&
+      common_validity_period->not_before > common_validity_period->not_after)
+    {
+      return std::nullopt;
+    }
+
+    return common_validity_period;
+  }
 
   struct Unique_X509_STORE
     : public Unique_SSL_OBJECT<X509_STORE, X509_STORE_new, X509_STORE_free>

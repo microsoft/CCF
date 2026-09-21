@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/locking.h"
 #include "node/signature_cache_interface.h"
 
 #include <map>
-#include <mutex>
 
 namespace ccf
 {
@@ -17,21 +17,21 @@ namespace ccf
     struct PendingEntry
     {
       std::optional<PrimarySignature> sig = std::nullopt;
-      std::optional<std::vector<uint8_t>> cose_signature = std::nullopt;
+      CoseSignatureMap cose_signatures;
       std::optional<std::vector<uint8_t>> serialised_tree = std::nullopt;
 
       [[nodiscard]] bool is_complete() const
       {
-        return (sig.has_value() || cose_signature.has_value()) &&
+        return (sig.has_value() || !cose_signatures.empty()) &&
           serialised_tree.has_value();
       }
     };
 
-    std::map<ccf::SeqNo, PendingEntry> cache;
-    size_t max_cache_size = DEFAULT_MAX_CACHE_SIZE;
-    mutable std::mutex cache_mutex;
+    mutable ccf::ds::Mutex cache_mutex;
+    std::map<ccf::SeqNo, PendingEntry> cache CCF_GUARDED_BY(cache_mutex);
+    size_t max_cache_size CCF_GUARDED_BY(cache_mutex) = DEFAULT_MAX_CACHE_SIZE;
 
-    void evict_oldest()
+    void evict_oldest() CCF_REQUIRES(cache_mutex)
     {
       if (cache.size() > max_cache_size)
       {
@@ -42,6 +42,7 @@ namespace ccf
     }
 
     PendingEntry& get_or_create_entry(ccf::kv::Version version)
+      CCF_REQUIRES(cache_mutex)
     {
       cache.try_emplace(version);
       evict_oldest();
@@ -63,7 +64,7 @@ namespace ccf
 
     void set_max_cache_size(size_t n) override
     {
-      std::lock_guard<std::mutex> guard(cache_mutex);
+      ccf::ds::MutexGuard guard(cache_mutex);
       max_cache_size = std::max<size_t>(1, n);
       evict_oldest();
     }
@@ -71,7 +72,7 @@ namespace ccf
     [[nodiscard]] std::optional<CachedSignature> get_signature_for(
       ccf::SeqNo seqno) const override
     {
-      std::lock_guard<std::mutex> guard(cache_mutex);
+      ccf::ds::MutexGuard guard(cache_mutex);
 
       // Find the first entry with version > seqno (the covering signature).
       auto it = cache.upper_bound(seqno);
@@ -82,7 +83,7 @@ namespace ccf
 
       const auto& [version, entry] = *it;
       if (
-        !(entry.sig.has_value() || entry.cose_signature.has_value()) ||
+        (!entry.sig.has_value() && entry.cose_signatures.empty()) ||
         !entry.serialised_tree.has_value())
       {
         return std::nullopt;
@@ -90,7 +91,7 @@ namespace ccf
 
       return CachedSignature{
         entry.sig,
-        entry.cose_signature,
+        entry.cose_signatures,
         entry.serialised_tree.value(),
         version};
     }
@@ -98,23 +99,23 @@ namespace ccf
     void on_signature_committed(
       ccf::kv::Version version, const PrimarySignature& sig)
     {
-      std::lock_guard<std::mutex> guard(cache_mutex);
+      ccf::ds::MutexGuard guard(cache_mutex);
       auto& entry = get_or_create_entry(version);
       entry.sig = sig;
     }
 
-    void on_cose_signature_committed(
-      ccf::kv::Version version, const std::vector<uint8_t>& cose_sig)
+    void on_cose_signatures_committed(
+      ccf::kv::Version version, const CoseSignatureMap& cose_signatures)
     {
-      std::lock_guard<std::mutex> guard(cache_mutex);
+      ccf::ds::MutexGuard guard(cache_mutex);
       auto& entry = get_or_create_entry(version);
-      entry.cose_signature = cose_sig;
+      entry.cose_signatures = cose_signatures;
     }
 
     void on_tree_committed(
       ccf::kv::Version version, const std::vector<uint8_t>& tree)
     {
-      std::lock_guard<std::mutex> guard(cache_mutex);
+      ccf::ds::MutexGuard guard(cache_mutex);
       auto& entry = get_or_create_entry(version);
       entry.serialised_tree = tree;
     }
@@ -135,9 +136,10 @@ namespace ccf
         Tables::COSE_SIGNATURES,
         CoseSignatures::wrap_commit_hook(
           [this](ccf::kv::Version version, const CoseSignatures::Write& w) {
-            if (w.has_value())
+            const auto cose_signatures = extract_cose_signatures(w);
+            if (!cose_signatures.empty())
             {
-              on_cose_signature_committed(version, w.value());
+              on_cose_signatures_committed(version, cose_signatures);
             }
           }));
 

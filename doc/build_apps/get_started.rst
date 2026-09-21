@@ -7,7 +7,7 @@ Application Development using CCF Overview
 -  :ref:`What is Confidential Consortium Framework (CCF) <overview/what_is_ccf:What is CCF?>`
 -  Read the :doc:`CCF overview </overview/index>` and get familiar with :ref:`overview/what_is_ccf:Core Concepts` and `Azure confidential computing <https://learn.microsoft.com/en-us/azure/confidential-computing/>`__
 -  :doc:`Build new CCF applications </build_apps/index>` in TypeScript/JavaScript or C++
--  CCF `JavaScript module API reference <https://microsoft.github.io/CCF/main/js/ccf-app>`__
+-  CCF `JavaScript module API reference <https://ccf.dev/main/js/ccf-app/>`__
 -  CCF application get started repos `CCF application template <https://github.com/microsoft/ccf-app-template>`__ and  `CCF application samples <https://github.com/microsoft/ccf-app-samples>`__
 
 Development environment
@@ -32,7 +32,7 @@ CCF apps can be written in JavaScript/Typescript. To test a JS/TS CCF applicatio
 Build Application
 ~~~~~~~~~~~~~~~~~
 
-The application building prerequisites (:doc:`CCF </build_apps/install_bin>`, `NodeJS <https://nodejs.org>`__ and `NPM <https://www.npmjs.com>`__) must be installed, all will be preinstalled if you are using the devcontainer environment, otherwise you need to install them manually.
+The application building prerequisites (:doc:`CCF </build_apps/install_bin>`, `NodeJS <https://nodejs.org/en>`__ and `NPM <https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/>`__) must be installed, all will be preinstalled if you are using the devcontainer environment, otherwise you need to install them manually.
 
 Please follow `ccf-app-template build process <https://github.com/microsoft/ccf-app-template#run-js-app>`__
 
@@ -63,12 +63,6 @@ To check samples on how to test your application endpoints, please check these r
 
 -  `CCF-app-template repo <https://github.com/microsoft/ccf-app-template#--javascript>`__
 -  `Banking Application sample <https://github.com/microsoft/ccf-app-samples/tree/main/banking-app#how-to-run-the-tests>`__
-
-Testing: Unit Tests
-~~~~~~~~~~~~~~~~~~~
-
-When writing unit tests that link the `ccfcrypto` library, either directly or because they link other libraries that require it, you must ensure that the library is properly initialized before running the tests.
-This means calling `ccf::crypto::openssl_sha256_init()` at the start of your test suite and `ccf::crypto::openssl_sha256_shutdown()` at the end.
 
 C++ Applications
 ----------------

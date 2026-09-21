@@ -1,28 +1,27 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.network
+import datetime
+import json
+import os
+import re
+import shutil
+
+import ccf.ledger
+import infra.crypto
 import infra.e2e_args
-import infra.proc
-import infra.logging_app as app
-import infra.utils
 import infra.github
 import infra.jwt_issuer
-import infra.crypto
+import infra.logging_app as app
+import infra.network
 import infra.node
 import infra.platform_detection
+import infra.proc
+import infra.utils
 import suite.test_requirements as reqs
-import ccf.ledger
-from ccf.tx_id import TxID
-import time
-import os
-import json
-import datetime
-from e2e_logging import test_random_receipts
-from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
-import shutil
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-
+from e2e_logging import test_random_receipts
+from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from loguru import logger as LOG
 
 # Assumption:
@@ -35,11 +34,65 @@ ENV_VAR_LATEST_LTS_BRANCH_NAME = (
 )
 
 LOCAL_CHECKOUT_DIRECTORY = "."
+FINAL_RELEASE_TAG = re.compile(r"^ccf-(\d+)\.0\.(\d+)$")
 
 # When a 2.x node joins a 1.x service, the node has to self-endorse
 # its certificate, using a default value for the validity period
 # hardcoded in CCF.
 DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
+
+
+def validate_compatibility_report(report):
+    current_tag = report["version"]
+    current_match = FINAL_RELEASE_TAG.fullmatch(current_tag)
+    if current_match is None:
+        return
+
+    current_major, current_patch = (int(group) for group in current_match.groups())
+    live_compatibility = report["live compatibility"]
+
+    previous_lts = live_compatibility["with previous LTS"]
+    if current_major == 1:
+        assert previous_lts is None, f"Expected no previous LTS, got {previous_lts}"
+    else:
+        previous_lts_match = FINAL_RELEASE_TAG.fullmatch(previous_lts or "")
+        assert (
+            previous_lts_match is not None
+            and int(previous_lts_match.group(1)) == current_major - 1
+        ), f"Expected previous LTS from major {current_major - 1}, got {previous_lts}"
+
+    same_lts = live_compatibility["with same LTS"]
+    expected_same_lts = (
+        None if current_patch == 0 else f"ccf-{current_major}.0.{current_patch - 1}"
+    )
+    assert (
+        same_lts == expected_same_lts
+    ), f"Expected same LTS {expected_same_lts}, got {same_lts}"
+
+    data_compatibility = report.get("data compatibility")
+    if data_compatibility is not None:
+        ledger_versions = data_compatibility["with previous ledger"]
+        snapshot_versions = data_compatibility["with previous snapshots"]
+        assert (
+            ledger_versions == snapshot_versions
+        ), "Ledger and snapshot compatibility covered different releases"
+        expected_versions = set()
+        if previous_lts is not None:
+            expected_versions.add(previous_lts)
+        if same_lts is not None:
+            expected_versions.add(same_lts)
+        missing_versions = expected_versions.difference(ledger_versions)
+        assert (
+            not missing_versions
+        ), f"Data compatibility did not cover releases {missing_versions}"
+
+
+def disable_openapi_validation(network):
+    def skip_openapi_validation(_node):
+        pass
+
+    network._start_openapi_validation = skip_openapi_validation
+    return network
 
 
 def update_gov_authn(version):
@@ -103,6 +156,7 @@ def test_new_service(
     version,
     expected_subject_name=None,
     test_jwt_cleanup=False,
+    node_container_image=None,
 ):
     if infra.platform_detection.is_snp():
         LOG.info(
@@ -129,7 +183,9 @@ def test_new_service(
 
     LOG.info("Add node to new service")
 
-    valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.utcnow()))
+    valid_from = str(
+        infra.crypto.datetime_to_X509time(datetime.datetime.now(datetime.timezone.utc))
+    )
 
     kwargs = {}
     kwargs["reconfiguration_type"] = "OneTransaction"
@@ -143,13 +199,15 @@ def test_new_service(
         kwargs["from_snapshot"] = False
         kwargs["fetch_recent_snapshot"] = True
 
-    new_node = network.create_node(
-        binary_dir=binary_dir,
-        library_dir=library_dir,
-        version=version,
+    new_node = create_and_join_node(
+        network,
+        args,
+        binary_dir,
+        library_dir,
+        version,
+        node_container_image=node_container_image,
+        **kwargs,
     )
-
-    network.join_node(new_node, args.package, args, **kwargs)
     network.trust_node(
         new_node,
         args,
@@ -182,25 +240,8 @@ def test_new_service(
     if test_jwt_cleanup:
 
         def get_fresh_public_state():
-            with primary.client() as c:
-                r = c.get("/node/commit")
-                target_seqno = TxID.from_str(r.body.json()["transaction_id"]).seqno
-            network.consortium.force_ledger_chunk(primary)
-            for _ in range(10):
-                ledger = ccf.ledger.Ledger(
-                    primary.remote.ledger_paths(),
-                    committed_only=True,
-                    contiguous_suffix=True,
-                )
-                public_state, last_seqno = ledger.get_latest_public_state()
-                if last_seqno >= target_seqno:
-                    return public_state
-
-                time.sleep(0.1)
-            else:
-                assert (
-                    False
-                ), f"Failed to up-to-date ledger state, seqno needed: {target_seqno}, last seqno: {last_seqno}"
+            public_state, _ = network.get_latest_ledger_public_state()
+            return public_state
 
         def table_has_entries(table_name, public_state):
             rows = public_state.get(table_name, None)
@@ -252,6 +293,30 @@ def get_bin_and_lib_dirs_for_install_path(install_path):
     )
 
 
+def create_and_join_node(
+    network,
+    args,
+    binary_dir,
+    library_dir,
+    version,
+    node_container_image=None,
+    **join_kwargs,
+):
+    node = network.create_node(
+        binary_dir=binary_dir,
+        library_dir=library_dir,
+        version=version,
+    )
+    network.join_node(
+        node,
+        args.package,
+        args,
+        node_container_image=node_container_image,
+        **join_kwargs,
+    )
+    return node
+
+
 def set_js_args(args, from_install_path, to_install_path=None):
     # Use from_version's app and constitution as new JS features may not be available
     # on older versions, but upgrade to the new constitution and JS app once the new network is ready
@@ -262,9 +327,12 @@ def set_js_args(args, from_install_path, to_install_path=None):
     )
     args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
     if to_install_path:
-        args.new_js_app_bundle = os.path.join(
-            to_install_path, "../samples/apps/logging/js"
+        new_js_app_directory = (
+            "../samples/apps/logging/js"
+            if to_install_path == LOCAL_CHECKOUT_DIRECTORY
+            else "samples/logging/js"
         )
+        args.new_js_app_bundle = os.path.join(to_install_path, new_js_app_directory)
 
     get_new_constitution_for_install(args, from_install_path)
 
@@ -276,6 +344,7 @@ def run_code_upgrade_from(
     from_version=None,
     to_version=None,
     from_container_image=None,
+    to_container_image=None,
 ):
     if infra.platform_detection.is_snp():
         LOG.info(
@@ -316,6 +385,7 @@ def run_code_upgrade_from(
             version=from_version,
             skip_verify_chunking=fv_skip_verify_chunking or tv_skip_verify_chunking,
         ) as network:
+            disable_openapi_validation(network)
             kwargs = {}
             if not infra.node.CCFVersion(from_version) > infra.node.CCFVersion(
                 "ccf-4.0.0-rc1"
@@ -371,26 +441,29 @@ def run_code_upgrade_from(
             # Note: alternate between joining from snapshot and replaying entire ledger
             new_nodes = []
             fetch_recent_snapshot = True
-            for _ in range(0, len(old_nodes)):
-                new_node = network.create_node(
-                    binary_dir=to_binary_dir,
-                    library_dir=to_library_dir,
-                    version=to_version,
-                )
-
+            for _ in range(len(old_nodes)):
                 kwargs = {}
                 kwargs["fetch_recent_snapshot"] = fetch_recent_snapshot
                 if not fetch_recent_snapshot:
                     kwargs["copy_ledger"] = True
 
-                network.join_node(
-                    new_node, args.package, args, from_snapshot=False, **kwargs
+                new_node = create_and_join_node(
+                    network,
+                    args,
+                    to_binary_dir,
+                    to_library_dir,
+                    to_version,
+                    node_container_image=to_container_image,
+                    from_snapshot=False,
+                    **kwargs,
                 )
                 network.trust_node(
                     new_node,
                     args,
                     valid_from=str(  # Pre-2.0 nodes require X509 time format
-                        infra.crypto.datetime_to_X509time(datetime.datetime.utcnow())
+                        infra.crypto.datetime_to_X509time(
+                            datetime.datetime.now(datetime.timezone.utc)
+                        )
                     ),
                 )
                 # For 2.x nodes joining a 1.x service before the constitution is updated,
@@ -452,7 +525,7 @@ def run_code_upgrade_from(
 
             # If host_data was found for original nodes, check if it's different on new nodes, in which case old should be removed
             if new_host_data is not None:
-                old_host_data, old_security_policy = (
+                old_host_data, _old_security_policy = (
                     infra.utils.get_host_data_and_security_policy(
                         infra.platform_detection.get_platform(),
                         args.package,
@@ -535,8 +608,9 @@ def run_code_upgrade_from(
                 to_library_dir,
                 to_version,
                 expected_subject_name=service_subject_name,
+                node_container_image=to_container_image,
             )
-            network.get_latest_ledger_public_state()
+            network.create_and_wait_for_ledger_chunk()
 
 
 @reqs.description("Run live compatibility with latest LTS")
@@ -547,6 +621,8 @@ def run_live_compatibility_with_latest(
     this_release_branch_only=False,
     lts_install_path=None,
     lts_container_image=None,
+    local_install_path=LOCAL_CHECKOUT_DIRECTORY,
+    local_container_image=None,
 ):
     """
     Tests that a service from the latest LTS can be safely upgraded to the version of
@@ -569,13 +645,19 @@ def run_live_compatibility_with_latest(
 
     LOG.info(f"From LTS {lts_version} to local {local_branch} branch")
     if not args.dry_run:
+        local_version = (
+            None
+            if local_install_path == LOCAL_CHECKOUT_DIRECTORY
+            else infra.github.get_version_from_install(local_install_path)
+        )
         run_code_upgrade_from(
             args,
             from_install_path=lts_install_path,
-            to_install_path=LOCAL_CHECKOUT_DIRECTORY,
+            to_install_path=local_install_path,
             from_version=lts_version,
-            to_version=None,
+            to_version=local_version,
             from_container_image=lts_container_image,
+            to_container_image=local_container_image,
         )
     return lts_version
 
@@ -685,7 +767,9 @@ def run_ledger_compatibility_since_first(
                             dirs_exist_ok=True,
                         )
 
-                    network = infra.network.Network(**network_args)
+                    network = disable_openapi_validation(
+                        infra.network.Network(**network_args)
+                    )
 
                     args.previous_service_identity_file = os.path.join(
                         service_dir, "common", "service_cert.pem"
@@ -707,8 +791,8 @@ def run_ledger_compatibility_since_first(
                     jwt_issuer.register(network)
                 else:
                     LOG.info(f"Recovering service (new version: {version})")
-                    network = infra.network.Network(
-                        **network_args, existing_network=network
+                    network = disable_openapi_validation(
+                        infra.network.Network(**network_args, existing_network=network)
                     )
 
                     network.start_in_recovery(
@@ -752,6 +836,9 @@ def run_ledger_compatibility_since_first(
 
                 issue_activity_on_live_service(network, args)
 
+                # Keep the issuer and legacy JWT records for subsequent recoveries.
+                # Destructive cleanup must only run on the final, local version.
+                run_jwt_cleanup = test_jwt_cleanup and lts_release is None
                 if idx > 0:
                     test_new_service(
                         network,
@@ -760,7 +847,7 @@ def run_ledger_compatibility_since_first(
                         binary_dir,
                         library_dir,
                         version,
-                        test_jwt_cleanup=test_jwt_cleanup,
+                        test_jwt_cleanup=run_jwt_cleanup,
                     )
 
                 snapshots_dir = (
@@ -772,16 +859,12 @@ def run_ledger_compatibility_since_first(
                 # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files will be re-chunked differently on the joining node
                 check_file_invariants = use_snapshot
 
-                skip_verification = test_jwt_cleanup
-
                 LOG.info(
-                    "Stopping network recovering from version {} to {}".format(
-                        previous_version, version
-                    )
+                    f"Stopping network recovering from version {previous_version} to {version}"
                 )
                 network.stop_all_nodes(
                     check_file_invariants=check_file_invariants,
-                    skip_verification=skip_verification,
+                    skip_verification=run_jwt_cleanup,
                 )
 
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
@@ -805,6 +888,7 @@ def run_ledger_compatibility_since_first(
 if __name__ == "__main__":
 
     def add(parser):
+        parser.set_defaults(gov_api_version=infra.clients.API_VERSION_01)
         parser.add_argument("--check-ledger-compatibility", action="store_true")
         parser.add_argument(
             "--compatibility-report-file", type=str, default="compatibility_report.json"
@@ -816,6 +900,20 @@ if __name__ == "__main__":
             type=str,
             help='Absolute path to existing CCF release, e.g. "/opt/ccf"',
             default=None,
+        )
+        parser.add_argument(
+            "--release-install-image",
+            help="Container image used to run nodes from --release-install-path",
+        )
+        parser.add_argument(
+            "--local-install-path",
+            type=str,
+            help="Path to a pre-built local CCF install tree",
+            default=LOCAL_CHECKOUT_DIRECTORY,
+        )
+        parser.add_argument(
+            "--local-install-image",
+            help="Container image used to run nodes from --local-install-path",
         )
         parser.add_argument("--dry-run", action="store_true")
 
@@ -835,6 +933,14 @@ if __name__ == "__main__":
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")
+    if args.release_install_image and not args.release_install_path:
+        raise ValueError(
+            "--release-install-image requires an explicit --release-install-path"
+        )
+    if args.local_install_image and args.local_install_path == LOCAL_CHECKOUT_DIRECTORY:
+        raise ValueError(
+            "--local-install-image requires an explicit --local-install-path"
+        )
 
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
@@ -846,6 +952,8 @@ if __name__ == "__main__":
             local_branch,
             lts_install_path=args.release_install_path,
             lts_container_image=args.release_install_image,
+            local_install_path=args.local_install_path,
+            local_container_image=args.local_install_image,
         )
         compatibility_report["live compatibility"].update(
             {f"with release ({args.release_install_path})": version}
@@ -854,7 +962,12 @@ if __name__ == "__main__":
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
         latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=False
+            args,
+            repo,
+            local_branch,
+            this_release_branch_only=False,
+            local_install_path=args.local_install_path,
+            local_container_image=args.local_install_image,
         )
         compatibility_report["live compatibility"].update(
             {"with previous LTS": latest_lts_version}
@@ -863,7 +976,12 @@ if __name__ == "__main__":
         # Compatibility with latest LTS on the same release branch
         # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
         latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=True
+            args,
+            repo,
+            local_branch,
+            this_release_branch_only=True,
+            local_install_path=args.local_install_path,
+            local_container_image=args.local_install_image,
         )
         compatibility_report["live compatibility"].update(
             {"with same LTS": latest_lts_version}
@@ -896,5 +1014,12 @@ if __name__ == "__main__":
             LOG.info(
                 f"Compatibility report written to {args.compatibility_report_file}"
             )
+        # An explicit release path emits "with release (<path>)" rather than
+        # exercising the automatic previous- and same-LTS discovery checked here.
+        if not args.release_install_path:
+            with open(
+                args.compatibility_report_file, encoding="utf-8"
+            ) as compatibility_report_file:
+                validate_compatibility_report(json.load(compatibility_report_file))
 
     LOG.success(f"Compatibility report:\n {json.dumps(compatibility_report, indent=2)}")

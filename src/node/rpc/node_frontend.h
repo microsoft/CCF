@@ -4,11 +4,13 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+#include "ccf/ds/locking.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/endpoints/authentication/cert_auth.h"
 #include "ccf/http_query.h"
 #include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"
+#include "ccf/node/node_configuration_interface.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
@@ -20,21 +22,23 @@
 #include "ds/std_formatters.h"
 #include "frontend.h"
 #include "node/cose_common.h"
+#include "node/internal_tables_access.h"
 #include "node/network_state.h"
 #include "node/rpc/file_serving_handlers.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/no_create_tx_claims_digest.cpp" // NOLINT(bugprone-suspicious-include)
 #include "node/rpc/node_frontend_utils.h"
+#include "node/rpc/self_cert_auth.h"
 #include "node/rpc/self_healing_open_handlers.h"
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
-#include "service/internal_tables_access.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
 #include "service/tables/snapshot_status.h"
 #include "snapshots/filenames.h"
 
+#include <chrono>
 #include <llhttp/llhttp.h>
 #include <stdexcept>
 
@@ -266,6 +270,26 @@ namespace ccf
       return duplicate_node_id;
     }
 
+    static int64_t current_time_ms()
+    {
+      return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+    }
+
+    std::optional<std::chrono::milliseconds> get_pending_node_timeout()
+    {
+      const auto node_configuration_subsystem =
+        this->context.get_subsystem<NodeConfigurationInterface>();
+      if (node_configuration_subsystem == nullptr)
+      {
+        return std::nullopt;
+      }
+
+      return std::chrono::milliseconds(
+        node_configuration_subsystem->get().node_config.pending_node_timeout);
+    }
+
     auto add_node(
       ccf::kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
@@ -361,6 +385,11 @@ namespace ccf
         client_public_key_pem,
         in.node_data};
 
+      if (node_status == NodeStatus::PENDING)
+      {
+        node_info.pending_last_seen = current_time_ms();
+      }
+
       nodes->put(joining_node_id, node_info);
 
       if (in.sealing_recovery_data.has_value())
@@ -415,12 +444,16 @@ namespace ccf
       return make_success(rep);
     }
 
-    JWTRefreshMetrics jwt_refresh_metrics;
+    ccf::ds::Mutex jwt_refresh_metrics_lock;
+    JWTRefreshMetrics jwt_refresh_metrics
+      CCF_GUARDED_BY(jwt_refresh_metrics_lock);
+
     void handle_event_request_completed(
       const ccf::endpoints::RequestCompletedEvent& event) override
     {
       if (event.method == "POST" && event.dispatch_path == "/jwt_keys/refresh")
       {
+        ccf::ds::MutexGuard guard(jwt_refresh_metrics_lock);
         jwt_refresh_metrics.attempts += 1;
         int status_category = event.status / 100;
         if (status_category >= 4)
@@ -444,13 +477,16 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.5";
+      openapi_info.document_version = "5.0.8";
     }
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void init_handlers() override
     {
       CommonEndpointRegistry::init_handlers();
+
+      const auto self_cert_auth_policy =
+        std::make_shared<SelfCertAuthnPolicy>(this->context);
 
       auto accept = [this](auto& args, const nlohmann::json& params) {
         const auto in = params.get<JoinNetworkNodeToNode::In>();
@@ -483,6 +519,49 @@ namespace ccf
             ccf::errors::InternalError,
             payload);
         }
+
+        auto* current_consensus = get_consensus();
+        const auto should_redirect_to_primary =
+          current_consensus != nullptr && !this->node_operation.can_replicate();
+        auto redirect_to_primary = [&]() {
+          auto primary_id = current_consensus->primary();
+          if (primary_id.has_value())
+          {
+            const auto address = node::get_redirect_address_for_node(
+              args, args.tx, primary_id.value());
+            if (!address.has_value())
+            {
+              LOG_INFO_FMT(
+                "Join request rejected: no redirect address for "
+                "primary {}",
+                primary_id.value());
+              return already_populated_response();
+            }
+
+            args.rpc_ctx->set_response_header(
+              http::headers::LOCATION,
+              fmt::format("https://{}/node/join", address.value()));
+
+            const std::string payload =
+              "Node is not primary; cannot handle write";
+            LOG_INFO_FMT(
+              "Join request redirected to primary {} at {}: {}",
+              primary_id.value(),
+              address.value(),
+              payload);
+            return make_error(
+              HTTP_STATUS_PERMANENT_REDIRECT,
+              ccf::errors::NodeCannotHandleRequest,
+              payload);
+          }
+
+          const std::string payload = "Primary unknown";
+          LOG_INFO_FMT("Join request rejected: {}", payload);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            payload);
+        };
 
         auto nodes = args.tx.ro(network.nodes);
 
@@ -519,6 +598,28 @@ namespace ccf
 
           if (node_status == NodeStatus::PENDING)
           {
+            const auto pending_node_timeout = get_pending_node_timeout();
+            if (!pending_node_timeout.has_value())
+            {
+              return make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "NodeConfiguration subsystem is not available");
+            }
+
+            if (
+              pending_node_timeout.value() > std::chrono::milliseconds::zero())
+            {
+              if (should_redirect_to_primary)
+              {
+                return redirect_to_primary();
+              }
+
+              node_info->pending_last_seen = current_time_ms();
+              args.tx.rw(network.nodes)
+                ->put(existing_node_info->node_id, node_info.value());
+            }
+
             // Only return node status and ID
             LOG_DEBUG_FMT(
               "Join request accepted: {} already marked as PENDING",
@@ -534,45 +635,9 @@ namespace ccf
         }
 
         // Not the primary => Redirect if possible to primary
-        if (consensus != nullptr && !this->node_operation.can_replicate())
+        if (should_redirect_to_primary)
         {
-          auto primary_id = consensus->primary();
-          if (primary_id.has_value())
-          {
-            const auto address = node::get_redirect_address_for_node(
-              args, args.tx, primary_id.value());
-            if (!address.has_value())
-            {
-              LOG_INFO_FMT(
-                "Join request rejected: no redirect address for "
-                "primary {}",
-                primary_id.value());
-              return already_populated_response();
-            }
-
-            args.rpc_ctx->set_response_header(
-              http::headers::LOCATION,
-              fmt::format("https://{}/node/join", address.value()));
-
-            const std::string payload =
-              "Node is not primary; cannot handle write";
-            LOG_INFO_FMT(
-              "Join request redirected to primary {} at {}: {}",
-              primary_id.value(),
-              address.value(),
-              payload);
-            return make_error(
-              HTTP_STATUS_PERMANENT_REDIRECT,
-              ccf::errors::NodeCannotHandleRequest,
-              "payload");
-          }
-
-          const std::string payload = "Primary unknown";
-          LOG_INFO_FMT("Join request rejected: {}", payload);
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            payload);
+          return redirect_to_primary();
         }
 
         // Joiner's snapshot too old => StartupSeqnoIsOld
@@ -658,6 +723,73 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
+      auto remove_expired_pending = [this](auto& ctx, nlohmann::json&&) {
+        const auto pending_node_timeout = get_pending_node_timeout();
+        if (!pending_node_timeout.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfiguration subsystem is not available");
+        }
+
+        if (pending_node_timeout.value() <= std::chrono::milliseconds::zero())
+        {
+          return make_success(true);
+        }
+
+        const auto now = current_time_ms();
+        auto nodes = ctx.tx.rw(network.nodes);
+        std::map<NodeId, NodeInfo> untimestamped_pending_nodes;
+        std::vector<NodeId> expired_pending_nodes;
+        nodes->foreach([&](const auto& node_id, const auto& node_info) {
+          if (node_info.status != NodeStatus::PENDING)
+          {
+            return true;
+          }
+
+          if (
+            !node_info.pending_last_seen.has_value() ||
+            node_info.pending_last_seen.value() < 0 ||
+            node_info.pending_last_seen.value() > now)
+          {
+            auto updated_node_info = node_info;
+            updated_node_info.pending_last_seen = now;
+            untimestamped_pending_nodes.emplace(
+              node_id, std::move(updated_node_info));
+          }
+          else if (
+            now - node_info.pending_last_seen.value() >=
+            pending_node_timeout.value().count())
+          {
+            expired_pending_nodes.push_back(node_id);
+          }
+
+          return true;
+        });
+
+        for (const auto& [node_id, node_info] : untimestamped_pending_nodes)
+        {
+          nodes->put(node_id, node_info);
+        }
+
+        for (const auto& node_id : expired_pending_nodes)
+        {
+          LOG_INFO_FMT("Removing expired Pending node {}", node_id);
+          InternalTablesAccess::remove_node(ctx.tx, node_id);
+        }
+
+        return make_success(true);
+      };
+      make_endpoint(
+        "network/nodes/remove_expired_pending",
+        HTTP_POST,
+        json_adapter(remove_expired_pending),
+        {self_cert_auth_policy})
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+
       auto set_retired_committed = [this](auto& ctx, nlohmann::json&&) {
         auto nodes = ctx.tx.rw(network.nodes);
         nodes->foreach([&nodes](const auto& node_id, auto node_info) {
@@ -710,7 +842,7 @@ namespace ccf
         ccf::kv::Version cose_seqno = 0;
         auto cose_signatures =
           args.tx.template ro<CoseSignatures>(Tables::COSE_SIGNATURES);
-        auto cose_sig = cose_signatures->get();
+        auto cose_sig = cose_signatures->get(ccf::IdentityType::CLASSICAL);
         if (cose_sig.has_value() && !cose_sig->empty())
         {
           auto receipt = ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
@@ -892,10 +1024,11 @@ namespace ccf
           out.service_data = service_value.service_data;
           out.current_service_create_txid =
             service_value.current_service_create_txid;
-          if (consensus != nullptr)
+          auto* current_consensus = get_consensus();
+          if (current_consensus != nullptr)
           {
-            out.current_view = consensus->get_view();
-            auto primary_id = consensus->primary();
+            out.current_view = current_consensus->get_view();
+            auto primary_id = current_consensus->primary();
             if (primary_id.has_value())
             {
               out.primary_id = primary_id.value();
@@ -975,7 +1108,8 @@ namespace ccf
         GetNodes::Out out;
 
         auto nodes = args.tx.ro(this->network.nodes);
-        nodes->foreach([this, host, port, status, &out, nodes](
+        auto* current_consensus = get_consensus();
+        nodes->foreach([host, port, status, &out, nodes, current_consensus](
                          const NodeId& nid, const NodeInfo& ni) {
           if (status.has_value() && status.value() != ni.status)
           {
@@ -1004,9 +1138,9 @@ namespace ccf
           }
 
           bool is_primary = false;
-          if (consensus != nullptr)
+          if (current_consensus != nullptr)
           {
-            is_primary = consensus->primary() == nid;
+            is_primary = current_consensus->primary() == nid;
           }
 
           out.nodes.push_back(
@@ -1074,81 +1208,59 @@ namespace ccf
         .set_auto_schema<void, GetNodes::Out>()
         .install();
 
-      auto delete_retired_committed_node = [this](
-                                             auto& args, nlohmann::json&&) {
-        GetNodes::Out out;
+      auto delete_retired_committed_node =
+        [this](auto& args, nlohmann::json&&) {
+          GetNodes::Out out;
 
-        std::string node_id;
-        std::string error;
-        if (!get_path_param(
-              args.rpc_ctx->get_request_path_params(),
-              "node_id",
-              node_id,
-              error))
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-        }
+          std::string node_id;
+          std::string error;
+          if (!get_path_param(
+                args.rpc_ctx->get_request_path_params(),
+                "node_id",
+                node_id,
+                error))
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          }
 
-        auto nodes = args.tx.rw(this->network.nodes);
-        if (!nodes->has(node_id))
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            "No such node");
-        }
+          auto nodes = args.tx.rw(this->network.nodes);
+          if (!nodes->has(node_id))
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              "No such node");
+          }
 
-        auto node_endorsed_certificates =
-          args.tx.rw(network.node_endorsed_certificates);
+          // A node's retirement is only complete when the
+          // transition of retired_committed is itself committed,
+          // i.e. when the next eligible primary is guaranteed to
+          // be aware the retirement is committed.
+          // As a result, the handler must check node info at the
+          // current committed level, rather than at the end of the
+          // local suffix.
+          // While this transaction does execute a write, it specifically
+          // deletes the value it reads from. It is therefore safe to
+          // execute on the basis of a potentially stale read-set,
+          // which get_globally_committed() typically produces.
+          auto node = nodes->get_globally_committed(node_id);
+          if (
+            node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
+            node->retired_committed)
+          {
+            InternalTablesAccess::remove_node(args.tx, node_id);
+          }
+          else
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::NodeNotRetiredCommitted,
+              "Node is not completely retired");
+          }
 
-        // A node's retirement is only complete when the
-        // transition of retired_committed is itself committed,
-        // i.e. when the next eligible primary is guaranteed to
-        // be aware the retirement is committed.
-        // As a result, the handler must check node info at the
-        // current committed level, rather than at the end of the
-        // local suffix.
-        // While this transaction does execute a write, it specifically
-        // deletes the value it reads from. It is therefore safe to
-        // execute on the basis of a potentially stale read-set,
-        // which get_globally_committed() typically produces.
-        auto node = nodes->get_globally_committed(node_id);
-        if (
-          node.has_value() && node->status == ccf::NodeStatus::RETIRED &&
-          node->retired_committed)
-        {
-          nodes->remove(node_id);
-          node_endorsed_certificates->remove(node_id);
-
-          // clean up sealing tables
-          auto* local_sealing_node_id_map =
-            args.tx.template rw<LocalSealingNodeIdMap>(
-              Tables::SEALING_RECOVERY_NAMES);
-          local_sealing_node_id_map->foreach(
-            [&](
-              const auto& sealing_recovery_name, const auto& sealing_node_id) {
-              if (sealing_node_id == node_id)
-              {
-                local_sealing_node_id_map->remove(sealing_recovery_name);
-                return false;
-              }
-              return true;
-            });
-          auto* sealed_recovery_keys = args.tx.template rw<SealedRecoveryKeys>(
-            Tables::SEALED_RECOVERY_KEYS);
-          sealed_recovery_keys->remove(node_id);
-        }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::NodeNotRetiredCommitted,
-            "Node is not completely retired");
-        }
-
-        return make_success(true);
-      };
+          return make_success(true);
+        };
 
       make_endpoint(
         "/network/nodes/{node_id}",
@@ -1197,9 +1309,10 @@ namespace ccf
         }
 
         bool is_primary = false;
-        if (consensus != nullptr)
+        auto* current_consensus = get_consensus();
+        if (current_consensus != nullptr)
         {
-          auto primary = consensus->primary();
+          auto primary = current_consensus->primary();
           if (primary.has_value() && primary.value() == node_id)
           {
             is_primary = true;
@@ -1228,9 +1341,10 @@ namespace ccf
         auto info = nodes->get(node_id);
 
         bool is_primary = false;
-        if (consensus != nullptr)
+        auto* current_consensus = get_consensus();
+        if (current_consensus != nullptr)
         {
-          auto primary = consensus->primary();
+          auto primary = current_consensus->primary();
           if (primary.has_value() && primary.value() == node_id)
           {
             is_primary = true;
@@ -1281,9 +1395,10 @@ namespace ccf
         .install();
 
       auto get_primary_node = [this](auto& args, nlohmann::json&&) {
-        if (consensus != nullptr)
+        auto* current_consensus = get_consensus();
+        if (current_consensus != nullptr)
         {
-          auto primary_id = consensus->primary();
+          auto primary_id = current_consensus->primary();
           if (!primary_id.has_value())
           {
             return make_error(
@@ -1333,7 +1448,8 @@ namespace ccf
         }
         else
         {
-          if (consensus == nullptr)
+          auto* current_consensus = get_consensus();
+          if (current_consensus == nullptr)
           {
             args.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -1342,7 +1458,7 @@ namespace ccf
             return;
           }
 
-          auto primary_id = consensus->primary();
+          auto primary_id = current_consensus->primary();
           if (!primary_id.has_value())
           {
             args.rpc_ctx->set_error(
@@ -1368,6 +1484,9 @@ namespace ccf
       make_read_only_endpoint(
         "/primary", HTTP_HEAD, head_primary, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .add_openapi_response(
+          HTTP_STATUS_PERMANENT_REDIRECT,
+          "Redirect to the current primary node.")
         .install();
 
       auto get_primary = [this](auto& args) {
@@ -1405,9 +1524,10 @@ namespace ccf
 
       auto consensus_config = [this](auto& /*args*/, nlohmann::json&&) {
         // Query node for configurations, separate current from pending
-        if (consensus != nullptr)
+        auto* current_consensus = get_consensus();
+        if (current_consensus != nullptr)
         {
-          auto cfg = consensus->get_latest_configuration();
+          auto cfg = current_consensus->get_latest_configuration();
           ConsensusConfig cc;
           for (auto& [nid, ninfo] : cfg)
           {
@@ -1435,9 +1555,11 @@ namespace ccf
         .install();
 
       auto consensus_state = [this](auto& /*args*/, nlohmann::json&&) {
-        if (consensus != nullptr)
+        auto* current_consensus = get_consensus();
+        if (current_consensus != nullptr)
         {
-          return make_success(ConsensusConfigDetails{consensus->get_details()});
+          return make_success(
+            ConsensusConfigDetails{current_consensus->get_details()});
         }
 
         return make_error(
@@ -1534,19 +1656,6 @@ namespace ccf
             "Node is not in initial state.");
         }
 
-        const auto& sig_auth_ident =
-          ctx.template get_caller<ccf::AnyCertAuthnIdentity>();
-        // AnyCertAuthnIdentity requires DER format certificates
-        const auto caller_node_id =
-          compute_node_id_from_cert_der(sig_auth_ident.cert);
-        if (caller_node_id != this->context.get_node_id())
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Only the node itself can call this endpoint.");
-        }
-
         const auto in = params.get<CreateNetworkNodeToNode::In>();
 
         if (InternalTablesAccess::is_service_created(ctx.tx, in.service_cert))
@@ -1560,8 +1669,12 @@ namespace ccf
         InternalTablesAccess::create_service(
           ctx.tx, in.service_cert, in.create_txid, in.service_data, recovering);
 
-        // Retire all nodes, in case there are any (i.e. post recovery)
-        InternalTablesAccess::retire_active_nodes(ctx.tx);
+        if (recovering)
+        {
+          // Recovery starts with a fresh consensus configuration, so previous
+          // service nodes can be removed immediately.
+          InternalTablesAccess::remove_previous_service_nodes(ctx.tx);
+        }
 
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
@@ -1661,7 +1774,8 @@ namespace ccf
               ctx.tx, in.snp_uvm_endorsements, recovering);
 
             auto attestation =
-              AttestationProvider::get_snp_attestation(in.quote_info).value();
+              AttestationProvider::get_snp_attestation_report(in.quote_info)
+                .value();
             InternalTablesAccess::trust_node_snp_tcb_version(
               ctx.tx, attestation);
             break;
@@ -1688,10 +1802,7 @@ namespace ccf
         return make_success(true);
       };
       make_endpoint(
-        "/create",
-        HTTP_POST,
-        json_adapter(create),
-        {std::make_shared<AnyCertAuthnPolicy>()})
+        "/create", HTTP_POST, json_adapter(create), {self_cert_auth_policy})
         .set_openapi_hidden(true)
         .install();
 
@@ -1699,7 +1810,8 @@ namespace ccf
       auto refresh_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
         // All errors are server errors since the client is the server.
 
-        auto primary_id = consensus->primary();
+        auto* current_consensus = get_consensus();
+        auto primary_id = current_consensus->primary();
         if (!primary_id.has_value())
         {
           LOG_FAIL_FMT("JWT key auto-refresh: primary unknown");
@@ -1790,7 +1902,12 @@ namespace ccf
 
       auto get_jwt_metrics =
         [this](auto& /*args*/, const nlohmann::json& /*params*/) {
-          return make_success(jwt_refresh_metrics);
+          JWTRefreshMetrics metrics;
+          {
+            ccf::ds::MutexGuard guard(jwt_refresh_metrics_lock);
+            metrics = jwt_refresh_metrics;
+          }
+          return make_success(metrics);
         };
       make_read_only_endpoint(
         "/jwt_keys/refresh/metrics",
@@ -1828,65 +1945,69 @@ namespace ccf
         .set_auto_schema<void, nlohmann::json>()
         .install();
 
-      auto get_ready_app =
-        [this](const ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-          auto node_configuration_subsystem =
-            this->context.get_subsystem<NodeConfigurationSubsystem>();
-          if (!node_configuration_subsystem)
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "NodeConfigurationSubsystem is not available");
-            return;
-          }
-          if (
-            !node_configuration_subsystem->has_received_stop_notice() &&
-            this->node_operation.is_part_of_network() &&
-            this->node_operation.is_user_frontend_open())
-          {
-            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
-          }
-          else
-          {
-            ctx.rpc_ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
-          }
+      auto get_ready_app = [this](ccf::endpoints::CommandEndpointContext& ctx) {
+        auto node_configuration_subsystem =
+          this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!node_configuration_subsystem)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
           return;
-        };
-      make_read_only_endpoint(
+        }
+        if (
+          !node_configuration_subsystem->has_received_stop_notice() &&
+          this->node_operation.is_part_of_network() &&
+          this->node_operation.is_user_frontend_open())
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+        }
+        else
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+        }
+        return;
+      };
+      make_command_endpoint(
         "/ready/app", HTTP_GET, get_ready_app, no_auth_required)
         .set_auto_schema<void, void>()
+        .add_openapi_response(
+          HTTP_STATUS_SERVICE_UNAVAILABLE,
+          "The application frontend is not ready.")
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
-      auto get_ready_gov =
-        [this](const ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-          auto node_configuration_subsystem =
-            this->context.get_subsystem<NodeConfigurationSubsystem>();
-          if (!node_configuration_subsystem)
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "NodeConfigurationSubsystem is not available");
-            return;
-          }
-          if (
-            !node_configuration_subsystem->has_received_stop_notice() &&
-            this->node_operation.is_accessible_to_members() &&
-            this->node_operation.is_member_frontend_open())
-          {
-            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
-          }
-          else
-          {
-            ctx.rpc_ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
-          }
+      auto get_ready_gov = [this](ccf::endpoints::CommandEndpointContext& ctx) {
+        auto node_configuration_subsystem =
+          this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!node_configuration_subsystem)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
           return;
-        };
-      make_read_only_endpoint(
+        }
+        if (
+          !node_configuration_subsystem->has_received_stop_notice() &&
+          this->node_operation.is_accessible_to_members() &&
+          this->node_operation.is_member_frontend_open())
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+        }
+        else
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+        }
+        return;
+      };
+      make_command_endpoint(
         "/ready/gov", HTTP_GET, get_ready_gov, no_auth_required)
         .set_auto_schema<void, void>()
+        .add_openapi_response(
+          HTTP_STATUS_SERVICE_UNAVAILABLE,
+          "The governance frontend is not ready.")
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 

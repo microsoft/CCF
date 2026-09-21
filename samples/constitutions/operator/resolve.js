@@ -37,7 +37,11 @@ function canOperatorPass(action) {
   // Additionally, operators can add or retire other operators.
   if (action.name === "set_member") {
     const memberData = action.args["member_data"];
-    if (memberData && memberData.is_operator) {
+    if (
+      memberData &&
+      memberData.is_operator &&
+      action.args["encryption_pub_key"] == null
+    ) {
       return true;
     }
   } else if (action.name === "remove_member") {

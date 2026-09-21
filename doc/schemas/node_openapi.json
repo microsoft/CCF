@@ -57,6 +57,10 @@
         ],
         "type": "string"
       },
+      "Binary": {
+        "format": "binary",
+        "type": "string"
+      },
       "CCFError": {
         "properties": {
           "error": {
@@ -143,7 +147,18 @@
             "$ref": "#/components/schemas/MembershipState"
           },
           "primary_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NodeId"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true,
+                "type": "object"
+              }
+            ]
           },
           "reconfiguration_type": {
             "$ref": "#/components/schemas/ReconfigurationType"
@@ -252,13 +267,46 @@
       "GetNetworkInfo__Out": {
         "properties": {
           "current_service_create_txid": {
-            "$ref": "#/components/schemas/TransactionId"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TransactionId"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true,
+                "type": "object"
+              }
+            ]
           },
           "current_view": {
-            "$ref": "#/components/schemas/uint64"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/uint64"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true,
+                "type": "object"
+              }
+            ]
           },
           "primary_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NodeId"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true,
+                "type": "object"
+              }
+            ]
           },
           "recovery_count": {
             "$ref": "#/components/schemas/uint64"
@@ -602,22 +650,25 @@
       "ParserConfiguration": {
         "properties": {
           "initial_window_size": {
-            "$ref": "#/components/schemas/TimeString"
+            "$ref": "#/components/schemas/SizeString"
           },
           "max_body_size": {
-            "$ref": "#/components/schemas/TimeString"
+            "$ref": "#/components/schemas/SizeString"
           },
           "max_concurrent_streams_count": {
             "$ref": "#/components/schemas/uint64"
           },
           "max_frame_size": {
-            "$ref": "#/components/schemas/TimeString"
+            "$ref": "#/components/schemas/SizeString"
           },
           "max_header_size": {
-            "$ref": "#/components/schemas/TimeString"
+            "$ref": "#/components/schemas/SizeString"
           },
           "max_headers_count": {
             "$ref": "#/components/schemas/uint32"
+          },
+          "max_request_target_size": {
+            "$ref": "#/components/schemas/SizeString"
           }
         },
         "type": "object"
@@ -780,12 +831,16 @@
           },
           "request_payload_too_large": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "request_target_too_long": {
+            "$ref": "#/components/schemas/uint64"
           }
         },
         "required": [
           "parsing",
           "request_payload_too_large",
-          "request_header_too_large"
+          "request_header_too_large",
+          "request_target_too_long"
         ],
         "type": "object"
       },
@@ -816,7 +871,7 @@
         ],
         "type": "object"
       },
-      "TimeString": {
+      "SizeString": {
         "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
         "type": "string"
       },
@@ -915,7 +970,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.5"
+    "version": "5.0.8"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1201,8 +1256,11 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Default response description"
+          "308": {
+            "description": "Redirect to the selected ledger chunk."
+          },
+          "404": {
+            "description": "No matching ledger chunk is available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1227,8 +1285,11 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Default response description"
+          "308": {
+            "description": "Redirect to the selected ledger chunk."
+          },
+          "404": {
+            "description": "No matching ledger chunk is available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1246,7 +1307,30 @@
         "operationId": "GetNodeLedgerChunkChunkName",
         "responses": {
           "200": {
-            "description": "Default response description"
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Binary"
+                }
+              }
+            },
+            "description": "The requested ledger chunk."
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Binary"
+                }
+              }
+            },
+            "description": "The requested byte range of the ledger chunk."
+          },
+          "304": {
+            "description": "The requested ledger chunk has not changed."
+          },
+          "404": {
+            "description": "The requested ledger chunk is not available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1262,7 +1346,16 @@
         "operationId": "HeadNodeLedgerChunkChunkName",
         "responses": {
           "200": {
-            "description": "Default response description"
+            "description": "Metadata for the requested ledger chunk."
+          },
+          "206": {
+            "description": "Metadata for the requested ledger chunk range."
+          },
+          "304": {
+            "description": "The requested ledger chunk has not changed."
+          },
+          "404": {
+            "description": "The requested ledger chunk is not available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1520,8 +1613,8 @@
       "head": {
         "operationId": "HeadNodePrimary",
         "responses": {
-          "200": {
-            "description": "Default response description"
+          "308": {
+            "description": "Redirect to the current primary node."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1585,6 +1678,9 @@
           "204": {
             "description": "Default response description"
           },
+          "503": {
+            "description": "The application frontend is not ready."
+          },
           "default": {
             "$ref": "#/components/responses/default"
           }
@@ -1600,6 +1696,9 @@
         "responses": {
           "204": {
             "description": "Default response description"
+          },
+          "503": {
+            "description": "The governance frontend is not ready."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1635,6 +1734,16 @@
             },
             "description": "Default response description"
           },
+          "202": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                }
+              }
+            },
+            "description": "The transaction is not yet available. The response describes why and the Retry-After header indicates when to retry."
+          },
           "default": {
             "$ref": "#/components/responses/default"
           }
@@ -1669,6 +1778,16 @@
               }
             },
             "description": "Default response description"
+          },
+          "202": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                }
+              }
+            },
+            "description": "The transaction is not yet available. The response describes why and the Retry-After header indicates when to retry."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1763,8 +1882,11 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Default response description"
+          "308": {
+            "description": "Redirect to the selected snapshot."
+          },
+          "404": {
+            "description": "No matching snapshot is available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1787,8 +1909,11 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Default response description"
+          "308": {
+            "description": "Redirect to the selected snapshot."
+          },
+          "404": {
+            "description": "No matching snapshot is available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1804,7 +1929,30 @@
         "operationId": "GetNodeSnapshotSnapshotName",
         "responses": {
           "200": {
-            "description": "Default response description"
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Binary"
+                }
+              }
+            },
+            "description": "The requested snapshot."
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Binary"
+                }
+              }
+            },
+            "description": "The requested byte range of the snapshot."
+          },
+          "304": {
+            "description": "The requested snapshot has not changed."
+          },
+          "404": {
+            "description": "The requested snapshot is not available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1818,7 +1966,16 @@
         "operationId": "HeadNodeSnapshotSnapshotName",
         "responses": {
           "200": {
-            "description": "Default response description"
+            "description": "Metadata for the requested snapshot."
+          },
+          "206": {
+            "description": "Metadata for the requested snapshot range."
+          },
+          "304": {
+            "description": "The requested snapshot has not changed."
+          },
+          "404": {
+            "description": "The requested snapshot is not available."
           },
           "default": {
             "$ref": "#/components/responses/default"
@@ -1845,6 +2002,9 @@
         "responses": {
           "204": {
             "description": "Default response description"
+          },
+          "404": {
+            "description": "The required operator feature is not enabled on this interface."
           },
           "default": {
             "$ref": "#/components/responses/default"

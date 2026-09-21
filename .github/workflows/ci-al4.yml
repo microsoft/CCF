@@ -3,7 +3,6 @@ name: Continuous Integration AL4
 on:
   schedule:
     - cron: "0 0 * * 1-5"
-  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -15,15 +14,10 @@ permissions: read-all
 jobs:
   vmss-virtual-a:
     name: "AL4 VMSS Virtual A" # Debug build, unit tests, e2e (bucket_a)
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_al4_build_test_virtual_a-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     container:
       image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
 
     steps:
       - name: "Checkout dependencies"
@@ -33,15 +27,12 @@ jobs:
           dnf -y update
           dnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci-al4.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug"
         run: |
@@ -50,6 +41,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja
         shell: bash
 
@@ -68,7 +60,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs for AL4 virtual A"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-al4-virtual-a
           path: |
@@ -77,17 +69,13 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
 
   vmss-virtual-b:
     name: "AL4 VMSS Virtual B" # End-to-end tests (bucket_b)
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_al4_build_test_virtual_b-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     container:
       image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -100,7 +88,7 @@ jobs:
           dnf -y update
           dnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -110,10 +98,7 @@ jobs:
         shell: bash
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci-al4.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Confirm running on Virtual"
         run: |
@@ -128,6 +113,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja
         shell: bash
 
@@ -142,7 +128,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs for AL4 virtual B"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-al4-virtual-b
           path: |
@@ -151,17 +137,13 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
 
   vmss-virtual-c:
     name: "AL4 VMSS Virtual C" # End-to-end tests (bucket_c)
-    runs-on:
-      [
-        self-hosted,
-        1ES.Pool=gha-vmss-d16av5-ci,
-        "JobId=ci_al4_build_test_virtual_c-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
-      ]
+    runs-on: [gha-vmss-d16av7-ci]
     container:
       image: azlpubstagingacroxz2o4gw.azurecr.io/azurelinux/base/core:4.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -174,15 +156,12 @@ jobs:
           dnf -y update
           dnf -y install ca-certificates git
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci-al4.sh
+        uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug"
         run: |
@@ -191,6 +170,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+          grep -Fx "CCF_STACKTRACE_BACKEND_RESOLVED:INTERNAL=STD" CMakeCache.txt
           ninja
         shell: bash
 
@@ -205,7 +185,7 @@ jobs:
         shell: bash
 
       - name: "Upload logs for AL4 virtual C"
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-al4-virtual-c
           path: |
@@ -214,5 +194,6 @@ jobs:
             build/workspace/*/err
             build/workspace/*/*.ledger/*
             build/workspace/*/stack_trace
+            build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()

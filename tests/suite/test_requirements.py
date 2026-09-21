@@ -3,9 +3,9 @@
 
 import functools
 
+from infra.member import RecoveryRole
 from infra.snp import SNP_SUPPORT
 from loguru import logger as LOG
-from infra.member import RecoveryRole
 
 
 class TestRequirementsNotMet(Exception):
@@ -16,9 +16,7 @@ def description(desc):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            LOG.opt(colors=True, depth=1).info(
-                f'<magenta>Test: {desc} {(kwargs or "")}</>'
-            )
+            LOG.opt(depth=1).info(f'Test: {desc} {(kwargs or "")}')
             return func(*args, **kwargs)
 
         return wrapper

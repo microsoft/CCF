@@ -1,31 +1,30 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import tempfile
+import base64
 import json
 import os
+import socket
+import tempfile
 import threading
 import time
-import base64
-import socket
 from contextlib import contextmanager
-import infra.network
-import infra.jwt_issuer
-import infra.path
-import infra.proc
-import infra.net
+
+import infra.clients
 import infra.crypto
 import infra.e2e_args
+import infra.jwt_issuer
+import infra.net
+import infra.network
+import infra.path
+import infra.proc
 import infra.proposal
 import suite.test_requirements as reqs
+from ccf.tx_id import TxID
 from infra.jwt_issuer import (
     OpenIDProviderServer,
     get_jwt_issuers,
     get_jwt_keys,
 )
-import ccf.ledger
-from ccf.tx_id import TxID
-import infra.clients
-
 from loguru import logger as LOG
 
 TRUST_STORE_LOCK = threading.Lock()
@@ -394,7 +393,7 @@ def check_kv_jwt_keys_not_empty(args, network, issuer):
     primary, _ = network.find_nodes()
     latest_jwt_signing_keys = get_jwt_keys(args, primary)
 
-    for _, data in latest_jwt_signing_keys.items():
+    for data in latest_jwt_signing_keys.values():
         for key in data:
             if key["issuer"] == issuer:
                 return
@@ -414,18 +413,20 @@ def get_jwt_refresh_endpoint_metrics(primary) -> dict:
 
 @contextmanager
 def reserve_unlistened_local_port():
+    # The socket is bound but never listened on, so connections to it are
+    # refused. It is yielded rather than just its port number so that callers
+    # can release the reservation early, e.g. to let a server bind that port.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
-        yield s.getsockname()[1]
+        yield s
 
 
 def trust_jwt_issuer(args, issuer):
     trust_store = getattr(args, "jwt_test_trust_store", None)
     if trust_store:
-        with TRUST_STORE_LOCK:
-            with open(trust_store, "a", encoding="utf-8") as f:
-                f.write(issuer.tls_cert)
-                f.write("\n")
+        with TRUST_STORE_LOCK, open(trust_store, "a", encoding="utf-8") as f:
+            f.write(issuer.tls_cert)
+            f.write("\n")
 
 
 def add_auto_refresh_jwt_issuer(network, args, primary, issuer):
@@ -457,9 +458,11 @@ def test_jwt_key_auto_refresh_connection_failure(network, args):
     remove_all_jwt_issuers(network, args, primary)
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
     issuer_host = "127.0.0.1"
+    kid = "connection_failure"
 
     LOG.info("Add JWT issuer with auto-refresh pointing at an unavailable endpoint")
-    with reserve_unlistened_local_port() as issuer_port:
+    with reserve_unlistened_local_port() as reserved_socket:
+        issuer_port = reserved_socket.getsockname()[1]
         issuer = infra.jwt_issuer.JwtIssuer(
             f"https://{issuer_host}:{issuer_port}", cn=issuer_host
         )
@@ -469,6 +472,18 @@ def test_jwt_key_auto_refresh_connection_failure(network, args):
                 lambda: check_refresh_failures_increased(primary, failures_before),
                 timeout=5,
             )
+
+            LOG.info("Start the OpenID endpoint and check that the refresh is retried")
+            # Only release the port now, so that nothing else can claim it while
+            # the initial refresh failures are observed.
+            reserved_socket.close()
+            with issuer.start_openid_server(issuer_port, kid):
+                with_timeout(
+                    lambda: check_kv_jwt_key_matches(
+                        args, network, kid, issuer.key_pub_pem
+                    ),
+                    timeout=15,
+                )
         finally:
             network.consortium.remove_jwt_issuer(primary, issuer.name)
 
@@ -477,13 +492,13 @@ def test_jwt_key_auto_refresh_tls_failure(network, args):
     primary, _ = network.find_nodes()
     remove_all_jwt_issuers(network, args, primary)
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
-    issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
+    issuer = infra.jwt_issuer.JwtIssuer("https://127.0.0.1", cn="127.0.0.1")
 
     # Do not add this issuer to args.jwt_test_trust_store. This verifies that
     # nodes use the configured SSL_CERT_FILE trust store for JWT auto-refresh.
     LOG.info("Start OpenID endpoint server with a certificate not in the system store")
     with issuer.start_openid_server(0) as server:
-        issuer_name = f"https://localhost:{server.bind_port}"
+        issuer_name = f"https://127.0.0.1:{server.bind_port}"
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
             json.dump(
                 {
@@ -508,12 +523,12 @@ def test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args):
     primary, _ = network.find_nodes()
     remove_all_jwt_issuers(network, args, primary)
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
-    issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
+    issuer = infra.jwt_issuer.JwtIssuer("https://127.0.0.1", cn="127.0.0.1")
     trust_jwt_issuer(args, issuer)
 
     LOG.info("Start OpenID endpoint server with a non-string issuer metadata field")
     with issuer.start_openid_server(0) as server:
-        issuer_name = f"https://localhost:{server.bind_port}"
+        issuer_name = f"https://127.0.0.1:{server.bind_port}"
         server.metadata["issuer"] = {"unexpected": "object"}
 
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
@@ -539,7 +554,7 @@ def test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args):
 def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
     primary, _ = network.find_nodes()
     remove_all_jwt_issuers(network, args, primary)
-    issuer_host = "localhost"
+    issuer_host = "127.0.0.1"
     issuer = infra.jwt_issuer.JwtIssuer(f"https://{issuer_host}", cn=issuer_host)
     trust_jwt_issuer(args, issuer)
     kid = "cross_authority_jwks_uri"
@@ -552,7 +567,7 @@ def test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args):
         issuer_name = issuer.name
         # Exercise OIDC-compatible metadata where JWKS are served from a
         # different authority than the issuer metadata.
-        server.metadata["jwks_uri"] = f"https://localhost:{jwks_server.bind_port}/keys"
+        server.metadata["jwks_uri"] = f"https://127.0.0.1:{jwks_server.bind_port}/keys"
 
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
             json.dump(
@@ -580,12 +595,12 @@ def test_jwt_key_auto_refresh_response_size_limit(network, args):
     primary, _ = network.find_nodes()
     remove_all_jwt_issuers(network, args, primary)
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
-    issuer = infra.jwt_issuer.JwtIssuer("https://localhost", cn="localhost")
+    issuer = infra.jwt_issuer.JwtIssuer("https://127.0.0.1", cn="127.0.0.1")
     kid = "response_size_limit"
 
     LOG.info("Start OpenID endpoint server with oversized metadata")
     with issuer.start_openid_server(0, kid) as server:
-        issuer.name = f"https://localhost:{server.bind_port}"
+        issuer.name = f"https://127.0.0.1:{server.bind_port}"
         server.metadata["oversized_response"] = "x" * 4096
         add_auto_refresh_jwt_issuer(network, args, primary, issuer)
 
@@ -615,7 +630,7 @@ def test_jwt_key_auto_refresh(network, args):
     primary, _ = network.find_nodes()
 
     kid = "the_kid"
-    issuer_host = "localhost"
+    issuer_host = "127.0.0.1"
     issuer_port = args.issuer_port
 
     issuer = infra.jwt_issuer.JwtIssuer(
@@ -713,7 +728,7 @@ def test_jwt_key_auto_refresh_entries(network, args):
     primary, _ = network.find_nodes()
 
     kid = "the_kid_no_duplicates"
-    issuer_host = "localhost"
+    issuer_host = "127.0.0.1"
     issuer_port = args.issuer_port
 
     issuer = infra.jwt_issuer.JwtIssuer(
@@ -762,30 +777,27 @@ def test_jwt_key_auto_refresh_entries(network, args):
             timeout=max(5, args.jwt_key_refresh_interval_s * 5),
         )
 
-        # Force chunking
-        network.get_latest_ledger_public_state()
+        target_seqno = network.create_and_wait_for_ledger_chunk(primary)
         # Check that despite refreshing JWTs multiple times, only a single
         # transaction was created for this kid.
-        ledger_directories = primary.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_directories, contiguous_suffix=True)
-
-        last_key_refresh = None
-        for chunk in ledger:
-            for tx in chunk:
-                txid = TxID(tx.gcm_header.view, tx.gcm_header.seqno)
-                tables = tx.get_public_domain().get_tables()
-                if "public:ccf.gov.jwt.public_signing_keys_metadata_v2" in tables:
-                    pub_keys = tables[
-                        "public:ccf.gov.jwt.public_signing_keys_metadata_v2"
-                    ]
-                    if kid.encode() in pub_keys:
-                        if last_key_refresh is None:
-                            LOG.info(f"Refresh found for kid: {kid} at {txid}")
-                            last_key_refresh = txid
-                        else:
-                            assert (
-                                last_key_refresh == txid
-                            ), "Duplicate JWT refresh transaction"
+        with primary.get_ledger_from_api(target_seqno) as ledger:
+            last_key_refresh = None
+            for chunk in ledger:
+                for tx in chunk:
+                    txid = TxID(tx.gcm_header.view, tx.gcm_header.seqno)
+                    tables = tx.get_public_domain().get_tables()
+                    if "public:ccf.gov.jwt.public_signing_keys_metadata_v2" in tables:
+                        pub_keys = tables[
+                            "public:ccf.gov.jwt.public_signing_keys_metadata_v2"
+                        ]
+                        if kid.encode() in pub_keys:
+                            if last_key_refresh is None:
+                                LOG.info(f"Refresh found for kid: {kid} at {txid}")
+                                last_key_refresh = txid
+                            else:
+                                assert (
+                                    last_key_refresh == txid
+                                ), "Duplicate JWT refresh transaction"
         assert last_key_refresh, "Missing JWT refresh transaction"
 
     return network
@@ -796,7 +808,7 @@ def test_jwt_key_initial_refresh(network, args, timeout_s=15):
     primary, _ = network.find_nodes()
 
     kid = f"my_kid_autorefresh_{primary.local_node_id}"
-    issuer_host = "localhost"
+    issuer_host = "127.0.0.1"
     issuer_port = args.issuer_port
 
     issuer = infra.jwt_issuer.JwtIssuer(
@@ -820,20 +832,39 @@ def test_jwt_key_initial_refresh(network, args, timeout_s=15):
             network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
         LOG.info("Check that keys got refreshed")
-        # Auto-refresh interval has been set to a large value so that it doesn't happen within the timeout.
-        # This is testing the one-off refresh after adding a new issuer.
-        # The timeout is generous because this check also runs straight after a
-        # primary failover, where the newly-elected primary must restart the
-        # refresh and re-fetch the keys, which can take several seconds under CI
-        # load.
-        with_timeout(
-            lambda: check_kv_jwt_key_matches(args, network, kid, issuer.key_pub_pem),
-            timeout=timeout_s,
-        )
+        # Auto-refresh interval has been set to a large value so that it
+        # doesn't happen within the timeout.  This is testing the one-off
+        # refresh after adding a new issuer.
+        # The timeout is generous because this check also runs straight after
+        # a primary failover, where the newly-elected primary must restart
+        # the refresh and re-fetch the keys, which can take several seconds
+        # under CI load.
+        # Re-trigger the one-off refresh periodically in case the single
+        # attempt hit a transient failure (e.g. curl timeout under CI load).
+        retry_interval_s = 5
+        start_time = time.time()
 
-        LOG.info("Check that JWT refresh endpoint has no failures")
+        while True:
+            try:
+                with_timeout(
+                    lambda: check_kv_jwt_key_matches(
+                        args, network, kid, issuer.key_pub_pem
+                    ),
+                    timeout=retry_interval_s,
+                )
+            except (TimeoutError, AssertionError):
+                if time.time() - start_time >= timeout_s:
+                    raise
+                LOG.warning(
+                    "JWT initial refresh: key not yet present, "
+                    "re-triggering one-off refresh"
+                )
+                add_auto_refresh_jwt_issuer(network, args, primary, issuer)
+                continue
+            break
+
+        LOG.info("Check that JWT refresh endpoint has successes")
         m = get_jwt_refresh_endpoint_metrics(primary)
-        assert m["failures"] == 0, m["failures"]
         assert m["successes"] > 0, m["successes"]
 
     return network

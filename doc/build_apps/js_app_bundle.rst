@@ -8,8 +8,8 @@ This page documents the components of a bundle and the JavaScript API available 
 
 .. note::
     Modern JavaScript app development typically makes use of
-    `Node.js <https://nodejs.org/>`_,
-    `npm <https://www.npmjs.com/>`_, and
+    `Node.js <https://nodejs.org/en>`_,
+    `npm <https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/>`_, and
     `TypeScript <https://www.typescriptlang.org/>`_.
     CCF provides an example app built with these tools.
     They involve a `build` step that generates an app bundle suitable for CCF.
@@ -78,7 +78,7 @@ Each endpoint object contains the following information:
 .. _allofauthnpolicy:
 .. note::
     This tests each policy in the list in-order, and passes if any single policy passes (returning the corresponding identity).
-    To combine policies so that they must `all` pass, you may instead pass an object with an ``allOf`` key as an element of this list.
+    To combine policies so that they must `all` pass, you may instead pass an object with an ``all_of`` key as an element of this list.
     For example, this endpoint will test (in order of preference) for `a member cert`, then `a user cert AND a JWT`, then `a JWT`:
 
     .. code-block:: json
@@ -142,11 +142,11 @@ See the following handler from the example app bundle in the :ccf_repo:`tests/js
 Accessing the current date and time
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Code executing inside the enclave does not have access to a trusted time source. To prevent accidental errors (eg - relying on an in-enclave timestamp for tamper-proof ordering), the standard ``Date`` API is stubbed out by default - ``Date.now()`` will always return ``0``.
+Code executing inside the enclave does not have access to a trusted time source. ``Date.now()`` returns the current time provided by the untrusted host. The accuracy of this time is not covered by attestation, so it should not be relied upon for tamper-proof ordering.
 
 In many places where timestamps are desired, they should come from the outside with user requests - the accuracy of this timestamp is then considered a claim by a specific user, and the application logic is a purely functional transformation of those external inputs which does not generate unique claims of its own.
 
-To ease porting of existing apps, and for logging scenarios, there is an option to retrieve the current time from the host. When the executing CCF node is run by an honest operator this will be kept up-to-date, but the accuracy of this is not covered by any attestation and as such these times should not be relied upon. To enable use of this untrusted time, call ``ccf.enableUntrustedDateTime(true)`` at any point in your application code, including at the global scope. After this is enabled, calls to ``Date.now()`` will retrieve the current time as specified by the untrusted host. This behaviour can also be revoked by a call to ``ccf.enableUntrustedDateTime(false)``, allowing the untrusted behaviour to be tightly scoped, and explicitly opted in to at each call point.
+The ``ccf.enableUntrustedDateTime`` API is deprecated and has no effect.
 
 Execution metrics
 ~~~~~~~~~~~~~~~~~

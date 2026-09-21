@@ -1,55 +1,57 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.network
-import suite.test_requirements as reqs
-import infra.logging_app as app
-import infra.e2e_args
-from infra.tx_status import TxStatus
-import infra.checker
-import infra.jwt_issuer
-import infra.proc
-import http
-from http.client import HTTPResponse
-import ssl
-import socket
-import os
-from collections import defaultdict
-import time
-import json
+import base64
+import copy
 import hashlib
-import infra.clients
-from infra.log_capture import flush_info
-import ccf.receipt
-from ccf.tx_id import TxID
-from cryptography.x509 import load_pem_x509_certificate
-from cryptography.hazmat.backends import default_backend
-from cryptography.exceptions import InvalidSignature
-from cryptography.x509 import ObjectIdentifier
-import urllib.parse
+import http
+import json
+import os
 import random
 import re
-import infra.crypto
-from infra.runner import ConcurrentRunner
-from hashlib import sha256
-from infra.member import AckException
-from types import MappingProxyType
-import threading
-import copy
-import programmability
-import e2e_common_endpoints
+import socket
+import ssl
 import subprocess
-import base64
-import cbor2
-from datetime import datetime
+import threading
+import time
+import urllib.parse
+from collections import defaultdict
+from datetime import datetime, timezone
+from hashlib import sha256
+from http.client import HTTPResponse
+from types import MappingProxyType
+from typing import ClassVar
 
+import cbor2
+import ccf.receipt
+import e2e_common_endpoints
+import infra.checker
+import infra.clients
+import infra.concurrency
+import infra.crypto
+import infra.e2e_args
+import infra.jwt_issuer
+import infra.logging_app as app
+import infra.network
+import infra.proc
+import programmability
+import suite.test_requirements as reqs
+from ccf.tx_id import TxID
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.backends import default_backend
+from cryptography.x509 import ObjectIdentifier, load_pem_x509_certificate
+from infra.log_capture import flush_info
+from infra.member import AckException
+from infra.runner import ConcurrentRunner
+from infra.tx_status import TxStatus
 from loguru import logger as LOG
 
 
 def get_service_key(network):
     service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
-    service_cert = load_pem_x509_certificate(
-        open(service_cert_path, "rb").read(), default_backend()
-    )
+    with open(service_cert_path, "rb") as service_cert_file:
+        service_cert = load_pem_x509_certificate(
+            service_cert_file.read(), default_backend()
+        )
     return service_cert.public_key()
 
 
@@ -60,7 +62,7 @@ def fetch_and_verify_cose_receipt(
     while time.time() < (start_time + timeout):
         rc = client.get(f"/node/receipt/cose?transaction_id={view}.{seqno}")
         if rc.status_code == http.HTTPStatus.OK:
-            ccf.cose.verify_receipt(rc.body.data(), service_key, claim_digest)
+            ccf.receipt.verify_cose(rc.body.data(), service_key, claim_digest)
             return rc
         elif rc.status_code == http.HTTPStatus.NOT_FOUND:
             return rc
@@ -117,15 +119,11 @@ def verify_receipt(
             assert "claims_digest" not in receipt["leaf_components"]
         claims_digest = sha256(claims).digest()
 
-        leaf = (
-            sha256(
-                bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
-                + commit_evidence_digest
-                + claims_digest
-            )
-            .digest()
-            .hex()
-        )
+        leaf = sha256(
+            bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
+            + commit_evidence_digest
+            + claims_digest
+        ).hexdigest()
     elif not is_signature_tx:
         assert "leaf_components" in receipt, receipt
         assert "write_set_digest" in receipt["leaf_components"]
@@ -139,11 +137,9 @@ def verify_receipt(
             if "claims_digest" in receipt["leaf_components"]
             else b""
         )
-        leaf = (
-            sha256(write_set_digest + commit_evidence_digest + claims_digest)
-            .digest()
-            .hex()
-        )
+        leaf = sha256(
+            write_set_digest + commit_evidence_digest + claims_digest
+        ).hexdigest()
     else:
         assert is_signature_tx
         leaf = receipt["leaf"]
@@ -1123,9 +1119,10 @@ def test_cose_receipt_schema(network, args):
     txid = r.headers[infra.clients.CCF_TX_ID_HEADER]
 
     service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
-    service_cert = load_pem_x509_certificate(
-        open(service_cert_path, "rb").read(), default_backend()
-    )
+    with open(service_cert_path, "rb") as service_cert_file:
+        service_cert = load_pem_x509_certificate(
+            service_cert_file.read(), default_backend()
+        )
     service_key = service_cert.public_key()
 
     with primary.client("user0") as client:
@@ -1140,7 +1137,7 @@ def test_cose_receipt_schema(network, args):
 
             if r.status_code == http.HTTPStatus.OK:
                 cbor_proof = r.body.data()
-                receipt_phdr = ccf.cose.verify_receipt(
+                receipt_phdr = ccf.receipt.verify_cose(
                     cbor_proof, service_key, b"\0" * 32
                 )
                 assert receipt_phdr[15][1] == "service.example.com"
@@ -1244,8 +1241,8 @@ def test_historical_query_range(network, args):
 
         # - Try the first invalid seqno.
         # !! If implicit TX occurs during this time, fetch last TX id and retry.
-        attemtps = 5
-        for _ in range(0, attemtps):
+        attempts = 5
+        for _ in range(attempts):
             r = c.get(
                 f"/app/log/public/historical/range?to_seqno={last_valid_seqno+1}&id={id_a}"
             )
@@ -1304,6 +1301,100 @@ def test_historical_query_range(network, args):
         assert len(entries_a) == 0
         assert len(entries_b) == 0
         assert len(entries_c) == 0
+
+    return network
+
+
+@reqs.description("Read paginated range of historical state across index buckets")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
+@reqs.at_least_n_nodes(1)
+def test_historical_query_range_pagination(network, args):
+    # Arbitrary distinct log IDs used to create sparse writes for one ID, with
+    # filler writes to extend the ledger between them.
+    SPARSE_ENTRY_ID = 1542
+    FILLER_ENTRY_ID = 1543
+
+    expected_entries = []
+    first_seqno = None
+    last_seqno = None
+    view = None
+
+    primary, _ = network.find_primary()
+    with primary.client("user0") as c:
+        # With the test app config's page and bucket sizes of 5, 50 writes
+        # reliably span multiple pages and indexing buckets.
+        ENTRY_COUNT = 50
+        target_write_positions = {0, ENTRY_COUNT - 1}
+        for i in range(ENTRY_COUNT):
+            idx = SPARSE_ENTRY_ID if i in target_write_positions else FILLER_ENTRY_ID
+            msg = f"Multi-bucket indexing message {i}"
+            r = c.post(
+                "/app/log/public",
+                {
+                    "id": idx,
+                    "msg": msg,
+                },
+                log_capture=[],
+            )
+            assert r.status_code == http.HTTPStatus.OK
+
+            if first_seqno is None:
+                first_seqno = r.seqno
+
+            if idx == SPARSE_ENTRY_ID:
+                expected_entries.append(
+                    {
+                        "id": idx,
+                        "msg": msg,
+                        "seqno": r.seqno,
+                    }
+                )
+
+            last_seqno = r.seqno
+            view = r.view
+
+        infra.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
+
+        path = (
+            f"/app/log/public/historical/range?from_seqno={first_seqno}"
+            f"&to_seqno={last_seqno}&id={SPARSE_ENTRY_ID}"
+        )
+        entries = []
+        page_count = 0
+        pages_with_next_link = 0
+        empty_page_count = 0
+        timeout = 30
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            r = c.get(path, log_capture=[])
+            if r.status_code == http.HTTPStatus.OK:
+                body = r.body.json()
+                page_count += 1
+
+                page_entries = body["entries"]
+                entries += page_entries
+                if not page_entries:
+                    empty_page_count += 1
+
+                next_link = body.get("@nextLink")
+                if next_link:
+                    pages_with_next_link += 1
+                    path = next_link
+                    continue
+
+                break
+            elif r.status_code == http.HTTPStatus.ACCEPTED:
+                time.sleep(0.1)
+                continue
+            else:
+                assert False, r
+        else:
+            assert False, f"Historical range did not complete within {timeout}s"
+
+    assert entries == expected_entries
+    assert page_count > 2
+    assert pages_with_next_link == page_count - 1
+    assert empty_page_count > 0
 
     return network
 
@@ -1426,7 +1517,7 @@ def escaped_query_tests(c, endpoint):
             unescaped_query,
         )
 
-    all_chars = list(range(0, 255))
+    all_chars = list(range(255))
     max_args = 50
     for ichars in [
         all_chars[i : i + max_args] for i in range(0, len(all_chars), max_args)
@@ -1696,7 +1787,7 @@ def test_view_history(network, args):
 
 class SentTxs:
     # view -> seqno -> status
-    txs = defaultdict(lambda: defaultdict(lambda: TxStatus.Unknown))
+    txs: ClassVar = defaultdict(lambda: defaultdict(lambda: TxStatus.Unknown))
 
     @staticmethod
     def update_status(view, seqno, status=None):
@@ -1710,10 +1801,10 @@ class SentTxs:
         if status != current_status:
             valid = False
             # Only valid transitions from Unknown to any, or Pending to Committed/Invalid
-            if current_status == TxStatus.Unknown:
-                valid = True
-            elif current_status == TxStatus.Pending and (
-                status == TxStatus.Committed or status == TxStatus.Invalid
+            if (
+                current_status == TxStatus.Unknown
+                or current_status == TxStatus.Pending
+                and (status == TxStatus.Committed or status == TxStatus.Invalid)
             ):
                 valid = True
 
@@ -1892,7 +1983,7 @@ def test_random_receipts(
                             assert (
                                 claim_digest == additional_seqnos[s]
                             ), f"Claim digest mismatch for seqno {s}"
-                        ccf.cose.verify_receipt(
+                        ccf.receipt.verify_cose(
                             receipt_bytes, service_key, claim_digest
                         )
                         break
@@ -1972,34 +2063,6 @@ def test_empty_path(network, args):
         assert r.status_code == http.HTTPStatus.NOT_FOUND
         r = c.post("/")
         assert r.status_code == http.HTTPStatus.NOT_FOUND
-
-
-@reqs.description("Test UDP echo endpoint")
-@reqs.at_least_n_nodes(1)
-def test_udp_echo(network, args):
-    # For now, only test UDP on primary
-    primary, _ = network.find_primary()
-    udp_interface = primary.host.rpc_interfaces["udp_interface"]
-    host = udp_interface.public_host
-    port = udp_interface.public_port
-    LOG.info(f"Testing UDP echo server at {host}:{port}")
-
-    server_address = (host, port)
-    buffer_size = 1024
-    test_string = b"Some random text"
-    attempts = 10
-    attempt = 1
-
-    while attempt <= attempts:
-        LOG.info(f"Testing UDP echo server sending '{test_string}'")
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.settimeout(3)
-            s.sendto(test_string, server_address)
-            recv = s.recvfrom(buffer_size)
-        text = recv[0]
-        LOG.info(f"Testing UDP echo server received '{text}'")
-        assert text == test_string
-        attempt = attempt + 1
 
 
 @reqs.description("Check post-local-commit failure handling")
@@ -2293,26 +2356,6 @@ def test_etags(network, args):
     return network
 
 
-def run_udp_tests(args):
-    # Register secondary interface as an UDP socket on all nodes
-    udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
-    udp_interface["udp_interface"].app_protocol = "QUIC"
-    for node in args.nodes:
-        node.rpc_interfaces.update(udp_interface)
-
-    txs = app.LoggingTxs("user0")
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        pdb=args.pdb,
-        txs=txs,
-    ) as network:
-        network.start(args)
-
-        test_udp_echo(network, args)
-
-
 def run(args):
     # Listen on two additional RPC interfaces for each node
     def additional_interfaces(local_node_id):
@@ -2339,6 +2382,35 @@ def run(args):
         network.start_and_open(args)
 
         do_main_tests(network, args)
+
+
+def run_multi_bucket_indexing(args):
+    os.makedirs(args.workspace, exist_ok=True)
+    node_data_json_file = os.path.join(
+        args.workspace, f"{args.label}_logging_node_data.json"
+    )
+    with open(node_data_json_file, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "logging": {
+                    "seqnos_per_indexing_bucket": 5,
+                    "indexing_buckets_per_key": 3,
+                    "max_historical_range_seqnos_per_page": 5,
+                }
+            },
+            f,
+        )
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        node_data_json_file=node_data_json_file,
+    ) as network:
+        network.start_and_open(args)
+
+        test_historical_query_range_pagination(network, args)
 
 
 def run_app_space_js(args):
@@ -2430,7 +2502,9 @@ def test_blocking_calls(network, args):
                     assert r.status_code == http.HTTPStatus.OK, r.status_code
                     txid = TxID.from_str(r.body.json()["transaction_id"])
                     if txid != prev_txid:
-                        self.known_commit_times.append((datetime.now(), txid))
+                        self.known_commit_times.append(
+                            (datetime.now(timezone.utc), txid)
+                        )
                         prev_txid = txid
 
     cp = CommitPoller(primary)
@@ -2459,13 +2533,13 @@ def test_blocking_calls(network, args):
                 assert r.headers["content-type"] == "application/cose", r.headers[
                     "content-type"
                 ]
-                ccf.cose.verify_receipt(
+                ccf.receipt.verify_cose(
                     r.body.data(),
                     network.cert.public_key(),
                     b"\0" * 32,
                 )
 
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
             response_times.append((now, path, txid))
 
@@ -2624,6 +2698,18 @@ if __name__ == "__main__":
     )
 
     cr.add(
+        "cpp_multi_bucket_indexing",
+        run_multi_bucket_indexing,
+        package="samples/apps/logging/logging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=1,
+        initial_member_count=1,
+        sig_tx_interval=5,
+        sig_ms_interval=100,
+    )
+
+    cr.add(
         "cpp_cose_only",
         run,
         package="samples/apps/logging/logging_cose_only",
@@ -2658,14 +2744,6 @@ if __name__ == "__main__":
     cr.add(
         "cpp_illegal",
         run_parsing_errors,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
-
-    # This is just for the UDP echo test for now
-    cr.add(
-        "udp",
-        run_udp_tests,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )

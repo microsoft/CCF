@@ -10,6 +10,7 @@
 #include "ccf/entity_id.h"
 #include "ccf/kv/get_name.h"
 #include "ccf/kv/hooks.h"
+#include "ccf/kv/serialisers/serialised_entry.h"
 #include "ccf/kv/version.h"
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/node/startup_config.h"
@@ -19,7 +20,7 @@
 #include "ccf/tx_status.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "kv/ledger_chunker_interface.h"
-#include "serialiser_declare.h"
+#include "serialised_entry_format.h"
 
 #include <array>
 #include <chrono>
@@ -27,8 +28,11 @@
 #include <limits>
 #include <list>
 #include <memory>
+#include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_set>
 #include <vector>
 
@@ -301,16 +305,61 @@ namespace ccf::kv
     return {security_domain, access_category};
   }
 
+  using SerialisedKey = ccf::kv::serialisers::SerialisedEntry;
+  using SerialisedValue = ccf::kv::serialisers::SerialisedEntry;
+
+  class KvStoreSerialiser
+  {
+  public:
+    virtual ~KvStoreSerialiser() = default;
+
+    virtual void start_map(const std::string& name, SecurityDomain domain) = 0;
+    virtual void serialise_raw(const std::vector<uint8_t>& raw) = 0;
+    virtual void serialise_view_history(
+      const std::vector<Version>& view_history) = 0;
+    virtual void serialise_entry_version(const Version& version) = 0;
+    virtual void serialise_count_header(uint64_t ctr) = 0;
+    virtual void serialise_write(
+      const SerialisedKey& k, const SerialisedValue& v) = 0;
+    virtual void serialise_remove(const SerialisedKey& k) = 0;
+    virtual std::vector<uint8_t> get_raw_data() = 0;
+    virtual std::vector<uint8_t> serialise_domains(
+      const std::vector<uint8_t>& serialised_public_domain,
+      const std::vector<uint8_t>& serialised_private_domain = {}) = 0;
+  };
+
+  class KvStoreDeserialiser
+  {
+  public:
+    virtual ~KvStoreDeserialiser() = default;
+
+    virtual ccf::ClaimsDigest&& consume_claims_digest() = 0;
+    virtual std::optional<ccf::crypto::Sha256Hash>&&
+    consume_commit_evidence_digest() = 0;
+    virtual std::optional<Version> init(
+      const uint8_t* data,
+      size_t size,
+      ccf::kv::Term& term,
+      EntryFlags& flags,
+      bool historical_hint = false) = 0;
+    virtual std::optional<std::string> start_map() = 0;
+    virtual Version deserialise_entry_version() = 0;
+    virtual uint64_t deserialise_read_header() = 0;
+    virtual std::tuple<SerialisedKey, Version> deserialise_read() = 0;
+    virtual uint64_t deserialise_write_header() = 0;
+    virtual std::tuple<SerialisedKey, SerialisedValue> deserialise_write() = 0;
+    virtual std::vector<uint8_t> deserialise_raw() = 0;
+    virtual std::vector<Version> deserialise_view_history() = 0;
+    virtual uint64_t deserialise_remove_header() = 0;
+    virtual SerialisedKey deserialise_remove() = 0;
+    virtual bool end() = 0;
+  };
+
   enum ApplyResult : uint8_t
   {
     PASS = 1,
     PASS_SIGNATURE = 2,
-    PASS_BACKUP_SIGNATURE = 3,
-    PASS_BACKUP_SIGNATURE_SEND_ACK = 4,
-    PASS_NONCES = 5,
-    PASS_NEW_VIEW = 6,
     PASS_ENCRYPTED_PAST_LEDGER_SECRET = 8,
-    PASS_APPLY = 9,
     FAIL = 10
   };
 
@@ -326,6 +375,13 @@ namespace ccf::kv
     {
       return msg.c_str();
     }
+  };
+
+  class MaxTransactionSizeExceeded : public std::logic_error
+  {
+  public:
+    MaxTransactionSizeExceeded(const std::string& msg) : std::logic_error(msg)
+    {}
   };
 
   class TxHistory
@@ -578,9 +634,7 @@ namespace ccf::kv
 
     virtual AbstractStore* get_store() = 0;
     virtual void serialise_changes(
-      const AbstractChangeSet* changes,
-      KvStoreSerialiser& s,
-      bool include_reads) = 0;
+      const AbstractChangeSet* changes, KvStoreSerialiser& s) = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
     virtual void post_compact() = 0;
@@ -606,26 +660,9 @@ namespace ccf::kv
     virtual const std::vector<uint8_t>& get_entry() = 0;
     virtual ccf::kv::Term get_term() = 0;
     virtual ccf::kv::Version get_index() = 0;
-    virtual bool support_async_execution() = 0;
-    virtual bool is_public_only() = 0;
     virtual ccf::ClaimsDigest&& consume_claims_digest() = 0;
     virtual std::optional<ccf::crypto::Sha256Hash>&&
     consume_commit_evidence_digest() = 0;
-
-    // Setting a short rollback is a work around that should be fixed
-    // shortly. In BFT mode when we deserialize and realize we need to
-    // create a new map we remember this. If we need to create the same
-    // map multiple times (for tx in the same group of append entries) the
-    // first create successes but the second fails because the map is
-    // already there. This works around the problem by stopping just
-    // before the 2nd create (which failed at this point) and when the
-    // primary resends the append entries we will succeed as the map is
-    // already there. This will only occur on BFT startup so not a perf
-    // problem but still need to be resolved.
-    //
-    // Thus, a large rollback is one which did not result from the map creating
-    // issue. https://github.com/microsoft/CCF/issues/2799
-    virtual bool should_rollback_to_last_committed() = 0;
   };
 
   class AbstractStore
@@ -645,8 +682,8 @@ namespace ccf::kv
     virtual void lock_map_set() = 0;
     virtual void unlock_map_set() = 0;
 
-    virtual Version next_version() = 0;
-    virtual std::tuple<Version, Version> next_version(bool commit_new_map) = 0;
+    virtual std::optional<std::tuple<Version, Version, Version>> next_version(
+      bool commit_new_map, Term expected_commit_term) = 0;
     virtual ccf::TxID next_txid() = 0;
 
     virtual Version current_version() = 0;
@@ -667,6 +704,7 @@ namespace ccf::kv
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual std::shared_ptr<ILedgerChunker> get_chunker() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
+    [[nodiscard]] virtual size_t get_max_transaction_size() const = 0;
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       bool public_only = false,
@@ -679,6 +717,14 @@ namespace ccf::kv
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) = 0;
     virtual bool check_rollback_count(Version count) = 0;
+    virtual bool apply_tx_flags(
+      Version version,
+      Term expected_term,
+      Version expected_rollback_count,
+      bool force_ledger_chunk,
+      bool snapshot_at_next_signature) = 0;
+    virtual std::optional<bool> should_create_ledger_chunk_for_reserved_tx(
+      Version version, Term expected_term, Version expected_rollback_count) = 0;
 
     virtual std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(
       Version v) = 0;
@@ -703,7 +749,6 @@ namespace ccf::kv
     };
 
     virtual void set_flag(StoreFlag f) = 0;
-    virtual void unset_flag(StoreFlag f) = 0;
     virtual bool flag_enabled(StoreFlag f) = 0;
     virtual void set_flag_unsafe(StoreFlag f) = 0;
     virtual void unset_flag_unsafe(StoreFlag f) = 0;

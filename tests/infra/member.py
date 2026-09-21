@@ -1,23 +1,24 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from enum import Enum
-import infra.proc
-import infra.proposal
-import infra.crypto
-import infra.clients
-from infra.node import CCFVersion
-import http
-import os
 import base64
+import http
 import json
+import os
+from enum import Enum
 
 from loguru import logger as LOG
+
+import infra.clients
+import infra.crypto
+import infra.proc
+import infra.proposal
+from infra.node import CCFVersion
 
 
 class MemberEndpointException(Exception):
     def __init__(self, response, *args, **kwargs):
-        super(MemberEndpointException, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.response = response
 
 
@@ -143,6 +144,9 @@ class MemberAPI:
 
     class v1(v1_Base):
         API_VERSION = infra.clients.API_VERSION_01
+
+    class Latest(v1_Base):
+        API_VERSION = infra.clients.API_VERSION_LATEST
 
     # A special client used only for lts_compatibility tests. Attempts to use latest
     # API by default, but checks node version to fallback to a supported older API
@@ -419,4 +423,19 @@ class Member:
             env=os.environ,
         )
         res.check_returncode()
-        return infra.clients.Response.from_raw(res.stdout)
+        response = infra.clients.Response.from_raw(res.stdout)
+
+        if supports_api_version and support_member_id_cert:
+            path = infra.clients.APIVersionedCCFClient.add_query_arg_to_path(
+                f"/gov/recovery/members/{self.service_id}:recover",
+                "api-version",
+                api_version,
+            )
+            remote_node.openapi_validator.validate(
+                infra.clients.Request(path, None, "POST", {}),
+                response,
+                host_url=f"https://{remote_node.get_public_rpc_address()}",
+                cose=True,
+            )
+
+        return response

@@ -20,11 +20,10 @@ Configuration
 To enable multiple worker threads, the ``worker_threads`` configuration option can be set to the number of desired threads when starting a CCF node.
 
 It is strongly recommended that all CCF nodes run the same number of worker threads.
-The number of worker threads must be at least 1 less than the value of ``NumTCS`` in the oe_sign.conf file.
 
 Programming Model
 ~~~~~~~~~~~~~~~~~
 
-To ensure session consistency all commands that originate from the same connection are executed on the same thread.
+To ensure session consistency, commands that originate from the same connection are executed in order through a per-session task queue.
 It is strongly advised that during the execution of a command the application does not mutate any global state outside of the key-value store.
 Any inter-command communication must be performed via the key-value store, to ensure that CCF can rollback commands or change the primary as required.

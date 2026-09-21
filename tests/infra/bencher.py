@@ -1,11 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import os
-import json
 import dataclasses
+import json
+import os
 import subprocess
-from typing import Optional, Union
 
 from loguru import logger as LOG
 
@@ -18,8 +17,8 @@ METADATA_KEY = "__metadata"
 @dataclasses.dataclass
 class Value:
     value: float
-    high_value: Optional[float] = None
-    low_value: Optional[float] = None
+    high_value: float | None = None
+    low_value: float | None = None
 
 
 @dataclasses.dataclass
@@ -29,8 +28,8 @@ class Latency:
     def __init__(
         self,
         value: float,
-        high_value: Optional[float] = None,
-        low_value: Optional[float] = None,
+        high_value: float | None = None,
+        low_value: float | None = None,
     ):
         self.latency = Value(value, high_value, low_value)
 
@@ -42,8 +41,8 @@ class Throughput:
     def __init__(
         self,
         value: float,
-        high_value: Optional[float] = None,
-        low_value: Optional[float] = None,
+        high_value: float | None = None,
+        low_value: float | None = None,
     ):
         self.throughput = Value(value, high_value, low_value)
 
@@ -55,8 +54,8 @@ class Memory:
     def __init__(
         self,
         value: float,
-        high_value: Optional[float] = None,
-        low_value: Optional[float] = None,
+        high_value: float | None = None,
+        low_value: float | None = None,
     ):
         self.memory = Value(value, high_value, low_value)
 
@@ -68,13 +67,13 @@ class Rate:
     def __init__(
         self,
         value: float,
-        high_value: Optional[float] = None,
-        low_value: Optional[float] = None,
+        high_value: float | None = None,
+        low_value: float | None = None,
     ):
         self.rate = Value(value, high_value, low_value)
 
 
-def get_commit() -> Optional[str]:
+def get_commit() -> str | None:
     commit = os.environ.get("GITHUB_SHA")
     if commit:
         return commit
@@ -129,7 +128,7 @@ class Bencher:
             Memory(proc_stats["current_rss"], high_value=proc_stats["peak_rss"]),
         )
 
-    def set(self, key: str, metric: Union[Latency, Throughput, Memory]):
+    def set(self, key: str, metric: Latency | Throughput | Memory):
         with open(BENCHER_FILE, "r") as bf:
             data = json.load(bf)
         metric_val = dataclasses.asdict(metric)

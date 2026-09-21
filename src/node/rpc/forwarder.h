@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/forwarder_types.h"
-#include "enclave/rpc_map.h"
-#include "http/http_rpc_context.h"
 #include "kv/kv_types.h"
 #include "node/node_to_node.h"
+#include "node/rpc/forwarder_types.h"
+#include "node/rpc/http_rpc_context.h"
+#include "node/rpc/rpc_map.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
@@ -36,7 +36,7 @@ namespace ccf
     ForwardedCommandId next_command_id = 0;
 
     std::unordered_map<ForwardedCommandId, ccf::tasks::Task> timeout_tasks;
-    ccf::pal::Mutex timeout_tasks_lock;
+    ccf::ds::Mutex timeout_tasks_lock;
 
     using IsCallerCertForwarded = bool;
 
@@ -110,7 +110,7 @@ namespace ccf
 
       ForwardedCommandId command_id = 0;
       {
-        std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
+        std::lock_guard<ccf::ds::Mutex> guard(timeout_tasks_lock);
         command_id = next_command_id++;
         auto task =
           ccf::tasks::make_basic_task([this, to, client_session_id, timeout]() {
@@ -399,7 +399,7 @@ namespace ccf
 
             // Cancel and delete the corresponding timeout task, so it will no
             // longer trigger a timeout error
-            std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
+            std::lock_guard<ccf::ds::Mutex> guard(timeout_tasks_lock);
             auto it = timeout_tasks.find(cmd_id);
             if (it != timeout_tasks.end())
             {

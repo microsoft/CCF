@@ -15,6 +15,7 @@
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hash.h"
+#include "ccf/ds/locking.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/historical_queries_utils.h"
@@ -24,6 +25,7 @@
 #include "ccf/indexing/strategy.h"
 #include "ccf/json_handler.h"
 #include "ccf/network_identity_interface.h"
+#include "ccf/node/node_configuration_interface.h"
 #include "ccf/version.h"
 
 #include <charconv>
@@ -175,8 +177,8 @@ namespace loggingapp
   private:
     std::string map_name;
     std::map<size_t, std::string> records;
-    std::mutex txid_lock;
-    ccf::TxID current_txid = {};
+    ccf::ds::Mutex txid_lock;
+    ccf::TxID current_txid CCF_GUARDED_BY(txid_lock) = {};
 
   public:
     CommittedRecords(
@@ -189,7 +191,7 @@ namespace loggingapp
     void handle_committed_transaction(
       const ccf::TxID& tx_id, const ccf::kv::ReadOnlyStorePtr& store) override
     {
-      std::lock_guard<std::mutex> lock(txid_lock);
+      ccf::ds::MutexGuard lock(txid_lock);
       auto tx_diff = store->create_tx_diff();
       auto* m = tx_diff.template diff<RecordsMap>(map_name);
       m->foreach([this](const size_t& k, std::optional<std::string> v) -> bool {
@@ -210,7 +212,7 @@ namespace loggingapp
 
     std::optional<ccf::SeqNo> next_requested() override
     {
-      std::lock_guard<std::mutex> lock(txid_lock);
+      ccf::ds::MutexGuard lock(txid_lock);
       return current_txid.seqno + 1;
     }
 
@@ -226,7 +228,7 @@ namespace loggingapp
 
     ccf::TxID get_current_txid()
     {
-      std::lock_guard<std::mutex> lock(txid_lock);
+      ccf::ds::MutexGuard lock(txid_lock);
       return current_txid;
     }
   };
@@ -243,8 +245,79 @@ namespace loggingapp
     nlohmann::json get_public_params_schema;
     nlohmann::json get_public_result_schema;
 
+    size_t seqnos_per_indexing_bucket = 10000;
+    size_t indexing_buckets_per_key = 20;
+    size_t max_historical_range_seqnos_per_page = 5000;
+
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
     std::shared_ptr<CommittedRecords> committed_records = nullptr;
+
+    /// Reads an optional size_t from config[key] into value.
+    /// @param config Logging app configuration object.
+    /// @param key Field name to read from config.
+    /// @param value Output value, left unchanged if key is absent.
+    /// @throws std::logic_error if the configured value is 0, because these
+    /// values are used as divisors and bounds.
+    static void read_size_config(
+      const nlohmann::json& config, const char* key, size_t& value)
+    {
+      const auto it = config.find(key);
+      if (it != config.end())
+      {
+        if (!(it->is_number_integer() || it->is_number_unsigned()))
+        {
+          throw std::logic_error(fmt::format(
+            "node_data.logging configuration '{}' must be a positive integer",
+            key));
+        }
+
+        const auto v = it->is_number_unsigned() ?
+          static_cast<int64_t>(it->get<uint64_t>()) :
+          it->get<int64_t>();
+        if (v <= 0)
+        {
+          throw std::logic_error(fmt::format(
+            "node_data.logging configuration '{}' must be a positive integer",
+            key));
+        }
+
+        value = static_cast<size_t>(v);
+      }
+    }
+
+    /// Reads logging-specific node_data configuration during init_handlers.
+    /// Missing or non-object node_data leaves the default indexing bucket sizes
+    /// and historical range page sizes unchanged.
+    void configure_from_node_data()
+    {
+      auto node_config =
+        context.get_subsystem<ccf::NodeConfigurationInterface>();
+      if (node_config == nullptr)
+      {
+        return;
+      }
+
+      const auto& node_data = node_config->get().node_config.node_data;
+      if (!node_data.is_object())
+      {
+        return;
+      }
+
+      const auto app_config = node_data.find("logging");
+      if (app_config == node_data.end() || !app_config->is_object())
+      {
+        return;
+      }
+
+      read_size_config(
+        *app_config, "seqnos_per_indexing_bucket", seqnos_per_indexing_bucket);
+      read_size_config(
+        *app_config, "indexing_buckets_per_key", indexing_buckets_per_key);
+      read_size_config(
+        *app_config,
+        "max_historical_range_seqnos_per_page",
+        max_historical_range_seqnos_per_page);
+    }
 
     // Build a COSE receipt (signature + Merkle inclusion proof) from a
     // historical receipt. Returns nullopt and sets an error on ctx if the
@@ -513,7 +586,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.3";
+      openapi_info.document_version = "2.8.5";
     };
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -521,11 +594,13 @@ namespace loggingapp
     {
       CommonEndpointRegistry::init_handlers();
 
-      constexpr size_t seqnos_per_bucket = 10000;
-      constexpr size_t buckets_per_key = 20;
+      configure_from_node_data();
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
-        PUBLIC_RECORDS, context, seqnos_per_bucket, buckets_per_key);
+        PUBLIC_RECORDS,
+        context,
+        seqnos_per_indexing_bucket,
+        indexing_buckets_per_key);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
       const ccf::AuthnPolicies auth_policies = {
@@ -1474,8 +1549,9 @@ namespace loggingapp
 
       auto is_tx_committed =
         [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
+          auto* current_consensus = get_consensus();
           return ccf::historical::is_tx_committed_v2(
-            consensus, view, seqno, error_reason);
+            current_consensus, view, seqno, error_reason);
         };
       make_read_only_endpoint(
         "/log/private/historical",
@@ -1812,10 +1888,11 @@ namespace loggingapp
         }
 
         // Set a maximum range, paginate larger requests
-        static constexpr size_t max_seqno_per_page = 5000;
         const auto range_begin = from_seqno;
-        const auto range_end =
-          std::min(to_seqno, range_begin + max_seqno_per_page);
+        const auto max_page = max_historical_range_seqnos_per_page;
+        const auto range_end = (to_seqno - range_begin > max_page) ?
+          (range_begin + max_page) :
+          to_seqno;
 
         // SNIPPET_START: indexing_strategy_use
         const auto interesting_seqnos =
@@ -1909,8 +1986,9 @@ namespace loggingapp
         if (range_end != to_seqno)
         {
           const auto next_page_start = range_end + 1;
-          const auto next_range_end =
-            std::min(to_seqno, next_page_start + max_seqno_per_page);
+          const auto next_range_end = (to_seqno - next_page_start > max_page) ?
+            (next_page_start + max_page) :
+            to_seqno;
           const auto next_seqnos = index_per_public_key->get_write_txs_in_range(
             id, next_page_start, next_range_end);
 
@@ -2158,9 +2236,13 @@ namespace loggingapp
 
       auto get_request_query = [](auto& ctx) {
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        std::vector<uint8_t> rq(
-          ctx.rpc_ctx->get_request_query().begin(),
-          ctx.rpc_ctx->get_request_query().end());
+        // get_request_query() now returns the raw, still-escaped query
+        // string (escaping is only removed per-component, after splitting,
+        // by parse_query). This endpoint echoes the whole query back as a
+        // single value, so it must decode it here instead.
+        const auto decoded_query =
+          ccf::http::decode_query_component(ctx.rpc_ctx->get_request_query());
+        std::vector<uint8_t> rq(decoded_query.begin(), decoded_query.end());
         ctx.rpc_ctx->set_response_body(rq);
       };
 

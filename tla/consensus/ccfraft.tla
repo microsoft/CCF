@@ -415,6 +415,10 @@ LastCommittableTerm(i) ==
 MaxCommittableIndex(xlog) ==
     SelectLastInSeq(xlog, HasTypeSignature)
 
+\* Return the latest committable index no greater than idx.
+MaxCommittableIndexAt(xlog, idx) ==
+    MaxCommittableIndex(SubSeq(xlog, 1, min(idx, Len(xlog))))
+
 \* CCF: Returns the term associated with the MaxCommittableIndex(xlog)
 MaxCommittableTerm(xlog) ==
     LET iMax == MaxCommittableIndex(xlog)
@@ -1073,7 +1077,8 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           /\ \A idx \in 1..Len(m.entries) :
                 log[i][index + (idx - 1)].term = m.entries[idx].term
     \* See condition guards in commit() and commit_if_possible(), raft.h
-    /\ LET newCommitIndex == max(min(MaxCommittableIndex(log[i]), m.commitIndex), commitIndex[i])
+    /\ LET requestEndIndex == m.prevLogIndex + Len(m.entries)
+           newCommitIndex == max(MaxCommittableIndexAt(log[i], min(m.commitIndex, requestEndIndex)), commitIndex[i])
            newConfigurationIndex == LastConfigurationToIndex(i, newCommitIndex)
        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
           \* Pop any newly committed reconfigurations, except the most recent
@@ -1121,7 +1126,8 @@ NoConflictAppendEntriesRequest(i, j, m) ==
     \* If new txs include reconfigurations, add them to configurations
     \* Also, if the commitIndex is updated, we may pop some old configs at the same time
     /\ LET
-        new_commit_index == max(min(MaxCommittableIndex(log'[i]), m.commitIndex), commitIndex[i])
+        request_end_index == m.prevLogIndex + Len(m.entries)
+        new_commit_index == max(MaxCommittableIndexAt(log'[i], min(m.commitIndex, request_end_index)), commitIndex[i])
         new_indexes == m.prevLogIndex + 1 .. m.prevLogIndex + Len(m.entries)
         \* log entries to be added to the log
         new_log_entries == 
@@ -1200,12 +1206,16 @@ HandleAppendEntriesResponse(i, j, m) ==
     /\ Discard(m)
     /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, logVars>>
 
-\* Any message with a newer term causes the recipient to advance its term first.
+\* Any message with a newer term causes the recipient to advance its term first,
+\* except ProposeVoteRequest, which DropIgnoredMessage handles unless its term
+\* matches:
+\* https://github.com/microsoft/CCF/blob/970268f010feb31118dbf83a7c8f6056205a0e82/src/consensus/aft/raft.h#L2066-L2075
 \* Note that UpdateTerm does not discard message m from the set of messages so this 
 \* message can be parsed again by the receiver. Note that all other message parsing actions should
 \* check that m.term <= currentTerm[i] to ensure that this action is the only one ENABLED.
 \* Analogous to raft.h::become_aware_of_new_term
 UpdateTerm(i, j, m) ==
+    /\ m.type /= ProposeVoteRequest
     /\ m.term > currentTerm[i]
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
     \* See become_aware_of_new_term() in raft.h:1915
@@ -1244,6 +1254,9 @@ DropIgnoredMessage(i,j,m) ==
        \/ /\ leadershipState[i] = None
           \* .. and the message is anything other than an append entries request
           /\ m.type /= AppendEntriesRequest
+       \* raft.h::recv_propose_request_vote
+       \/ /\ m.type = ProposeVoteRequest
+          /\ m.term /= currentTerm[i]
        \*  OR if message is to a server that has surpassed the None stage ..
        \/ /\ leadershipState[i] /= None
         \* .. and it comes from a server outside of the configuration

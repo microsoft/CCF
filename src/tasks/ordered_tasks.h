@@ -5,7 +5,6 @@
 #include "tasks/job_board.h"
 
 #include <memory>
-#include <mutex>
 
 namespace ccf::tasks
 {
@@ -58,7 +57,7 @@ namespace ccf::tasks
   {
   protected:
     struct PImpl;
-    std::unique_ptr<PImpl> pimpl = nullptr;
+    std::unique_ptr<PImpl> pimpl;
 
     struct ResumeOrderedTasks;
 

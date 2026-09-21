@@ -12,11 +12,11 @@
             "post": {
               "jsModule": "math.js",
               "jsFunction": "compute",
-              "forwardingRequired": "Sometimes",
+              "forwardingRequired": "sometimes",
               "authnPolicies": [
                 "user_cert"
               ],
-              "mode": "ReadOnly",
+              "mode": "readonly",
               "openApi": {}
             }
           }

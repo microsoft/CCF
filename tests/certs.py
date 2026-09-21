@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import os
 import subprocess
 import sys
 import tempfile
-import os
 
 
 def run(cert_test):

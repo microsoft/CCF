@@ -3,18 +3,22 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/ds/locking.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/service/tables/jwt.h"
-#include "http/curl.h"
 #include "http/http_builder.h"
-#include "http/http_rpc_context.h"
+#include "http_client/curl.h"
+#include "node/rpc/http_rpc_context.h"
 #include "node/rpc/node_frontend.h"
+#include "node/rpc/rpc_map.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
 #define FMT_HEADER_ONLY
+#include <algorithm>
 #include <curl/curl.h>
 #include <fmt/format.h>
+#include <map>
 
 namespace ccf
 {
@@ -34,13 +38,142 @@ namespace ccf
 
     ccf::tasks::Task periodic_refresh_task;
 
+    struct RetryState
+    {
+      size_t delay_s;
+      // Identifies the scheduled callback, not the issuer. Cancellation cannot
+      // stop a callback that has already started, so it must also check this
+      // ID.
+      size_t generation = 0;
+      ccf::tasks::Task task = nullptr;
+    };
+
+    ccf::ds::Mutex retry_states_lock;
+    std::map<JwtIssuer, RetryState> retry_states
+      CCF_GUARDED_BY(retry_states_lock);
+    // Never reuse an ID, even after an issuer's retry state is erased.
+    size_t next_retry_generation CCF_GUARDED_BY(retry_states_lock) = 0;
+
+    static constexpr size_t initial_retry_delay_s = 5;
     static constexpr long request_connection_timeout_s = 5;
     static constexpr long request_response_timeout_s = 5;
 
-    void send_curl_get(
-      const std::string& url, ccf::curl::CurlRequest::ResponseCallback callback)
+    bool should_begin_retry(const JwtIssuer& issuer, size_t generation)
     {
-      ccf::curl::UniqueCURL curl_handle;
+      ccf::ds::MutexGuard guard(retry_states_lock);
+      const auto it = retry_states.find(issuer);
+      if (
+        it == retry_states.end() || it->second.generation != generation ||
+        it->second.task == nullptr)
+      {
+        return false;
+      }
+
+      // Consume this callback's slot so a failed refresh can schedule the next
+      // retry, retaining the increased delay.
+      it->second.task = nullptr;
+      return true;
+    }
+
+    void cancel_retry(const JwtIssuer& issuer)
+    {
+      ccf::ds::MutexGuard guard(retry_states_lock);
+      const auto it = retry_states.find(issuer);
+      if (it == retry_states.end())
+      {
+        return;
+      }
+
+      if (it->second.task != nullptr)
+      {
+        it->second.task->cancel_task();
+      }
+      retry_states.erase(it);
+    }
+
+    void cancel_retries()
+    {
+      ccf::ds::MutexGuard guard(retry_states_lock);
+      for (auto& retry_state_entry : retry_states)
+      {
+        auto& retry_state = retry_state_entry.second;
+        if (retry_state.task != nullptr)
+        {
+          retry_state.task->cancel_task();
+        }
+      }
+      retry_states.clear();
+    }
+
+    void schedule_retry(const JwtIssuer& issuer)
+    {
+      ccf::tasks::Task retry_task;
+      size_t delay_s = 0;
+      {
+        ccf::ds::MutexGuard guard(retry_states_lock);
+        // Keep this check under the lock: otherwise stop() could clear retries
+        // between the check and insertion, leaving a new retry after shutdown.
+        if (stopped.load())
+        {
+          return;
+        }
+
+        const auto initial_delay_s =
+          std::min(initial_retry_delay_s, refresh_interval_s);
+        const auto it =
+          retry_states
+            .try_emplace(issuer, RetryState{initial_delay_s, 0, nullptr})
+            .first;
+        auto& retry_state = it->second;
+        if (retry_state.task != nullptr && !retry_state.task->is_cancelled())
+        {
+          return;
+        }
+
+        delay_s = retry_state.delay_s;
+        const auto generation = ++next_retry_generation;
+        retry_state.generation = generation;
+        const auto self = weak_from_this();
+        retry_task = ccf::tasks::make_basic_task([self, issuer, generation]() {
+          const auto self_sp = self.lock();
+          if (
+            self_sp == nullptr || self_sp->stopped.load() ||
+            !self_sp->should_begin_retry(issuer, generation))
+          {
+            return;
+          }
+
+          if (!self_sp->consensus->can_replicate())
+          {
+            LOG_DEBUG_FMT(
+              "JWT key auto-refresh retry: Node is not primary, skipping");
+            self_sp->cancel_retry(issuer);
+            return;
+          }
+
+          self_sp->refresh_jwt_keys(issuer);
+        });
+        retry_state.task = retry_task;
+
+        if (retry_state.delay_s < refresh_interval_s)
+        {
+          retry_state.delay_s =
+            std::min(retry_state.delay_s * 2, refresh_interval_s);
+        }
+      }
+
+      LOG_DEBUG_FMT(
+        "JWT key auto-refresh: Scheduling retry for issuer '{}' in {}s",
+        issuer,
+        delay_s);
+      ccf::tasks::add_delayed_task(retry_task, std::chrono::seconds(delay_s));
+    }
+
+    void send_curl_get(
+      const std::string& url,
+      ccf::http_client::CurlRequest::ResponseCallback callback)
+    {
+      ccf::http_client::UniqueCURL curl_handle;
       curl_handle.set_opt(CURLOPT_HTTPGET, 1L);
       curl_handle.set_opt(CURLOPT_CONNECTTIMEOUT, request_connection_timeout_s);
       curl_handle.set_opt(CURLOPT_TIMEOUT, request_response_timeout_s);
@@ -53,19 +186,19 @@ namespace ccf
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
       curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
 
-      ccf::curl::UniqueSlist headers;
+      ccf::http_client::UniqueSlist headers;
 
-      auto request = std::make_unique<ccf::curl::CurlRequest>(
+      auto request = std::make_unique<ccf::http_client::CurlRequest>(
         std::move(curl_handle),
         HTTP_GET,
         url,
         std::move(headers),
         nullptr,
-        std::make_unique<ccf::curl::ResponseBody>(max_response_size),
+        std::make_unique<ccf::http_client::ResponseBody>(max_response_size),
         std::move(callback));
 
-      ccf::curl::CurlmLibuvContextSingleton::get_instance()->attach_request(
-        std::move(request));
+      ccf::http_client::CurlmLibuvContextSingleton::get_instance()
+        ->attach_request(std::move(request));
     }
 
   public:
@@ -130,6 +263,7 @@ namespace ccf
       {
         periodic_refresh_task->cancel_task();
       }
+      cancel_retries();
     }
 
     void schedule_once()
@@ -156,7 +290,7 @@ namespace ccf
     }
 
     template <typename T>
-    void send_refresh_jwt_keys(T msg)
+    bool send_refresh_jwt_keys(T msg)
     {
       ::http::Request request(fmt::format(
         "/{}/{}",
@@ -178,14 +312,17 @@ namespace ccf
         ::http::fetch_rpc_handler(ctx, this->rpc_map);
 
       search->process(ctx);
+      return ::http::status_success(
+        static_cast<ccf::http_status>(ctx->get_response_status()));
     }
 
-    void send_refresh_jwt_keys_error()
+    void send_refresh_jwt_keys_error(const JwtIssuer& issuer)
     {
       // A message that the endpoint fails to parse, leading to 500.
       // This is done purely for exposing errors as endpoint metrics.
       auto msg = false;
       send_refresh_jwt_keys(msg);
+      schedule_retry(issuer);
     }
 
     void handle_jwt_jwks_response(
@@ -203,7 +340,7 @@ namespace ccf
           data.empty() ?
             "" :
             fmt::format("  '{}'", std::string(data.begin(), data.end())));
-        send_refresh_jwt_keys_error();
+        send_refresh_jwt_keys_error(issuer);
         return;
       }
 
@@ -221,7 +358,7 @@ namespace ccf
           "JWT key auto-refresh: Cannot parse JWKS for issuer '{}': {}",
           issuer,
           e.what());
-        send_refresh_jwt_keys_error();
+        send_refresh_jwt_keys_error(issuer);
         return;
       }
 
@@ -241,7 +378,14 @@ namespace ccf
       // call internal endpoint to update keys
       auto msg = SetJwtPublicSigningKeys{issuer, jwks};
 
-      send_refresh_jwt_keys(msg);
+      if (send_refresh_jwt_keys(msg))
+      {
+        cancel_retry(issuer);
+      }
+      else
+      {
+        schedule_retry(issuer);
+      }
     }
 
     void handle_jwt_metadata_response(
@@ -259,7 +403,7 @@ namespace ccf
           data.empty() ?
             "" :
             fmt::format("  '{}'", std::string(data.begin(), data.end())));
-        send_refresh_jwt_keys_error();
+        send_refresh_jwt_keys_error(issuer);
         return;
       }
 
@@ -287,7 +431,7 @@ namespace ccf
           "{}",
           issuer,
           e.what());
-        send_refresh_jwt_keys_error();
+        send_refresh_jwt_keys_error(issuer);
         return;
       }
       // Validate jwks_uri before handing it to libcurl; the parsed result is
@@ -307,7 +451,7 @@ namespace ccf
           issuer,
           jwks_url_str,
           e.what());
-        send_refresh_jwt_keys_error();
+        send_refresh_jwt_keys_error(issuer);
         return;
       }
 
@@ -318,7 +462,7 @@ namespace ccf
           "JWT key auto-refresh: jwks_uri for issuer '{}' must use https: {}",
           issuer,
           jwks_url_str);
-        send_refresh_jwt_keys_error();
+        send_refresh_jwt_keys_error(issuer);
         return;
       }
 
@@ -328,7 +472,7 @@ namespace ccf
       const auto self = weak_from_this();
       auto response_callback =
         [self, issuer, issuer_constraint](
-          std::unique_ptr<ccf::curl::CurlRequest>&& request,
+          std::unique_ptr<ccf::http_client::CurlRequest>&& request,
           CURLcode curl_response,
           long status_code) {
           auto http_status = static_cast<ccf::http_status>(status_code);
@@ -357,7 +501,7 @@ namespace ccf
                   issuer,
                   curl_easy_strerror(curl_response),
                   curl_response);
-                self_sp->send_refresh_jwt_keys_error();
+                self_sp->send_refresh_jwt_keys_error(issuer);
                 return;
               }
               self_sp->handle_jwt_jwks_response(
@@ -371,6 +515,68 @@ namespace ccf
       send_curl_get(jwks_url_str, std::move(response_callback));
     }
 
+    void refresh_issuer_jwt_keys(
+      const JwtIssuer& issuer, const JwtIssuerMetadata& metadata)
+    {
+      if (!metadata.auto_refresh)
+      {
+        LOG_DEBUG_FMT(
+          "JWT key auto-refresh: Skipping issuer '{}', auto-refresh is "
+          "disabled",
+          issuer);
+        cancel_retry(issuer);
+        return;
+      }
+
+      // Increment attempts, only when auto-refresh is enabled.
+      attempts++;
+
+      LOG_DEBUG_FMT(
+        "JWT key auto-refresh: Refreshing keys for issuer '{}'", issuer);
+
+      auto metadata_url = issuer + "/.well-known/openid-configuration";
+
+      LOG_DEBUG_FMT(
+        "JWT key auto-refresh: Requesting OpenID metadata at {}", metadata_url);
+
+      const auto self = weak_from_this();
+      auto response_callback =
+        [self, issuer](
+          std::unique_ptr<ccf::http_client::CurlRequest>&& request,
+          CURLcode curl_response,
+          long status_code) {
+          auto http_status = static_cast<ccf::http_status>(status_code);
+          auto response_body_sp = std::make_shared<std::vector<uint8_t>>(
+            request->get_response_body() != nullptr ?
+              std::move(request->get_response_body()->buffer) :
+              std::vector<uint8_t>{});
+          ccf::tasks::add_task(ccf::tasks::make_basic_task(
+            [self, issuer, curl_response, http_status, response_body_sp]() {
+              const auto self_sp = self.lock();
+              if (self_sp == nullptr || self_sp->stopped.load())
+              {
+                return;
+              }
+
+              if (curl_response != CURLE_OK)
+              {
+                LOG_INFO_FMT(
+                  "JWT key auto-refresh: Failed to fetch OpenID metadata for "
+                  "issuer '{}': {} ({})",
+                  issuer,
+                  curl_easy_strerror(curl_response),
+                  curl_response);
+                self_sp->send_refresh_jwt_keys_error(issuer);
+                return;
+              }
+              self_sp->handle_jwt_metadata_response(
+                issuer, http_status, std::move(*response_body_sp));
+            }));
+        };
+
+      send_curl_get(metadata_url, std::move(response_callback));
+    }
+
     void refresh_jwt_keys()
     {
       if (stopped.load())
@@ -380,73 +586,39 @@ namespace ccf
 
       auto tx = network.tables->create_read_only_tx();
       auto* jwt_issuers = tx.ro(network.jwt_issuers);
-      jwt_issuers->foreach([this](
-                             const JwtIssuer& issuer,
-                             const JwtIssuerMetadata& metadata) {
-        if (stopped.load())
-        {
-          return false;
-        }
+      jwt_issuers->foreach(
+        [this](const JwtIssuer& issuer, const JwtIssuerMetadata& metadata) {
+          if (stopped.load())
+          {
+            return false;
+          }
 
-        if (!metadata.auto_refresh)
-        {
-          LOG_DEBUG_FMT(
-            "JWT key auto-refresh: Skipping issuer '{}', auto-refresh is "
-            "disabled",
-            issuer);
+          refresh_issuer_jwt_keys(issuer, metadata);
           return true;
-        }
+        });
+    }
 
-        // Increment attempts, only when auto-refresh is enabled.
-        attempts++;
+    void refresh_jwt_keys(const JwtIssuer& issuer)
+    {
+      if (stopped.load())
+      {
+        return;
+      }
 
+      auto tx = network.tables->create_read_only_tx();
+      auto* jwt_issuers = tx.ro(network.jwt_issuers);
+      const auto metadata = jwt_issuers->get(issuer);
+      if (!metadata.has_value())
+      {
         LOG_DEBUG_FMT(
-          "JWT key auto-refresh: Refreshing keys for issuer '{}'", issuer);
+          "JWT key auto-refresh: Issuer '{}' is no longer registered, "
+          "abandoning retries",
+          issuer);
+        cancel_retry(issuer);
+        return;
+      }
 
-        auto metadata_url = issuer + "/.well-known/openid-configuration";
-
-        LOG_DEBUG_FMT(
-          "JWT key auto-refresh: Requesting OpenID metadata at {}",
-          metadata_url);
-
-        const auto self = weak_from_this();
-        auto response_callback =
-          [self, issuer](
-            std::unique_ptr<ccf::curl::CurlRequest>&& request,
-            CURLcode curl_response,
-            long status_code) {
-            auto http_status = static_cast<ccf::http_status>(status_code);
-            auto response_body_sp = std::make_shared<std::vector<uint8_t>>(
-              request->get_response_body() != nullptr ?
-                std::move(request->get_response_body()->buffer) :
-                std::vector<uint8_t>{});
-            ccf::tasks::add_task(ccf::tasks::make_basic_task(
-              [self, issuer, curl_response, http_status, response_body_sp]() {
-                const auto self_sp = self.lock();
-                if (self_sp == nullptr || self_sp->stopped.load())
-                {
-                  return;
-                }
-
-                if (curl_response != CURLE_OK)
-                {
-                  LOG_INFO_FMT(
-                    "JWT key auto-refresh: Failed to fetch OpenID metadata for "
-                    "issuer '{}': {} ({})",
-                    issuer,
-                    curl_easy_strerror(curl_response),
-                    curl_response);
-                  self_sp->send_refresh_jwt_keys_error();
-                  return;
-                }
-                self_sp->handle_jwt_metadata_response(
-                  issuer, http_status, std::move(*response_body_sp));
-              }));
-          };
-
-        send_curl_get(metadata_url, std::move(response_callback));
-        return true;
-      });
+      refresh_issuer_jwt_keys(issuer, metadata.value());
     }
 
     // Returns a copy of the current attempts

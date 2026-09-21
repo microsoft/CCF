@@ -8,7 +8,7 @@
 #include "ccf/http_etag.h"
 #include "ccf/service/tables/nodes.h"
 #include "http/http_digest.h"
-#include "node/rpc/ledger_subsystem.h"
+#include "node/rpc/ledger_interface.h"
 #include "snapshots/filenames.h"
 
 namespace ccf::node
@@ -222,7 +222,7 @@ namespace ccf::node
           return;
         }
 
-        if (ranges.find(',') != std::string::npos)
+        if (ranges.contains(','))
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -299,17 +299,20 @@ namespace ccf::node
               }
             }
 
-            range_end = inclusive_range_end + 1;
-
-            if (range_end > total_size)
+            // Clamp the inclusive end _before_ converting to an exclusive end,
+            // so that an end of SIZE_MAX cannot overflow to 0. total_size is
+            // known to be non-zero here.
+            if (inclusive_range_end >= total_size)
             {
               LOG_DEBUG_FMT(
-                "Requested ledger chunk range ending at {}, but file size is "
+                "Requested range ending at {}, but file size is "
                 "only {} - shrinking range end",
-                range_end,
+                inclusive_range_end,
                 total_size);
-              range_end = total_size;
+              inclusive_range_end = total_size - 1;
             }
+
+            range_end = inclusive_range_end + 1;
 
             if (range_end < range_start)
             {
@@ -349,6 +352,20 @@ namespace ccf::node
               return;
             }
 
+            // A suffix range asks for the last `offset` bytes. If the file is
+            // shorter than that, the entire file is returned (RFC 9110
+            // 14.1.2). Clamping here also prevents the subtraction below from
+            // underflowing.
+            if (offset > total_size)
+            {
+              LOG_DEBUG_FMT(
+                "Requested last {} bytes, but file size is only {} - "
+                "shrinking range to whole file",
+                offset,
+                total_size);
+              offset = total_size;
+            }
+
             range_end = total_size;
             range_start = range_end - offset;
           }
@@ -362,6 +379,22 @@ namespace ccf::node
           }
         }
       }
+    }
+
+    // A 206 response must describe a non-empty range in its Content-Range
+    // header, so an empty range cannot be satisfied. This catches ranges which
+    // are individually in-bounds but select no bytes, such as "bytes=-0",
+    // "bytes=50-49", or a range starting exactly at the end of the file.
+    if (range_start == range_end)
+    {
+      ctx.rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidHeaderValue,
+        fmt::format(
+          "Invalid range: Start ({}) and end ({}) out of order",
+          range_start,
+          range_end));
+      return;
     }
 
     const auto range_size = range_end - range_start;
@@ -637,6 +670,10 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::OptionalParameter)
+      .add_openapi_response(
+        HTTP_STATUS_PERMANENT_REDIRECT, "Redirect to the selected snapshot.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "No matching snapshot is available.")
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
     registry
@@ -645,6 +682,10 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::OptionalParameter)
+      .add_openapi_response(
+        HTTP_STATUS_PERMANENT_REDIRECT, "Redirect to the selected snapshot.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "No matching snapshot is available.")
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
 
@@ -702,7 +743,7 @@ namespace ccf::node
       }
 
       auto read_ledger_subsystem =
-        node_context.get_subsystem<ccf::ReadLedgerSubsystem>();
+        node_context.get_subsystem<ccf::AbstractReadLedgerSubsystemInterface>();
       if (read_ledger_subsystem == nullptr)
       {
         ctx.rpc_ctx->set_error(
@@ -805,6 +846,11 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
+      .add_openapi_response(
+        HTTP_STATUS_PERMANENT_REDIRECT,
+        "Redirect to the selected ledger chunk.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "No matching ledger chunk is available.")
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .set_openapi_summary("Ledger chunk metadata")
       .set_openapi_description(
@@ -818,6 +864,11 @@ namespace ccf::node
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
+      .add_openapi_response(
+        HTTP_STATUS_PERMANENT_REDIRECT,
+        "Redirect to the selected ledger chunk.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "No matching ledger chunk is available.")
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .set_openapi_summary("Download ledger chunk")
       .set_openapi_description(
@@ -878,12 +929,30 @@ namespace ccf::node
       .make_command_endpoint(
         "/snapshot/{snapshot_name}", HTTP_HEAD, get_snapshot, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_openapi_response(
+        HTTP_STATUS_OK, "Metadata for the requested snapshot.")
+      .add_openapi_response(
+        HTTP_STATUS_PARTIAL_CONTENT,
+        "Metadata for the requested snapshot range.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_MODIFIED, "The requested snapshot has not changed.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "The requested snapshot is not available.")
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
     registry
       .make_command_endpoint(
         "/snapshot/{snapshot_name}", HTTP_GET, get_snapshot, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_openapi_response<ds::openapi::Binary>(
+        HTTP_STATUS_OK, "The requested snapshot.")
+      .add_openapi_response<ds::openapi::Binary>(
+        HTTP_STATUS_PARTIAL_CONTENT,
+        "The requested byte range of the snapshot.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_MODIFIED, "The requested snapshot has not changed.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "The requested snapshot is not available.")
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
 
@@ -945,6 +1014,15 @@ namespace ccf::node
         get_ledger_chunk,
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_openapi_response(
+        HTTP_STATUS_OK, "Metadata for the requested ledger chunk.")
+      .add_openapi_response(
+        HTTP_STATUS_PARTIAL_CONTENT,
+        "Metadata for the requested ledger chunk range.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_MODIFIED, "The requested ledger chunk has not changed.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "The requested ledger chunk is not available.")
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .set_openapi_summary("Ledger chunk metadata")
       .set_openapi_description(
@@ -958,6 +1036,15 @@ namespace ccf::node
         get_ledger_chunk,
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .add_openapi_response<ds::openapi::Binary>(
+        HTTP_STATUS_OK, "The requested ledger chunk.")
+      .add_openapi_response<ds::openapi::Binary>(
+        HTTP_STATUS_PARTIAL_CONTENT,
+        "The requested byte range of the ledger chunk.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_MODIFIED, "The requested ledger chunk has not changed.")
+      .add_openapi_response(
+        HTTP_STATUS_NOT_FOUND, "The requested ledger chunk is not available.")
       .require_operator_feature(endpoints::OperatorFeature::LedgerChunkRead)
       .set_openapi_summary("Download ledger chunk")
       .set_openapi_description(

@@ -1,8 +1,8 @@
-use crate::cbor::{CborSlice, CborValue, serialize_array};
 use crate::ossl_wrappers::{
     EvpKey, KeyType, WhichEC, WhichRSA, ecdsa_der_to_fixed, ecdsa_fixed_to_der,
     rsa_pss_md_for_cose_alg,
 };
+use cbor::CborValue;
 
 #[cfg(feature = "pqc")]
 use crate::ossl_wrappers::WhichMLDSA;
@@ -31,11 +31,21 @@ fn cose_alg(key: &EvpKey) -> Result<i64, String> {
     }
 }
 
+/// Return the fully-specified ESP algorithm identifier of RFC 9864 which
+/// is equivalent to the ES one a key signs with, if any. The two are
+/// interchangeable on verification because the curve, and therefore the
+/// digest, is fixed by the key.
+fn fully_specified_cose_alg(key: &EvpKey) -> Option<i64> {
+    match &key.typ {
+        KeyType::EC(WhichEC::P256) => Some(-9),
+        KeyType::EC(WhichEC::P384) => Some(-51),
+        KeyType::EC(WhichEC::P521) => Some(-52),
+        _ => None,
+    }
+}
+
 /// Insert alg(1) into a CborValue map, return error if already exists.
-fn insert_alg_value(
-    key: &EvpKey,
-    phdr: CborValue,
-) -> Result<CborValue, String> {
+fn insert_alg_value<'a>(key: &EvpKey, phdr: CborValue<'a>) -> Result<CborValue<'a>, String> {
     let mut entries = match phdr {
         CborValue::Map(entries) => entries,
         _ => {
@@ -57,29 +67,29 @@ fn insert_alg_value(
 /// To-be-signed (TBS).
 /// https://www.rfc-editor.org/rfc/rfc9052.html#section-4.4.
 ///
-/// Uses `serialize_array` with borrowed slices to avoid copying
-/// `phdr` and `payload` into intermediate `Vec<u8>`s. These can
-/// be large (payload especially), so we serialize directly from
-/// the caller's buffers.
+/// The array items borrow `phdr` and `payload` rather than copying them into
+/// intermediate `Vec<u8>`s; the payload especially can be large. The TBS bytes
+/// are what gets signed, so they must be deterministic.
 fn sig_structure(phdr: &[u8], payload: &[u8]) -> Result<Vec<u8>, String> {
-    serialize_array(&[
-        CborSlice::TextStr(SIG_STRUCTURE1_CONTEXT),
-        CborSlice::ByteStr(phdr),
-        CborSlice::ByteStr(&[]),
-        CborSlice::ByteStr(payload),
+    CborValue::Array(vec![
+        CborValue::text(SIG_STRUCTURE1_CONTEXT),
+        CborValue::bytes(phdr),
+        CborValue::bytes(&[][..]),
+        CborValue::bytes(payload),
     ])
+    .to_bytes_det()
 }
 
 /// Produce a COSE_Sign1 envelope.
 pub fn cose_sign1(
     key: &EvpKey,
-    phdr: CborValue,
-    uhdr: CborValue,
+    phdr: CborValue<'_>,
+    uhdr: CborValue<'_>,
     payload: &[u8],
     detached: bool,
 ) -> Result<Vec<u8>, String> {
     let phdr_with_alg = insert_alg_value(key, phdr)?;
-    let phdr_bytes = phdr_with_alg.to_bytes()?;
+    let phdr_bytes = phdr_with_alg.to_bytes_det()?;
     let tbs = sig_structure(&phdr_bytes, payload)?;
     let sig = crate::sign::sign(key, &tbs)?;
 
@@ -93,20 +103,20 @@ pub fn cose_sign1(
     let payload_item = if detached {
         CborValue::Simple(CBOR_SIMPLE_VALUE_NULL)
     } else {
-        CborValue::ByteString(payload.to_vec())
+        CborValue::bytes(payload)
     };
 
     let envelope = CborValue::Tagged {
         tag: COSE_SIGN1_TAG,
         payload: Box::new(CborValue::Array(vec![
-            CborValue::ByteString(phdr_bytes),
+            CborValue::bytes(phdr_bytes),
             uhdr,
             payload_item,
-            CborValue::ByteString(sig),
+            CborValue::bytes(sig),
         ])),
     };
 
-    envelope.to_bytes()
+    envelope.to_bytes_det()
 }
 
 /// Verify a COSE_Sign1 from pre-parsed components. The caller supplies
@@ -126,7 +136,8 @@ pub fn cose_verify1(
         }
         _ => {
             let expected_alg = cose_alg(key)?;
-            if alg != expected_alg {
+            if alg != expected_alg && Some(alg) != fully_specified_cose_alg(key)
+            {
                 return Err(
                     "Algorithm mismatch between supplied alg and key".into()
                 );
@@ -169,14 +180,14 @@ mod tests {
     fn sign_and_verify(key_type: KeyType) {
         let key = EvpKey::new(key_type).unwrap();
         let phdr_bytes = hex_decode(TEST_PHDR);
-        let phdr = CborValue::from_bytes(&phdr_bytes).unwrap();
+        let phdr = CborValue::parse_nondet(&phdr_bytes).unwrap();
         let uhdr = CborValue::Map(vec![]);
         let payload = b"Good boy...";
 
         let envelope = cose_sign1(&key, phdr, uhdr, payload, false).unwrap();
 
         // Parse envelope to extract raw components for cose_verify1.
-        let parsed = CborValue::from_bytes(&envelope).unwrap();
+        let parsed = CborValue::parse_nondet(&envelope).unwrap();
         let inner = match parsed {
             CborValue::Tagged { payload, .. } => *payload,
             _ => panic!("not tagged"),
@@ -186,11 +197,11 @@ mod tests {
             _ => panic!("not array"),
         };
         let phdr_raw = match &items[0] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("phdr not bstr"),
         };
         let sig_raw = match &items[3] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("sig not bstr"),
         };
 
@@ -202,7 +213,7 @@ mod tests {
     fn test_insert_alg() {
         let key = EvpKey::new(KeyType::EC(WhichEC::P256)).unwrap();
         let phdr_bytes = hex_decode(TEST_PHDR);
-        let phdr = CborValue::from_bytes(&phdr_bytes).unwrap();
+        let phdr = CborValue::parse_nondet(&phdr_bytes).unwrap();
         let phdr_with_alg = insert_alg_value(&key, phdr).unwrap();
 
         let alg = phdr_with_alg.map_at_int(COSE_HEADER_ALG).unwrap();
@@ -230,16 +241,73 @@ mod tests {
     }
 
     #[test]
+    fn cose_sign1_uses_deprecated_es_alg() {
+        for (which, es) in [
+            (WhichEC::P256, -7),
+            (WhichEC::P384, -35),
+            (WhichEC::P521, -36),
+        ] {
+            let key = EvpKey::new(KeyType::EC(which)).unwrap();
+            let phdr = CborValue::Map(vec![]);
+            let phdr_with_alg = insert_alg_value(&key, phdr).unwrap();
+            assert_eq!(
+                phdr_with_alg.map_at_int(COSE_HEADER_ALG).unwrap(),
+                &CborValue::Int(es)
+            );
+        }
+    }
+
+    #[test]
+    fn cose_verify1_accepts_fully_specified_esp_alg() {
+        for (which, esp) in [
+            (WhichEC::P256, -9),
+            (WhichEC::P384, -51),
+            (WhichEC::P521, -52),
+        ] {
+            let key = EvpKey::new(KeyType::EC(which)).unwrap();
+            let phdr_bytes = hex_decode(TEST_PHDR);
+            let phdr = CborValue::parse_nondet(&phdr_bytes).unwrap();
+            let uhdr = CborValue::Map(vec![]);
+            let payload = b"Good boy...";
+
+            let envelope =
+                cose_sign1(&key, phdr, uhdr, payload, false).unwrap();
+
+            let parsed = CborValue::parse_nondet(&envelope).unwrap();
+            let inner = match parsed {
+                CborValue::Tagged { payload, .. } => *payload,
+                _ => panic!("not tagged"),
+            };
+            let items = match inner {
+                CborValue::Array(v) => v,
+                _ => panic!("not array"),
+            };
+            let phdr_raw = match &items[0] {
+                CborValue::ByteString(b) => b.clone(),
+                _ => panic!("phdr not bstr"),
+            };
+            let sig_raw = match &items[3] {
+                CborValue::ByteString(b) => b.clone(),
+                _ => panic!("sig not bstr"),
+            };
+
+            assert!(
+                cose_verify1(&key, esp, &phdr_raw, payload, &sig_raw).unwrap()
+            );
+        }
+    }
+
+    #[test]
     fn cose_detached_payload() {
         let key = EvpKey::new(KeyType::EC(WhichEC::P256)).unwrap();
         let phdr_bytes = hex_decode(TEST_PHDR);
-        let phdr = CborValue::from_bytes(&phdr_bytes).unwrap();
+        let phdr = CborValue::parse_nondet(&phdr_bytes).unwrap();
         let uhdr = CborValue::Map(vec![]);
         let payload = b"Good boy...";
 
         let envelope = cose_sign1(&key, phdr, uhdr, payload, true).unwrap();
 
-        let parsed = CborValue::from_bytes(&envelope).unwrap();
+        let parsed = CborValue::parse_nondet(&envelope).unwrap();
         let inner = match parsed {
             CborValue::Tagged { payload, .. } => *payload,
             _ => panic!("not tagged"),
@@ -249,11 +317,11 @@ mod tests {
             _ => panic!("not array"),
         };
         let phdr_raw = match &items[0] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("phdr not bstr"),
         };
         let sig_raw = match &items[3] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("sig not bstr"),
         };
 
@@ -266,10 +334,12 @@ mod tests {
     #[test]
     fn cose_verify1_wrong_alg() {
         let key = EvpKey::new(KeyType::EC(WhichEC::P256)).unwrap();
-        assert_eq!(
-            cose_verify1(&key, -35, b"", b"", b"").unwrap_err(),
-            "Algorithm mismatch between supplied alg and key"
-        );
+        for alg in [-35, -51] {
+            assert_eq!(
+                cose_verify1(&key, alg, b"", b"", b"").unwrap_err(),
+                "Algorithm mismatch between supplied alg and key"
+            );
+        }
     }
 
     #[test]
@@ -283,14 +353,13 @@ mod tests {
         let verification_key = EvpKey::from_der_public(&pub_der).unwrap();
 
         let phdr_bytes = hex_decode(TEST_PHDR);
-        let phdr = CborValue::from_bytes(&phdr_bytes).unwrap();
+        let phdr = CborValue::parse_nondet(&phdr_bytes).unwrap();
         let uhdr = CborValue::Map(vec![]);
         let payload = b"test with DER-imported key";
 
-        let envelope =
-            cose_sign1(&signing_key, phdr, uhdr, payload, false).unwrap();
+        let envelope = cose_sign1(&signing_key, phdr, uhdr, payload, false).unwrap();
 
-        let parsed = CborValue::from_bytes(&envelope).unwrap();
+        let parsed = CborValue::parse_nondet(&envelope).unwrap();
         let inner = match parsed {
             CborValue::Tagged { payload, .. } => *payload,
             _ => panic!("not tagged"),
@@ -300,19 +369,16 @@ mod tests {
             _ => panic!("not array"),
         };
         let phdr_raw = match &items[0] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("phdr not bstr"),
         };
         let sig_raw = match &items[3] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("sig not bstr"),
         };
 
         let alg = cose_alg(&verification_key).unwrap();
-        assert!(
-            cose_verify1(&verification_key, alg, &phdr_raw, payload, &sig_raw)
-                .unwrap()
-        );
+        assert!(cose_verify1(&verification_key, alg, &phdr_raw, payload, &sig_raw).unwrap());
     }
 
     #[test]
@@ -341,14 +407,13 @@ mod tests {
         let verification_key = EvpKey::from_der_public(&pub_der).unwrap();
 
         let phdr_bytes = hex_decode(TEST_PHDR);
-        let phdr = CborValue::from_bytes(&phdr_bytes).unwrap();
+        let phdr = CborValue::parse_nondet(&phdr_bytes).unwrap();
         let uhdr = CborValue::Map(vec![]);
         let payload = b"RSA with DER-imported key";
 
-        let envelope =
-            cose_sign1(&signing_key, phdr, uhdr, payload, false).unwrap();
+        let envelope = cose_sign1(&signing_key, phdr, uhdr, payload, false).unwrap();
 
-        let parsed = CborValue::from_bytes(&envelope).unwrap();
+        let parsed = CborValue::parse_nondet(&envelope).unwrap();
         let inner = match parsed {
             CborValue::Tagged { payload, .. } => *payload,
             _ => panic!("not tagged"),
@@ -358,32 +423,29 @@ mod tests {
             _ => panic!("not array"),
         };
         let phdr_raw = match &items[0] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("phdr not bstr"),
         };
         let sig_raw = match &items[3] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("sig not bstr"),
         };
 
         let alg = cose_alg(&verification_key).unwrap();
-        assert!(
-            cose_verify1(&verification_key, alg, &phdr_raw, payload, &sig_raw)
-                .unwrap()
-        );
+        assert!(cose_verify1(&verification_key, alg, &phdr_raw, payload, &sig_raw).unwrap());
     }
 
     #[test]
     fn cose_rsa_detached_payload() {
         let key = EvpKey::new(KeyType::RSA(WhichRSA::PS384)).unwrap();
         let phdr_bytes = hex_decode(TEST_PHDR);
-        let phdr = CborValue::from_bytes(&phdr_bytes).unwrap();
+        let phdr = CborValue::parse_nondet(&phdr_bytes).unwrap();
         let uhdr = CborValue::Map(vec![]);
         let payload = b"RSA detached";
 
         let envelope = cose_sign1(&key, phdr, uhdr, payload, true).unwrap();
 
-        let parsed = CborValue::from_bytes(&envelope).unwrap();
+        let parsed = CborValue::parse_nondet(&envelope).unwrap();
         let inner = match parsed {
             CborValue::Tagged { payload, .. } => *payload,
             _ => panic!("not tagged"),
@@ -393,11 +455,11 @@ mod tests {
             _ => panic!("not array"),
         };
         let phdr_raw = match &items[0] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("phdr not bstr"),
         };
         let sig_raw = match &items[3] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("sig not bstr"),
         };
 
@@ -417,14 +479,11 @@ mod tests {
 
         // Build phdr with alg = -38 (PS384) already set.
         let phdr_bytes = hex_decode(TEST_PHDR);
-        let mut phdr = CborValue::from_bytes(&phdr_bytes).unwrap();
+        let mut phdr = CborValue::parse_nondet(&phdr_bytes).unwrap();
         if let CborValue::Map(ref mut entries) = phdr {
-            entries.insert(
-                0,
-                (CborValue::Int(COSE_HEADER_ALG), CborValue::Int(-38)),
-            );
+            entries.insert(0, (CborValue::Int(COSE_HEADER_ALG), CborValue::Int(-38)));
         }
-        let phdr_ser = phdr.to_bytes().unwrap();
+        let phdr_ser = phdr.to_bytes_det().unwrap();
 
         // Build TBS and sign with SHA-384.
         let tbs = sig_structure(&phdr_ser, payload).unwrap();
@@ -441,13 +500,13 @@ mod tests {
     fn cose_sign1_no_double_encoding() {
         let key = EvpKey::new(KeyType::EC(WhichEC::P256)).unwrap();
         let phdr_bytes = hex_decode(TEST_PHDR);
-        let phdr = CborValue::from_bytes(&phdr_bytes).unwrap();
+        let phdr = CborValue::parse_nondet(&phdr_bytes).unwrap();
         let uhdr = CborValue::Map(vec![]);
         let payload = b"test payload";
 
         let envelope = cose_sign1(&key, phdr, uhdr, payload, false).unwrap();
 
-        let parsed = CborValue::from_bytes(&envelope).unwrap();
+        let parsed = CborValue::parse_nondet(&envelope).unwrap();
         let inner = match parsed {
             CborValue::Tagged { payload, .. } => *payload,
             _ => panic!("not tagged"),
@@ -457,7 +516,7 @@ mod tests {
             _ => panic!("not array"),
         };
         let payload_in_envelope = match &items[2] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("payload not bstr"),
         };
         // The envelope payload must equal the raw data, not a
@@ -492,13 +551,9 @@ mod tests {
     #[test]
     fn cose_sign1_rejects_duplicate_alg() {
         let key = EvpKey::new(KeyType::EC(WhichEC::P256)).unwrap();
-        let phdr = CborValue::Map(vec![(
-            CborValue::Int(COSE_HEADER_ALG),
-            CborValue::Int(-7),
-        )]);
+        let phdr = CborValue::Map(vec![(CborValue::Int(COSE_HEADER_ALG), CborValue::Int(-7))]);
         assert_eq!(
-            cose_sign1(&key, phdr, CborValue::Map(vec![]), b"msg", false)
-                .unwrap_err(),
+            cose_sign1(&key, phdr, CborValue::Map(vec![]), b"msg", false).unwrap_err(),
             "Algorithm already set in protected header"
         );
     }
@@ -552,8 +607,7 @@ mod tests {
             key: std::ptr::null_mut(),
             typ: KeyType::RSA(WhichRSA::PS256),
         };
-        let err =
-            cose_verify1(&null_key, -37, b"", b"", &[0u8; 256]).unwrap_err();
+        let err = cose_verify1(&null_key, -37, b"", b"", &[0u8; 256]).unwrap_err();
         assert!(
             err.starts_with("EVP_DigestVerifyInit returned 0: error:"),
             "unexpected error: {err}"
@@ -571,14 +625,13 @@ mod tests {
         let verification_key = EvpKey::from_pem_public(&pub_pem).unwrap();
 
         let phdr_bytes = hex_decode(TEST_PHDR);
-        let phdr = CborValue::from_bytes(&phdr_bytes).unwrap();
+        let phdr = CborValue::parse_nondet(&phdr_bytes).unwrap();
         let uhdr = CborValue::Map(vec![]);
         let payload = b"signed with PEM-imported key";
 
-        let envelope =
-            cose_sign1(&signing_key, phdr, uhdr, payload, false).unwrap();
+        let envelope = cose_sign1(&signing_key, phdr, uhdr, payload, false).unwrap();
 
-        let parsed = CborValue::from_bytes(&envelope).unwrap();
+        let parsed = CborValue::parse_nondet(&envelope).unwrap();
         let inner = match parsed {
             CborValue::Tagged { payload, .. } => *payload,
             _ => panic!("not tagged"),
@@ -588,19 +641,16 @@ mod tests {
             _ => panic!("not array"),
         };
         let phdr_raw = match &items[0] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("phdr not bstr"),
         };
         let sig_raw = match &items[3] {
-            CborValue::ByteString(b) => b.clone(),
+            CborValue::ByteString(b) => b.to_vec(),
             _ => panic!("sig not bstr"),
         };
 
         let alg = cose_alg(&verification_key).unwrap();
-        assert!(
-            cose_verify1(&verification_key, alg, &phdr_raw, payload, &sig_raw)
-                .unwrap()
-        );
+        assert!(cose_verify1(&verification_key, alg, &phdr_raw, payload, &sig_raw).unwrap());
     }
 
     #[cfg(feature = "pqc")]
@@ -621,8 +671,7 @@ mod tests {
 
         #[test]
         fn cose_mldsa_with_der_imported_key() {
-            let original_key =
-                EvpKey::new(KeyType::MLDSA(WhichMLDSA::P65)).unwrap();
+            let original_key = EvpKey::new(KeyType::MLDSA(WhichMLDSA::P65)).unwrap();
 
             let priv_der = original_key.to_der_private().unwrap();
             let signing_key = EvpKey::from_der_private(&priv_der).unwrap();
@@ -631,14 +680,13 @@ mod tests {
             let verification_key = EvpKey::from_der_public(&pub_der).unwrap();
 
             let phdr_bytes = hex_decode(TEST_PHDR);
-            let phdr = CborValue::from_bytes(&phdr_bytes).unwrap();
+            let phdr = CborValue::parse_nondet(&phdr_bytes).unwrap();
             let uhdr = CborValue::Map(vec![]);
             let payload = b"ML-DSA with DER-imported key";
 
-            let envelope =
-                cose_sign1(&signing_key, phdr, uhdr, payload, false).unwrap();
+            let envelope = cose_sign1(&signing_key, phdr, uhdr, payload, false).unwrap();
 
-            let parsed = CborValue::from_bytes(&envelope).unwrap();
+            let parsed = CborValue::parse_nondet(&envelope).unwrap();
             let inner = match parsed {
                 CborValue::Tagged { payload, .. } => *payload,
                 _ => panic!("not tagged"),
@@ -648,25 +696,16 @@ mod tests {
                 _ => panic!("not array"),
             };
             let phdr_raw = match &items[0] {
-                CborValue::ByteString(b) => b.clone(),
+                CborValue::ByteString(b) => b.to_vec(),
                 _ => panic!("phdr not bstr"),
             };
             let sig_raw = match &items[3] {
-                CborValue::ByteString(b) => b.clone(),
+                CborValue::ByteString(b) => b.to_vec(),
                 _ => panic!("sig not bstr"),
             };
 
             let alg = cose_alg(&verification_key).unwrap();
-            assert!(
-                cose_verify1(
-                    &verification_key,
-                    alg,
-                    &phdr_raw,
-                    payload,
-                    &sig_raw
-                )
-                .unwrap()
-            );
+            assert!(cose_verify1(&verification_key, alg, &phdr_raw, payload, &sig_raw).unwrap());
         }
     }
 }

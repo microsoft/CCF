@@ -1,42 +1,40 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import base64
-import os
-import time
-
-from contextlib import contextmanager
-from enum import Enum, IntEnum, auto
-from infra.clients import flush_info, CCFConnectionException, CCFIOException
-import infra.crypto
-import infra.member
-import infra.path
-import infra.proc
-import infra.service_load
-import infra.node
-from infra.node import CCFVersion
-import infra.consortium
-import infra.e2e_args
-import ccf.ledger
-from infra.tx_status import TxStatus
-from ccf.tx_id import TxID
-import random
-from dataclasses import dataclass
-import http
-import pprint
 import functools
-import re
 import hashlib
+import http
 import json
-
-from datetime import datetime, timedelta, timezone
-from infra.consortium import slurp_file
+import os
+import pprint
+import random
+import re
+import time
 from collections import deque
+from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from enum import Enum, IntEnum, auto
+from typing import ClassVar
 
-
+import ccf.ledger
+from ccf.tx_id import TxID
+from cryptography.hazmat.backends import default_backend
+from cryptography.x509 import load_pem_x509_certificate
 from loguru import logger as LOG
 
-from cryptography.x509 import load_pem_x509_certificate
-from cryptography.hazmat.backends import default_backend
+import infra.consortium
+import infra.crypto
+import infra.e2e_args
+import infra.member
+import infra.node
+import infra.openapi
+import infra.path
+import infra.proc
+from infra.clients import CCFConnectionException, CCFIOException, flush_info
+from infra.consortium import slurp_file
+from infra.node import CCFVersion
+from infra.tx_status import TxStatus
 
 # JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
 JOIN_TIMEOUT = 40
@@ -105,7 +103,11 @@ class CollateralFetchTimeout(NodeJoinException):
 
 
 class ServiceCertificateInvalid(NodeJoinException):
-    pass
+    """Raised when a joining node cannot establish TLS certificate trust with
+    the target service. This covers any join-time certificate trust failure
+    (an untrusted or wrong service certificate, a hostname/SAN mismatch under
+    VERIFYHOST, or a service certificate that cannot be loaded), not only a
+    literally invalid certificate."""
 
 
 class NetworkShutdownError(Exception):
@@ -159,21 +161,19 @@ def log_errors(
             )
             for line in tail_lines:
                 LOG.info(line)
-    except IOError:
-        LOG.exception("Could not check output {} for errors".format(out_path))
+    except OSError:
+        LOG.exception(f"Could not check output {out_path} for errors")
 
     fatal_error_lines = []
     try:
         with open(err_path, "r", errors="replace", encoding="utf-8") as lines:
             fatal_error_lines = [
-                line
-                for line in lines.readlines()
-                if not line.startswith("[ perf record:")
+                line for line in lines if not line.startswith("[ perf record:")
             ]
             if fatal_error_lines:
                 LOG.error(f"Contents of {err_path}:\n{''.join(fatal_error_lines)}")
-    except IOError:
-        LOG.exception("Could not read err output {}".format(err_path))
+    except OSError:
+        LOG.exception(f"Could not read err output {err_path}")
 
     return error_lines, fatal_error_lines
 
@@ -181,7 +181,7 @@ def log_errors(
 class Network:
     KEY_GEN = "keygenerator.sh"
     SHARE_SCRIPT = "submit_recovery_share.sh"
-    node_args_to_forward = [
+    node_args_to_forward: ClassVar[list[str]] = [
         "log_level",
         "sig_tx_interval",
         "sig_ms_interval",
@@ -191,8 +191,10 @@ class Network:
         "log_format_json",
         "constitution",
         "join_timer_s",
+        "pending_node_timeout",
         "worker_threads",
         "ledger_chunk_bytes",
+        "ledger_max_transaction_bytes",
         "subject_alt_names",
         "snapshot_tx_interval",
         "snapshot_min_tx_interval",
@@ -301,6 +303,7 @@ class Network:
         self.dbg_nodes = dbg_nodes
         self.version = version
         self.args = None
+        self.openapi_validator = infra.openapi.OpenAPIValidator()
         self.service_certificate_valid_from = None
         self.service_certificate_validity_days = None
 
@@ -347,6 +350,7 @@ class Network:
             ipv6=self.ipv6,
             **kwargs,
         )
+        node.openapi_validator = self.openapi_validator
         self.nodes.append(node)
         return node
 
@@ -696,8 +700,13 @@ class Network:
             self._wait_for_app_open(node, timeout=args.ledger_recovery_timeout)
 
         LOG.success("***** Network is now open *****")
+        self._start_openapi_validation(primary)
         if self.service_load:
             self.service_load.begin(self)
+
+    def _start_openapi_validation(self, node):
+        with node.client() as client:
+            self.openapi_validator.load(client, self.args.gov_api_version)
 
     def start_and_open(self, args, **kwargs):
         self.start(args, **kwargs)
@@ -799,6 +808,7 @@ class Network:
         # Catch-up in recovery can take a long time, so extend this timeout
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
+        self._start_openapi_validation(primary)
 
     def start_in_recovery_decision_protocol(
         self,
@@ -810,6 +820,7 @@ class Network:
         suspend_after_start=False,
         **kwargs,
     ):
+        self.args = args
         self.common_dir = (
             common_dir
             or self.common_dir
@@ -905,8 +916,7 @@ class Network:
     def wait_for_recovery_decision_protocol_finish(self, timeout=10):
         def cycle(items):
             while True:
-                for item in items:
-                    yield item
+                yield from items
 
         waiting_nodes = set(self.nodes)
         end_time = time.time() + timeout
@@ -938,7 +948,7 @@ class Network:
                 )
 
                 if not is_timeout:
-                    raise e
+                    raise
 
                 LOG.info(
                     f"Failed to get the status of {node.local_node_id}, retrying..."
@@ -1093,37 +1103,15 @@ class Network:
                 return 0
 
             startup_seqno = 0
-            local_snapshot_path = None
-            resumed_snapshot_re = re.compile(
-                r"Joiner successfully resumed from snapshot at seqno (\d+) and view \d+"
-            )
-            local_snapshot_re = re.compile(
-                r"Found latest local snapshot file: (.*snapshot_(\d+)_\d+\.committed) "
-                r"\(size: \d+\)"
-            )
-            local_snapshot_error_re = re.compile(r"Error while verifying (.*):")
+
+            setting_seqno_re = re.compile(r"Setting startup snapshot seqno to (\d+)")
 
             with open(out_path, "r", encoding="utf-8", errors="replace") as lines:
                 for line in lines:
-                    resumed_snapshot = resumed_snapshot_re.search(line)
-                    if resumed_snapshot is not None:
-                        startup_seqno = int(resumed_snapshot.group(1))
-                        local_snapshot_path = None
-                        continue
-
-                    local_snapshot = local_snapshot_re.search(line)
-                    if local_snapshot is not None:
-                        local_snapshot_path = local_snapshot.group(1)
-                        startup_seqno = int(local_snapshot.group(2))
-                        continue
-
-                    local_snapshot_error = local_snapshot_error_re.search(line)
-                    if (
-                        local_snapshot_error is not None
-                        and local_snapshot_error.group(1) == local_snapshot_path
-                    ):
-                        local_snapshot_path = None
-                        startup_seqno = 0
+                    setting_seqno = setting_seqno_re.search(line)
+                    if setting_seqno is not None:
+                        startup_seqno = int(setting_seqno.group(1))
+                        break
 
             return startup_seqno
 
@@ -1337,6 +1325,12 @@ class Network:
                 if verbose_verification:
                     flush_info(log_capture, None)
 
+        if self.common_dir is not None:
+            self.openapi_validator.report(
+                os.path.join(self.common_dir, "openapi_coverage.json"),
+                os.path.join(self.args.workspace, "openapi_coverage.json"),
+            )
+
         fatal_error_found = False
 
         if len(self.ignore_error_patterns) > 0:
@@ -1442,7 +1436,20 @@ class Network:
                             ) from e
                         if "StartupSeqnoIsOld" in error:
                             raise StartupSeqnoIsOld(node, has_stopped, error) from e
-                        if "invalid cert on handshake" in error:
+                        # The joining node now connects to the target via the
+                        # curl client, which reports any failure to establish
+                        # certificate trust as "TLS certificate trust check
+                        # failed": a rejected or untrusted service certificate,
+                        # a hostname/SAN mismatch (VERIFYHOST=2) or any other
+                        # peer verification failure, or a configured service
+                        # certificate that could not be loaded. The legacy
+                        # TLS-session wording ("invalid cert on handshake") is
+                        # retained for compatibility with logs from older nodes
+                        # during mixed-version tests.
+                        if (
+                            "TLS certificate trust check failed" in error
+                            or "invalid cert on handshake" in error
+                        ):
                             raise ServiceCertificateInvalid(
                                 node, has_stopped, error
                             ) from e
@@ -1614,7 +1621,12 @@ class Network:
             req["public_encryption_key"] = f.read()
 
         with target_node.client(identity=name) as c:
-            response = c.post("/node/join", body=req, allow_redirects=False)
+            response = c.post(
+                "/node/join",
+                body=req,
+                allow_redirects=False,
+                validate_openapi=False,
+            )
 
         return response, pubkey_hash_hex
 
@@ -1636,9 +1648,9 @@ class Network:
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
                 if statistics is not None:
-                    statistics["node_replacement_governance_start"] = (
-                        datetime.now().isoformat()
-                    )
+                    statistics["node_replacement_governance_start"] = datetime.now(
+                        timezone.utc
+                    ).isoformat()
                 self.consortium.replace_node(
                     primary,
                     node_to_retire,
@@ -1648,9 +1660,9 @@ class Network:
                     timeout=args.ledger_recovery_timeout,
                 )
                 if statistics is not None:
-                    statistics["node_replacement_governance_committed"] = (
-                        datetime.now().isoformat()
-                    )
+                    statistics["node_replacement_governance_committed"] = datetime.now(
+                        timezone.utc
+                    ).isoformat()
         except (ValueError, TimeoutError):
             LOG.error(
                 f"Failed to replace {node_to_retire.node_id} with {node_to_add.node_id}"
@@ -1680,7 +1692,9 @@ class Network:
         else:
             raise TimeoutError(f"Timed out waiting for node to become removed: {r}")
         if statistics is not None:
-            statistics["old_node_removal_committed"] = datetime.now().isoformat()
+            statistics["old_node_removal_committed"] = datetime.now(
+                timezone.utc
+            ).isoformat()
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):
@@ -1733,10 +1747,12 @@ class Network:
         while time.time() < end_time:
             try:
                 with node.client(connection_timeout=timeout) as c:
-                    r = c.get("/node/state").body.json()
-                    if r["state"] in states:
-                        final_state = r["state"]
-                        break
+                    response = c.get("/node/state")
+                    if response.status_code == http.HTTPStatus.OK.value:
+                        body = response.body.json()
+                        if body["state"] in states:
+                            final_state = body["state"]
+                            break
             except ConnectionRefusedError:
                 pass
             except CCFConnectionException:
@@ -1748,6 +1764,7 @@ class Network:
             )
         if final_state == infra.node.State.PART_OF_NETWORK.value:
             self.status = ServiceStatus.OPEN
+            self._start_openapi_validation(node)
 
     def wait_for_state(self, node, state, timeout=3):
         self.wait_for_states(node, [state], timeout=timeout)
@@ -1757,9 +1774,11 @@ class Network:
         while time.time() < end_time:
             try:
                 with node.client(connection_timeout=timeout, verify_ca=verify_ca) as c:
-                    r = c.get("/node/network").body.json()
-                    if r["service_status"] in statuses:
-                        break
+                    response = c.get("/node/network")
+                    if response.status_code == http.HTTPStatus.OK.value:
+                        body = response.body.json()
+                        if body["service_status"] in statuses:
+                            break
             except ConnectionRefusedError:
                 pass
             except CCFConnectionException:
@@ -1782,7 +1801,7 @@ class Network:
             with node.client() as c:
                 logs = []
                 r = c.get("/app/commit", log_capture=logs)
-                if not (r.status_code == http.HTTPStatus.NOT_FOUND.value):
+                if r.status_code != http.HTTPStatus.NOT_FOUND.value:
                     flush_info(logs, None)
                     return
                 time.sleep(0.1)
@@ -2010,7 +2029,7 @@ class Network:
             time.sleep(0.5)
         if not success:
             raise TimeoutError(
-                f'Node {node_id} is not in expected state: {node_status or "absent"})'
+                f'Node {node_id} is not in expected state: {node_status or "absent"}'
             )
 
     def wait_for_all_nodes_to_be_trusted(self, remote_node, timeout=3):
@@ -2052,8 +2071,10 @@ class Network:
                     return (new_primary, new_term)
             except PrimaryNotFound:
                 error = PrimaryNotFound
-            except Exception:
-                pass
+            except Exception as primary_error:
+                LOG.debug(
+                    f"Ignoring primary lookup failure while waiting: {primary_error}"
+                )
             time.sleep(0.1)
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
@@ -2090,8 +2111,10 @@ class Network:
                     return (new_primary, new_term)
             except PrimaryNotFound:
                 error = PrimaryNotFound
-            except Exception:
-                pass
+            except Exception as primary_error:
+                LOG.debug(
+                    f"Ignoring primary lookup failure while waiting: {primary_error}"
+                )
             time.sleep(0.1)
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
@@ -2134,11 +2157,116 @@ class Network:
         primary_opinions = {n: p.node_id if p else p for n, p in primaries.items()}
         assert all_good, f"Disagreement about primaries: {primary_opinions}"
         delay = time.time() - start_time
-        primary = list(primaries.values())[0]
+        primary = next(iter(primaries.values()))
         LOG.info(
             f"Primary unanimity after {delay:.2f}s: {primary.local_node_id} ({primary.node_id})"
         )
         return primary
+
+    def wait_for_stability(
+        self, nodes=None, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER, min_view=None
+    ):
+        """Wait for primary/backup connectivity and leadership for two election timeouts.
+
+        All selected nodes must agree on the primary and view, with matching
+        leader/follower roles and recent ACKs from every selected backup. Any
+        unhealthy observation or leadership change restarts the stability window.
+        This is a readiness check, not a guarantee against future elections.
+        """
+        nodes = self.get_joined_nodes() if nodes is None else nodes
+        nodes_by_id = {node.node_id: node for node in nodes}
+        if not nodes_by_id:
+            raise ValueError("Cannot wait for stability without any joined nodes")
+
+        # ACK timers reset on election, so one healthy snapshot is not enough.
+        stable_duration = 2 * self.election_duration
+        timeout = self.observed_election_duration * timeout_multiplier
+        if timeout <= 0:
+            raise ValueError("Stability timeout must be positive")
+        LOG.info(
+            f"Waiting up to {timeout}s for {stable_duration}s of stable leadership "
+            f"and ACKs from every backup among {len(nodes_by_id)} nodes"
+        )
+
+        start_time = time.monotonic()
+        end_time = start_time + timeout
+        stable_since = None
+        stable_primary_view = None
+        details = {}
+        logs = []
+        while time.monotonic() < end_time:
+            details = {}
+            logs = []
+            for node_id, node in nodes_by_id.items():
+                remaining = end_time - time.monotonic()
+                if remaining <= 0:
+                    break
+                request_timeout = min(1, remaining)
+                try:
+                    with node.client(connection_timeout=request_timeout) as c:
+                        r = c.get(
+                            "/node/consensus",
+                            timeout=request_timeout,
+                            log_capture=logs,
+                        )
+                        assert r.status_code == http.HTTPStatus.OK, r
+                        details[node_id] = r.body.json()["details"]
+                except (CCFConnectionException, TimeoutError) as e:
+                    LOG.debug(f"Could not query consensus on {node_id}: {e}")
+                    break
+
+            primary_views = {
+                (d["primary_id"], d["current_view"]) for d in details.values()
+            }
+            primary_view = (
+                next(iter(primary_views)) if len(primary_views) == 1 else None
+            )
+            primary_id = primary_view[0] if primary_view is not None else None
+            healthy = (
+                len(details) == len(nodes_by_id)
+                and primary_id in details
+                and (min_view is None or primary_view[1] >= min_view)
+                and all(
+                    d["leadership_state"]
+                    == ("Leader" if node_id == primary_id else "Follower")
+                    for node_id, d in details.items()
+                )
+            )
+            if healthy:
+                acks = details[primary_id]["acks"]
+                healthy = all(
+                    node_id in acks
+                    and acks[node_id]["seqno"] > 0
+                    and acks[node_id]["last_received_ms"]
+                    < self.election_duration * 1000
+                    for node_id in nodes_by_id
+                    if node_id != primary_id
+                )
+
+            now = time.monotonic()
+            if now >= end_time:
+                break
+            if not healthy:
+                stable_since = None
+                stable_primary_view = None
+            elif primary_view != stable_primary_view:
+                stable_since = now
+                stable_primary_view = primary_view
+            elif now - stable_since >= stable_duration:
+                primary = nodes_by_id[primary_id]
+                LOG.info(
+                    f"Network stable after {now - start_time:.2f}s: primary "
+                    f"{primary.local_node_id} in view {primary_view[1]}"
+                )
+                return primary
+            time.sleep(min(0.1, max(0, end_time - now)))
+
+        flush_info(logs)
+        raise TimeoutError(
+            f"Network did not remain stable for {stable_duration}s within {timeout}s. "
+            f"Missing responses from: {sorted(nodes_by_id.keys() - details.keys())}. "
+            f"Last consensus details: {pprint.pformat(details)}"
+        )
 
     def get_committed_snapshots(
         self,
@@ -2196,24 +2324,63 @@ class Network:
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
-    def _get_ledger_public_view_at(self, node, call, seqno, timeout):
-        end_time = time.time() + timeout
-        self.consortium.force_ledger_chunk(node)
-        while time.time() < end_time:
-            try:
-                return call(seqno)
-            except Exception as ex:
-                LOG.info(f"Exception: {ex}")
-                time.sleep(0.1)
-        raise TimeoutError(
-            f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"
+    @staticmethod
+    def _supports_operator_feature(node, feature):
+        file_serving_interface = node.host.rpc_interfaces.get(
+            infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
+        if file_serving_interface is None:
+            return False
+        operator_features = file_serving_interface.enabled_operator_features
+        return operator_features is not None and feature in operator_features
+
+    def create_and_wait_for_ledger_chunk(self, node=None, timeout=5):
+        """Create a chunk boundary and return a seqno in the committed chunk."""
+        if node is None:
+            node, _ = self.find_primary()
+
+        if self._supports_operator_feature(node, "SnapshotCreate"):
+            snapshot_txid = node.trigger_snapshot()
+            # A signature whose seqno was reserved before this request may consume
+            # the snapshot flag after the request commits. In that case the chunk
+            # ends immediately before the request; otherwise it ends at a later
+            # signature. The preceding seqno is covered in either ordering.
+            target_seqno = snapshot_txid.seqno
+            if target_seqno > 1:
+                target_seqno -= 1
+        else:
+            proposal = self.consortium.force_ledger_chunk(node)
+            target_seqno = proposal.completed_seqno
+
+        if self._supports_operator_feature(node, "LedgerChunkRead"):
+            node.wait_for_ledger_chunk(target_seqno, timeout=timeout)
+        else:
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                try:
+                    node.get_ledger_public_tables_at(target_seqno)
+                    break
+                except (AssertionError, ccf.ledger.UnknownTransaction):
+                    time.sleep(0.1)
+            else:
+                raise TimeoutError(
+                    f"Could not read transaction at seqno {target_seqno} from "
+                    f"ledger {node.remote.ledger_paths()} after {timeout}s"
+                )
+
+        return target_seqno
 
     def get_ledger_public_state_at(self, seqno, timeout=5):
         primary, _ = self.find_primary()
-        return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_tables_at, seqno, timeout
+        self.create_and_wait_for_ledger_chunk(
+            node=primary,
+            timeout=timeout,
         )
+        if self._supports_operator_feature(primary, "LedgerChunkRead"):
+            with primary.get_ledger_chunk_from_api(seqno, timeout=timeout) as ledger:
+                return ledger.get_transaction(seqno).get_public_domain().get_tables()
+
+        return primary.get_ledger_public_tables_at(seqno)
 
     def get_latest_ledger_public_state(self, timeout=5):
         primary, _ = self.find_primary()
@@ -2221,9 +2388,19 @@ class Network:
             resp = nc.get("/node/commit")
             body = resp.body.json()
             tx_id = TxID.from_str(body["transaction_id"])
-        return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout
+        target_seqno = self.create_and_wait_for_ledger_chunk(
+            node=primary,
+            timeout=timeout,
         )
+        if self._supports_operator_feature(
+            primary, "LedgerChunkRead"
+        ) and self._supports_operator_feature(primary, "SnapshotRead"):
+            return primary.get_public_state_from_api(
+                target_seqno,
+                timeout=timeout,
+            )
+
+        return primary.get_ledger_public_state_at(tx_id.seqno)
 
     @functools.cached_property
     def cert_path(self):

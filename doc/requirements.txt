@@ -1,6 +1,5 @@
 breathe
 sphinx
-bottle
 sphinx-autobuild
 sphinxcontrib-mermaid
 sphinx-multiversion

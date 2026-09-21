@@ -1,0 +1,104 @@
+# Regression test for a previous same-term election-safety violation involving
+# pre-vote.
+#
+# Nodes 0 and 2 become candidates in term 3. Node 0 wins with node 1's vote.
+# Node 1 then times out into PreVoteCandidate without changing its vote for
+# node 0. Previously, an unmatched AppendEntries from node 0 made node 1 step
+# down and cleared that vote, so node 1 granted node 2's delayed vote request
+# and both nodes became leaders in term 3. This test asserts that same-term
+# step-down now preserves node 1's vote, so node 2 remains a candidate.
+pre_vote_enabled,true
+
+start_node,0
+emit_signature,2
+
+trust_nodes,2,1,2
+emit_signature,2
+
+# Bring every node to the same committed prefix.
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_state_sync
+assert_commit_idx,0,4
+
+# Give future leader node 0 a longer committable suffix. Its first heartbeat
+# will refer to index 5, which node 1 does not have.
+emit_signature,2
+assert_last_txid,0,2.5
+assert_last_txid,1,2.4
+assert_last_txid,2,2.4
+drop_pending,0
+
+# Node 0 first fails CheckQuorum. Nodes 0 and 2 then start pre-vote rounds in
+# term 2.
+periodic_one,0,100
+assert_detail,0,leadership_state,Follower
+drop_pending,0
+periodic_one,0,100
+periodic_one,2,100
+assert_detail,0,leadership_state,PreVoteCandidate
+assert_detail,2,leadership_state,PreVoteCandidate
+assert_detail,0,current_view,2
+assert_detail,2,current_view,2
+
+# Short-log node 1 grants a pre-vote to both prospective candidates.
+drop_pending_to,0,2
+drop_pending_to,2,0
+dispatch_single,0,1
+dispatch_single,2,1
+dispatch_single,1,0
+dispatch_single,1,2
+assert_detail,0,leadership_state,Candidate
+assert_detail,2,leadership_state,Candidate
+assert_detail,0,current_view,3
+assert_detail,2,current_view,3
+
+# Node 1 votes for node 0, electing it. Keep node 2's request delayed.
+drop_pending_to,0,2
+drop_pending_to,2,0
+dispatch_single,0,1
+dispatch_single,1,0
+assert_detail,0,leadership_state,Leader
+assert_detail,0,current_view,3
+assert_detail,2,leadership_state,Candidate
+
+# Retain only node 0's unmatched AppendEntries to node 1.
+drop_pending_to,0,2
+
+# Node 1 keeps its term-3 vote for node 0 when it becomes a pre-vote
+# candidate. Drop its speculative pre-vote requests.
+periodic_one,1,100
+assert_detail,1,leadership_state,PreVoteCandidate
+assert_detail,1,current_view,3
+drop_pending,1
+
+# Node 0's unmatched AppendEntries makes node 1 a follower without teaching it
+# the leader. The same-term transition preserves node 1's vote for node 0.
+dispatch_single,0,1
+assert_detail,1,leadership_state,Follower
+assert_detail,1,current_view,3
+assert_last_txid,1,2.4
+drop_pending,1
+
+# Node 1 rejects node 2's delayed request because it already voted for node 0.
+# Node 2 remains a candidate, preventing a second leader in term 3.
+dispatch_single,2,1
+dispatch_single,1,2
+assert_detail,0,leadership_state,Leader
+# Before same-term step-down preserved voted_for, node 1 granted this vote and
+# this assertion expected node 2 to have become a second leader in term 3.
+assert_detail,2,leadership_state,Candidate
+assert_detail,0,current_view,3
+assert_detail,2,current_view,3
+
+# Preserve a path back to liveness for the scenario driver. With all pending
+# messages dropped, node 0 can converge the network after proving the second
+# election was rejected.
+drop_pending,0
+drop_pending,1
+drop_pending,2
+loop_until_sync

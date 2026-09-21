@@ -4,7 +4,11 @@
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 
+#include <atomic>
 #include <doctest/doctest.h>
+#include <exception>
+#include <thread>
+#include <vector>
 
 struct MapTypes
 {
@@ -385,6 +389,126 @@ TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
     REQUIRE(v.has_value());
     REQUIRE(v.value() == value);
   }
+}
+
+TEST_CASE(
+  "Concurrent deserialised dynamic map publication" *
+  doctest::test_suite("dynamic"))
+{
+  constexpr size_t map_count = 256;
+  constexpr size_t reader_count = 4;
+
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+
+  ccf::kv::Store source_store;
+  source_store.set_encryptor(encryptor);
+  source_store.set_consensus(consensus);
+
+  std::vector<std::vector<uint8_t>> entries;
+  entries.reserve(map_count);
+
+  // Keep map comparisons in progress long enough for TSAN to observe overlap.
+  const std::string map_name_prefix(4096, 'm');
+  for (size_t i = 0; i < map_count; ++i)
+  {
+    auto tx = source_store.create_tx();
+    auto handle =
+      tx.rw<MapTypes::StringString>(map_name_prefix + std::to_string(i));
+    handle->put("key", "value");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
+    entries.push_back(latest_data.value());
+  }
+
+  ccf::kv::Store target_store;
+  target_store.set_encryptor(encryptor);
+
+  std::atomic<size_t> ready = 0;
+  std::atomic<bool> start = false;
+  std::atomic<bool> done = false;
+  std::atomic<size_t> readers_started = 0;
+  std::atomic<size_t> reads = 0;
+  std::atomic<bool> all_entries_applied = true;
+  std::exception_ptr writer_exception;
+
+  const auto searched_map_name = map_name_prefix + "not_present";
+  std::vector<std::thread> readers;
+  readers.reserve(reader_count);
+  for (size_t i = 0; i < reader_count; ++i)
+  {
+    readers.emplace_back([&]() {
+      ready.fetch_add(1, std::memory_order_release);
+      while (!start.load(std::memory_order_acquire))
+      {
+        std::this_thread::yield();
+      }
+
+      target_store.get_map(target_store.current_version(), searched_map_name);
+      reads.fetch_add(1, std::memory_order_relaxed);
+      readers_started.fetch_add(1, std::memory_order_release);
+
+      while (!done.load(std::memory_order_acquire))
+      {
+        target_store.get_map(target_store.current_version(), searched_map_name);
+        reads.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+  }
+
+  std::thread writer([&]() {
+    ready.fetch_add(1, std::memory_order_release);
+    while (!start.load(std::memory_order_acquire))
+    {
+      std::this_thread::yield();
+    }
+    while (readers_started.load(std::memory_order_acquire) != reader_count)
+    {
+      std::this_thread::yield();
+    }
+
+    try
+    {
+      for (const auto& entry : entries)
+      {
+        if (
+          target_store.deserialize(entry)->apply() !=
+          ccf::kv::ApplyResult::PASS)
+        {
+          all_entries_applied.store(false, std::memory_order_relaxed);
+          break;
+        }
+      }
+    }
+    catch (...)
+    {
+      writer_exception = std::current_exception();
+    }
+    done.store(true, std::memory_order_release);
+  });
+
+  while (ready.load(std::memory_order_acquire) != reader_count + 1)
+  {
+    std::this_thread::yield();
+  }
+  start.store(true, std::memory_order_release);
+
+  writer.join();
+  for (auto& reader : readers)
+  {
+    reader.join();
+  }
+
+  if (writer_exception)
+  {
+    std::rethrow_exception(writer_exception);
+  }
+
+  REQUIRE(all_entries_applied.load(std::memory_order_relaxed));
+  REQUIRE(reads.load(std::memory_order_relaxed) >= reader_count);
+  REQUIRE(target_store.current_version() == map_count);
 }
 
 TEST_CASE("Dynamic map snapshot serialisation" * doctest::test_suite("dynamic"))

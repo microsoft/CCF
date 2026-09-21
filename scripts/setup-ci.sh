@@ -5,9 +5,13 @@
 set -exo pipefail
 
 H2SPEC_VERSION="v2.6.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
-export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(date +%s)}
-echo "Using SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
+TDNF_OPTIONS=(-y)
+if [[ -n ${SOURCE_DATE_EPOCH:-} ]]; then
+    echo "Using SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
+    TDNF_OPTIONS+=("--snapshottime=$SOURCE_DATE_EPOCH")
+fi
 
 retry() {
     local description=$1
@@ -42,35 +46,27 @@ retry() {
     done
 }
 
-install_source_control() {
-    # Source control
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
-        git  \
-        ca-certificates
-}
-
-install_build_dependencies() {
-    # To build CCF
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
-        build-essential  \
-        clang  \
-        cmake  \
-        ninja-build  \
-        which  \
-        openssl-devel  \
-        libuv-devel  \
-        nghttp2-devel  \
-        curl-devel  \
-        libarrow-devel  \
-        parquet-libs-devel  \
-        doxygen  \
-        clang-tools-extra-devel  \
-        rust  \
-        libbacktrace-static
-}
-
-install_test_dependencies() {
+install_dependencies() {
+    # Resolve and install all RPM dependencies in one transaction.
     local packages=(
+        # Source control
+        git
+        ca-certificates
+        # To build CCF
+        build-essential
+        clang
+        cmake
+        ninja-build
+        patch
+        which
+        openssl-devel
+        libuv-devel
+        nghttp2-devel
+        curl-devel
+        doxygen
+        clang-tools-extra-devel
+        rust
+        libbacktrace-static
         # To run standard tests
         lldb
         expect
@@ -84,8 +80,17 @@ install_test_dependencies() {
         # partitions test
         iptables
         strace
+        # Node.js and npm from the same Azure Linux package repository
+        "nodejs >= 24"
+        nodejs-npm
+        # Packaging and Python
+        rpm-build
+        python3
     )
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install "${packages[@]}" &&
+    tdnf "${TDNF_OPTIONS[@]}" install "${packages[@]}"
+}
+
+install_cddl() {
     gem install cddl
 }
 
@@ -101,30 +106,11 @@ install_h2spec() {
     rm h2spec_linux_amd64.tar.gz
 }
 
-install_node() {
-    # Node.js 24 and npm from the Azure Linux package repositories. The ">= 24"
-    # constraint pins the major version (failing rather than silently selecting
-    # an older nodejs); `nodejs-npm` provides npm and depends on that same
-    # `nodejs`, so it follows the selected version.
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install  \
-        "nodejs >= 24"  \
-        nodejs-npm
+install_uv() {
+    bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin
 }
 
-install_packaging_and_python() {
-    local packages=(
-        # For packaging
-        rpm-build
-        # For end to end tests and scripts
-        python3-pip
-    )
-    tdnf --snapshottime=$SOURCE_DATE_EPOCH -y install "${packages[@]}" &&
-    pip install uv==0.11.19
-}
-
-retry "Source control dependencies" install_source_control
-retry "Build dependencies" install_build_dependencies
-retry "Test dependencies" install_test_dependencies
-retry "Node.js installation" install_node
+retry "CI RPM dependencies" install_dependencies
+retry "CDDL installation" install_cddl
 retry "h2spec installation" install_h2spec
-retry "Packaging and Python dependencies" install_packaging_and_python
+retry "uv installation" install_uv

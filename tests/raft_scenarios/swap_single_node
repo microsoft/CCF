@@ -1,0 +1,26 @@
+# Atomically replace one backup and converge the replacement on the committed
+# ledger while the removed backup remains retired.
+start_node,0
+emit_signature,2
+trust_nodes,2,1,2
+emit_signature,2
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_state_sync
+
+swap_node,2,1,3
+emit_signature,2
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_config,0,5,0,2,3
+assert_config,2,5,0,2,3
+assert_config,3,5,0,2,3
+assert_detail,1,membership_state,Retired
+loop_until_sync
