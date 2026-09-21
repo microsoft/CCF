@@ -88,8 +88,8 @@ The issuer can be created with auto-refresh enabled:
 
     The key refresh interval is set via the ``jwt.key_refresh_interval`` configuration entry, where the default is 30 min (1800 seconds). Failed refreshes are retried after the lesser of 5 seconds and the configured interval, with exponential backoff capped at the configured interval. The maximum response body size accepted when fetching OpenID metadata and JWKS is set via ``jwt.key_refresh_max_response_size``, where the default is 1 MB.
     If auto-refresh fails with a TLS certificate verification error, make sure the IdP's issuing root CA is installed in the trust store of the host or container image running the CCF node.
-    Alternatively, point the node process at a PEM bundle with ``SSL_CERT_FILE``.
-    Then restart or redeploy the node so outbound fetches can use the updated trust store.
+    Alternatively, point the node process at a PEM bundle with the ``SSL_CERT_FILE`` environment variable, or at a directory of hashed certificates with ``SSL_CERT_DIR``. These replace the system CA bundle and CA directory respectively, so they must also contain any public roots the node needs.
+    The trust store is read again for each fetch, so updates apply to subsequent refreshes without restarting the node.
 
 Removing a token issuer
 -----------------------

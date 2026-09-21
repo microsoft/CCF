@@ -3,7 +3,9 @@
 import base64
 import json
 import os
+import shutil
 import socket
+import ssl
 import tempfile
 import threading
 import time
@@ -419,6 +421,30 @@ def reserve_unlistened_local_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         yield s
+
+
+def system_ca_bundle():
+    paths = ssl.get_default_verify_paths()
+    for candidate in (paths.cafile, paths.openssl_cafile):
+        if candidate and os.path.isfile(candidate):
+            return candidate
+    raise RuntimeError("Could not locate the system CA bundle")
+
+
+@contextmanager
+def jwt_test_trust_store(args):
+    """
+    Trust store passed to nodes via SSL_CERT_FILE. It starts from the system
+    roots, so that public IdPs remain reachable, and each test issuer's
+    self-signed certificate is appended as it is created.
+    """
+    with tempfile.NamedTemporaryFile(prefix="ccf_jwt_trust_", mode="w+") as f:
+        with open(system_ca_bundle(), encoding="utf-8") as system_roots:
+            shutil.copyfileobj(system_roots, f)
+        f.write("\n")
+        f.flush()
+        args.jwt_test_trust_store = f.name
+        yield {"SSL_CERT_FILE": f.name}
 
 
 def trust_jwt_issuer(args, issuer):
@@ -955,53 +981,45 @@ def with_timeout(fn, timeout):
 
 
 def run_auto(args):
-    with tempfile.NamedTemporaryFile(prefix="ccf_jwt_trust_", mode="w+") as trust_store:
-        args.jwt_test_trust_store = trust_store.name
-        with infra.network.network(
-            args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
-        ) as network:
-            network.start_and_open(
-                args, env=os.environ | {"SSL_CERT_FILE": trust_store.name}
-            )
-            test_jwt_issuer_and_jwks_validation(network, args)
-            test_jwt_mulitple_issuers_same_kids_different_pem(network, args)
-            test_jwt_mulitple_issuers_same_kids_same_pem(network, args)
-            test_jwt_same_issuer_constraint_overwritten(network, args)
-            test_jwt_issuer_domain_match(network, args)
-            test_jwt_endpoint(network, args)
-            test_jwt_without_key_policy(network, args)
-            test_jwt_key_auto_refresh(network, args)
+    with jwt_test_trust_store(args) as node_env, infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args, env=node_env)
+        test_jwt_issuer_and_jwks_validation(network, args)
+        test_jwt_mulitple_issuers_same_kids_different_pem(network, args)
+        test_jwt_mulitple_issuers_same_kids_same_pem(network, args)
+        test_jwt_same_issuer_constraint_overwritten(network, args)
+        test_jwt_issuer_domain_match(network, args)
+        test_jwt_endpoint(network, args)
+        test_jwt_without_key_policy(network, args)
+        test_jwt_key_auto_refresh(network, args)
 
-            # Check that auto refresh also works on backups
-            primary, _ = network.find_primary()
-            primary.stop()
-            network.wait_for_new_primary(primary)
-            test_jwt_key_auto_refresh(network, args)
-            # Check that we can refresh keys for Entra endpoint
-            test_jwt_key_refresh_aad(network, args)
-            test_jwt_key_auto_refresh_entries(network, args)
+        # Check that auto refresh also works on backups
+        primary, _ = network.find_primary()
+        primary.stop()
+        network.wait_for_new_primary(primary)
+        test_jwt_key_auto_refresh(network, args)
+        # Check that we can refresh keys for Entra endpoint
+        test_jwt_key_refresh_aad(network, args)
+        test_jwt_key_auto_refresh_entries(network, args)
 
-            test_malformed_tokens(network, args)
+        test_malformed_tokens(network, args)
 
 
 def run_manual(args):
-    with tempfile.NamedTemporaryFile(prefix="ccf_jwt_trust_", mode="w+") as trust_store:
-        args.jwt_test_trust_store = trust_store.name
-        with infra.network.network(
-            args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
-        ) as network:
-            network.start_and_open(
-                args, env=os.environ | {"SSL_CERT_FILE": trust_store.name}
-            )
-            test_jwt_key_initial_refresh(network, args)
+    with jwt_test_trust_store(args) as node_env, infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args, env=node_env)
+        test_jwt_key_initial_refresh(network, args)
 
-            # Check that initial refresh also works on backups
-            primary, _ = network.find_primary()
-            primary.stop()
-            network.wait_for_new_primary(primary)
-            test_jwt_key_initial_refresh(network, args, timeout_s=30)
-            test_jwt_key_auto_refresh_connection_failure(network, args)
-            test_jwt_key_auto_refresh_tls_failure(network, args)
-            test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args)
-            test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args)
-            test_jwt_key_auto_refresh_response_size_limit(network, args)
+        # Check that initial refresh also works on backups
+        primary, _ = network.find_primary()
+        primary.stop()
+        network.wait_for_new_primary(primary)
+        test_jwt_key_initial_refresh(network, args, timeout_s=30)
+        test_jwt_key_auto_refresh_connection_failure(network, args)
+        test_jwt_key_auto_refresh_tls_failure(network, args)
+        test_jwt_key_auto_refresh_invalid_metadata_issuer(network, args)
+        test_jwt_key_auto_refresh_cross_authority_jwks_uri(network, args)
+        test_jwt_key_auto_refresh_response_size_limit(network, args)

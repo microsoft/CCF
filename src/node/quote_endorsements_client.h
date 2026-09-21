@@ -296,6 +296,11 @@ namespace ccf
         endpoint.uri,
         get_formatted_query(endpoint.params));
 
+      if (endpoint.tls)
+      {
+        curl_handle.use_system_trust_store();
+      }
+
       auto headers = ccf::http_client::UniqueSlist();
       for (auto const& [k, v] : endpoint.headers)
       {

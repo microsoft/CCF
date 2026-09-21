@@ -188,6 +188,7 @@ namespace ccf
       // https://curl.se/libcurl/c/CURLOPT_SSL_VERIFYHOST.html
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
       curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
+      curl_handle.use_system_trust_store();
 
       ccf::http_client::UniqueSlist headers;
 

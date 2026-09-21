@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <curl/curl.h>
 #include <curl/multi.h>
@@ -167,6 +168,31 @@ namespace ccf::http_client
     void set_opt(auto option, auto value)
     {
       CHECK_CURL_EASY_SETOPT(p.get(), option, value);
+    }
+
+    // Verify peer certificates against the system trust store. libcurl uses
+    // the CA bundle compiled into it by default, but ignores the OpenSSL
+    // environment variables, so SSL_CERT_FILE and SSL_CERT_DIR are applied
+    // here to override the CA bundle file and CA directory respectively.
+    // The trust store is re-read for each request rather than cached, so
+    // that updates to it apply without restarting the process.
+    void use_system_trust_store()
+    {
+      // NOLINTNEXTLINE(concurrency-mt-unsafe)
+      const char* cert_file = std::getenv("SSL_CERT_FILE");
+      if (cert_file != nullptr && cert_file[0] != '\0')
+      {
+        set_opt(CURLOPT_CAINFO, cert_file);
+      }
+
+      // NOLINTNEXTLINE(concurrency-mt-unsafe)
+      const char* cert_dir = std::getenv("SSL_CERT_DIR");
+      if (cert_dir != nullptr && cert_dir[0] != '\0')
+      {
+        set_opt(CURLOPT_CAPATH, cert_dir);
+      }
+
+      set_opt(CURLOPT_CA_CACHE_TIMEOUT, 0L);
     }
   };
 
