@@ -16,18 +16,19 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 
 Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
 
-After the virtual baselines, the job rebuilds `basic` with `CCF_RAFT_TRACING=ON`
-and runs `fluentd_emission`. This pairs export off and on in the same executable,
-using two nodes, two worker threads, and the existing blocking-write Locust
-workload. A local Fluentd-compatible TCP drain decodes and counts messages without
-retaining them. Export uses 4096 owning record slots per producer, with a
-separate 1MiB record limit and no aggregate byte budget. Queue synchronization
-is lock-free; record allocation may lock. This measures emission cost, not
-Fluentd processing or storage.
-Each producer has a 1MB ring. Throughput and latency use the existing
-`bencher.json` format; `*_received.json` artifacts count records and bytes over
-each network's full lifetime. The enabled run requires Raft events from both nodes.
-To run locally after building `basic` with tracing enabled, use
+After the baseline tests, the job rebuilds `basic` with `CCF_RAFT_TRACING=ON` and
+runs the `fluentd_emission` perf test, so tracing never affects the baselines.
+The test runs the existing blocking-write Locust workload twice on two nodes,
+first with export off and then with export on, from the same tracing-enabled
+executable. A local TCP listener speaks the Fluentd Forward protocol and counts
+the records and bytes it decodes, without storing them. The listener is not a
+Fluentd instance, and its counts do not prove that no records were dropped. The
+run with export on requires Raft events from both nodes.
+
+Throughput and latency go to `bencher.json` with the other perf results. The
+record and byte counts go to `<label>_received.json` files in the logs artifact.
+
+To run the test locally, build `basic` with `-DCCF_RAFT_TRACING=ON`, then run
 `cd build && ./tests.sh -VV -C perf -R '^fluentd_emission$' --no-tests=error`.
 
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
