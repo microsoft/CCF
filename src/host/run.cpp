@@ -112,6 +112,21 @@ namespace ccf
     }
   }
 
+  void validate_and_coerce_worker_threads(ccf::CCFConfig& config)
+  {
+    // worker_threads previously accepted 0, but the dispatch thread no
+    // longer executes tasks itself, so at least one worker thread is
+    // required. Coerce rather than reject, so that existing configurations
+    // are not broken by this change in a patch release.
+    if (config.worker_threads < 1)
+    {
+      LOG_FAIL_FMT(
+        "worker_threads is configured as 0; using 1 (the enforced minimum) "
+        "instead");
+      config.worker_threads = 1;
+    }
+  }
+
   void validate_and_adjust_recovery_threshold(ccf::CCFConfig& config)
   {
     if (config.command.type != StartType::Start)
@@ -721,6 +736,9 @@ namespace ccf
       LOG_FATAL_FMT("{}. Exiting.", e.what());
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
+
+    // Coerces rather than rejects, so no try/catch is needed here.
+    validate_and_coerce_worker_threads(config);
 
     if (check_config_only)
     {

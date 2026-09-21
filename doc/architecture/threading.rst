@@ -17,7 +17,7 @@ Implementation
 Configuration
 ~~~~~~~~~~~~~
 
-To enable multiple worker threads, the ``worker_threads`` configuration option can be set to the number of desired threads when starting a CCF node.
+To enable multiple worker threads, the ``worker_threads`` configuration option can be set to the number of desired threads when starting a CCF node. This option defaults to ``1``; a configured value of ``0`` is accepted, but is treated as ``1``.
 
 It is strongly recommended that all CCF nodes run the same number of worker threads.
 
