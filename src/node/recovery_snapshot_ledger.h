@@ -78,9 +78,16 @@ namespace ccf
         {
           continue;
         }
+        // The surrounding code does not yet support multi-identity verification
+        // from the previous service, so only CLASSICAL is verified.
         if (
-          result.endorsement.has_value() ||
-          key != ccf::PreviousServiceIdentityEndorsement::create_unit())
+          key !=
+          ccf::kv::serialisers::BlitSerialiser<
+            ccf::IdentityType>::to_serialised(ccf::IdentityType::CLASSICAL))
+        {
+          continue;
+        }
+        if (result.endorsement.has_value())
         {
           throw std::logic_error(
             "Invalid previous service identity endorsement table write");

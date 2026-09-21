@@ -105,7 +105,7 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
     auto tx = source_store.create_tx();
     tx.rw<ccf::PreviousServiceIdentityEndorsement>(
         ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-      ->put(endorsement);
+      ->put(ccf::IdentityType::CLASSICAL, endorsement);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     auto latest_entry =
       consensus->get_latest_data().value_or(std::vector<uint8_t>{});
@@ -176,7 +176,7 @@ TEST_CASE("Recovery snapshot endorsement scan bounds candidate endorsements")
     auto tx = source_store.create_tx();
     tx.rw<ccf::PreviousServiceIdentityEndorsement>(
         ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-      ->put(endorsement);
+      ->put(ccf::IdentityType::CLASSICAL, endorsement);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     auto latest_entry =
       consensus->get_latest_data().value_or(std::vector<uint8_t>{});
@@ -226,7 +226,7 @@ TEST_CASE(
     auto tx = source_store.create_tx();
     tx.rw<ccf::PreviousServiceIdentityEndorsement>(
         ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-      ->put(endorsement);
+      ->put(ccf::IdentityType::CLASSICAL, endorsement);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     auto latest_entry =
       consensus->get_latest_data().value_or(std::vector<uint8_t>{});
