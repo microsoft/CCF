@@ -79,7 +79,7 @@ class StubNodeConfiguration : public NodeConfigurationInterface
 {
 public:
   CCFConfig config = {};
-  NodeConfigurationState state = {config, {}, true};
+  NodeConfigurationState state = {config, {}, {}, true};
 
   const NodeConfigurationState& get() override
   {

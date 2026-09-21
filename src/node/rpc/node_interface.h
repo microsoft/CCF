@@ -4,10 +4,10 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/quote_info.h"
+#include "ccf/node/configuration.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/code_id.h"
-#include "common/configuration.h"
 #include "http/http_builder.h"
 #include "http/http_parser.h"
 #include "kv/store.h"
