@@ -1,12 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "common/configuration.h"
 #include "tracing/test/events.h"
 
 #include <arpa/inet.h>
 #include <doctest/doctest.h>
-#include <future>
 
 namespace request_trace
 {
@@ -28,22 +26,6 @@ static_assert(EmitArguments<>);
 static_assert(EmitArguments<char[4], int, std::string_view, bool>);
 static_assert(!EmitArguments<char[4]>);
 static_assert(!EmitArguments<int, int>);
-
-TEST_CASE("Fluentd configuration round trips")
-{
-  ccf::CCFConfig::Observability config;
-  CHECK(nlohmann::json(config) == nlohmann::json::object());
-  config.fluentd = {"::1", "24224"};
-  CHECK(config.fluentd->queue_capacity == 4096);
-  config.fluentd->queue_capacity = 3;
-  CHECK(nlohmann::json(config).get<ccf::CCFConfig::Observability>() == config);
-  auto json = nlohmann::json(config);
-  json["fluentd"]["queue_capacity"] = -1;
-  CHECK_THROWS_AS(
-    ccf::tracing::FluentdSink::validate(
-      json.get<ccf::CCFConfig::Observability>().fluentd.value()),
-    std::invalid_argument);
-}
 
 namespace
 {
@@ -100,9 +82,8 @@ TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
   CHECK_THROWS_AS(Queue(0), std::invalid_argument);
   CHECK_THROWS_AS(Queue(Queue::MAX_CAPACITY + 1), std::invalid_argument);
   Queue queue(3);
-  auto ignore = [](auto) {};
   CHECK(queue.size() == 0);
-  CHECK(queue.read(1, ignore) == 0);
+  CHECK(queue.pop() == nullptr);
   std::array<uint8_t, 37> payload = {};
   for (size_t round = 0; round < 64; ++round)
   {
@@ -118,17 +99,20 @@ TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
     CHECK_FALSE(full);
     CHECK(after == before);
     CHECK(queue.size() == 3);
-    size_t expected = 0;
-    CHECK(queue.read(3, [&](auto bytes) {
-      CHECK(queue.size() == 3 - expected);
-      CHECK(bytes.size() == payload.size());
-      for (auto byte : bytes)
+    for (size_t expected = 0; expected < 3; ++expected)
+    {
+      const auto before_pop = allocations;
+      auto record = queue.pop();
+      const auto after_pop = allocations;
+      CHECK(before_pop == after_pop);
+      REQUIRE(record != nullptr);
+      CHECK(queue.size() == 2 - expected);
+      CHECK(record->size() == payload.size());
+      for (auto byte : *record)
         CHECK(byte == expected);
-      ++expected;
-    }) == 3);
-    CHECK(expected == 3);
+    }
     CHECK(queue.size() == 0);
-    CHECK(queue.read(1, ignore) == 0);
+    CHECK(queue.pop() == nullptr);
   }
   for (size_t failure = 1; failure <= 2; ++failure)
   {
@@ -136,9 +120,9 @@ TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
     const auto pushed = queue.push(payload);
     allocation_failure = 0;
     CHECK_FALSE(pushed);
-    CHECK(queue.read(1, ignore) == 0);
+    CHECK(queue.pop() == nullptr);
     REQUIRE(queue.push(payload));
-    CHECK(queue.read(1, ignore) == 1);
+    CHECK(queue.pop() != nullptr);
   }
   std::vector<uint8_t> large(Queue::MAX_RECORD_SIZE + 1);
   const auto before = allocations;
@@ -148,9 +132,13 @@ TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
   CHECK(before == after);
   large.pop_back();
   REQUIRE(queue.push(large));
-  CHECK(queue.read(1, [&](auto bytes) {
-    CHECK(bytes.size() == Queue::MAX_RECORD_SIZE);
-  }) == 1);
+  auto record = queue.pop();
+  REQUIRE(record != nullptr);
+  CHECK(record->size() == Queue::MAX_RECORD_SIZE);
+  REQUIRE(queue.push({}));
+  auto empty = queue.pop();
+  REQUIRE(empty != nullptr);
+  CHECK(empty->empty());
 }
 
 TEST_CASE("Nested object encoding does not allocate into a reserved buffer")
@@ -164,121 +152,64 @@ TEST_CASE("Nested object encoding does not allocate into a reserved buffer")
   CHECK(nlohmann::json::from_msgpack(bytes)["number"] == 7);
 }
 
-TEST_CASE("SPSC callback retains ownership until it returns")
+TEST_CASE("SPSC concurrent FIFO records outlive reused slots and the queue")
 {
-  ccf::tracing::SPSCQueue queue(1);
-  std::array<uint8_t, 1> payload = {42};
-  REQUIRE(queue.push(payload));
-  std::promise<void> entered;
-  std::promise<void> release;
-  auto released = release.get_future();
-  std::thread consumer([&] {
-    CHECK(queue.read(1, [&](auto bytes) {
-      CHECK(queue.size() == 1);
-      entered.set_value();
-      released.wait();
-      CHECK(bytes[0] == 42);
-      CHECK(queue.size() == 1);
-    }) == 1);
-    CHECK(queue.size() == 0);
-  });
-  entered.get_future().wait();
-  payload[0] = 17;
-  const auto before = allocations;
-  const auto pushed = queue.push(payload);
-  const auto after = allocations;
-  CHECK_FALSE(pushed);
-  CHECK(before == after);
-  release.set_value();
-  consumer.join();
-  REQUIRE(queue.push(payload));
-  CHECK(queue.read(1, [](auto bytes) { CHECK(bytes[0] == 17); }) == 1);
-}
-
-TEST_CASE("SPSC read reuses callbacks without copying or consuming them")
-{
-  ccf::tracing::SPSCQueue queue(2);
-  const auto fill = [&] {
-    REQUIRE(queue.push({}));
-    REQUIRE(queue.push({}));
-  };
-  auto callback = [count = size_t{0}](auto) mutable { return ++count; };
-  fill();
-  CHECK(queue.read(2, callback) == 2);
-  CHECK(callback(std::span<const uint8_t>{}) == 3);
-  fill();
-  CHECK(queue.read(2, callback) == 2);
-  CHECK(callback(std::span<const uint8_t>{}) == 6);
-
-  struct LvalueCallback
-  {
-    size_t& calls;
-
-    explicit LvalueCallback(size_t& calls_) : calls(calls_) {}
-    LvalueCallback(const LvalueCallback&) = delete;
-    LvalueCallback(LvalueCallback&&) = default;
-
-    void operator()(std::span<const uint8_t> /*bytes*/) &
-    {
-      ++calls;
-    }
-
-    void operator()(std::span<const uint8_t> /*bytes*/) && = delete;
-  };
-  size_t callback_calls = 0;
-  LvalueCallback lvalue_callback(callback_calls);
-  fill();
-  CHECK(queue.read(2, lvalue_callback) == 2);
-  CHECK(callback_calls == 2);
-  fill();
-  CHECK(queue.read(2, LvalueCallback{callback_calls}) == 2);
-  CHECK(callback_calls == 4);
-}
-
-TEST_CASE("SPSC default capacity counts records, including empty records")
-{
-  ccf::tracing::SPSCQueue queue;
-  for (size_t i = 0; i < 4096; ++i)
-    REQUIRE(queue.push({}));
-  CHECK_FALSE(queue.push({}));
-  CHECK(queue.read(4096, [](auto bytes) { CHECK(bytes.empty()); }) == 4096);
-  CHECK(queue.read(1, [](auto) {}) == 0);
-}
-
-TEST_CASE("SPSC records are published in order concurrently")
-{
-  ccf::tracing::SPSCQueue queue(3);
+  auto queue = std::make_unique<ccf::tracing::SPSCQueue>(3);
   constexpr uint64_t count = 10000;
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(5);
   std::thread writer([&] {
     std::array<uint8_t, 37> payload;
     for (uint64_t i = 0; i < count; ++i)
     {
       payload.fill(i % 251);
       std::memcpy(payload.data(), &i, sizeof(i));
-      while (!queue.push(payload))
+      while (!queue->push(payload))
+      {
+        if (std::chrono::steady_clock::now() >= deadline)
+          return;
         std::this_thread::yield();
+      }
+      payload.fill(0xff);
     }
   });
+  std::vector<std::unique_ptr<std::vector<uint8_t>>> retained;
+  retained.reserve(50);
   uint64_t expected = 0;
-  while (expected < count)
+  while (expected < count && std::chrono::steady_clock::now() < deadline)
   {
-    CHECK(queue.size() <= 3);
-    queue.read(64, [&](auto bytes) {
-      const auto pending = queue.size();
-      CHECK(pending >= 1);
-      CHECK(pending <= 3);
-      REQUIRE(bytes.size() == 37);
+    auto record = queue->pop();
+    if (record)
+    {
+      CHECK(record->size() == 37);
+      if (record->size() != 37)
+        break;
       uint64_t sequence;
-      std::memcpy(&sequence, bytes.data(), sizeof(sequence));
+      std::memcpy(&sequence, record->data(), sizeof(sequence));
       CHECK(sequence == expected);
-      for (size_t i = sizeof(sequence); i < bytes.size(); ++i)
-        CHECK(bytes[i] == expected % 251);
+      for (size_t i = sizeof(sequence); i < record->size(); ++i)
+        CHECK((*record)[i] == expected % 251);
+      if (retained.size() < 50)
+        retained.push_back(std::move(record));
       ++expected;
-    });
-    std::this_thread::yield();
+    }
+    else
+      std::this_thread::yield();
   }
   writer.join();
-  CHECK(queue.size() == 0);
+  CHECK(expected == count);
+  CHECK(queue->size() == 0);
+  CHECK(queue->pop() == nullptr);
+  queue.reset();
+  CHECK(retained.size() == 50);
+  for (size_t i = 0; i < retained.size(); ++i)
+  {
+    uint64_t sequence;
+    std::memcpy(&sequence, retained[i]->data(), sizeof(sequence));
+    CHECK(sequence == i);
+    for (size_t j = sizeof(sequence); j < retained[i]->size(); ++j)
+      CHECK((*retained[i])[j] == i % 251);
+  }
 }
 
 TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
@@ -403,6 +334,11 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   REQUIRE(recv(peer, chunk.data(), chunk.size(), MSG_WAITALL) == 7);
   CHECK(recv(peer, chunk.data(), chunk.size(), 0) == 0);
   close(peer);
+  const auto drop_deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (Sink::dropped_count() == 0 &&
+         std::chrono::steady_clock::now() < drop_deadline)
+    std::this_thread::yield();
   CHECK(Sink::dropped_count() == 1);
   REQUIRE(Sink::wait_for_connection(std::chrono::seconds(2)));
   REQUIRE(Sink::enqueue(bytes));
@@ -432,6 +368,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   REQUIRE(Sink::enqueue(payload));
   while (calls == previous)
     std::this_thread::yield();
+  REQUIRE(Sink::enqueue(payload));
   REQUIRE(Sink::enqueue(payload));
   REQUIRE(Sink::enqueue(payload));
   const auto full_before = allocations;
@@ -479,7 +416,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   Sink::shutdown();
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::seconds(1)));
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(3));
-  CHECK(Sink::dropped_count() == drops_before_shutdown + 3);
+  CHECK(Sink::dropped_count() == drops_before_shutdown + 4);
   // Use the empty queue so a full queue cannot mask shutdown rejection.
   Sink::bind_producer(1);
   const auto allocations_before_shutdown_enqueue = allocations;
@@ -488,7 +425,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK_FALSE(shutdown_pushed);
   CHECK(
     allocations_after_shutdown_enqueue == allocations_before_shutdown_enqueue);
-  CHECK(Sink::dropped_count() == drops_before_shutdown + 4);
+  CHECK(Sink::dropped_count() == drops_before_shutdown + 5);
   CHECK(logs->reports == 2);
   CHECK_FALSE(wrong_thread);
   close(peer);

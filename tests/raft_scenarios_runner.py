@@ -204,8 +204,17 @@ if __name__ == "__main__":
                 for index, (record, previous) in enumerate(
                     zip(records, baseline_records)
                 ):
+                    message = record["msg"]
+                    if (
+                        message.get("function") == "drop_pending_to"
+                        and "committable_indices" not in previous["msg"]["state"]
+                    ):
+                        # Only baseline comparison omits this legacy missing field.
+                        state = dict(message["state"])
+                        del state["committable_indices"]
+                        message = {**message, "state": state}
                     # Repacking retains map order but excludes process IDs and time.
-                    assert msgpack.packb(record["msg"]) == msgpack.packb(
+                    assert msgpack.packb(message) == msgpack.packb(
                         flatten_legacy_trace(previous["msg"])
                     ), (scenario, index, record["msg"], previous["msg"])
         else:

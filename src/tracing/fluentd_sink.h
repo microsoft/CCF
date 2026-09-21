@@ -243,9 +243,16 @@ namespace ccf::tracing
             {
               break;
             }
-            progress |= queue->read(64, [this](std::span<const uint8_t> bytes) {
-              write(bytes);
-            }) != 0;
+            for (size_t i = 0; i < 64 && !expired(); ++i)
+            {
+              auto record = queue->pop();
+              if (!record)
+              {
+                break;
+              }
+              progress = true;
+              write(*record);
+            }
           }
           if (!progress && stopping.load(std::memory_order_acquire))
           {

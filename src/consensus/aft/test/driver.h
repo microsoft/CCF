@@ -527,8 +527,7 @@ public:
       if (dropped)
       {
         aft::trace::drop_pending_to(
-          aft::trace::StateWithoutIndicesView{
-            _nodes.at(node_id).raft->get_state_for_trace()},
+          _nodes.at(node_id).raft->get_state_for_trace(),
           node_id.value(),
           tgt_node_id.value(),
           packet);

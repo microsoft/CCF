@@ -50,18 +50,16 @@ namespace aft
   DECLARE_MSGPACK_TYPE(ProposeRequestVote);
   DECLARE_MSGPACK_FIELDS(ProposeRequestVote, msg, term);
 
-  inline void write_trace_state(
-    std::vector<uint8_t>& out, const State& state, bool include_indices)
+  inline void write_msgpack(std::vector<uint8_t>& out, const State& state)
   {
     using namespace ccf::msgpack;
     using ccf::msgpack::write_msgpack;
     write_map_header(
       out,
-      7 + static_cast<uint32_t>(state.retirement_phase.has_value()) +
+      8 + static_cast<uint32_t>(state.retirement_phase.has_value()) +
         static_cast<uint32_t>(state.retirement_idx.has_value()) +
         static_cast<uint32_t>(state.retirement_committable_idx.has_value()) +
-        static_cast<uint32_t>(state.retired_committed_idx.has_value()) +
-        static_cast<uint32_t>(include_indices));
+        static_cast<uint32_t>(state.retired_committed_idx.has_value()));
     write_str(out, "node_id");
     write_msgpack(out, state.node_id.value());
     write_str(out, "current_view");
@@ -96,26 +94,18 @@ namespace aft
       write_str(out, "retired_committed_idx");
       write_msgpack(out, *state.retired_committed_idx);
     }
-    if (include_indices)
+    write_str(out, "committable_indices");
+    const auto count = static_cast<uint32_t>(
+      std::min<size_t>(state.committable_indices.size(), 2));
+    write_array_header(out, count);
+    if (count > 0)
     {
-      write_str(out, "committable_indices");
-      const auto count = static_cast<uint32_t>(
-        std::min<size_t>(state.committable_indices.size(), 2));
-      write_array_header(out, count);
-      if (count > 0)
-      {
-        write_msgpack(out, state.committable_indices.front());
-      }
-      if (count > 1)
-      {
-        write_msgpack(out, state.committable_indices.back());
-      }
+      write_msgpack(out, state.committable_indices.front());
     }
-  }
-
-  inline void write_msgpack(std::vector<uint8_t>& out, const State& state)
-  {
-    write_trace_state(out, state, true);
+    if (count > 1)
+    {
+      write_msgpack(out, state.committable_indices.back());
+    }
   }
 }
 
@@ -153,18 +143,6 @@ namespace ccf::kv
 namespace aft::trace
 {
   constexpr std::string_view raft_trace_tag = "ccf.raft_trace";
-
-  // Dropped packets use the legacy state shape without committable indices.
-  struct StateWithoutIndicesView
-  {
-    const State& state;
-  };
-
-  inline void write_msgpack(
-    std::vector<uint8_t>& out, const StateWithoutIndicesView& value)
-  {
-    write_trace_state(out, value.state, false);
-  }
 
   DECLARE_TRACE_EVENT(
     send_append_entries,

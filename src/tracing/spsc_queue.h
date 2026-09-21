@@ -64,33 +64,24 @@ namespace ccf::tracing
     }
 
     // Consumer-only observation; exact once the producer has stopped.
-    // Includes the record held by a running read callback.
+    // Counts queued records only, not records already popped by the consumer.
     [[nodiscard]] size_t size() const
     {
       return tail.load(std::memory_order_acquire) -
         head.load(std::memory_order_relaxed);
     }
 
-    template <typename F>
-    size_t read(size_t limit, F&& callback)
+    [[nodiscard]] std::unique_ptr<Record> pop()
     {
-      auto&& handler = std::forward<F>(callback);
-      size_t count = 0;
-      while (count < limit)
+      const auto begin = head.load(std::memory_order_relaxed);
+      if (begin == tail.load(std::memory_order_acquire))
       {
-        const auto begin = head.load(std::memory_order_relaxed);
-        if (begin == tail.load(std::memory_order_acquire))
-        {
-          break;
-        }
-        auto& record = slots[read_index];
-        handler(std::span<const uint8_t>(*record));
-        record.reset();
-        read_index = (read_index + 1) % slots.size();
-        head.store(begin + 1, std::memory_order_release);
-        ++count;
+        return nullptr;
       }
-      return count;
+      auto record = std::move(slots[read_index]);
+      read_index = (read_index + 1) % slots.size();
+      head.store(begin + 1, std::memory_order_release);
+      return record;
     }
   };
 }
