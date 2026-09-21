@@ -184,15 +184,6 @@ namespace
     return {reinterpret_cast<const char*>(value.data), value.len};
   }
 
-  RawMap::Handle::KeyType to_bytes(const ccf_rust_slice& value)
-  {
-    if (value.len == 0)
-    {
-      return {};
-    }
-    return {value.data, value.data + value.len};
-  }
-
   std::vector<uint8_t> to_vector(const ccf_rust_slice& value)
   {
     if (value.len == 0)
@@ -207,6 +198,19 @@ namespace
   {
     out->data = reinterpret_cast<const uint8_t*>(value.data());
     out->len = value.size();
+  }
+
+  template <typename F>
+  ccf_rust_result run_ffi(F&& f) noexcept
+  {
+    try
+    {
+      return std::forward<F>(f)();
+    }
+    catch (...)
+    {
+      return CCF_RUST_INTERNAL_ERROR;
+    }
   }
 
   struct CallbackState
@@ -285,6 +289,61 @@ struct ccf_rust_endpoint_context
 
 namespace
 {
+  template <typename F>
+  ccf_rust_result run_kv_ffi(ccf_rust_endpoint_context* ctx, F&& f) noexcept
+  {
+    return run_ffi([&]() {
+      try
+      {
+        return std::forward<F>(f)();
+      }
+      catch (const ccf::kv::CompactedVersionConflict& e)
+      {
+        ctx->compacted_version_conflict = e;
+        return CCF_RUST_INTERNAL_ERROR;
+      }
+    });
+  }
+
+  void execute_rust_endpoint(
+    const std::shared_ptr<CallbackState>& state,
+    const std::shared_ptr<ccf::RpcContext>& rpc,
+    ccf::kv::ReadOnlyTx& tx,
+    ccf::kv::Tx* writable_tx)
+  {
+    ccf_rust_endpoint_context rust_ctx{rpc, &tx, writable_tx, {}, {}, {}};
+    try
+    {
+      const auto result = state->callback(state->user_data, &rust_ctx);
+      rust_ctx.rethrow_compacted_version_conflict();
+      if (result != CCF_RUST_OK)
+      {
+        rpc->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Rust endpoint execution failed");
+      }
+    }
+    catch (const ccf::kv::CompactedVersionConflict&)
+    {
+      throw;
+    }
+    catch (const std::exception& e)
+    {
+      rpc->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format("Rust endpoint bridge failed: {}", e.what()));
+    }
+    catch (...)
+    {
+      rpc->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        "Rust endpoint bridge failed");
+    }
+  }
+
   class RustEndpointRegistry : public ccf::UserEndpointRegistry
   {
   public:
@@ -324,38 +383,7 @@ namespace
           path,
           method,
           [state](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-            ccf_rust_endpoint_context rust_ctx{
-              ctx.rpc_ctx, &ctx.tx, nullptr, {}, {}, {}};
-            try
-            {
-              const auto result = state->callback(state->user_data, &rust_ctx);
-              rust_ctx.rethrow_compacted_version_conflict();
-              if (result != CCF_RUST_OK)
-              {
-                ctx.rpc_ctx->set_error(
-                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                  ccf::errors::InternalError,
-                  "Rust endpoint execution failed");
-              }
-            }
-            catch (const ccf::kv::CompactedVersionConflict&)
-            {
-              throw;
-            }
-            catch (const std::exception& e)
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                fmt::format("Rust endpoint bridge failed: {}", e.what()));
-            }
-            catch (...)
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Rust endpoint bridge failed");
-            }
+            execute_rust_endpoint(state, ctx.rpc_ctx, ctx.tx, nullptr);
           },
           policies)
           .install();
@@ -366,38 +394,7 @@ namespace
           path,
           method,
           [state](ccf::endpoints::EndpointContext& ctx) {
-            ccf_rust_endpoint_context rust_ctx{
-              ctx.rpc_ctx, &ctx.tx, &ctx.tx, {}, {}, {}};
-            try
-            {
-              const auto result = state->callback(state->user_data, &rust_ctx);
-              rust_ctx.rethrow_compacted_version_conflict();
-              if (result != CCF_RUST_OK)
-              {
-                ctx.rpc_ctx->set_error(
-                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                  ccf::errors::InternalError,
-                  "Rust endpoint execution failed");
-              }
-            }
-            catch (const ccf::kv::CompactedVersionConflict&)
-            {
-              throw;
-            }
-            catch (const std::exception& e)
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                fmt::format("Rust endpoint bridge failed: {}", e.what()));
-            }
-            catch (...)
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Rust endpoint bridge failed");
-            }
+            execute_rust_endpoint(state, ctx.rpc_ctx, ctx.tx, &ctx.tx);
           },
           policies)
           .install();
@@ -433,8 +430,7 @@ extern "C"
       return CCF_RUST_INVALID_ARGUMENT;
     }
 
-    try
-    {
+    return run_ffi([&]() {
       auto state = std::make_shared<CallbackState>(callback, drop, user_data);
       registry->registry->add_endpoint(
         to_string(path),
@@ -444,11 +440,7 @@ extern "C"
         state);
       state->owns_user_data = true;
       return CCF_RUST_OK;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 
   ccf_rust_result ccf_rust_request_body(
@@ -458,15 +450,10 @@ extern "C"
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
-    try
-    {
+    return run_ffi([&]() {
       set_slice(body, ctx->rpc->get_request_body());
       return CCF_RUST_OK;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 
   ccf_rust_result ccf_rust_request_query(
@@ -476,15 +463,10 @@ extern "C"
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
-    try
-    {
+    return run_ffi([&]() {
       set_slice(query, ctx->rpc->get_request_query());
       return CCF_RUST_OK;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 
   ccf_rust_result ccf_rust_request_path_param(
@@ -494,8 +476,7 @@ extern "C"
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
-    try
-    {
+    return run_ffi([&]() {
       const auto& params = ctx->rpc->get_decoded_request_path_params();
       const auto it = params.find(to_string(name));
       if (it == params.end())
@@ -507,11 +488,7 @@ extern "C"
         ctx->scratch.end(), it->second.begin(), it->second.end());
       set_slice(value, ctx->scratch);
       return CCF_RUST_OK;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 
   ccf_rust_result ccf_rust_request_header(
@@ -521,8 +498,7 @@ extern "C"
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
-    try
-    {
+    return run_ffi([&]() {
       const auto header = ctx->rpc->get_request_header(to_string(name));
       if (!header.has_value())
       {
@@ -532,11 +508,7 @@ extern "C"
       ctx->scratch.insert(ctx->scratch.end(), header->begin(), header->end());
       set_slice(value, ctx->scratch);
       return CCF_RUST_OK;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 
   ccf_rust_result ccf_rust_response_status(
@@ -546,15 +518,10 @@ extern "C"
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
-    try
-    {
+    return run_ffi([&]() {
       ctx->rpc->set_response_status(status);
       return CCF_RUST_OK;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 
   ccf_rust_result ccf_rust_response_header(
@@ -566,15 +533,10 @@ extern "C"
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
-    try
-    {
+    return run_ffi([&]() {
       ctx->rpc->set_response_header(to_string(name), to_string(value));
       return CCF_RUST_OK;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 
   ccf_rust_result ccf_rust_response_body(
@@ -584,15 +546,10 @@ extern "C"
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
-    try
-    {
+    return run_ffi([&]() {
       ctx->rpc->set_response_body(to_vector(body));
       return CCF_RUST_OK;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 
   ccf_rust_result ccf_rust_response_error(
@@ -607,8 +564,7 @@ extern "C"
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
-    try
-    {
+    return run_ffi([&]() {
       // Keep the host's HTTP_STATUS_MAP as the single source of truth.
       const auto response_status =
         status >= 400 && is_known_http_status(status) ?
@@ -616,11 +572,7 @@ extern "C"
         HTTP_STATUS_INTERNAL_SERVER_ERROR;
       ctx->rpc->set_error(response_status, to_string(code), to_string(message));
       return CCF_RUST_OK;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 
   ccf_rust_result ccf_rust_kv_get(
@@ -635,9 +587,8 @@ extern "C"
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
-    try
-    {
-      auto result = ctx->read_handle(to_string(map_name))->get(to_bytes(key));
+    return run_kv_ffi(ctx, [&]() {
+      auto result = ctx->read_handle(to_string(map_name))->get(to_vector(key));
       if (!result.has_value())
       {
         return CCF_RUST_NOT_FOUND;
@@ -645,16 +596,7 @@ extern "C"
       ctx->scratch = std::move(result.value());
       set_slice(value, ctx->scratch);
       return CCF_RUST_OK;
-    }
-    catch (const ccf::kv::CompactedVersionConflict& e)
-    {
-      ctx->compacted_version_conflict = e;
-      return CCF_RUST_INTERNAL_ERROR;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 
   ccf_rust_result ccf_rust_kv_has(
@@ -669,21 +611,11 @@ extern "C"
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
-    try
-    {
+    return run_kv_ffi(ctx, [&]() {
       *present =
-        ctx->read_handle(to_string(map_name))->has(to_bytes(key)) ? 1 : 0;
+        ctx->read_handle(to_string(map_name))->has(to_vector(key)) ? 1 : 0;
       return CCF_RUST_OK;
-    }
-    catch (const ccf::kv::CompactedVersionConflict& e)
-    {
-      ctx->compacted_version_conflict = e;
-      return CCF_RUST_INTERNAL_ERROR;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 
   ccf_rust_result ccf_rust_kv_put(
@@ -698,25 +630,15 @@ extern "C"
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
-    try
-    {
+    return run_kv_ffi(ctx, [&]() {
       auto* handle = ctx->write_handle(to_string(map_name));
       if (handle == nullptr)
       {
         return CCF_RUST_READ_ONLY;
       }
-      handle->put(to_bytes(key), to_bytes(value));
+      handle->put(to_vector(key), to_vector(value));
       return CCF_RUST_OK;
-    }
-    catch (const ccf::kv::CompactedVersionConflict& e)
-    {
-      ctx->compacted_version_conflict = e;
-      return CCF_RUST_INTERNAL_ERROR;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 
   ccf_rust_result ccf_rust_kv_remove(
@@ -728,25 +650,15 @@ extern "C"
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }
-    try
-    {
+    return run_kv_ffi(ctx, [&]() {
       auto* handle = ctx->write_handle(to_string(map_name));
       if (handle == nullptr)
       {
         return CCF_RUST_READ_ONLY;
       }
-      handle->remove(to_bytes(key));
+      handle->remove(to_vector(key));
       return CCF_RUST_OK;
-    }
-    catch (const ccf::kv::CompactedVersionConflict& e)
-    {
-      ctx->compacted_version_conflict = e;
-      return CCF_RUST_INTERNAL_ERROR;
-    }
-    catch (...)
-    {
-      return CCF_RUST_INTERNAL_ERROR;
-    }
+    });
   }
 }
 
