@@ -17,6 +17,22 @@ def test_committed_prefix_is_not_canonical_committed_file():
     assert not ccf.ledger.is_ledger_chunk_committed("ledger_42-100.committed_prefix")
 
 
+def test_ledger_directory_ignores_committed_prefix(tmp_path):
+    """Committed prefixes are never discovered as part of a ledger directory."""
+    (tmp_path / "ledger_42-100.committed_prefix").write_bytes(b"")
+
+    assert len(ccf.ledger.Ledger([str(tmp_path)])) == 0
+    assert len(ccf.ledger.Ledger([str(tmp_path)], committed_only=False)) == 0
+    assert (
+        len(
+            ccf.ledger.Ledger(
+                [str(tmp_path)], committed_only=False, read_recovery_files=True
+            )
+        )
+        == 0
+    )
+
+
 @pytest.mark.parametrize(
     "filename",
     [

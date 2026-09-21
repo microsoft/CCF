@@ -131,7 +131,7 @@ The node still prefers a canonical ``.committed`` file when one covers the reque
 
 The ``.committed_prefix`` suffix distinguishes this synthetic resource from a canonical physical ledger file. The response contains a normal completed ledger representation - header, unchanged transaction bytes, and positions table - but only for the selected committed range. It can be read directly with :py:class:`ccf.ledger.LedgerChunk`.
 
-Both the temporary redirect and the committed-prefix response include ``Cache-Control: no-store``. The response also includes ``x-ms-ccf-ledger-chunk-kind: committed-prefix``. Clients must not archive, install, or use this resource for recovery as though it were a canonical ``.committed`` file. In particular, committed-prefix files are ignored by committed-only ledger directory discovery.
+Both the temporary redirect and the committed-prefix response include ``Cache-Control: no-store``. The response also includes ``x-ms-ccf-ledger-chunk-kind: committed-prefix``. Clients must not archive, install, or use this resource for recovery as though it were a canonical ``.committed`` file. In particular, committed-prefix files are ignored by ledger directory discovery, both by nodes and by :py:class:`ccf.ledger.Ledger`, and can only be read individually with :py:class:`ccf.ledger.LedgerChunk`.
 
 The ``307`` redirect intentionally differs from the ``308 Permanent Redirect`` used for canonical ``.committed`` files. A physical chunk's name and range are final, while the committed-prefix range selected for the same ``since`` value may grow as the commit watermark advances. The exact ``.committed_prefix`` URL is immutable once returned, so it remains suitable for retrying or resuming that specific download.
 

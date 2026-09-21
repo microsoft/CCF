@@ -537,7 +537,124 @@ namespace asynchost
       return LedgerReadResult{entries, to_};
     }
 
-    std::optional<std::vector<uint8_t>> read_entries_as_completed_chunk(
+    // A completed-chunk read whose header and positions table have already
+    // been materialised under the ledger locks, and whose raw entry bytes are
+    // read by complete() without any ledger lock held. The bytes are read with
+    // pread() on a duplicated descriptor: this never touches the FILE*
+    // position used by the writer, and stays valid even if the LedgerFile
+    // closes or reopens its own stream in the meantime.
+    class PendingChunkRead
+    {
+    private:
+      std::vector<uint8_t> chunk;
+      int fd = -1;
+      off_t file_offset = 0;
+      size_t raw_entries_size = 0;
+      std::string description;
+
+      void close_fd() noexcept
+      {
+        if (fd >= 0)
+        {
+          ::close(fd);
+          fd = -1;
+        }
+      }
+
+    public:
+      PendingChunkRead(
+        std::vector<uint8_t>&& chunk_,
+        int fd_,
+        off_t file_offset_,
+        size_t raw_entries_size_,
+        std::string description_) :
+        chunk(std::move(chunk_)),
+        fd(fd_),
+        file_offset(file_offset_),
+        raw_entries_size(raw_entries_size_),
+        description(std::move(description_))
+      {}
+
+      PendingChunkRead(const PendingChunkRead&) = delete;
+      PendingChunkRead& operator=(const PendingChunkRead&) = delete;
+
+      PendingChunkRead(PendingChunkRead&& other) noexcept :
+        chunk(std::move(other.chunk)),
+        fd(other.fd),
+        file_offset(other.file_offset),
+        raw_entries_size(other.raw_entries_size),
+        description(std::move(other.description))
+      {
+        other.fd = -1;
+      }
+
+      PendingChunkRead& operator=(PendingChunkRead&& other) noexcept
+      {
+        if (this != &other)
+        {
+          close_fd();
+          chunk = std::move(other.chunk);
+          fd = other.fd;
+          other.fd = -1;
+          file_offset = other.file_offset;
+          raw_entries_size = other.raw_entries_size;
+          description = std::move(other.description);
+        }
+        return *this;
+      }
+
+      ~PendingChunkRead()
+      {
+        close_fd();
+      }
+
+      std::vector<uint8_t> complete() &&
+      {
+        ccf::ds::TimeBoundLogger log_if_slow(
+          fmt::format("{} - pread()", description));
+
+        auto* out = chunk.data() + sizeof(positions_offset_header_t);
+        auto remaining = raw_entries_size;
+        auto offset = file_offset;
+        while (remaining > 0)
+        {
+          const auto rc = ::pread(fd, out, remaining, offset);
+          if (rc < 0)
+          {
+            if (errno == EINTR)
+            {
+              continue;
+            }
+            throw std::logic_error(
+              fmt::format("{}: {}", description, ccf::nonstd::strerror(errno)));
+          }
+          if (rc == 0)
+          {
+            throw std::logic_error(fmt::format(
+              "{}: unexpected end of file with {} bytes remaining",
+              description,
+              remaining));
+          }
+          out += rc;
+          remaining -= static_cast<size_t>(rc);
+          offset += rc;
+        }
+
+        close_fd();
+        return std::move(chunk);
+      }
+    };
+
+    // Materialises the header and positions table of a completed chunk
+    // containing exactly the entries [from, to], and duplicates the file
+    // descriptor so that the entry bytes can be read afterwards without any
+    // ledger lock held. Callers must only request committed entries: every
+    // committable entry is flushed as it is written and every completed file
+    // is flushed on completion, so committed bytes are always visible to the
+    // later pread() regardless of stdio buffering on the writer's FILE*.
+    // A violation of that invariant surfaces as a short read, never as
+    // incorrect bytes.
+    std::optional<PendingChunkRead> prepare_completed_chunk(
       size_t from, size_t to)
     {
       std::unique_lock<ccf::ds::Mutex> guard(file_lock);
@@ -546,6 +663,12 @@ namespace asynchost
       if (raw_entries_size == 0 || end_idx != to)
       {
         return std::nullopt;
+      }
+
+      if (file == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Ledger file {} is not open", file_name));
       }
 
       const auto entry_count = to - from + 1;
@@ -577,28 +700,7 @@ namespace asynchost
       auto remaining = chunk.size();
       serialized::write(out, remaining, positions_offset);
 
-      if (fseeko(file, positions.at(from - start_idx), SEEK_SET) != 0)
-      {
-        throw std::logic_error(fmt::format(
-          "Failed to seek to entry {} in ledger file {}", from, file_name));
-      }
-
-      {
-        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
-          "Reading committed ledger prefix {} to {} ({} bytes) - fread({})",
-          from,
-          to,
-          raw_entries_size,
-          file_name));
-        if (fread(out, raw_entries_size, 1, file) != 1)
-        {
-          throw std::logic_error(fmt::format(
-            "Failed to read entry range {}-{} from ledger file {}",
-            from,
-            to,
-            file_name));
-        }
-      }
+      // The raw entries region is filled in by PendingChunkRead::complete()
       out += raw_entries_size;
       remaining -= raw_entries_size;
 
@@ -618,7 +720,38 @@ namespace asynchost
           out, remaining, static_cast<uint32_t>(relative_position));
       }
 
-      return chunk;
+      const auto fd = ::dup(fileno(file));
+      if (fd < 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to duplicate descriptor for ledger file {}: {}",
+          file_name,
+          ccf::nonstd::strerror(errno)));
+      }
+
+      return PendingChunkRead(
+        std::move(chunk),
+        fd,
+        static_cast<off_t>(first_position),
+        raw_entries_size,
+        fmt::format(
+          "Reading committed ledger prefix {} to {} ({} bytes) from {}",
+          from,
+          to,
+          raw_entries_size,
+          file_name));
+    }
+
+    std::optional<std::vector<uint8_t>> read_entries_as_completed_chunk(
+      size_t from, size_t to)
+    {
+      auto pending = prepare_completed_chunk(from, to);
+      if (!pending.has_value())
+      {
+        return std::nullopt;
+      }
+
+      return std::move(pending.value()).complete();
     }
 
     bool truncate(size_t idx, bool remove_file_if_empty = true)
@@ -1852,22 +1985,34 @@ namespace asynchost
     [[nodiscard]] std::optional<std::vector<uint8_t>>
     read_committed_ledger_prefix(size_t from, size_t to)
     {
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      // Only the chunk metadata is materialised under the state lock. The
+      // entry bytes, potentially many megabytes, are read afterwards so that
+      // serving a prefix does not stall the ledger writer.
+      auto pending = [&]() -> std::optional<LedgerFile::PendingChunkRead> {
+        std::unique_lock<ccf::ds::Mutex> guard(state_lock);
 
-      if (from == 0 || to < from || to > committed_idx)
+        if (from == 0 || to < from || to > committed_idx)
+        {
+          return std::nullopt;
+        }
+
+        const auto file = get_file_from_idx(from);
+        if (
+          file == nullptr || file->get_start_idx() > from ||
+          file->get_last_idx() < to || file->is_recovery())
+        {
+          return std::nullopt;
+        }
+
+        return file->prepare_completed_chunk(from, to);
+      }();
+
+      if (!pending.has_value())
       {
         return std::nullopt;
       }
 
-      const auto file = get_file_from_idx(from);
-      if (
-        file == nullptr || file->get_start_idx() > from ||
-        file->get_last_idx() < to || file->is_recovery())
-      {
-        return std::nullopt;
-      }
-
-      return file->read_entries_as_completed_chunk(from, to);
+      return std::move(pending.value()).complete();
     }
 
     [[nodiscard]] size_t get_init_idx()

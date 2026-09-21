@@ -1084,6 +1084,47 @@ TEST_CASE("Committed ledger prefixes")
   REQUIRE(promoted_prefix.value() == first_prefix.value());
 }
 
+TEST_CASE("Committed ledger prefixes only depend on flushed bytes")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  Ledger ledger(ledger_dir, wf);
+  TestEntrySubmitter entry_submitter(ledger, 1024);
+
+  // Non-committable entries stay in the stdio buffer until the committable
+  // entry which follows them is flushed. The prefix is read with pread(), so
+  // it must observe them once they are committed.
+  for (size_t i = 0; i < 4; ++i)
+  {
+    entry_submitter.write(false);
+  }
+  entry_submitter.write(true);
+  ledger.commit(5);
+
+  // Leave an uncommitted, possibly unflushed tail after the committed range
+  for (size_t i = 0; i < 3; ++i)
+  {
+    entry_submitter.write(false);
+  }
+
+  const auto prefix = ledger.read_committed_ledger_prefix(1, 5);
+  REQUIRE(prefix.has_value());
+  verify_completed_chunk(prefix.value(), 1, 5);
+
+  const auto middle_prefix = ledger.read_committed_ledger_prefix(3, 5);
+  REQUIRE(middle_prefix.has_value());
+  verify_completed_chunk(middle_prefix.value(), 3, 5);
+
+  REQUIRE_FALSE(ledger.read_committed_ledger_prefix(1, 6).has_value());
+  REQUIRE_FALSE(ledger.committed_ledger_prefix_range_with_idx(6).has_value());
+
+  // Rolling back the tail leaves the committed prefix unchanged
+  entry_submitter.truncate(5);
+  const auto prefix_after_truncate = ledger.read_committed_ledger_prefix(1, 5);
+  REQUIRE(prefix_after_truncate.has_value());
+  REQUIRE(prefix_after_truncate.value() == prefix.value());
+}
+
 TEST_CASE("Committed ledger prefix files are not recovered")
 {
   auto dir = AutoDeleteFolder(ledger_dir);

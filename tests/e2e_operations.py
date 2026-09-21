@@ -1605,12 +1605,14 @@ def test_committed_ledger_prefix_access(network, args):
             with open(second_path, "wb") as prefix_file:
                 prefix_file.write(r.body.data())
 
-            ledger = ccf.ledger.Ledger([ledger_dir], committed_only=False)
-            assert len(ledger) == 2
-            assert [chunk.get_seqnos() for chunk in ledger] == [
-                (first_start, first_end),
-                (second_start, second_end),
-            ]
+            # Each prefix is a self-contained chunk, and consecutive prefixes
+            # are contiguous, but like the node the SDK never treats them as
+            # part of a ledger directory.
+            second_chunk = ccf.ledger.LedgerChunk(second_path)
+            assert second_chunk.get_seqnos() == (second_start, second_end)
+            assert len(second_chunk) == second_end - second_start + 1
+            assert second_start == first_end + 1
+            assert len(ccf.ledger.Ledger([ledger_dir], committed_only=False)) == 0
 
         r = c.get(
             "/node/ledger_chunk"

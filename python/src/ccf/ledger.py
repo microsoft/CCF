@@ -1291,6 +1291,12 @@ class Ledger:
             if path.endswith(IGNORED_FILE_SUFFIX):
                 return
 
+            # Committed prefixes are synthetic downloads rather than physical
+            # ledger files. Like the node, never treat them as part of a ledger
+            # directory; read them individually with LedgerChunk instead.
+            if sanitised_path.endswith(COMMITTED_PREFIX_FILE_SUFFIX):
+                return
+
             if committed_only and not sanitised_path.endswith(COMMITTED_FILE_SUFFIX):
                 return
 
