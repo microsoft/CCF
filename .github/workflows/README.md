@@ -78,6 +78,7 @@ Secondary continuous integration job. Runs more expensive, longer tests, such as
 
 - Runs daily on week days.
 - Can be manually run on a PR by setting `run-long-test` label, or via workflow dispatch.
+- VMSS jobs target `gha-vmss-d16av7-ci-c` to use pool C's larger runner capacity.
 
 File: `long-test.yml`
 3rd party dependencies: None
@@ -102,6 +103,7 @@ File: `ci-verification.yml`
 # Long Verification
 
 Runs the longer consensus model checking and simulation jobs each week.
+VMSS jobs target `gha-vmss-d16av7-ci-c` to use pool C's larger runner capacity.
 
 File: `long-verification.yml`
 3rd party dependencies: None
