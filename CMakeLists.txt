@@ -370,7 +370,7 @@ set(
   WORKER_THREADS
   1
   CACHE STRING
-  "Number of worker threads to start on each CCF node"
+  "Configured worker_threads value; each CCF node starts one additional worker"
 )
 
 set(
