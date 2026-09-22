@@ -31,6 +31,10 @@ File: `bencher.yml`
 
 Builds and runs CCF performance tests on the PR branch, then renders radar charts comparing up to five recent branch runs against the recent trend on `main`. Two nested shaded blue bands show the shared seven-run-half-life EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs. Both branch and `main` histories are restored from cumulative perf artifacts, and the orange branch lines progress from the faintest oldest run to the strongest latest run. Triggered on PRs that have the label `bench-ab`.
 
+After the ordinary tracing-disabled benchmarks, rebuilds with `CCF_RAFT_TRACING=ON` and runs the two-node `fluentd_emission` benchmark with export disabled and enabled on the same executable. The collector decodes Fluentd messages over local TCP without storage or Fluentd plugins.
+
+Results appear as separate `Fluentd TCP drain off` and `Fluentd TCP drain on` entries in the perf artifact and summary. Existing baseline measurements stay unchanged. Compare the two entries' throughput and latency to measure export overhead. Their radar percentages compare each entry against its own history, not against the other mode. Collector counts, node logs, configurations, and Locust statistics are uploaded as `fluentd-benchmark-diagnostics`.
+
 File: `bencher-ab.yml`
 3rd party dependencies: None
 
