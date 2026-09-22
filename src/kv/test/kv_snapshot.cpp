@@ -229,6 +229,56 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   }
 }
 
+TEST_CASE(
+  "Snapshot applies to a store which has rolled back" *
+  doctest::test_suite("snapshot"))
+{
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+
+  ccf::kv::Version snapshot_version = ccf::kv::NoVersion;
+  {
+    auto tx = store.create_tx();
+    tx.rw(string_map)->put("foo", "bar");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    snapshot_version = tx.commit_version();
+  }
+
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
+  {
+    ccf::kv::ScopedStoreMapsLock maps_lock(&store);
+    snapshot = store.snapshot_unsafe_maps(snapshot_version);
+  }
+  auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
+
+  // Snapshot application must not depend on the rollback count of the target
+  // store, which is unrelated to the snapshot's own consistency
+  ccf::kv::Store new_store;
+  new_store.set_encryptor(encryptor);
+  {
+    auto tx = new_store.create_tx();
+    tx.rw(string_map)->put("discarded", "value");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto view = new_store.commit_view();
+  new_store.rollback({view, 0}, view);
+  REQUIRE(new_store.check_rollback_count(1));
+
+  ccf::kv::ConsensusHookPtrs hooks;
+  REQUIRE_EQ(
+    new_store.deserialise_snapshot(
+      serialised_snapshot.data(), serialised_snapshot.size(), hooks),
+    ccf::kv::ApplyResult::PASS);
+  REQUIRE_EQ(new_store.current_version(), snapshot_version);
+
+  auto tx = new_store.create_tx();
+  auto* handle = tx.rw(string_map);
+  REQUIRE(handle->get("foo") == "bar");
+  REQUIRE_FALSE(handle->has("discarded"));
+}
+
 TEST_CASE("Old snapshots" * doctest::test_suite("snapshot"))
 {
   // Test that this code can still parse snapshots produced by old versions of

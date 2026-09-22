@@ -15,6 +15,14 @@ namespace ccf::kv::untyped
 {
   struct ChangeSet;
 
+  /** Read-only view of the changes made to a single map by the transaction
+   * which committed at a given version.
+   *
+   * The diff is reconstructed from a change set created for it (see
+   * ccf::kv::TxDiff): puts are the entries of the state which were written at
+   * the change set's start version, and deletes are the keys listed in the
+   * change set's writes. Nothing else is copied out of the underlying map.
+   */
   class MapDiff : public ccf::kv::AbstractHandle
   {
   public:
@@ -28,8 +36,14 @@ namespace ccf::kv::untyped
       std::function<bool(const KeyType& k, const std::optional<ValueType>& V)>;
 
   protected:
-    ccf::kv::untyped::Write& writes;
+    ccf::kv::untyped::ChangeSet& change_set;
     std::string map_name;
+
+    /** Get pointer to the value written at this diff's version if this key was
+     * written, else nullptr if it was deleted or not written. If non-null,
+     * points to something owned by change_set.
+     */
+    const ValueType* written_value(const KeyType& key);
 
     void foreach_(const ElementVisitorWithEarlyOut& fn);
 

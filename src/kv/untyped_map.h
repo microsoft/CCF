@@ -772,16 +772,25 @@ namespace ccf::kv::untyped
       {
         if (current->version <= version)
         {
+          // Only the deletes need to be copied for a diff: MapDiff
+          // reconstructs the puts from the state, where they are the entries
+          // written at current->version, and only consults writes for deletes.
           ccf::kv::untyped::Write writes;
           if (track_deletes_on_missing_keys)
           {
-            writes = current->writes;
+            for (const auto& [key, maybe_value] : current->writes)
+            {
+              if (!maybe_value.has_value())
+              {
+                writes.emplace_hint(writes.end(), key, std::nullopt);
+              }
+            }
           }
           changes = std::make_unique<untyped::ChangeSet>(
             roll.rollback_counter,
             current->state,
             roll.commits->get_head()->state,
-            writes,
+            std::move(writes),
             current->version);
           break;
         }
