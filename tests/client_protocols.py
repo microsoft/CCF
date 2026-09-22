@@ -6,6 +6,7 @@ import re
 import subprocess
 
 import infra.e2e_args
+import infra.interfaces
 import infra.net
 import infra.network
 import infra.proc
@@ -13,6 +14,10 @@ import suite.test_requirements as reqs
 
 # As installed by setup scripts
 H2SPEC_BIN = "/opt/h2spec/h2spec"
+
+# HTTP/2 is only served on a dedicated interface: the Python test client
+# only speaks HTTP/1.1, which the primary interface keeps for governance
+HTTP2_RPC_INTERFACE = "http2_interface"
 
 
 def compare_golden():
@@ -114,9 +119,9 @@ def test_http2(network, args):
             "--tls",
             "--insecure",
             "--host",
-            node.get_public_rpc_host(),
+            node.get_public_rpc_host(HTTP2_RPC_INTERFACE),
             "--port",
-            f"{node.get_public_rpc_port()}",
+            f"{node.get_public_rpc_port(HTTP2_RPC_INTERFACE)}",
             "--strict",
         ],
         check=True,
@@ -129,16 +134,10 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
+        # Note: The TLS report is generated against the primary (HTTP/1.1)
+        # interface, and should still mention ALPN HTTP/1.1 as HTTP/2 is
+        # experimental as of 3.x
         test_tls(network, args)
-
-    # Note: Start new network with HTTP/2 as TLS report should still
-    # mention ALPN HTTP/1.1 as HTTP/2 is experimental as of 3.x
-    args.http2 = True
-    args.nodes = infra.e2e_args.nodes(args, 1)
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_open(args)
         test_http2(network, args)
 
 
@@ -148,9 +147,15 @@ if __name__ == "__main__":
 
     args.nodes = infra.e2e_args.nodes(args, 1)
 
-    # Retain only the primary interface, delete any others
+    # Retain only the primary interface, delete any others, then add a
+    # dedicated HTTP/2 interface for the compliance test
+    primary_interface = args.nodes[0].get_primary_interface()
     args.nodes[0].rpc_interfaces = {
-        infra.interfaces.PRIMARY_RPC_INTERFACE: args.nodes[0].get_primary_interface()
+        infra.interfaces.PRIMARY_RPC_INTERFACE: primary_interface,
+        HTTP2_RPC_INTERFACE: infra.interfaces.RPCInterface(
+            host=primary_interface.host,
+            app_protocol="HTTP2",
+        ),
     }
 
     run(args)

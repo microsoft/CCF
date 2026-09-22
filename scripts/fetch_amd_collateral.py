@@ -5,7 +5,7 @@ import argparse
 from enum import Enum
 import logging
 import sys
-import httpx
+import requests
 import base64
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
@@ -131,10 +131,8 @@ if __name__ == "__main__":
     )
 
     logging.info(f"Fetching AMD leaf cert from {leaf_url}")
-    with httpx.Client() as client:
-        leaf_response = client.get(
-            leaf_url,
-        )
+    with requests.Session() as client:
+        leaf_response = client.get(leaf_url, timeout=30)
         leaf_response.raise_for_status()
         der = leaf_response.content
         leaf = (
@@ -147,8 +145,8 @@ if __name__ == "__main__":
     chain_url = make_chain_url(args.base_url, args.product_family)
 
     logging.info(f"Fetching AMD chain cert from {chain_url}")
-    with httpx.Client() as client:
-        chain_response = client.get(chain_url)
+    with requests.Session() as client:
+        chain_response = client.get(chain_url, timeout=30)
         chain_response.raise_for_status()
         chain = chain_response.text
         logging.info(f"AMD chain cert response: {chain_response.text}")

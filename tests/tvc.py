@@ -5,7 +5,7 @@ import argparse
 import json
 import random
 
-import httpx
+import requests
 
 """
 1. Run sandbox
@@ -31,6 +31,7 @@ import httpx
 
 KEY = "0"
 VALUE = "value"
+TIMEOUT_S = 5
 
 
 def log(**kwargs):
@@ -52,14 +53,15 @@ def retry(call, urls, **kwargs):
     while response is None or response.status_code not in (200, 204):
         try:
             url = random.choice(urls)
-            response = call(url, **kwargs)
-        except (httpx.ReadTimeout, httpx.ConnectTimeout):
+            response = call(url, timeout=TIMEOUT_S, **kwargs)
+        except requests.exceptions.Timeout:
             pass
     return response
 
 
 def run(targets, cacert):
-    session = httpx.Client(verify=cacert)
+    session = requests.Session()
+    session.verify = cacert
     tx = -1
     key_urls = [f"{target}/records/{KEY}" for target in targets]
     while True:

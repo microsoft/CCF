@@ -1440,17 +1440,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME e2e_logging_http2
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    BUCKET bucket_b
-    BUILD_DEPENDS logging logging_cose_only programmability js_generic
-    ADDITIONAL_ARGS
-      --js-app-bundle
-      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-      --http2
-  )
-
-  add_e2e_test(
     NAME partitions
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     LABEL partitions

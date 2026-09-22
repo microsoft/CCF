@@ -40,7 +40,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import ObjectIdentifier, load_pem_x509_certificate
 from infra.log_capture import flush_info
-from infra.member import AckException, RecoveryRole
+from infra.member import RecoveryRole
 from infra.runner import ConcurrentRunner
 from infra.tx_status import TxStatus
 from loguru import logger as LOG
@@ -157,13 +157,11 @@ def test(network, args):
         network=network,
         number_txs=1,
     )
-    # HTTP2 doesn't support forwarding
-    if not args.http2:
-        network.txs.issue(
-            network=network,
-            number_txs=1,
-            on_backup=True,
-        )
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
     network.txs.verify()
 
     return network
@@ -205,14 +203,7 @@ def test_illegal(network, args):
 
     def send_bad_raw_content(content):
         nonlocal additional_parsing_errors
-        try:
-            response = send_raw_content(content)
-        except http.client.RemoteDisconnected:
-            assert args.http2, "HTTP/2 interface should close session without error"
-            additional_parsing_errors += 1
-            return
-        else:
-            assert not args.http2, "HTTP/1.1 interface should return valid error"
+        response = send_raw_content(content)
 
         response_body = response.read()
         LOG.warning(response_body)
@@ -260,26 +251,22 @@ def test_illegal(network, args):
         == initial_parsing_errors + additional_parsing_errors
     )
 
-    if not args.http2:
-        good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
-        response = send_raw_content(good_content)
-        assert response.status == http.HTTPStatus.OK, (response.status, response.read())
-        send_corrupt_variations(good_content)
+    good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
+    response = send_raw_content(good_content)
+    assert response.status == http.HTTPStatus.OK, (response.status, response.read())
+    send_corrupt_variations(good_content)
 
     # Valid transactions are still accepted
     network.txs.issue(
         network=network,
         number_txs=1,
     )
-
-    # HTTP/2 does not support forwarding
-    if not args.http2:
-        network.txs.issue(
-            network=network,
-            number_txs=1,
-            on_backup=True,
-        )
-        network.txs.verify()
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
+    network.txs.verify()
 
     return network
 
@@ -346,7 +333,7 @@ def test_protocols(network, args):
     )
     expected_response_body, status_code, http_version = parse_result_out(res)
     assert status_code == "200", status_code
-    assert http_version == "2" if args.http2 else "1.1", http_version
+    assert http_version == "1.1", http_version
 
     protocols = {
         # WebSockets upgrade request is ignored
@@ -366,30 +353,14 @@ def test_protocols(network, args):
                 "option --http3: is unknown",
             ]
         },
+        # HTTP/1.x requests succeed, as HTTP/1.1
+        "--http1.0": {},
+        "--http1.1": {},
+        # TLS handshake negotiates HTTP/1.1
+        "--http2": {},
+        # This is disabled because the behaviour of curl differs from version 8.10, so we do not get consistent results across platforms
+        # "--http2-prior-knowledge": {},
     }
-    if args.http2:
-        protocols.update(
-            {
-                # HTTP/1.x requests fail with closed connection, as HTTP/2
-                "--http1.0": {"errors": ["Empty reply from server"]},
-                "--http1.1": {"errors": ["Empty reply from server"]},
-                # TLS handshake negotiates HTTP/2
-                "--http2": {},
-                "--http2-prior-knowledge": {},
-            }
-        )
-    else:  # HTTP/1.1
-        protocols.update(
-            {
-                # HTTP/1.x requests succeed, as HTTP/1.1
-                "--http1.0": {},
-                "--http1.1": {},
-                # TLS handshake negotiates HTTP/1.1
-                "--http2": {},
-                # This is disabled because the behaviour of curl differs from version 8.10, so we do not get consistent results across platforms
-                # "--http2-prior-knowledge": {},
-            }
-        )
 
     # Test additional protocols with curl
     for protocol, expected_result in protocols.items():
@@ -406,7 +377,7 @@ def test_protocols(network, args):
                 response_body == expected_response_body
             ), f"{response_body}\n !=\n{expected_response_body}"
             assert status_code == "200", status_code
-            assert http_version == "2" if args.http2 else "1.1", http_version
+            assert http_version == "1.1", http_version
         else:
             assert res.returncode != 0, res.returncode
             err = res.stderr.decode()
@@ -418,14 +389,12 @@ def test_protocols(network, args):
         network=network,
         number_txs=1,
     )
-    # HTTP/2 does not support forwarding
-    if not args.http2:
-        network.txs.issue(
-            network=network,
-            number_txs=1,
-            on_backup=True,
-        )
-        network.txs.verify()
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
+    network.txs.verify()
 
     return network
 
@@ -709,13 +678,7 @@ def test_multi_auth(network, args):
 def test_custom_auth(network, args):
     primary, other = network.find_primary_and_any_backup()
 
-    nodes = (primary, other)
-
-    if args.http2:
-        # HTTP2 doesn't support forwarding
-        nodes = (primary,)
-
-    for node in nodes:
+    for node in (primary, other):
         with node.client() as c:
             LOG.info("Request without custom headers is refused")
             r = c.get("/app/custom_auth")
@@ -755,13 +718,7 @@ def test_custom_auth(network, args):
 def test_custom_auth_safety(network, args):
     primary, other = network.find_primary_and_any_backup()
 
-    nodes = (primary, other)
-
-    if args.http2:
-        # HTTP2 doesn't support forwarding
-        nodes = (primary,)
-
-    for node in nodes:
+    for node in (primary, other):
         with node.client() as c:
             r = c.get(
                 "/app/custom_auth",
@@ -1544,50 +1501,27 @@ def escaped_query_tests(c, endpoint):
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
-@reqs.no_http2()
 @app.scoped_txs()
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
 
-    try:
-        with backup.client() as c:
-            check_commit = infra.checker.Checker(c)
-            ack = network.consortium.get_any_active_member().ack(backup)
-            check_commit(ack)
-    except AckException as e:
-        assert args.http2 is True
-        assert e.response.status_code == http.HTTPStatus.NOT_IMPLEMENTED
-        r = e.response.body.json()
-        assert (
-            r["error"]["message"]
-            == "Request cannot be forwarded to primary on HTTP/2 interface."
-        ), r
-    else:
-        assert args.http2 is False
+    with backup.client() as c:
+        check_commit = infra.checker.Checker(c)
+        ack = network.consortium.get_any_active_member().ack(backup)
+        check_commit(ack)
 
-    try:
-        msg = "forwarded_msg"
-        log_id = 7
-        network.txs.issue(
-            network,
-            number_txs=1,
-            on_backup=True,
-            idx=log_id,
-            send_public=False,
-            msg=msg,
-        )
-    except infra.logging_app.LoggingTxsIssueException as e:
-        assert args.http2 is True
-        assert e.response.status_code == http.HTTPStatus.NOT_IMPLEMENTED
-        r = e.response.body.json()
-        assert (
-            r["error"]["message"]
-            == "Request cannot be forwarded to primary on HTTP/2 interface."
-        ), r
-    else:
-        assert args.http2 is False
+    msg = "forwarded_msg"
+    log_id = 7
+    network.txs.issue(
+        network,
+        number_txs=1,
+        on_backup=True,
+        idx=log_id,
+        send_public=False,
+        msg=msg,
+    )
 
-    if args.package.startswith("samples/apps/logging/logging") and not args.http2:
+    if args.package.startswith("samples/apps/logging/logging"):
         with backup.client("user0") as c:
             escaped_query_tests(c, "request_query")
 
@@ -1596,7 +1530,6 @@ def test_forwarding_frontends(network, args):
 
 @reqs.description("Testing forwarding on user frontends without actor app prefix")
 @reqs.at_least_n_nodes(2)
-@reqs.no_http2()
 def test_forwarding_frontends_without_app_prefix(network, args):
     msg = "forwarded_msg"
     log_id = 7
@@ -1616,7 +1549,6 @@ def test_forwarding_frontends_without_app_prefix(network, args):
 @reqs.description("Testing forwarding on long-lived connection")
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
-@reqs.no_http2()
 def test_long_lived_forwarding(network, args):
     primary, _ = network.find_primary()
 
@@ -2368,7 +2300,6 @@ def run(args):
         for interface_name, host in additional_interfaces(local_node_id).items():
             node_host.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
                 host=host,
-                app_protocol="HTTP2" if args.http2 else "HTTP1",
             )
 
     txs = app.LoggingTxs("user0")
@@ -2652,12 +2583,10 @@ def do_main_tests(network, args):
         test_cose_signature_schema(network, args)
         test_cose_receipt_schema(network, args)
 
-    # HTTP2 doesn't support forwarding
-    if not args.http2:
-        test_forwarding_frontends(network, args)
-        test_forwarding_frontends_without_app_prefix(network, args)
-        if not os.getenv("TSAN_OPTIONS"):
-            test_long_lived_forwarding(network, args)
+    test_forwarding_frontends(network, args)
+    test_forwarding_frontends_without_app_prefix(network, args)
+    if not os.getenv("TSAN_OPTIONS"):
+        test_long_lived_forwarding(network, args)
     test_user_data_ACL(network, args)
     test_cert_prefix(network, args)
     test_anonymous_caller(network, args)
@@ -2687,13 +2616,12 @@ def do_main_tests(network, args):
     if args.package.startswith("samples/apps/logging/logging"):
         test_etags(network, args)
         test_cose_config(network, args)
-        if not args.http2:
-            test_blocking_calls(network, args)
+        test_blocking_calls(network, args)
 
     # These tests require a service which has only ever emitted COSE signatures,
     # unlike a service upgraded from Dual mode with legacy signatures in its ledger.
     is_cose_only_from_genesis = args.package.endswith("_cose_only")
-    if is_cose_only_from_genesis and not args.http2:
+    if is_cose_only_from_genesis:
         test_cose_set_member(network, args)
 
 

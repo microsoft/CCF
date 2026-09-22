@@ -211,7 +211,6 @@ class RPCInterface(Interface):
         self.max_http_request_target_size = args.max_http_request_target_size
         self.max_http_headers_count = args.max_http_headers_count
         self.forwarding_timeout_ms = args.forwarding_timeout_ms
-        self.app_protocol = "HTTP2" if args.http2 else "HTTP1"
 
     def parse_from_str(self, s):
         # Format: local|ssh(,tcp|udp)://hostname:port

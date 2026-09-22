@@ -24,7 +24,11 @@ from threading import local
 from typing import Any
 
 import ccf.cose
-import httpx
+import requests
+import requests.auth
+import requests.exceptions
+import urllib3
+import urllib3.exceptions
 from ccf.tx_id import TxID
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -77,9 +81,7 @@ def get_clock():
     return _per_thread.CLOCK
 
 
-class HttpSig(httpx.Auth):
-    requires_request_body = True
-
+class HttpSig(requests.auth.AuthBase):
     def __init__(self, key_id, pem_private_key):
         self.key_id = key_id
         self.private_key = load_pem_private_key(
@@ -108,16 +110,19 @@ class HttpSig(httpx.Auth):
             f'Signature keyId="{key_id}",algorithm="hs2019",headers="(request-target) digest content-length",signature="{b64signature}"'
         )
 
-    def auth_flow(self, request):
+    def __call__(self, request: requests.PreparedRequest) -> requests.PreparedRequest:
+        content = request.body if request.body is not None else b""
+        if isinstance(content, str):
+            content = content.encode("utf-8")
         HttpSig.add_signature_headers(
             request.headers,
-            request.content,
+            content,
             request.method,
-            request.url.raw_path.decode("utf-8"),
+            request.path_url,
             self.key_id,
             self.private_key,
         )
-        yield request
+        return request
 
 
 def truncate(string: str, max_len: int = 256):
@@ -212,17 +217,19 @@ class ResponseBody(abc.ABC):
 
 
 class RequestsResponseBody(ResponseBody):
-    def __init__(self, response: httpx.Response):
+    def __init__(self, response: requests.Response):
         self._response = response
 
     def data(self):
         return self._response.content
 
     def text(self):
-        return self._response.text
+        # Decode as UTF-8 regardless of any charset guess made by requests,
+        # replacing invalid sequences rather than raising
+        return self._response.content.decode("utf-8", errors="replace")
 
     def json(self):
-        return self._response.json()
+        return json.loads(self._response.content)
 
 
 class RawResponseBody(ResponseBody):
@@ -469,9 +476,6 @@ class CurlClient:
         else:
             self.ca_curve = None
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
-        self.extra_args = []
-        if kwargs.get("http2"):
-            self.extra_args.append("--http2")
         self.cose_header_builder = cose_protected_headers_api_classic
 
     def request(
@@ -563,9 +567,6 @@ class CurlClient:
             if not self.ca and not self.session_auth:
                 cmd.extend(["-k"])  # Allow insecure connections
 
-            for arg in self.extra_args:
-                cmd.append(arg)
-
             cmd_s = " ".join(cmd)
             env = {k: v for k, v in os.environ.items()}
 
@@ -607,26 +608,17 @@ class CurlClient:
         pass
 
     @staticmethod
-    def extra_headers_count(http2=False):
+    def extra_headers_count():
         # curl inserts the following headers in every request
-        if http2:
-            #  :method: GET/POST
-            #  :authority: <address>
-            #  :scheme: https
-            #  :path: /path
-            #  accept: */*
-            #  user-agent: curl/<version>
-            return 6
-        else:
-            #  host: <address>
-            #  user-agent: curl/<version>
-            #  accept: */*
-            return 3
+        #  host: <address>
+        #  user-agent: curl/<version>
+        #  accept: */*
+        return 3
 
 
-class HttpxClient:
+class RequestsClient:
     """
-    CCF default client and wrapper around Python httpx, handling HTTP signatures.
+    CCF default client and wrapper around Python requests, handling HTTP signatures.
     """
 
     _auth_provider = HttpSig
@@ -637,13 +629,19 @@ class HttpxClient:
     def __init__(
         self,
         hostname: str,
-        ca: str,
+        ca: str | None,
         session_auth: Identity | None = None,
         signing_auth: Identity | None = None,
         cose_signing_auth: Identity | None = None,
         common_headers: dict | None = None,
+        protocol: str = "https",
+        headers: dict | None = None,
         **kwargs,
     ):
+        if kwargs:
+            raise TypeError(
+                f"Unexpected RequestsClient arguments: {', '.join(sorted(kwargs))}"
+            )
         self.hostname = hostname
         self.ca = ca
         self.session_auth = session_auth
@@ -651,14 +649,17 @@ class HttpxClient:
         self.cose_signing_auth = cose_signing_auth
         self.common_headers = common_headers
         self.key_id = None
-        cert = None
+        self.protocol = protocol
+        self.session = requests.Session()
+        if self.ca:
+            self.session.verify = self.ca
+        else:
+            self.session.verify = False
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         if self.session_auth:
-            cert = (self.session_auth.cert, self.session_auth.key)
-        self.protocol = "https"
-        if "protocol" in kwargs:
-            self.protocol = kwargs.get("protocol")
-            kwargs.pop("protocol")
-        self.session = httpx.Client(verify=self.ca, cert=cert, **kwargs)
+            self.session.cert = (self.session_auth.cert, self.session_auth.key)
+        if headers:
+            self.session.headers.update(headers)
         sig_auth = signing_auth or cose_signing_auth
         if sig_auth:
             with open(sig_auth.cert, encoding="utf-8") as cert_file:
@@ -674,30 +675,41 @@ class HttpxClient:
     def _request(
         self,
         request: Request,
-        request_body: bytes,
+        request_body: bytes | None,
         auth: Any,
         extra_headers: dict | None,
         timeout: int,
     ):
         self._last_request = (request, request_body, auth, extra_headers, timeout)
         try:
+            # Redirects are followed by CCFClient, so that the request is
+            # re-issued unmodified (including auth) against the new target
             response = self.session.request(
                 request.http_verb,
                 url=f"{self.protocol}://{self.hostname}{request.path}",
                 auth=auth,
                 headers=extra_headers,
                 timeout=timeout,
-                content=request_body,
+                data=request_body,
+                allow_redirects=False,
             )
-        except httpx.TimeoutException as exc:
+        except requests.exceptions.Timeout as exc:
             raise TimeoutError from exc
-        except httpx.ConnectError as exc:
-            raise CCFConnectionException from exc
-        except (httpx.WriteError, httpx.ReadError, httpx.RemoteProtocolError) as exc:
+        except requests.exceptions.ChunkedEncodingError as exc:
             raise CCFIOException from exc
+        except requests.exceptions.ConnectionError as exc:
+            # requests wraps both connection establishment failures and
+            # I/O errors on an established connection in ConnectionError,
+            # so inspect the underlying urllib3 error to tell them apart
+            cause = exc.args[0] if exc.args else None
+            if isinstance(cause, urllib3.exceptions.ReadTimeoutError):
+                raise TimeoutError from exc
+            if isinstance(cause, urllib3.exceptions.ProtocolError):
+                raise CCFIOException from exc
+            raise CCFConnectionException from exc
         except Exception as exc:
             raise RuntimeError(
-                f"HttpxClient failed with unexpected error: {exc}"
+                f"RequestsClient failed with unexpected error: {exc}"
             ) from exc
 
         return Response.from_requests_response(response)
@@ -804,24 +816,14 @@ class HttpxClient:
         self.session.close()
 
     @staticmethod
-    def extra_headers_count(http2=False):
-        # httpx inserts the following headers in every request
-        if http2:
-            #  :method: GET/POST
-            #  :authority: <address>
-            #  :scheme: https
-            #  :path: /path
-            #  accept: */*
-            #  accept-encoding: gzip, deflate, br
-            #  user-agent: python-httpx/<version>
-            return 7
-        else:
-            #  host: <address>
-            #  accept: */*
-            #  accept-encoding: gzip, deflate, br
-            #  connection: keep-alive
-            #  user-agent: python-httpx/<version>
-            return 5
+    def extra_headers_count():
+        # requests inserts the following headers in every request
+        #  host: <address>
+        #  accept: */*
+        #  accept-encoding: gzip, deflate, ...
+        #  connection: keep-alive
+        #  user-agent: python-requests/<version>
+        return 5
 
 
 class RawSocketClient:
@@ -1013,13 +1015,13 @@ class CCFClient:
     default_impl_type = (
         CurlClient
         if os.getenv("CURL_CLIENT")
-        else RawSocketClient if os.getenv("SOCKET_CLIENT") else HttpxClient
+        else RawSocketClient if os.getenv("SOCKET_CLIENT") else RequestsClient
     )
 
     def set_created_at_override(self, value):
         if isinstance(self.client_impl, CurlClient):
             assert value.tzinfo, "created_at must be timezone aware"
-        elif isinstance(self.client_impl, HttpxClient):
+        elif isinstance(self.client_impl, RequestsClient):
             assert (
                 isinstance(value, int) or value.tzinfo
             ), "created_at must be integer or timezone aware"
@@ -1036,7 +1038,7 @@ class CCFClient:
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         election_timeout_ms: int | None = None,
         description: str | None = None,
-        impl_type: CurlClient | HttpxClient | RawSocketClient = default_impl_type,
+        impl_type: CurlClient | RequestsClient | RawSocketClient = default_impl_type,
         common_headers: dict | None = None,
         openapi_validator=None,
         **kwargs,

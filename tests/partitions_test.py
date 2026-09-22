@@ -824,7 +824,6 @@ def _test_invalidated_blocking_call(network, args, blocking_path):
     "Session consistency is provided, and inconsistencies after elections are replaced by errors"
 )
 @reqs.supports_methods("/app/log/public")
-@reqs.no_http2()
 def test_session_consistency(network, args):
     # Ensure we have 5 nodes
     original_size = network.resize(5, args)
@@ -1595,9 +1594,7 @@ def run_forwarding_and_sessions(args):
     with partitioned_network(args) as network:
         test_forwarding_timeout(network, args)
         test_invalidated_blocking_calls(network, args)
-        # HTTP2 doesn't support forwarding
-        if not args.http2:
-            test_session_consistency(network, args)
+        test_session_consistency(network, args)
 
 
 def run_recovery_elections(args):

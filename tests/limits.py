@@ -132,14 +132,12 @@ def run_transaction_size_limit_checks(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    if not cr.args.http2:
-        # No support for forwarding with HTTP/2
-        cr.add(
-            "parser_limits",
-            run_parser_limits_checks,
-            package="samples/apps/logging/logging",
-            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        )
+    cr.add(
+        "parser_limits",
+        run_parser_limits_checks,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
 
     cr.add(
         "transaction_size_limit",
