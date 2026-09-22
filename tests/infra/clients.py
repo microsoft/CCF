@@ -25,9 +25,12 @@ from typing import Any
 
 import ccf.cose
 import requests
+import requests.adapters
 import requests.auth
 import requests.exceptions
 import urllib3
+import urllib3.connection
+import urllib3.connectionpool
 import urllib3.exceptions
 from ccf.tx_id import TxID
 from cryptography import x509
@@ -616,6 +619,43 @@ class CurlClient:
         return 3
 
 
+class ConnectionEstablishmentError(urllib3.exceptions.NewConnectionError):
+    """
+    Raised for any failure while establishing a connection (TCP connect or TLS
+    handshake), so that it can be told apart from I/O errors on a connection
+    which was already established.
+    """
+
+
+class _ClassifyingHTTPSConnection(urllib3.connection.HTTPSConnection):
+    def connect(self):
+        try:
+            super().connect()
+        except (
+            urllib3.exceptions.NewConnectionError,
+            urllib3.exceptions.ConnectTimeoutError,
+            TimeoutError,
+        ):
+            raise
+        except Exception as exc:
+            raise ConnectionEstablishmentError(
+                self, f"Failed to establish a new connection: {exc}"
+            ) from exc
+
+
+class _ClassifyingHTTPSConnectionPool(urllib3.connectionpool.HTTPSConnectionPool):
+    ConnectionCls = _ClassifyingHTTPSConnection
+
+
+class _ClassifyingHTTPAdapter(requests.adapters.HTTPAdapter):
+    def init_poolmanager(self, *args, **kwargs):
+        super().init_poolmanager(*args, **kwargs)
+        self.poolmanager.pool_classes_by_scheme = {
+            **self.poolmanager.pool_classes_by_scheme,
+            "https": _ClassifyingHTTPSConnectionPool,
+        }
+
+
 class RequestsClient:
     """
     CCF default client and wrapper around Python requests, handling HTTP signatures.
@@ -651,6 +691,7 @@ class RequestsClient:
         self.key_id = None
         self.protocol = protocol
         self.session = requests.Session()
+        self.session.mount("https://", _ClassifyingHTTPAdapter())
         if self.ca:
             self.session.verify = self.ca
         else:
@@ -698,15 +739,24 @@ class RequestsClient:
         except requests.exceptions.ChunkedEncodingError as exc:
             raise CCFIOException from exc
         except requests.exceptions.ConnectionError as exc:
-            # requests wraps both connection establishment failures and
-            # I/O errors on an established connection in ConnectionError,
-            # so inspect the underlying urllib3 error to tell them apart
+            # requests wraps both connection establishment failures and I/O
+            # errors on an established connection in ConnectionError, so
+            # inspect the underlying urllib3 error to tell them apart. Only
+            # the former should be retried by CCFClient.
             cause = exc.args[0] if exc.args else None
+            if isinstance(cause, urllib3.exceptions.MaxRetryError):
+                cause = cause.reason
             if isinstance(cause, urllib3.exceptions.ReadTimeoutError):
                 raise TimeoutError from exc
-            if isinstance(cause, urllib3.exceptions.ProtocolError):
-                raise CCFIOException from exc
-            raise CCFConnectionException from exc
+            if isinstance(
+                cause,
+                (
+                    urllib3.exceptions.NewConnectionError,
+                    urllib3.exceptions.ConnectTimeoutError,
+                ),
+            ):
+                raise CCFConnectionException from exc
+            raise CCFIOException from exc
         except Exception as exc:
             raise RuntimeError(
                 f"RequestsClient failed with unexpected error: {exc}"
@@ -765,7 +815,10 @@ class RequestsClient:
                 request_body = json.dumps(request.body).encode()
                 content_type = CONTENT_TYPE_JSON
 
-            if "content-type" not in request.headers and len(request.body) > 0:
+            # requests treats header names case-insensitively, so a caller's
+            # Content-Type must be detected regardless of its case
+            has_content_type = any(k.lower() == "content-type" for k in extra_headers)
+            if not has_content_type and len(request.body) > 0:
                 extra_headers["content-type"] = content_type
 
         if self.cose_signing_auth is not None and request.http_verb != "GET":

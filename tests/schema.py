@@ -346,6 +346,9 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=1,
         ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
+        # Sign after every transaction, so that the number of chunks does not
+        # depend on how quickly the client issues transactions
+        sig_tx_interval=1,
     )
 
     for name, target in (
