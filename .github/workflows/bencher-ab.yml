@@ -52,10 +52,11 @@ jobs:
           ninja
           # Microbenchmarks
           ./tests.sh -VV -L benchmark
-          # Measure unconditional tracing without an exporter on the existing workloads.
-          ./tests.sh -VV -L perf -C perf -E '^fluentd_emission$'
+          # Export Raft traces from every node in the existing workloads.
+          CCF_BENCHMARK_FLUENTD=1 ./tests.sh -VV -L perf -C perf -E '^fluentd_emission$' --no-tests=error
           # Convert microbenchmark output to bencher json
           source env/bin/activate
+          PYTHONPATH=../tests python -m unittest fluentd_benchmark_test
           PYTHONPATH=../tests python convert_pico_to_bencher.py
 
       - name: Upload benchmark diagnostics
@@ -64,6 +65,7 @@ jobs:
         with:
           name: benchmark-diagnostics
           path: |
+            build/*_received.json
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err

@@ -31,7 +31,9 @@ File: `bencher.yml`
 
 Builds and runs CCF performance tests on the PR branch, then renders radar charts comparing up to five recent branch runs against the recent trend on `main`. Two nested shaded blue bands show the shared seven-run-half-life EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs. Both branch and `main` histories are restored from cumulative perf artifacts, and the orange branch lines progress from the faintest oldest run to the strongest latest run. Triggered on PRs that have the label `bench-ab`.
 
-Runs the existing workloads with Raft tracing always compiled in and no collector configured. The separate paired `fluentd_emission` benchmark is excluded, so the latest radar curve measures the cost of unconditional tracing without export against `main`. Benchmark names and worker settings stay unchanged. Node logs, configurations, and Locust statistics are uploaded as `benchmark-diagnostics`.
+Runs the existing end-to-end workloads with `CCF_BENCHMARK_FLUENTD=1`. Each workload and signature interval starts a local Fluentd-compatible TCP collector and configures every node to export Raft traces to it. The collector decodes messages without storage or Fluentd plugins. The run fails unless the collector receives events from every node. Microbenchmarks use the same unconditional-tracing build but do not start CCF nodes.
+
+The separate paired `fluentd_emission` benchmark is excluded. Benchmark names and worker settings stay unchanged, so the latest radar curve shows export-enabled performance against `main` alongside earlier branch runs. Collector counts, node logs, configurations, and Locust statistics are uploaded as `benchmark-diagnostics`. To run the same mode locally, set `CCF_BENCHMARK_FLUENTD=1` when invoking a Locust benchmark.
 
 File: `bencher-ab.yml`
 3rd party dependencies: None
