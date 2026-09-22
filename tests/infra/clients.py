@@ -29,6 +29,7 @@ import requests.adapters
 import requests.auth
 import requests.exceptions
 import urllib3
+import urllib3._collections
 import urllib3.connection
 import urllib3.connectionpool
 import urllib3.exceptions
@@ -647,13 +648,21 @@ class _ClassifyingHTTPSConnectionPool(urllib3.connectionpool.HTTPSConnectionPool
     ConnectionCls = _ClassifyingHTTPSConnection
 
 
-class _ClassifyingHTTPAdapter(requests.adapters.HTTPAdapter):
-    def init_poolmanager(self, *args, **kwargs):
-        super().init_poolmanager(*args, **kwargs)
+class _CCFHTTPAdapter(requests.adapters.HTTPAdapter):
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
         self.poolmanager.pool_classes_by_scheme = {
             **self.poolmanager.pool_classes_by_scheme,
             "https": _ClassifyingHTTPSConnectionPool,
         }
+        # Close pooled connections as soon as the pool manager is cleared (ie
+        # when the session is closed). urllib3 >= 2.8 instead waits for the
+        # pools to be garbage collected, but responses keep a reference to
+        # their pool, so a retained response would keep its connection (and
+        # the corresponding CCF session) open after the client is closed.
+        self.poolmanager.pools = urllib3._collections.RecentlyUsedContainer(
+            connections, dispose_func=lambda pool: pool.close()
+        )
 
 
 class RequestsClient:
@@ -691,7 +700,9 @@ class RequestsClient:
         self.key_id = None
         self.protocol = protocol
         self.session = requests.Session()
-        self.session.mount("https://", _ClassifyingHTTPAdapter())
+        adapter = _CCFHTTPAdapter()
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
         if self.ca:
             self.session.verify = self.ca
         else:
@@ -1177,9 +1188,14 @@ class CCFClient:
             r = Request(redirect_path, body, http_verb, headers)
             request_client = temp_client
 
-            response = request_client.request(
-                r, timeout, cose_header_parameters_override
-            )
+            # Response bodies are fully read by the client implementation, so
+            # the temporary client (and its connection) can be closed at once
+            try:
+                response = request_client.request(
+                    r, timeout, cose_header_parameters_override
+                )
+            finally:
+                temp_client.close()
             flush_info([str(response)], log_capture, 3)
 
         if self.openapi_validator is not None and validate_openapi:
