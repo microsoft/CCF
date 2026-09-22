@@ -17,12 +17,9 @@
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/retired_nodes_cleanup.h"
+#include "raft_trace_msgpack.h"
 #include "raft_types.h"
 #include "service/tables/signatures.h"
-
-#ifdef CCF_RAFT_TRACING
-#  include "raft_trace_msgpack.h"
-#endif
 
 #include <algorithm>
 #include <list>
@@ -510,9 +507,7 @@ namespace aft
       RAFT_DEBUG_FMT(
         "Configurations: add new configuration at {}: {{{}}}", idx, conf);
 
-#ifdef CCF_RAFT_TRACING
       trace::add_configuration(*state, configurations, idx, conf, idx);
-#endif
 
       // Detect when we are retired by observing a configuration
       // from which we are absent following a configuration in which
@@ -644,9 +639,7 @@ namespace aft
           (globally_committable ? " committable" : ""),
           hooks->size());
 
-#ifdef CCF_RAFT_TRACING
         trace::replicate(*state, term, index, globally_committable);
-#endif
 
         for (auto& hook : *hooks)
         {
@@ -1046,10 +1039,8 @@ namespace aft
 
       auto& node = all_other_nodes.at(to);
 
-#ifdef CCF_RAFT_TRACING
       trace::send_append_entries(
         *state, ae, to.value(), node.match_idx, node.sent_idx);
-#endif
 
       // The host will append log entries to this message when it is
       // sent to the destination node.
@@ -1082,9 +1073,7 @@ namespace aft
         r.idx,
         r.term);
 
-#ifdef CCF_RAFT_TRACING
       trace::recv_append_entries(*state, r, from.value());
-#endif
 
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
@@ -1335,9 +1324,7 @@ namespace aft
         auto& [ds, i] = ae;
         RAFT_DEBUG_FMT("Replicating on follower {}: {}", state->node_id, i);
 
-#ifdef CCF_RAFT_TRACING
         trace::execute_append_entries_sync(*state, from.value());
-#endif
 
         bool track_deletes_on_missing_keys = false;
         ccf::kv::ApplyResult apply_success =
@@ -1508,9 +1495,7 @@ namespace aft
         response_idx,
         (answer == AppendEntriesResponseType::OK ? "ACK" : "NACK"));
 
-#ifdef CCF_RAFT_TRACING
       trace::send_append_entries_response(*state, response, to.value());
-#endif
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -1532,10 +1517,8 @@ namespace aft
         return;
       }
 
-#ifdef CCF_RAFT_TRACING
       trace::recv_append_entries_response(
         *state, r, from.value(), node->second.match_idx, node->second.sent_idx);
-#endif
 
       // Ignore if we're not the leader.
       if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
@@ -1636,9 +1619,7 @@ namespace aft
         .term_of_last_committable_idx =
           get_term_internal(last_committable_idx)};
 
-#ifdef CCF_RAFT_TRACING
       trace::send_request_vote(*state, rpv, to.value());
-#endif
 
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rpv);
     }
@@ -1654,9 +1635,7 @@ namespace aft
         .term_of_last_committable_idx =
           get_term_internal(last_committable_idx)};
 
-#ifdef CCF_RAFT_TRACING
       trace::send_request_vote(*state, rv, to.value());
-#endif
 
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }
@@ -1782,9 +1761,7 @@ namespace aft
     {
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
-#ifdef CCF_RAFT_TRACING
       trace::recv_request_vote(*state, r, from.value());
-#endif
 
       recv_request_vote_unsafe(from, r, ElectionType::RegularVote);
     }
@@ -1793,9 +1770,7 @@ namespace aft
     {
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
-#ifdef CCF_RAFT_TRACING
       trace::recv_request_vote(*state, r, from.value());
-#endif
 
       // A pre-vote is a speculative request vote, so we translate it back to a
       // RequestVote to avoid duplicating the logic.
@@ -1850,9 +1825,7 @@ namespace aft
     {
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
-#ifdef CCF_RAFT_TRACING
       trace::recv_request_vote_response(*state, r, from.value());
-#endif
 
       // Ignore if we don't recognise the node.
       auto node = all_other_nodes.find(from);
@@ -1972,9 +1945,7 @@ namespace aft
     {
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
-#ifdef CCF_RAFT_TRACING
       trace::recv_propose_request_vote(*state, r, from.value());
-#endif
 
       if (!is_retired_committed() && ticking && r.term == state->current_view)
       {
@@ -2026,9 +1997,7 @@ namespace aft
         state->node_id,
         state->current_view);
 
-#ifdef CCF_RAFT_TRACING
       trace::become_pre_vote_candidate(*state, configurations);
-#endif
 
       add_vote_for_me(state->node_id);
 
@@ -2068,9 +2037,7 @@ namespace aft
       RAFT_INFO_FMT(
         "Becoming candidate {}: {}", state->node_id, state->current_view);
 
-#ifdef CCF_RAFT_TRACING
       trace::become_candidate(*state, configurations);
-#endif
 
       add_vote_for_me(state->node_id);
 
@@ -2119,9 +2086,7 @@ namespace aft
       RAFT_INFO_FMT(
         "Becoming leader {}: {}", state->node_id, state->current_view);
 
-#ifdef CCF_RAFT_TRACING
       trace::become_leader(*state, configurations);
-#endif
 
       // Try to advance commit at once if there are no other nodes.
       if (other_nodes_in_active_configs().size() == 0)
@@ -2163,9 +2128,7 @@ namespace aft
         state->current_view,
         state->commit_idx);
 
-#ifdef CCF_RAFT_TRACING
       trace::become_follower(*state, configurations);
-#endif
     }
 
     // Called when a replica becomes aware of the existence of a new term
@@ -2471,9 +2434,7 @@ namespace aft
         return;
       }
 
-#ifdef CCF_RAFT_TRACING
       trace::commit(*state, idx, configurations);
-#endif
 
       compact_committable_indices(idx);
 
@@ -2651,12 +2612,10 @@ namespace aft
       return *state;
     }
 
-#ifdef CCF_RAFT_TRACING
     const State& get_state_for_trace() const
     {
       return *state;
     }
-#endif
 
   private:
     void nominate_successor_unsafe()
@@ -2675,9 +2634,7 @@ namespace aft
 
       if (successor.has_value())
       {
-#ifdef CCF_RAFT_TRACING
         trace::step_down_and_nominate_successor(*state, configurations);
-#endif
 
         send_propose_request_vote(successor.value());
       }

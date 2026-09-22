@@ -22,6 +22,7 @@ bucket_c:
   governance_test
   code_update_test
   e2e_logging
+  raft_trace_e2e
   programmability_and_jwt
   e2e_limits
   e2e_redirects

@@ -10,7 +10,7 @@
       "properties": {
         "fluentd": {
           "type": "object",
-          "description": "Optional trace export to a trusted Fluentd in_forward listener over unauthenticated, unencrypted TCP. Delivery is best effort; collector outages do not prevent node startup. Raft events require a build with CCF_RAFT_TRACING=ON.",
+          "description": "Optional trace export to a trusted Fluentd in_forward listener over unauthenticated, unencrypted TCP. Delivery is best effort; collector outages do not prevent node startup. Raft tracing is always compiled in; events are exported only when this endpoint is configured.",
           "properties": {
             "host": {
               "type": "string",

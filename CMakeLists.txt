@@ -465,11 +465,6 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
 
-option(CCF_RAFT_TRACING "Enable tracing of Raft consensus" OFF)
-if(CCF_RAFT_TRACING)
-  add_compile_definitions(CCF_RAFT_TRACING)
-endif()
-
 # Build common library for CCF enclaves
 set(
   CCF_IMPL_SOURCE
@@ -781,7 +776,6 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tracing/test/fluentd.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tracing/test/events.cpp
     )
-    target_compile_options(tracing_test PRIVATE -UCCF_RAFT_TRACING)
     target_link_options(
       tracing_test
       PRIVATE "LINKER:--wrap=send" "LINKER:--wrap=_Znwm"
@@ -1120,16 +1114,11 @@ if(BUILD_TESTS)
     target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
     target_include_directories(raft_driver PRIVATE src/aft)
 
-    set(RAFT_SCENARIO_ARGS)
-    if(CCF_RAFT_TRACING)
-      list(APPEND RAFT_SCENARIO_ARGS --raft-tracing)
-    endif()
     add_test(
       NAME raft_scenario_test
       COMMAND
         ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
-        ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
-        ${RAFT_SCENARIO_ARGS}
+        ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/ --raft-tracing
     )
     add_test_target(raft_scenario_test raft_driver)
     add_test_label(raft_scenario_test raft_scenario bucket_c)
@@ -1415,23 +1404,18 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
-  if(CCF_RAFT_TRACING)
-    find_program(FLUENTD_EXECUTABLE fluentd)
-    set(FLUENTD_TEST_ARGS)
-    if(FLUENTD_EXECUTABLE)
-      list(APPEND FLUENTD_TEST_ARGS --fluentd ${FLUENTD_EXECUTABLE})
-    endif()
-    add_e2e_test(
-      NAME raft_trace_e2e
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/raft_trace_e2e.py
-      BUCKET bucket_c
-      BUILD_DEPENDS logging
-      ADDITIONAL_ARGS
-        --package
-        samples/apps/logging/logging
-        ${FLUENTD_TEST_ARGS}
-    )
+  find_program(FLUENTD_EXECUTABLE fluentd)
+  set(FLUENTD_TEST_ARGS)
+  if(FLUENTD_EXECUTABLE)
+    list(APPEND FLUENTD_TEST_ARGS --fluentd ${FLUENTD_EXECUTABLE})
   endif()
+  add_e2e_test(
+    NAME raft_trace_e2e
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/raft_trace_e2e.py
+    BUCKET bucket_c
+    BUILD_DEPENDS logging
+    ADDITIONAL_ARGS --package samples/apps/logging/logging ${FLUENTD_TEST_ARGS}
+  )
 
   set(
     RBAC_CONSTITUTION_ARGS
@@ -1687,32 +1671,30 @@ if(BUILD_TESTS)
       100
   )
 
-  if(CCF_RAFT_TRACING)
-    add_e2e_test(
-      NAME fluentd_emission
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fluentd_benchmark.py
-      LABEL perf
-      CONFIGURATIONS perf
-      BUILD_DEPENDS basic
-      ADDITIONAL_ARGS
-        --package
-        "samples/apps/basic/basic"
-        --worker-threads
-        2
-        --snapshot-tx-interval
-        1000000000
-        --users
-        320
-        --spawn-rate
-        320
-        --locust-processes
-        4
-        --measure-time-s
-        20
-        --sig-ms-intervals
-        100
-    )
-  endif()
+  add_e2e_test(
+    NAME fluentd_emission
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fluentd_benchmark.py
+    LABEL perf
+    CONFIGURATIONS perf
+    BUILD_DEPENDS basic
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/basic/basic"
+      --worker-threads
+      2
+      --snapshot-tx-interval
+      1000000000
+      --users
+      320
+      --spawn-rate
+      320
+      --locust-processes
+      4
+      --measure-time-s
+      20
+      --sig-ms-intervals
+      100
+  )
 
   # JWT-authenticated blocking logging workload, driven by locust so that the
   # number of concurrent clients can be varied.

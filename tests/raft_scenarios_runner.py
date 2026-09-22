@@ -47,7 +47,7 @@ def preprocess_for_trace_validation(log):
     expected sequence of "become_leader", "add_configuration", "replicate" (committable),
     followed by "commit", and replace it with a "bootstrap" entry.
     """
-    # Log may be empty if CCF_RAFT_TRACING=OFF
+    # Scenarios without commands produce no trace records.
     if not log:
         return log
     log_by_node = defaultdict(list)
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--raft-tracing",
         action="store_true",
-        help="Capture traces from a driver built with CCF_RAFT_TRACING=ON",
+        help="Capture Raft traces from the driver through a local TCP collector",
     )
     parser.add_argument(
         "--compare-driver",

@@ -52,34 +52,22 @@ jobs:
           ninja
           # Microbenchmarks
           ./tests.sh -VV -L benchmark
-          # End to end performance tests
-          ./tests.sh -VV -L perf -C perf
+          # Measure unconditional tracing without an exporter on the existing workloads.
+          ./tests.sh -VV -L perf -C perf -E '^fluentd_emission$'
           # Convert microbenchmark output to bencher json
           source env/bin/activate
           PYTHONPATH=../tests python convert_pico_to_bencher.py
 
-      - name: Benchmark Raft trace export
-        shell: bash
-        run: |
-          set -ex
-          cd build
-          source env/bin/activate
-          PYTHONPATH=../tests python -m unittest fluentd_benchmark_test
-          cmake -DCCF_RAFT_TRACING=ON ..
-          ninja -j "$(( ($(nproc) + 1) >> 1 ))" basic
-          ./tests.sh -VV -C perf -R '^fluentd_emission$' --no-tests=error
-
-      - name: Upload Raft trace benchmark diagnostics
+      - name: Upload benchmark diagnostics
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: fluentd-benchmark-diagnostics
+          name: benchmark-diagnostics
           path: |
-            build/*_received.json
-            build/workspace/fluentd_emission*/**/*.config.json
-            build/workspace/fluentd_emission*/**/out
-            build/workspace/fluentd_emission*/**/err
-            build/workspace/fluentd_emission*/**/locust_stats.csv
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/locust_stats.csv
           if-no-files-found: ignore
 
       - name: Restore recent main perf results

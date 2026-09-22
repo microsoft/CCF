@@ -118,7 +118,7 @@ def run(args):
         if enabled:
             assert (
                 collector.records > 0 and len(collector.processes) == 2
-            ), "Both nodes must emit Raft events; build with CCF_RAFT_TRACING=ON"
+            ), "Both nodes must emit Raft events to the configured collector"
         else:
             assert collector.bytes == 0
         counts = {"records": collector.records, "bytes": collector.bytes}

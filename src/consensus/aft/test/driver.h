@@ -16,15 +16,8 @@
 #include <unordered_set>
 #include <utility>
 
-#ifdef CCF_RAFT_TRACING
-#  define RAFT_DRIVER_PRINT(...) \
-    std::cout << "<RaftDriver>  " << fmt::format(__VA_ARGS__) \
-              << fmt::format(" (ts={})", ccf::logger::logical_clock) \
-              << std::endl;
-#else
-#  define RAFT_DRIVER_PRINT(...) \
-    std::cout << "<RaftDriver>  " << fmt::format(__VA_ARGS__) << std::endl;
-#endif
+#define RAFT_DRIVER_PRINT(...) \
+  std::cout << "<RaftDriver>  " << fmt::format(__VA_ARGS__) << std::endl;
 
 std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
 {
@@ -523,7 +516,6 @@ public:
 
     const auto log_packet = [&](const auto& packet) {
       log_msg_details(node_id, tgt_node_id, packet, dropped);
-#ifdef CCF_RAFT_TRACING
       if (dropped)
       {
         aft::trace::drop_pending_to(
@@ -532,7 +524,6 @@ public:
           tgt_node_id.value(),
           packet);
       }
-#endif
     };
 
     const auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);

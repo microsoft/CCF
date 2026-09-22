@@ -217,9 +217,12 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   using Sink = ccf::tracing::FluentdSink;
   producer = std::this_thread::get_id();
   bool encoded = false;
+  const auto before_unconfigured = allocations;
   ccf::tracing::emit(
     "ccf.request", "probe", request_trace::EncodingProbe{encoded});
   request_trace::single(request_trace::EncodingProbe{encoded});
+  const auto after_unconfigured = allocations;
+  CHECK(after_unconfigured == before_unconfigured);
   CHECK_FALSE(encoded);
   CHECK_FALSE(Sink::enqueue({}));
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::milliseconds(0)));

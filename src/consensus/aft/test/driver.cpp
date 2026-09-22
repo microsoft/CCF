@@ -6,9 +6,7 @@
 #include "driver.h"
 
 #include "ccf/ds/hash.h"
-#ifdef CCF_RAFT_TRACING
-#  include "tracing/fluentd_sink.h"
-#endif
+#include "tracing/fluentd_sink.h"
 
 #include <cassert>
 #include <fstream>
@@ -33,14 +31,9 @@ int main(int argc, char** argv)
 
   // Log all raft steps to stdout (python wrapper raft_scenario_runner.py
   // filters them).
-#ifdef CCF_RAFT_TRACING
-  ccf::logger::config::add_json_console_logger();
-#else
   ccf::logger::config::add_text_console_logger();
-#endif
   ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
 
-#ifdef CCF_RAFT_TRACING
   ccf::tracing::FluentdSink::Lifetime trace_lifetime;
   if (argc >= 4)
   {
@@ -54,7 +47,6 @@ int main(int argc, char** argv)
       return 1;
     }
   }
-#endif
   auto driver = make_shared<RaftDriver>();
 
   const std::string filename = argv[1];
@@ -89,12 +81,10 @@ int main(int argc, char** argv)
       // Terminate early if four or more '=' appear on a line.
       break;
     }
-#ifdef CCF_RAFT_TRACING
     if (!line.empty())
     {
       ccf::tracing::emit(aft::trace::raft_trace_tag, "cmd", line);
     }
-#endif
     // Steps which don't alter state don't need to recheck invariants
     bool skip_invariants = false;
 
@@ -355,7 +345,6 @@ int main(int argc, char** argv)
   // Confirm path to liveness from final state
   driver->loop_until_sync(lineno);
 
-#ifdef CCF_RAFT_TRACING
   ccf::tracing::FluentdSink::shutdown();
   const auto dropped = ccf::tracing::FluentdSink::dropped_count();
   if (dropped != 0)
@@ -363,6 +352,5 @@ int main(int argc, char** argv)
     LOG_FAIL_FMT("Raft trace exporter dropped {} events", dropped);
     return 1;
   }
-#endif
   return 0;
 }
