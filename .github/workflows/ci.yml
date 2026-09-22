@@ -90,6 +90,8 @@ jobs:
           uv pip install -r doc/requirements.txt
           uv pip install -r doc/historical_ccf_requirements.txt
 
+          python -m unittest discover -s doc -p 'test_*.py'
+
           cd build
           ./tests.sh --timeout 360 --output-on-failure -L bucket_a -j2
 

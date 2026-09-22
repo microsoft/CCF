@@ -1,6 +1,13 @@
 Logging
 =======
 
+.. note::
+
+    The experimental Rust SDK does not yet expose CCF's application logging
+    API. The C++ and JavaScript facilities below are not Rust SDK functions;
+    Rust's standard output macros do not provide the same structured logging.
+    Never log private keys or confidential application data.
+
 To add your own lines to the node's output you should use the ``CCF_APP_*`` macros defined in ``ccf/ds/logger.h``:
 
 .. code-block:: cpp

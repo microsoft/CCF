@@ -5,7 +5,7 @@ This section describes how CCF applications can be developed and deployed to a C
 
 .. tip:: The `ccf-app-template <https://github.com/microsoft/ccf-app-template>`_ repository can be used to quickly build and run a sample CCF application and provides a minimal template to create new CCF apps.
 
-Applications can be written in JavaScript/TypeScript, C++, or Rust. An application consists of a collection of endpoints that can be triggered by :term:`Users`. Each endpoint can define an :ref:`build_apps/example_cpp:API Schema` to validate user requests.
+Applications can be written in JavaScript/TypeScript, C++, or Rust. An application consists of a collection of endpoints that can be triggered by :term:`Users`. C++ endpoints can define an :ref:`build_apps/example_cpp:API Schema` to validate user requests; the experimental Rust interface exposes a :doc:`smaller API <rust_api>`.
 
 These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/index:Key-Value Store` that represents the internal state of the application. Applications define a set of ``Maps`` (see :doc:`kv/kv_how_to`), mapping from a key to a value. When an application endpoint is triggered, the effects on the Store are committed atomically.
 
@@ -98,6 +98,13 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     ---
 
+    :fa:`terminal` :doc:`rust_api`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Rust SDK API reference.
+
+    ---
+
     :fa:`rocket` :doc:`release_policy`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -118,6 +125,7 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     install_bin
     example
     example_rust
+    rust_api
     js_app_ts
     js_app_bundle
     logging
