@@ -817,6 +817,9 @@ namespace asynchost
 
     // Guards all mutable ledger state below, and transitively every LedgerFile
     // reachable from `files`, since LedgerFile is not internally synchronised.
+    // Also guards the on-disk layout of `ledger_dir`: file renames and
+    // removals happen under it, so directory scans under it observe a
+    // consistent set of names.
     ccf::ds::Mutex state_lock;
 
     // Keep tracks of all ledger files for writing.
@@ -825,9 +828,8 @@ namespace asynchost
 
     // Cache of ledger files for reading
     const size_t max_read_cache_files;
-    ccf::ds::Mutex read_cache_lock;
     std::list<std::shared_ptr<LedgerFile>> files_read_cache
-      CCF_GUARDED_BY(read_cache_lock);
+      CCF_GUARDED_BY(state_lock);
 
     size_t last_idx CCF_GUARDED_BY(state_lock) = 0;
     size_t committed_idx CCF_GUARDED_BY(state_lock) = 0;
@@ -873,22 +875,19 @@ namespace asynchost
     }
 
     std::shared_ptr<LedgerFile> get_file_from_cache(size_t idx)
+      CCF_REQUIRES(state_lock)
     {
       if (idx == 0)
       {
         return nullptr;
       }
 
+      // First, try to find file from read cache
+      for (auto const& f : files_read_cache)
       {
-        ccf::ds::MutexGuard guard(read_cache_lock);
-
-        // First, try to find file from read cache
-        for (auto const& f : files_read_cache)
+        if (f->get_start_idx() <= idx && idx <= f->get_last_idx())
         {
-          if (f->get_start_idx() <= idx && idx <= f->get_last_idx())
-          {
-            return f;
-          }
+          return f;
         }
       }
 
@@ -938,14 +937,10 @@ namespace asynchost
         return nullptr;
       }
 
+      files_read_cache.emplace_back(match_file);
+      if (files_read_cache.size() > max_read_cache_files)
       {
-        ccf::ds::MutexGuard guard(read_cache_lock);
-
-        files_read_cache.emplace_back(match_file);
-        if (files_read_cache.size() > max_read_cache_files)
-        {
-          files_read_cache.erase(files_read_cache.begin());
-        }
+        files_read_cache.erase(files_read_cache.begin());
       }
 
       return match_file;
@@ -1068,6 +1063,7 @@ namespace asynchost
     }
 
     void ignore_ledger_file(const std::string& file_name)
+      CCF_REQUIRES(state_lock)
     {
       if (ccf::ledger::is_ledger_file_name_ignored(file_name))
       {
@@ -1085,7 +1081,7 @@ namespace asynchost
       }
     }
 
-    void delete_ledger_files_after_idx(size_t idx)
+    void delete_ledger_files_after_idx(size_t idx) CCF_REQUIRES(state_lock)
     {
       // Use with caution! Delete all ledger files later than idx
       for (auto const& f : fs::directory_iterator(ledger_dir))
