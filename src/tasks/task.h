@@ -37,7 +37,7 @@ namespace ccf::tasks
     // Terminal resource release, unlike cancellation. Call only once task
     // execution and producers have stopped. Cleanup may re-enter shutdown.
     void shutdown() noexcept;
-    bool is_shutdown() const;
+    [[nodiscard]] bool is_shutdown() const;
   };
 
   using Task = std::shared_ptr<BaseTask>;
