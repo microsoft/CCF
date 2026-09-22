@@ -6,7 +6,7 @@ CPU
 
 A single CCF node process runs at least two threads. A host thread manages sockets and files, and handles communication with the enclave via ring-buffers.
 An enclave thread contains the TLS termination, all cryptography, and the application and key value code. It communicates with the host via ring-buffers too.
-It is possible to add additional worker threads inside the enclave via the :ref:`operations/configuration:``worker_threads``` configuration entry.
+It is possible to add additional worker threads inside the enclave via the ``worker_threads`` configuration entry (see :ref:`operations/configuration:``worker_threads```), which defaults to ``1``; a configured value of ``0`` is treated as ``1``.
 
 Memory
 ------

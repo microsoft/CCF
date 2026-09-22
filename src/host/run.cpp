@@ -33,10 +33,12 @@
 #include "handle_ring_buffer.h"
 #include "host/env.h"
 #include "host/files_cleanup_timer.h"
+#include "host/ledger_subsystem.h"
 #include "http_client/curl.h"
 #include "json_schema.h"
 #include "node_connections.h"
 #include "pal/quote_generation.h"
+#include "runtime_control.h"
 #include "sig_term.h"
 #include "tcp.h"
 #include "ticker.h"
@@ -111,6 +113,21 @@ namespace ccf
         max_transaction_size,
         response_overhead,
         max_message_size));
+    }
+  }
+
+  void validate_and_coerce_worker_threads(host::HostConfig& config)
+  {
+    // worker_threads previously accepted 0, but the dispatch thread no
+    // longer executes tasks itself, so at least one worker thread is
+    // required. Coerce rather than reject, so that existing configurations
+    // are not broken by this change in a patch release.
+    if (config.worker_threads < 1)
+    {
+      LOG_FAIL_FMT(
+        "worker_threads is configured as 0; using 1 (the enforced minimum) "
+        "instead");
+      config.worker_threads = 1;
     }
   }
 
@@ -416,7 +433,8 @@ namespace ccf
     std::vector<uint8_t>& rpc_addresses,
     ccf::LoggerLevel log_level,
     ringbuffer::NotifyingWriterFactory& notifying_factory,
-    asynchost::Ledger& ledger)
+    ccf::AbstractRuntimeControl& runtime_control,
+    const std::shared_ptr<asynchost::ReadLedgerSubsystem>& ledger_subsystem)
   {
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;
@@ -440,7 +458,8 @@ namespace ccf
       log_level,
       config.worker_threads,
       notifying_factory.get_inbound_work_beacon(),
-      ledger);
+      runtime_control,
+      ledger_subsystem);
     ecall_completed.store(true);
     flusher_thread.join();
 
@@ -498,7 +517,9 @@ namespace ccf
     }
   }
 
-  void run_enclave_threads(const host::HostConfig& config)
+  void run_enclave_threads(
+    const host::HostConfig& config,
+    asynchost::RuntimeControlImpl& runtime_control)
   {
     auto enclave_thread_start = [&](threading::ThreadID thread_id) {
       threading::set_current_thread_id(thread_id);
@@ -540,6 +561,8 @@ namespace ccf
     {
       thread.join();
     }
+
+    runtime_control.throw_if_fatal_error();
   }
 
   std::optional<size_t> run_main_loop(
@@ -556,6 +579,17 @@ namespace ccf
     // provide regular ticks to the enclave
     const asynchost::Ticker ticker(config.tick_interval, writer_factory);
 
+    const auto request_enclave_stop = []() {
+      return ccf::enclave_request_stop();
+    };
+    const auto drain_ringbuffers_before_loop_stop =
+      [&buffer_processor, &circuit, &factories]() {
+        buffer_processor.read_all(circuit.read_from_inside());
+        factories.non_blocking_factory.flush_all_inbound();
+      };
+    asynchost::RuntimeControl runtime_control(
+      request_enclave_stop, drain_ringbuffers_before_loop_stop);
+
     // reset the inbound-TCP processing quota each iteration
     const asynchost::ResetTCPReadQuota reset_tcp_quota;
 
@@ -567,9 +601,9 @@ namespace ccf
       factories.non_blocking_factory);
 
     // graceful shutdown on sigterm
-    asynchost::Sigterm sigterm(writer_factory, config.ignore_first_sigterm);
+    asynchost::Sigterm sigterm(config.ignore_first_sigterm);
     // graceful shutdown on sighup
-    asynchost::Sighup sighup(writer_factory, false /* never ignore */);
+    asynchost::Sighup sighup(false /* never ignore */);
 
     asynchost::Ledger ledger(
       config.ledger.directory,
@@ -767,7 +801,10 @@ namespace ccf
     ccf::tracing::FluentdSink::bind_producer(config.worker_threads + 1);
     ccf::tracing::FluentdSink::Lifetime trace_lifetime;
 
-    // Create the enclave node
+    // Create the enclave node. The read-only ledger view is installed as a
+    // node subsystem, and is only valid while the ledger above is alive.
+    auto ledger_subsystem =
+      std::make_shared<asynchost::ReadLedgerSubsystem>(ledger);
     auto enclave_creation_result = create_enclave_node(
       config,
       buffer_processor,
@@ -779,7 +816,8 @@ namespace ccf
       rpc_addresses,
       log_level,
       factories.notifying_factory,
-      ledger);
+      *runtime_control,
+      ledger_subsystem);
 
     if (enclave_creation_result.has_value())
     {
@@ -790,7 +828,7 @@ namespace ccf
     write_certificates_to_disk(config, node_cert, service_cert);
 
     // Run enclave threads and event loop
-    run_enclave_threads(config);
+    run_enclave_threads(config, *runtime_control);
 
     return std::nullopt;
   }
@@ -966,6 +1004,9 @@ namespace ccf
       LOG_FATAL_FMT("{}. Exiting.", e.what());
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
+
+    // Coerces rather than rejects, so no try/catch is needed here.
+    validate_and_coerce_worker_threads(config);
 
     if (check_config_only)
     {

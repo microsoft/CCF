@@ -22,7 +22,10 @@ namespace ccf
 {
   struct CCFConfig
   {
-    size_t worker_threads = 0;
+    // Default, and minimum enforced number, of worker threads. A configured
+    // value of 0 is accepted and coerced up to 1 (see
+    // validate_and_coerce_worker_threads in src/host/run.cpp).
+    size_t worker_threads = 1;
 
     // 2**24.5 as per RFC8446 Section 5.5
     size_t node_to_node_message_limit = 23'726'566;

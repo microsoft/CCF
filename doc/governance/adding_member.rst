@@ -55,6 +55,8 @@ A new member who gets registered in CCF is not yet able to participate in govern
 
 First, the new member should update and retrieve the latest state digest via the :http:POST:`/gov/members/state-digests/{memberId}:update` endpoint. In doing so, the new member confirms that they are satisfied with the current state of the service.
 
+No state digest is recorded when a member is added. Until the member calls this ``:update`` endpoint, :http:GET:`/gov/members/state-digests/{memberId}` returns ``404 Not Found`` and the member cannot acknowledge a state digest.
+
 .. code-block:: bash
 
     $ touch empty_file

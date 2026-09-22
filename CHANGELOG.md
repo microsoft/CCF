@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added best-effort trace export to Fluentd over unauthenticated, unencrypted TCP, configured through [`observability.fluentd`](doc/host_config_schema/host_config.json). Raft events require `CCF_RAFT_TRACING=ON` (#8386).
+- ML-DSA-44/65/87 key-pair and public-key APIs for key generation, PKCS#8/SPKI PEM and DER import/export, and pure ML-DSA signing and verification with optional context strings. These APIs are compiled only with OpenSSL 3.5 or newer (#8378).
+
+### Changed
+
+- The `worker_threads` configuration option now defaults to `1`. A configuration with `worker_threads` set to `0` is still accepted, but is treated as `1`, and logs a message noting the substitution (#8404).
+- Adding or resetting a member no longer eagerly records a state digest for them to acknowledge. Members must call the state digest `:update` endpoint before acknowledging the current service state; until then, the state digest `GET` endpoint returns HTTP 404 (#8407).
+
+### Fixed
+
+- JS registry tables and their configured namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. The governance-driven registry uses `public:ccf.gov.*` and leaves application namespaces unchanged. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`; platform permissions still apply (#8359).
+- Fixed `set_member` failures on services which have only ever emitted COSE ledger signatures (#8407).
+
+### Removed
+
+- Removed the unused ringbuffer writer from the public research `CustomProtocolSubsystemInterface::Essentials` structure. Custom protocol extensions can no longer access `Essentials::writer` (#8395).
 
 ## [7.0.16]
 

@@ -27,17 +27,16 @@
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "ds/state_machine.h"
-#include "enclave/abstract_rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
 #include "http/http_parser.h"
 #include "http_client/curl.h"
-#include "indexing/indexer.h"
 #include "js/global_class_ids.h"
 #include "network_state.h"
 #include "node/commit_callback_subsystem.h"
 #include "node/hooks.h"
 #include "node/http_node_client.h"
+#include "node/internal_tables_access.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/ledger_secret.h"
 #include "node/ledger_secrets.h"
@@ -47,6 +46,8 @@
 #include "node/pending_node_cleanup.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
+#include "node/rpc/abstract_rpc_sessions.h"
+#include "node/runtime_control.h"
 #include "node/signature_cache_subsystem.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
@@ -55,7 +56,6 @@
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
-#include "service/internal_tables_access.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/recovery_type.h"
 #include "share_manager.h"
@@ -431,6 +431,7 @@ namespace ccf
       nullptr;
 
     std::atomic<bool> stop_noticed = false;
+    ccf::AbstractRuntimeControl& runtime_control;
 
     //
     // kv store, replication, and I/O
@@ -445,7 +446,6 @@ namespace ccf
 
     std::shared_ptr<ccf::kv::Consensus> consensus;
     std::shared_ptr<RPCMap> rpc_map;
-    std::shared_ptr<indexing::Indexer> indexer;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
@@ -794,12 +794,14 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
       std::shared_ptr<AbstractRPCSessions> rpcsessions,
-      ccf::crypto::CurveID curve_id_) :
+      ccf::crypto::CurveID curve_id_,
+      ccf::AbstractRuntimeControl& runtime_control_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(curve_id_)),
       self(compute_node_id_from_kp(node_sign_kp)),
       node_encrypt_kp(ccf::crypto::make_rsa_key_pair()),
+      runtime_control(runtime_control_),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -835,7 +837,6 @@ namespace ccf
       const ccf::consensus::Configuration& consensus_config_,
       std::shared_ptr<RPCMap> rpc_map_,
       std::shared_ptr<AbstractRPCResponder> rpc_sessions_,
-      std::shared_ptr<indexing::Indexer> indexer_,
       std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks_,
       std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache_,
       size_t sig_tx_interval_,
@@ -847,7 +848,6 @@ namespace ccf
       consensus_config = consensus_config_;
       rpc_map = rpc_map_;
 
-      indexer = indexer_;
       commit_callbacks = commit_callbacks_;
       signature_cache = signature_cache_;
 
@@ -1467,8 +1467,7 @@ namespace ccf
                     target_address,
                     max_join_response_size);
                   LOG_FAIL_FMT("{}", error_msg);
-                  RINGBUFFER_WRITE_MESSAGE(
-                    AdminMessage::fatal_error_msg, to_host, error_msg);
+                  runtime_control.report_fatal_error(error_msg);
                   return;
                 }
 
@@ -1493,8 +1492,7 @@ namespace ccf
                   curl_easy_strerror(curl_response),
                   static_cast<int>(curl_response));
                 LOG_FAIL_FMT("{}", error_msg);
-                RINGBUFFER_WRITE_MESSAGE(
-                  AdminMessage::fatal_error_msg, to_host, error_msg);
+                runtime_control.report_fatal_error(error_msg);
                 return;
               }
 
@@ -1571,8 +1569,7 @@ namespace ccf
                   status,
                   std::string(data.begin(), data.end()));
                 LOG_FAIL_FMT("{}", error_msg);
-                RINGBUFFER_WRITE_MESSAGE(
-                  AdminMessage::fatal_error_msg, to_host, error_msg);
+                runtime_control.report_fatal_error(error_msg);
                 return;
               }
 
@@ -1720,8 +1717,7 @@ namespace ccf
                       "node gracefully...",
                       e.what());
                     LOG_FAIL_FMT("{}", error_msg);
-                    RINGBUFFER_WRITE_MESSAGE(
-                      AdminMessage::fatal_error_msg, to_host, error_msg);
+                    runtime_control.report_fatal_error(error_msg);
                     return;
                   }
                 }
@@ -2710,12 +2706,6 @@ namespace ccf
 
       consensus->periodic(elapsed);
 
-      if (sm.check(NodeStartupState::partOfNetwork))
-      {
-        const auto tx_id = consensus->get_committed_txid();
-        indexer->update_strategies(elapsed, {tx_id.first, tx_id.second});
-      }
-
       n2n_channels->tick(elapsed);
     }
 
@@ -2736,6 +2726,11 @@ namespace ccf
     {
       consensus->nominate_successor();
       stop_noticed = true;
+    }
+
+    void request_restart()
+    {
+      runtime_control.request_restart();
     }
 
     bool has_received_stop_notice() override
@@ -2791,6 +2786,20 @@ namespace ccf
     [[nodiscard]] bool is_part_of_network() const override
     {
       return sm.check(NodeStartupState::partOfNetwork);
+    }
+
+    // The TxID committed by consensus, once this node is part of the network.
+    // Empty in every other state, when the commit point is not yet meaningful
+    // to consumers such as indexing strategies.
+    [[nodiscard]] std::optional<ccf::TxID> get_committed_txid() const
+    {
+      if (!sm.check(NodeStartupState::partOfNetwork))
+      {
+        return std::nullopt;
+      }
+
+      const auto [view, seqno] = consensus->get_committed_txid();
+      return ccf::TxID{view, seqno};
     }
 
     [[nodiscard]] bool is_reading_public_ledger() const override
@@ -3813,11 +3822,6 @@ namespace ccf
     std::shared_ptr<ccf::kv::Store> get_store() override
     {
       return network.tables;
-    }
-
-    ringbuffer::AbstractWriterFactory& get_writer_factory() override
-    {
-      return writer_factory;
     }
 
     RecoveryDecisionProtocolSubsystem& get_recovery_decision_protocol() override

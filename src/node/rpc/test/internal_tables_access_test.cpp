@@ -14,7 +14,7 @@
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "node/hooks.h"
-#include "service/internal_tables_access.h"
+#include "node/internal_tables_access.h"
 
 #include <doctest/doctest.h>
 
@@ -58,6 +58,25 @@ namespace
       return {};
     }
   };
+}
+
+TEST_CASE("Adding a member does not populate an ACK")
+{
+  ccf::kv::Store kv_store;
+  auto tx = kv_store.create_tx();
+
+  const auto key_pair = ccf::crypto::make_ec_key_pair();
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now());
+  const auto cert = ccf::crypto::create_self_signed_cert(
+    key_pair, "CN=member", {}, valid_from, 1);
+
+  const auto member_id = InternalTablesAccess::add_member(tx, {cert});
+
+  REQUIRE(
+    tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO)->get(member_id).has_value());
+  REQUIRE_FALSE(
+    tx.ro<ccf::MemberAcks>(Tables::MEMBER_ACKS)->get(member_id).has_value());
 }
 
 TEST_CASE("direct node deletion updates consensus configuration")

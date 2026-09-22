@@ -15,12 +15,12 @@
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
+#include "node/internal_tables_access.h"
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
-#include "service/internal_tables_access.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
