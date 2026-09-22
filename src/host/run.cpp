@@ -558,6 +558,13 @@ namespace ccf
       thread.join();
     }
 
+    // With the event loop exited and every enclave thread joined, nothing
+    // will execute or schedule tasks any more. Release whatever is still
+    // queued now, rather than leaving it to be dropped during static
+    // destruction: a queued task keeps its owner alive, and the owner keeps
+    // the queue alive, so dropping the queue's owner alone leaks both.
+    enclave_cancel_all_tasks();
+
     runtime_control.throw_if_fatal_error();
   }
 

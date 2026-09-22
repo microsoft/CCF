@@ -74,6 +74,21 @@ namespace ccf::tasks
       paused.store(true);
     }
 
+    // Remove every queued sub-task without visiting it. The removed sub-tasks
+    // are returned rather than destroyed here so that the caller releases them
+    // outside pending_mutex: destroying a sub-task may re-enter this queue,
+    // for instance when it holds the last reference to the object which owns
+    // the queue.
+    std::deque<T> take_all()
+    {
+      decltype(pending) taken;
+      {
+        ccf::ds::MutexGuard lock(pending_mutex);
+        std::swap(taken, pending);
+      }
+      return taken;
+    }
+
     bool unpause()
     {
       ccf::ds::MutexGuard lock(pending_mutex);

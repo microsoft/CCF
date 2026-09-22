@@ -84,6 +84,9 @@ namespace ccf::tasks
     ccf::tasks::Resumable pause() override;
     const std::string& get_name() const override;
 
+    // Also releases every queued action, see BaseTask::cancel_task.
+    void cancel_task() override;
+
     void add_action(TaskAction&& action);
 
     void get_queue_summary(

@@ -8,6 +8,7 @@
 #include "ds/internal_logger.h"
 #include "enclave.h"
 #include "entry_points.h"
+#include "tasks/task_system.h"
 
 #include <chrono>
 #include <cstdint>
@@ -220,5 +221,17 @@ namespace ccf
 
     enclave->request_stop_notice();
     return true;
+  }
+
+  void enclave_cancel_all_tasks()
+  {
+    // The Enclave object is deliberately never destroyed, so everything it
+    // owns is released by the OS at exit. Queued tasks are different: a task
+    // which never ran (eg, a response queued on a session's OrderedTasks in
+    // the last moments before shutdown) holds a reference to its owner, which
+    // holds the task queue, and that cycle survives anything short of running
+    // or cancelling the task. Cancel them all here, once no thread can race
+    // with us.
+    ccf::tasks::get_main_job_board().cancel_all_tasks();
   }
 }

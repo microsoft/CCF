@@ -202,6 +202,59 @@ TEST_CASE("OrderedTasks" * doctest::test_suite("ordered_tasks"))
 }
 
 TEST_CASE(
+  "Cancellation releases queued actions" * doctest::test_suite("ordered_tasks"))
+{
+  // Mirrors how sessions use OrderedTasks: the owner holds the queue, and
+  // each queued action holds the owner. Executing the action breaks the
+  // cycle; if it never executes, cancelling must break it instead.
+  struct Owner
+  {
+    std::shared_ptr<ccf::tasks::OrderedTasks> tasks;
+  };
+
+  ccf::tasks::JobBoard job_board;
+
+  auto enqueue_cyclic_owner = [&]() {
+    auto owner = std::make_shared<Owner>();
+    owner->tasks = ccf::tasks::OrderedTasks::create(job_board);
+    owner->tasks->add_action(ccf::tasks::make_basic_action(
+      [owner]() { FAIL("Cancelled action was executed"); }));
+    return std::weak_ptr<Owner>(owner);
+  };
+
+  {
+    INFO("cancel_task on the queue");
+
+    auto weak_owner = enqueue_cyclic_owner();
+    // Only the cycle keeps the owner alive
+    REQUIRE_FALSE(weak_owner.expired());
+
+    // Taking the task off the board, as a worker would, does not help
+    auto task = job_board.get_task();
+    REQUIRE(task != nullptr);
+    REQUIRE_FALSE(weak_owner.expired());
+
+    task->cancel_task();
+    REQUIRE(weak_owner.expired());
+
+    // Skipped like any other cancelled task
+    task->do_task();
+    REQUIRE(job_board.get_task() == nullptr);
+  }
+
+  {
+    INFO("cancel_all_tasks on the board");
+
+    auto weak_owner = enqueue_cyclic_owner();
+    REQUIRE_FALSE(weak_owner.expired());
+
+    job_board.cancel_all_tasks();
+    REQUIRE(weak_owner.expired());
+    REQUIRE(job_board.get_task() == nullptr);
+  }
+}
+
+TEST_CASE(
   "Concurrent pause + add_action does not double-enqueue" *
   doctest::test_suite("ordered_tasks"))
 {

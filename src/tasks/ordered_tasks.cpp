@@ -100,6 +100,22 @@ namespace ccf::tasks
     return pimpl->name;
   }
 
+  void OrderedTasks::cancel_task()
+  {
+    BaseTask::cancel_task();
+
+    // Queued actions would otherwise be held until this object is destroyed,
+    // which may be never: an action typically owns a reference to the object
+    // which owns this OrderedTasks (eg, a session), so the only thing which
+    // breaks that cycle is running or releasing the action. Releasing them
+    // may therefore release the last owner of this object too, so hold a
+    // reference for the duration. The actions are destroyed after take_all()
+    // has released the queue's lock, because destroying one may cancel this
+    // task again (see ThreadedSession).
+    auto keep_alive = shared_from_this();
+    auto discarded = pimpl->actions.take_all();
+  }
+
   void OrderedTasks::add_action(TaskAction&& action)
   {
     if (pimpl->actions.push(std::move(action)))

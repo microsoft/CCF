@@ -32,6 +32,13 @@ namespace ccf::tasks
     Task wait_for_task(const std::chrono::milliseconds& timeout);
     void stop_waiters();
 
+    // Cancels every task this board still holds, pending or delayed, and
+    // drops the board's references to them. For shutdown, once every thread
+    // which executed or scheduled tasks has finished: whatever is still queued
+    // will never run, and holding it any longer would keep alive everything
+    // it references (see BaseTask::cancel_task).
+    void cancel_all_tasks();
+
     struct Summary
     {
       size_t pending_tasks = {};

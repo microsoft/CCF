@@ -31,4 +31,10 @@ namespace ccf
   bool enclave_run();
   bool enclave_request_stop();
   bool enclave_request_stop_notice();
+
+  // Cancels and releases every task still queued in the task system. Only to
+  // be called once every thread which called enclave_run has returned, and
+  // the host has stopped its own event loop: nothing may execute or schedule
+  // tasks afterwards.
+  void enclave_cancel_all_tasks();
 }

@@ -204,6 +204,37 @@ namespace ccf::tasks
       }
     }
 
+    void cancel_all_tasks()
+    {
+      decltype(pending_tasks) pending;
+      {
+        ccf::ds::MutexGuard lock(mutex);
+        std::swap(pending, pending_tasks);
+      }
+
+      Delayed::DelayedTasksByTime timed;
+      {
+        ccf::ds::MutexGuard lock(delayed.tasks_mutex);
+        std::swap(timed, delayed.tasks);
+      }
+
+      // Cancel and release outside both locks: cancelling a task may release
+      // work which in turn cancels other tasks or touches this board.
+      while (!pending.empty())
+      {
+        pending.front()->cancel_task();
+        pending.pop();
+      }
+
+      for (auto& [trigger_time, delayed_tasks] : timed)
+      {
+        for (auto& delayed_task : delayed_tasks)
+        {
+          delayed_task.task->cancel_task();
+        }
+      }
+    }
+
     void add_timed_task(
       Task task,
       std::chrono::milliseconds initial_delay,
@@ -298,6 +329,11 @@ namespace ccf::tasks
   void JobBoard::stop_waiters()
   {
     pimpl->stop_waiters();
+  }
+
+  void JobBoard::cancel_all_tasks()
+  {
+    pimpl->cancel_all_tasks();
   }
 
   JobBoard::Summary JobBoard::get_summary()

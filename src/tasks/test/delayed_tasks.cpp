@@ -238,3 +238,44 @@ TEST_CASE("TickEnqueue" * doctest::test_suite("delayed_tasks"))
 
   incrementer->cancel_task();
 }
+
+TEST_CASE("CancelAllTasks" * doctest::test_suite("delayed_tasks"))
+{
+  INFO(
+    "cancel_all_tasks cancels and drops everything the board holds, whether "
+    "ready, delayed or periodic");
+
+  ccf::tasks::JobBoard job_board;
+
+  std::atomic<size_t> n = 0;
+
+  auto ready = ccf::tasks::make_basic_task([&n]() { ++n; }, "ready");
+  auto delayed = ccf::tasks::make_basic_task([&n]() { ++n; }, "delayed");
+  auto periodic = ccf::tasks::make_basic_task([&n]() { ++n; }, "periodic");
+
+  using namespace std::chrono_literals;
+  job_board.add_task(ready);
+  job_board.add_delayed_task(delayed, 10ms);
+  job_board.add_periodic_task(periodic, 10ms, 10ms);
+
+  REQUIRE(job_board.get_summary().pending_tasks == 1);
+
+  job_board.cancel_all_tasks();
+
+  REQUIRE(ready->is_cancelled());
+  REQUIRE(delayed->is_cancelled());
+  REQUIRE(periodic->is_cancelled());
+
+  // Nothing is left to execute, now or after any amount of time
+  REQUIRE(job_board.get_summary().pending_tasks == 0);
+  REQUIRE(job_board.get_task() == nullptr);
+  job_board.tick(100ms);
+  do_all_tasks(job_board);
+  REQUIRE(n.load() == 0);
+
+  // The board is still usable afterwards
+  auto later = ccf::tasks::make_basic_task([&n]() { ++n; }, "later");
+  job_board.add_task(later);
+  do_all_tasks(job_board);
+  REQUIRE(n.load() == 1);
+}
