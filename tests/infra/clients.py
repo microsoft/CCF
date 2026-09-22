@@ -24,6 +24,7 @@ from threading import local
 from typing import Any
 
 import ccf.cose
+import httpcore.backends.sync
 import httpx
 from ccf.tx_id import TxID
 from cryptography import x509
@@ -624,6 +625,21 @@ class CurlClient:
             return 3
 
 
+class _NoDelaySyncBackend(httpcore.backends.sync.SyncBackend):
+    """
+    Sync network backend that enables TCP_NODELAY, avoiding a ~40ms
+    Nagle/delayed-ACK stall per request on the pinned httpcore 0.16
+    (newer httpcore versions set this by default).
+    """
+
+    def connect_tcp(self, *args, **kwargs):
+        stream = super().connect_tcp(*args, **kwargs)
+        sock = stream.get_extra_info("socket")
+        if sock is not None:
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        return stream
+
+
 class HttpxClient:
     """
     CCF default client and wrapper around Python httpx, handling HTTP signatures.
@@ -659,6 +675,16 @@ class HttpxClient:
             self.protocol = kwargs.get("protocol")
             kwargs.pop("protocol")
         self.session = httpx.Client(verify=self.ca, cert=cert, **kwargs)
+        # Swap in a network backend which sets TCP_NODELAY (see
+        # _NoDelaySyncBackend), regardless of whether the transport was
+        # constructed for HTTP/1.1 or HTTP/2.
+        pool = getattr(
+            self.session._transport, "_pool", None
+        )  # pylint: disable=protected-access
+        if pool is not None:
+            pool._network_backend = (
+                _NoDelaySyncBackend()
+            )  # pylint: disable=protected-access
         sig_auth = signing_auth or cose_signing_auth
         if sig_auth:
             with open(sig_auth.cert, encoding="utf-8") as cert_file:
@@ -884,6 +910,7 @@ class RawSocketClient:
                     )
 
                 sock = socket.create_connection((hostname, port))
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 ssl_socket = context.wrap_socket(
                     sock, server_side=False, server_hostname=hostname
                 )
