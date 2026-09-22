@@ -226,7 +226,7 @@ namespace ccf::tasks
         pending.pop();
       }
 
-      for (auto& [trigger_time, delayed_tasks] : timed)
+      for (auto& [_, delayed_tasks] : timed)
       {
         for (auto& delayed_task : delayed_tasks)
         {
