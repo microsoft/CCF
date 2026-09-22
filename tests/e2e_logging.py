@@ -1628,9 +1628,11 @@ def test_long_lived_forwarding(network, args):
     # node-to-node messages - a forwarded write and response, Raft AEs. If these
     # arrive too fast, they will trigger the hard cap and the node-to-node keys
     # will be reset, potentially invalidating in-flight messages and causing client
-    # requests to time out.
+    # requests to time out. This margin depends on client request rate, so must
+    # stay comfortably above the concurrent in-flight message burst produced by
+    # n_threads clients sending as fast as the network allows.
     n_threads = 5
-    message_limit = 30
+    message_limit = 90
 
     new_node_args = copy.deepcopy(args)
     new_node_args.node_to_node_message_limit = message_limit

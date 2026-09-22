@@ -45,6 +45,7 @@
 #include "node/local_sealing.h"
 #include "node/node_inbound_message.h"
 #include "node/node_to_node_channel_manager.h"
+#include "node/open_service.h"
 #include "node/pending_node_cleanup.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
@@ -80,6 +81,7 @@
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
+#include <tuple>
 #include <unordered_set>
 #include <vector>
 
@@ -2409,50 +2411,8 @@ namespace ccf
           recovery_v);
 
         auto tx = network.tables->create_tx();
-
-        {
-          // Ensure this transition happens at-most-once, by checking that no
-          // other node has already advanced the state
-          auto* service = tx.ro<ccf::Service>(Tables::SERVICE);
-          auto active_service = service->get();
-
-          if (!active_service.has_value())
-          {
-            throw std::logic_error(fmt::format(
-              "Error in {}: no value in {}", __func__, Tables::SERVICE));
-          }
-
-          if (
-            active_service->status !=
-            ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
-          {
-            throw std::logic_error(fmt::format(
-              "Error in {}: current service status is {}",
-              __func__,
-              active_service->status));
-          }
-        }
-
-        // Clear recovery shares that were submitted to initiate the recovery
-        // procedure
-        ShareManager::clear_submitted_recovery_shares(tx);
-
-        // Shares for the new ledger secret can only be issued now, once the
-        // previous ledger secrets have been recovered
-        share_manager.issue_recovery_shares(tx);
-
-        if (
-          !InternalTablesAccess::open_service(tx) ||
-          !InternalTablesAccess::endorse_previous_identity(
-            tx, *network.identity->get_key_pair()))
-        {
-          throw std::logic_error("Service could not be opened");
-        }
-
-        // Trigger a snapshot (at next signature) to ensure we have a working
-        // snapshot signed by the current (now new) service identity, in case
-        // we need to recover soon again.
-        trigger_snapshot(tx);
+        open_recovered_service(
+          tx, share_manager, *network.identity->get_key_pair());
 
         if (tx.commit() != ccf::kv::CommitResult::SUCCESS)
         {
@@ -2594,13 +2554,7 @@ namespace ccf
 
     void trigger_snapshot(ccf::kv::Tx& tx) override
     {
-      auto* committable_tx = dynamic_cast<ccf::kv::CommittableTx*>(&tx);
-      if (committable_tx == nullptr)
-      {
-        throw std::logic_error("Could not cast tx to CommittableTx");
-      }
-      committable_tx->set_tx_flag(
-        ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      ccf::trigger_snapshot(tx);
     }
 
     void transition_service_to_open(
@@ -2726,18 +2680,16 @@ namespace ccf
         // member.
         try
         {
-          share_manager.issue_recovery_shares(tx);
+          // Failure to open or endorse has already been logged, and is not
+          // treated as fatal to the governance action which requested it.
+          std::ignore = ccf::open_service(
+            tx, share_manager, *network.identity->get_key_pair());
         }
         catch (const std::logic_error& e)
         {
           throw std::logic_error(
             fmt::format("Failed to issue recovery shares: {}", e.what()));
         }
-
-        InternalTablesAccess::open_service(tx);
-        InternalTablesAccess::endorse_previous_identity(
-          tx, *network.identity->get_key_pair());
-        trigger_snapshot(tx);
         return;
       }
 

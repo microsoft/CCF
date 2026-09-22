@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "common/configuration.h"
 #include "common/enclave_interface_types.h"
 #include "ds/work_beacon.h"
 #include "node/rpc/ledger_interface.h"
