@@ -109,7 +109,7 @@ jobs:
 
   vmss-virtual-b:
     name: "VMSS Virtual B" # End-to-end tests (bucket_b)
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-b]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
@@ -176,7 +176,7 @@ jobs:
 
   vmss-virtual-c:
     name: "VMSS Virtual C" # End-to-end tests (bucket_c)
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
