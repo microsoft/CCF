@@ -118,17 +118,15 @@ namespace ccf
 
   void validate_and_coerce_worker_threads(host::HostConfig& config)
   {
-    // worker_threads previously accepted 0, but the dispatch thread no
-    // longer executes tasks itself, so at least one worker thread is
-    // required. Coerce rather than reject, so that existing configurations
-    // are not broken by this change in a patch release.
-    if (config.worker_threads < 1)
+    // Replace the task execution capacity of the dispatch thread, which no
+    // longer executes tasks itself, without requiring configuration changes.
+    if (config.worker_threads == 0)
     {
       LOG_FAIL_FMT(
         "worker_threads is configured as 0; using 1 (the enforced minimum) "
         "instead");
-      config.worker_threads = 1;
     }
+    ++config.worker_threads;
   }
 
   void validate_and_adjust_recovery_threshold(host::HostConfig& config)
