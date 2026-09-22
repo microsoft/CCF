@@ -8,13 +8,9 @@ GitPython >= 3.1.45, < 4
 better_exceptions >= 0.3.3, < 0.4
 pyasn1 >= 0.6.1, < 0.7
 Jinja2 >= 3.1.6, < 4
-# Later versions of httpx cause failures in long forwarding,
-# extended character range and JWT tests.
-httpx[http2] == 0.23.*
-# infra.clients.HttpxClient depends on private httpcore internals (module
-# path, class, method and pool attribute names) to set TCP_NODELAY; pin
-# exactly, since these are not covered by httpcore's public API guarantees.
-httpcore == 0.16.3
+# infra.clients.Urllib3Client builds on the experimental urllib3.http2 module,
+# which is not covered by urllib3's API guarantees; pin to a minor version.
+urllib3[h2] >= 2.8.0, < 2.9
 locust >= 2.41.6, < 3
 JWCrypto >= 1.5.6, < 2
 rich >= 14.2.0, < 15

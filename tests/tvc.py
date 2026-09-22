@@ -5,7 +5,7 @@ import argparse
 import json
 import random
 
-import httpx
+import urllib3
 
 """
 1. Run sandbox
@@ -31,6 +31,7 @@ import httpx
 
 KEY = "0"
 VALUE = "value"
+TIMEOUT_S = 5
 
 
 def log(**kwargs):
@@ -42,24 +43,26 @@ def tx_id(string):
     return int(view), int(seqno)
 
 
-def retry(call, urls, **kwargs):
+def retry(http, method, urls, **kwargs):
     """
     Retry http calls if they time out (process suspended during execution),
     or return a non-200/204 code (unable to forward because primary unknown).
     Pick a random URL, to avoid getting stuck too long on a suspended node.
     """
     response = None
-    while response is None or response.status_code not in (200, 204):
+    while response is None or response.status not in (200, 204):
         try:
             url = random.choice(urls)
-            response = call(url, **kwargs)
-        except (httpx.ReadTimeout, httpx.ConnectTimeout):
+            response = http.request(
+                method, url, timeout=TIMEOUT_S, retries=False, **kwargs
+            )
+        except urllib3.exceptions.TimeoutError:
             pass
     return response
 
 
 def run(targets, cacert):
-    session = httpx.Client(verify=cacert)
+    http = urllib3.PoolManager(cert_reqs="CERT_REQUIRED", ca_certs=cacert)
     tx = -1
     key_urls = [f"{target}/records/{KEY}" for target in targets]
     while True:
@@ -67,9 +70,9 @@ def run(targets, cacert):
         # Always start with a write, to avoid having to handle missing values
         txtype = random.choice(["Ro", "Rw"]) if tx else "Rw"
         if txtype == "Ro":
-            response = retry(session.get, key_urls)
+            response = retry(http, "GET", key_urls)
             log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
-            assert response.text == VALUE
+            assert response.data.decode() == VALUE
             txid = response.headers["x-ms-ccf-transaction-id"]
             log(
                 action="RoTxResponseAction",
@@ -78,7 +81,7 @@ def run(targets, cacert):
                 tx_id=tx_id(txid),
             )
         elif txtype == "Rw":
-            response = retry(session.put, key_urls, data=VALUE)
+            response = retry(http, "PUT", key_urls, body=VALUE)
             log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
             txid = response.headers["x-ms-ccf-transaction-id"]
             log(
@@ -96,7 +99,7 @@ def run(targets, cacert):
             done = False
             while not done:
                 tx_urls = [f"{target}/tx?transaction_id={txid}" for target in targets]
-                response = retry(session.get, tx_urls)
+                response = retry(http, "GET", tx_urls)
                 status = response.json()["status"]
                 if status in ("Committed", "Invalid"):
                     log(

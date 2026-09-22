@@ -5,7 +5,7 @@ import argparse
 from enum import Enum
 import logging
 import sys
-import httpx
+import urllib3
 import base64
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
@@ -74,6 +74,13 @@ def make_chain_url(base_url, product_family):
     return f"{base_url}/vcek/v1/{product_family}/cert_chain"
 
 
+def fetch(http, url):
+    response = http.request("GET", url, timeout=30)
+    if response.status >= 400:
+        raise RuntimeError(f"GET {url} failed with status {response.status}")
+    return response.data
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fetch AMD collateral data.")
     parser.add_argument(
@@ -130,28 +137,22 @@ if __name__ == "__main__":
         args.tcb,
     )
 
+    http = urllib3.PoolManager()
+
     logging.info(f"Fetching AMD leaf cert from {leaf_url}")
-    with httpx.Client() as client:
-        leaf_response = client.get(
-            leaf_url,
-        )
-        leaf_response.raise_for_status()
-        der = leaf_response.content
-        leaf = (
-            x509.load_der_x509_certificate(der, default_backend())
-            .public_bytes(serialization.Encoding.PEM)
-            .decode("utf-8")
-        )
-        logging.info(f"AMD leaf cert response: {leaf}")
+    der = fetch(http, leaf_url)
+    leaf = (
+        x509.load_der_x509_certificate(der, default_backend())
+        .public_bytes(serialization.Encoding.PEM)
+        .decode("utf-8")
+    )
+    logging.info(f"AMD leaf cert response: {leaf}")
 
     chain_url = make_chain_url(args.base_url, args.product_family)
 
     logging.info(f"Fetching AMD chain cert from {chain_url}")
-    with httpx.Client() as client:
-        chain_response = client.get(chain_url)
-        chain_response.raise_for_status()
-        chain = chain_response.text
-        logging.info(f"AMD chain cert response: {chain_response.text}")
+    chain = fetch(http, chain_url).decode("utf-8")
+    logging.info(f"AMD chain cert response: {chain}")
 
     blob = make_host_amd_blob(
         tcbm=args.tcb,

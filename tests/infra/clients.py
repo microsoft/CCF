@@ -24,8 +24,14 @@ from threading import local
 from typing import Any
 
 import ccf.cose
-import httpcore.backends.sync
-import httpx
+import h2.events
+import h2.exceptions
+import urllib3
+import urllib3.connection
+import urllib3.connectionpool
+import urllib3.exceptions
+import urllib3.http2.connection
+import urllib3.util
 from ccf.tx_id import TxID
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -35,6 +41,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from loguru import logger as LOG  # type: ignore
 
 import infra.commit
+import infra.interfaces
 from infra.log_capture import flush_info
 
 API_VERSION_PREVIEW_01 = "2023-06-01-preview"
@@ -78,9 +85,24 @@ def get_clock():
     return _per_thread.CLOCK
 
 
-class HttpSig(httpx.Auth):
-    requires_request_body = True
+@dataclass
+class OutgoingRequest:
+    """
+    Request about to be sent by :py:class:`infra.clients.Urllib3Client`, as seen by
+    :py:class:`infra.clients.HttpSig` and its test-specific subclasses.
+    """
 
+    #: HTTP verb
+    method: str
+    #: Request target (path and query string), exactly as sent on the wire
+    path: str
+    #: HTTP headers, which may be modified in place
+    headers: dict
+    #: Request body
+    content: bytes
+
+
+class HttpSig:
     def __init__(self, key_id, pem_private_key):
         self.key_id = key_id
         self.private_key = load_pem_private_key(
@@ -109,16 +131,16 @@ class HttpSig(httpx.Auth):
             f'Signature keyId="{key_id}",algorithm="hs2019",headers="(request-target) digest content-length",signature="{b64signature}"'
         )
 
-    def auth_flow(self, request):
+    def __call__(self, request: OutgoingRequest) -> OutgoingRequest:
         HttpSig.add_signature_headers(
             request.headers,
             request.content,
             request.method,
-            request.url.raw_path.decode("utf-8"),
+            request.path,
             self.key_id,
             self.private_key,
         )
-        yield request
+        return request
 
 
 def truncate(string: str, max_len: int = 256):
@@ -212,18 +234,19 @@ class ResponseBody(abc.ABC):
         return repr(self.data())
 
 
-class RequestsResponseBody(ResponseBody):
-    def __init__(self, response: httpx.Response):
+class Urllib3ResponseBody(ResponseBody):
+    def __init__(self, response: urllib3.BaseHTTPResponse):
         self._response = response
 
     def data(self):
-        return self._response.content
+        return self._response.data
 
     def text(self):
-        return self._response.text
+        # Always decode as UTF-8, replacing invalid sequences rather than raising
+        return self._response.data.decode("utf-8", errors="replace")
 
     def json(self):
-        return self._response.json()
+        return json.loads(self._response.data)
 
 
 class RawResponseBody(ResponseBody):
@@ -275,14 +298,14 @@ class Response:
         )
 
     @staticmethod
-    def from_requests_response(rr):
-        tx_id = TxID.from_str(rr.headers.get(CCF_TX_ID_HEADER))
+    def from_urllib3_response(ur: urllib3.BaseHTTPResponse):
+        tx_id = TxID.from_str(ur.headers.get(CCF_TX_ID_HEADER))
         return Response(
-            status_code=rr.status_code,
-            body=RequestsResponseBody(rr),
+            status_code=ur.status,
+            body=Urllib3ResponseBody(ur),
             seqno=tx_id.seqno,
             view=tx_id.view,
-            headers=rr.headers,
+            headers=ur.headers,
         )
 
     @staticmethod
@@ -625,24 +648,256 @@ class CurlClient:
             return 3
 
 
-class _NoDelaySyncBackend(httpcore.backends.sync.SyncBackend):
+class ConnectionEstablishmentError(urllib3.exceptions.NewConnectionError):
     """
-    Sync network backend that enables TCP_NODELAY, avoiding a ~40ms
-    Nagle/delayed-ACK stall per request on the pinned httpcore 0.16
-    (newer httpcore versions set this by default).
+    Raised for any failure while establishing a connection (TCP connect, TLS
+    handshake or HTTP/2 preface), so that it can be told apart from I/O errors
+    on a connection which was already established.
     """
 
-    def connect_tcp(self, *args, **kwargs):
-        stream = super().connect_tcp(*args, **kwargs)
-        sock = stream.get_extra_info("socket")
-        if sock is not None:
-            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        return stream
+
+def _connect_classifying_failures(conn, connect):
+    try:
+        connect()
+    except (urllib3.exceptions.ConnectTimeoutError, TimeoutError):
+        # Connection timeouts (and NewConnectionError, a subclass of
+        # ConnectTimeoutError) are already reported distinctly by urllib3
+        raise
+    except Exception as exc:
+        raise ConnectionEstablishmentError(
+            conn, f"Failed to establish a new connection: {exc}"
+        ) from exc
 
 
-class HttpxClient:
+class _HTTP1Connection(urllib3.connection.HTTPSConnection):
+    def connect(self):
+        _connect_classifying_failures(self, super().connect)
+
+
+class _HTTP1ConnectionPool(urllib3.connectionpool.HTTPSConnectionPool):
+    ConnectionCls = _HTTP1Connection
+
+
+class _PlaintextConnection(urllib3.connection.HTTPConnection):
+    def connect(self):
+        _connect_classifying_failures(self, super().connect)
+
+
+class _PlaintextConnectionPool(urllib3.connectionpool.HTTPConnectionPool):
+    ConnectionCls = _PlaintextConnection
+
+
+class _HTTP2SSLContext(ssl.SSLContext):
     """
-    CCF default client and wrapper around Python httpx, handling HTTP signatures.
+    SSL context which only ever offers h2 via ALPN. urllib3 sets its
+    process-wide ALPN list (http/1.1 by default) on every context it wraps a
+    socket with, and only offers h2 globally via urllib3.http2.inject_into_urllib3();
+    this instead selects the protocol per connection pool.
+    """
+
+    def set_alpn_protocols(self, alpn_protocols):
+        super().set_alpn_protocols(["h2"])
+
+
+_METHODS_NOT_EXPECTING_BODY = {"GET", "HEAD", "DELETE", "TRACE", "OPTIONS", "CONNECT"}
+_HTTP2_RECV_SIZE = 65535
+
+
+class _HTTP2Connection(urllib3.http2.connection.HTTP2Connection):
+    """
+    urllib3's experimental HTTP/2 connection, completed with what is needed to
+    talk to a CCF node: flow-controlled request bodies, detection of stream
+    resets, GOAWAY and connection closure while waiting for a response (the
+    base class would otherwise spin or hang), and the same content-length
+    behaviour as urllib3's HTTP/1.1 connection.
+    """
+
+    def __init__(self, *args, **kwargs):
+        # Events received while sending a request body (eg an early response),
+        # to be consumed by getresponse()
+        self._pending_events: list = []
+        super().__init__(*args, **kwargs)
+
+    def connect(self):
+        _connect_classifying_failures(self, self._connect)
+
+    def _connect(self):
+        super().connect()
+        negotiated = self.sock.selected_alpn_protocol()
+        if negotiated != "h2":
+            raise urllib3.exceptions.ProtocolError(
+                f"Expected h2 to be negotiated via ALPN, got {negotiated}"
+            )
+
+    def close(self):
+        self._pending_events = []
+        super().close()
+
+    @property
+    def is_connected(self):
+        if self.sock is None:
+            return False
+        # Frames received while idle (eg WINDOW_UPDATE or PING) do not mean
+        # that the connection has dropped, unlike unexpected data on an idle
+        # HTTP/1.1 connection: consume them, and only report the connection
+        # as dropped if the peer has closed or terminated it
+        while urllib3.util.wait_for_read(self.sock, timeout=0.0):
+            previous_timeout = self.sock.gettimeout()
+            self.sock.settimeout(1.0)
+            try:
+                with self._h2_conn as conn:
+                    events = self._receive_events(conn)
+            except Exception:
+                return False
+            finally:
+                self.sock.settimeout(previous_timeout)
+            if any(isinstance(e, h2.events.ConnectionTerminated) for e in events):
+                return False
+        return True
+
+    def _flush(self, conn):
+        if data_to_send := conn.data_to_send():
+            self.sock.sendall(data_to_send)
+
+    def _receive_events(self, conn):
+        # Blocks until at least one frame has been received, or the socket
+        # timeout expires (which surfaces as a read timeout, like HTTP/1.1)
+        received = self.sock.recv(_HTTP2_RECV_SIZE)
+        if not received:
+            raise urllib3.exceptions.ProtocolError(
+                "HTTP/2 connection closed by peer", ConnectionResetError()
+            )
+        try:
+            events = conn.receive_data(received)
+        except h2.exceptions.ProtocolError as exc:
+            raise urllib3.exceptions.ProtocolError(
+                f"HTTP/2 protocol error: {exc}"
+            ) from exc
+        # Flush any automatic replies (SETTINGS and PING acknowledgements)
+        self._flush(conn)
+        return events
+
+    def _is_stream_over(self, event):
+        if isinstance(event, h2.events.ConnectionTerminated):
+            return True
+        return (
+            isinstance(event, (h2.events.StreamEnded, h2.events.StreamReset))
+            and event.stream_id == self._h2_stream
+        )
+
+    def request(self, method, url, body=None, headers=None, **kwargs):
+        headers = dict(headers or {})
+        header_names = {name.lower() for name in headers}
+        if isinstance(body, str):
+            body = body.encode()
+        if not header_names & {"content-length", "transfer-encoding"}:
+            if isinstance(body, (bytes, bytearray, memoryview)):
+                headers["content-length"] = str(len(body))
+            elif body is None and method.upper() not in _METHODS_NOT_EXPECTING_BODY:
+                headers["content-length"] = "0"
+        super().request(method, url, body=body, headers=headers, **kwargs)
+
+    def send(self, data):
+        if self._h2_stream is None:
+            raise urllib3.exceptions.ProtocolError("Must call `putrequest` first.")
+        if hasattr(data, "read"):
+            data = data.read()
+        if isinstance(data, str):
+            data = data.encode()
+        elif not isinstance(data, (bytes, bytearray, memoryview)):
+            data = b"".join(data)
+        remaining = memoryview(data)
+        with self._h2_conn as conn:
+            while True:
+                try:
+                    window = min(
+                        conn.local_flow_control_window(self._h2_stream),
+                        conn.max_outbound_frame_size,
+                    )
+                    if window > 0:
+                        chunk, remaining = remaining[:window], remaining[window:]
+                        conn.send_data(
+                            self._h2_stream, bytes(chunk), end_stream=not remaining
+                        )
+                        self._flush(conn)
+                        if not remaining:
+                            return
+                        continue
+                except h2.exceptions.ProtocolError:
+                    # The peer reset the stream or closed the connection; the
+                    # outcome is reported by getresponse()
+                    return
+                # Wait for the peer to open its flow control window, keeping
+                # whatever else it sends meanwhile for getresponse()
+                events = self._receive_events(conn)
+                self._pending_events.extend(events)
+                if any(self._is_stream_over(event) for event in events):
+                    # The peer has already responded, or given up on this
+                    # stream: stop sending, and close our side if still open
+                    try:
+                        conn.end_stream(self._h2_stream)
+                        self._flush(conn)
+                    except h2.exceptions.ProtocolError:
+                        pass
+                    return
+
+    def getresponse(self):
+        if self.sock is not None:
+            self.sock.settimeout(self.timeout)
+        status = None
+        headers = urllib3.HTTPHeaderDict()
+        data = bytearray()
+        with self._h2_conn as conn:
+            events, self._pending_events = self._pending_events, []
+            while True:
+                for event in events:
+                    if isinstance(event, h2.events.ConnectionTerminated):
+                        raise urllib3.exceptions.ProtocolError(
+                            f"HTTP/2 connection terminated by peer (error code {event.error_code})"
+                        )
+                    if getattr(event, "stream_id", None) != self._h2_stream:
+                        continue
+                    if isinstance(event, h2.events.ResponseReceived):
+                        for name, value in event.headers:
+                            if name == b":status":
+                                status = int(value)
+                            else:
+                                headers.add(
+                                    name.decode("latin-1"), value.decode("latin-1")
+                                )
+                    elif isinstance(event, h2.events.DataReceived):
+                        data += event.data
+                        conn.acknowledge_received_data(
+                            event.flow_controlled_length, event.stream_id
+                        )
+                    elif isinstance(event, h2.events.StreamReset):
+                        raise urllib3.exceptions.ProtocolError(
+                            f"HTTP/2 stream reset by peer (error code {event.error_code})"
+                        )
+                    elif isinstance(event, h2.events.StreamEnded):
+                        self._flush(conn)
+                        if status is None:
+                            raise urllib3.exceptions.ProtocolError(
+                                "HTTP/2 stream ended without a response"
+                            )
+                        return urllib3.http2.connection.HTTP2Response(
+                            status=status,
+                            headers=headers,
+                            request_url=self._request_url,
+                            data=bytes(data),
+                        )
+                # Send window updates before blocking, or the peer may stall
+                self._flush(conn)
+                events = self._receive_events(conn)
+
+
+class _HTTP2ConnectionPool(urllib3.connectionpool.HTTPSConnectionPool):
+    ConnectionCls = _HTTP2Connection
+
+
+class Urllib3Client:
+    """
+    CCF default client and wrapper around Python urllib3, handling HTTP signatures.
     """
 
     _auth_provider = HttpSig
@@ -653,38 +908,62 @@ class HttpxClient:
     def __init__(
         self,
         hostname: str,
-        ca: str,
+        ca: str | None,
         session_auth: Identity | None = None,
         signing_auth: Identity | None = None,
         cose_signing_auth: Identity | None = None,
         common_headers: dict | None = None,
+        protocol: str = "https",
+        http1: bool = True,
+        http2: bool = False,
         **kwargs,
     ):
+        if kwargs:
+            raise TypeError(
+                f"Unexpected Urllib3Client arguments: {', '.join(sorted(kwargs))}"
+            )
         self.hostname = hostname
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
         self.cose_signing_auth = cose_signing_auth
         self.common_headers = common_headers
+        self.protocol = protocol
         self.key_id = None
-        cert = None
-        if self.session_auth:
-            cert = (self.session_auth.cert, self.session_auth.key)
-        self.protocol = "https"
-        if "protocol" in kwargs:
-            self.protocol = kwargs.get("protocol")
-            kwargs.pop("protocol")
-        self.session = httpx.Client(verify=self.ca, cert=cert, **kwargs)
-        # Swap in a network backend which sets TCP_NODELAY (see
-        # _NoDelaySyncBackend), regardless of whether the transport was
-        # constructed for HTTP/1.1 or HTTP/2.
-        pool = getattr(
-            self.session._transport, "_pool", None
-        )  # pylint: disable=protected-access
-        if pool is not None:
-            pool._network_backend = (
-                _NoDelaySyncBackend()
-            )  # pylint: disable=protected-access
+
+        host, port = infra.interfaces.split_netloc(hostname)
+        # A single connection per client, kept alive until the client is
+        # closed, so that each client corresponds to one session on the node
+        pool_kwargs: dict[str, Any] = {"maxsize": 1}
+        if self.protocol == "http":
+            if http2:
+                raise ValueError("HTTP/2 is only supported over TLS")
+            pool_cls: type[urllib3.connectionpool.HTTPConnectionPool] = (
+                _PlaintextConnectionPool
+            )
+        else:
+            if self.ca:
+                pool_kwargs["cert_reqs"] = "CERT_REQUIRED"
+                pool_kwargs["ca_certs"] = self.ca
+            else:
+                pool_kwargs["cert_reqs"] = "CERT_NONE"
+                pool_kwargs["assert_hostname"] = False
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            if self.session_auth:
+                pool_kwargs["cert_file"] = self.session_auth.cert
+                pool_kwargs["key_file"] = self.session_auth.key
+            if http2:
+                ssl_context = _HTTP2SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                if not self.ca:
+                    ssl_context.check_hostname = False
+                    ssl_context.verify_mode = ssl.CERT_NONE
+                pool_kwargs["ssl_context"] = ssl_context
+                pool_cls = _HTTP2ConnectionPool
+            else:
+                assert http1, "Either HTTP/1.1 or HTTP/2 must be enabled"
+                pool_cls = _HTTP1ConnectionPool
+        self.pool = pool_cls(host, port, **pool_kwargs)
+
         sig_auth = signing_auth or cose_signing_auth
         if sig_auth:
             with open(sig_auth.cert, encoding="utf-8") as cert_file:
@@ -700,33 +979,56 @@ class HttpxClient:
     def _request(
         self,
         request: Request,
-        request_body: bytes,
+        request_body: bytes | None,
         auth: Any,
         extra_headers: dict | None,
         timeout: int,
     ):
         self._last_request = (request, request_body, auth, extra_headers, timeout)
-        try:
-            response = self.session.request(
-                request.http_verb,
-                url=f"{self.protocol}://{self.hostname}{request.path}",
-                auth=auth,
-                headers=extra_headers,
-                timeout=timeout,
-                content=request_body,
+        # Encode the request target exactly as urllib3 will send it, so that
+        # HTTP signatures cover the bytes on the wire
+        target = urllib3.util.parse_url(
+            f"{self.protocol}://{self.hostname}{request.path}"
+        ).request_uri
+        headers = dict(extra_headers or {})
+        if auth is not None:
+            auth(
+                OutgoingRequest(
+                    method=request.http_verb,
+                    path=target,
+                    headers=headers,
+                    content=request_body or b"",
+                )
             )
-        except httpx.TimeoutException as exc:
-            raise TimeoutError from exc
-        except httpx.ConnectError as exc:
+        try:
+            # Redirects are followed by CCFClient, so that the request is
+            # re-issued unmodified (including auth) against the new target
+            response = self.pool.urlopen(
+                request.http_verb,
+                target,
+                body=request_body,
+                headers=headers,
+                timeout=timeout,
+                retries=False,
+                redirect=False,
+            )
+        except urllib3.exceptions.NewConnectionError as exc:
             raise CCFConnectionException from exc
-        except (httpx.WriteError, httpx.ReadError, httpx.RemoteProtocolError) as exc:
+        except urllib3.exceptions.TimeoutError as exc:
+            raise TimeoutError from exc
+        except urllib3.exceptions.ProtocolError as exc:
+            # A socket timeout while writing the request is wrapped by urllib3
+            if any(isinstance(arg, socket.timeout) for arg in exc.args):
+                raise TimeoutError from exc
+            raise CCFIOException from exc
+        except urllib3.exceptions.SSLError as exc:
             raise CCFIOException from exc
         except Exception as exc:
             raise RuntimeError(
-                f"HttpxClient failed with unexpected error: {exc}"
+                f"Urllib3Client failed with unexpected error: {exc}"
             ) from exc
 
-        return Response.from_requests_response(response)
+        return Response.from_urllib3_response(response)
 
     def repeat_last_request(self):
         return self._request(*self._last_request)
@@ -779,7 +1081,10 @@ class HttpxClient:
                 request_body = json.dumps(request.body).encode()
                 content_type = CONTENT_TYPE_JSON
 
-            if "content-type" not in request.headers and len(request.body) > 0:
+            # Header names are case-insensitive, so a caller's Content-Type
+            # must be detected regardless of its case
+            has_content_type = any(k.lower() == "content-type" for k in extra_headers)
+            if not has_content_type and len(request.body) > 0:
                 extra_headers["content-type"] = content_type
 
         if self.cose_signing_auth is not None and request.http_verb != "GET":
@@ -827,27 +1132,23 @@ class HttpxClient:
         )
 
     def close(self):
-        self.session.close()
+        self.pool.close()
 
     @staticmethod
     def extra_headers_count(http2=False):
-        # httpx inserts the following headers in every request
+        # urllib3 inserts the following headers in every request
         if http2:
             #  :method: GET/POST
             #  :authority: <address>
             #  :scheme: https
             #  :path: /path
-            #  accept: */*
-            #  accept-encoding: gzip, deflate, br
-            #  user-agent: python-httpx/<version>
-            return 7
+            #  user-agent: python-urllib3/<version>
+            return 5
         else:
             #  host: <address>
-            #  accept: */*
-            #  accept-encoding: gzip, deflate, br
-            #  connection: keep-alive
-            #  user-agent: python-httpx/<version>
-            return 5
+            #  accept-encoding: identity
+            #  user-agent: python-urllib3/<version>
+            return 3
 
 
 class RawSocketClient:
@@ -1018,7 +1319,7 @@ class CCFClient:
     """
     Client used to connect securely and issue requests to a given CCF node.
 
-    This is a wrapper around either Python Requests over TLS or curl with added:
+    This is a wrapper around either Python urllib3 over TLS or curl with added:
 
     - Retry logic when connecting to nodes that are joining the network
     - Support for HTTP signatures (https://tools.ietf.org/html/draft-cavage-http-signatures-12).
@@ -1040,13 +1341,13 @@ class CCFClient:
     default_impl_type = (
         CurlClient
         if os.getenv("CURL_CLIENT")
-        else RawSocketClient if os.getenv("SOCKET_CLIENT") else HttpxClient
+        else RawSocketClient if os.getenv("SOCKET_CLIENT") else Urllib3Client
     )
 
     def set_created_at_override(self, value):
         if isinstance(self.client_impl, CurlClient):
             assert value.tzinfo, "created_at must be timezone aware"
-        elif isinstance(self.client_impl, HttpxClient):
+        elif isinstance(self.client_impl, Urllib3Client):
             assert (
                 isinstance(value, int) or value.tzinfo
             ), "created_at must be integer or timezone aware"
@@ -1063,7 +1364,7 @@ class CCFClient:
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         election_timeout_ms: int | None = None,
         description: str | None = None,
-        impl_type: CurlClient | HttpxClient | RawSocketClient = default_impl_type,
+        impl_type: CurlClient | Urllib3Client | RawSocketClient = default_impl_type,
         common_headers: dict | None = None,
         openapi_validator=None,
         **kwargs,
@@ -1149,9 +1450,14 @@ class CCFClient:
             r = Request(redirect_path, body, http_verb, headers)
             request_client = temp_client
 
-            response = request_client.request(
-                r, timeout, cose_header_parameters_override
-            )
+            # Response bodies are fully read by the client implementation, so
+            # the temporary client (and its connection) can be closed at once
+            try:
+                response = request_client.request(
+                    r, timeout, cose_header_parameters_override
+                )
+            finally:
+                temp_client.close()
             flush_info([str(response)], log_capture, 3)
 
         if self.openapi_validator is not None and validate_openapi:

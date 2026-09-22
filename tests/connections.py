@@ -12,7 +12,6 @@ import struct
 import time
 
 import fuzzing
-import httpx
 import infra.checker
 import infra.e2e_args
 import infra.interfaces
@@ -217,11 +216,6 @@ def run_connection_caps_tests(args):
                                 client_fn(
                                     identity="user0",
                                     connection_timeout=1,
-                                    limits=httpx.Limits(
-                                        max_connections=1,
-                                        max_keepalive_connections=1,
-                                        keepalive_expiry=30,
-                                    ),
                                 )
                             )
                         )
