@@ -192,18 +192,25 @@ def test_node_data(network, args):
             new_node_info = nodes[untrusted_node.node_id]
             assert new_node_info["node_data"] == new_node_data, new_node_info
 
-            # Pending nodes must retain their data after consuming the input file.
+            # Pending nodes must retain their data after consuming the input
+            # file. A pending node serves no KV-backed endpoints itself, so
+            # observe it through the primary: each accepted join retry rewrites
+            # the pending entry (advancing last_written), and the data recorded
+            # for the node must be unchanged.
             ntf.close()
-            time.sleep(2 * args.join_timer_s)
-            assert not untrusted_node.remote.check_done()
-            with untrusted_node.client(
-                ca=os.path.join(
-                    untrusted_node.common_dir, f"{untrusted_node.local_node_id}.pem"
-                )
-            ) as uc:
-                r = uc.get("/node/network/nodes/self")
-                assert r.status_code == http.HTTPStatus.OK, r
-                assert r.body.json()["node_data"] == new_node_data, r.body.json()
+            previous_write = new_node_info["last_written"]
+            deadline = time.time() + 10 * args.join_timer_s
+            while True:
+                nodes = get_nodes()
+                assert untrusted_node.node_id in nodes, nodes
+                new_node_info = nodes[untrusted_node.node_id]
+                if new_node_info["last_written"] > previous_write:
+                    break
+                assert time.time() < deadline, new_node_info
+                time.sleep(0.1)
+            assert not untrusted_node.remote.check_done(timeout=0)
+            assert new_node_info["status"] == "Pending", new_node_info
+            assert new_node_info["node_data"] == new_node_data, new_node_info
 
             # Set modified node data
             new_node_data["previous_locations"] = [new_node_data["location"]]
