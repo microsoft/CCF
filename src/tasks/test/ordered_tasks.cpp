@@ -258,3 +258,279 @@ TEST_CASE(
   // Verify the second action (added in step 3) actually executed
   REQUIRE(execution_order == std::vector<size_t>{1, 2});
 }
+
+namespace
+{
+  struct ShutdownOwner
+  {
+    std::shared_ptr<ccf::tasks::OrderedTasks> tasks;
+
+    ~ShutdownOwner()
+    {
+      tasks->cancel_task();
+    }
+  };
+
+  struct ShutdownAction : public ccf::tasks::ITaskAction
+  {
+    std::shared_ptr<ShutdownOwner> owner;
+    size_t notifications = 0;
+    size_t executions = 0;
+
+    void do_action() override
+    {
+      ++executions;
+    }
+
+    void on_shutdown() noexcept override
+    {
+      ++notifications;
+      owner.reset();
+    }
+
+    const std::string& get_name() const override
+    {
+      static const std::string name = "ShutdownAction";
+      return name;
+    }
+  };
+}
+
+TEST_CASE(
+  "Shutdown breaks ready and paused ownership cycles" *
+  doctest::test_suite("ordered_tasks"))
+{
+  ccf::tasks::JobBoard board;
+  auto tasks = ccf::tasks::OrderedTasks::create(board);
+  auto owner = std::make_shared<ShutdownOwner>();
+  owner->tasks = tasks;
+  auto action = std::make_shared<ShutdownAction>();
+  action->owner = owner;
+  std::weak_ptr<ShutdownOwner> weak_owner = owner;
+  std::weak_ptr<ccf::tasks::OrderedTasks> weak_tasks = tasks;
+  ccf::tasks::Resumable resumable;
+
+  SUBCASE("Ready")
+  {
+    tasks->add_action(action);
+    REQUIRE(board.get_summary().pending_tasks == 1);
+  }
+  SUBCASE("Cancelled but still owning actions")
+  {
+    tasks->add_action(action);
+    tasks->cancel_task();
+    auto scheduled = board.get_task();
+    scheduled->do_task();
+    REQUIRE(board.get_summary().pending_tasks == 0);
+  }
+  SUBCASE("Paused with an unexecuted local batch")
+  {
+    tasks->add_action(ccf::tasks::make_basic_action(
+      [&]() { resumable = ccf::tasks::pause_current_task(); }));
+    tasks->add_action(action);
+    auto scheduled = board.get_task();
+    scheduled->do_task();
+    REQUIRE(resumable != nullptr);
+    REQUIRE(board.get_summary().pending_tasks == 0);
+  }
+
+  tasks.reset();
+  owner.reset();
+  REQUIRE_FALSE(weak_owner.expired());
+  REQUIRE_FALSE(weak_tasks.expired());
+  REQUIRE(board.get_summary().registered_tasks == 1);
+
+  board.shutdown();
+  REQUIRE(weak_owner.expired());
+  REQUIRE(action->notifications == 1);
+  REQUIRE(action->executions == 0);
+  REQUIRE(board.get_summary().registered_tasks == 0);
+  if (resumable != nullptr)
+  {
+    // A late commit callback must not resurrect the paused queue.
+    ccf::tasks::resume_task(std::move(resumable));
+  }
+  REQUIRE(weak_tasks.expired());
+  REQUIRE(board.get_task() == nullptr);
+  board.shutdown();
+  REQUIRE(action->notifications == 1);
+}
+
+TEST_CASE(
+  "Shutdown releases closure captures without external owners" *
+  doctest::test_suite("ordered_tasks"))
+{
+  std::weak_ptr<ShutdownOwner> weak_owner;
+  std::weak_ptr<ccf::tasks::OrderedTasks> weak_tasks;
+  {
+    ccf::tasks::JobBoard board;
+    auto tasks = ccf::tasks::OrderedTasks::create(board);
+    auto owner = std::make_shared<ShutdownOwner>();
+    owner->tasks = tasks;
+    weak_owner = owner;
+    weak_tasks = tasks;
+    tasks->add_action(ccf::tasks::make_basic_action(
+      [owner]() { FAIL("An abandoned action must not execute"); }));
+    owner.reset();
+    tasks.reset();
+    REQUIRE_FALSE(weak_owner.expired());
+    REQUIRE_FALSE(weak_tasks.expired());
+    // The board destructor must also shut down, rather than simply release
+    // its ready queue and leave a now-unreachable ownership cycle behind.
+  }
+  REQUIRE(weak_owner.expired());
+  REQUIRE(weak_tasks.expired());
+}
+
+TEST_CASE(
+  "Shutdown registry does not retain completed schedulers" *
+  doctest::test_suite("ordered_tasks"))
+{
+  auto board = std::make_unique<ccf::tasks::JobBoard>();
+  for (size_t i = 0; i < 100; ++i)
+  {
+    auto tasks = ccf::tasks::OrderedTasks::create(*board);
+    std::weak_ptr<ccf::tasks::OrderedTasks> weak_tasks = tasks;
+    REQUIRE(board->get_summary().registered_tasks == 1);
+    tasks.reset();
+    REQUIRE(weak_tasks.expired());
+    REQUIRE(board->get_summary().registered_tasks == 0);
+  }
+  auto survivor = ccf::tasks::OrderedTasks::create(*board);
+  board.reset();
+  REQUIRE(survivor->is_shutdown());
+  survivor.reset();
+}
+
+TEST_CASE(
+  "Shutdown releases externally retained closure captures" *
+  doctest::test_suite("ordered_tasks"))
+{
+  ccf::tasks::JobBoard board;
+  auto tasks = ccf::tasks::OrderedTasks::create(board);
+  SUBCASE("Queued before shutdown") {}
+  SUBCASE("Submitted after shutdown")
+  {
+    board.shutdown();
+  }
+  auto marker = std::make_shared<int>(42);
+  std::weak_ptr<int> weak_marker = marker;
+  auto task = ccf::tasks::make_basic_task(
+    [marker]() { FAIL("An abandoned task must not execute"); });
+  auto action = ccf::tasks::make_basic_action(
+    [marker]() { FAIL("An abandoned action must not execute"); });
+  marker.reset();
+  REQUIRE_FALSE(weak_marker.expired());
+  board.add_task(task);
+  tasks->add_action(ccf::tasks::TaskAction{action});
+  board.shutdown();
+  REQUIRE(weak_marker.expired());
+  REQUIRE(task != nullptr);
+  REQUIRE(action != nullptr);
+}
+
+TEST_CASE(
+  "Shutdown rejects late actions and new schedulers" *
+  doctest::test_suite("ordered_tasks"))
+{
+  ccf::tasks::JobBoard board;
+  auto tasks = ccf::tasks::OrderedTasks::create(board);
+  board.shutdown();
+
+  auto late_action = std::make_shared<ShutdownAction>();
+  tasks->add_action(late_action);
+  REQUIRE(late_action->notifications == 1);
+  REQUIRE(late_action->executions == 0);
+
+  auto late_tasks = ccf::tasks::OrderedTasks::create(board);
+  REQUIRE(late_tasks->is_shutdown());
+  auto another_action = std::make_shared<ShutdownAction>();
+  late_tasks->add_action(another_action);
+  REQUIRE(another_action->notifications == 1);
+  REQUIRE(board.get_summary().registered_tasks == 0);
+  REQUIRE(board.get_task() == nullptr);
+}
+
+TEST_CASE(
+  "Shutdown cleanup can re-enter task APIs" *
+  doctest::test_suite("ordered_tasks"))
+{
+  ccf::tasks::JobBoard board;
+  auto tasks = ccf::tasks::OrderedTasks::create(board);
+  struct ReentrantCleanup
+  {
+    ccf::tasks::JobBoard& board;
+    std::shared_ptr<ccf::tasks::OrderedTasks> tasks;
+    std::shared_ptr<ShutdownAction> late_action;
+    size_t& destroyed;
+
+    ~ReentrantCleanup()
+    {
+      ++destroyed;
+      board.shutdown();
+      tasks->shutdown();
+      tasks->add_action(late_action);
+      board.add_task(ccf::tasks::make_basic_task(
+        []() { FAIL("Cleanup must not schedule executable work"); }));
+      board.add_delayed_task(
+        ccf::tasks::make_basic_task(
+          []() { FAIL("Cleanup must not schedule delayed work"); }),
+        std::chrono::milliseconds(1));
+      board.add_periodic_task(
+        ccf::tasks::make_basic_task(
+          []() { FAIL("Cleanup must not schedule periodic work"); }),
+        std::chrono::milliseconds(1),
+        std::chrono::milliseconds(1));
+    }
+  };
+  size_t destroyed = 0;
+  auto late_action = std::make_shared<ShutdownAction>();
+  auto cleanup =
+    std::make_shared<ReentrantCleanup>(board, tasks, late_action, destroyed);
+  tasks->add_action(ccf::tasks::make_basic_action([cleanup]() {}));
+  cleanup.reset();
+
+  board.shutdown();
+  REQUIRE(destroyed == 1);
+  REQUIRE(late_action->notifications == 1);
+  board.tick(std::chrono::milliseconds(10));
+  REQUIRE(board.get_task() == nullptr);
+}
+
+TEST_CASE(
+  "Shutdown notifies ready delayed and periodic tasks once" *
+  doctest::test_suite("ordered_tasks"))
+{
+  struct ShutdownTask : public ccf::tasks::BaseTask
+  {
+    size_t notifications = 0;
+    void on_shutdown() noexcept override
+    {
+      ++notifications;
+    }
+    void do_task_implementation() override
+    {
+      FAIL("A shutdown task must not execute");
+    }
+    const std::string& get_name() const override
+    {
+      static const std::string name = "ShutdownTask";
+      return name;
+    }
+  };
+  ccf::tasks::JobBoard board;
+  auto task = std::make_shared<ShutdownTask>();
+  board.add_task(task);
+  board.add_delayed_task(task, std::chrono::milliseconds(1));
+  board.add_periodic_task(
+    task, std::chrono::milliseconds(1), std::chrono::milliseconds(1));
+  board.shutdown();
+  REQUIRE(task->notifications == 1);
+  REQUIRE(task->is_cancelled());
+  task->do_task();
+  board.tick(std::chrono::milliseconds(10));
+  REQUIRE(board.get_task() == nullptr);
+  board.add_task(task);
+  board.add_delayed_task(task, std::chrono::milliseconds(1));
+  REQUIRE(task->notifications == 1);
+}

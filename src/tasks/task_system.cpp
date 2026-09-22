@@ -49,6 +49,21 @@ namespace ccf::tasks
     return cancelled.load();
   }
 
+  void BaseTask::shutdown() noexcept
+  {
+    cancel_task();
+    if (!shut_down)
+    {
+      shut_down = true;
+      on_shutdown();
+    }
+  }
+
+  bool BaseTask::is_shutdown() const
+  {
+    return shut_down;
+  }
+
   // Implementation of ccf::tasks namespace static functions
   JobBoard& get_main_job_board()
   {

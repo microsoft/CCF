@@ -221,4 +221,9 @@ namespace ccf
     enclave->request_stop_notice();
     return true;
   }
+
+  void enclave_shutdown_tasks()
+  {
+    ccf::tasks::get_main_job_board().shutdown();
+  }
 }
