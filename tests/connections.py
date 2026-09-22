@@ -263,10 +263,20 @@ def run_connection_caps_tests(args):
                 LOG.success(
                     f"{primary_pid} has {num_fds}/{max_fds} open file descriptors"
                 )
-                r = clients[0].get("/node/metrics")
-                assert r.status_code == http.HTTPStatus.OK, r.status_code
-                peak_metrics = r.body.json()["sessions"]
-                assert peak_metrics["active"] <= peak_metrics["peak"], peak_metrics
+                # Sessions refused with a 503 are closed asynchronously by the
+                # node, so briefly wait for the active count to settle
+                end_time = time.time() + 3
+                while True:
+                    r = clients[0].get("/node/metrics")
+                    assert r.status_code == http.HTTPStatus.OK, r.status_code
+                    peak_metrics = r.body.json()["sessions"]
+                    assert peak_metrics["active"] <= peak_metrics["peak"], peak_metrics
+                    if (
+                        peak_metrics["active"] == len(healthy_clients)
+                        or time.time() > end_time
+                    ):
+                        break
+                    time.sleep(0.1)
                 assert peak_metrics["active"] == len(healthy_clients), (
                     peak_metrics,
                     len(healthy_clients),
@@ -346,6 +356,11 @@ def run_connection_caps_tests(args):
         resource.prlimit(primary_pid, resource.RLIMIT_NOFILE, (max_fds, max_fds))
         LOG.success(f"Setting max fds to dangerously low {max_fds} on {primary_pid}")
 
+        # The node is expected to crash when it runs out of file descriptors.
+        # That may only happen after the client has seen its responses, as
+        # ledger writes are asynchronous, so tolerate fatal errors at shutdown
+        # regardless of whether the crash is observed by the client.
+        network.ignore_errors_on_shutdown()
         try:
             num_fds = create_connections_until_exhaustion(to_create)
         except Exception as e:
@@ -353,7 +368,6 @@ def run_connection_caps_tests(args):
                 f"Node with only {max_fds} fds crashed when allowed to created {args.max_open_sessions} sessions, as expected"
             )
             LOG.warning(e)
-            network.ignore_errors_on_shutdown()
         else:
             LOG.warning("Expected a fatal crash and saw none!")
 
