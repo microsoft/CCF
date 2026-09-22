@@ -84,4 +84,52 @@ namespace ccf::cose::edit
       make_tagged(ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(edited)));
     return edited_envelope.nondet_serialize();
   }
+
+  std::vector<uint8_t> detach_payload(
+    const std::span<const uint8_t>& cose_input)
+  {
+    using namespace tav::cbor;
+
+    const Value cose_cbor = rethrow_with_msg(
+      [&]() { return nondet_parse(cose_input); }, "Failed to parse COSE_Sign1");
+
+    const Value cose_envelope = rethrow_with_msg(
+      [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
+      "Failed to parse COSE_Sign1 tag");
+
+    const Value phdr = rethrow_with_msg(
+      [&]() { return cose_envelope.array_at(0); },
+      "Failed to parse COSE_Sign1 protected header");
+
+    const Value uhdr = rethrow_with_msg(
+      [&]() { return cose_envelope.array_at(1); },
+      "Failed to parse COSE_Sign1 unprotected header");
+
+    const Value payload = rethrow_with_msg(
+      [&]() { return cose_envelope.array_at(2); },
+      "Failed to parse COSE_Sign1 payload");
+
+    const bool payload_is_nil = payload.kind() == Kind::SIMPLE &&
+      payload.as_simple() == SimpleValue::Null;
+    if (payload.kind() != Kind::BYTES && !payload_is_nil)
+    {
+      throw DecodeError(
+        Error::TYPE_MISMATCH,
+        "COSE_Sign1 payload must be a byte string or nil");
+    }
+
+    const Value signature = rethrow_with_msg(
+      [&]() { return cose_envelope.array_at(3); },
+      "Failed to parse COSE_Sign1 signature");
+
+    std::vector<Value> edited;
+    edited.push_back(shallow_copy(phdr));
+    edited.push_back(shallow_copy(uhdr));
+    edited.push_back(make_simple(SimpleValue::Null));
+    edited.push_back(shallow_copy(signature));
+
+    const Value edited_envelope =
+      make_tagged(ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(edited)));
+    return edited_envelope.nondet_serialize();
+  }
 }

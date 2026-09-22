@@ -68,18 +68,41 @@ def check_operations(ledger, operations):
                     assert member_id in members
                     cert = members[member_id]
 
+                    cose_sign1 = base64.b64decode(cose_sign1)
+                    msg = cwt.COSEMessage.loads(cose_sign1)
+                    assert msg.type == cwt.COSETypes.SIGN1, msg
+                    assert "ccf.gov.msg.type" in msg.protected, msg.protected
+                    msg_type = msg.protected["ccf.gov.msg.type"]
+
+                    # Proposals are recorded with a detached payload, since
+                    # the signed proposal body is already stored in
+                    # public:ccf.gov.proposals in the same transaction.
+                    # Ballots and withdrawals embed their payloads.
+                    detached_payload = None
+                    if msg_type == "proposal":
+                        assert msg.payload is None, msg
+                        proposals = {
+                            proposal_id: proposal
+                            for proposal_id, proposal in tables[
+                                "public:ccf.gov.proposals"
+                            ].items()
+                            if proposal is not None
+                        }
+                        ((proposal_id, detached_payload),) = proposals.items()
+                    else:
+                        assert msg.payload is not None, msg
+
                     cose_ctx = cwt.COSE.new()
                     cert_pem = cert.decode()
                     cose_key = cwt.COSEKey.from_pem(
                         cert_pem, kid=cert_fingerprint(cert_pem)
                     )
                     phdr, uhdr, payload = cose_ctx.decode_with_headers(
-                        base64.b64decode(cose_sign1), cose_key
+                        cose_sign1, cose_key, detached_payload=detached_payload
                     )
 
-                    assert "ccf.gov.msg.type" in phdr
-                    msg_type = phdr["ccf.gov.msg.type"]
                     if msg_type == "ballot":
+                        assert "ballot" in json.loads(payload), payload
                         op = (
                             phdr["ccf.gov.msg.proposal_id"],
                             member_id.decode(),
@@ -92,7 +115,7 @@ def check_operations(ledger, operations):
                             "withdraw",
                         )
                     elif msg_type == "proposal":
-                        (proposal_id,) = tables["public:ccf.gov.proposals"].keys()
+                        assert payload == detached_payload, (payload, detached_payload)
                         op = (proposal_id.decode(), member_id.decode(), "propose")
                     else:
                         assert False, (phdr, uhdr, payload)
