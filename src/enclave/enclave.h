@@ -191,14 +191,11 @@ namespace ccf
         signature_cache,
         sig_tx_interval,
         sig_ms_interval);
-
-      ccf::tasks::get_main_job_board().set_work_beacon(work_beacon);
     }
 
     ~Enclave()
     {
       ledger_subsystem->shutdown();
-      ccf::tasks::get_main_job_board().set_work_beacon(nullptr);
       LOG_TRACE_FMT("Shutting down enclave");
     }
 
@@ -436,8 +433,8 @@ namespace ccf
         {
           if (should_wait_for_work)
           {
-            // Wait until the host indicates that some ringbuffer messages or
-            // tasks are available, but wake at least every 100ms.
+            // Wait until the host indicates that some ringbuffer messages are
+            // available, but wake at least every 100ms.
             work_beacon->wait_for_work_with_timeout(
               std::chrono::milliseconds(100));
           }
@@ -452,31 +449,19 @@ namespace ccf
             node->stop_notice();
           }
 
-          // First, read some messages from the ringbuffer
+          // Read some messages from the ringbuffer. This thread is dedicated
+          // to ingress dispatch; task execution happens on worker threads
+          // (see run_worker), so that opaque, potentially-blocking tasks never
+          // stall consensus ingress.
           auto read = bp.read_n(max_messages, circuit->read_from_outside());
 
-          // Then, execute some tasks
-          auto& job_board = ccf::tasks::get_main_job_board();
-          ccf::tasks::Task task = job_board.get_task();
-          size_t tasks_done = 0;
-          while (task != nullptr)
-          {
-            ccf::tasks::try_do_task(*task);
-            ++tasks_done;
-            if (tasks_done >= max_messages)
-            {
-              break;
-            }
-            task = job_board.get_task();
-          }
-          // Hitting the task budget may leave queued work behind. Continue
-          // immediately rather than consuming the only coalesced wake and then
-          // sleeping with a non-empty JobBoard.
-          should_wait_for_work = tasks_done < max_messages;
+          // Hitting the read budget may leave queued messages behind.
+          // Continue immediately rather than consuming the only coalesced
+          // wake and then sleeping with unread ringbuffer messages.
+          should_wait_for_work = read < max_messages;
 
-          // If no messages were read from the ringbuffer and tasks were
-          // executed, idle
-          if (read == 0 && tasks_done == 0)
+          // If no messages were read from the ringbuffer, idle
+          if (read == 0)
           {
             std::this_thread::yield();
           }

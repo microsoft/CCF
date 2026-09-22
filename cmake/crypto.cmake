@@ -21,6 +21,8 @@ set(
   ${CCF_DIR}/src/crypto/openssl/ec_key_pair.cpp
   ${CCF_DIR}/src/crypto/openssl/eddsa_public_key.cpp
   ${CCF_DIR}/src/crypto/openssl/eddsa_key_pair.cpp
+  ${CCF_DIR}/src/crypto/openssl/mldsa_public_key.cpp
+  ${CCF_DIR}/src/crypto/openssl/mldsa_key_pair.cpp
   ${CCF_DIR}/src/crypto/openssl/hash.cpp
   ${CCF_DIR}/src/crypto/openssl/rsa_public_key.cpp
   ${CCF_DIR}/src/crypto/openssl/rsa_key_pair.cpp

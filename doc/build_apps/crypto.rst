@@ -58,6 +58,35 @@ keys when constructed via :cpp:func:`ECKeyPairPtr ccf::crypto::make_ec_key_pair(
 .. doxygenfunction:: ccf::crypto::make_rsa_key_pair(size_t, size_t)
   :project: CCF
 
+ML-DSA Signing Keys
+~~~~~~~~~~~~~~~~~~~
+
+CCF supports ML-DSA (FIPS 204) keys with OpenSSL 3.5 or newer; public keys are held
+in MLDSAPublicKey objects and private keys in MLDSAKeyPair objects. Signatures are
+pure ML-DSA over the message, with an optional context string of at most 255 bytes.
+Private keys are exported in plaintext, so callers are responsible for protecting
+the returned buffers.
+
+.. doxygenclass:: ccf::crypto::MLDSAPublicKey
+  :project: CCF
+  :members:
+
+.. doxygenclass:: ccf::crypto::MLDSAKeyPair
+  :project: CCF
+  :members:
+
+.. doxygenenum:: ccf::crypto::MLDSAParameterSet
+  :project: CCF
+
+.. doxygenfunction:: ccf::crypto::make_mldsa_key_pair(MLDSAParameterSet)
+  :project: CCF
+
+.. doxygenfunction:: ccf::crypto::make_mldsa_key_pair(const Pem&, MLDSAParameterSet)
+  :project: CCF
+
+.. doxygenfunction:: ccf::crypto::make_mldsa_public_key(const Pem&, MLDSAParameterSet)
+  :project: CCF
+
 Symmetric Keys
 --------------------
 
