@@ -1559,10 +1559,12 @@ def test_long_lived_forwarding(network, args):
     # by the combined work of all threads between the point where the soft limit
     # (half the message limit) triggers a key exchange and the point where that
     # exchange completes. Note that each thread produces multiple node-to-node
-    # messages - a forwarded write and response, Raft AEs - and issues requests
-    # as fast as the client can send them. If these arrive too fast, they will
-    # trigger the hard cap and the node-to-node keys will be reset, potentially
-    # invalidating in-flight messages and causing client requests to time out.
+    # messages - a forwarded write and response, Raft AEs. If these arrive too
+    # fast, they will trigger the hard cap and the node-to-node keys will be
+    # reset, potentially invalidating in-flight messages and causing client
+    # requests to time out. This margin depends on client request rate, so must
+    # stay comfortably above the concurrent in-flight message burst produced by
+    # n_threads clients sending as fast as the network allows.
     n_threads = 5
     message_limit = 400
     # Enough requests per thread for several key rotations to happen

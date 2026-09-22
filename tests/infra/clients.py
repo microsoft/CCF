@@ -950,6 +950,7 @@ class RawSocketClient:
                     )
 
                 sock = socket.create_connection((hostname, port))
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 ssl_socket = context.wrap_socket(
                     sock, server_side=False, server_hostname=hostname
                 )
