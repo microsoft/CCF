@@ -431,7 +431,7 @@ def cli_args(
     )
     parser.add_argument(
         "--worker-threads",
-        help="number of worker threads inside the enclave",
+        help="configured worker_threads value; the enclave starts one additional worker",
         type=int,
         default=1,
     )
