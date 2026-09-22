@@ -299,65 +299,6 @@ namespace ccf
 
         switch (forwarded_msg)
         {
-          case ForwardedMsg::forwarded_cmd_v1:
-          {
-            auto ctx =
-              recv_forwarded_command<ForwardedHeader_v1>(from, data, size);
-
-            auto fwd_handler = get_forwarder_handler(ctx);
-            if (fwd_handler == nullptr)
-            {
-              return;
-            }
-
-            // frame_format is deliberately unset, the forwarder ignores it
-            // and expects the same format they forwarded.
-            ForwardedHeader_v1 response_header{
-              ForwardedMsg::forwarded_response_v1};
-
-            LOG_DEBUG_FMT("Sending forwarded response to {}", from);
-            fwd_handler->process_forwarded(ctx);
-
-            send_forwarded_response(
-              ctx->get_session_context()->client_session_id,
-              from,
-              response_header,
-              ctx->serialise_response());
-            break;
-          }
-
-          case ForwardedMsg::forwarded_cmd_v2:
-          {
-            auto ctx =
-              recv_forwarded_command<ForwardedHeader_v2>(from, data, size);
-
-            auto fwd_handler = get_forwarder_handler(ctx);
-            if (fwd_handler == nullptr)
-            {
-              return;
-            }
-
-            const auto forwarded_hdr_v2 =
-              serialized::peek<ForwardedHeader_v2>(data, size);
-            const auto cmd_id = forwarded_hdr_v2.id;
-
-            fwd_handler->process_forwarded(ctx);
-
-            // frame_format is deliberately unset, the forwarder ignores it
-            // and expects the same format they forwarded.
-            ForwardedHeader_v2 response_header{
-              {ForwardedMsg::forwarded_response_v2, {}}, cmd_id};
-
-            LOG_DEBUG_FMT("Sending forwarded response to {}", from);
-
-            send_forwarded_response(
-              ctx->get_session_context()->client_session_id,
-              from,
-              response_header,
-              ctx->serialise_response());
-            break;
-          }
-
           case ForwardedMsg::forwarded_cmd_v3:
           {
             auto ctx = recv_forwarded_command<ForwardedCommandHeader_v3>(
@@ -391,7 +332,6 @@ namespace ccf
           }
 
           case ForwardedMsg::forwarded_response_v3:
-          case ForwardedMsg::forwarded_response_v2:
           {
             const auto forwarded_hdr_v2 =
               serialized::peek<ForwardedHeader_v2>(data, size);
@@ -414,27 +354,9 @@ namespace ccf
                 cmd_id);
               return;
             }
-            // Deliberate fall-through
-          }
 
-          case ForwardedMsg::forwarded_response_v1:
-          {
-            std::optional<ForwardedResponseResult> rep;
-            if (forwarded_msg == ForwardedMsg::forwarded_response_v3)
-            {
-              rep = recv_forwarded_response<ForwardedResponseHeader_v3>(
-                from, data, size);
-            }
-            else if (forwarded_msg == ForwardedMsg::forwarded_response_v2)
-            {
-              rep =
-                recv_forwarded_response<ForwardedHeader_v2>(from, data, size);
-            }
-            else
-            {
-              rep =
-                recv_forwarded_response<ForwardedHeader_v1>(from, data, size);
-            }
+            auto rep = recv_forwarded_response<ForwardedResponseHeader_v3>(
+              from, data, size);
 
             if (!rep.has_value())
             {
@@ -456,6 +378,18 @@ namespace ccf
               return;
             }
 
+            break;
+          }
+
+          case ForwardedMsg::forwarded_cmd_v1:
+          case ForwardedMsg::forwarded_response_v1:
+          case ForwardedMsg::forwarded_cmd_v2:
+          case ForwardedMsg::forwarded_response_v2:
+          {
+            LOG_FAIL_FMT(
+              "Forwarded msg type {} is no longer supported on receive, "
+              "dropping message",
+              (size_t)forwarded_msg);
             break;
           }
 
