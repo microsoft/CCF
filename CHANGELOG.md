@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - JS registry tables and their configured namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. The governance-driven registry uses `public:ccf.gov.*` and leaves application namespaces unchanged. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`; platform permissions still apply (#8359).
 - Fixed `set_member` failures on services which have only ever emitted COSE ledger signatures (#8407).
+- Tasks still queued when a node shuts down are now cancelled and released once every thread has stopped, rather than being dropped during static destruction. A response queued in the last moments before shutdown previously kept its session alive as a reference cycle, which LeakSanitizer reported (#8421).
 
 ### Removed
 
