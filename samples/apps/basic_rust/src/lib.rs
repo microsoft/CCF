@@ -10,6 +10,7 @@ fn required_key(value: Result<Option<String>, BridgeError>) -> Result<String, En
 }
 
 fn register(registry: &mut Registry) -> Result<(), BridgeError> {
+    // SNIPPET_START: rust_put_record
     registry.read_write(
         "/records/{key}",
         "PUT",
@@ -22,7 +23,9 @@ fn register(registry: &mut Registry) -> Result<(), BridgeError> {
             Ok(())
         },
     )?;
+    // SNIPPET_END: rust_put_record
 
+    // SNIPPET_START: rust_get_record
     registry.read_only(
         "/records/{key}",
         "GET",
@@ -40,6 +43,7 @@ fn register(registry: &mut Registry) -> Result<(), BridgeError> {
             }
         },
     )?;
+    // SNIPPET_END: rust_get_record
 
     registry.read_only("/panic", "GET", Auth::None, |_| -> EndpointResult {
         panic!("test panic")
