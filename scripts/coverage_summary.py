@@ -9,6 +9,11 @@ summary directly, so the trend is reconstructed from the logs of previous
 Coverage runs on the same branch, which contain the same report. This script
 extracts the overall line and branch coverage percentages from each of those
 reports and renders Mermaid xychart trend charts, including the current run.
+
+It also aggregates the per-file rows of the current report by source area
+(directory) and lists the files with the most uncovered lines, so that the job
+summary shows where coverage is missing and which areas moved since the
+previous run.
 """
 
 import argparse
@@ -16,7 +21,7 @@ import math
 import os
 import re
 import sys
-from typing import List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 # Number of previous runs to include in the trend, in addition to the current
 # run. Overridable via the environment so the coverage workflow can keep this in
@@ -37,6 +42,23 @@ _TIMESTAMP_RE = re.compile(r"^\S+T\S+Z\s+")
 _LINE_COVERAGE_INDEX = 2
 _BRANCH_COVERAGE_INDEX = 3
 
+# Per-file rows of the llvm-cov ``report`` have the same shape as the TOTAL
+# line, prefixed with the file path:
+#   src/kv/store.h  1046 216 79.35%  85 3 96.47%  1046 216 79.35%  322 102 68.32%
+# Token indices of the line and branch counts within such a row.
+_FILE_ROW_TOKENS = 13
+_FILE_ROW_TOKENS_NO_BRANCHES = 10
+_LINES_INDEX = 7
+_MISSED_LINES_INDEX = 8
+_BRANCHES_INDEX = 10
+_MISSED_BRANCHES_INDEX = 11
+
+# Number of leading path components used to group files into areas, e.g.
+# ``src/node/rpc`` or ``include/ccf/ds``.
+_AREA_DEPTH = 3
+# Number of files listed in the "most uncovered lines" table.
+_TOP_FILES = 15
+
 # Plot colours for the trend charts: bright green for line coverage, bright
 # blue for branch coverage.
 _LINE_COVERAGE_COLOR = "#00ff00"
@@ -50,6 +72,41 @@ class CoveragePoint(NamedTuple):
     branch_coverage: Optional[float]
 
 
+class FileCoverage(NamedTuple):
+    path: str
+    lines: int
+    missed_lines: int
+    branches: int
+    missed_branches: int
+
+
+class AreaCoverage(NamedTuple):
+    area: str
+    lines: int
+    missed_lines: int
+    branches: int
+    missed_branches: int
+
+    @property
+    def line_coverage(self) -> Optional[float]:
+        return _percentage(self.lines, self.missed_lines)
+
+    @property
+    def branch_coverage(self) -> Optional[float]:
+        return _percentage(self.branches, self.missed_branches)
+
+
+def _percentage(total: int, missed: int) -> Optional[float]:
+    if total == 0:
+        return None
+    return 100.0 * (total - missed) / total
+
+
+def _clean_line(line: str) -> str:
+    stripped: str = _ANSI_RE.sub("", line)
+    return _TIMESTAMP_RE.sub("", stripped).strip()
+
+
 def extract_coverage(text: str) -> Optional[Tuple[float, Optional[float]]]:
     """Return the (line, branch) coverage percentages from an llvm-cov report.
 
@@ -57,8 +114,7 @@ def extract_coverage(text: str) -> Optional[Tuple[float, Optional[float]]]:
     column.
     """
     for line in text.splitlines():
-        stripped: str = _ANSI_RE.sub("", line)
-        stripped = _TIMESTAMP_RE.sub("", stripped).strip()
+        stripped: str = _clean_line(line)
         if not stripped.startswith("TOTAL"):
             continue
         percentages: List[str] = _PERCENT_RE.findall(stripped)
@@ -69,6 +125,128 @@ def extract_coverage(text: str) -> Optional[Tuple[float, Optional[float]]]:
                 branch_coverage = float(percentages[_BRANCH_COVERAGE_INDEX])
             return line_coverage, branch_coverage
     return None
+
+
+def extract_file_coverage(text: str) -> List[FileCoverage]:
+    """Return the per-file line and branch counts from an llvm-cov report.
+
+    Rows are recognised by their shape rather than by position, as the report
+    is embedded in a job log alongside other output. Files without branch
+    columns are recorded with zero branches.
+    """
+    files: List[FileCoverage] = []
+    for line in text.splitlines():
+        tokens: List[str] = _clean_line(line).split()
+        if len(tokens) not in (_FILE_ROW_TOKENS, _FILE_ROW_TOKENS_NO_BRANCHES):
+            continue
+        path: str = tokens[0]
+        if "/" not in path or path == "TOTAL":
+            continue
+        counts: List[str] = tokens[1:]
+        if not all(
+            token.isdigit() or token.endswith("%") or token == "-" for token in counts
+        ):
+            continue
+        try:
+            lines: int = int(tokens[_LINES_INDEX])
+            missed_lines: int = int(tokens[_MISSED_LINES_INDEX])
+            branches: int = 0
+            missed_branches: int = 0
+            if len(tokens) == _FILE_ROW_TOKENS:
+                branches = int(tokens[_BRANCHES_INDEX])
+                missed_branches = int(tokens[_MISSED_BRANCHES_INDEX])
+        except ValueError:
+            continue
+        files.append(FileCoverage(path, lines, missed_lines, branches, missed_branches))
+    return files
+
+
+def area_of(path: str) -> str:
+    """Return the area (leading directory components) a file belongs to."""
+    directory: List[str] = path.split("/")[:-1]
+    return "/".join(directory[:_AREA_DEPTH]) or "."
+
+
+def aggregate_by_area(files: List[FileCoverage]) -> List[AreaCoverage]:
+    """Sum per-file counts by area, most missed lines first."""
+    totals: Dict[str, List[int]] = {}
+    for entry in files:
+        counts: List[int] = totals.setdefault(area_of(entry.path), [0, 0, 0, 0])
+        counts[0] += entry.lines
+        counts[1] += entry.missed_lines
+        counts[2] += entry.branches
+        counts[3] += entry.missed_branches
+    areas: List[AreaCoverage] = [
+        AreaCoverage(area, *counts) for area, counts in totals.items()
+    ]
+    areas.sort(key=lambda area: (-area.missed_lines, area.area))
+    return areas
+
+
+def _format_percentage(value: Optional[float]) -> str:
+    return f"{value:.2f}%" if value is not None else "-"
+
+
+def _format_delta(current: Optional[float], previous: Optional[float]) -> str:
+    if current is None or previous is None:
+        return "-"
+    return f"{current - previous:+.2f}"
+
+
+def render_areas(
+    current: List[AreaCoverage], previous: Optional[List[AreaCoverage]]
+) -> str:
+    """Render a per-area table, with changes relative to the previous run."""
+    previous_by_area: Dict[str, AreaCoverage] = {
+        area.area: area for area in (previous or [])
+    }
+    lines: List[str] = [
+        "## Coverage by area",
+        "",
+        (
+            "Sorted by uncovered lines. Changes are in percentage points relative "
+            "to the previous run on this branch."
+        ),
+        "",
+        (
+            "| Area | Lines | Missed | Line coverage | Change "
+            "| Branches | Missed | Branch coverage | Change |"
+        ),
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for area in current:
+        before: Optional[AreaCoverage] = previous_by_area.get(area.area)
+        lines.append(
+            f"| `{area.area}` | {area.lines} | {area.missed_lines} "
+            f"| {_format_percentage(area.line_coverage)} "
+            f"| {_format_delta(area.line_coverage, before.line_coverage if before else None)} "
+            f"| {area.branches} | {area.missed_branches} "
+            f"| {_format_percentage(area.branch_coverage)} "
+            f"| {_format_delta(area.branch_coverage, before.branch_coverage if before else None)} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def render_top_files(files: List[FileCoverage]) -> str:
+    """Render the files with the most uncovered lines."""
+    ranked: List[FileCoverage] = sorted(
+        files, key=lambda entry: (-entry.missed_lines, entry.path)
+    )[:_TOP_FILES]
+    lines: List[str] = [
+        f"## Files with most uncovered lines (top {len(ranked)})",
+        "",
+        "| File | Lines | Missed | Line coverage | Branch coverage |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ]
+    for entry in ranked:
+        lines.append(
+            f"| `{entry.path}` | {entry.lines} | {entry.missed_lines} "
+            f"| {_format_percentage(_percentage(entry.lines, entry.missed_lines))} "
+            f"| {_format_percentage(_percentage(entry.branches, entry.missed_branches))} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _parse_history_name(name: str) -> Optional[Tuple[int, str]]:
@@ -105,6 +283,31 @@ def load_history(directory: str) -> List[CoveragePoint]:
             line_coverage, branch_coverage = coverage
             points.append(CoveragePoint(run_id, label, line_coverage, branch_coverage))
     return points
+
+
+def latest_history_path(directory: str) -> Optional[str]:
+    """Return the previous-run log with the highest run id, if any."""
+    latest: Optional[Tuple[int, str]] = None
+    if not os.path.isdir(directory):
+        return None
+    for name in os.listdir(directory):
+        path: str = os.path.join(directory, name)
+        if not os.path.isfile(path):
+            continue
+        parsed: Optional[Tuple[int, str]] = _parse_history_name(name)
+        if parsed is None:
+            continue
+        if latest is None or parsed[0] > latest[0]:
+            latest = (parsed[0], path)
+    return latest[1] if latest is not None else None
+
+
+def _read_text(path: str) -> Optional[str]:
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except OSError:
+        return None
 
 
 def run_url(run_id: int) -> str:
@@ -241,10 +444,27 @@ def main() -> int:
     history: List[CoveragePoint] = load_history(args.history)
     points: List[CoveragePoint] = build_points(history, current)
 
-    if not points:
+    if points:
+        print(render_trend(points))
+
+    report_text: Optional[str] = _read_text(args.report)
+    if report_text is None:
+        return 0
+    files: List[FileCoverage] = extract_file_coverage(report_text)
+    if not files:
         return 0
 
-    print(render_trend(points))
+    previous_areas: Optional[List[AreaCoverage]] = None
+    previous_path: Optional[str] = latest_history_path(args.history)
+    if previous_path is not None:
+        previous_text: Optional[str] = _read_text(previous_path)
+        if previous_text is not None:
+            previous_files: List[FileCoverage] = extract_file_coverage(previous_text)
+            if previous_files:
+                previous_areas = aggregate_by_area(previous_files)
+
+    print(render_areas(aggregate_by_area(files), previous_areas))
+    print(render_top_files(files))
     return 0
 
 
