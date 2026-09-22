@@ -360,10 +360,13 @@ def test_large_snapshot(network, args):
 def test_snapshot_access(network, args):
     primary, backups = network.find_nodes()
 
-    target = network.txs.issue(network, number_txs=1)
-    primary.trigger_snapshot()
-    primary.wait_for_snapshot(target.seqno)
-    snapshot_path = primary.get_snapshots()[-1]
+    network.txs.issue(network, number_txs=1)
+    # The triggered snapshot is taken at the first signature after the trigger
+    # transaction. A count-based snapshot may already have landed between the
+    # logging transaction and the trigger, so waiting on the logging
+    # transaction's seqno can return early and observe a stale latest snapshot.
+    trigger_txid = primary.trigger_snapshot()
+    snapshot_path = primary.wait_for_snapshot(trigger_txid.seqno)
     snapshot_name = os.path.basename(snapshot_path)
     snapshot_index, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
 
@@ -534,10 +537,13 @@ def test_snapshot_repr_digest(network, args):
     """
     primary, _ = network.find_nodes()
 
-    target = network.txs.issue(network, number_txs=1)
-    primary.trigger_snapshot()
-    primary.wait_for_snapshot(target.seqno)
-    snapshot_path = primary.get_snapshots()[-1]
+    network.txs.issue(network, number_txs=1)
+    # The triggered snapshot is taken at the first signature after the trigger
+    # transaction. A count-based snapshot may already have landed between the
+    # logging transaction and the trigger, so waiting on the logging
+    # transaction's seqno can return early and observe a stale latest snapshot.
+    trigger_txid = primary.trigger_snapshot()
+    snapshot_path = primary.wait_for_snapshot(trigger_txid.seqno)
     snapshot_name = os.path.basename(snapshot_path)
     with open(snapshot_path, "rb") as f:
         snapshot_data = f.read()
