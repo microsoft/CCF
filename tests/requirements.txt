@@ -11,6 +11,10 @@ Jinja2 >= 3.1.6, < 4
 # Later versions of httpx cause failures in long forwarding,
 # extended character range and JWT tests.
 httpx[http2] == 0.23.*
+# infra.clients.HttpxClient depends on private httpcore internals (module
+# path, class, method and pool attribute names) to set TCP_NODELAY; pin
+# exactly, since these are not covered by httpcore's public API guarantees.
+httpcore == 0.16.3
 locust >= 2.41.6, < 3
 JWCrypto >= 1.5.6, < 2
 rich >= 14.2.0, < 15
