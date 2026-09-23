@@ -5,6 +5,7 @@
 #include "ccf/ds/locking.h"
 
 #include <atomic>
+#include <cassert>
 #include <deque>
 
 namespace ccf::tasks
@@ -88,6 +89,17 @@ namespace ccf::tasks
       num_pending = pending.size();
       is_active = active.load();
       is_paused = paused.load();
+    }
+
+    // The caller has stopped execution, including any local batch held by
+    // pop_and_visit. Dispose of the returned items outside pending_mutex.
+    std::deque<T> take_pending()
+    {
+      std::deque<T> abandoned;
+      ccf::ds::MutexGuard lock(pending_mutex);
+      assert(!active.load());
+      abandoned.swap(pending);
+      return abandoned;
     }
   };
 }
