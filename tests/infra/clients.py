@@ -24,7 +24,6 @@ from threading import local
 from typing import Any
 
 import ccf.cose
-import httpcore.backends.sync
 import httpx
 from ccf.tx_id import TxID
 from cryptography import x509
@@ -625,21 +624,6 @@ class CurlClient:
             return 3
 
 
-class _NoDelaySyncBackend(httpcore.backends.sync.SyncBackend):
-    """
-    Sync network backend that enables TCP_NODELAY, avoiding a ~40ms
-    Nagle/delayed-ACK stall per request on the pinned httpcore 0.16
-    (newer httpcore versions set this by default).
-    """
-
-    def connect_tcp(self, *args, **kwargs):
-        stream = super().connect_tcp(*args, **kwargs)
-        sock = stream.get_extra_info("socket")
-        if sock is not None:
-            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        return stream
-
-
 class HttpxClient:
     """
     CCF default client and wrapper around Python httpx, handling HTTP signatures.
@@ -653,7 +637,7 @@ class HttpxClient:
     def __init__(
         self,
         hostname: str,
-        ca: str,
+        ca: str | None,
         session_auth: Identity | None = None,
         signing_auth: Identity | None = None,
         cose_signing_auth: Identity | None = None,
@@ -667,24 +651,23 @@ class HttpxClient:
         self.cose_signing_auth = cose_signing_auth
         self.common_headers = common_headers
         self.key_id = None
-        cert = None
+        if self.ca is None:
+            # ca=None means server certificate verification is disabled.
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+        else:
+            context = ssl.create_default_context(cafile=self.ca)
         if self.session_auth:
-            cert = (self.session_auth.cert, self.session_auth.key)
+            context.load_cert_chain(
+                certfile=self.session_auth.cert,
+                keyfile=self.session_auth.key,
+            )
         self.protocol = "https"
         if "protocol" in kwargs:
             self.protocol = kwargs.get("protocol")
             kwargs.pop("protocol")
-        self.session = httpx.Client(verify=self.ca, cert=cert, **kwargs)
-        # Swap in a network backend which sets TCP_NODELAY (see
-        # _NoDelaySyncBackend), regardless of whether the transport was
-        # constructed for HTTP/1.1 or HTTP/2.
-        pool = getattr(
-            self.session._transport, "_pool", None
-        )  # pylint: disable=protected-access
-        if pool is not None:
-            pool._network_backend = (
-                _NoDelaySyncBackend()
-            )  # pylint: disable=protected-access
+        self.session = httpx.Client(verify=context, **kwargs)
         sig_auth = signing_auth or cose_signing_auth
         if sig_auth:
             with open(sig_auth.cert, encoding="utf-8") as cert_file:

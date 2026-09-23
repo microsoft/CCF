@@ -33,13 +33,11 @@ namespace http
     http2::StreamId stream_id;
 
     // Associated HTTP2ServerSession may be closed while responder is held
-    // elsewhere (e.g. async streaming) so keep a weak pointer to parser and
-    // report an error to caller to discard responder.
+    // elsewhere so keep a weak pointer to parser and report an error to caller
+    // to discard responder.
     std::weak_ptr<http2::ServerParser> server_parser;
 
   public:
-    using StreamOnCloseCallback = http2::StreamCloseCB;
-
     HTTP2StreamResponder(
       http2::StreamId stream_id_,
       const std::shared_ptr<http2::ServerParser>& server_parser_) :
@@ -70,103 +68,6 @@ namespace http
         return false;
       }
 
-      return true;
-    }
-
-    bool start_stream(ccf::http_status status, ccf::http::HeaderMap&& headers)
-    {
-      auto sp = server_parser.lock();
-      if (sp)
-      {
-        try
-        {
-          sp->start_stream(stream_id, status, std::move(headers));
-        }
-        catch (const std::exception& e)
-        {
-          LOG_DEBUG_FMT("Error sending headers {}: {}", stream_id, e.what());
-          return false;
-        }
-      }
-      else
-      {
-        LOG_DEBUG_FMT("Stream {} is closed", stream_id);
-        return false;
-      }
-      return true;
-    }
-
-    bool close_stream(ccf::http::HeaderMap&& trailers)
-    {
-      auto sp = server_parser.lock();
-      if (sp)
-      {
-        try
-        {
-          sp->close_stream(stream_id, std::move(trailers));
-        }
-        catch (const std::exception& e)
-        {
-          LOG_DEBUG_FMT("Error closing stream {}: {}", stream_id, e.what());
-          return false;
-        }
-      }
-      else
-      {
-        LOG_DEBUG_FMT("Stream {} is closed", stream_id);
-        return false;
-      }
-      return true;
-    }
-
-    bool stream_data(std::vector<uint8_t>&& data)
-    {
-      auto sp = server_parser.lock();
-      if (sp)
-      {
-        try
-        {
-          sp->send_data(stream_id, std::move(data));
-        }
-        catch (const std::exception& e)
-        {
-          LOG_DEBUG_FMT(
-            "Error streaming data on stream {}: {}", stream_id, e.what());
-          return false;
-        }
-      }
-      else
-      {
-        LOG_DEBUG_FMT("Stream {} is closed", stream_id);
-        return false;
-      }
-
-      return true;
-    }
-
-    bool set_on_stream_close_callback(StreamOnCloseCallback cb)
-    {
-      auto sp = server_parser.lock();
-      if (sp)
-      {
-        try
-        {
-          sp->set_on_stream_close_callback(stream_id, cb);
-        }
-        catch (const std::exception& e)
-        {
-          LOG_DEBUG_FMT(
-            "Error setting close callback on stream {}: {}",
-            stream_id,
-            e.what());
-          return false;
-        }
-      }
-      else
-      {
-        LOG_DEBUG_FMT("Stream {} is closed", stream_id);
-        return false;
-      }
       return true;
     }
   };
@@ -405,31 +306,6 @@ namespace http
           std::move(headers),
           std::move(trailers),
           std::move(body));
-    }
-
-    bool start_stream(ccf::http_status status, ccf::http::HeaderMap&& headers)
-    {
-      return get_stream_responder(http2::DEFAULT_STREAM_ID)
-        ->start_stream(status, std::move(headers));
-    }
-
-    bool stream_data(std::vector<uint8_t>&& data)
-    {
-      return get_stream_responder(http2::DEFAULT_STREAM_ID)
-        ->stream_data(std::move(data));
-    }
-
-    bool close_stream(ccf::http::HeaderMap&& trailers)
-    {
-      return get_stream_responder(http2::DEFAULT_STREAM_ID)
-        ->close_stream(std::move(trailers));
-    }
-
-    bool set_on_stream_close_callback(
-      HTTP2StreamResponder::StreamOnCloseCallback cb)
-    {
-      return get_stream_responder(http2::DEFAULT_STREAM_ID)
-        ->set_on_stream_close_callback(cb);
     }
   };
 

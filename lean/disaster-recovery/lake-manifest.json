@@ -3,6 +3,18 @@
   "packagesDir": ".lake/packages",
   "packages": [
     {
+      "url": "https://github.com/duckki/leanfmt.git",
+      "type": "git",
+      "subDir": null,
+      "scope": "",
+      "rev": "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef",
+      "name": "leanfmt",
+      "manifestFile": "lake-manifest.json",
+      "inputRev": "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef",
+      "inherited": false,
+      "configFile": "lakefile.toml"
+    },
+    {
       "url": "https://github.com/leanprover-community/axiom-audit.git",
       "type": "git",
       "subDir": null,
