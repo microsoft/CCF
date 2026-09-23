@@ -2,7 +2,8 @@
 -- Licensed under the Apache 2.0 License.
 
 import CCFRaft.Properties
-import CCFRaft.Proofs.Direct.AppendOnly
+import CCFRaft.Proofs.CommittedLogs
+import CCFRaft.Proofs.Direct.CommitFrontier
 import CCFRaft.Proofs.Model
 import CCFRaft.Proofs.Witnesses
 
@@ -12,13 +13,10 @@ theorem election_safety : Properties.ElectionSafety :=
   Proofs.Model.election_safety
 
 theorem committed_logs_prefix : Properties.CommittedLogsPrefix :=
-  Proofs.Model.committed_logs_prefix
+  Proofs.CommittedLogs.committed_logs_prefix
 
 theorem committed_frontier_is_signature : Properties.CommittedFrontierIsSignature :=
   Proofs.Direct.committed_frontier_is_signature
-
-theorem committed_log_append_only : Properties.CommittedLogAppendOnly :=
-  Proofs.Direct.committed_log_append_only
 
 theorem election_safety_witness : Properties.ElectionSafetyWitness :=
   Proofs.Witnesses.election_safety_witness
@@ -29,8 +27,5 @@ theorem committed_logs_prefix_witness : Properties.CommittedLogsPrefixWitness :=
 theorem committed_frontier_is_signature_witness
     : Properties.CommittedFrontierIsSignatureWitness :=
   Proofs.Witnesses.committed_frontier_is_signature_witness
-
-theorem committed_log_append_only_witness : Properties.CommittedLogAppendOnlyWitness :=
-  Proofs.Witnesses.committed_log_append_only_witness
 
 end CCFRaft.Proof

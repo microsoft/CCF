@@ -69,12 +69,12 @@ Each claim quantifies every node and transaction identifier type, every
 `Model.transitionSystem`.
 
 - `ElectionSafety`: no two distinct nodes lead in the same term.
-- `CommittedLogsPrefix`: any two committed logs in one state are
-  prefix-comparable.
+- `CommittedLogsPrefix`: any two committed logs in a trace are
+  prefix-comparable, whichever nodes and states they come from. Agreement
+  within one state and `CommittedLogAppendOnlyProp` in
+  `tla/consensus/ccfraft.tla` together imply it.
 - `CommittedFrontierIsSignature`: every positive commit index points to a
   signature.
-- `CommittedLogAppendOnly`: each step extends every node's committed log.
-  This is `CommittedLogAppendOnlyProp` in `tla/consensus/ccfraft.tla`.
 
 Each property has a `Witness` claim asserting that some valid trace satisfies
 its premises. `Proofs/Witnesses.lean` proves each witness with a concrete
@@ -85,12 +85,22 @@ The proofs say nothing about liveness, fairness, or the C++ implementation.
 
 ## Proofs
 
-`Proofs/Abstract/` holds a global-state model of the same protocol: per
+`CommittedFrontierIsSignature` is proved directly on the network model in
+`Proofs/Direct/`. `NodeInvariant` lifts a predicate that every local step
+preserves to every node of every reachable state, so the proof reasons about
+one node at a time. A step truncates a log only above its commit index, and
+it moves the commit index only forward and only to a signature. So a node's
+committed log only grows along a trace, which is also proved directly.
+
+`ElectionSafety`, and agreement between the committed logs of two nodes in
+one state, compare nodes, so they need the reconfiguration invariant. They
+are proved by refinement. `Proofs/CommittedLogs.lean` carries a node's
+committed log forward to the later of two states and compares the two logs
+there. `Proofs/Abstract/` holds a global-state model of the same protocol: per
 destination message queues, allocation of nodes on reconfiguration, and a
 separate `updateTerm` action. It shares the node state and ledger functions
 of `Model/Node.lean`. `Proofs/Abstract/ReconfigurationPreservation.lean`
-proves that its enabled actions preserve `SystemInductiveInvariant`, which
-implies the four properties.
+proves that its enabled actions preserve `SystemInductiveInvariant`.
 
 `Proofs/Refinement/` proves that every reachable state of the network model
 corresponds to an abstract state satisfying that invariant. The two states
@@ -99,7 +109,7 @@ envelopes to that destination. The proof simulates one network step by
 reordering one abstract queue, taking an abstract `updateTerm` when the
 receiver adopts a newer term, taking an abstract same-term step-down, and
 then taking the abstract action with the same name. `Proofs/Model.lean`
-derives the properties from this correspondence.
+derives election safety and same-state agreement from this correspondence.
 
 ## Trace validation
 

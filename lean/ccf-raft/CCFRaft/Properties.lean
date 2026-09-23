@@ -46,31 +46,34 @@ def ElectionSafetyWitness : Prop :=
     /\ rightState.role = .leader
     /\ left ≠ right
 
-/-- Any two nodes' committed logs in one state are prefix-comparable. -/
+/-- Any two committed logs in a valid trace are prefix-comparable: those of
+any two nodes, in any two states of the trace. -/
 def CommittedLogsPrefix : Prop :=
   forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node],
-  forall (nodes : List Node) (trace : GlobalTrace Node TxId)
-          (state : Model.State Node TxId),
+  forall (nodes : List Node) (trace : GlobalTrace Node TxId),
+  forall (first second : Model.State Node TxId),
   forall (left right : Node) (leftState rightState : NodeState Node TxId),
     (trace.Valid (Model.transitionSystem nodes)
-      /\ state ∈ trace.states
-      /\ (left, leftState) ∈ state.nodes
-      /\ (right, rightState) ∈ state.nodes)
+      /\ first ∈ trace.states
+      /\ second ∈ trace.states
+      /\ (left, leftState) ∈ first.nodes
+      /\ (right, rightState) ∈ second.nodes)
     -> leftState.committedLog <+: rightState.committedLog
         \/ rightState.committedLog <+: leftState.committedLog
 
-/-- Witness: a valid trace has a state in which two distinct nodes have
+/-- Witness: a valid trace has two states in which two distinct nodes have
 nonempty committed logs. -/
 def CommittedLogsPrefixWitness : Prop :=
   exists
   (Node TxId : Type) (_ : DecidableEq Node) (_ : DecidableEq TxId) (_ : Bootstrap Node),
-  exists
-  (nodes : List Node) (trace : GlobalTrace Node TxId) (state : Model.State Node TxId),
+  exists (nodes : List Node) (trace : GlobalTrace Node TxId),
+  exists (first second : Model.State Node TxId),
   exists (left right : Node) (leftState rightState : NodeState Node TxId),
     trace.Valid (Model.transitionSystem nodes)
-    /\ state ∈ trace.states
-    /\ (left, leftState) ∈ state.nodes
-    /\ (right, rightState) ∈ state.nodes
+    /\ first ∈ trace.states
+    /\ second ∈ trace.states
+    /\ (left, leftState) ∈ first.nodes
+    /\ (right, rightState) ∈ second.nodes
     /\ left ≠ right
     /\ leftState.committedLog ≠ []
     /\ rightState.committedLog ≠ []
@@ -98,33 +101,5 @@ def CommittedFrontierIsSignatureWitness : Prop :=
     /\ state ∈ trace.states
     /\ (node, nodeState) ∈ state.nodes
     /\ 0 < nodeState.commitIndex
-
-/-- Each step of a valid trace extends every node's committed log. This is
-`CommittedLogAppendOnlyProp` in `tla/consensus/ccfraft.tla`. -/
-def CommittedLogAppendOnly : Prop :=
-  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node],
-  forall (nodes : List Node) (trace : GlobalTrace Node TxId) (step : Nat),
-  forall (before after : Model.State Node TxId),
-  forall (node : Node) (beforeState afterState : NodeState Node TxId),
-    (trace.Valid (Model.transitionSystem nodes)
-      /\ trace.states[step]? = some before
-      /\ trace.states[step + 1]? = some after
-      /\ (node, beforeState) ∈ before.nodes
-      /\ (node, afterState) ∈ after.nodes)
-    -> beforeState.committedLog <+: afterState.committedLog
-
-/-- Witness: a valid trace has a step that strictly extends a committed log. -/
-def CommittedLogAppendOnlyWitness : Prop :=
-  exists
-  (Node TxId : Type) (_ : DecidableEq Node) (_ : DecidableEq TxId) (_ : Bootstrap Node),
-  exists (nodes : List Node) (trace : GlobalTrace Node TxId) (step : Nat),
-  exists (before after : Model.State Node TxId),
-  exists (node : Node) (beforeState afterState : NodeState Node TxId),
-    trace.Valid (Model.transitionSystem nodes)
-    /\ trace.states[step]? = some before
-    /\ trace.states[step + 1]? = some after
-    /\ (node, beforeState) ∈ before.nodes
-    /\ (node, afterState) ∈ after.nodes
-    /\ beforeState.committedLog.length < afterState.committedLog.length
 
 end CCFRaft.Properties

@@ -11,7 +11,7 @@ set_option linter.unusedSectionVars false
 
 Every reachable state of `Model.transitionSystem` corresponds to an abstract
 state that satisfies the abstract inductive invariant. Each concrete step is
-matched by abstract moves, so committed logs only grow.
+matched by abstract moves.
 -/
 
 namespace CCFRaft.Proofs.Refinement
@@ -45,28 +45,20 @@ theorem refines_initial {nodes : List Node} {concrete : Model.State Node TxId}
     corr_initial initialized
   ⟩
 
-/-- A step between refining states extends every committed log. -/
+/-- A step from a refining state reaches a refining state. -/
 theorem refines_step {nodes : List Node} {concrete next : Model.State Node TxId}
     {action : Model.Action Node TxId} (refines : Refines concrete)
     (stepped : (Model.transitionSystem nodes).step concrete action = some next)
-    : Refines next
-      /\ forall node before after,
-          (node, before) ∈ concrete.nodes
-          -> (node, after) ∈ next.nodes
-          -> before.committedLog <+: after.committedLog := by
+    : Refines next := by
   obtain ⟨abstract, invariant, corr⟩ := refines
   obtain ⟨final, moves, related⟩ := simulate_step invariant corr stepped
-  obtain ⟨finalInvariant, extended⟩ := moves.preserves invariant
-  refine ⟨⟨final, finalInvariant, related⟩, ?_⟩
-  intro node before after first second
-  rw [← corr.nodes node before first, ← related.nodes node after second]
-  exact extended node
+  exact ⟨final, moves.preserves invariant, related⟩
 
 theorem reachable_refines {nodes : List Node} {concrete : Model.State Node TxId}
     (reachable : (Model.transitionSystem nodes).Reachable concrete)
     : Refines concrete := by
   induction reachable with
   | initial initialized => exact refines_initial initialized
-  | step _ stepped ih => exact (refines_step ih stepped).1
+  | step _ stepped ih => exact refines_step ih stepped
 
 end CCFRaft.Proofs.Refinement

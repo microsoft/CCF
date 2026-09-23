@@ -12,7 +12,7 @@ set_option linter.unusedSimpArgs false
 
 One concrete step is simulated by a finite sequence of abstract moves: enabled
 abstract actions, and reorderings of one abstract destination queue. Every
-move preserves the abstract invariant and extends every committed log.
+move preserves the abstract invariant.
 -/
 
 namespace CCFRaft.Proofs.Refinement
@@ -53,21 +53,15 @@ theorem Moves.trans {first second third : Abstract.Model.State Node TxId}
   | step action enabled _ ih => exact .step action enabled (ih tail)
   | reorder destination queue perm _ ih => exact .reorder destination queue perm (ih tail)
 
-/-- Moves preserve the invariant and never shorten or rewrite a committed log. -/
+/-- Moves preserve the abstract invariant. -/
 theorem Moves.preserves {first second : Abstract.Model.State Node TxId}
     (moves : Moves first second) (invariant : SystemInductiveInvariant first)
-    : SystemInductiveInvariant second
-      /\ forall node,
-          (first.nodes node).committedLog <+: (second.nodes node).committedLog := by
+    : SystemInductiveInvariant second := by
   induction moves with
-  | done => exact ⟨invariant, fun _ => List.prefix_refl _⟩
+  | done => exact invariant
   | @step state _ action enabled _ ih =>
-      obtain ⟨final, extended⟩ :=
-        ih (Abstract.ReconfigurationPreservation.systemInductiveInvariantPreserved
-          state action invariant enabled)
-      refine ⟨final, fun node => ?_⟩
-      exact ((Abstract.ReconfigurationPreservation.systemInductiveInvariantSafety invariant
-        ).committedLogAppendOnly action enabled node).trans (extended node)
+      exact ih (Abstract.ReconfigurationPreservation.systemInductiveInvariantPreserved
+        state action invariant enabled)
   | @reorder state _ destination queue perm _ ih =>
       apply ih
       apply Abstract.ReconfigurationPreservation.pureNetworkDequeuePreservesSystemInductiveInvariant

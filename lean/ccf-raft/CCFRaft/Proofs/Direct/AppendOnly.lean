@@ -284,27 +284,31 @@ theorem extends_step {self : Node} {state : NodeState Node TxId}
           exact observed.trans (Extends.of_log kept.1 kept.2)
 
 /-- A step keeps every other node's state and extends the actor's committed log. -/
-theorem committed_log_append_only : Properties.CommittedLogAppendOnly := by
-  intro Node TxId _ _ _ nodes trace step before after node beforeState afterState
-    ⟨valid, first, second, beforeMember, afterMember⟩
-  obtain ⟨action, stepped⟩ := valid.2 step before after first second
-  have reachable := valid.reachable (List.mem_of_getElem? first)
+theorem committed_log_step {nodes : List Node} {before after : Model.State Node TxId}
+    {action : Model.Action Node TxId}
+    (reachable : (Model.transitionSystem (TxId := TxId) nodes).Reachable before)
+    (stepped : (Model.transitionSystem nodes).step before action = some after)
+    {node : Node} {beforeState afterState : NodeState Node TxId}
+    (beforeMember : (node, beforeState) ∈ before.nodes)
+    (afterMember : (node, afterState) ∈ after.nodes)
+    : beforeState.committedLog <+: afterState.committedLog := by
   have distinct := keys_nodup reachable
   have frontiers := commitFrontier_invariant.reachable reachable
   have extended : forall {actor : Node} {old : NodeState Node TxId}
       {event : Event Node TxId} {execute : NodeEffect Node TxId (NodeState Node TxId)},
-      nodeState before actor = some old ->
-      Model.Local.step (Capabilities.record actor) actor old event = some execute ->
-      (node, afterState) ∈ replaceNode before.nodes actor (execute.run {}).1 ->
-      beforeState.committedLog <+: afterState.committedLog := by
+      nodeState before actor = some old
+      -> Model.Local.step (Capabilities.record actor) actor old event = some execute
+      -> (node, afterState) ∈ replaceNode before.nodes actor (execute.run {}).1
+      -> beforeState.committedLog <+: afterState.committedLog := by
     intro actor old event execute found acted member
     rcases mem_replaceNode member with ⟨rfl, rfl⟩ | ⟨_, listed⟩
-    · have same : beforeState = old := Option.some.inj
-        ((nodeState_of_mem distinct beforeMember).symm.trans found)
+    · have same : beforeState = old :=
+        Option.some.inj ((nodeState_of_mem distinct beforeMember).symm.trans found)
       subst same
       exact (extends_step (frontiers _ _ beforeMember) acted).committedLog
-    · have same : afterState = beforeState := Option.some.inj
-        ((nodeState_of_mem distinct listed).symm.trans (nodeState_of_mem distinct beforeMember))
+    · have same : afterState = beforeState :=
+        Option.some.inj
+          ((nodeState_of_mem distinct listed).symm.trans (nodeState_of_mem distinct beforeMember))
       subst same
       exact List.prefix_refl _
   cases action with
@@ -313,7 +317,61 @@ theorem committed_log_append_only : Properties.CommittedLogAppendOnly := by
       exact extended (event := .internal input) found acted afterMember
   | deliver envelope =>
       obtain ⟨_, old, execute, found, received, rfl⟩ := step_deliver stepped
-      exact extended (event := .receive envelope.source envelope.payload) found received
-        afterMember
+      exact extended (event := .receive envelope.source envelope.payload) found received afterMember
+
+/-- A node present before a step is present after it. -/
+theorem present_after_step {nodes : List Node} {before after : Model.State Node TxId}
+    {action : Model.Action Node TxId}
+    (stepped : (Model.transitionSystem nodes).step before action = some after)
+    {node : Node} {beforeState : NodeState Node TxId}
+    (member : (node, beforeState) ∈ before.nodes)
+    : exists afterState, (node, afterState) ∈ after.nodes := by
+  have present : forall {actor : Node} {value : NodeState Node TxId},
+      exists afterState, (node, afterState) ∈ replaceNode before.nodes actor value := by
+    intro actor value
+    by_cases same : node = actor
+    · subst same
+      exact ⟨value, List.mem_map.mpr ⟨_, member, by simp⟩⟩
+    · exact ⟨beforeState, List.mem_map.mpr ⟨_, member, by simp [same]⟩⟩
+  cases action with
+  | «local» actor input =>
+      obtain ⟨_, _, _, _, rfl⟩ := step_local stepped
+      exact present
+  | deliver envelope =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := step_deliver stepped
+      exact present
+
+/-- A node's committed log at one state of a trace is a prefix of the same node's
+committed log at every later state. -/
+theorem committed_log_later {nodes : List Node}
+    {trace : Properties.GlobalTrace Node TxId}
+    (valid : trace.Valid (Model.transitionSystem nodes)) {index : Nat}
+    {first : Model.State Node TxId} (atFirst : trace.states[index]? = some first)
+    {node : Node} {firstState : NodeState Node TxId}
+    (member : (node, firstState) ∈ first.nodes)
+    : forall offset later,
+        trace.states[index + offset]? = some later
+        -> exists laterState,
+            (node, laterState) ∈ later.nodes
+            /\ firstState.committedLog <+: laterState.committedLog := by
+  intro offset
+  induction offset with
+  | zero =>
+      intro later atLater
+      obtain rfl : first = later := Option.some.inj (atFirst.symm.trans atLater)
+      exact ⟨firstState, member, List.prefix_refl _⟩
+  | succ offset ih =>
+      intro later atLater
+      have bound : index + offset < trace.states.length := by
+        obtain ⟨bound, _⟩ := List.getElem?_eq_some_iff.mp atLater
+        omega
+      have atMiddle := List.getElem?_eq_getElem bound
+      obtain ⟨middleState, middleMember, prefixed⟩ := ih _ atMiddle
+      obtain ⟨action, stepped⟩ := valid.2 (index + offset) _ later atMiddle
+        (by simpa [Nat.add_assoc] using atLater)
+      obtain ⟨laterState, laterMember⟩ := present_after_step stepped middleMember
+      refine ⟨laterState, laterMember, prefixed.trans ?_⟩
+      exact committed_log_step (valid.reachable (List.getElem_mem bound)) stepped
+        middleMember laterMember
 
 end CCFRaft.Proofs.Direct

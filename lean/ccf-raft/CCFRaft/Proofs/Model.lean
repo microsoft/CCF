@@ -7,8 +7,9 @@ import CCFRaft.Proofs.Refinement
 set_option autoImplicit false
 
 /-!
-The safety properties of `Model.transitionSystem`, from the refinement to the
-abstract model and the abstract safety theorem.
+Election safety, and agreement of the committed logs in one state, for
+`Model.transitionSystem`, from the refinement to the abstract model and the
+abstract safety theorem.
 -/
 
 namespace CCFRaft.Proofs.Model
@@ -37,25 +38,18 @@ theorem election_safety : Properties.ElectionSafety := by
   · rw [corr.nodes left leftState leftMember, corr.nodes right rightState rightMember]
     exact sameTerm
 
-theorem committed_logs_prefix : Properties.CommittedLogsPrefix := by
-  intro Node TxId _ _ _ nodes trace state left right leftState rightState
-    ⟨valid, member, leftMember, rightMember⟩
-  obtain ⟨abstract, invariant, corr⟩ := refines_of_trace valid member
+/-- Any two committed logs in one reachable state are prefix-comparable. -/
+theorem committed_logs_prefix_here {Node TxId : Type} [DecidableEq Node]
+    [DecidableEq TxId] [Bootstrap Node] {nodes : List Node}
+    {state : CCFRaft.Model.State Node TxId}
+    (reachable : (CCFRaft.Model.transitionSystem (TxId := TxId) nodes).Reachable state)
+    {left right : Node} {leftState rightState : NodeState Node TxId}
+    (leftMember : (left, leftState) ∈ state.nodes)
+    (rightMember : (right, rightState) ∈ state.nodes)
+    : leftState.committedLog <+: rightState.committedLog
+      \/ rightState.committedLog <+: leftState.committedLog := by
+  obtain ⟨abstract, invariant, corr⟩ := reachable_refines reachable
   have comparable := (systemInductiveInvariantSafety invariant).committedLogsPrefix left right
   rwa [corr.nodes left leftState leftMember, corr.nodes right rightState rightMember] at comparable
-
-theorem committed_frontier_is_signature : Properties.CommittedFrontierIsSignature := by
-  intro Node TxId _ _ _ nodes trace state node nodeState ⟨valid, member, nodeMember, positive⟩
-  obtain ⟨abstract, invariant, corr⟩ := refines_of_trace valid member
-  have signature := (systemInductiveInvariantSafety invariant).committedFrontierIsSignature node
-  rw [corr.nodes node nodeState nodeMember] at signature
-  exact signature positive
-
-theorem committed_log_append_only : Properties.CommittedLogAppendOnly := by
-  intro Node TxId _ _ _ nodes trace step before after node beforeState afterState
-    ⟨valid, first, second, beforeMember, afterMember⟩
-  obtain ⟨action, stepped⟩ := valid.2 step before after first second
-  have refines := refines_of_trace valid (List.mem_of_getElem? first)
-  exact (refines_step refines stepped).2 node beforeState afterState beforeMember afterMember
 
 end CCFRaft.Proofs.Model

@@ -256,8 +256,19 @@ theorem commit_present (node : Nat) (listed : node ∈ [0, 1])
   simp only [List.mem_cons, List.not_mem_nil, or_false] at listed
   rcases listed with rfl | rfl <;> decide
 
+theorem commit_leader_committed
+    : (run commitSystem (start [0, 1]) (commitChoices.take 6)).isSome := by
+  decide
+
+/-- The state after node 0 advances its commit index, before node 1 learns it. -/
+def commitLeaderCommitted : CCFRaft.Model.State Nat Nat :=
+  (run commitSystem (start [0, 1]) (commitChoices.take 6)).get commit_leader_committed
+
+theorem commit_leader_present : (nodeState commitLeaderCommitted 0).isSome := by decide
+
 end Commit
 
+/-- Node 0 has committed in one state, and node 1 in a later one. -/
 theorem committed_logs_prefix_witness : Properties.CommittedLogsPrefixWitness := by
   let _ : Bootstrap Nat := bootstrapOf {0, 1} 0 (by decide)
   refine ⟨
@@ -268,12 +279,14 @@ theorem committed_logs_prefix_witness : Properties.CommittedLogsPrefixWitness :=
     bootstrapOf {0, 1} 0 (by decide),
     [0, 1],
     ⟨runTrace commitSystem (start [0, 1]) commitChoices⟩,
+    commitLeaderCommitted,
     commitFinal,
     0,
     1,
-    (nodeState commitFinal 0).get (commit_present 0 (by simp)),
+    (nodeState commitLeaderCommitted 0).get commit_leader_present,
     (nodeState commitFinal 1).get (commit_present 1 (by simp)),
     runTrace_valid (start_initial (by decide)) _,
+    List.mem_of_getElem? (runTrace_get (by decide) (Option.some_get _).symm),
     run_mem (Option.some_get _).symm,
     member_of_nodeState _,
     member_of_nodeState _,
@@ -296,19 +309,11 @@ def singleChoices : List (CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Na
 
 def singleSystem := CCFRaft.Model.transitionSystem (TxId := Nat) [0]
 
-theorem single_signed : (run singleSystem (start [0]) (singleChoices.take 2)).isSome := by
-  decide
-
 theorem single_finished : (run singleSystem (start [0]) singleChoices).isSome := by
   decide
 
-def singleSigned : CCFRaft.Model.State Nat Nat :=
-  (run singleSystem (start [0]) (singleChoices.take 2)).get single_signed
-
 def singleFinal : CCFRaft.Model.State Nat Nat :=
   (run singleSystem (start [0]) singleChoices).get single_finished
-
-theorem single_signed_present : (nodeState singleSigned 0).isSome := by decide
 
 theorem single_final_present : (nodeState singleFinal 0).isSome := by decide
 
@@ -330,30 +335,6 @@ theorem committed_frontier_is_signature_witness
     (nodeState singleFinal 0).get single_final_present,
     runTrace_valid (start_initial (by decide)) _,
     run_mem (Option.some_get _).symm,
-    member_of_nodeState _,
-    by decide
-  ⟩
-
-theorem committed_log_append_only_witness : Properties.CommittedLogAppendOnlyWitness := by
-  let _ : Bootstrap Nat := bootstrapOf {0} 0 (by decide)
-  exact ⟨
-    Nat,
-    Nat,
-    inferInstance,
-    inferInstance,
-    bootstrapOf {0} 0 (by decide),
-    [0],
-    ⟨runTrace singleSystem (start [0]) singleChoices⟩,
-    2,
-    singleSigned,
-    singleFinal,
-    0,
-    (nodeState singleSigned 0).get single_signed_present,
-    (nodeState singleFinal 0).get single_final_present,
-    runTrace_valid (start_initial (by decide)) _,
-    runTrace_get (by decide) (Option.some_get _).symm,
-    runTrace_get (by decide) (Option.some_get _).symm,
-    member_of_nodeState _,
     member_of_nodeState _,
     by decide
   ⟩
