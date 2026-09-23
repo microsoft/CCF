@@ -51,28 +51,35 @@ namespace ccf::tracing
       return;
     }
     const auto sequence = next_sequence();
-    auto& buffer = event_buffer();
-    buffer.clear();
-    msgpack::write_array_header(buffer, 3);
-    msgpack::write_str(buffer, tag);
-    msgpack::write_fluentd_event_time(
-      buffer,
-      msgpack::FluentdEventTime::make(std::chrono::system_clock::now()));
-    msgpack::write_map_header(buffer, 3);
-    msgpack::write_str(buffer, "process_id");
-    msgpack::write_str(buffer, process_identity());
-    msgpack::write_str(buffer, "h_ts");
-    msgpack::write_uint(buffer, sequence);
-    msgpack::write_str(buffer, "msg");
-    msgpack::write_map_header(buffer, sizeof...(Args) / 2);
-    using msgpack::write_msgpack;
-    const auto refs = std::tie(args...);
-    [&]<size_t... I>(std::index_sequence<I...>) {
-      ((msgpack::write_str(buffer, std::get<2 * I>(refs)),
-        write_msgpack(buffer, std::get<2 * I + 1>(refs))),
-       ...);
-    }(std::make_index_sequence<sizeof...(Args) / 2>{});
-    FluentdSink::enqueue(buffer);
+    try
+    {
+      auto& buffer = event_buffer();
+      buffer.clear();
+      msgpack::write_array_header(buffer, 3);
+      msgpack::write_str(buffer, tag);
+      msgpack::write_fluentd_event_time(
+        buffer,
+        msgpack::FluentdEventTime::make(std::chrono::system_clock::now()));
+      msgpack::write_map_header(buffer, 3);
+      msgpack::write_str(buffer, "process_id");
+      msgpack::write_str(buffer, process_identity());
+      msgpack::write_str(buffer, "h_ts");
+      msgpack::write_uint(buffer, sequence);
+      msgpack::write_str(buffer, "msg");
+      msgpack::write_map_header(buffer, sizeof...(Args) / 2);
+      using msgpack::write_msgpack;
+      const auto refs = std::tie(args...);
+      [&]<size_t... I>(std::index_sequence<I...>) {
+        ((msgpack::write_str(buffer, std::get<2 * I>(refs)),
+          write_msgpack(buffer, std::get<2 * I + 1>(refs))),
+         ...);
+      }(std::make_index_sequence<sizeof...(Args) / 2>{});
+      FluentdSink::enqueue(buffer);
+    }
+    catch (const std::bad_alloc&)
+    {
+      FluentdSink::record_drop();
+    }
   }
 }
 

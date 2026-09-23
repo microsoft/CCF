@@ -985,7 +985,7 @@ namespace ccf
       if (config.observability.fluentd)
       {
         ccf::tracing::FluentdSink::validate(
-          *config.observability.fluentd, config.worker_threads + 2);
+          *config.observability.fluentd, config.worker_threads + 3);
       }
       const auto pending_node_timeout =
         std::chrono::microseconds(config.pending_node_timeout);

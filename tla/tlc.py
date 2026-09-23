@@ -4,7 +4,7 @@
 #
 # Python TLC wrapper script for the CCF project
 # Goals:
-# - No dependencies, no venv, no pip install
+# - Model checking needs no Python dependencies; scenario capture needs msgpack
 # - Set sensible defaults with an eye on performance
 # - Capture useful switches for CI, debugging
 # - Expose specification configuration through CLI
@@ -251,7 +251,6 @@ if __name__ == "__main__":
                 sys.executable,
                 args.scenarios_runner,
                 args.raft_driver,
-                "--raft-tracing",
                 "--output",
                 trace_dir,
                 args.scenario,

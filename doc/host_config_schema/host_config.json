@@ -26,9 +26,8 @@
             "queue_capacity": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 1048576,
               "default": 4096,
-              "description": "Maximum queued records per producer thread, not bytes. Full queues drop new records."
+              "description": "Maximum queued records per producer thread, not bytes. Slots are allocated at startup; allocation failure prevents startup. Full queues, records larger than 1 MiB, and event allocation failures drop new records."
             }
           },
           "required": ["host", "port"]

@@ -49,11 +49,11 @@ def run(args):
     baseline = exercise(args, "disabled", None)
     invalid_path = pathlib.Path(f"{args.label}_invalid.json")
     try:
-        for endpoint in (
-            {"host": "127.0.0.1", "port": "0"},
-            {"host": "127.0.0.1", "port": "24224", "queue_capacity": 0},
-            {"host": "127.0.0.1", "port": "24224", "queue_capacity": -1},
-            {"host": "127.0.0.1", "port": "24224", "queue_capacity": 1048577},
+        for endpoint, valid in (
+            ({"host": "127.0.0.1", "port": "0"}, False),
+            ({"host": "127.0.0.1", "port": "24224", "queue_capacity": 0}, False),
+            ({"host": "127.0.0.1", "port": "24224", "queue_capacity": -1}, False),
+            ({"host": "127.0.0.1", "port": "24224", "queue_capacity": 1048577}, True),
         ):
             baseline["observability"] = {"fluentd": endpoint}
             invalid_path.write_text(json.dumps(baseline), encoding="utf-8")
@@ -69,12 +69,32 @@ def run(args):
                 timeout=10,
                 check=False,
             )
-            assert result.returncode != 0, result.stdout
+            assert (result.returncode == 0) == valid, result.stdout + result.stderr
+            if valid:
+                continue
             output = result.stdout + result.stderr
             assert any(
                 text in output
                 for text in ("Fluentd", "Trace queue capacity", "queue_capacity")
             ), output
+        for workers, valid in ((65533, True), (65534, False), (2**64 - 1, False)):
+            baseline["worker_threads"] = workers
+            invalid_path.write_text(json.dumps(baseline), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    str(pathlib.Path(args.binary_dir) / args.package),
+                    "--config",
+                    str(invalid_path),
+                    "--check",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            assert (result.returncode == 0) == valid, result.stdout + result.stderr
+            if not valid:
+                assert "worker_threads" in result.stdout + result.stderr
     finally:
         invalid_path.unlink(missing_ok=True)
     with socket.socket() as reservation:

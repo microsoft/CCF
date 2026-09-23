@@ -80,7 +80,7 @@ TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
 {
   using Queue = ccf::tracing::SPSCQueue;
   CHECK_THROWS_AS(Queue(0), std::invalid_argument);
-  CHECK_THROWS_AS(Queue(Queue::MAX_CAPACITY + 1), std::invalid_argument);
+  CHECK_NOTHROW(Queue(size_t{1024} * 1024 + 1));
   Queue queue(3);
   CHECK(queue.size() == 0);
   CHECK(queue.pop() == nullptr);
@@ -150,6 +150,17 @@ TEST_CASE("Nested object encoding does not allocate into a reserved buffer")
   const auto after = allocations;
   CHECK(after == before);
   CHECK(nlohmann::json::from_msgpack(bytes)["number"] == 7);
+}
+
+TEST_CASE("Trace configuration has no arbitrary producer or capacity ceiling")
+{
+  using Sink = ccf::tracing::FluentdSink;
+  Sink::Endpoint endpoint{"127.0.0.1", "24224"};
+  endpoint.queue_capacity = size_t{1024} * 1024 + 1;
+  CHECK(Sink::validate(endpoint, 65536) == endpoint.queue_capacity);
+  CHECK_THROWS_AS(Sink::validate(endpoint, 0), std::invalid_argument);
+  endpoint.queue_capacity = 0;
+  CHECK_THROWS_AS(Sink::validate(endpoint), std::invalid_argument);
 }
 
 TEST_CASE("SPSC concurrent FIFO records outlive reused slots and the queue")
@@ -259,6 +270,15 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(Sink::dropped_count() == 0);
   int peer = accept(listener, nullptr, nullptr);
   REQUIRE(peer >= 0);
+  // Fail the first buffer reserve, then process identity initialization.
+  for (size_t failure = 1; failure <= 2; ++failure)
+  {
+    const auto before = Sink::dropped_count();
+    allocation_failure = allocations + failure;
+    CHECK_NOTHROW(ccf::tracing::emit("ccf.request", "status", 200));
+    allocation_failure = 0;
+    CHECK(Sink::dropped_count() == before + 1);
+  }
   ccf::tracing::emit(
     "ccf.request", "path", "/app/log", "status", 200, "cached", false);
   const auto typed_frame =
@@ -285,7 +305,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(
     frame[2]["msg"] ==
     nlohmann::json{{"path", "/app/log"}, {"status", 200}, {"cached", false}});
-  CHECK(frame[2]["h_ts"] == 0);
+  CHECK(frame[2]["h_ts"] == 2);
   CHECK(frame[2]["process_id"].is_string());
   CHECK_FALSE(wrong_thread);
 
@@ -321,6 +341,22 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
      {"cached", false}});
   CHECK(evaluations == 1);
 
+  const std::string large_value(
+    ccf::tracing::event_buffer().capacity() + 1, 'x');
+  const auto before_encoding_failure = Sink::dropped_count();
+  allocation_failure = allocations + 1;
+  CHECK_NOTHROW(request_trace::single(large_value));
+  allocation_failure = 0;
+  CHECK(Sink::dropped_count() == before_encoding_failure + 1);
+  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+
+  const std::string oversized_value(
+    ccf::tracing::SPSCQueue::MAX_RECORD_SIZE, 'x');
+  const auto before_oversized = Sink::dropped_count();
+  request_trace::single(oversized_value);
+  CHECK(Sink::dropped_count() == before_oversized + 1);
+  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+
   std::thread second([&] {
     Sink::bind_producer(1);
     CHECK(Sink::enqueue(bytes));
@@ -332,6 +368,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     static_cast<ssize_t>(received.size()));
   CHECK(received == bytes);
 
+  const auto drops_before_disconnect = Sink::dropped_count();
   fail_at = calls + 2;
   REQUIRE(Sink::enqueue(bytes));
   REQUIRE(recv(peer, chunk.data(), chunk.size(), MSG_WAITALL) == 7);
@@ -339,10 +376,10 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   close(peer);
   const auto drop_deadline =
     std::chrono::steady_clock::now() + std::chrono::seconds(1);
-  while (Sink::dropped_count() == 0 &&
+  while (Sink::dropped_count() == drops_before_disconnect &&
          std::chrono::steady_clock::now() < drop_deadline)
     std::this_thread::yield();
-  CHECK(Sink::dropped_count() == 1);
+  CHECK(Sink::dropped_count() == drops_before_disconnect + 1);
   REQUIRE(Sink::wait_for_connection(std::chrono::seconds(2)));
   REQUIRE(Sink::enqueue(bytes));
   peer = accept(listener, nullptr, nullptr);
@@ -361,6 +398,16 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     CHECK_FALSE(pushed);
   }
   CHECK(Sink::dropped_count() == drops_before_allocation_failures + 2);
+
+  const auto drops_before_emission_failures = Sink::dropped_count();
+  for (size_t failure = 1; failure <= 2; ++failure)
+  {
+    allocation_failure = allocations + failure;
+    CHECK_NOTHROW(request_trace::empty());
+    allocation_failure = 0;
+  }
+  CHECK(Sink::dropped_count() == drops_before_emission_failures + 2);
+  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
 
   auto logger = std::make_unique<DropLogger>();
   auto* logs = logger.get();

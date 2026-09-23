@@ -27,15 +27,14 @@ namespace ccf::tracing
     static_assert(std::atomic<size_t>::is_always_lock_free);
 
   public:
-    static constexpr size_t MAX_CAPACITY = size_t{1024} * 1024;
     static constexpr size_t MAX_RECORD_SIZE = size_t{1024} * 1024;
 
     explicit SPSCQueue(size_t capacity = 4096)
     {
-      if (capacity == 0 || capacity > MAX_CAPACITY)
+      if (capacity == 0)
       {
         throw std::invalid_argument(
-          "Trace queue capacity must be between 1 and 1048576 slots");
+          "Trace queue capacity must be greater than zero");
       }
       slots.resize(capacity);
     }

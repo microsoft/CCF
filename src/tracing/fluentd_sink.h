@@ -31,21 +31,15 @@ namespace ccf::tracing
 
   public:
     using Endpoint = ccf::CCFConfig::Observability::Fluentd;
-    static constexpr size_t MAX_PRODUCERS = 65535;
     static constexpr uint64_t DROP_REPORT_INTERVAL = 65536;
 
     static size_t validate(const Endpoint& endpoint, size_t producers = 1)
     {
       const auto size = endpoint.queue_capacity;
-      if (
-        producers == 0 || producers > MAX_PRODUCERS || size == 0 ||
-        size > SPSCQueue::MAX_CAPACITY)
+      if (producers == 0 || size == 0)
       {
-        throw std::invalid_argument(fmt::format(
-          "Trace queue capacity must be between 1 and {} slots, with "
-          "between 1 and {} producers",
-          SPSCQueue::MAX_CAPACITY,
-          MAX_PRODUCERS));
+        throw std::invalid_argument(
+          "Trace queue capacity and producer count must be greater than zero");
       }
       unsigned port = 0;
       const auto* end = endpoint.port.data() + endpoint.port.size();
@@ -369,6 +363,14 @@ namespace ccf::tracing
         return false;
       }
       return true;
+    }
+
+    static void record_drop()
+    {
+      if (auto* t = transport().get())
+      {
+        t->dropped.fetch_add(1, std::memory_order_relaxed);
+      }
     }
 
     static uint64_t dropped_count()

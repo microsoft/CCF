@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added best-effort Raft trace export to Fluentd over unauthenticated, unencrypted TCP, configured through [`observability.fluentd`](doc/host_config_schema/host_config.json). Raft tracing is always compiled in, but events are exported only when a collector is configured (#8386).
+- Added best-effort Raft trace export to Fluentd over unauthenticated, unencrypted TCP, configured through [`observability.fluentd`](doc/host_config_schema/host_config.json). Raft tracing is always compiled in, but events are exported only when a collector is configured. Event allocation failures and records exceeding 1 MiB are dropped. Queue capacity has no fixed ceiling; queue allocation failure prevents startup. [Scenario capture](doc/architecture/raft_tla.rst#trace-validation) now uses the TCP collector exclusively (#8386).
 - ML-DSA-44/65/87 key-pair and public-key APIs for key generation, PKCS#8/SPKI PEM and DER import/export, and pure ML-DSA signing and verification with optional context strings. These APIs are compiled only with OpenSSL 3.5 or newer (#8378).
 
 ### Changed

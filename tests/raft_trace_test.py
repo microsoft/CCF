@@ -7,7 +7,11 @@ import subprocess
 import unittest
 from unittest import mock
 
-from raft_scenarios_runner import flatten_legacy_trace, preprocess_for_trace_validation
+from raft_scenarios_runner import (
+    noop,
+    preprocess_for_trace_validation,
+    separate_log_lines,
+)
 from raft_trace import run_driver
 
 import msgpack
@@ -53,34 +57,20 @@ class ReplayTest(unittest.TestCase):
         self.assertEqual(replay[2]["idx"], 4)
         self.assertTrue(all("args" not in message for message in replay))
 
-    def test_legacy_baseline_comparison(self):
-        for function, args in (
-            ("commit", {"idx": 7}),
-            ("add_configuration", {"configuration": {"idx": 7, "nodes": {}, "rid": 7}}),
-        ):
-            with self.subTest(function=function):
-                legacy = {"function": function, "state": {}}
-                if function == "add_configuration":
-                    legacy["configurations"] = []
-                legacy["args"] = args
-                if function == "commit":
-                    legacy["configurations"] = []
-                expected = {
-                    "function": function,
-                    "state": {},
-                    **(
-                        {"configurations": []}
-                        if function == "add_configuration"
-                        else {}
-                    ),
-                    **(args if function == "commit" else args["configuration"]),
-                    **({"configurations": []} if function == "commit" else {}),
-                }
-                self.assertEqual(
-                    msgpack.packb(flatten_legacy_trace(legacy)), msgpack.packb(expected)
-                )
-                self.assertIs(flatten_legacy_trace(expected), expected)
-                self.assertIn("args", legacy)
+    def test_only_collected_events_become_trace_lines(self):
+        message = {"function": "commit", "idx": 7}
+        record = {"process_id": "driver", "h_ts": 3, "msg": message}
+        stdout = '<RaftDriver>step\n{"tag":"raft_trace","msg":"legacy"}\n'
+        mermaid, log = separate_log_lines(stdout, [record], noop)
+        self.assertEqual(mermaid, "step\n")
+        self.assertEqual(
+            json.loads(log),
+            {"tag": "raft_trace", "h_ts": "3", "msg": message},
+        )
+
+    def test_empty_trace_stays_empty(self):
+        _, log = separate_log_lines("", [], preprocess_for_trace_validation)
+        self.assertEqual(log, "")
 
 
 class CollectorTest(unittest.TestCase):

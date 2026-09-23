@@ -3,7 +3,6 @@
 import argparse
 import json
 import os
-import subprocess
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
@@ -11,8 +10,6 @@ from heapq import merge
 
 from raft_scenarios_gen import generate_scenarios
 from raft_trace import as_log_lines, check_connection_timeout, run_driver
-
-import msgpack
 
 
 @contextmanager
@@ -105,33 +102,15 @@ def noop(log):
     return log
 
 
-def flatten_legacy_trace(message):
-    """Adapt baseline-driver payloads from before commit/configuration flattening."""
-    if "args" not in message:
-        return message
-    function = message.get("function")
-    if function not in ("commit", "add_configuration"):
-        return message
-    flattened = {}
-    for key, value in message.items():
-        if key == "args":
-            flattened.update(value if function == "commit" else value["configuration"])
-        else:
-            flattened[key] = value
-    return flattened
-
-
-def separate_log_lines(text, preprocess):
+def separate_log_lines(text, records, preprocess):
     mermaid = []
-    log = []
     for line in text.split(os.linesep):
         if line.startswith("<RaftDriver>"):
             mermaid.append(line[len("<RaftDriver>") :])
-        elif '"raft_trace"' in line:
-            log.append(line)
+    log = preprocess([json.dumps(entry) for entry in as_log_lines(records)])
     return (
         os.linesep.join(mermaid) + os.linesep,
-        os.linesep.join(preprocess(log)) + os.linesep,
+        os.linesep.join(log) + os.linesep if log else "",
     )
 
 
@@ -152,15 +131,6 @@ if __name__ == "__main__":
 
     parser.add_argument("driver", type=str, help="Path to raft_driver binary")
     parser.add_argument("--gen-scenarios", action="store_true")
-    parser.add_argument(
-        "--raft-tracing",
-        action="store_true",
-        help="Capture Raft traces from the driver through a local TCP collector",
-    )
-    parser.add_argument(
-        "--compare-driver",
-        help="Compare ordered trace payloads, flattening legacy baseline arguments",
-    )
     parser.add_argument("files", nargs="*", type=str, help="Path to scenario files")
     parser.add_argument(
         "-o",
@@ -171,8 +141,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    if args.compare_driver and not args.raft_tracing:
-        parser.error("--compare-driver requires --raft-tracing")
 
     err_list = []
     test_result = True
@@ -184,7 +152,7 @@ if __name__ == "__main__":
 
     ostream = sys.stdout
 
-    if args.raft_tracing and files:
+    if files:
         check_connection_timeout(args.driver, files[0])
 
     # Create consensus-specific output directory
@@ -194,36 +162,7 @@ if __name__ == "__main__":
         ostream.write(f"## {os.path.basename(scenario)}\n\n")
         with block(ostream, "steps", 3), open(scenario, "r", encoding="utf-8") as scen:
             ostream.write(scen.read())
-        records = []
-        if args.raft_tracing:
-            proc, records = run_driver(args.driver, scenario)
-            if args.compare_driver:
-                baseline, baseline_records = run_driver(args.compare_driver, scenario)
-                assert baseline.returncode == 0, baseline.stderr
-                assert len(records) == len(baseline_records), scenario
-                for index, (record, previous) in enumerate(
-                    zip(records, baseline_records)
-                ):
-                    message = record["msg"]
-                    if (
-                        message.get("function") == "drop_pending_to"
-                        and "committable_indices" not in previous["msg"]["state"]
-                    ):
-                        # Only baseline comparison omits this legacy missing field.
-                        state = dict(message["state"])
-                        del state["committable_indices"]
-                        message = {**message, "state": state}
-                    # Repacking retains map order but excludes process IDs and time.
-                    assert msgpack.packb(message) == msgpack.packb(
-                        flatten_legacy_trace(previous["msg"])
-                    ), (scenario, index, record["msg"], previous["msg"])
-        else:
-            proc = subprocess.run(
-                [args.driver, os.path.realpath(scenario)],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+        proc, records = run_driver(args.driver, scenario)
         out, err = proc.stdout, proc.stderr
         test_result = test_result and proc.returncode == 0
 
@@ -233,14 +172,14 @@ if __name__ == "__main__":
                 ostream.write(err)
 
         mermaid, log = separate_log_lines(
-            out + "\n" + "\n".join(json.dumps(e) for e in as_log_lines(records)),
+            out,
+            records,
             noop if "deprecated" in scenario else preprocess_for_trace_validation,
         )
 
         with block(ostream, "diagram", 3, "mermaid", ["sequenceDiagram"]):
             ostream.write(mermaid)
 
-        ## Do not create an empty ndjson file if log is emtpy.
         if log:
             with open(
                 os.path.join(args.output, f"{os.path.basename(scenario)}.ndjson"),
