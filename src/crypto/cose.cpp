@@ -10,6 +10,9 @@
 #include <tav/cbor.hpp>
 #include <vector>
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
+
 namespace ccf::cose::edit
 {
   std::vector<uint8_t> set_unprotected_header(
@@ -96,6 +99,23 @@ namespace ccf::cose::edit
     const Value cose_envelope = rethrow_with_msg(
       [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
       "Failed to parse COSE_Sign1 tag");
+
+    // COSE_Sign1 is exactly [protected, unprotected, payload, signature]
+    // (RFC 9052 section 4.2). Reading the first four elements alone would
+    // silently drop any extra element, so reject rather than rewrite.
+    constexpr size_t cose_sign1_size = 4;
+    const size_t envelope_size = rethrow_with_msg(
+      [&]() { return cose_envelope.size(); },
+      "Failed to parse COSE_Sign1 structure");
+    if (envelope_size != cose_sign1_size)
+    {
+      throw DecodeError(
+        Error::TYPE_MISMATCH,
+        fmt::format(
+          "COSE_Sign1 must be an array of {} elements, found {}",
+          cose_sign1_size,
+          envelope_size));
+    }
 
     const Value phdr = rethrow_with_msg(
       [&]() { return cose_envelope.array_at(0); },

@@ -20,10 +20,11 @@ from infra.proposal import ProposalState
 from loguru import logger as LOG
 
 
-def check_operations(ledger, operations):
+def check_operations(ledger, operations, expect_detached_proposals=True):
     LOG.debug("Audit the ledger file for governance operations")
 
     members = {}
+    embedded_proposals = []
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
@@ -74,13 +75,16 @@ def check_operations(ledger, operations):
                     assert "ccf.gov.msg.type" in msg.protected, msg.protected
                     msg_type = msg.protected["ccf.gov.msg.type"]
 
-                    # Proposals are recorded with a detached payload, since
-                    # the signed proposal body is already stored in
-                    # public:ccf.gov.proposals in the same transaction.
-                    # Ballots and withdrawals embed their payloads.
+                    # Proposal creation always writes the signed proposal
+                    # body to public:ccf.gov.proposals in the same
+                    # transaction. Proposal entries now detach their payload
+                    # to avoid storing it twice, so it must be supplied from
+                    # that table for verification. Ledgers written by older
+                    # versions embed the payload in the envelope as well.
+                    # Ballots and withdrawals always embed their payload, as
+                    # it is not recorded elsewhere.
                     detached_payload = None
                     if msg_type == "proposal":
-                        assert msg.payload is None, msg
                         proposals = {
                             proposal_id: proposal
                             for proposal_id, proposal in tables[
@@ -88,7 +92,11 @@ def check_operations(ledger, operations):
                             ].items()
                             if proposal is not None
                         }
-                        ((proposal_id, detached_payload),) = proposals.items()
+                        ((proposal_id, proposal_body),) = proposals.items()
+                        if msg.payload is None:
+                            detached_payload = proposal_body
+                        else:
+                            embedded_proposals.append(proposal_id.decode())
                     else:
                         assert msg.payload is not None, msg
 
@@ -115,7 +123,9 @@ def check_operations(ledger, operations):
                             "withdraw",
                         )
                     elif msg_type == "proposal":
-                        assert payload == detached_payload, (payload, detached_payload)
+                        # Whether detached or embedded, the signed payload must
+                        # be the proposal body stored in the proposals table
+                        assert payload == proposal_body, (payload, proposal_body)
                         op = (proposal_id.decode(), member_id.decode(), "propose")
                     else:
                         assert False, (phdr, uhdr, payload)
@@ -124,6 +134,8 @@ def check_operations(ledger, operations):
                         operations.remove(op)
 
     assert operations == set(), operations
+    if expect_detached_proposals:
+        assert embedded_proposals == [], embedded_proposals
 
 
 def check_signatures(ledger):

@@ -133,7 +133,7 @@ Since every vote request is signed by the voting member, verified by the primary
  1. Read and store the member certificates
  2. Read an entry from the ``public:ccf.gov.cose_history`` table (each entry in the table contains the member id of the voting member, along with their latest COSE Sign1 signed request)
  3. Create a public key using the certificate of the voting member (which was stored on step 1)
- 4. Verify the COSE Sign1 signature using the public key. Proposal creation entries have a detached payload, so the proposal body must first be read from the ``public:ccf.gov.proposals`` table in the same transaction and supplied as the detached payload
+ 4. Verify the COSE Sign1 signature using the public key. Proposal creation entries have a detached payload, so the proposal body must first be read from the ``public:ccf.gov.proposals`` table in the same transaction and supplied as the detached payload. Entries written by older versions of CCF embed the proposal payload instead, and the example accepts both forms
  5. Repeat steps 2 - 4 until all voting history entries have been read
 
 ``ledger_code.py`` command line utility

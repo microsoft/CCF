@@ -460,7 +460,7 @@ Governance history of the service, captures all COSE Sign 1 governance requests 
 
 **Value** COSE Sign1. For proposal creation requests (``ccf.gov.msg.type`` set to ``proposal`` in the protected header), the payload is detached (``nil``) since the signed proposal body is already stored in the ``proposals`` table, written in the same transaction. Ballots and withdrawals embed their payload.
 
-To verify a detached entry, supply the proposal body from the ``proposals`` table as the detached payload when verifying the COSE Sign1 signature.
+To verify a detached entry, supply the proposal body from the ``proposals`` table as the detached payload when verifying the COSE Sign1 signature. Entries written by older versions of CCF embed the proposal payload as well, so auditors reading historical ledgers should accept both forms.
 
 ``cose_recent_proposals``
 ~~~~~~~~~~~~~~~~~~~~~~~~~

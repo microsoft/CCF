@@ -317,6 +317,20 @@ TEST_CASE("Detach payload")
     REQUIRE_THROWS_AS(
       ccf::cose::edit::detach_payload(without_signature.nondet_serialize()),
       tav::cbor::DecodeError);
+
+    // Extra element beyond the four of COSE_Sign1 must not be silently
+    // dropped, even though the first four elements are well-formed
+    std::vector<Value> extended;
+    for (size_t i = 0; i < structure.size(); ++i)
+    {
+      extended.push_back(structure.array_at(i));
+    }
+    extended.push_back(make_bytes(value));
+    const Value with_extra_element =
+      make_tagged(ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(extended)));
+    REQUIRE_THROWS_AS(
+      ccf::cose::edit::detach_payload(with_extra_element.nondet_serialize()),
+      tav::cbor::DecodeError);
   }
 }
 
