@@ -10,7 +10,7 @@
       "properties": {
         "fluentd": {
           "type": "object",
-          "description": "Export Raft trace events to a Fluentd ``in_forward`` listener. If omitted, no events are exported. The connection is plain TCP with no authentication or encryption, so use only a trusted collector on a trusted network. Delivery is best effort. The node starts and keeps running while the collector is unreachable, and drops events it cannot send",
+          "description": "Experimental. Export Raft trace events to a Fluentd ``in_forward`` listener. The configuration and event format may change in future releases. If omitted, no events are exported. The connection is plain TCP with no authentication or encryption, so use only a trusted collector on a trusted network. Delivery is best effort. The node starts and keeps running while the collector is unreachable, and drops events it cannot send",
           "properties": {
             "host": {
               "type": "string",
