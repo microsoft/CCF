@@ -759,6 +759,10 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/openssl_server_test.cpp
     )
     target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
+    target_link_options(
+      openssl_server_test
+      PRIVATE "LINKER:--wrap=uv_async_send"
+    )
 
     add_unit_test(
       node_connections_test

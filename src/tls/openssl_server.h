@@ -36,6 +36,7 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <optional>
+#include <shared_mutex>
 #include <stdexcept>
 #include <string>
 #include <sys/socket.h>
@@ -369,8 +370,9 @@ namespace ccf::tls
     OnAccept on_accept;
 
     std::mutex out_mutex;
-    std::mutex lifecycle_mutex;
-    std::condition_variable teardown_cv;
+    // Notifications share handle lifetime protection; teardown is exclusive.
+    std::shared_mutex lifecycle_mutex;
+    std::condition_variable_any teardown_cv;
     std::unordered_map<int, std::shared_ptr<Conn>> conns;
     std::unordered_map<::tcp::ConnID, int> id_to_fd;
     // Owned by the loop once closed - see new_handle()/close_handle().
@@ -929,7 +931,7 @@ namespace ccf::tls
       // Unlike wake(), this must signal even while stopping: shutdown only
       // completes once the loop has observed every outstanding completion and
       // closed the corresponding connection.
-      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      std::shared_lock<std::shared_mutex> guard(lifecycle_mutex);
       if (wake_handle != nullptr)
       {
         (void)uv_async_send(wake_handle);
@@ -1260,7 +1262,7 @@ namespace ccf::tls
 
     void wake()
     {
-      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      std::shared_lock<std::shared_mutex> guard(lifecycle_mutex);
       if (wake_handle != nullptr && !stopping)
       {
         (void)uv_async_send(wake_handle);
@@ -1444,7 +1446,7 @@ namespace ccf::tls
 
       bool shutting_down = false;
       {
-        std::lock_guard<std::mutex> guard(lifecycle_mutex);
+        std::lock_guard<std::shared_mutex> guard(lifecycle_mutex);
         shutting_down = stopping && !torn_down;
       }
       if (shutting_down)
@@ -1533,7 +1535,7 @@ namespace ccf::tls
     void tear_down_on_loop()
     {
       {
-        std::lock_guard<std::mutex> guard(lifecycle_mutex);
+        std::lock_guard<std::shared_mutex> guard(lifecycle_mutex);
         if (torn_down)
         {
           return;
@@ -1583,7 +1585,7 @@ namespace ccf::tls
         // complete_drive() consult it from other threads. Clearing it before
         // the uv_close() means no other thread can observe the handle as
         // usable once it is closing.
-        std::lock_guard<std::mutex> guard(lifecycle_mutex);
+        std::lock_guard<std::shared_mutex> guard(lifecycle_mutex);
         auto* wake = wake_handle;
         wake_handle = nullptr;
         close_handle(wake);
@@ -1603,7 +1605,7 @@ namespace ccf::tls
       {
         tear_down_on_loop();
         {
-          std::lock_guard<std::mutex> guard(lifecycle_mutex);
+          std::lock_guard<std::shared_mutex> guard(lifecycle_mutex);
           if (torn_down)
           {
             return;
@@ -1763,7 +1765,7 @@ namespace ccf::tls
 
     void start()
     {
-      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      std::lock_guard<std::shared_mutex> guard(lifecycle_mutex);
       if (started)
       {
         return;
@@ -1863,7 +1865,7 @@ namespace ccf::tls
     // simply never run.
     void stop(LoopState loop_state = LoopState::NotRunning)
     {
-      std::unique_lock<std::mutex> lock(lifecycle_mutex);
+      std::unique_lock<std::shared_mutex> lock(lifecycle_mutex);
       if (!started || torn_down)
       {
         return;
