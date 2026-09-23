@@ -769,6 +769,44 @@ TEST_CASE("Concurrent notifications retain the wake handle until they return")
   CHECK(uv_loop_alive(uv_default_loop()) == 0);
 }
 
+TEST_CASE("Published shutdown skips notification lifecycle locking")
+{
+  auto server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{.host = "127.0.0.1", .plaintext = true},
+    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
+    });
+  UVLoopRunner loop;
+  server->start();
+  loop.start();
+  NotificationGate gate;
+  notification_gate.store(&gate);
+
+  std::thread stopper(
+    [&]() { server->stop(OpenSSLServer::LoopState::Running); });
+  // stop() has published stopping but holds the exclusive lifecycle lock
+  // until its notification returns.
+  const bool stop_notifying = gate.wait_for_calls(1);
+  auto producer = std::async(std::launch::async, [&]() {
+    server->send(0, {});
+    server->close_connection(0);
+  });
+  const bool skipped_lock =
+    producer.wait_for(std::chrono::seconds(1)) == std::future_status::ready;
+  const auto calls_while_stopping = gate.call_count();
+
+  // Release before waiting or asserting, including when the producer blocks.
+  gate.release();
+  producer.get();
+  stopper.join();
+  loop.thread.join();
+  notification_gate.store(nullptr);
+
+  CHECK(stop_notifying);
+  CHECK(skipped_lock);
+  CHECK(calls_while_stopping == 1);
+  CHECK(uv_loop_alive(uv_default_loop()) == 0);
+}
+
 TEST_CASE("Shutdown completes under concurrent notification load")
 {
   auto server = std::make_shared<OpenSSLServer>(

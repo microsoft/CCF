@@ -389,12 +389,18 @@ namespace ccf::tls
     // Plaintext (UNSECURED) interface: no TLS, raw socket I/O.
     bool plaintext = false;
     bool started CCF_GUARDED_BY(lifecycle_mutex) = false;
-    bool stopping CCF_GUARDED_BY(lifecycle_mutex) = false;
+    // Writes require lifecycle_mutex; wake() can read before taking the lock.
+    std::atomic<bool> stopping{false};
     // Set once the teardown has run: every connection dropped, every handle
     // handed to uv_close(), and the listening socket closed. The handles may
     // not have been reclaimed by the loop yet, but nothing here refers to
     // them any more, so the server is safe to destroy.
     bool torn_down CCF_GUARDED_BY(lifecycle_mutex) = false;
+
+    void set_stopping(bool value) CCF_REQUIRES(lifecycle_mutex)
+    {
+      stopping.store(value, std::memory_order_release);
+    }
 
     // Describe a failed SSL operation. SSL_get_error() only gives the
     // category: for SSL_ERROR_SSL the detail is in the (thread-local) error
@@ -1268,8 +1274,12 @@ namespace ccf::tls
 
     void wake() CCF_EXCLUDES(lifecycle_mutex)
     {
+      if (stopping.load(std::memory_order_acquire))
+      {
+        return;
+      }
       ccf::ds::SharedMutexReadGuard guard(lifecycle_mutex);
-      if (!stopping)
+      if (!stopping.load(std::memory_order_relaxed))
       {
         notify_loop();
       }
@@ -1453,7 +1463,7 @@ namespace ccf::tls
       bool shutting_down = false;
       {
         ccf::ds::SharedMutexReadGuard guard(lifecycle_mutex);
-        shutting_down = stopping && !torn_down;
+        shutting_down = stopping.load(std::memory_order_relaxed) && !torn_down;
       }
       if (shutting_down)
       {
@@ -1555,7 +1565,7 @@ namespace ccf::tls
         {
           return;
         }
-        stopping = true;
+        set_stopping(true);
       }
 
       if (listen_poll != nullptr)
@@ -1786,7 +1796,7 @@ namespace ccf::tls
       // registered with the loop and must be closed, and stop() is a no-op
       // unless `started` is set.
       torn_down = false;
-      stopping = false;
+      set_stopping(false);
       started = true;
       listening = false;
 
@@ -1895,9 +1905,9 @@ namespace ccf::tls
         return;
       }
 
-      if (!stopping)
+      if (!stopping.load(std::memory_order_relaxed))
       {
-        stopping = true;
+        set_stopping(true);
         // tear_down_on_loop() clears wake_handle under this same lock before
         // closing it, so this cannot signal a handle which is already closing.
         notify_loop();
