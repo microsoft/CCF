@@ -7,6 +7,7 @@ set(CCF_RS_PACKAGE "ccf-rs")
 set(CCF_RS_LIB "libccf_rs.a")
 set(CCF_RS_LIB_BUILD_PATH "${CMAKE_BINARY_DIR}/${CCF_RS_LIB}")
 set(CCF_RS_CARGO_TARGET_DIR "${CMAKE_BINARY_DIR}/cargo/build")
+set(CCF_RS_COMBINED_OBJECT "${CCF_RS_CARGO_TARGET_DIR}/ccf_rs_combined.o")
 
 find_program(CARGO NAMES cargo REQUIRED)
 find_program(RUSTC NAMES rustc REQUIRED)
@@ -56,21 +57,32 @@ set(
 
 add_custom_target(
   cargo-build_ccf_rs
-  BYPRODUCTS "${CCF_RS_LIB_BUILD_PATH}"
+  BYPRODUCTS "${CCF_RS_LIB_BUILD_PATH}" "${CCF_RS_COMBINED_OBJECT}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CCF_RS_CARGO_TARGET_DIR}"
-  # Build only the staticlib crate type: Cargo does not apply LTO to a library
-  # which is also built as an rlib, the crate type used by Rust applications.
   COMMAND
     "${CMAKE_COMMAND}" -E env --unset=CARGO_BUILD_TARGET
     "RUSTFLAGS=${CCF_RS_RUSTFLAGS}" "CARGO_NET_RETRY=10" "CARGO_HTTP_TIMEOUT=60"
     "CC=${CMAKE_C_COMPILER}" "CXX=${CMAKE_CXX_COMPILER}" "AR=${CMAKE_AR}"
-    "CARGO_BUILD_RUSTC=${RUSTC}" "${CARGO}" rustc --lib --crate-type staticlib
-    --package "${CCF_RS_PACKAGE}" --manifest-path "${CCF_RS_MANIFEST_PATH}"
-    --target-dir "${CCF_RS_CARGO_TARGET_DIR}" ${CCF_RS_CARGO_PROFILE_FLAG}
-    --locked
+    "CARGO_BUILD_RUSTC=${RUSTC}" "${CARGO}" build --lib --package
+    "${CCF_RS_PACKAGE}" --manifest-path "${CCF_RS_MANIFEST_PATH}" --target-dir
+    "${CCF_RS_CARGO_TARGET_DIR}" ${CCF_RS_CARGO_PROFILE_FLAG} --locked
   COMMAND
-    "${CMAKE_COMMAND}" -E copy_if_different "${CCF_RS_CARGO_LIB_PATH}"
-    "${CMAKE_BINARY_DIR}"
+    "${CMAKE_CXX_COMPILER}" -r -nostdlib -Wl,--whole-archive
+    "${CCF_RS_CARGO_LIB_PATH}" -Wl,--no-whole-archive -o
+    "${CCF_RS_COMBINED_OBJECT}"
+  # Rust static libraries each contain the Rust runtime. Combine ccf-rs into a
+  # single object, then keep only its C ABI symbols global so a Rust application
+  # can link its own runtime without duplicate symbols.
+  COMMAND
+    "${CMAKE_OBJCOPY}" --wildcard "--keep-global-symbol=cose_*"
+    "--keep-global-symbol=tav_*" "${CCF_RS_COMBINED_OBJECT}"
+  COMMAND
+    "${CMAKE_COMMAND}" "-DNM=${CMAKE_NM}" "-DOBJECT=${CCF_RS_COMBINED_OBJECT}"
+    -P "${CCF_DIR}/cmake/verify_ccf_rs_exports.cmake"
+  COMMAND "${CMAKE_COMMAND}" -E rm -f "${CCF_RS_LIB_BUILD_PATH}"
+  COMMAND
+    "${CMAKE_AR}" qc "${CCF_RS_LIB_BUILD_PATH}" "${CCF_RS_COMBINED_OBJECT}"
+  COMMAND "${CMAKE_RANLIB}" "${CCF_RS_LIB_BUILD_PATH}"
   WORKING_DIRECTORY "${CCF_RS_DIR}"
   DEPENDS
     "${CCF_RS_MANIFEST_PATH}"
@@ -86,15 +98,11 @@ add_custom_target(
 )
 
 add_library(ccf_rs INTERFACE)
-# Each Rust staticlib contains its own copy of the Rust standard library, so a
-# binary can only link one. A Rust application's staticlib includes ccf-rs, and
-# add_ccf_rust_app sets CCF_RUST_APP_LIB so that it is linked in place of
-# libccf_rs.a.
-set(CCF_RS_APP_LIB "$<TARGET_PROPERTY:CCF_RUST_APP_LIB>")
 target_link_libraries(
   ccf_rs
   INTERFACE
-    "$<IF:$<BOOL:${CCF_RS_APP_LIB}>,${CCF_RS_APP_LIB},$<BUILD_INTERFACE:${CCF_RS_LIB_BUILD_PATH}>$<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/lib/${CCF_RS_LIB}>>"
+    $<BUILD_INTERFACE:${CCF_RS_LIB_BUILD_PATH}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/lib/${CCF_RS_LIB}>
     ssl
     crypto
 )
