@@ -1,6 +1,7 @@
 import CCFRaft.Model
 import CCFRaft.Model.Local
 import CCFRaft.Model.Node
+import CCFRaft.Proof
 import CCFRaft.Proofs.Abstract.CommittedLog
 import CCFRaft.Proofs.Abstract.ConfigurationCoverage
 import CCFRaft.Proofs.Abstract.ExecutableTransitionSystem
@@ -13,6 +14,15 @@ import CCFRaft.Proofs.Abstract.Safety
 import CCFRaft.Proofs.Abstract.Support
 import CCFRaft.Proofs.Abstract.UpdateTermAuthority
 import CCFRaft.Proofs.Abstract.VotedForFrame
+import CCFRaft.Proofs.Model
+import CCFRaft.Proofs.Refinement
+import CCFRaft.Proofs.Refinement.Concrete
+import CCFRaft.Proofs.Refinement.Correspondence
+import CCFRaft.Proofs.Refinement.Deliver
+import CCFRaft.Proofs.Refinement.Handlers
+import CCFRaft.Proofs.Refinement.Internal
+import CCFRaft.Proofs.Refinement.Moves
+import CCFRaft.Proofs.Witnesses
 import CCFRaft.Properties
 import CCFRaft.Properties.Utils
 import CCFRaft.Replay
@@ -22,3 +32,4 @@ import CCFRaft.Shared.MultiNodeTransitionSystem
 import CCFRaft.Shared.TransitionSystem
 import CCFRaft.Tests.Architecture
 import CCFRaft.Tests.CanonicalTests
+import CCFRaft.Tests.ProofCoverage
