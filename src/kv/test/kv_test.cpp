@@ -1,10 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/app_interface.h"
+#include "ccf/crypto/ec_key_pair.h"
 #include "ccf/kv/map.h"
 #include "ccf/kv/set.h"
 #include "ccf/kv/unit_value.h"
 #include "ccf/kv/value.h"
+#include "ccf/service/tables/nodes.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 #include "kv/compacted_version_conflict.h"
@@ -12,8 +14,8 @@
 #include "kv/ledger_chunker.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
+#include "kv/test/null_tx_history.h"
 #include "kv/test/stub_consensus.h"
-#include "node/history.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
