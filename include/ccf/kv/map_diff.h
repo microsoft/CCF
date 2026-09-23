@@ -41,6 +41,9 @@ namespace ccf::kv
         {
           return VSerialiser::from_serialised(opt_v_rep.value().value());
         }
+
+        // Key was deleted by this transaction.
+        return std::optional<V>(std::nullopt);
       }
 
       return std::nullopt;
