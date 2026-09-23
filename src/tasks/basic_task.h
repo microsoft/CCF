@@ -23,6 +23,11 @@ namespace ccf::tasks
       fn();
     }
 
+    void on_shutdown() noexcept override
+    {
+      fn = {};
+    }
+
     [[nodiscard]] const std::string& get_name() const override
     {
       return name;

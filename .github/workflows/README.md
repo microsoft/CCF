@@ -131,6 +131,12 @@ and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every
 library module, so newly added proofs cannot silently escape the checks.
 
+After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean`
+file with the pinned leanfmt dependency. The workflow runs on pull requests
+that change `lean/`, any `.lean` file, the formatter script, or the workflow.
+See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting)
+to apply fixes.
+
 File: `lean.yml`
 3rd party dependencies: None
 
