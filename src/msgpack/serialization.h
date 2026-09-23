@@ -32,7 +32,7 @@ namespace ccf::msgpack
     write_str(out, name);
   }
 
-  // is_integral_v<Bool> but also is_integral_v<u32> so we need to 
+  // is_integral_v<Bool> but also is_integral_v<u32> so we need to
   // group them here and check if bool first
   template <typename Integer>
     requires std::is_integral_v<Integer>
