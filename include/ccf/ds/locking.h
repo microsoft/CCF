@@ -39,17 +39,17 @@ namespace ccf::ds
     }
   };
 
-  class CCF_SCOPED_CAPABILITY SharedMutexGuard
+  class CCF_SCOPED_CAPABILITY SharedMutexExclusiveGuard
   {
   private:
     std::unique_lock<SharedMutex> guard;
 
   public:
-    explicit SharedMutexGuard(SharedMutex& mutex) CCF_ACQUIRE(mutex) :
+    explicit SharedMutexExclusiveGuard(SharedMutex& mutex) CCF_ACQUIRE(mutex) :
       guard(mutex)
     {}
 
-    ~SharedMutexGuard() CCF_RELEASE() = default;
+    ~SharedMutexExclusiveGuard() CCF_RELEASE() = default;
 
     void unlock() CCF_RELEASE()
     {
@@ -61,8 +61,9 @@ namespace ccf::ds
       guard.lock();
     }
 
-    SharedMutexGuard(const SharedMutexGuard&) = delete;
-    SharedMutexGuard& operator=(const SharedMutexGuard&) = delete;
+    SharedMutexExclusiveGuard(const SharedMutexExclusiveGuard&) = delete;
+    SharedMutexExclusiveGuard& operator=(const SharedMutexExclusiveGuard&) =
+      delete;
   };
 
   class CCF_SCOPED_CAPABILITY SharedMutexReadGuard

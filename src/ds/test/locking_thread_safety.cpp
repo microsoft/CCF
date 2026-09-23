@@ -24,7 +24,7 @@ namespace
 
     void exclusive() CCF_EXCLUDES(mutex)
     {
-      ccf::ds::SharedMutexGuard guard(mutex);
+      ccf::ds::SharedMutexExclusiveGuard guard(mutex);
       write();
       (void)read();
       guard.unlock();
@@ -63,7 +63,7 @@ namespace
 
     void early_unlock() CCF_EXCLUDES(mutex)
     {
-      ccf::ds::SharedMutexGuard guard(mutex);
+      ccf::ds::SharedMutexExclusiveGuard guard(mutex);
       write();
       guard.unlock();
     }

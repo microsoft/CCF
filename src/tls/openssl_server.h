@@ -1452,7 +1452,7 @@ namespace ccf::tls
 
       bool shutting_down = false;
       {
-        ccf::ds::SharedMutexGuard guard(lifecycle_mutex);
+        ccf::ds::SharedMutexReadGuard guard(lifecycle_mutex);
         shutting_down = stopping && !torn_down;
       }
       if (shutting_down)
@@ -1550,7 +1550,7 @@ namespace ccf::tls
     void tear_down_on_loop() CCF_EXCLUDES(lifecycle_mutex)
     {
       {
-        ccf::ds::SharedMutexGuard guard(lifecycle_mutex);
+        ccf::ds::SharedMutexExclusiveGuard guard(lifecycle_mutex);
         if (torn_down)
         {
           return;
@@ -1600,7 +1600,7 @@ namespace ccf::tls
         // complete_drive() consult it from other threads. Clearing it before
         // the uv_close() means no other thread can observe the handle as
         // usable once it is closing.
-        ccf::ds::SharedMutexGuard guard(lifecycle_mutex);
+        ccf::ds::SharedMutexExclusiveGuard guard(lifecycle_mutex);
         finish_teardown();
       }
     }
@@ -1615,7 +1615,7 @@ namespace ccf::tls
       {
         tear_down_on_loop();
         {
-          ccf::ds::SharedMutexGuard guard(lifecycle_mutex);
+          ccf::ds::SharedMutexExclusiveGuard guard(lifecycle_mutex);
           if (torn_down)
           {
             return;
@@ -1775,7 +1775,7 @@ namespace ccf::tls
 
     void start() CCF_EXCLUDES(lifecycle_mutex)
     {
-      ccf::ds::SharedMutexGuard guard(lifecycle_mutex);
+      ccf::ds::SharedMutexExclusiveGuard guard(lifecycle_mutex);
       if (started)
       {
         return;
@@ -1876,7 +1876,7 @@ namespace ccf::tls
     void stop(LoopState loop_state = LoopState::NotRunning)
       CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
-      ccf::ds::SharedMutexGuard lock(lifecycle_mutex);
+      ccf::ds::SharedMutexExclusiveGuard lock(lifecycle_mutex);
       if (!started || torn_down)
       {
         return;
