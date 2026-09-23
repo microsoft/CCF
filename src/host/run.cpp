@@ -560,6 +560,10 @@ namespace ccf
       thread.join();
     }
 
+    // Transports and task workers are quiescent. Release queued actions,
+    // including paused session queues, before their dependencies are torn down.
+    enclave_shutdown_tasks();
+
     runtime_control.throw_if_fatal_error();
   }
 

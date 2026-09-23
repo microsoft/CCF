@@ -14,6 +14,7 @@ namespace ccf::tasks
     JobBoard& job_board;
     const std::string name;
     SubTaskQueue<TaskAction> actions;
+    std::unique_ptr<JobBoard::Registration> registration;
 
     // Guard against multiple concurrent enqueue_on_board() calls.
     // Only the caller that flips this from false->true actually enqueues.
@@ -31,6 +32,10 @@ namespace ccf::tasks
 
     void resume() override
     {
+      if (tasks->is_shutdown())
+      {
+        return;
+      }
       if (tasks->pimpl->actions.unpause())
       {
         tasks->enqueue_on_board();
@@ -102,9 +107,23 @@ namespace ccf::tasks
 
   void OrderedTasks::add_action(TaskAction&& action)
   {
+    if (is_shutdown())
+    {
+      action->on_shutdown();
+      return;
+    }
     if (pimpl->actions.push(std::move(action)))
     {
       enqueue_on_board();
+    }
+  }
+
+  void OrderedTasks::on_shutdown() noexcept
+  {
+    auto abandoned = pimpl->actions.take_pending();
+    for (auto& action : abandoned)
+    {
+      action->on_shutdown();
     }
   }
 
@@ -117,6 +136,8 @@ namespace ccf::tasks
   std::shared_ptr<OrderedTasks> OrderedTasks::create(
     JobBoard& job_board_, const std::string& name)
   {
-    return std::make_shared<OrderedTasks>(Private{}, job_board_, name);
+    auto tasks = std::make_shared<OrderedTasks>(Private{}, job_board_, name);
+    tasks->pimpl->registration = job_board_.register_task(tasks);
+    return tasks;
   }
 }
