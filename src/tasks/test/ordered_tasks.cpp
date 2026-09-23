@@ -14,6 +14,7 @@
 #include <deque>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
+#include <latch>
 #include <optional>
 #include <queue>
 #include <random>
@@ -533,4 +534,69 @@ TEST_CASE(
   board.add_task(task);
   board.add_delayed_task(task, std::chrono::milliseconds(1));
   REQUIRE(task->notifications == 1);
+}
+
+TEST_CASE(
+  "Concurrent shutdown notifies each task once" *
+  doctest::test_suite("ordered_tasks"))
+{
+  struct CountingTask : public ccf::tasks::BaseTask
+  {
+    std::atomic<size_t> notifications = 0;
+    void on_shutdown() noexcept override
+    {
+      ++notifications;
+    }
+    void do_task_implementation() override {}
+    const std::string& get_name() const override
+    {
+      static const std::string name = "CountingTask";
+      return name;
+    }
+  };
+
+  constexpr size_t num_threads = 8;
+  constexpr size_t num_tasks = 1000;
+  ccf::tasks::JobBoard board;
+  std::vector<std::shared_ptr<CountingTask>> tasks(num_tasks);
+  for (auto& task : tasks)
+  {
+    task = std::make_shared<CountingTask>();
+    board.add_task(task);
+  }
+
+  // One thread shuts down the board while the others race to shut down the
+  // same queued tasks directly.
+  std::latch start(num_threads);
+  std::vector<std::thread> threads;
+  for (size_t i = 0; i < num_threads; ++i)
+  {
+    threads.emplace_back([&, i]() {
+      start.arrive_and_wait();
+      if (i == 0)
+      {
+        board.shutdown();
+        return;
+      }
+      for (const auto& task : tasks)
+      {
+        task->shutdown();
+      }
+    });
+  }
+  for (auto& thread : threads)
+  {
+    thread.join();
+  }
+
+  size_t miscounted = 0;
+  for (const auto& task : tasks)
+  {
+    if (task->notifications != 1)
+    {
+      ++miscounted;
+    }
+  }
+  REQUIRE(miscounted == 0);
+  REQUIRE(board.get_task() == nullptr);
 }

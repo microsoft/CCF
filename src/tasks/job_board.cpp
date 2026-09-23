@@ -107,7 +107,8 @@ namespace ccf::tasks
       }
     }
 
-    void add_task(Task&& task)
+    // May run shutdown hooks, so callers must not hold board locks.
+    void add_task(Task&& task) CCF_EXCLUDES(mutex, delayed.tasks_mutex)
     {
       ccf::ds::WorkBeaconPtr beacon;
       Task abandoned;
@@ -228,10 +229,12 @@ namespace ccf::tasks
       }
     }
 
+    // May run shutdown hooks, so callers must not hold board locks.
     void add_timed_task(
       Task task,
       std::chrono::milliseconds initial_delay,
       std::optional<std::chrono::milliseconds> periodic_delay)
+      CCF_EXCLUDES(mutex, delayed.tasks_mutex)
     {
       {
         ccf::ds::MutexGuard lock(delayed.tasks_mutex);
@@ -247,7 +250,9 @@ namespace ccf::tasks
     }
 
     void tick(std::chrono::milliseconds elapsed)
+      CCF_EXCLUDES(mutex, delayed.tasks_mutex)
     {
+      std::vector<Task> ready_tasks;
       {
         ccf::ds::MutexGuard lock(delayed.tasks_mutex);
         elapsed += delayed.total_elapsed;
@@ -269,8 +274,7 @@ namespace ccf::tasks
               continue;
             }
 
-            Task task_copy(delayed_task.task);
-            add_task(std::move(task_copy));
+            ready_tasks.push_back(delayed_task.task);
             if (delayed_task.repeat.has_value())
             {
               repeats[elapsed + delayed_task.repeat.value()].emplace_back(
@@ -290,6 +294,12 @@ namespace ccf::tasks
             repeated_tasks.begin(),
             repeated_tasks.end());
         }
+      }
+
+      // Submit after releasing tasks_mutex, since add_task may run hooks
+      for (auto& task : ready_tasks)
+      {
+        add_task(std::move(task));
       }
     }
   };

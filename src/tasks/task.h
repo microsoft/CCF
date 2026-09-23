@@ -15,7 +15,7 @@ namespace ccf::tasks
   {
   private:
     std::atomic<bool> cancelled = false;
-    bool shut_down = false;
+    std::atomic<bool> shut_down = false;
 
     friend Resumable ccf::tasks::pause_current_task();
     virtual ccf::tasks::Resumable pause();
@@ -35,7 +35,8 @@ namespace ccf::tasks
     bool is_cancelled();
 
     // Terminal resource release, unlike cancellation. Call only once task
-    // execution and producers have stopped. Cleanup may re-enter shutdown.
+    // execution and producers have stopped. on_shutdown() runs exactly once,
+    // even if shutdown() is re-entered or called concurrently.
     void shutdown() noexcept;
     [[nodiscard]] bool is_shutdown() const;
   };

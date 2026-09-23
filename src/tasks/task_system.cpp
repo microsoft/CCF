@@ -52,16 +52,15 @@ namespace ccf::tasks
   void BaseTask::shutdown() noexcept
   {
     cancel_task();
-    if (!shut_down)
+    if (!shut_down.exchange(true))
     {
-      shut_down = true;
       on_shutdown();
     }
   }
 
   bool BaseTask::is_shutdown() const
   {
-    return shut_down;
+    return shut_down.load();
   }
 
   // Implementation of ccf::tasks namespace static functions
