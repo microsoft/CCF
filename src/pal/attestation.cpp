@@ -76,7 +76,7 @@ namespace ccf::pal
   {
     Unique_ASN1_OBJECT target(OBJ_txt2obj(oid.c_str(), 1), ASN1_OBJECT_free);
 
-    size_t ext_loc = X509_get_ext_by_OBJ(x509, target, -1);
+    int ext_loc = X509_get_ext_by_OBJ(x509, target, -1);
     if (ext_loc < 0)
     {
       LOG_FAIL_FMT("TCB version OID {} not present in VCEK certificate", oid);
@@ -370,7 +370,11 @@ namespace ccf::pal
     const auto reported_tcb_raw =
       std::span<const uint8_t>{reported_tcb_data, reported_tcb_size};
     auto endorsed_tcb = get_endorsed_tcb_from_cert(product_family, vcek_cert);
-    if (endorsed_tcb.has_value())
+    if (!endorsed_tcb.has_value())
+    {
+      throw std::logic_error(
+        "SEV-SNP: VCEK certificate does not carry an endorsed TCB version");
+    }
     {
       auto endorsed_tcb_policy = endorsed_tcb->to_policy(product_family);
       auto reported_tcb =

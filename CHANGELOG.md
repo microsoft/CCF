@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - JS registry tables and their configured namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. The governance-driven registry uses `public:ccf.gov.*` and leaves application namespaces unchanged. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`; platform permissions still apply (#8359).
 - Fixed `set_member` failures on services which have only ever emitted COSE ledger signatures (#8407).
+- Fixed a bug in SEV-SNP attestation verification where a VCEK certificate missing the TCB SPL OID extension caused an out-of-range exception due to a sign-comparison error, instead of the intended rejection. SEV-SNP attestation verification now rejects VCEK certificates that do not carry the TCB SPL OID extensions with an explicit error.
 
 ### Removed
 

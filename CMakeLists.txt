@@ -1086,6 +1086,26 @@ if(BUILD_TESTS)
     target_link_libraries(internal_tables_access_test PRIVATE ccfcrypto ccf_kv)
 
     add_unit_test(
+      quote_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/quote.cpp
+      ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+    )
+    target_link_libraries(
+      quote_test
+      PRIVATE
+        ${CMAKE_THREAD_LIBS_INIT}
+        http_parser
+        ccf_js
+        ccf_endpoints
+        ccfcrypto
+        ccf_kv
+        uv
+        curl
+        ccf_tasks
+    )
+
+    add_unit_test(
       merkle_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/merkle_test.cpp
     )
