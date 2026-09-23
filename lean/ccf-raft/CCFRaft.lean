@@ -14,6 +14,8 @@ import CCFRaft.Proofs.Abstract.Safety
 import CCFRaft.Proofs.Abstract.Support
 import CCFRaft.Proofs.Abstract.UpdateTermAuthority
 import CCFRaft.Proofs.Abstract.VotedForFrame
+import CCFRaft.Proofs.Direct.CommitFrontier
+import CCFRaft.Proofs.Direct.Framework
 import CCFRaft.Proofs.Model
 import CCFRaft.Proofs.Refinement
 import CCFRaft.Proofs.Refinement.Concrete

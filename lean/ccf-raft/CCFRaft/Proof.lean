@@ -2,6 +2,7 @@
 -- Licensed under the Apache 2.0 License.
 
 import CCFRaft.Properties
+import CCFRaft.Proofs.Direct.CommitFrontier
 import CCFRaft.Proofs.Model
 import CCFRaft.Proofs.Witnesses
 
@@ -14,7 +15,7 @@ theorem committed_logs_prefix : Properties.CommittedLogsPrefix :=
   Proofs.Model.committed_logs_prefix
 
 theorem committed_frontier_is_signature : Properties.CommittedFrontierIsSignature :=
-  Proofs.Model.committed_frontier_is_signature
+  Proofs.Direct.committed_frontier_is_signature
 
 theorem committed_log_append_only : Properties.CommittedLogAppendOnly :=
   Proofs.Model.committed_log_append_only

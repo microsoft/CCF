@@ -630,25 +630,6 @@ section Simulation
 
 variable {concrete : Model.State Node TxId} {abstract : Abstract.Model.State Node TxId}
 
-theorem observeTerm_log (state : NodeState Node TxId)
-    (message : Model.Local.Message Node TxId)
-    : (Model.Local.observeTerm state message).log = state.log := by
-  unfold Model.Local.observeTerm Model.Local.updateTerm
-  split <;> (try split) <;> (try split) <;> rfl
-
-theorem observeTerm_commitIndex (state : NodeState Node TxId)
-    (message : Model.Local.Message Node TxId)
-    : (Model.Local.observeTerm state message).commitIndex = state.commitIndex := by
-  unfold Model.Local.observeTerm Model.Local.updateTerm
-  split <;> (try split) <;> (try split) <;> rfl
-
-theorem updateTerm_bounded (state : NodeState Node TxId) (term : Nat)
-    : term <= (Model.Local.updateTerm state term).currentTerm := by
-  unfold Model.Local.updateTerm
-  split_ifs with newer
-  · exact Nat.le_refl _
-  · omega
-
 theorem simulate_appendEntriesRequest (corr : Corr concrete abstract)
     {source destination : Node} {request : Model.Local.AppendEntriesRequest Node TxId}
     (member : ⟨source, destination, .appendEntriesRequest request⟩ ∈ concrete.network)
@@ -814,47 +795,6 @@ theorem simulate_withResponse {pre post : Abstract.Model.State Node TxId}
     simp only [List.mem_singleton] at listed
     subst listed
     exact ⟨replySource, replyTarget⟩
-
-theorem handleAppendEntriesResponse_log (state : NodeState Node TxId) (source : Node)
-    (response : Model.Local.AppendEntriesResponse)
-    : (Model.Local.handleAppendEntriesResponse state source response).log = state.log
-      /\ (Model.Local.handleAppendEntriesResponse state source response).commitIndex
-          = state.commitIndex := by
-  unfold Model.Local.handleAppendEntriesResponse
-  split_ifs <;> exact ⟨rfl, rfl⟩
-
-theorem handleRequestVoteRequest_log (state : NodeState Node TxId) (source : Node)
-    (request : Model.Local.RequestVoteRequest)
-    : (Model.Local.handleRequestVoteRequest state source request).1.log = state.log
-      /\ (Model.Local.handleRequestVoteRequest state source request).1.commitIndex
-          = state.commitIndex := by
-  unfold Model.Local.handleRequestVoteRequest
-  dsimp only
-  split_ifs <;> exact ⟨rfl, rfl⟩
-
-theorem handleRequestVoteResponse_log (state : NodeState Node TxId) (source : Node)
-    (response : Model.Local.RequestVoteResponse)
-    : (Model.Local.handleRequestVoteResponse state source response).log = state.log
-      /\ (Model.Local.handleRequestVoteResponse state source response).commitIndex
-          = state.commitIndex := by
-  unfold Model.Local.handleRequestVoteResponse
-  split_ifs <;> exact ⟨rfl, rfl⟩
-
-theorem handleRequestPreVoteResponse_log (state : NodeState Node TxId) (source : Node)
-    (response : Model.Local.RequestVoteResponse)
-    : (Model.Local.handleRequestPreVoteResponse state source response).log = state.log
-      /\ (Model.Local.handleRequestPreVoteResponse state source response).commitIndex
-          = state.commitIndex := by
-  unfold Model.Local.handleRequestPreVoteResponse
-  split_ifs <;> exact ⟨rfl, rfl⟩
-
-theorem handleProposeVoteRequest_log (state : NodeState Node TxId) (self : Node)
-    (term : Nat)
-    : (Model.Local.handleProposeVoteRequest state self term).log = state.log
-      /\ (Model.Local.handleProposeVoteRequest state self term).commitIndex
-          = state.commitIndex := by
-  unfold Model.Local.handleProposeVoteRequest
-  split_ifs <;> exact ⟨rfl, rfl⟩
 
 /-- Every enabled delivery is simulated by abstract moves. -/
 theorem simulate_deliver (corr : Corr concrete abstract)

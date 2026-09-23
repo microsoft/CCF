@@ -309,38 +309,6 @@ theorem corr_initial {nodes : List Node} {concrete : Model.State Node TxId}
   · intro envelope member
     simp [empty] at member
 
-theorem mem_replaceNode {nodes : List (Node × NodeState Node TxId)} {node member : Node}
-    {value state : NodeState Node TxId}
-    (found : (member, state) ∈ replaceNode nodes node value)
-    : (member = node /\ state = value)
-      \/ (Not (member = node) /\ (member, state) ∈ nodes) := by
-  simp only [replaceNode, List.mem_map] at found
-  obtain ⟨⟨key, old⟩, listed, same⟩ := found
-  by_cases here : key = node
-  · simp only [here, beq_self_eq_true, ite_true, Prod.mk.injEq] at same
-    exact Or.inl ⟨same.1.symm, same.2.symm⟩
-  · have different : (key == node) = false := by simpa using here
-    simp only [different, Bool.false_eq_true, ite_false, Prod.mk.injEq] at same
-    obtain ⟨rfl, rfl⟩ := same
-    exact Or.inr ⟨here, listed⟩
-
-theorem replaceNode_keys (nodes : List (Node × NodeState Node TxId)) (node : Node)
-    (value : NodeState Node TxId)
-    : (replaceNode nodes node value).map Prod.fst = nodes.map Prod.fst := by
-  simp only [replaceNode, List.map_map]
-  congr 1
-  funext entry
-  by_cases here : entry.1 = node <;> simp [here]
-
-theorem mem_of_nodeState {concrete : Model.State Node TxId} {node : Node}
-    {state : NodeState Node TxId} (found : nodeState concrete node = some state)
-    : (node, state) ∈ concrete.nodes := by
-  simp only [nodeState, Option.map_eq_some_iff] at found
-  obtain ⟨⟨key, value⟩, located, rfl⟩ := found
-  have same : key = node := by simpa using List.find?_some located
-  subst same
-  exact List.mem_of_find?_eq_some located
-
 /--
 Build the correspondence after one node changes. The acting node takes
 `value`, every other abstract node is unchanged, and the caller supplies the

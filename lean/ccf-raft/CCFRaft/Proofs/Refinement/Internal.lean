@@ -118,12 +118,6 @@ theorem Corr.state {concrete : Model.State Node TxId}
     : abstract.nodes node = state :=
   corr.nodes node state (mem_of_nodeState found)
 
-theorem guard_holds {p : Prop} [Decidable p] {done : Unit}
-    (holds : (if p then pure () else failure : Option Unit) = some done)
-    : p := by
-  by_contra absent
-  simp [absent] at holds
-
 set_option hygiene false in
 /-- Split an enabled `act` into its guard `enabled` and its effect. -/
 macro "extract_guard" : tactic =>
