@@ -1,12 +1,8 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Abstract.Safety
-import CCFRaft.Proofs.Abstract.ModelProofs
-import CCFRaft.Proofs.Abstract.Support
+import CCFRaft.Proofs.Invariant.View
 
-open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety
-  CCFRaft.Proofs.Abstract.Support CCFRaft.Proofs.Abstract.ModelProofs
 open CCFRaft.Model.Local (
   BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
     INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
@@ -25,17 +21,17 @@ open CCFRaft.Model.Local (
 
 set_option autoImplicit false
 
-namespace CCFRaft.Proofs.Abstract.Invariant
+namespace CCFRaft.Proofs.Invariant
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId]
 
 /-- Every node's commit index points within its current log. -/
-def CommitIndicesBounded (state : State Node TxId) : Prop :=
+def CommitIndicesBounded (state : View Node TxId) : Prop :=
   forall node, (state.nodes node).commitIndex <= (state.nodes node).log.length
 
 /-- Equal index and term identify the same complete log prefix. -/
-def LogMatching (state : State Node TxId) : Prop :=
+def LogMatching (state : View Node TxId) : Prop :=
   forall left right index leftEntry rightEntry,
     entryAt? (state.nodes left).log index = some leftEntry
     -> entryAt? (state.nodes right).log index = some rightEntry
@@ -43,14 +39,14 @@ def LogMatching (state : State Node TxId) : Prop :=
     -> (state.nodes left).log.take index = (state.nodes right).log.take index
 
 /-- Entry terms do not decrease as log indices increase. -/
-def MonoLog (state : State Node TxId) : Prop :=
+def MonoLog (state : View Node TxId) : Prop :=
   forall node earlier later earlierEntry laterEntry,
     earlier < later
     -> entryAt? (state.nodes node).log earlier = some earlierEntry
     -> entryAt? (state.nodes node).log later = some laterEntry
     -> earlierEntry.term <= laterEntry.term
 
-end CCFRaft.Proofs.Abstract.Invariant
+end CCFRaft.Proofs.Invariant
 
 /-!
 # Arbitrary-term Raft proof properties
@@ -65,7 +61,7 @@ candidate selected by each voter in each term after `votedFor` is cleared by a
 later `UpdateTerm`.
 -/
 
-namespace CCFRaft.Proofs.Abstract.Invariant
+namespace CCFRaft.Proofs.Invariant
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId]
@@ -218,7 +214,7 @@ term. The immutable ACK histories stay in `ActivationRecord`; this state-indexed
 fact retains only monotone term progress.
 -/
 def ActivationSupporterProgress
-    (state : State Node TxId)
+    (state : View Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop :=
   forall index record,
@@ -248,7 +244,7 @@ a later frozen election no newer than that supporter's current term already
 provides the induction handoff.
 -/
 def ActivationSupporterCurrentHistory
-    (state : State Node TxId)
+    (state : View Node TxId)
     (elections : ElectionHistory Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop :=
@@ -268,7 +264,7 @@ One immutable activation event covers a node's current configuration at the
 prefix shared by that event and the node's committed log.
 -/
 structure ConfigurationCoverageWitness
-    (state : State Node TxId)
+    (state : View Node TxId)
     (activations : ActivationHistory Node TxId)
     (node : Node) where
   activationIndex : ActivationKey Node
@@ -314,7 +310,7 @@ event. The event may activate a later configuration when a partial
 AppendEntries request exposes an intermediate configuration.
 -/
 def ConfigurationCoverageFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop :=
   forall node,
@@ -356,7 +352,7 @@ structure ConfigurationFrontierCoverageWitness
         -> same.newConfiguration = currentConfigurationAt history frontier
 
 def CommittedConfigurationCoverage
-    (state : State Node TxId)
+    (state : View Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop :=
   forall node frontier,
@@ -369,7 +365,7 @@ def CommittedConfigurationCoverage
           (state.nodes node).currentTerm)
 
 def QueuedConfigurationCoverage
-    (state : State Node TxId)
+    (state : View Node TxId)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (activations : ActivationHistory Node TxId)
     : Prop :=
@@ -521,12 +517,12 @@ structure ActivationElectionFacts
                             <+: election.promotionLog
 
 /-- Every log entry is from a term already observed by its local node. -/
-def EntriesDoNotExceedCurrentTerm (state : State Node TxId) : Prop :=
+def EntriesDoNotExceedCurrentTerm (state : View Node TxId) : Prop :=
   forall node entry,
     entry ∈ (state.nodes node).log -> entry.term <= (state.nodes node).currentTerm
 
 /-- Every participating node has reached the bootstrap term. -/
-def CurrentTermsPositive (state : State Node TxId) : Prop :=
+def CurrentTermsPositive (state : View Node TxId) : Prop :=
   forall node,
     Not ((state.nodes node).role = .none)
     -> BOOTSTRAP_TERM <= (state.nodes node).currentTerm
@@ -536,28 +532,28 @@ def TermNumberValid (term : Nat) : Prop :=
   term = 0 \/ BOOTSTRAP_TERM <= term
 
 /-- Inactive nodes retain either an unknown or a numbered current term. -/
-def CurrentTermsValid (state : State Node TxId) : Prop :=
+def CurrentTermsValid (state : View Node TxId) : Prop :=
   forall node, TermNumberValid (state.nodes node).currentTerm
 
 /-- Queued packets advertise only unknown or numbered terms. -/
-def NetworkTermsValid (state : State Node TxId) : Prop :=
+def NetworkTermsValid (state : View Node TxId) : Prop :=
   forall destination message,
     message ∈ state.network destination -> TermNumberValid message.term
 
 /-- Candidates start each election with exactly their own persistent vote. -/
-def CandidatesSelfVote (state : State Node TxId) : Prop :=
+def CandidatesSelfVote (state : View Node TxId) : Prop :=
   forall node,
     (state.nodes node).role = .candidate
     -> (state.nodes node).votedFor = some node /\ node ∈ (state.nodes node).votesGranted
 
 /-- Every runtime candidacy is for a post-bootstrap term. -/
-def CandidatesAboveBootstrap (state : State Node TxId) : Prop :=
+def CandidatesAboveBootstrap (state : View Node TxId) : Prop :=
   forall node,
     (state.nodes node).role = .candidate
     -> BOOTSTRAP_TERM < (state.nodes node).currentTerm
 
 /-- Every active leader keeps both replication cursors inside its own log. -/
-def LeaderProgressBounded (state : State Node TxId) : Prop :=
+def LeaderProgressBounded (state : View Node TxId) : Prop :=
   forall leader,
     (state.nodes leader).role = .leader
     -> forall peer,
@@ -569,7 +565,7 @@ The proof history agrees with the runtime vote in the current term, is empty
 in future terms, and justifies every vote counted by an active candidate or
 leader.
 -/
-structure VoteHistoryFacts (state : State Node TxId) (history : VoteHistory Node)
+structure VoteHistoryFacts (state : View Node TxId) (history : VoteHistory Node)
     : Prop where
   bootstrapEmpty : forall voter, history voter BOOTSTRAP_TERM = none
   current
@@ -610,7 +606,7 @@ An advertised commit is still represented by the source's current committed
 log.  This survives delayed delivery because committed logs are append-only.
 -/
 def RequestCommitStillPresent
-    (state : State Node TxId)
+    (state : View Node TxId)
     (history : List (Entry Node TxId))
     (request : AppendEntriesRequest Node TxId)
     : Prop :=
@@ -622,7 +618,7 @@ response is processable by its same-term destination leader, that history is
 still a prefix of the leader's current append-only log.
 -/
 def SuccessfulResponseSnapshot
-    (state : State Node TxId)
+    (state : View Node TxId)
     (history : List (Entry Node TxId))
     (response : AppendEntriesResponse Node)
     : Prop :=
@@ -645,7 +641,7 @@ Queued messages retain their immutable log/vote snapshots.  The witness
 functions are proof-only maps keyed by complete message values.
 -/
 structure NetworkHistoryFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (voteRequestHistory : RequestVoteRequest Node -> List (Entry Node TxId))
@@ -702,7 +698,7 @@ structure NetworkHistoryFacts
                 }
 
 /-- Whether a granted same-term response is still queued at its candidate. -/
-def queuedGrantedVote (state : State Node TxId) (candidate voter : Node) : Prop :=
+def queuedGrantedVote (state : View Node TxId) (candidate voter : Node) : Prop :=
   Exists
     fun response =>
       Message.requestVoteResponse response ∈ state.network candidate
@@ -715,7 +711,7 @@ def queuedGrantedVote (state : State Node TxId) (candidate voter : Node) : Prop 
 Processed votes and granted same-term responses still in flight are two
 representations of the same election evidence.
 -/
-noncomputable def effectiveElectionVoters (state : State Node TxId) (candidate : Node)
+noncomputable def effectiveElectionVoters (state : View Node TxId) (candidate : Node)
     : Finset Node := by
   classical
   exact
@@ -724,13 +720,13 @@ noncomputable def effectiveElectionVoters (state : State Node TxId) (candidate :
         queuedGrantedVote state candidate voter
 
 /-- A strict quorum of processed or queued granted votes. -/
-def hasEffectiveElectionMajority (state : State Node TxId) (candidate : Node) : Prop :=
+def hasEffectiveElectionMajority (state : View Node TxId) (candidate : Node) : Prop :=
   (activeConfigurations (state.nodes candidate)).all
     fun configuration =>
       decide
         (hasConfigurationMajority (effectiveElectionVoters state candidate) configuration)
 
-noncomputable instance (state : State Node TxId) (candidate : Node)
+noncomputable instance (state : View Node TxId) (candidate : Node)
     : Decidable (hasEffectiveElectionMajority state candidate) := by
   exact Classical.propDecidable _
 
@@ -738,7 +734,7 @@ noncomputable instance (state : State Node TxId) (candidate : Node)
 A node is currently eligible when the exact canonical RequestVote generated
 from the candidate's current term and log would pass the grant predicate.
 -/
-def currentlyEligibleElectionVoter (state : State Node TxId) (candidate voter : Node)
+def currentlyEligibleElectionVoter (state : View Node TxId) (candidate voter : Node)
     : Prop :=
   let request := makeRequestVoteRequest state candidate voter
   request.term = (state.nodes voter).currentTerm
@@ -751,7 +747,7 @@ Potential voters combine persistent processed/in-flight evidence with
 nodes whose current state would grant the candidate's canonical request.
 This is the source-side election evidence which exists before send or grant.
 -/
-noncomputable def potentialElectionVoters (state : State Node TxId) (candidate : Node)
+noncomputable def potentialElectionVoters (state : View Node TxId) (candidate : Node)
     : Finset Node := by
   classical
   exact
@@ -760,13 +756,13 @@ noncomputable def potentialElectionVoters (state : State Node TxId) (candidate :
         currentlyEligibleElectionVoter state candidate voter
 
 /-- A strict quorum of persistent or currently eligible election voters. -/
-def hasPotentialElectionMajority (state : State Node TxId) (candidate : Node) : Prop :=
+def hasPotentialElectionMajority (state : View Node TxId) (candidate : Node) : Prop :=
   (activeConfigurations (state.nodes candidate)).all
     fun configuration =>
       decide
         (hasConfigurationMajority (potentialElectionVoters state candidate) configuration)
 
-noncomputable instance (state : State Node TxId) (candidate : Node)
+noncomputable instance (state : View Node TxId) (candidate : Node)
     : Decidable (hasPotentialElectionMajority state candidate) := by
   exact Classical.propDecidable _
 
@@ -776,7 +772,7 @@ supporters retain their frozen vote snapshots; all other supporters are
 classified only by the log-freshness check which a canonical vote request
 would perform.
 -/
-noncomputable def relaxedElectionVoters (state : State Node TxId) (candidate : Node)
+noncomputable def relaxedElectionVoters (state : View Node TxId) (candidate : Node)
     : Finset Node := by
   classical
   let request := makeRequestVoteRequest state candidate candidate
@@ -791,13 +787,13 @@ noncomputable def relaxedElectionVoters (state : State Node TxId) (candidate : N
 Relaxed election support is still a strict majority in every active candidate
 configuration; relaxing voter timing does not relax quorum authority.
 -/
-def hasRelaxedElectionMajority (state : State Node TxId) (candidate : Node) : Prop :=
+def hasRelaxedElectionMajority (state : View Node TxId) (candidate : Node) : Prop :=
   (activeConfigurations (state.nodes candidate)).all
     fun configuration =>
       decide
         (hasConfigurationMajority (relaxedElectionVoters state candidate) configuration)
 
-noncomputable instance (state : State Node TxId) (candidate : Node)
+noncomputable instance (state : View Node TxId) (candidate : Node)
     : Decidable (hasRelaxedElectionMajority state candidate) := by
   exact Classical.propDecidable _
 
@@ -807,7 +803,7 @@ supporter; every other supporter must currently be no newer than the target
 term and consider the unchanged candidate log up to date.
 -/
 noncomputable def futureElectionVoters
-    (state : State Node TxId)
+    (state : View Node TxId)
     (candidate : Node)
     (targetTerm : Nat)
     : Finset Node := by
@@ -826,7 +822,7 @@ Future election support is interpreted against an explicit frozen ballot
 configuration list, rather than whichever configurations are active later.
 -/
 def hasFutureElectionMajority
-    (state : State Node TxId)
+    (state : View Node TxId)
     (candidate : Node)
     (targetTerm : Nat)
     (ballotActive : List (Configuration Node))
@@ -839,7 +835,7 @@ def hasFutureElectionMajority
           configuration)
 
 noncomputable instance
-    (state : State Node TxId)
+    (state : View Node TxId)
     (candidate : Node)
     (targetTerm : Nat)
     (ballotActive : List (Configuration Node))
@@ -852,7 +848,7 @@ synthetic key lets response dequeue retain the candidate/voter histories and
 their original RequestVote up-to-date check without adding runtime state.
 -/
 def GrantedVoteSnapshots
-    (state : State Node TxId)
+    (state : View Node TxId)
     (votes : VoteHistory Node)
     (voteCandidateHistory : RequestVoteResponse Node -> List (Entry Node TxId))
     (voteVoterHistory : RequestVoteResponse Node -> List (Entry Node TxId))
@@ -883,7 +879,7 @@ def GrantedVoteSnapshots
 
 /-- Active election snapshots retain canonical agreement for both log views. -/
 def GrantedVoteCanonicalSnapshots
-    (state : State Node TxId)
+    (state : View Node TxId)
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (voteCandidateHistory voteVoterHistory
       : RequestVoteResponse Node -> List (Entry Node TxId))
@@ -943,7 +939,7 @@ promoted. Canonical histories identify the owner of every represented entry,
 while election records retain the provenance of every owned term.
 -/
 structure TermOwnershipFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (votes : VoteHistory Node)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (canonicalHistory : Nat -> List (Entry Node TxId))
@@ -1007,7 +1003,7 @@ support induction across elections which happened before an old prefix became
 fully quorum-supported.
 -/
 structure ElectionHistoryFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (votes : VoteHistory Node)
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (owners : TermOwners Node)
@@ -1112,7 +1108,7 @@ structure ElectionHistoryFacts
 
 /-- Every queued leader history contains that term's promotion snapshot. -/
 def ElectionQueuedHistoryFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
     : Prop :=
@@ -1129,7 +1125,7 @@ ballot, the shared configuration is supplied by the permanent activation chain
 rather than by a global fixed-world quorum.
 -/
 structure ElectionConfigurationFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (elections : ElectionHistory Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop where
@@ -1182,7 +1178,7 @@ Every locally committed log is represented by a member of every strict
 majority of that node's current configuration. This is the
 configuration-qualified form of `QuorumLogInv` from `ccfraft.tla`.
 -/
-def QuorumLog (state : State Node TxId) : Prop :=
+def QuorumLog (state : View Node TxId) : Prop :=
   forall node configuration,
     configuration = currentConfiguration (state.nodes node)
     -> forall quorum : Finset Node,
@@ -1195,7 +1191,7 @@ def QuorumLog (state : State Node TxId) : Prop :=
 
 /-- Whether one queued successful response acknowledges an index for a leader. -/
 def queuedSuccessfulAck
-    (state : State Node TxId)
+    (state : View Node TxId)
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (leader peer : Node)
     (index : Nat)
@@ -1215,7 +1211,7 @@ Processed match indices and same-term successful responses still queued at the
 leader are two representations of the same acknowledgement evidence.
 -/
 noncomputable def effectiveAckers
-    (state : State Node TxId)
+    (state : View Node TxId)
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
@@ -1229,7 +1225,7 @@ noncomputable def effectiveAckers
 
 /-- A strict quorum of processed or queued successful acknowledgements. -/
 def hasEffectiveMajorityAt
-    (state : State Node TxId)
+    (state : View Node TxId)
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
@@ -1243,7 +1239,7 @@ def hasEffectiveMajorityAt
               configuration)
 
 noncomputable instance
-    (state : State Node TxId)
+    (state : View Node TxId)
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
@@ -1290,26 +1286,11 @@ def canProduceAppendAckEventuallyAt
       /\ index <= request.prevLogIndex + request.entries.length)
 
 /--
-Every request directly ACKable after exact UpdateTerm preparation is included
-in the stable future-aware reserve.
--/
-lemma preparedAppendAckIsReserved
-    {node : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId}
-    {index : Nat}
-    (newer : node.currentTerm < request.term)
-    (_prepared
-      : canProduceAppendAckAt (prepareNodeForUpdateTerm node request.term) request index)
-    : index <= request.prevLogIndex + request.entries.length
-      -> canProduceAppendAckEventuallyAt node request index :=
-  fun covered => Or.inr ⟨newer, covered⟩
-
-/--
 A queued request reserves one future acknowledgement while it is directly
 ACKable now or after observing its newer term.
 -/
 def queuedAppendReserve
-    (state : State Node TxId)
+    (state : View Node TxId)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (leader peer : Node)
     (index : Nat)
@@ -1329,7 +1310,7 @@ requests which can still materialise one.  This is proof-only Raft
 committability, independent of `commitIndex` and CCF signature committability.
 -/
 noncomputable def potentialAckers
-    (state : State Node TxId)
+    (state : View Node TxId)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (leader : Node)
@@ -1343,7 +1324,7 @@ noncomputable def potentialAckers
 
 /-- A strict quorum of materialised or still-reserved acknowledgements. -/
 def hasPotentialMajorityAt
-    (state : State Node TxId)
+    (state : View Node TxId)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (leader : Node)
@@ -1358,7 +1339,7 @@ def hasPotentialMajorityAt
               configuration)
 
 noncomputable instance
-    (state : State Node TxId)
+    (state : View Node TxId)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (leader : Node)
@@ -1373,7 +1354,7 @@ into a successor ballot, or identifies one governing configuration on which
 the old replication support and successor election support intersect.
 -/
 structure ActivationQuorumFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
@@ -1464,7 +1445,7 @@ elected term had already lost that prefix.  The latter alternative is what a
 least-counterexample induction rules out.
 -/
 def AckerElectionHistory
-    (state : State Node TxId)
+    (state : View Node TxId)
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
     : Prop :=
@@ -1495,7 +1476,7 @@ the lower-term signed prefix in its immutable activation snapshot, unless an
 intervening election no later than the activation term already omitted it.
 -/
 def AckerActivationHistory
-    (state : State Node TxId)
+    (state : View Node TxId)
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
     (activations : ActivationHistory Node TxId)
@@ -1524,7 +1505,7 @@ def AckerActivationHistory
 
 /-- Some elected term up to a bound is the first known loss of one prefix. -/
 def EarlierBadElection
-    (state : State Node TxId)
+    (state : View Node TxId)
     (elections : ElectionHistory Node TxId)
     (source : Node)
     (index bound : Nat)
@@ -1540,7 +1521,7 @@ A materialised ACK remains in the supporter's current log unless an elected
 intermediate term has already omitted it.
 -/
 def AckerCurrentHistory
-    (state : State Node TxId)
+    (state : View Node TxId)
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
     : Prop :=
@@ -1561,7 +1542,7 @@ present in that immutable voter snapshot unless an already elected
 intermediate term omitted it.
 -/
 def AckerVoteHistory
-    (state : State Node TxId)
+    (state : View Node TxId)
     (votes : VoteHistory Node)
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (voteVoterHistory : RequestVoteResponse Node -> List (Entry Node TxId))
@@ -1610,7 +1591,7 @@ Each positive active-leader match frontier is justified by an immutable
 successful-ACK history.  A zero frontier has no processed evidence.
 -/
 structure ProcessedAckHistoryFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (history : ProcessedAckHistory Node TxId)
     : Prop where
   zero
@@ -1647,21 +1628,13 @@ def CommitEvidence.Valid
   /\ (0 < evidence.supportedLength
       -> isSignatureAt evidence.history evidence.supportedLength = true)
 
-lemma CommitEvidence.Valid.supportedSignature
-    {evidence : CommitEvidence Node TxId}
-    {supportedPrefix : List (Entry Node TxId)}
-    (valid : evidence.Valid supportedPrefix)
-    : 0 < evidence.supportedLength
-      -> isSignatureAt evidence.history evidence.supportedLength = true :=
-  valid.2.2.2.2.2.2.2
-
 /--
 Evidence is known only when it occupies a live proof-state slot: either
 it supports a node's current nonempty committed log, or it is attached to a
 currently queued nonempty AppendEntries commit advertisement.
 -/
 def KnownCommitEvidence
-    (state : State Node TxId)
+    (state : View Node TxId)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (nodeEvidence : NodeCommitEvidence Node TxId)
     (requestEvidence : RequestCommitEvidence Node TxId)
@@ -1688,7 +1661,7 @@ carry proof-only evidence.  Zero-valued slots are outside the live evidence
 relation and remain unconstrained.
 -/
 structure CommitEvidenceFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (nodeEvidence : NodeCommitEvidence Node TxId)
     (requestEvidence : RequestCommitEvidence Node TxId)
@@ -1719,7 +1692,7 @@ member-wise facts are stronger than a current majority statement: they remain
 usable when one newly eligible voter creates the first election majority.
 -/
 structure ProspectiveCommitEvidenceFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (nodeEvidence : NodeCommitEvidence Node TxId)
     (requestEvidence : RequestCommitEvidence Node TxId)
@@ -1782,7 +1755,7 @@ supported-prefix comparability when evidence is restricted to an older signed
 frontier.
 -/
 structure ActivationEvidenceFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     (nodeEvidence : NodeCommitEvidence Node TxId)
@@ -1858,7 +1831,7 @@ compatible with every committed log.  This covers delayed ACK processing by
 an isolated old leader.
 -/
 def PotentialCommitSafe
-    (state : State Node TxId)
+    (state : View Node TxId)
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     : Prop :=
   forall leader index,
@@ -1877,7 +1850,7 @@ acknowledgements.  This is the delayed-ACK bridge needed when an old leader
 commits after a newer election.
 -/
 def PotentialCommitElectionSafe
-    (state : State Node TxId)
+    (state : View Node TxId)
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     : Prop :=
   forall source index,
@@ -1898,7 +1871,7 @@ already represented in every strict quorum.  Advancing `commitIndex`
 therefore preserves `QuorumLog` even when ACK processing is delayed.
 -/
 def PotentialCommitQuorumLog
-    (state : State Node TxId)
+    (state : View Node TxId)
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     : Prop :=
   forall source index,
@@ -1923,7 +1896,7 @@ majorities are prefix-comparable.  This lets one such prefix become committed
 without invalidating delayed commit evidence retained by another active leader.
 -/
 def PotentialCommitsComparable
-    (state : State Node TxId)
+    (state : View Node TxId)
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
     : Prop :=
   forall left leftIndex,
@@ -1945,7 +1918,7 @@ def PotentialCommitsComparable
 A candidate which already has a winning quorum is ready for promotion: it
 contains every committed prefix belonging to a node in a lower term.
 -/
-def WinningCandidateCompleteness (state : State Node TxId) : Prop :=
+def WinningCandidateCompleteness (state : View Node TxId) : Prop :=
   forall candidate,
     (state.nodes candidate).role = .candidate
     -> hasEffectiveElectionMajority state candidate
@@ -1958,7 +1931,7 @@ def WinningCandidateCompleteness (state : State Node TxId) : Prop :=
 A candidate which can win has no entry from its election term anywhere yet.
 This is the arbitrary-term form of `CandidateTermNotInLogInv`.
 -/
-def CandidateTermNotInLogs (state : State Node TxId) : Prop :=
+def CandidateTermNotInLogs (state : View Node TxId) : Prop :=
   forall candidate,
     (state.nodes candidate).role = .candidate
     -> hasEffectiveElectionMajority state candidate
@@ -1971,7 +1944,7 @@ An active leader contains the complete prefix through every entry carrying its
 term.  This prevents a later client append from colliding at an existing
 same-term index.
 -/
-def LeaderTermDominance (state : State Node TxId) : Prop :=
+def LeaderTermDominance (state : View Node TxId) : Prop :=
   forall leader,
     (state.nodes leader).role = .leader
     -> forall node index entry,
@@ -1984,7 +1957,7 @@ def LeaderTermDominance (state : State Node TxId) : Prop :=
 The current TLA state-local leader-completeness formula.  Leaders need contain
 the committed logs of strictly lower-term peers, not those of newer peers.
 -/
-def LeaderCompleteness (state : State Node TxId) : Prop :=
+def LeaderCompleteness (state : View Node TxId) : Prop :=
   forall leader,
     (state.nodes leader).role = .leader
     -> forall node,
@@ -1992,7 +1965,7 @@ def LeaderCompleteness (state : State Node TxId) : Prop :=
         -> (state.nodes leader).currentTerm > (state.nodes node).currentTerm
         -> (state.nodes node).committedLog <+: (state.nodes leader).log
 
-def LeadersHaveElectionWitness (state : State Node TxId) : Prop :=
+def LeadersHaveElectionWitness (state : View Node TxId) : Prop :=
   forall leader,
     (state.nodes leader).role = .leader
     -> ((leader = INITIAL_LEADER /\ (state.nodes leader).currentTerm = BOOTSTRAP_TERM)
@@ -2006,7 +1979,7 @@ Immutable election, activation, and commit evidence. Each field supplies one
 causal edge used to order committed prefixes across terms and configurations.
 -/
 structure HistoricalSafetyFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (votes : VoteHistory Node)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
@@ -2048,7 +2021,7 @@ structure HistoricalSafetyFacts
   configurationCoverage : ConfigurationCoverageFacts state activations
 
 /-- Operationally populated node state belongs only to joined nodes. -/
-structure RuntimeNodeCarrierFacts (state : State Node TxId) : Prop where
+structure RuntimeNodeCarrierFacts (state : View Node TxId) : Prop where
   activeRoles
     : forall node,
         (state.nodes node).role = .candidate \/ (state.nodes node).role = .leader
@@ -2063,7 +2036,7 @@ structure RuntimeNodeCarrierFacts (state : State Node TxId) : Prop where
   nonemptyLogs : forall node, Not ((state.nodes node).log = []) -> node ∈ state.hasJoined
 
 /-- Every runtime support carrier contains only nodes which have joined. -/
-structure JoinedCarrierFacts (state : State Node TxId) : Prop where
+structure JoinedCarrierFacts (state : View Node TxId) : Prop where
   activeNodes : forall node, activeNodeUnion (state.nodes node) ⊆ state.hasJoined
   configurationNodes
     : forall node configuration,
@@ -2094,12 +2067,12 @@ structure JoinedCarrierFacts (state : State Node TxId) : Prop where
 Allocated identities are exactly the identities that have joined. Allocation,
 join history, and configuration membership remain distinct state concepts.
 -/
-def AllocatedNodesExactlyJoined (state : State Node TxId) : Prop :=
+def AllocatedNodesExactlyJoined (state : View Node TxId) : Prop :=
   forall node, state.allocated node <-> node ∈ state.hasJoined
 
 /-- The invariant preserved by the reconfiguring transition system. -/
 structure InvariantFacts
-    (state : State Node TxId)
+    (state : View Node TxId)
     (votes : VoteHistory Node)
     (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
     (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
@@ -2144,7 +2117,7 @@ structure InvariantFacts
   networkTermsValid : NetworkTermsValid state
 
 /-- Existentially package every consensus-safety invariant component. -/
-def SystemInductiveInvariant (state : State Node TxId) : Prop :=
+def SystemInductiveInvariant (state : View Node TxId) : Prop :=
   Exists
     fun votes =>
       Exists
@@ -2161,4 +2134,11 @@ def SystemInductiveInvariant (state : State Node TxId) : Prop :=
                             state votes appendHistory responseHistory voteRequestHistory
                             voteCandidateHistory voteVoterHistory
 
-end CCFRaft.Proofs.Abstract.Invariant
+/--
+The inductive invariant over the network model: some proof-only joined set
+makes the old system invariant hold on the computed global view.
+-/
+def Inv (state : Model.State Node TxId) : Prop :=
+  Exists fun joined : Finset Node => SystemInductiveInvariant (view state joined)
+
+end CCFRaft.Proofs.Invariant

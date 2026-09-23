@@ -1,7 +1,7 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Refinement.Concrete
+import CCFRaft.Proofs.Concrete
 
 set_option autoImplicit false
 set_option linter.unusedSectionVars false
@@ -17,7 +17,7 @@ every node of every reachable state.
 
 namespace CCFRaft.Proofs.Direct
 
-open Shared Shared.MultiNodeTransitionSystem Refinement
+open Shared Shared.MultiNodeTransitionSystem Concrete
 open Model.Local (NodeState Bootstrap initialNodeState)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]

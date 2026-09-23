@@ -3,7 +3,7 @@
 
 import CCFRaft.Proofs.Direct.Framework
 import CCFRaft.Properties
-import CCFRaft.Proofs.Abstract.HandlerProofs
+import CCFRaft.Proofs.Ledger
 
 set_option autoImplicit false
 set_option linter.unusedSectionVars false
@@ -20,12 +20,12 @@ namespace CCFRaft.Proofs.Direct
 
 open Shared
 open Model.Local
-open Abstract.HandlerProofs (
+open Ledger (
   isSignatureAt_of_prefix isSignatureAt_take_of_le
     signatureIndex_le_maxCommittableIndex maxCommittableIndexUpTo_le_length
     maxCommittableIndexUpToPositiveIsSignature
   )
-open Abstract.ModelProofs (refreshRetirementState_log refreshRetirementState_commitIndex)
+open Ledger (refreshRetirementState_log refreshRetirementState_commitIndex)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
@@ -113,8 +113,8 @@ theorem highestCommittableIndex_signature (state : NodeState Node TxId) (self : 
 theorem signature_le_length {log : List (Entry Node TxId)} {index : Nat}
     (signature : isSignatureAt log index = true)
     : index <= log.length := by
-  obtain ⟨entry, found, _⟩ := Abstract.HandlerProofs.isSignatureAtTrue signature
-  exact Abstract.HandlerProofs.entryAtSomeIndexBound found
+  obtain ⟨entry, found, _⟩ := Ledger.isSignatureAtTrue signature
+  exact Ledger.entryAtSomeIndexBound found
 
 theorem CommitFrontier.appendEntry {state : NodeState Node TxId}
     (frontier : CommitFrontier state) (self : Node) (content : EntryContent Node TxId)
@@ -285,7 +285,7 @@ theorem commitFrontier_invariant
         simp only [Model.Local.act, guard, bind, Option.bind] at stepped <;>
         split at stepped <;> (try simp at stepped) <;>
         rename_i condition <;>
-        have holds := Refinement.guard_holds condition <;>
+        have holds := Concrete.guard_holds condition <;>
         subst stepped <;>
         simp only [run_pure, run_send]
       all_goals first
@@ -299,7 +299,7 @@ theorem commitFrontier_invariant
   | receive source message =>
       simp only [Model.Local.step] at stepped
       have observed : CommitFrontier (observeTerm state message) :=
-        frontier.of_log (Refinement.observeTerm_log _ _) (Refinement.observeTerm_commitIndex _ _)
+        frontier.of_log (Concrete.observeTerm_log _ _) (Concrete.observeTerm_commitIndex _ _)
       cases message with
       | appendEntriesRequest request =>
           simp only [Model.Local.receive] at stepped
@@ -310,19 +310,19 @@ theorem commitFrontier_invariant
       | appendEntriesResponse response =>
           simp only [Model.Local.receive] at stepped
           obtain rfl := (Option.some.inj stepped).symm
-          have kept := Refinement.handleAppendEntriesResponse_log (observeTerm state
+          have kept := Concrete.handleAppendEntriesResponse_log (observeTerm state
             (.appendEntriesResponse response)) source response
           exact observed.of_log kept.1 kept.2
       | requestVoteRequest request =>
           simp only [Model.Local.receive] at stepped
           obtain rfl := (Option.some.inj stepped).symm
-          have kept := Refinement.handleRequestVoteRequest_log (observeTerm state
+          have kept := Concrete.handleRequestVoteRequest_log (observeTerm state
             (.requestVoteRequest request)) source request
           exact observed.of_log kept.1 kept.2
       | requestVoteResponse response =>
           simp only [Model.Local.receive] at stepped
           obtain rfl := (Option.some.inj stepped).symm
-          have kept := Refinement.handleRequestVoteResponse_log (observeTerm state
+          have kept := Concrete.handleRequestVoteResponse_log (observeTerm state
             (.requestVoteResponse response)) source response
           exact observed.of_log kept.1 kept.2
       | requestPreVote request =>
@@ -332,13 +332,13 @@ theorem commitFrontier_invariant
       | requestPreVoteResponse response =>
           simp only [Model.Local.receive] at stepped
           obtain rfl := (Option.some.inj stepped).symm
-          have kept := Refinement.handleRequestPreVoteResponse_log (observeTerm state
+          have kept := Concrete.handleRequestPreVoteResponse_log (observeTerm state
             (.requestPreVoteResponse response)) source response
           exact observed.of_log kept.1 kept.2
       | proposeVoteRequest term =>
           simp only [Model.Local.receive] at stepped
           obtain rfl := (Option.some.inj stepped).symm
-          have kept := Refinement.handleProposeVoteRequest_log (observeTerm state
+          have kept := Concrete.handleProposeVoteRequest_log (observeTerm state
             (.proposeVoteRequest term)) self term
           exact observed.of_log kept.1 kept.2
 

@@ -12,7 +12,7 @@ Unfolds one step of `Model.transitionSystem` into the acting node's local
 step, its new state, and its sends.
 -/
 
-namespace CCFRaft.Proofs.Refinement
+namespace CCFRaft.Proofs.Concrete
 
 open Shared Shared.MultiNodeTransitionSystem
 open Model.Local (NodeState Bootstrap)
@@ -179,4 +179,4 @@ theorem guard_holds {p : Prop} [Decidable p] {done : Unit}
   by_contra absent
   simp [absent] at holds
 
-end CCFRaft.Proofs.Refinement
+end CCFRaft.Proofs.Concrete

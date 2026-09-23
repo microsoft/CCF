@@ -2,7 +2,7 @@
 -- Licensed under the Apache 2.0 License.
 
 import CCFRaft.Properties
-import CCFRaft.Proofs.Refinement.Concrete
+import CCFRaft.Proofs.Concrete
 
 set_option autoImplicit false
 

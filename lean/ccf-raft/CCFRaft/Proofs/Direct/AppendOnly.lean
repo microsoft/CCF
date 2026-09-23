@@ -18,9 +18,9 @@ to its latest signature, which the commit frontier does not pass.
 
 namespace CCFRaft.Proofs.Direct
 
-open Shared Shared.MultiNodeTransitionSystem Refinement
+open Shared Shared.MultiNodeTransitionSystem Concrete
 open Model.Local
-open Abstract.ModelProofs (refreshRetirementState_log refreshRetirementState_commitIndex)
+open Ledger (refreshRetirementState_log refreshRetirementState_commitIndex)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
@@ -206,7 +206,7 @@ theorem Extends.advanced {state : NodeState Node TxId} (self : Node)
 
 theorem Extends.observeTerm (state : NodeState Node TxId) (message : Message Node TxId)
     : Extends state (Model.Local.observeTerm state message) :=
-  Extends.of_log (Refinement.observeTerm_log _ _) (Refinement.observeTerm_commitIndex _ _)
+  Extends.of_log (Concrete.observeTerm_log _ _) (Concrete.observeTerm_commitIndex _ _)
 
 /-- Every local step extends the acting node's committed log. -/
 theorem extends_step {self : Node} {state : NodeState Node TxId}
@@ -222,7 +222,7 @@ theorem extends_step {self : Node} {state : NodeState Node TxId}
         simp only [Model.Local.act, guard, bind, Option.bind] at stepped <;>
         split at stepped <;> (try simp at stepped) <;>
         rename_i condition <;>
-        have holds := Refinement.guard_holds condition <;>
+        have holds := Concrete.guard_holds condition <;>
         subst stepped <;>
         simp only [run_pure, run_send]
       all_goals first
@@ -238,7 +238,7 @@ theorem extends_step {self : Node} {state : NodeState Node TxId}
       have observed := Extends.observeTerm state message
       have bounded : (Model.Local.observeTerm state message).commitIndex
           <= (Model.Local.observeTerm state message).log.length := by
-        rw [Refinement.observeTerm_log, Refinement.observeTerm_commitIndex]
+        rw [Concrete.observeTerm_log, Concrete.observeTerm_commitIndex]
         exact frontier.1
       cases message with
       | appendEntriesRequest request =>
@@ -251,19 +251,19 @@ theorem extends_step {self : Node} {state : NodeState Node TxId}
       | appendEntriesResponse response =>
           simp only [Model.Local.receive] at stepped
           obtain rfl := (Option.some.inj stepped).symm
-          have kept := Refinement.handleAppendEntriesResponse_log
+          have kept := Concrete.handleAppendEntriesResponse_log
             (Model.Local.observeTerm state (.appendEntriesResponse response)) source response
           exact observed.trans (Extends.of_log kept.1 kept.2)
       | requestVoteRequest request =>
           simp only [Model.Local.receive] at stepped
           obtain rfl := (Option.some.inj stepped).symm
-          have kept := Refinement.handleRequestVoteRequest_log
+          have kept := Concrete.handleRequestVoteRequest_log
             (Model.Local.observeTerm state (.requestVoteRequest request)) source request
           exact observed.trans (Extends.of_log kept.1 kept.2)
       | requestVoteResponse response =>
           simp only [Model.Local.receive] at stepped
           obtain rfl := (Option.some.inj stepped).symm
-          have kept := Refinement.handleRequestVoteResponse_log
+          have kept := Concrete.handleRequestVoteResponse_log
             (Model.Local.observeTerm state (.requestVoteResponse response)) source response
           exact observed.trans (Extends.of_log kept.1 kept.2)
       | requestPreVote request =>
@@ -273,13 +273,13 @@ theorem extends_step {self : Node} {state : NodeState Node TxId}
       | requestPreVoteResponse response =>
           simp only [Model.Local.receive] at stepped
           obtain rfl := (Option.some.inj stepped).symm
-          have kept := Refinement.handleRequestPreVoteResponse_log
+          have kept := Concrete.handleRequestPreVoteResponse_log
             (Model.Local.observeTerm state (.requestPreVoteResponse response)) source response
           exact observed.trans (Extends.of_log kept.1 kept.2)
       | proposeVoteRequest term =>
           simp only [Model.Local.receive] at stepped
           obtain rfl := (Option.some.inj stepped).symm
-          have kept := Refinement.handleProposeVoteRequest_log
+          have kept := Concrete.handleProposeVoteRequest_log
             (Model.Local.observeTerm state (.proposeVoteRequest term)) self term
           exact observed.trans (Extends.of_log kept.1 kept.2)
 
