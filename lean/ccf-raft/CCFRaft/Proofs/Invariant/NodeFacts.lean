@@ -50,7 +50,7 @@ lemma initialConfiguration_nonempty
       (initialLeader_mem_initialConfiguration (Node := Node))
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node]
 
 /-- Reading the node just updated returns the new value. -/
 @[simp]
@@ -134,6 +134,8 @@ lemma protocolNodeState_idempotent_set_votedFor
     : protocolNodeState { protocolNodeState state with votedFor }
       = { protocolNodeState state with votedFor } := by
   simp [protocolNodeState]
+
+variable [Bootstrap Node] [DecidableEq TxId]
 
 @[simp]
 lemma refreshRetirementState_role (node : Node) (state : NodeState Node TxId)
