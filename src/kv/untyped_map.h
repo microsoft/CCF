@@ -558,61 +558,6 @@ namespace ccf::kv::untyped
       return security_domain;
     }
 
-    bool operator==(const Map& that) const
-    {
-      if (name != that.name)
-      {
-        return false;
-      }
-
-      auto* state1 = roll.commits->get_tail();
-      auto* state2 = that.roll.commits->get_tail();
-
-      if (state1->version != state2->version)
-      {
-        return false;
-      }
-
-      size_t count = 0;
-      state2->state.foreach([&count](const K&, const VersionV&) {
-        count++;
-        return true;
-      });
-
-      size_t i = 0;
-      bool ok =
-        state1->state.foreach([&state2, &i](const K& k, const VersionV& v) {
-          auto search = state2->state.get(k);
-
-          if (search.has_value())
-          {
-            auto& found = search.value();
-            if (found.version != v.version)
-            {
-              return false;
-            }
-            if (found.value != v.value)
-            {
-              return false;
-            }
-          }
-          else
-          {
-            return false;
-          }
-
-          i++;
-          return true;
-        });
-
-      if (i != count)
-      {
-        ok = false;
-      }
-
-      return ok;
-    }
-
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
       // This takes a snapshot of the state of the map at the last entry

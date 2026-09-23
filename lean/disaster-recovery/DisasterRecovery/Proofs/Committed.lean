@@ -20,17 +20,16 @@ lemma prefix_refl (txid : TxID) : TxID.EarlierThan txid txid := by
 lemma prefix_trans
     {first second third : TxID}
     (firstSecond : TxID.EarlierThan first second)
-    (secondThird : TxID.EarlierThan second third) :
-    TxID.EarlierThan first third := by
+    (secondThird : TxID.EarlierThan second third)
+    : TxID.EarlierThan first third := by
   simp [TxID.EarlierThan] at firstSecond secondThird ⊢
   omega
 
 lemma prefix_of_score_true
     (leftName rightName : Location)
     (left right : TxID)
-    (score :
-      txScoreGreater leftName left rightName right = true) :
-    TxID.EarlierThan right left := by
+    (score : txScoreGreater leftName left rightName right = true)
+    : TxID.EarlierThan right left := by
   simp [txScoreGreater] at score
   simp [TxID.EarlierThan]
   omega
@@ -38,17 +37,14 @@ lemma prefix_of_score_true
 lemma prefix_of_score_false
     (leftName rightName : Location)
     (left right : TxID)
-    (score :
-      txScoreGreater leftName left rightName right = false) :
-    TxID.EarlierThan left right := by
+    (score : txScoreGreater leftName left rightName right = false)
+    : TxID.EarlierThan left right := by
   simp [txScoreGreater] at score
   simp [TxID.EarlierThan]
   omega
 
-lemma current_prefix_selectMaximum
-    (current candidate : Prod Location TxID) :
-    TxID.EarlierThan current.2
-      (selectMaximum current candidate).2 := by
+lemma current_prefix_selectMaximum (current candidate : Prod Location TxID)
+    : TxID.EarlierThan current.2 (selectMaximum current candidate).2 := by
   unfold selectMaximum
   split
   · rename_i score
@@ -56,10 +52,8 @@ lemma current_prefix_selectMaximum
       candidate.1 current.1 candidate.2 current.2 score
   · exact prefix_refl current.2
 
-lemma candidate_prefix_selectMaximum
-    (current candidate : Prod Location TxID) :
-    TxID.EarlierThan candidate.2
-      (selectMaximum current candidate).2 := by
+lemma candidate_prefix_selectMaximum (current candidate : Prod Location TxID)
+    : TxID.EarlierThan candidate.2 (selectMaximum current candidate).2 := by
   unfold selectMaximum
   split
   · exact prefix_refl candidate.2
@@ -71,9 +65,8 @@ lemma candidate_prefix_selectMaximum
 lemma foldl_selectMaximum_upper_bound
     (current member : Prod Location TxID)
     (tail : List (Prod Location TxID))
-    (membership : member = current \/ member ∈ tail) :
-    TxID.EarlierThan member.2
-      (tail.foldl selectMaximum current).2 := by
+    (membership : member = current \/ member ∈ tail)
+    : TxID.EarlierThan member.2 (tail.foldl selectMaximum current).2 := by
   induction tail generalizing current member with
   | nil =>
       simp at membership
@@ -101,8 +94,8 @@ lemma maximumGossip_upper_bound
     {gossips : List (Prod Location TxID)}
     {selected member : Prod Location TxID}
     (maximum : maximumGossip gossips = some selected)
-    (membership : member ∈ gossips) :
-    TxID.EarlierThan member.2 selected.2 := by
+    (membership : member ∈ gossips)
+    : TxID.EarlierThan member.2 selected.2 := by
   cases gossips with
   | nil => simp at membership
   | cons head tail =>
@@ -113,8 +106,8 @@ lemma maximumGossip_upper_bound
 
 lemma foldl_selectMaximum_mem
     (current : Prod Location TxID)
-    (tail : List (Prod Location TxID)) :
-    tail.foldl selectMaximum current ∈ current :: tail := by
+    (tail : List (Prod Location TxID))
+    : tail.foldl selectMaximum current ∈ current :: tail := by
   induction tail generalizing current with
   | nil => simp
   | cons candidate rest ih =>
@@ -137,8 +130,8 @@ lemma foldl_selectMaximum_mem
 lemma maximumGossip_mem
     {gossips : List (Prod Location TxID)}
     {selected : Prod Location TxID}
-    (maximum : maximumGossip gossips = some selected) :
-    selected ∈ gossips := by
+    (maximum : maximumGossip gossips = some selected)
+    : selected ∈ gossips := by
   cases gossips with
   | nil => simp [maximumGossip] at maximum
   | cons head tail =>
@@ -151,18 +144,16 @@ lemma recoveredTxID_of_mem
     {location : Location}
     {txid : TxID}
     (valid : config.Valid)
-    (membership : (location, txid) ∈ config.recovered) :
-    recoveredTxID config location = some txid := by
+    (membership : (location, txid) ∈ config.recovered)
+    : recoveredTxID config location = some txid := by
   have keysNodup : (config.recovered.map Prod.fst).Nodup := by
     rw [valid.2.2]
     exact valid.2.1
   unfold recoveredTxID
-  cases found :
-      config.recovered.find? fun entry => entry.1 == location with
+  cases found : config.recovered.find? fun entry => entry.1 == location with
   | none =>
       rw [List.find?_eq_none] at found
-      exact False.elim
-        (found (location, txid) membership (by simp))
+      exact False.elim (found (location, txid) membership (by simp))
   | some entry =>
       have foundMember : entry ∈ config.recovered :=
         List.mem_of_find?_eq_some found
@@ -183,10 +174,10 @@ lemma full_gossip_selection_preserves_commit
     {committed : TxID}
     (reachable : Reachable config state)
     (full : FullGossipSelection config state opener)
-    (durable : DurableCommit config committed) :
-    exists recovered,
-      recoveredTxID config opener = some recovered /\
-        TxID.EarlierThan committed recovered := by
+    (durable : DurableCommit config committed)
+    : exists recovered,
+        recoveredTxID config opener = some recovered
+        /\ TxID.EarlierThan committed recovered := by
   have configValid := reachable_config_valid reachable
   have wellFormed := reachable_well_formed reachable
   have invariant := reachable_quorum_invariant reachable
@@ -212,10 +203,11 @@ lemma full_gossip_selection_preserves_commit
   have selectedRecovered :
       (opener, selectedTxID) ∈ config.recovered :=
     (complete (opener, selectedTxID)).1 selectedGossip
-  exact
-    ⟨selectedTxID,
-      recoveredTxID_of_mem configValid selectedRecovered,
-      prefix_trans committedDurable durableMaximum⟩
+  exact ⟨
+    selectedTxID,
+    recoveredTxID_of_mem configValid selectedRecovered,
+    prefix_trans committedDurable durableMaximum
+  ⟩
 
 /--
 Quorum opening scopes the result to an actual decision, while the separate
@@ -231,10 +223,10 @@ lemma quorum_open_preserves_commit
     (reachable : Reachable config state)
     (_opened : QuorumOpened state opener)
     (full : FullGossipSelection config state opener)
-    (durable : DurableCommit config committed) :
-    exists recovered,
-      recoveredTxID config opener = some recovered /\
-        TxID.EarlierThan committed recovered :=
+    (durable : DurableCommit config committed)
+    : exists recovered,
+        recoveredTxID config opener = some recovered
+        /\ TxID.EarlierThan committed recovered :=
   full_gossip_selection_preserves_commit reachable full durable
 
 end DisasterRecovery.Proofs.Committed

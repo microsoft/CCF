@@ -15,12 +15,14 @@ namespace ccf::tasks
   {
   private:
     std::atomic<bool> cancelled = false;
+    std::atomic<bool> shut_down = false;
 
     friend Resumable ccf::tasks::pause_current_task();
     virtual ccf::tasks::Resumable pause();
 
   protected:
     virtual void do_task_implementation() = 0;
+    virtual void on_shutdown() noexcept {}
 
   public:
     virtual ~BaseTask() = default;
@@ -31,6 +33,12 @@ namespace ccf::tasks
 
     void cancel_task();
     bool is_cancelled();
+
+    // Terminal resource release, unlike cancellation. Call only once task
+    // execution and producers have stopped. on_shutdown() runs exactly once,
+    // even if shutdown() is re-entered or called concurrently.
+    void shutdown() noexcept;
+    [[nodiscard]] bool is_shutdown() const;
   };
 
   using Task = std::shared_ptr<BaseTask>;
