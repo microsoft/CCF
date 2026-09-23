@@ -7,23 +7,28 @@
 #include "ds/internal_logger.h"
 #include "ds/lru.h"
 
+#include <atomic>
+
 namespace ccf::js
 {
   class InterpreterCache : public AbstractInterpreterCache
   {
   protected:
-    // Locks access to all internal fields
+    // Locks access to the LRU and its freshness marker.
     ccf::ds::Mutex lock;
-    LRU<std::string, std::shared_ptr<js::core::Context>> lru;
-    size_t cache_build_marker = 0;
+    LRU<std::string, std::shared_ptr<js::core::Context>> lru
+      CCF_GUARDED_BY(lock);
+    size_t cache_build_marker CCF_GUARDED_BY(lock) = 0;
 
-    InterpreterFactory interpreter_factory = nullptr;
+    std::atomic<std::shared_ptr<const InterpreterFactory>> interpreter_factory =
+      nullptr;
 
     std::shared_ptr<js::core::Context> make_interpreter(js::TxAccess access)
     {
-      if (interpreter_factory != nullptr)
+      const auto factory = interpreter_factory.load();
+      if (factory != nullptr)
       {
-        return interpreter_factory(access);
+        return (*factory)(access);
       }
 
       return std::make_shared<js::core::Context>(access);
@@ -45,69 +50,105 @@ namespace ccf::js
           "interpreters");
       }
 
-      std::lock_guard<ccf::ds::Mutex> guard(lock);
-
-      if (cache_build_marker != freshness_marker)
+      if (!interpreter_reuse.has_value())
       {
-        LOG_INFO_FMT(
-          "Clearing interpreter lru at {} - rebuilding at {}",
-          cache_build_marker,
-          freshness_marker);
-        lru.clear();
-        cache_build_marker = freshness_marker;
+        LOG_TRACE_FMT("Returning freshly constructed interpreter");
+        return make_interpreter(access);
       }
 
-      if (interpreter_reuse.has_value())
+      std::string key;
+      switch (interpreter_reuse->kind)
       {
-        switch (interpreter_reuse->kind)
+        case ccf::endpoints::InterpreterReusePolicy::Kind::KeyBased:
         {
-          case ccf::endpoints::InterpreterReusePolicy::Kind::KeyBased:
-          {
-            auto key = interpreter_reuse->key;
-            if (access == js::TxAccess::APP_RW)
-            {
-              key += " (rw)";
-            }
-            else if (access == js::TxAccess::APP_RO)
-            {
-              key += " (ro)";
-            }
-            auto it = lru.find(key);
-            if (it == lru.end())
-            {
-              it = lru.insert(key, make_interpreter(access));
-              LOG_INFO_FMT(
-                "Constructed cached JS interpreter at key {}. Cache now "
-                "contains {} interpreters",
-                key,
-                lru.size());
-            }
-            else
-            {
-              LOG_TRACE_FMT(
-                "Returning interpreter previously in cache, with key {}", key);
-              lru.promote(it);
-            }
+          key = interpreter_reuse->key;
+          break;
+        }
+      }
+      if (access == js::TxAccess::APP_RW)
+      {
+        key += " (rw)";
+      }
+      else if (access == js::TxAccess::APP_RO)
+      {
+        key += " (ro)";
+      }
 
-            return it->second;
-          }
+      {
+        ccf::ds::MutexGuard guard(lock);
+        if (cache_build_marker != freshness_marker)
+        {
+          LOG_INFO_FMT(
+            "Clearing interpreter lru at {} - rebuilding at {}",
+            cache_build_marker,
+            freshness_marker);
+          lru.clear();
+          cache_build_marker = freshness_marker;
+        }
+        auto it = lru.find(key);
+        if (it != lru.end())
+        {
+          LOG_TRACE_FMT(
+            "Returning interpreter previously in cache, with key {}", key);
+          lru.promote(it);
+          return it->second;
         }
       }
 
-      // Return a fresh interpreter, not stored in the cache
-      LOG_TRACE_FMT("Returning freshly constructed interpreter");
-      return make_interpreter(access);
+      auto interpreter = make_interpreter(access);
+
+      ccf::ds::MutexGuard guard(lock);
+      if (cache_build_marker != freshness_marker)
+      {
+        LOG_TRACE_FMT(
+          "Not caching interpreter at key {} because the cache was refreshed "
+          "while it was constructed",
+          key);
+        return interpreter;
+      }
+
+      auto it = lru.find(key);
+      if (it == lru.end())
+      {
+        it = lru.insert(key, std::move(interpreter));
+        LOG_INFO_FMT(
+          "Constructed cached JS interpreter at key {}. Cache now contains {} "
+          "interpreters",
+          key,
+          lru.size());
+      }
+      else
+      {
+        LOG_TRACE_FMT(
+          "Another interpreter was cached concurrently, with key {}", key);
+        lru.promote(it);
+      }
+      return it->second;
     }
 
     void set_max_cached_interpreters(size_t max) override
     {
-      std::lock_guard<ccf::ds::Mutex> guard(lock);
+      ccf::ds::MutexGuard guard(lock);
       lru.set_max_size(max);
+    }
+
+    void clear_cached_interpreters() override
+    {
+      ccf::ds::MutexGuard guard(lock);
+      lru.clear();
     }
 
     void set_interpreter_factory(const InterpreterFactory& ip) override
     {
-      interpreter_factory = ip;
+      if (ip != nullptr)
+      {
+        interpreter_factory.store(
+          std::make_shared<const InterpreterFactory>(ip));
+      }
+      else
+      {
+        interpreter_factory.store(nullptr);
+      }
     }
   };
 }

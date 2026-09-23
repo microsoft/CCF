@@ -729,9 +729,10 @@
     },
     "worker_threads": {
       "type": "integer",
-      "default": 0,
-      "description": "Number of additional threads processing incoming client requests",
-      "minimum": 0
+      "default": 1,
+      "description": "Number of additional worker threads processing incoming client requests. CCF starts one more worker than configured, in addition to the dispatch thread, to preserve task execution capacity. A value of 0 starts one worker and logs a warning; positive values are incremented silently. The maximum leaves room for the extra worker and dispatch thread in the 16-bit enclave thread count",
+      "minimum": 0,
+      "maximum": 65533
     },
     "memory": {
       "type": "object",

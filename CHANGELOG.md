@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.17]
+
+[7.0.17]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.17
+
+### Added
+
+- ML-DSA-44/65/87 key-pair and public-key APIs for key generation, PKCS#8/SPKI PEM and DER import/export, and pure ML-DSA signing and verification with optional context strings. These APIs are compiled only with OpenSSL 3.5 or newer (#8378).
+
+### Changed
+
+- The `worker_threads` configuration option now defaults to `1`. CCF starts one more worker thread than configured, in addition to the dispatch thread, preserving task execution capacity now that the dispatch thread no longer executes tasks. A configured value of `0` starts one worker and logs a warning; positive values are incremented silently (#8404, #8411).
+- Adding or resetting a member no longer eagerly records a state digest for them to acknowledge. Members must call the state digest `:update` endpoint before acknowledging the current service state; until then, the state digest `GET` endpoint returns HTTP 404 (#8407).
+- Proposal creation requests are now recorded in `public:ccf.gov.cose_history` as COSE Sign1 envelopes with a detached (`nil`) payload, since the signed proposal body is already stored in `public:ccf.gov.proposals` in the same transaction. Auditors verifying these entries must supply that proposal body as the detached payload. Ballots and withdrawals continue to embed their payload. A new `ccf::cose::edit::detach_payload` API is available to detach the payload of a COSE Sign1 message (#8424).
+
+### Fixed
+
+- Release queued task ownership cycles during node shutdown, including paused session queues which are no longer on the task board (#8420).
+- JS registry tables and their configured namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. The governance-driven registry uses `public:ccf.gov.*` and leaves application namespaces unchanged. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`; platform permissions still apply (#8359).
+- Fixed `set_member` failures on services which have only ever emitted COSE ledger signatures (#8407).
+
+### Removed
+
+- Removed the unused ringbuffer writer from the public research `CustomProtocolSubsystemInterface::Essentials` structure. Custom protocol extensions can no longer access `Essentials::writer` (#8395).
+
 ## [7.0.16]
 
 [7.0.16]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.16
@@ -55,6 +79,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Updated QuickJS to `2026-06-04`, with isolated build-time patches for out-of-memory backtrace handling and enforcement of lowered heap limits (#8340).
+- TLS is now terminated by OpenSSL directly on the socket, rather than being relayed over the ringbuffer and decrypted through a memory BIO. Session interfaces now exchange plaintext through a `ccf::SessionWriter`, and empty X.509 certificate bundles are rejected by the replacement validation path (#8117).
 - CBOR parsing now rejects composite (array or map) and tagged values used as map keys anywhere in the decoded document, including nested maps in optional COSE headers (#8297).
 
 ### Removed

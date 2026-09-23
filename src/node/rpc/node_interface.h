@@ -67,6 +67,5 @@ namespace ccf
     [[nodiscard]] virtual bool is_accessible_to_members() const = 0;
 
     virtual std::shared_ptr<ccf::kv::Store> get_store() = 0;
-    virtual ringbuffer::AbstractWriterFactory& get_writer_factory() = 0;
   };
 }

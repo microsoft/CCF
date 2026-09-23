@@ -47,7 +47,6 @@ namespace ccf::crypto
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(CurveID curve_id)
   {
     int curve_nid = get_openssl_group_id(curve_id);
-    key = EVP_PKEY_new();
     Unique_EVP_PKEY_CTX pkctx;
     if (
       EVP_PKEY_keygen_init(pkctx) <= 0 ||
@@ -56,7 +55,9 @@ namespace ccf::crypto
     {
       throw std::runtime_error("could not initialize PK context");
     }
-    const auto keygen_rc = EVP_PKEY_keygen(pkctx, &key);
+    EVP_PKEY* generated = nullptr;
+    const auto keygen_rc = EVP_PKEY_keygen(pkctx, &generated);
+    key.reset(generated);
     if (keygen_rc <= 0)
     {
       throw std::runtime_error(
@@ -67,16 +68,20 @@ namespace ccf::crypto
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr);
+    key.reset(PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr));
     if (key == nullptr)
     {
       throw std::runtime_error("could not parse PEM");
+    }
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
+    {
+      throw std::logic_error(
+        "Cannot construct ECKeyPair_OpenSSL from non-EC key");
     }
   }
 
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
   {
-    key = EVP_PKEY_new();
     Unique_BIGNUM d;
     auto d_raw = raw_from_b64url(jwk.d);
     OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
@@ -101,8 +106,11 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(
-      pctx, &key, EVP_PKEY_KEYPAIR, static_cast<OSSL_PARAM*>(params)));
+    EVP_PKEY* parsed = nullptr;
+    const auto rc = EVP_PKEY_fromdata(
+      pctx, &parsed, EVP_PKEY_KEYPAIR, static_cast<OSSL_PARAM*>(params));
+    key.reset(parsed);
+    CHECK1(rc);
   }
 
   Pem ECKeyPair_OpenSSL::private_key_pem() const

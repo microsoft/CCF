@@ -16,7 +16,6 @@ namespace ccf::crypto
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(
     size_t public_key_size, size_t public_exponent)
   {
-    CHECKNULL(key = EVP_PKEY_new());
     Unique_BIGNUM big_exp;
     CHECK1(BN_set_word(big_exp, public_exponent));
 
@@ -24,7 +23,10 @@ namespace ccf::crypto
     CHECK1(EVP_PKEY_keygen_init(pctx));
     CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_keygen_bits(pctx, public_key_size));
     CHECKPOSITIVE(EVP_PKEY_CTX_set1_rsa_keygen_pubexp(pctx, big_exp));
-    CHECK1(EVP_PKEY_generate(pctx, &key));
+    EVP_PKEY* generated = nullptr;
+    const auto rc = EVP_PKEY_generate(pctx, &generated);
+    key.reset(generated);
+    CHECK1(rc);
   }
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(EVP_PKEY* k) : RSAPublicKey_OpenSSL(k)
@@ -33,17 +35,20 @@ namespace ccf::crypto
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr);
+    key.reset(PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr));
     if (key == nullptr)
     {
       throw std::runtime_error("could not parse PEM");
+    }
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+    {
+      throw std::logic_error(
+        "Cannot construct RSAKeyPair_OpenSSL from non-RSA key");
     }
   }
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const JsonWebKeyRSAPrivate& jwk)
   {
-    key = EVP_PKEY_new();
-
     Unique_BIGNUM d;
     Unique_BIGNUM p;
     Unique_BIGNUM q;
@@ -113,8 +118,11 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(
-      pctx, &key, EVP_PKEY_KEYPAIR, static_cast<OSSL_PARAM*>(params)));
+    EVP_PKEY* parsed = nullptr;
+    const auto rc = EVP_PKEY_fromdata(
+      pctx, &parsed, EVP_PKEY_KEYPAIR, static_cast<OSSL_PARAM*>(params));
+    key.reset(parsed);
+    CHECK1(rc);
   }
 
   std::vector<uint8_t> RSAKeyPair_OpenSSL::rsa_oaep_unwrap(
