@@ -135,6 +135,7 @@ namespace ccf
       next_trace_sequence = 0;
       next_trace_attempt = 0;
       next_trace_batch = 0;
+      next_trace_message = 0;
       emit_trace_events_unsafe({{
         .kind = "start",
         .pre = "GOSSIPING",
@@ -183,11 +184,13 @@ namespace ccf
   }
 
   void RecoveryDecisionProtocolSubsystem::record_trace_send(
+    nlohmann::json& request,
     uint64_t batch,
     const std::string& message_kind,
     const sealing_recovery::Name& target,
     const std::optional<ccf::TxID>& gossip_txid) noexcept
   {
+    std::optional<std::string> message_id = std::nullopt;
     trace_safely("send", [&]() {
       recovery_decision_protocol::TraceEvent event{
         .kind = "send",
@@ -200,7 +203,23 @@ namespace ccf
         event.seqno = gossip_txid->seqno;
       }
       std::lock_guard<ds::Mutex> guard(trace_lock);
+      auto id = fmt::format("{}:{}", trace_node, next_trace_message++);
+      event.message_id = id;
       emit_trace_events_unsafe({std::move(event)});
+      message_id = std::move(id);
+    });
+
+    // Only messages whose send was recorded carry an identifier
+    trace_safely("message id", [&]() {
+      if (message_id.has_value())
+      {
+        request[recovery_decision_protocol::trace_message_id_field] =
+          message_id.value();
+      }
+      else
+      {
+        request.erase(recovery_decision_protocol::trace_message_id_field);
+      }
     });
   }
 
@@ -273,14 +292,23 @@ namespace ccf
 
   void RecoveryDecisionProtocolSubsystem::record_trace_receive(
     std::string_view kind,
+    const nlohmann::json& params,
     const sealing_recovery::Name& source,
     const std::optional<ccf::TxID>& gossip_txid,
     std::optional<recovery_decision_protocol::StateMachine> pre,
     const recovery_decision_protocol::AdvanceTrace& trace) noexcept
   {
     trace_safely("receive", [&]() {
+      std::optional<std::string> caused_by = std::nullopt;
+      const auto message_id =
+        params.find(recovery_decision_protocol::trace_message_id_field);
+      if (message_id != params.end() && message_id->is_string())
+      {
+        caused_by = message_id->get<std::string>();
+      }
       recovery_decision_protocol::TraceEvent event{
         .kind = std::string(kind),
+        .caused_by = caused_by,
         .source = source,
       };
       if (gossip_txid.has_value())
@@ -984,7 +1012,8 @@ namespace ccf
     {
       auto target_address = target.address;
 #ifdef CCF_RECOVERY_TRACE
-      record_trace_send(trace_batch, "gossip", target.name, request.txid);
+      record_trace_send(
+        request_json, trace_batch, "gossip", target.name, request.txid);
 #endif
       dispatch_authenticated_message(
         request_json,
@@ -1017,7 +1046,7 @@ namespace ccf
 
 #ifdef CCF_RECOVERY_TRACE
     record_trace_send(
-      trace_batch, "vote", node_info.location.name, std::nullopt);
+      request_json, trace_batch, "vote", node_info.location.name, std::nullopt);
 #endif
     dispatch_authenticated_message(
       request_json,
@@ -1090,7 +1119,8 @@ namespace ccf
         continue;
       }
 #ifdef CCF_RECOVERY_TRACE
-      record_trace_send(trace_batch, "iamopen", target.name, std::nullopt);
+      record_trace_send(
+        request_json, trace_batch, "iamopen", target.name, std::nullopt);
 #endif
       dispatch_authenticated_message(
         request_json,

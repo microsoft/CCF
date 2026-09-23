@@ -25,6 +25,7 @@ namespace ccf::node
   template <typename Input>
   static void trace_recovery_decision_protocol_receive(
     RecoveryDecisionProtocolSubsystem& protocol,
+    const nlohmann::json& params,
     const Input& in,
     std::optional<recovery_decision_protocol::StateMachine> pre,
     const recovery_decision_protocol::AdvanceTrace& trace)
@@ -33,21 +34,31 @@ namespace ccf::node
                     is_same_v<Input, recovery_decision_protocol::GossipRequest>)
     {
       protocol.record_trace_receive(
-        "gossip_accepted", in.info.location.name, in.txid, pre, trace);
+        "gossip_accepted", params, in.info.location.name, in.txid, pre, trace);
     }
     else if constexpr (std::is_same_v<
                          Input,
                          recovery_decision_protocol::IAmOpenRequest>)
     {
       protocol.record_trace_receive(
-        "iamopen_accepted", in.info.location.name, std::nullopt, pre, trace);
+        "iamopen_accepted",
+        params,
+        in.info.location.name,
+        std::nullopt,
+        pre,
+        trace);
     }
     else
     {
       static_assert(
         std::is_same_v<Input, recovery_decision_protocol::TaggedWithNodeInfo>);
       protocol.record_trace_receive(
-        "vote_accepted", in.info.location.name, std::nullopt, pre, trace);
+        "vote_accepted",
+        params,
+        in.info.location.name,
+        std::nullopt,
+        pre,
+        trace);
     }
   }
 #endif
@@ -195,7 +206,8 @@ namespace ccf::node
       }
 
 #ifdef CCF_RECOVERY_TRACE
-      trace_recovery_decision_protocol_receive(protocol, in, trace_pre, trace);
+      trace_recovery_decision_protocol_receive(
+        protocol, params, in, trace_pre, trace);
 #endif
       return make_success();
     };

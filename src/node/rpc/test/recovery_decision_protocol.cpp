@@ -331,6 +331,14 @@ namespace
       return request;
     }
 
+    // Adds the identifier that traced senders attach to protocol messages.
+    // Every build must accept messages with or without it.
+    static json traced(json message, const std::string& message_id)
+    {
+      message["trace_message_id"] = message_id;
+      return message;
+    }
+
     std::optional<State> phase()
     {
       auto tx = network.tables->create_read_only_tx();
@@ -395,7 +403,9 @@ TEST_CASE("Recovery tracing records observed transitions and effects")
   RecoveryProtocolFixture fixture;
 
   auto gossip = fixture.prepare(
-    "recovery_decision_protocol/gossip", fixture.gossip("opener", {1, 1}));
+    "recovery_decision_protocol/gossip",
+    RecoveryProtocolFixture::traced(
+      fixture.gossip("opener", {1, 1}), "opener:0"));
   REQUIRE(gossip->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
   fixture.commit(*gossip);
   check_trace_events(
@@ -404,6 +414,7 @@ TEST_CASE("Recovery tracing records observed transitions and effects")
       {"kind", "gossip_accepted"},
       {"sequence", 2},
       {"attempt", 0},
+      {"caused_by", "opener:0"},
       {"source", "opener"},
       {"view", 1},
       {"seqno", 1},
@@ -441,11 +452,14 @@ TEST_CASE("Recovery tracing records observed transitions and effects")
     fixture.prepare("recovery_decision_protocol/vote", fixture.vote("opener"));
   REQUIRE(vote->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
   fixture.commit(*vote);
+  // Messages without an identifier are handled as before and are recorded
+  // without a cause
   check_trace_events(
     fixture,
     {{
       {"kind", "vote_accepted"},
       {"attempt", 2},
+      {"caused_by", nullptr},
       {"source", "opener"},
       {"pre", "VOTING"},
       {"post", "VOTING"},
@@ -457,7 +471,8 @@ TEST_CASE("Recovery tracing records observed transitions and effects")
   // The restart is requested while the transaction executes, whether or not
   // tracing is enabled
   auto iamopen = fixture.prepare(
-    "recovery_decision_protocol/iamopen", fixture.iamopen("opener"));
+    "recovery_decision_protocol/iamopen",
+    RecoveryProtocolFixture::traced(fixture.iamopen("opener"), "opener:1"));
   REQUIRE(iamopen->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
   CHECK(fixture.runtime_control.restarts == 1);
   fixture.commit(*iamopen);
@@ -466,6 +481,7 @@ TEST_CASE("Recovery tracing records observed transitions and effects")
     {{
        {"kind", "iamopen_accepted"},
        {"attempt", 3},
+       {"caused_by", "opener:1"},
        {"source", "opener"},
        {"pre", "VOTING"},
        {"post", "JOINING"},
@@ -556,7 +572,9 @@ TEST_CASE("Recovery tracing records each conflicting execution attempt")
   RecoveryProtocolFixture fixture;
 
   auto first = fixture.prepare(
-    "recovery_decision_protocol/gossip", fixture.gossip("opener", {1, 1}));
+    "recovery_decision_protocol/gossip",
+    RecoveryProtocolFixture::traced(
+      fixture.gossip("opener", {1, 1}), "opener:5"));
   REQUIRE(first->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
 
   {
@@ -573,13 +591,14 @@ TEST_CASE("Recovery tracing records each conflicting execution attempt")
   REQUIRE(second->rpc_ctx->get_response_status() == HTTP_STATUS_NO_CONTENT);
   fixture.commit(*second);
 
-  // The superseded attempt is not marked: validation infers it from the state
-  // observed by later attempts
+  // Both attempts record the same cause. Only the last execution of a request
+  // can commit, but nothing marks the superseded attempt.
   check_trace_events(
     fixture,
     {{
        {"kind", "gossip_accepted"},
        {"attempt", 0},
+       {"caused_by", "opener:5"},
        {"post", "GOSSIPING"},
        {"gossips",
         json::array({{{"location", "opener"}, {"view", 1}, {"seqno", 1}}})},
@@ -587,6 +606,7 @@ TEST_CASE("Recovery tracing records each conflicting execution attempt")
      {
        {"kind", "gossip_accepted"},
        {"attempt", 1},
+       {"caused_by", "opener:5"},
        {"post", "VOTING"},
        {"gossips",
         json::array(

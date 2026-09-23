@@ -54,6 +54,11 @@ namespace ccf::recovery_decision_protocol
   DECLARE_JSON_TYPE(TraceGossip);
   DECLARE_JSON_REQUIRED_FIELDS(TraceGossip, location, view, seqno);
 
+  // Traced builds add this field to each protocol message they send, so that
+  // each receive can be linked to its send. Receivers only log it: requests
+  // are parsed and validated exactly as in builds without tracing.
+  inline constexpr const char* trace_message_id_field = "trace_message_id";
+
   // What a single execution of advance() read, wrote, and requested
   struct AdvanceTrace
   {
@@ -74,6 +79,8 @@ namespace ccf::recovery_decision_protocol
     std::string kind;
     std::optional<uint64_t> attempt = std::nullopt;
     std::optional<uint64_t> batch = std::nullopt;
+    std::optional<std::string> message_id = std::nullopt;
+    std::optional<std::string> caused_by = std::nullopt;
     std::optional<sealing_recovery::Name> source = std::nullopt;
     std::optional<ccf::View> view = std::nullopt;
     std::optional<ccf::SeqNo> seqno = std::nullopt;
@@ -94,6 +101,8 @@ namespace ccf::recovery_decision_protocol
     TraceEvent,
     attempt,
     batch,
+    message_id,
+    caused_by,
     source,
     view,
     seqno,
@@ -137,6 +146,7 @@ namespace ccf
     uint64_t next_trace_sequence = 0;
     uint64_t next_trace_attempt = 0;
     uint64_t next_trace_batch = 0;
+    uint64_t next_trace_message = 0;
 #endif
 
   public:
@@ -160,6 +170,7 @@ namespace ccf
       kv::ReadOnlyTx& tx) noexcept;
     void record_trace_receive(
       std::string_view kind,
+      const nlohmann::json& params,
       const sealing_recovery::Name& source,
       const std::optional<ccf::TxID>& gossip_txid,
       std::optional<recovery_decision_protocol::StateMachine> pre,
@@ -215,6 +226,7 @@ namespace ccf
     uint64_t record_trace_retry(
       recovery_decision_protocol::StateMachine phase) noexcept;
     void record_trace_send(
+      nlohmann::json& request,
       uint64_t batch,
       const std::string& message_kind,
       const sealing_recovery::Name& target,
