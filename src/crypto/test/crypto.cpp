@@ -312,9 +312,10 @@ TEST_CASE_TEMPLATE(
   const auto pem = kp->public_key_pem();
   const auto der = kp->public_key_der();
 
-  CHECK(T(pem).public_key_der() == der);
+  const T public_key(pem);
+  CHECK(public_key.public_key_der() == der);
   CHECK(T(der).public_key_pem() == pem);
-  CHECK(T(kp->public_key_jwk()).public_key_der() == der);
+  CHECK(T(public_key.public_key_jwk()).public_key_der() == der);
 
   auto moved = [&]() {
     OpenSSL::Unique_BIO mem(pem);
@@ -325,15 +326,17 @@ TEST_CASE_TEMPLATE(
   }();
   CHECK(moved.public_key_der() == der);
 
-  const Pem malformed_pem("not a public key");
+  const Pem malformed_pem(
+    "-----BEGIN PUBLIC KEY-----\ninvalid\n-----END PUBLIC KEY-----");
   const std::vector<uint8_t> malformed_der{0};
-  CHECK_THROWS_AS(T(malformed_pem), std::runtime_error);
-  CHECK_THROWS_AS(T(malformed_der), std::runtime_error);
+  CHECK_THROWS_AS(T{malformed_pem}, std::runtime_error);
+  CHECK_THROWS_AS(T{malformed_der}, std::runtime_error);
 
   const auto wrong_kp = make_eddsa_key_pair();
-  CHECK_THROWS_AS(T(wrong_kp->public_key_pem()), std::logic_error);
-  OpenSSL::Unique_BIO wrong_pem(wrong_kp->public_key_pem());
-  OpenSSL::Unique_PKEY wrong_key(wrong_pem);
+  const auto wrong_pem = wrong_kp->public_key_pem();
+  CHECK_THROWS_AS(T{wrong_pem}, std::logic_error);
+  OpenSSL::Unique_BIO wrong_mem(wrong_pem);
+  OpenSSL::Unique_PKEY wrong_key(wrong_mem);
   CHECK_THROWS_AS(T(wrong_key.release()), std::logic_error);
 }
 
