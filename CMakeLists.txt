@@ -764,14 +764,17 @@ if(BUILD_TESTS)
       PRIVATE "LINKER:--wrap=uv_async_send"
     )
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-      add_custom_target(
+      add_library(
         locking_thread_safety
-        COMMAND
-          ${CMAKE_CXX_COMPILER} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/include
-          -Wthread-safety -Xclang -verify -fsyntax-only
-          ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/locking_thread_safety.cpp
-        VERBATIM
+        OBJECT
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/locking_thread_safety.cpp
       )
+      target_include_directories(
+        locking_thread_safety
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include
+      )
+      add_warning_checks(locking_thread_safety)
+      target_compile_options(locking_thread_safety PRIVATE -Xclang -verify)
       add_dependencies(openssl_server_test locking_thread_safety)
     endif()
 

@@ -1,8 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// clang++ -std=c++23 -Iinclude -Wthread-safety -Xclang -verify -fsyntax-only \
-//   src/ds/test/locking_thread_safety.cpp
+// cmake --build build --target locking_thread_safety
 #include "ccf/ds/locking.h"
 
 namespace
@@ -28,7 +27,7 @@ namespace
       write();
       (void)read();
       guard.unlock();
-      // expected-warning@+1 {{reading variable 'value'}}
+      // expected-error@+1 {{reading variable 'value'}}
       const int unguarded = value;
       (void)unguarded;
       guard.lock();
@@ -42,22 +41,22 @@ namespace
     {
       ccf::ds::SharedMutexReadGuard guard(mutex);
       (void)read();
-      // expected-warning@+1 {{requires holding mutex 'mutex' exclusively}}
+      // expected-error@+1 {{requires holding mutex 'mutex' exclusively}}
       ++value;
-      // expected-warning@+1 {{requires holding mutex 'mutex' exclusively}}
+      // expected-error@+1 {{requires holding mutex 'mutex' exclusively}}
       write();
-      // expected-warning@+1 {{cannot call function 'exclusive'}}
+      // expected-error@+1 {{cannot call function 'exclusive'}}
       exclusive();
     }
 
     void unlocked() CCF_EXCLUDES(mutex)
     {
-      // expected-warning@+1 {{reading variable 'value'}}
+      // expected-error@+1 {{reading variable 'value'}}
       const int unguarded = value;
       (void)unguarded;
-      // expected-warning@+1 {{calling function 'read'}}
+      // expected-error@+1 {{calling function 'read'}}
       read();
-      // expected-warning@+1 {{requires holding mutex 'mutex' exclusively}}
+      // expected-error@+1 {{requires holding mutex 'mutex' exclusively}}
       write();
     }
 
