@@ -57,7 +57,7 @@
   "tick_interval": "1ms",
   "slow_io_logging_threshold": "10000us",
   "client_connection_timeout": "2000ms",
-  "worker_threads": 0,
+  "worker_threads": 1,
   "memory": {
     "circuit_size": "16MB",
     "max_msg_size": "64MB",

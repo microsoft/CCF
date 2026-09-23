@@ -132,6 +132,11 @@ option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
+option(
+  TEST_MLDSA
+  "Run ML-DSA key tests, which require OpenSSL 3.5 or newer"
+  OFF
+)
 option(USE_SNMALLOC "Link against snmalloc" ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
@@ -363,9 +368,9 @@ target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
 # Common test args for Python scripts starting up CCF networks
 set(
   WORKER_THREADS
-  0
+  1
   CACHE STRING
-  "Number of worker threads to start on each CCF node"
+  "Configured worker_threads value; each CCF node starts one additional worker"
 )
 
 set(
@@ -766,8 +771,10 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_straddling_rollback.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_straddling_history.cpp
     )
-    target_link_libraries(raft_test PRIVATE ccfcrypto ccf_tasks)
+    target_link_libraries(raft_test PRIVATE ccfcrypto ccf_kv ccf_tasks)
 
     add_unit_test(
       raft_enclave_test
@@ -780,6 +787,12 @@ if(BUILD_TESTS)
       crypto_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
     )
+    if(TEST_MLDSA)
+      target_sources(
+        crypto_test
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/mldsa.cpp
+      )
+    endif()
     target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
     target_link_libraries(crypto_test PRIVATE ccfcrypto)
 
@@ -850,7 +863,11 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_client.cpp
     )
 
-    add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
+    add_unit_test(
+      js_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/uvm_endorsements.cpp
+    )
     target_link_libraries(
       js_test
       PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto http_parser
@@ -889,6 +906,12 @@ if(BUILD_TESTS)
       historical_queries_test
       PRIVATE http_parser ccf_kv ccf_endpoints ccf_tasks
     )
+    add_unit_test(
+      open_service_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/open_service.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/local_sealing.cpp
+    )
+    target_link_libraries(open_service_test PRIVATE ccf_kv)
     add_unit_test(
       network_identity_subsystem_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/network_identity_subsystem.cpp
@@ -1395,7 +1418,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
     LABEL snp
     BUCKET bucket_c
-    BUILD_DEPENDS programmability logging
+    BUILD_DEPENDS programmability logging js_generic
   )
 
   # This test uses large requests (so too slow for SAN)
