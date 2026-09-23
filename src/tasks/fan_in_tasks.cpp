@@ -5,11 +5,9 @@
 
 #include "ccf/ds/locking.h"
 
+#include <format>
 #include <map>
 #include <stdexcept>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace ccf::tasks
 {
@@ -90,7 +88,7 @@ namespace ccf::tasks
 
       if (task_index < pimpl->next_expected_task_index)
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "[{}] Received task {} ({}) out-of-order - already advanced next "
           "expected "
           "to {}",
@@ -103,7 +101,7 @@ namespace ccf::tasks
       auto it = pimpl->pending_tasks.find(task_index);
       if (it != pimpl->pending_tasks.end())
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "[{}] Received duplicate task {} ({}) - already have pending task {}",
           get_name(),
           task_index,

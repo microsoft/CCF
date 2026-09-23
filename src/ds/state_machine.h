@@ -5,6 +5,7 @@
 #include "ds/internal_logger.h"
 
 #include <atomic>
+#include <format>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -29,7 +30,7 @@ namespace ds
       auto state_snapshot = state.load();
       if (state_ != state_snapshot)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "[{}] State is {}, but expected {}", label, state_snapshot, state_));
       }
     }

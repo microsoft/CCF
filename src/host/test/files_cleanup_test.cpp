@@ -6,6 +6,8 @@
 #include "host/files_cleanup_timer.h"
 #include "ledger/filenames.h"
 
+#include <format>
+
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <cstdlib>
 #include <doctest/doctest.h>
@@ -40,7 +42,7 @@ static fs::path create_committed_chunk(
   size_t end_idx,
   const std::string& content = "data")
 {
-  auto name = fmt::format("ledger_{}-{}.committed", start_idx, end_idx);
+  auto name = std::format("ledger_{}-{}.committed", start_idx, end_idx);
   auto path = dir / name;
   write_file(path, content);
   return path;
@@ -327,7 +329,7 @@ TEST_CASE("cleanup_old_ledger_chunks: deletes oldest chunks when backed up")
   {
     auto start = i * 100 + 1;
     auto end = (i + 1) * 100;
-    auto content = fmt::format("chunk_{}", i);
+    auto content = std::format("chunk_{}", i);
     create_committed_chunk(main_dir, start, end, content);
     // Also copy to read-only dir
     create_committed_chunk(ro_dir, start, end, content);
@@ -359,7 +361,7 @@ TEST_CASE("cleanup_old_ledger_chunks: keeps chunks not backed up in read-only")
   {
     auto start = i * 100 + 1;
     auto end = (i + 1) * 100;
-    create_committed_chunk(main_dir, start, end, fmt::format("chunk_{}", i));
+    create_committed_chunk(main_dir, start, end, std::format("chunk_{}", i));
   }
 
   // Only back up chunk 0 (oldest) to read-only dir
@@ -393,7 +395,7 @@ TEST_CASE("cleanup_old_ledger_chunks: max_retained = 0 deletes all backed up")
   {
     auto start = i * 100 + 1;
     auto end = (i + 1) * 100;
-    auto content = fmt::format("chunk_{}", i);
+    auto content = std::format("chunk_{}", i);
     create_committed_chunk(main_dir, start, end, content);
     create_committed_chunk(ro_dir, start, end, content);
   }
@@ -442,7 +444,7 @@ TEST_CASE("cleanup_old_ledger_chunks: digest mismatch prevents deletion")
   {
     auto start = i * 100 + 1;
     auto end = (i + 1) * 100;
-    create_committed_chunk(main_dir, start, end, fmt::format("chunk_{}", i));
+    create_committed_chunk(main_dir, start, end, std::format("chunk_{}", i));
   }
 
   // Back up chunk 0 with corrupted content
@@ -464,9 +466,9 @@ TEST_CASE("cleanup_old_ledger_chunks: digest mismatch prevents deletion")
 static fs::path create_committed_snapshot(
   const fs::path& dir, size_t seqno, size_t evidence_seqno)
 {
-  auto name = fmt::format("snapshot_{}_{}.committed", seqno, evidence_seqno);
+  auto name = std::format("snapshot_{}_{}.committed", seqno, evidence_seqno);
   auto path = dir / name;
-  write_file(path, fmt::format("snapshot_data_{}", seqno));
+  write_file(path, std::format("snapshot_data_{}", seqno));
   return path;
 }
 
@@ -536,7 +538,7 @@ TEST_CASE(
   {
     auto start = i * 100 + 1;
     auto end = (i + 1) * 100;
-    auto content = fmt::format("chunk_{}", i);
+    auto content = std::format("chunk_{}", i);
     create_committed_chunk(main_dir, start, end, content);
     create_committed_chunk(ro_dir, start, end, content);
   }
@@ -571,7 +573,7 @@ TEST_CASE(
   {
     auto start = i * 100 + 1;
     auto end = (i + 1) * 100;
-    auto content = fmt::format("chunk_{}", i);
+    auto content = std::format("chunk_{}", i);
     create_committed_chunk(main_dir, start, end, content);
     create_committed_chunk(ro_dir, start, end, content);
   }
@@ -603,7 +605,7 @@ TEST_CASE("cleanup_old_ledger_chunks: no watermark allows normal deletion")
   {
     auto start = i * 100 + 1;
     auto end = (i + 1) * 100;
-    auto content = fmt::format("chunk_{}", i);
+    auto content = std::format("chunk_{}", i);
     create_committed_chunk(main_dir, start, end, content);
     create_committed_chunk(ro_dir, start, end, content);
   }

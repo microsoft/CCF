@@ -13,6 +13,7 @@
 #include "crypto/cbor_tags.h"
 #include "node/cose_common.h"
 
+#include <format>
 #include <tav/cbor.hpp>
 
 namespace
@@ -237,12 +238,12 @@ namespace ccf
     if (content_type_it == headers.end())
     {
       error_reason =
-        fmt::format("Missing {} header", http::headers::CONTENT_TYPE);
+        std::format("Missing {} header", http::headers::CONTENT_TYPE);
       return nullptr;
     }
     if (content_type_it->second != http::headervalues::contenttype::COSE)
     {
-      error_reason = fmt::format(
+      error_reason = std::format(
         "Content type is not set to {}", http::headervalues::contenttype::COSE);
       return nullptr;
     }
@@ -253,7 +254,7 @@ namespace ccf
 
     if (!cose::is_ecdsa_alg(phdr.alg))
     {
-      error_reason = fmt::format("Unsupported algorithm: {}", phdr.alg);
+      error_reason = std::format("Unsupported algorithm: {}", phdr.alg);
       return nullptr;
     }
 
@@ -271,7 +272,7 @@ namespace ccf
             decomposed.sig,
             decomposed.alg))
       {
-        error_reason = fmt::format("Failed to validate COSE Sign1");
+        error_reason = std::format("Failed to validate COSE Sign1");
         return nullptr;
       }
 
@@ -285,7 +286,7 @@ namespace ccf
       {
         if (!phdr.gov_msg_type.has_value())
         {
-          error_reason = fmt::format(
+          error_reason = std::format(
             "Missing ccf.gov.msg.type, expected ccf.gov.msg.type to be {}",
             gov_msg_type.value());
           return nullptr;
@@ -293,7 +294,7 @@ namespace ccf
 
         if (phdr.gov_msg_type.value() != gov_msg_type.value())
         {
-          error_reason = fmt::format(
+          error_reason = std::format(
             "Found ccf.gov.msg.type set to {}, expected ccf.gov.msg.type to be "
             "{}",
             phdr.gov_msg_type.value(),
@@ -310,7 +311,7 @@ namespace ccf
         member_cert.value(),
         phdr);
     }
-    error_reason = fmt::format("Signer is not a known member");
+    error_reason = std::format("Signer is not a known member");
     return nullptr;
   }
 
@@ -382,12 +383,12 @@ namespace ccf
     if (content_type_it == headers.end())
     {
       error_reason =
-        fmt::format("Missing {} header", http::headers::CONTENT_TYPE);
+        std::format("Missing {} header", http::headers::CONTENT_TYPE);
       return nullptr;
     }
     if (content_type_it->second != http::headervalues::contenttype::COSE)
     {
-      error_reason = fmt::format(
+      error_reason = std::format(
         "Content type is not set to {}", http::headervalues::contenttype::COSE);
       return nullptr;
     }
@@ -397,7 +398,7 @@ namespace ccf
 
     if (!cose::is_ecdsa_alg(phdr.alg))
     {
-      error_reason = fmt::format("Unsupported algorithm: {}", phdr.alg);
+      error_reason = std::format("Unsupported algorithm: {}", phdr.alg);
       return nullptr;
     }
 
@@ -415,7 +416,7 @@ namespace ccf
             decomposed.sig,
             decomposed.alg))
       {
-        error_reason = fmt::format("Failed to validate COSE Sign1");
+        error_reason = std::format("Failed to validate COSE Sign1");
         return nullptr;
       }
 
@@ -433,7 +434,7 @@ namespace ccf
         user_cert.value(),
         phdr);
     }
-    error_reason = fmt::format("Signer is not a known user");
+    error_reason = std::format("Signer is not a known user");
     return nullptr;
   }
 
@@ -479,9 +480,9 @@ namespace ccf
       identity != nullptr &&
       identity->protected_header.msg_type != expected_msg_type)
     {
-      error_reason = fmt::format(
+      error_reason = std::format(
         "Unexpected message type: {}, expected: {}",
-        identity->protected_header.msg_type,
+        identity->protected_header.msg_type.value_or("<missing>"),
         expected_msg_type);
       return nullptr;
     }

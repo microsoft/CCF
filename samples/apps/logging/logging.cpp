@@ -29,8 +29,8 @@
 #include "ccf/version.h"
 
 #include <charconv>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
+#include <utility>
 
 using namespace std;
 using namespace nlohmann;
@@ -113,7 +113,7 @@ namespace loggingapp
       if (name_header_it == headers.end())
       {
         error_reason =
-          fmt::format("Missing required header {}", name_header_key);
+          std::format("Missing required header {}", name_header_key);
         return nullptr;
       }
 
@@ -129,7 +129,7 @@ namespace loggingapp
       if (age_header_it == headers.end())
       {
         error_reason =
-          fmt::format("Missing required header {}", age_header_key);
+          std::format("Missing required header {}", age_header_key);
         return nullptr;
       }
 
@@ -140,14 +140,14 @@ namespace loggingapp
       if (ec != std::errc())
       {
         error_reason =
-          fmt::format("Unable to parse age header as a number: {}", age_s);
+          std::format("Unable to parse age header as a number: {}", age_s);
         return nullptr;
       }
 
       constexpr auto min_age = 16;
       if (age < min_age)
       {
-        error_reason = fmt::format("Caller age must be at least {}", min_age);
+        error_reason = std::format("Caller age must be at least {}", min_age);
         return nullptr;
       }
 
@@ -183,7 +183,7 @@ namespace loggingapp
   public:
     CommittedRecords(
       const std::string& map_name_, const ccf::TxID& initial_txid = {}) :
-      ccf::indexing::Strategy(fmt::format("CommittedRecords {}", map_name_)),
+      ccf::indexing::Strategy(std::format("CommittedRecords {}", map_name_)),
       map_name(map_name_),
       current_txid(initial_txid)
     {}
@@ -266,7 +266,7 @@ namespace loggingapp
       {
         if (!(it->is_number_integer() || it->is_number_unsigned()))
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "node_data.logging configuration '{}' must be a positive integer",
             key));
         }
@@ -276,7 +276,7 @@ namespace loggingapp
           it->get<int64_t>();
         if (v <= 0)
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "node_data.logging configuration '{}' must be a positive integer",
             key));
         }
@@ -361,7 +361,7 @@ namespace loggingapp
           dynamic_cast<const ccf::UserCertAuthnIdentity*>(caller.get()))
       {
         auto response = std::string("User TLS cert");
-        response += fmt::format(
+        response += std::format(
           "\nThe caller is a user with ID: {}", user_cert_ident->user_id);
 
         ccf::crypto::Pem user_cert;
@@ -370,7 +370,7 @@ namespace loggingapp
           ccf::ApiResult::OK)
         {
           response +=
-            fmt::format("\nThe caller's cert is:\n{}", user_cert.str());
+            std::format("\nThe caller's cert is:\n{}", user_cert.str());
         }
 
         nlohmann::json user_data = nullptr;
@@ -379,7 +379,7 @@ namespace loggingapp
           ccf::ApiResult::OK)
         {
           response +=
-            fmt::format("\nThe caller's user data is: {}", user_data.dump());
+            std::format("\nThe caller's user data is: {}", user_data.dump());
         }
 
         return response;
@@ -390,7 +390,7 @@ namespace loggingapp
           dynamic_cast<const ccf::MemberCertAuthnIdentity*>(caller.get()))
       {
         auto response = std::string("Member TLS cert");
-        response += fmt::format(
+        response += std::format(
           "\nThe caller is a member with ID: {}", member_cert_ident->member_id);
 
         ccf::crypto::Pem member_cert;
@@ -400,7 +400,7 @@ namespace loggingapp
           ccf::ApiResult::OK)
         {
           response +=
-            fmt::format("\nThe caller's cert is:\n{}", member_cert.str());
+            std::format("\nThe caller's cert is:\n{}", member_cert.str());
         }
 
         nlohmann::json member_data = nullptr;
@@ -409,7 +409,7 @@ namespace loggingapp
             ctx.tx, member_cert_ident->member_id, member_data) ==
           ccf::ApiResult::OK)
         {
-          response += fmt::format(
+          response += std::format(
             "\nThe caller's member data is: {}", member_data.dump());
         }
 
@@ -424,7 +424,7 @@ namespace loggingapp
         auto caller_cert = ccf::crypto::cert_der_to_pem(any_cert_ident->cert);
 
         response +=
-          fmt::format("\nThe caller's cert is:\n{}", caller_cert.str());
+          std::format("\nThe caller's cert is:\n{}", caller_cert.str());
         return response;
       }
 
@@ -433,13 +433,13 @@ namespace loggingapp
           dynamic_cast<const ccf::JwtAuthnIdentity*>(caller.get()))
       {
         auto response = std::string("JWT");
-        response += fmt::format(
+        response += std::format(
           "\nThe caller is identified by a JWT issued by: {}",
           jwt_ident->key_issuer);
         response +=
-          fmt::format("\nThe JWT header is:\n{}", jwt_ident->header.dump(2));
+          std::format("\nThe JWT header is:\n{}", jwt_ident->header.dump(2));
         response +=
-          fmt::format("\nThe JWT payload is:\n{}", jwt_ident->payload.dump(2));
+          std::format("\nThe JWT payload is:\n{}", jwt_ident->payload.dump(2));
 
         return response;
       }
@@ -449,10 +449,10 @@ namespace loggingapp
           dynamic_cast<const ccf::UserCOSESign1AuthnIdentity*>(caller.get()))
       {
         auto response = std::string("User COSE Sign1");
-        response += fmt::format(
+        response += std::format(
           "\nThe caller is identified by a COSE Sign1 signed by kid: {}",
           cose_ident->user_id);
-        response += fmt::format(
+        response += std::format(
           "\nThe caller is identified by a COSE Sign1 with content of size: "
           "{}",
           cose_ident->content.size());
@@ -469,12 +469,12 @@ namespace loggingapp
         const auto* all_of_ident =
           dynamic_cast<const ccf::AllOfAuthnIdentity*>(caller.get()))
       {
-        auto response = fmt::format(
+        auto response = std::format(
           "Conjoined auth policy: {}", all_of_ident->get_conjoined_name());
 
         for (const auto& [name, sub_ident] : all_of_ident->identities)
         {
-          response += fmt::format("\n\n{}:\n", name);
+          response += std::format("\n\n{}:\n", name);
           response += describe_identity(ctx, sub_ident);
         }
 
@@ -528,13 +528,13 @@ namespace loggingapp
 
     static std::string private_records(const std::optional<std::string>& scope)
     {
-      return scope.has_value() ? fmt::format("{}-{}", PRIVATE_RECORDS, *scope) :
+      return scope.has_value() ? std::format("{}-{}", PRIVATE_RECORDS, *scope) :
                                  PRIVATE_RECORDS;
     }
 
     static std::string public_records(const std::optional<std::string>& scope)
     {
-      return scope.has_value() ? fmt::format("{}-{}", PUBLIC_RECORDS, *scope) :
+      return scope.has_value() ? std::format("{}-{}", PUBLIC_RECORDS, *scope) :
                                  PUBLIC_RECORDS;
     }
 
@@ -791,7 +791,7 @@ namespace loggingapp
         return ccf::make_error(
           HTTP_STATUS_NOT_FOUND,
           ccf::errors::ResourceNotFound,
-          fmt::format("No such record: {}.", id));
+          std::format("No such record: {}.", id));
       };
       // SNIPPET_END: get
 
@@ -847,8 +847,9 @@ namespace loggingapp
         if (result != ccf::ApiResult::OK)
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx.rpc_ctx->set_response_body(fmt::format(
-            "Failed to retrieve current committed TxID: {}", result));
+          ctx.rpc_ctx->set_response_body(std::format(
+            "Failed to retrieve current committed TxID: {}",
+            std::to_underlying(result)));
           return;
         }
 
@@ -928,7 +929,7 @@ namespace loggingapp
           "error",
           {
             {"code", ccf::errors::ResourceNotFound},
-            {"message", fmt::format("No such record: {}.", id)},
+            {"message", std::format("No such record: {}.", id)},
             {"current_txid", committed_records->get_current_txid().to_str()},
           },
         }};
@@ -1203,7 +1204,7 @@ namespace loggingapp
         return ccf::make_error(
           HTTP_STATUS_NOT_FOUND,
           ccf::errors::ResourceNotFound,
-          fmt::format("No such record: {}.", id));
+          std::format("No such record: {}.", id));
       };
       // SNIPPET_END: get_public
       make_read_only_endpoint(
@@ -1368,7 +1369,7 @@ namespace loggingapp
         }
 
         const auto log_line =
-          fmt::format("{}: {}", caller_ident.user_id.value(), in.msg);
+          std::format("{}: {}", caller_ident.user_id.value(), in.msg);
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, log_line);
@@ -1394,7 +1395,7 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        const auto log_line = fmt::format("Anonymous: {}", in.msg);
+        const auto log_line = std::format("Anonymous: {}", in.msg);
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, log_line);
@@ -1451,7 +1452,7 @@ namespace loggingapp
         nlohmann::json response;
         response["name"] = caller_identity.name;
         response["age"] = caller_identity.age;
-        response["description"] = fmt::format(
+        response["description"] = std::format(
           "Your name is {} and you are {}",
           caller_identity.name,
           caller_identity.age);
@@ -1478,7 +1479,7 @@ namespace loggingapp
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE,
             ccf::errors::InvalidHeaderValue,
-            fmt::format(
+            std::format(
               "Expected content-type '{}'. Got '{}'.", expected, actual));
           return;
         }
@@ -1817,7 +1818,7 @@ namespace loggingapp
               ctx.rpc_ctx->set_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
-                fmt::format(
+                std::format(
                   "Failed to get committed transaction: {}",
                   ccf::api_result_to_str(result)));
             }
@@ -1831,7 +1832,7 @@ namespace loggingapp
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
-            fmt::format(
+            std::format(
               "Invalid range: Starts at {} but ends at {}",
               from_seqno,
               to_seqno));
@@ -1850,7 +1851,7 @@ namespace loggingapp
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
-            fmt::format(
+            std::format(
               "Only committed transactions can be queried. Transaction at "
               "seqno {} is {}",
               to_seqno,
@@ -1878,7 +1879,7 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::CONTENT_TYPE,
             ccf::http::headervalues::contenttype::TEXT);
-          ctx.rpc_ctx->set_response_body(fmt::format(
+          ctx.rpc_ctx->set_response_body(std::format(
             "Still constructing index for public records on key {} - indexed "
             "to {}/{}",
             id,
@@ -1908,7 +1909,7 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::CONTENT_TYPE,
             ccf::http::headervalues::contenttype::TEXT);
-          ctx.rpc_ctx->set_response_body(fmt::format(
+          ctx.rpc_ctx->set_response_body(std::format(
             "Still constructing index for private records at {}", id));
           return;
         }
@@ -1946,7 +1947,7 @@ namespace loggingapp
             ctx.rpc_ctx->set_response_header(
               ccf::http::headers::CONTENT_TYPE,
               ccf::http::headervalues::contenttype::TEXT);
-            ctx.rpc_ctx->set_response_body(fmt::format(
+            ctx.rpc_ctx->set_response_body(std::format(
               "Historical transactions from {} to {} are not yet "
               "available, fetching now",
               range_begin,
@@ -2006,7 +2007,7 @@ namespace loggingapp
 
           // NB: This path tells the caller to continue to ask until the end
           // of the range, even if the next response is paginated
-          response.next_link = fmt::format(
+          response.next_link = std::format(
             "/app{}?from_seqno={}&to_seqno={}&id={}",
             get_historical_range_path,
             next_page_start,
@@ -2074,7 +2075,7 @@ namespace loggingapp
               ctx.rpc_ctx->set_error(
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::InvalidQueryParameterValue,
-                fmt::format("Unable to parse '{}' as a seqno", term));
+                std::format("Unable to parse '{}' as a seqno", term));
               return;
             }
             seqnos.push_back(val);
@@ -2101,7 +2102,7 @@ namespace loggingapp
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
-            fmt::format(
+            std::format(
               "Only committed transactions can be queried. Transaction at "
               "seqno {} is {}",
               final_seqno,
@@ -2136,7 +2137,7 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::CONTENT_TYPE,
             ccf::http::headervalues::contenttype::TEXT);
-          ctx.rpc_ctx->set_response_body(fmt::format(
+          ctx.rpc_ctx->set_response_body(std::format(
             "Historical transactions are not yet available, fetching now"));
           return;
         }
@@ -2192,7 +2193,7 @@ namespace loggingapp
           return ccf::make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format(
+            std::format(
               "Failed to get user data for user {}: {}",
               caller_ident.user_id,
               ccf::api_result_to_str(result)));
@@ -2422,7 +2423,7 @@ namespace loggingapp
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE,
               ccf::errors::InvalidHeaderValue,
-              fmt::format(
+              std::format(
                 "Expected content-type '{}'. Got '{}'.", expected, actual));
             return;
           }
@@ -2450,7 +2451,7 @@ namespace loggingapp
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidInput,
-              fmt::format("COSE receipt verification failed: {}", e.what()));
+              std::format("COSE receipt verification failed: {}", e.what()));
             return;
           }
 
@@ -2525,7 +2526,7 @@ namespace loggingapp
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ResourceNotFound,
-              fmt::format(
+              std::format(
                 "Transaction ID {} does not correspond to a COSE entry.",
                 historical_state->transaction_id.to_str()));
             return;

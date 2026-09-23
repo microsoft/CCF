@@ -14,6 +14,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <filesystem>
+#include <format>
 #include <stdexcept>
 #include <unistd.h>
 #include <vector>
@@ -35,12 +36,13 @@ namespace ccf::snapshots
       if (fs::is_directory(snapshot_dir))
       {
         LOG_INFO_FMT(
-          "Snapshots will be stored in existing directory: {}", snapshot_dir);
+          "Snapshots will be stored in existing directory: {}",
+          snapshot_dir.string());
       }
       else if (!fs::create_directory(snapshot_dir))
       {
-        throw std::logic_error(
-          fmt::format("Could not create snapshot directory: {}", snapshot_dir));
+        throw std::logic_error(std::format(
+          "Could not create snapshot directory: {}", snapshot_dir.string()));
       }
     }
 
@@ -54,10 +56,10 @@ namespace ccf::snapshots
       const std::vector<uint8_t>& receipt)
     {
       ccf::ds::TimeBoundLogger log_if_slow(
-        fmt::format("Committing snapshot - snapshot_idx={}", snapshot_idx));
+        std::format("Committing snapshot - snapshot_idx={}", snapshot_idx));
 
       // e.g. snapshot_100_105
-      auto file_name = fmt::format(
+      auto file_name = std::format(
         "{}{}{}{}{}",
         snapshot_file_prefix,
         snapshot_idx_delimiter,
@@ -122,7 +124,7 @@ namespace ccf::snapshots
 
         {
           ccf::ds::TimeBoundLogger log_sync_if_slow(
-            fmt::format("Syncing snapshot - fsync({})", file_name));
+            std::format("Syncing snapshot - fsync({})", file_name));
           // NOLINTNEXTLINE(concurrency-mt-unsafe)
           if (fsync(snapshot_fd) == -1)
           {
@@ -140,9 +142,9 @@ namespace ccf::snapshots
 
         // e.g. snapshot_100_105.committed
         auto committed_file_name =
-          fmt::format("{}{}", file_name, snapshot_committed_suffix);
+          std::format("{}{}", file_name, snapshot_committed_suffix);
         {
-          ccf::ds::TimeBoundLogger log_rename_if_slow(fmt::format(
+          ccf::ds::TimeBoundLogger log_rename_if_slow(std::format(
             "Renaming snapshot to committed - rename({})", file_name));
           files::rename(
             snapshot_dir / file_name, snapshot_dir / committed_file_name);
@@ -169,7 +171,7 @@ namespace ccf::snapshots
     static bool write_all(
       int fd, const std::string& file_name, const uint8_t* data, size_t size)
     {
-      ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
+      ccf::ds::TimeBoundLogger log_if_slow(std::format(
         "Writing snapshot data ({} bytes) - write({})", size, file_name));
 
       size_t offset = 0;

@@ -7,6 +7,7 @@
 #include "ds/internal_logger.h"
 #include "tasks/worker.h"
 
+#include <format>
 #include <thread>
 
 namespace ccf::tasks
@@ -63,7 +64,7 @@ namespace ccf::tasks
 
       if (new_worker_count >= MAX_WORKERS)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot create {} workers. Max permitted is {}",
           new_worker_count,
           MAX_WORKERS));

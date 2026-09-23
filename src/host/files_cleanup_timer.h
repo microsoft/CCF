@@ -13,6 +13,7 @@
 #include <atomic>
 #include <cstdint>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <memory>
 #include <optional>
@@ -86,7 +87,7 @@ namespace asynchost
       std::ifstream f;
       {
         ccf::ds::TimeBoundLogger log_if_slow(
-          fmt::format("Hashing file - ifstream open({})", path));
+          std::format("Hashing file - ifstream open({})", path.string()));
         f.open(path, std::ios::binary);
       }
       if (!f)
@@ -98,7 +99,7 @@ namespace asynchost
       std::vector<uint8_t> buf(HASH_READ_CHUNK_SIZE);
       {
         ccf::ds::TimeBoundLogger log_if_slow(
-          fmt::format("Hashing file - read loop({})", path));
+          std::format("Hashing file - read loop({})", path.string()));
         while (f.read(reinterpret_cast<char*>(buf.data()), buf.size()) ||
                f.gcount() > 0)
         {
@@ -137,7 +138,7 @@ namespace asynchost
           LOG_FAIL_FMT(
             "Failed to query existence of ledger chunk {}: {}. "
             "Skipping deletion.",
-            local_path.filename(),
+            local_path.filename().string(),
             ec.message());
           return DigestCheckResult::no_match;
         }
@@ -145,7 +146,7 @@ namespace asynchost
         {
           LOG_INFO_FMT(
             "Ledger chunk {} no longer exists, skipping",
-            local_path.filename());
+            local_path.filename().string());
           return DigestCheckResult::file_gone;
         }
 
@@ -156,7 +157,7 @@ namespace asynchost
           LOG_FAIL_FMT(
             "Failed to query type of ledger chunk {}: {}. "
             "Skipping deletion.",
-            local_path.filename(),
+            local_path.filename().string(),
             ec.message());
           return DigestCheckResult::no_match;
         }
@@ -164,13 +165,13 @@ namespace asynchost
         {
           LOG_INFO_FMT(
             "Ledger chunk {} is no longer a regular file, skipping",
-            local_path.filename());
+            local_path.filename().string());
           return DigestCheckResult::file_gone;
         }
 
         LOG_FAIL_FMT(
           "Ledger chunk {} exists but could not be read, skipping deletion",
-          local_path.filename());
+          local_path.filename().string());
         return DigestCheckResult::no_match;
       }
 
@@ -194,8 +195,8 @@ namespace asynchost
           {
             LOG_DEBUG_FMT(
               "Ledger chunk {} in read-only directory {} could not be read",
-              file_name,
-              ro_dir);
+              file_name.string(),
+              ro_dir.string());
             continue;
           }
           if (local_hash.value() == ro_hash.value())
@@ -206,8 +207,8 @@ namespace asynchost
           LOG_FAIL_FMT(
             "Ledger chunk {} found in read-only directory {} but digest "
             "does not match (local: {}, read-only: {}). Skipping deletion.",
-            file_name,
-            ro_dir,
+            file_name.string(),
+            ro_dir.string(),
             local_hash.value().hex_str(),
             ro_hash.value().hex_str());
         }
@@ -216,8 +217,8 @@ namespace asynchost
           LOG_FAIL_FMT(
             "Failed to read ledger chunk {} from read-only directory {}: "
             "{}. Skipping deletion.",
-            file_name,
-            ro_dir,
+            file_name.string(),
+            ro_dir.string(),
             e.what());
         }
       }
@@ -240,13 +241,15 @@ namespace asynchost
       catch (const std::filesystem::filesystem_error& e)
       {
         LOG_FAIL_FMT(
-          "Failed to list committed snapshots in {}: {}", dir, e.what());
+          "Failed to list committed snapshots in {}: {}",
+          dir.string(),
+          e.what());
       }
       catch (const std::exception& e)
       {
         LOG_FAIL_FMT(
           "Unexpected error while listing committed snapshots in {}: {}",
-          dir,
+          dir.string(),
           e.what());
       }
       return std::nullopt;
@@ -285,19 +288,19 @@ namespace asynchost
           const auto& path = it->second;
           LOG_INFO_FMT(
             "Deleting old snapshot {} (retaining {})",
-            path.filename(),
+            path.filename().string(),
             max_retained);
           std::error_code ec;
           {
-            ccf::ds::TimeBoundLogger log_remove_if_slow(fmt::format(
-              "Deleting old snapshot - remove({})", path.filename()));
+            ccf::ds::TimeBoundLogger log_remove_if_slow(std::format(
+              "Deleting old snapshot - remove({})", path.filename().string()));
             std::filesystem::remove(path, ec);
           }
           if (ec)
           {
             LOG_FAIL_FMT(
               "Failed to delete old snapshot {}: {}",
-              path.filename(),
+              path.filename().string(),
               ec.message());
           }
         }
@@ -311,9 +314,9 @@ namespace asynchost
       std::optional<size_t> snapshot_watermark = std::nullopt)
     {
       ccf::ds::TimeBoundLogger log_if_slow(
-        fmt::format(
+        std::format(
           "Cleaning ledger chunks from {}, watermark={}",
-          main_dir,
+          main_dir.string(),
           snapshot_watermark.has_value() ?
             std::to_string(snapshot_watermark.value()) :
             "none"),
@@ -328,7 +331,7 @@ namespace asynchost
       {
         LOG_FAIL_FMT(
           "Failed to list committed ledger chunks in {}: {}",
-          main_dir,
+          main_dir.string(),
           e.what());
         return;
       }
@@ -336,7 +339,7 @@ namespace asynchost
       {
         LOG_FAIL_FMT(
           "Unexpected error while listing committed ledger chunks in {}: {}",
-          main_dir,
+          main_dir.string(),
           e.what());
         return;
       }
@@ -374,7 +377,7 @@ namespace asynchost
             LOG_DEBUG_FMT(
               "Keeping ledger chunk {} (end seqno {} >= snapshot "
               "watermark {})",
-              path.filename(),
+              path.filename().string(),
               end_idx.value(),
               snapshot_watermark.value());
             continue;
@@ -393,18 +396,19 @@ namespace asynchost
           LOG_FAIL_FMT(
             "Keeping ledger chunk {} because no matching copy was found "
             "in any read-only ledger directory",
-            path.filename());
+            path.filename().string());
           continue;
         }
 
         LOG_INFO_FMT(
           "Deleting old committed ledger chunk {} (retaining {})",
-          path.filename(),
+          path.filename().string(),
           max_retained);
         std::error_code ec;
         {
-          ccf::ds::TimeBoundLogger log_remove_if_slow(fmt::format(
-            "Deleting old ledger chunk - remove({})", path.filename()));
+          ccf::ds::TimeBoundLogger log_remove_if_slow(std::format(
+            "Deleting old ledger chunk - remove({})",
+            path.filename().string()));
           std::filesystem::remove(path, ec);
         }
         if (ec)
@@ -412,13 +416,13 @@ namespace asynchost
           if (ec == std::errc::no_such_file_or_directory)
           {
             LOG_INFO_FMT(
-              "Ledger chunk {} was already removed", path.filename());
+              "Ledger chunk {} was already removed", path.filename().string());
           }
           else
           {
             LOG_FAIL_FMT(
               "Failed to delete committed ledger chunk {}: {}",
-              path.filename(),
+              path.filename().string(),
               ec.message());
           }
         }
@@ -523,7 +527,7 @@ namespace asynchost
 
       if (max_snapshots.has_value() && max_snapshots.value() < 1)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "files_cleanup.max_snapshots must be at least 1, got {}",
           max_snapshots.value()));
       }

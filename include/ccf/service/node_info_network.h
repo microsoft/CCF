@@ -8,6 +8,7 @@
 #include "ccf/http_configuration.h"
 #include "ccf/service/operator_feature.h"
 
+#include <format>
 #include <string>
 
 namespace ccf
@@ -240,9 +241,9 @@ namespace ccf
   {
     if (host.contains(':') && !host.starts_with('['))
     {
-      return fmt::format("[{}]:{}", host, port);
+      return std::format("[{}]:{}", host, port);
     }
-    return fmt::format("{}:{}", host, port);
+    return std::format("{}:{}", host, port);
   }
 
   // All NodeInfoNetwork read that may lead to re-serialization for
@@ -302,8 +303,8 @@ namespace ccf
   }
 }
 
-FMT_BEGIN_NAMESPACE template <>
-struct formatter<ccf::Authority>
+template <>
+struct std::formatter<ccf::Authority>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -319,21 +320,20 @@ struct formatter<ccf::Authority>
     {
       case (ccf::Authority::NODE):
       {
-        return format_to(ctx.out(), "Node");
+        return std::format_to(ctx.out(), "Node");
       }
       case (ccf::Authority::SERVICE):
       {
-        return format_to(ctx.out(), "Service");
+        return std::format_to(ctx.out(), "Service");
       }
       case (ccf::Authority::ACME):
       {
-        return format_to(ctx.out(), "ACME");
+        return std::format_to(ctx.out(), "ACME");
       }
       case (ccf::Authority::UNSECURED):
       {
-        return format_to(ctx.out(), "Unsecured");
+        return std::format_to(ctx.out(), "Unsecured");
       }
     }
   }
 };
-FMT_END_NAMESPACE

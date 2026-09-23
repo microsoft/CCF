@@ -8,6 +8,7 @@
 #include "ccf/tx.h"
 #include "ds/internal_logger.h"
 
+#include <format>
 #include <string>
 
 namespace ccf::js::modules
@@ -56,7 +57,7 @@ namespace ccf::js::modules
           CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
         }
 
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "Failed to compile module '{}': {}", module_name, reason));
       }
 

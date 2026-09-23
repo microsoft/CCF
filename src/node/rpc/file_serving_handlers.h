@@ -11,6 +11,8 @@
 #include "node/rpc/ledger_interface.h"
 #include "snapshots/filenames.h"
 
+#include <format>
+
 namespace ccf::node
 {
   // Compute and format the Repr-Digest header value for the given algorithm
@@ -24,7 +26,7 @@ namespace ccf::node
     auto hp = ccf::crypto::make_hash_provider();
     auto digest = hp->hash(data, size, md);
     auto b64 = ccf::crypto::b64_from_raw(digest.data(), digest.size());
-    return fmt::format("{}=:{}:", algo_name, b64);
+    return std::format("{}=:{}:", algo_name, b64);
   }
 
   // Helper function to lookup redirect address based on the interface on this
@@ -46,7 +48,7 @@ namespace ccf::node
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
         ccf::errors::InternalError,
-        fmt::format(
+        std::format(
           "Cannot find node info to produce redirect response for node {}",
           target_node));
       return std::nullopt;
@@ -73,7 +75,7 @@ namespace ccf::node
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
         ccf::errors::InternalError,
-        fmt::format(
+        std::format(
           "Cannot redirect request. Received on RPC interface {}, which is "
           "not present on target node {}",
           interface_id.value(),
@@ -237,7 +239,7 @@ namespace ccf::node
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidHeaderValue,
-            fmt::format(
+            std::format(
               "Invalid format, cannot parse range in {}",
               range_header.value()));
           return;
@@ -256,7 +258,7 @@ namespace ccf::node
               ctx.rpc_ctx->set_error(
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::InvalidHeaderValue,
-                fmt::format(
+                std::format(
                   "Unable to parse start of range value {} in {}",
                   s_range_start,
                   range_header.value()));
@@ -269,7 +271,7 @@ namespace ccf::node
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidHeaderValue,
-              fmt::format(
+              std::format(
                 "Start of range {} is larger than total file size {}",
                 range_start,
                 total_size));
@@ -291,7 +293,7 @@ namespace ccf::node
                 ctx.rpc_ctx->set_error(
                   HTTP_STATUS_BAD_REQUEST,
                   ccf::errors::InvalidHeaderValue,
-                  fmt::format(
+                  std::format(
                     "Unable to parse end of range value {} in {}",
                     s_range_end,
                     range_header.value()));
@@ -319,7 +321,7 @@ namespace ccf::node
               ctx.rpc_ctx->set_error(
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::InvalidHeaderValue,
-                fmt::format(
+                std::format(
                   "Invalid range: Start ({}) and end ({}) out of order",
                   range_start,
                   range_end));
@@ -345,7 +347,7 @@ namespace ccf::node
               ctx.rpc_ctx->set_error(
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::InvalidHeaderValue,
-                fmt::format(
+                std::format(
                   "Unable to parse end of range offset value {} in {}",
                   s_range_end,
                   range_header.value()));
@@ -390,7 +392,7 @@ namespace ccf::node
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidHeaderValue,
-        fmt::format(
+        std::format(
           "Invalid range: Start ({}) and end ({}) out of order",
           range_start,
           range_end));
@@ -461,10 +463,10 @@ namespace ccf::node
       contents.data(), contents.size(), ccf::crypto::MDType::SHA256);
     auto sha256_b64 =
       ccf::crypto::b64_from_raw(sha256_hash.data(), sha256_hash.size());
-    auto sha256_etag = fmt::format("sha-256=:{}:", sha256_b64);
+    auto sha256_etag = std::format("sha-256=:{}:", sha256_b64);
 
     ctx.rpc_ctx->set_response_header(
-      ccf::http::headers::ETAG, fmt::format("\"{}\"", sha256_etag));
+      ccf::http::headers::ETAG, std::format("\"{}\"", sha256_etag));
 
     // Check If-None-Match header
     const auto if_none_match =
@@ -483,7 +485,7 @@ namespace ccf::node
             contents.data(), contents.size(), ccf::crypto::MDType::SHA384);
           auto sha384_b64 =
             ccf::crypto::b64_from_raw(sha384_hash.data(), sha384_hash.size());
-          matched = matcher.matches(fmt::format("sha-384=:{}:", sha384_b64));
+          matched = matcher.matches(std::format("sha-384=:{}:", sha384_b64));
         }
 
         if (!matched)
@@ -492,7 +494,7 @@ namespace ccf::node
             contents.data(), contents.size(), ccf::crypto::MDType::SHA512);
           auto sha512_b64 =
             ccf::crypto::b64_from_raw(sha512_hash.data(), sha512_hash.size());
-          matched = matcher.matches(fmt::format("sha-512=:{}:", sha512_b64));
+          matched = matcher.matches(std::format("sha-512=:{}:", sha512_b64));
         }
 
         if (matched)
@@ -526,7 +528,7 @@ namespace ccf::node
       // Content-Range
       ctx.rpc_ctx->set_response_header(
         ccf::http::headers::CONTENT_RANGE,
-        fmt::format(
+        std::format(
           "bytes {}-{}/{}", range_start, inclusive_range_end, total_size));
     }
     else
@@ -604,10 +606,10 @@ namespace ccf::node
           }
 
           auto location =
-            fmt::format("https://{}/node/snapshot", address.value());
+            std::format("https://{}/node/snapshot", address.value());
           if (latest_idx != 0)
           {
-            location += fmt::format("?{}={}", file_since_param_key, latest_idx);
+            location += std::format("?{}={}", file_since_param_key, latest_idx);
           }
 
           ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
@@ -643,7 +645,7 @@ namespace ccf::node
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_NOT_FOUND,
           ccf::errors::ResourceNotFound,
-          fmt::format(
+          std::format(
             "This node has no committed snapshots since {}", orig_latest));
         return;
       }
@@ -657,8 +659,8 @@ namespace ccf::node
         return;
       }
 
-      auto redirect_url = fmt::format(
-        "https://{}/node/snapshot/{}", address.value(), snapshot_name);
+      auto redirect_url = std::format(
+        "https://{}/node/snapshot/{}", address.value(), snapshot_name.string());
       LOG_DEBUG_FMT("Redirecting to snapshot: {}", redirect_url);
       ctx.rpc_ctx->set_response_header(
         ccf::http::headers::LOCATION, redirect_url);
@@ -718,7 +720,7 @@ namespace ccf::node
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
-            fmt::format(
+            std::format(
               "Missing required query parameter '{}'", file_since_param_key));
           return;
         }
@@ -761,8 +763,10 @@ namespace ccf::node
       {
         const auto chunk_filename = chunk_path.value().filename();
 
-        auto redirect_url = fmt::format(
-          "https://{}/node/ledger_chunk/{}", address.value(), chunk_filename);
+        auto redirect_url = std::format(
+          "https://{}/node/ledger_chunk/{}",
+          address.value(),
+          chunk_filename.string());
         LOG_DEBUG_FMT("Redirecting to ledger chunk: {}", redirect_url);
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::LOCATION, redirect_url);
@@ -788,7 +792,7 @@ namespace ccf::node
           return;
         }
 
-        auto location = fmt::format(
+        auto location = std::format(
           "https://{}/node/ledger_chunk?{}={}",
           address.value(),
           file_since_param_key,
@@ -816,14 +820,14 @@ namespace ccf::node
           if (address.has_value())
           {
             auto location =
-              fmt::format("https://{}/node/ledger_chunk", address.value());
-            location += fmt::format("?{}={}", file_since_param_key, since_idx);
+              std::format("https://{}/node/ledger_chunk", address.value());
+            location += std::format("?{}={}", file_since_param_key, since_idx);
 
             ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_PERMANENT_REDIRECT,
               ccf::errors::NodeCannotHandleRequest,
-              fmt::format(
+              std::format(
                 "Ledger chunk including index {} not found locally; "
                 "redirecting to primary",
                 since_idx));
@@ -836,7 +840,7 @@ namespace ccf::node
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_NOT_FOUND,
         ccf::errors::ResourceNotFound,
-        fmt::format(
+        std::format(
           "This node has no ledger chunk including index {}", since_idx));
       return;
     };
@@ -912,7 +916,7 @@ namespace ccf::node
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_NOT_FOUND,
           ccf::errors::ResourceNotFound,
-          fmt::format(
+          std::format(
             "This node does not have a snapshot named {}", snapshot_name));
         return;
       }
@@ -993,7 +997,7 @@ namespace ccf::node
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_NOT_FOUND,
           ccf::errors::ResourceNotFound,
-          fmt::format(
+          std::format(
             "This node does not have a ledger chunk named {}", chunk_name));
         return;
       }

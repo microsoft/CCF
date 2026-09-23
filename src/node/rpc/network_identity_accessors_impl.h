@@ -9,7 +9,7 @@
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
-#include <fmt/format.h>
+#include <format>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -88,7 +88,7 @@ namespace ccf
       }
       if (!state->store)
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "Historical state with seqno {} is loaded but its store is "
           "missing",
           seq));
@@ -101,7 +101,7 @@ namespace ccf
           ->get(ccf::IdentityType::CLASSICAL);
       if (!endorsement.has_value())
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "COSE endorsement entry for seqno {} is missing from its "
           "historical state",
           seq));

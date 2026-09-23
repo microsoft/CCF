@@ -9,8 +9,9 @@
 #include "node/internal_tables_access.h"
 #include "node/share_manager.h"
 
-#include <fmt/format.h>
+#include <format>
 #include <stdexcept>
+#include <utility>
 
 namespace ccf
 {
@@ -68,16 +69,16 @@ namespace ccf
 
       if (!active_service.has_value())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Error in {}: no value in {}", __func__, Tables::SERVICE));
       }
 
       if (active_service->status != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Error in {}: current service status is {}",
           __func__,
-          active_service->status));
+          std::to_underlying(active_service->status)));
       }
     }
 

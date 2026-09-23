@@ -5,6 +5,7 @@
 #include "ccf/crypto/sha256_hash.h"
 
 #include <array>
+#include <format>
 #include <span>
 #include <type_traits>
 
@@ -25,7 +26,7 @@ namespace ccf::pal
     {
       if (data.size() != size())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot initialise AttestationReportData with data of size {}, "
           "expected {}",
           data.size(),

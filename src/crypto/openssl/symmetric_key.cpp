@@ -8,6 +8,7 @@
 #include "ds/internal_logger.h"
 
 #include <climits>
+#include <format>
 #include <openssl/aes.h>
 #include <openssl/evp.h>
 
@@ -37,7 +38,7 @@ namespace ccf::crypto
         return EVP_aes_128_gcm();
       }
       throw std::logic_error(
-        fmt::format("Need at least {} bits, only have {}", KEY_SIZE_128, n));
+        std::format("Need at least {} bits, only have {}", KEY_SIZE_128, n));
     }
 
     const EVP_CIPHER* get_wrap_pad_cipher(std::span<const uint8_t> raw_key)

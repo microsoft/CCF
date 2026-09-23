@@ -28,6 +28,8 @@
 
 #include "view_straddling_common.h"
 
+#include <format>
+
 using namespace straddling;
 
 namespace
@@ -35,7 +37,7 @@ namespace
   std::string describe(Fixture& fixture)
   {
     const auto value = read_value(*fixture.store, fixture.table, 2);
-    return fmt::format(
+    return std::format(
       "store txid {}, key 2 -> {}, raft last_idx {}, ledger entries {}",
       fixture.store->current_txid().to_str(),
       value.has_value() ? std::to_string(value.value()) : "absent",

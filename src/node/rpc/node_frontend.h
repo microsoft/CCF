@@ -19,7 +19,6 @@
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "ds/files.h"
-#include "ds/std_formatters.h"
 #include "frontend.h"
 #include "node/cose_common.h"
 #include "node/internal_tables_access.h"
@@ -39,6 +38,7 @@
 #include "snapshots/filenames.h"
 
 #include <chrono>
+#include <format>
 #include <llhttp/llhttp.h>
 #include <stdexcept>
 
@@ -225,7 +225,9 @@ namespace ccf
         tx.ro(network.node_endorsed_certificates);
 
       LOG_DEBUG_FMT(
-        "Check node exists with certificate [{}]", self_signed_node_der);
+        "Check node exists with certificate [<vec[{}]: {:02x}>]",
+        self_signed_node_der.size(),
+        ccf::ds::join(self_signed_node_der, " "));
       auto pk_pem = ccf::crypto::public_key_pem_from_cert(self_signed_node_der);
 
       std::optional<ExistingNodeInfo> existing_node_info = std::nullopt;
@@ -308,7 +310,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::NodeAlreadyExists,
-          fmt::format(
+          std::format(
             "A node with the same published node address {} already exists "
             "(node id: {}).",
             in.node_info_network.node_to_node_interface.published_address,
@@ -540,7 +542,7 @@ namespace ccf
 
             args.rpc_ctx->set_response_header(
               http::headers::LOCATION,
-              fmt::format("https://{}/node/join", address.value()));
+              std::format("https://{}/node/join", address.value()));
 
             const std::string payload =
               "Node is not primary; cannot handle write";
@@ -627,7 +629,7 @@ namespace ccf
             return make_success(rep);
           }
 
-          const std::string payload = fmt::format(
+          const std::string payload = std::format(
             "Joining node is not in expected state ({}).", node_status);
           LOG_INFO_FMT("Join request rejected: {}", payload);
           return make_error(
@@ -689,7 +691,7 @@ namespace ccf
           // Make sure that the joiner's snapshot is more recent than this
           // node's snapshot. Otherwise, the joiner may not be given all the
           // ledger secrets required to replay historical transactions.
-          const std::string payload = fmt::format(
+          const std::string payload = std::format(
             "Node requested to join from seqno {} which is older than this "
             "node {} {}. A snapshot at least as recent as {} must "
             "be used instead.",
@@ -849,7 +851,7 @@ namespace ccf
           auto txid = ccf::TxID::from_str(receipt.phdr.ccf.txid);
           if (!txid.has_value())
           {
-            throw std::logic_error(fmt::format(
+            throw std::logic_error(std::format(
               "Failed to parse txid from COSE signature: {}",
               receipt.phdr.ccf.txid));
           }
@@ -928,7 +930,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+          std::format("Error code: {}", ccf::api_result_to_str(result)));
       };
       make_read_only_endpoint(
         "/quotes/self",
@@ -1099,7 +1101,7 @@ namespace ccf
             return ccf::make_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidQueryParameterValue,
-              fmt::format(
+              std::format(
                 "Query parameter '{}' is not a valid node status",
                 status_str.value()));
           }
@@ -1477,7 +1479,7 @@ namespace ccf
 
           args.rpc_ctx->set_response_header(
             http::headers::LOCATION,
-            fmt::format("https://{}/node/primary", address.value()));
+            std::format("https://{}/node/primary", address.value()));
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
         }
       };
@@ -1534,7 +1536,7 @@ namespace ccf
             cc.emplace(
               nid.value(),
               ConsensusNodeConfig{
-                fmt::format("{}:{}", ninfo.hostname, ninfo.port)});
+                std::format("{}:{}", ninfo.hostname, ninfo.port)});
           }
           return make_success(cc);
         }
@@ -1855,7 +1857,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format("{} is not a valid issuer.", parsed.issuer));
+            std::format("{} is not a valid issuer.", parsed.issuer));
         }
         auto& issuer_metadata = issuer_metadata_.value();
 
@@ -1867,7 +1869,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format(
+            std::format(
               "{} does not have auto_refresh enabled.", parsed.issuer));
         }
 
@@ -1885,7 +1887,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format(
+            std::format(
               "Error while storing signing keys for issuer {}.",
               parsed.issuer));
         }

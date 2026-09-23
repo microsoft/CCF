@@ -5,6 +5,8 @@
 
 #include "ds/internal_logger.h"
 
+#include <format>
+
 namespace ccf::endpoints
 {
   Endpoint& Endpoint::set_openapi_hidden(bool hidden)
@@ -146,7 +148,7 @@ namespace ccf::endpoints
     const std::string& deprecation_version, const std::string& replacement)
   {
     openapi_deprecated = true;
-    openapi_description = fmt::format(
+    openapi_description = std::format(
       "This endpoint is deprecated from {}. It is replaced by {}",
       deprecation_version,
       replacement);
@@ -157,7 +159,7 @@ namespace ccf::endpoints
   {
     if (installer == nullptr)
     {
-      auto msg = fmt::format(
+      auto msg = std::format(
         "Can't install this endpoint ({}) - it is not associated with an "
         "installer",
         full_uri_path);

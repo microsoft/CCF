@@ -11,11 +11,6 @@
 #include <numeric>
 #include <thread>
 
-#define FMT_HEADER_ONLY
-#include <fmt/chrono.h>
-#include <fmt/format.h>
-#include <fmt/ranges.h>
-
 TEST_CASE("JobBoard" * doctest::test_suite("basic_tasks"))
 {
   constexpr auto short_wait = std::chrono::milliseconds(10);

@@ -7,6 +7,7 @@
 #include "kv/kv_types.h"
 #include "node/commit_callback_interface.h"
 
+#include <format>
 #include <map>
 
 namespace ccf
@@ -110,7 +111,7 @@ namespace ccf
 
             if (status != TxStatus::Committed && status != TxStatus::Invalid)
             {
-              throw std::logic_error(fmt::format(
+              throw std::logic_error(std::format(
                 "Expected transaction {} evaluated against commit point {} to "
                 "return terminal TxStatus, instead returned {}",
                 tx_id.to_str(),

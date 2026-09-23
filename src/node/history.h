@@ -29,8 +29,10 @@
 #include <array>
 #include <atomic>
 #include <deque>
+#include <format>
 #include <memory>
 #include <string.h>
+#include <utility>
 
 #define HAVE_OPENSSL
 // merklecpp traces are off by default, even when CCF tracing is enabled
@@ -79,7 +81,7 @@ namespace ccf
 
   static inline void log_hash(const ccf::crypto::Sha256Hash& h, HashOp flag)
   {
-    LOG_TRACE_FMT("History [{}] {}", flag, h);
+    LOG_TRACE_FMT("History [{}] {}", std::to_underlying(flag), h);
   }
 
   class NullTxHistoryPendingTx : public ccf::kv::PendingTx
@@ -392,7 +394,7 @@ namespace ccf
           CoseKey::from_private(key_der.data(), key_der.size(), key_err);
         if (!cose_key.is_set())
         {
-          throw std::runtime_error(fmt::format(
+          throw std::runtime_error(std::format(
             "cose_key_from_der_private failed: {}",
             key_err.is_set() ? key_err.to_string() : "unknown error"));
         }
@@ -419,7 +421,7 @@ namespace ccf
         cose_err);
       if (rc != 0 || !cose_buf.is_set())
       {
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "cose_sign_ledger failed: {}",
           cose_err.is_set() ? cose_err.to_string() : "unknown error"));
       }
@@ -496,7 +498,7 @@ namespace ccf
     {
       if (index < begin_index())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot produce proof for {}: index is older than first index {}, "
           "and has been flushed from memory",
           index,
@@ -504,7 +506,7 @@ namespace ccf
       }
       if (index > end_index())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot produce proof for {}: index is later than last index {}",
           index,
           end_index()));
@@ -941,7 +943,7 @@ namespace ccf
       if (endorsed_cert_ == nullptr)
       {
         throw std::logic_error(
-          fmt::format("No endorsed certificate set to emit signature"));
+          std::format("No endorsed certificate set to emit signature"));
       }
 
       auto txid = store.next_txid();
@@ -951,7 +953,7 @@ namespace ccf
       if (!signing_identity.has_value())
       {
         throw std::logic_error(
-          fmt::format("No service key has been set yet to sign"));
+          std::format("No service key has been set yet to sign"));
       }
 
       store.commit(

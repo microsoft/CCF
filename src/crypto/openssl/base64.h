@@ -5,6 +5,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ds/internal_logger.h"
 
+#include <format>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <string>
@@ -49,7 +50,7 @@ namespace ccf::crypto
       if (rc < 0)
       {
         auto err_str = OpenSSL::error_string(ERR_get_error());
-        throw std::invalid_argument(fmt::format(
+        throw std::invalid_argument(std::format(
           "OSSL: Could not decode update from base64 string: {} [{} bytes out "
           "of {}, chunk_len = {}]",
           err_str,
@@ -63,7 +64,7 @@ namespace ccf::crypto
       if (rc != 1)
       {
         auto err_str = OpenSSL::error_string(ERR_get_error());
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "OSSL: Could not decode final from base64 string: {} [{} bytes out "
           "of {}, chunk_len = {}]",
           err_str,
@@ -105,7 +106,7 @@ namespace ccf::crypto
       if (rc < 0)
       {
         auto err_str = OpenSSL::error_string(ERR_get_error());
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "OSSL: Could not encode update to base64 string: {} [{} bytes out of "
           "{}, chunk_len = {}]",
           err_str,
@@ -120,7 +121,7 @@ namespace ccf::crypto
       if (err != 0)
       {
         auto err_str = OpenSSL::error_string(err);
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "OSSL: Could not encode final to base64 string: {} [{} bytes out of "
           "{}, chunk_len = {}]",
           err_str,

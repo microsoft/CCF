@@ -8,6 +8,7 @@
 #include "ccf/version.h"
 #include "ds/internal_logger.h"
 
+#include <format>
 #include <string>
 
 namespace ccf::js::modules
@@ -32,7 +33,7 @@ namespace ccf::js::modules
         CCF_APP_INFO(
           "Ignoring bytecode table, which was written for QuickJS {} (this "
           "node is running QuickJS {})",
-          version_in_kv,
+          version_in_kv.value_or("<missing>"),
           version_in_binary);
         version_ok = false;
       }
@@ -80,7 +81,7 @@ namespace ccf::js::modules
           CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
         }
 
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(std::format(
           "Failed to deserialize bytecode for module '{}': {}",
           module_name,
           reason));

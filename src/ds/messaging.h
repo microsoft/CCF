@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <format>
 #include <map>
 #include <stdexcept>
 
@@ -64,7 +65,7 @@ namespace messaging
 
     static std::string decorate_message_name(MessageType m, char const* s)
     {
-      return fmt::format("<{}:{}>", s, m);
+      return std::format("<{}:{}>", s, m);
     }
 
     std::string get_decorated_message_name(MessageType m)

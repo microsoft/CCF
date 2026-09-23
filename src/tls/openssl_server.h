@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <cstring>
 #include <fcntl.h>
+#include <format>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -416,14 +417,14 @@ namespace ccf::tls
           }
           if (ssl_error == SSL_ERROR_SYSCALL)
           {
-            return fmt::format(
+            return std::format(
               "syscall failed: {}", std::generic_category().message(errno));
           }
           return "protocol error";
         }
 
         default:
-          return fmt::format("SSL_get_error {}", ssl_error);
+          return std::format("SSL_get_error {}", ssl_error);
       }
     }
 

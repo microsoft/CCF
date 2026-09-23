@@ -9,6 +9,7 @@
 #  include "crypto/openssl/mldsa_public_key.h"
 #  include "ds/internal_logger.h"
 
+#  include <format>
 #  include <openssl/pem.h>
 #  include <openssl/x509.h>
 #  include <stdexcept>
@@ -108,7 +109,7 @@ namespace ccf::crypto
       return false;
     }
     throw std::runtime_error(
-      fmt::format("ML-DSA provider failed verification (rc={})", rc));
+      std::format("ML-DSA provider failed verification (rc={})", rc));
   }
 
   MLDSAPublicKeyPtr make_mldsa_public_key(const Pem& pem)

@@ -3,13 +3,12 @@
 #pragma once
 
 #include "ccf/crypto/md_type.h"
-#include "ccf/ds/enum_formatter.h"
 #include "ccf/ds/json.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <format>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace ccf::crypto
 {
@@ -50,7 +49,8 @@ namespace ccf::crypto
       case CurveID::CURVE25519:
       case CurveID::X25519:
       {
-        throw std::logic_error(fmt::format("Invalid ECDSA curve: {}", ec));
+        throw std::logic_error(
+          std::format("Invalid ECDSA curve: {}", std::to_underlying(ec)));
       }
       case CurveID::SECP384R1:
         return MDType::SHA384;
@@ -60,7 +60,8 @@ namespace ccf::crypto
         return MDType::SHA512;
       default:
       {
-        throw std::logic_error(fmt::format("Unhandled CurveId: {}", ec));
+        throw std::logic_error(
+          std::format("Unhandled CurveId: {}", std::to_underlying(ec)));
       }
     }
   }

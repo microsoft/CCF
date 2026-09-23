@@ -8,6 +8,7 @@
 #include "http2_types.h"
 #include "http_proc.h"
 
+#include <format>
 #include <utility>
 
 namespace http2
@@ -98,7 +99,7 @@ namespace http2
         session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
       if (rv != 0)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Error submitting settings for HTTP2 session: {}",
           nghttp2_strerror(rv)));
       }
@@ -133,7 +134,7 @@ namespace http2
       auto it = streams.find(stream_id);
       if (it != streams.end())
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Cannot store new stream {} as it already exists", stream_id));
       }
 
@@ -198,7 +199,7 @@ namespace http2
       auto readlen = nghttp2_session_mem_recv(session, data, size);
       if (readlen < 0)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "HTTP/2: Error receiving data: {}", nghttp2_strerror(readlen)));
       }
 
@@ -229,7 +230,7 @@ namespace http2
         }
         else
         {
-          throw std::logic_error(fmt::format(
+          throw std::logic_error(std::format(
             "HTTP/2: Error sending data: {}", nghttp2_strerror(size)));
         }
       }
@@ -260,7 +261,7 @@ namespace http2
         nghttp2_submit_trailer(session, stream_id, trlrs.data(), trlrs.size());
       if (rv != 0)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "nghttp2_submit_trailer error: {}", nghttp2_strerror(rv)));
       }
     }
@@ -273,7 +274,7 @@ namespace http2
     {
       std::vector<nghttp2_nv> hdrs = {};
 
-      auto status_str = fmt::format("{}", std::to_underlying(status));
+      auto status_str = std::format("{}", std::to_underlying(status));
       hdrs.emplace_back(
         make_nv(ccf::http2::headers::STATUS, status_str.data()));
 
@@ -294,7 +295,7 @@ namespace http2
         session, stream_id, hdrs.data(), hdrs.size(), &prov);
       if (rv != 0)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "nghttp2_submit_response error: {}", nghttp2_strerror(rv)));
       }
     }
@@ -316,7 +317,7 @@ namespace http2
       if (stream_data == nullptr)
       {
         throw std::logic_error(
-          fmt::format("Stream {} no longer exists", stream_id));
+          std::format("Stream {} no longer exists", stream_id));
       }
 
       stream_data->close_callback = cb;
@@ -341,7 +342,7 @@ namespace http2
       if (stream_data == nullptr)
       {
         throw std::logic_error(
-          fmt::format("Stream {} no longer exists", stream_id));
+          std::format("Stream {} no longer exists", stream_id));
       }
 
       bool should_submit_response =
@@ -385,12 +386,12 @@ namespace http2
       if (stream_data == nullptr)
       {
         throw std::logic_error(
-          fmt::format("Stream {} no longer exists", stream_id));
+          std::format("Stream {} no longer exists", stream_id));
       }
 
       if (stream_data->outgoing.state != StreamResponseState::Uninitialised)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "Stream {} should be uninitialised to start stream", stream_id));
       }
 
@@ -409,13 +410,13 @@ namespace http2
       if (stream_data == nullptr)
       {
         throw std::logic_error(
-          fmt::format("Stream {} no longer exists", stream_id));
+          std::format("Stream {} no longer exists", stream_id));
       }
 
       if (stream_data->outgoing.state != StreamResponseState::Streaming)
       {
         throw std::logic_error(
-          fmt::format("Stream {} should be streaming to send data", stream_id));
+          std::format("Stream {} should be streaming to send data", stream_id));
       }
 
       stream_data->outgoing.body = DataSource(std::move(data));
@@ -423,7 +424,7 @@ namespace http2
       int rv = nghttp2_session_resume_data(session, stream_id);
       if (rv < 0)
       {
-        throw std::logic_error(fmt::format(
+        throw std::logic_error(std::format(
           "nghttp2_session_resume_data error: {}", nghttp2_strerror(rv)));
       }
 
@@ -439,7 +440,7 @@ namespace http2
       if (stream_data == nullptr)
       {
         throw std::logic_error(
-          fmt::format("Stream {} no longer exists", stream_id));
+          std::format("Stream {} no longer exists", stream_id));
       }
 
       auto it = streams.find(stream_id);

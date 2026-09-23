@@ -3,14 +3,11 @@
 #pragma once
 
 #include "ccf/crypto/pem.h"
-
-#define FMT_HEADER_ONLY
-
 #include "ccf/ds/x509_time_fmt.h"
 
 #include <algorithm>
 #include <chrono>
-#include <fmt/format.h>
+#include <format>
 #include <memory>
 #include <openssl/asn1.h>
 #include <openssl/bn.h>
@@ -59,7 +56,7 @@ namespace ccf::crypto::OpenSSL
     if (rc != 1)
     {
       unsigned long ec = ERR_get_error();
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "OpenSSL error (rc={}, ec={}): {}", rc, ec, error_string(ec)));
     }
   }
@@ -79,7 +76,7 @@ namespace ccf::crypto::OpenSSL
     if (expect != actual)
     {
       unsigned long ec = ERR_get_error();
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "OpenSSL error (rc={}, ec={}): {}", actual, ec, error_string(ec)));
     }
   }
@@ -90,7 +87,7 @@ namespace ccf::crypto::OpenSSL
     if (val <= 0)
     {
       unsigned long ec = ERR_get_error();
-      throw std::runtime_error(fmt::format(
+      throw std::runtime_error(std::format(
         "OpenSSL error (rc={}, ec={}): {}", val, ec, error_string(ec)));
     }
   }
@@ -515,10 +512,10 @@ namespace ccf::crypto::OpenSSL
       }
       if (rc == 0)
       {
-        throw std::invalid_argument(fmt::format("Key failed {} check", which));
+        throw std::invalid_argument(std::format("Key failed {} check", which));
       }
       throw std::runtime_error(
-        fmt::format("OpenSSL error in {} key check (rc={})", which, rc));
+        std::format("OpenSSL error in {} key check (rc={})", which, rc));
     };
     Unique_EVP_PKEY_CTX ctx(key);
     check(EVP_PKEY_public_check(ctx), "public");

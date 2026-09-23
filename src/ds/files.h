@@ -10,6 +10,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <glob.h>
 #include <iostream>
@@ -22,10 +23,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
-#include <fmt/ostream.h>
 
 namespace files
 {
@@ -169,7 +166,7 @@ namespace files
     auto* f = open_file(file, O_WRONLY | O_CREAT | O_TRUNC, "wb");
     if (f == nullptr)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Failed to open file {} for writing: {}",
         file.string(),
         ccf::nonstd::strerror(errno)));
@@ -193,7 +190,7 @@ namespace files
       {
         errno = close_errno != 0 ? close_errno : EIO;
       }
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Failed to write to file {}: {}",
         file.string(),
         ccf::nonstd::strerror(errno)));
@@ -228,7 +225,7 @@ namespace files
     fs::rename(src, dst, ec);
     if (ec)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Could not rename file {} to {}: {}",
         src.string(),
         dst.string(),
@@ -242,7 +239,7 @@ namespace files
     fs::create_directory(dir, ec);
     if (ec && ec != std::errc::file_exists)
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Could not create directory {}: {}", dir.string(), ec.message()));
     }
   }

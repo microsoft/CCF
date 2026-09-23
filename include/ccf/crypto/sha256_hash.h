@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/join.h"
 #include "ccf/ds/json.h"
 #include "ccf/service/map.h"
 
 #include <array>
+#include <format>
 #include <span>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace ccf::crypto
 {
@@ -66,9 +66,8 @@ namespace ccf::crypto
   bool operator!=(const Sha256Hash& lhs, const Sha256Hash& rhs);
 }
 
-FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<ccf::crypto::Sha256Hash>
+struct std::formatter<ccf::crypto::Sha256Hash>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -79,10 +78,9 @@ struct formatter<ccf::crypto::Sha256Hash>
   template <typename FormatContext>
   auto format(const ccf::crypto::Sha256Hash& p, FormatContext& ctx) const
   {
-    return format_to(ctx.out(), "<sha256 {:02x}>", fmt::join(p.h, ""));
+    return std::format_to(ctx.out(), "<sha256 {:02x}>", ccf::ds::join(p.h, ""));
   }
 };
-FMT_END_NAMESPACE
 
 namespace ccf::kv::serialisers
 {

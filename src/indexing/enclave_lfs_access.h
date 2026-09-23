@@ -17,8 +17,10 @@
 #include <atomic>
 #include <cstdint>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <unordered_map>
+#include <utility>
 
 // Uncomment to disable encryption and obfuscation, writing cache content
 // directly unencrypted to host disk
@@ -161,7 +163,7 @@ namespace ccf::indexing
       const LFSKey& obfuscated, const LFSEncryptedContents& encrypted)
     {
       const auto target_path = root_dir / obfuscated;
-      ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
+      ccf::ds::TimeBoundLogger log_if_slow(std::format(
         "Writing LFS file ({} bytes) - {}",
         encrypted.size(),
         target_path.string()));
@@ -209,7 +211,7 @@ namespace ccf::indexing
       }
 
       ccf::ds::TimeBoundLogger log_if_slow(
-        fmt::format("Reading LFS file - ifstream({})", target_path.string()));
+        std::format("Reading LFS file - ifstream({})", target_path.string()));
       std::ifstream f(target_path, std::ios::binary | std::ios::ate);
       if (!f)
       {
@@ -296,19 +298,19 @@ namespace ccf::indexing
       {
         LOG_INFO_FMT(
           "Clearing contents from existing directory {}", root_dir.string());
-        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(std::format(
           "Clearing LFS index directory - remove_all({})", root_dir.string()));
         std::filesystem::remove_all(root_dir);
       }
 
       {
-        ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
+        ccf::ds::TimeBoundLogger log_if_slow(std::format(
           "Creating LFS index directory - create_directory({})",
           root_dir.string()));
         if (!std::filesystem::create_directory(root_dir))
         {
           throw std::logic_error(
-            fmt::format("Could not create directory: {}", root_dir.string()));
+            std::format("Could not create directory: {}", root_dir.string()));
         }
       }
     }
@@ -361,7 +363,7 @@ namespace ccf::indexing
         {
           if (key != result->key)
           {
-            throw std::runtime_error(fmt::format(
+            throw std::runtime_error(std::format(
               "Obfuscation collision for unique keys '{}' and '{}', both "
               "obfuscated to '{}'",
               key,

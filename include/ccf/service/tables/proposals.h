@@ -5,6 +5,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/service/map.h"
 
+#include <format>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -41,9 +42,8 @@ namespace ccf
   using ProposalId = std::string;
 }
 
-FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<ccf::ProposalState>
+struct std::formatter<ccf::ProposalState>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -59,34 +59,33 @@ struct formatter<ccf::ProposalState>
     {
       case (ccf::ProposalState::OPEN):
       {
-        return format_to(ctx.out(), "open");
+        return std::format_to(ctx.out(), "open");
       }
       case (ccf::ProposalState::ACCEPTED):
       {
-        return format_to(ctx.out(), "accepted");
+        return std::format_to(ctx.out(), "accepted");
       }
       case (ccf::ProposalState::WITHDRAWN):
       {
-        return format_to(ctx.out(), "withdrawn");
+        return std::format_to(ctx.out(), "withdrawn");
       }
       case (ccf::ProposalState::REJECTED):
       {
-        return format_to(ctx.out(), "rejected");
+        return std::format_to(ctx.out(), "rejected");
       }
       case (ccf::ProposalState::FAILED):
       {
-        return format_to(ctx.out(), "failed");
+        return std::format_to(ctx.out(), "failed");
       }
       case (ccf::ProposalState::DROPPED):
       {
-        return format_to(ctx.out(), "dropped");
+        return std::format_to(ctx.out(), "dropped");
       }
       default:
       {
         throw std::logic_error(
-          fmt::format("Unknown proposal state {}", std::to_underlying(state)));
+          std::format("Unknown proposal state {}", std::to_underlying(state)));
       }
     }
   }
 };
-FMT_END_NAMESPACE

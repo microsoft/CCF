@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
-#include <fmt/ranges.h>
+#include "ccf/ds/join.h"
+
+#include <format>
 #include <numeric>
 #include <utility>
 #include <vector>
@@ -521,9 +521,9 @@ namespace ccf::ds
   };
 }
 
-FMT_BEGIN_NAMESPACE
 template <typename T>
-struct formatter<ccf::ds::ContiguousSet<T>>
+// NOLINTNEXTLINE(cert-dcl58-cpp) - Specialization depends on a CCF type.
+struct std::formatter<ccf::ds::ContiguousSet<T>>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -537,14 +537,13 @@ struct formatter<ccf::ds::ContiguousSet<T>>
     std::vector<std::string> ranges;
     for (const auto& [from, additional] : v.get_ranges())
     {
-      ranges.emplace_back(fmt::format("[{}->{}]", from, from + additional));
+      ranges.emplace_back(std::format("[{}->{}]", from, from + additional));
     }
-    return format_to(
+    return std::format_to(
       ctx.out(),
       "{{{} values in {} ranges: {}}}",
       v.size(),
       v.get_ranges().size(),
-      fmt::join(ranges, ", "));
+      ccf::ds::join(ranges, ", "));
   }
 };
-FMT_END_NAMESPACE

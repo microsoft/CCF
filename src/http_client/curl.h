@@ -19,7 +19,7 @@
 #include <curl/multi.h>
 #include <deque>
 #include <exception>
-#include <fmt/format.h>
+#include <format>
 #include <functional>
 #include <memory>
 #include <nlohmann/json.hpp>
@@ -41,8 +41,10 @@
     const auto res = fn(__VA_ARGS__); \
     if (res != CURLE_OK) \
     { \
-      throw std::runtime_error(fmt::format( \
-        "Error calling " #fn ": {} ({})", res, curl_easy_strerror(res))); \
+      throw std::runtime_error(std::format( \
+        "Error calling " #fn ": {} ({})", \
+        std::to_underlying(res), \
+        curl_easy_strerror(res))); \
     } \
   } while (0)
 
@@ -57,8 +59,10 @@
     const auto res = fn(__VA_ARGS__); \
     if (res != CURLM_OK) \
     { \
-      throw std::runtime_error(fmt::format( \
-        "Error calling " #fn ": {} ({})", res, curl_multi_strerror(res))); \
+      throw std::runtime_error(std::format( \
+        "Error calling " #fn ": {} ({})", \
+        std::to_underlying(res), \
+        curl_multi_strerror(res))); \
     } \
   } while (0)
 
@@ -69,7 +73,7 @@
     if (rc < 0) \
     { \
       throw std::runtime_error( \
-        fmt::format("Error calling " #fn ": {} ({})", rc, uv_strerror(rc))); \
+        std::format("Error calling " #fn ": {} ({})", rc, uv_strerror(rc))); \
     } \
   } while (0)
 
@@ -238,7 +242,7 @@ namespace ccf::http_client
 
     void append(const std::string& key, const std::string& value)
     {
-      append(fmt::format("{}: {}", key, value).c_str());
+      append(std::format("{}: {}", key, value).c_str());
     }
 
     [[nodiscard]] curl_slist* get() const
@@ -582,7 +586,7 @@ namespace ccf::http_client
       if (!http_method.has_value())
       {
         throw std::logic_error(
-          fmt::format("Unsupported HTTP method: {}", method.c_str()));
+          std::format("Unsupported HTTP method: {}", method.c_str()));
       }
 
       switch (static_cast<int>(http_method.value()))
@@ -638,7 +642,7 @@ namespace ccf::http_client
         break;
         default:
           throw std::logic_error(
-            fmt::format("Unsupported HTTP method: {}", method.c_str()));
+            std::format("Unsupported HTTP method: {}", method.c_str()));
       }
 
       if (request_body != nullptr)
@@ -886,7 +890,7 @@ namespace ccf::http_client
         LOG_FAIL_FMT(
           "Error calling {}: {} ({})",
           function_name,
-          rc,
+          std::to_underlying(rc),
           curl_multi_strerror(rc));
         return true;
       }
@@ -1217,7 +1221,7 @@ namespace ccf::http_client
               LOG_FAIL_FMT(
                 "Error calling curl_multi_assign while handling "
                 "uv_poll_start failure: {} ({})",
-                assign_res,
+                std::to_underlying(assign_res),
                 curl_multi_strerror(assign_res));
             }
             SocketContext socket_context_ptr(socket_context);
@@ -1354,7 +1358,7 @@ namespace ccf::http_client
           {
             LOG_FAIL_FMT(
               "Error calling curl_multi_remove_handle while closing: {} ({})",
-              remove_res,
+              std::to_underlying(remove_res),
               curl_multi_strerror(remove_res));
           }
           if (easy != nullptr)
@@ -1367,7 +1371,7 @@ namespace ccf::http_client
             {
               LOG_FAIL_FMT(
                 "Error calling curl_easy_getinfo while closing: {} ({})",
-                getinfo_res,
+                std::to_underlying(getinfo_res),
                 curl_easy_strerror(getinfo_res));
               curl_easy_cleanup(easy);
               continue;
@@ -1390,7 +1394,7 @@ namespace ccf::http_client
               LOG_FAIL_FMT(
                 "Error calling curl_easy_getinfo for response code while "
                 "closing: {} ({})",
-                status_res,
+                std::to_underlying(status_res),
                 curl_easy_strerror(status_res));
             }
             CurlRequest::handle_response(

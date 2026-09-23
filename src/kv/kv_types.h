@@ -6,6 +6,7 @@
 #include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/hex.h"
+#include "ccf/ds/join.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
 #include "ccf/kv/get_name.h"
@@ -24,6 +25,7 @@
 
 #include <array>
 #include <chrono>
+#include <format>
 #include <functional>
 #include <limits>
 #include <list>
@@ -296,7 +298,7 @@ namespace ccf::kv
     }
     else if (name.starts_with(reserved_category_prefix))
     {
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Map name '{}' includes disallowed reserved prefix '{}'",
         name,
         reserved_category_prefix));
@@ -576,7 +578,7 @@ namespace ccf::kv
       const ccf::TxID& tx_id, bool historical_hint = false)
     {
       auto nonce = get_commit_nonce(tx_id, historical_hint);
-      return fmt::format(
+      return std::format(
         "ce:{}.{}:{}", tx_id.view, tx_id.seqno, ccf::ds::to_hex(nonce));
     }
   };
@@ -775,10 +777,9 @@ namespace ccf::kv
 
 }
 
-FMT_BEGIN_NAMESPACE
-
 template <>
-struct formatter<ccf::kv::Configuration::Nodes>
+// NOLINTNEXTLINE(cert-dcl58-cpp) - Specialization depends on CCF types.
+struct std::formatter<ccf::kv::Configuration::Nodes>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -795,12 +796,12 @@ struct formatter<ccf::kv::Configuration::Nodes>
     {
       node_ids.insert(nid);
     }
-    return fmt::format_to(ctx.out(), "{{{}}}", fmt::join(node_ids, " "));
+    return std::format_to(ctx.out(), "{{{}}}", ccf::ds::join(node_ids, " "));
   }
 };
 
 template <>
-struct formatter<ccf::kv::MembershipState>
+struct std::formatter<ccf::kv::MembershipState>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -813,12 +814,12 @@ struct formatter<ccf::kv::MembershipState>
     -> decltype(ctx.out())
   {
     const auto s = nlohmann::json(state).get<std::string>();
-    return format_to(ctx.out(), "{}", s);
+    return std::format_to(ctx.out(), "{}", s);
   }
 };
 
 template <>
-struct formatter<ccf::kv::LeadershipState>
+struct std::formatter<ccf::kv::LeadershipState>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -831,8 +832,6 @@ struct formatter<ccf::kv::LeadershipState>
     -> decltype(ctx.out())
   {
     const auto s = nlohmann::json(state).get<std::string>();
-    return format_to(ctx.out(), "{}", s);
+    return std::format_to(ctx.out(), "{}", s);
   }
 };
-
-FMT_END_NAMESPACE

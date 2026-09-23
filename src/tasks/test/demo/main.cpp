@@ -363,7 +363,7 @@ TEST_CASE("Run")
   LOG_INFO_FMT(
     "{} vs {} vs {}",
     total_requests_sent,
-    total_responses_sent,
+    total_responses_sent.load(),
     total_responses_seen);
 
   REQUIRE(total_requests_sent >= total_responses_sent);

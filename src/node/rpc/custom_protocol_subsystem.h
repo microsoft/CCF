@@ -5,7 +5,8 @@
 #include "ccf/research/custom_protocol_subsystem_interface.h"
 #include "node/rpc/node_interface.h"
 
-#include <fmt/format.h>
+#include <format>
+#include <functional>
 #include <map>
 #include <memory>
 #include <stdexcept>
@@ -45,7 +46,7 @@ namespace ccf
       {
         return it->second(conn_id, writer);
       }
-      throw std::logic_error(fmt::format(
+      throw std::logic_error(std::format(
         "Session creation function for protocol '{}' has not been installed",
         protocol_name));
     }
