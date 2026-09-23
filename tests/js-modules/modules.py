@@ -524,7 +524,9 @@ def test_user_cose_authentication(network, args):
         r = c.put("/app/cose", {})
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
 
-    with primary.client("user0", headers={"content-type": "application/cose"}) as c:
+    with primary.client(
+        "user0", common_headers={"content-type": "application/cose"}
+    ) as c:
         r = c.put("/app/cose", {})
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
 
