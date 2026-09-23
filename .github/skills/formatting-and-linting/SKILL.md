@@ -45,9 +45,8 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 
 Some report-only scripts accept `-f` for interface compatibility without changing files. For Rust or other file types not covered by a formatter above, consult their existing build/CI configuration rather than introducing a new tool.
 
-The Lean formatting check runs through `scripts/ci-checks.sh` in Virtual A.
-It requires elan and the package's Lean toolchain. `scripts/setup-lean.sh`
-installs these dependencies and restores the Mathlib build cache.
+The Lean formatting check runs in `.github/workflows/lean.yml`, not
+`scripts/ci-checks.sh`. It requires elan and the package's Lean toolchain.
 See [Lean formatting setup](../../../lean/disaster-recovery/README.md#formatting).
 
 The ASCII check includes Rust and TLA+, but exempts Lean source files (`*.lean`). Existing Unicode is grandfathered by exact line hashes, not file-wide exemptions. Do not extend the grandfathered hashes to accept new Unicode.

@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "lean/**"
+      - "**/*.lean"
+      - "scripts/lean-format-checks.sh"
       - ".github/workflows/lean.yml"
 
 concurrency:
@@ -45,3 +47,6 @@ jobs:
           lake build --wfail
           lake lint
           lake exe canonical-checks
+
+      - name: Check Lean formatting
+        run: ./scripts/lean-format-checks.sh

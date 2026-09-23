@@ -44,12 +44,6 @@ Main continuous integration job. Builds CCF for all target platforms, runs unit,
 
 The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
 
-Virtual A runs `scripts/ci-checks.sh`, including the check for every tracked
-`.lean` file. Its Lean setup installs the
-pinned toolchain and restores the Mathlib build cache before the formatting check.
-See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting)
-to apply fixes.
-
 File: `ci.yml`
 3rd party dependencies: None
 
@@ -126,7 +120,7 @@ File: `tla-shallow.yml`
 
 # Lean
 
-Runs Lean model and proof verification for the repository. Future proof checks should be
+Runs all Lean verification for the repository. Future Lean checks should be
 added as jobs to this workflow.
 
 The disaster recovery job builds the canonical model with `lake build --wfail`,
@@ -136,6 +130,12 @@ The build and audit include both the human-reviewed model and system properties
 and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every
 library module, so newly added proofs cannot silently escape the checks.
+
+After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean`
+file with the pinned leanfmt dependency. The workflow runs on pull requests
+that change `lean/`, any `.lean` file, the formatter script, or the workflow.
+See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting)
+to apply fixes.
 
 File: `lean.yml`
 3rd party dependencies: None

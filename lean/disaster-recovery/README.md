@@ -148,6 +148,6 @@ scripts/lean-format-checks.sh -f
 ```
 
 The script builds the model's imported modules and runs the pinned leanfmt
-dependency. Virtual A runs the same check through `scripts/ci-checks.sh`.
+dependency. The Lean CI workflow runs the same check after the proof checks.
 Files outside `lean/` are included; untracked files and downloaded dependencies
 are excluded. Add new Lean files to Git before running the check.

@@ -7,7 +7,7 @@
 #
 # Note: this deliberately does NOT install a C/C++ compiler, cmake or ninja, so
 # the test-buckets check (which configures a build tree) is out of scope. All
-# other checks - clang-format, leanfmt, prettier, black, ruff, mypy, gersemi,
+# other checks - clang-format, prettier, black, ruff, mypy, gersemi,
 # openapi-spec-validator, shellcheck, copyright and release-notes - are covered.
 
 set -euo pipefail
@@ -37,8 +37,6 @@ install_packages_ubuntu() {
     ca-certificates \
     git \
     tar \
-    zstd \
-    elan \
     curl \
     grep \
     gawk \
@@ -63,7 +61,6 @@ install_uv() {
 
 install_packages_ubuntu
 install_uv
-"$SCRIPT_DIR/setup-lean.sh"
 
 log "All ci-checks formatting/lint dependencies installed"
 log "Versions:"
