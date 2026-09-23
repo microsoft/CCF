@@ -6,7 +6,7 @@ Application Development using CCF Overview
 
 -  :ref:`What is Confidential Consortium Framework (CCF) <overview/what_is_ccf:What is CCF?>`
 -  Read the :doc:`CCF overview </overview/index>` and get familiar with :ref:`overview/what_is_ccf:Core Concepts` and `Azure confidential computing <https://learn.microsoft.com/en-us/azure/confidential-computing/>`__
--  :doc:`Build new CCF applications </build_apps/index>` in TypeScript/JavaScript, C++, or Rust
+-  :doc:`Build new CCF applications </build_apps/index>` in TypeScript/JavaScript, C++, or Rust (experimental)
 -  CCF `JavaScript module API reference <https://ccf.dev/main/js/ccf-app/>`__
 -  CCF application get started repos `CCF application template <https://github.com/microsoft/ccf-app-template>`__ and  `CCF application samples <https://github.com/microsoft/ccf-app-samples>`__
 
@@ -95,8 +95,8 @@ Rust Applications
 -----------------
 
 Rust applications are native CCF executables with the same deployment model as
-C++ applications. See :doc:`example_rust` for the supported API and build
-instructions.
+C++ applications. The Rust interface is experimental; see :doc:`example_rust`
+for its support status, the supported API, and build instructions.
 
 Network Governance
 ------------------

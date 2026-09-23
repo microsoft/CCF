@@ -12,11 +12,13 @@ compile_error!(
     "ccf-app requires panic = \"unwind\" because its C ABI catches panics at the boundary"
 );
 
+use std::cell::Cell;
 use std::ffi::c_void;
 use std::marker::PhantomData;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::ptr::NonNull;
 use std::slice;
+use std::sync::Once;
 
 pub const ABI_VERSION: u32 = 1;
 
@@ -46,9 +48,6 @@ enum RawResult {
     ReadOnly = 3,
     InternalError = 4,
 }
-
-#[doc(hidden)]
-pub const INTERNAL_ERROR_CODE: i32 = RawResult::InternalError as i32;
 
 #[repr(i32)]
 #[derive(Clone, Copy)]
@@ -560,6 +559,49 @@ enum Handler {
     Write(Box<dyn WriteHandler>),
 }
 
+thread_local! {
+    static IN_APP_CALLBACK: Cell<bool> = const { Cell::new(false) };
+}
+
+fn in_app_callback() -> bool {
+    // The hook may run while this thread's locals are being destroyed.
+    IN_APP_CALLBACK.try_with(Cell::get).unwrap_or(false)
+}
+
+/// Runs application code, catching any panic at the ABI boundary.
+fn catch_app_panic<R>(f: impl FnOnce() -> R) -> std::thread::Result<R> {
+    struct Restore(bool);
+
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            IN_APP_CALLBACK.set(self.0);
+        }
+    }
+
+    let _restore = Restore(IN_APP_CALLBACK.replace(true));
+    catch_unwind(AssertUnwindSafe(f))
+}
+
+/// Stops panics raised by application callbacks from being reported.
+///
+/// Rust's default hook writes panic messages, which may contain request or KV
+/// data, to the node's stderr, which is visible to the host. These panics are
+/// contained by `catch_app_panic`, and handler panics are reported to the
+/// caller as HTTP 500 errors. Other panics, including those raised by CCF's own
+/// Rust code, which may share this process-wide hook, are passed to the
+/// previously installed hook.
+fn install_panic_hook() {
+    static INSTALL: Once = Once::new();
+    INSTALL.call_once(|| {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            if !in_app_callback() {
+                previous(info);
+            }
+        }));
+    });
+}
+
 unsafe extern "C" fn invoke_handler(
     user_data: *mut c_void,
     raw_context: *mut RawEndpointContext,
@@ -573,7 +615,7 @@ unsafe extern "C" fn invoke_handler(
     // SAFETY: The null guard above validated raw_context.
     let raw = unsafe { NonNull::new_unchecked(raw_context) };
 
-    let result = catch_unwind(AssertUnwindSafe(|| match handler {
+    let result = catch_app_panic(|| match handler {
         Handler::Read(handler) => handler(&mut ReadOnlyContext(Context {
             raw,
             _lifetime: PhantomData,
@@ -582,7 +624,7 @@ unsafe extern "C" fn invoke_handler(
             raw,
             _lifetime: PhantomData,
         })),
-    }));
+    });
 
     let endpoint_error = match result {
         Ok(Ok(())) => return RawResult::Ok as i32,
@@ -602,11 +644,11 @@ unsafe extern "C" fn invoke_handler(
 
 unsafe extern "C" fn drop_handler(user_data: *mut c_void) {
     if !user_data.is_null() {
-        let _ = catch_unwind(AssertUnwindSafe(|| {
+        let _ = catch_app_panic(|| {
             // SAFETY: The pointer was created by Box::into_raw during endpoint
             // registration and is dropped exactly once by the C++ registry.
             drop(unsafe { Box::from_raw(user_data.cast::<Handler>()) });
-        }));
+        });
     }
 }
 
@@ -686,6 +728,29 @@ impl Registry {
     }
 }
 
+/// Implements the `ccf_rust_app_register` function exported by `export_app!`.
+///
+/// # Safety
+///
+/// `raw_registry` must be the registry passed by CCF to
+/// `ccf_rust_app_register`.
+#[doc(hidden)]
+pub unsafe fn register_app<F>(raw_registry: *mut RawRegistry, register: F) -> i32
+where
+    F: FnOnce(&mut Registry) -> BridgeResult<()>,
+{
+    install_panic_hook();
+    let result = catch_app_panic(|| {
+        // SAFETY: The caller passes the live registry for this call.
+        let mut registry = unsafe { Registry::from_raw(raw_registry) }?;
+        register(&mut registry)
+    });
+    match result {
+        Ok(Ok(())) => RawResult::Ok as i32,
+        _ => RawResult::InternalError as i32,
+    }
+}
+
 #[macro_export]
 macro_rules! export_app {
     ($register:path) => {
@@ -698,15 +763,8 @@ macro_rules! export_app {
         pub unsafe extern "C" fn ccf_rust_app_register(
             raw_registry: *mut $crate::RawRegistry,
         ) -> i32 {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // SAFETY: The C++ bridge passes a live registry for this call.
-                let mut registry = unsafe { $crate::Registry::from_raw(raw_registry) }?;
-                $register(&mut registry)
-            }));
-            match result {
-                Ok(Ok(())) => 0,
-                _ => $crate::INTERNAL_ERROR_CODE,
-            }
+            // SAFETY: The C++ bridge passes a live registry for this call.
+            unsafe { $crate::register_app(raw_registry, $register) }
         }
     };
 }
@@ -750,5 +808,35 @@ mod tests {
         assert_eq!(result, RawResult::InternalError as i32);
         // SAFETY: The test retains ownership of the handler.
         unsafe { drop_handler(user_data) };
+    }
+
+    #[test]
+    fn restores_app_callback_marker() {
+        assert!(!in_app_callback());
+        let nested = catch_app_panic(|| {
+            assert!(catch_app_panic(|| ()).is_ok());
+            in_app_callback()
+        });
+        assert_eq!(nested.ok(), Some(true));
+        assert!(catch_app_panic::<()>(|| panic!("test panic")).is_err());
+        assert!(!in_app_callback());
+    }
+
+    #[test]
+    fn panic_hook_forwards_only_panics_outside_app_callbacks() {
+        thread_local! {
+            static REPORTS: Cell<usize> = const { Cell::new(0) };
+        }
+        let default_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            REPORTS.set(REPORTS.get() + 1);
+            default_hook(info);
+        }));
+        install_panic_hook();
+
+        assert!(catch_app_panic::<()>(|| panic!("test panic")).is_err());
+        assert_eq!(REPORTS.get(), 0);
+        assert!(catch_unwind(|| panic!("test panic")).is_err());
+        assert_eq!(REPORTS.get(), 1);
     }
 }

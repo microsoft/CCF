@@ -558,9 +558,7 @@ extern "C"
     ccf_rust_slice code,
     ccf_rust_slice message)
   {
-    if (
-      ctx == nullptr || !is_valid_utf8(code) || code.len == 0 ||
-      !is_valid_utf8(message))
+    if (ctx == nullptr || !is_valid_utf8(code) || !is_valid_utf8(message))
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }

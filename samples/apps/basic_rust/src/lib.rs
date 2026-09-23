@@ -58,6 +58,13 @@ fn register(registry: &mut Registry) -> Result<(), BridgeError> {
         },
     )?;
 
+    registry.read_only(
+        "/empty-error-code",
+        "GET",
+        Auth::None,
+        |_| -> EndpointResult { Err(EndpointError::new(400, "", "Empty error code")) },
+    )?;
+
     registry.read_only("/health", "GET", Auth::None, |context| {
         context.set_status(200)?;
         context.set_body(b"OK")?;

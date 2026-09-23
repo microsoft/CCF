@@ -1,6 +1,8 @@
 Example app (Rust)
 ==================
 
+.. warning:: The Rust interface is **experimental**. It is not a stable or production-supported SDK, and it is not covered by the API stability commitments in :doc:`release_policy`. Its Rust API, C ABI, and build integration may change incompatibly in any release.
+
 CCF provides an initial Rust interface for native applications. It deliberately
 exposes a small subset of the public application API:
 
@@ -57,6 +59,13 @@ are rejected. C++ exceptions are also contained by the bridge. When a handler
 returns an ``EndpointError`` with a status that is not a known HTTP error
 status, the host bridge emits HTTP 500 while preserving the error code and
 message.
+
+Panic messages may contain request or KV data, and node output is visible to
+the host. ``export_app!`` therefore installs a panic hook which does not report
+panics raised by the application's registration function, handlers, or handler
+destructors. Other panics are passed to the previously installed hook.
+Applications that install their own panic hook must not write confidential data
+to node output.
 
 KV values and keys
 ------------------
