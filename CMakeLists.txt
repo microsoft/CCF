@@ -763,6 +763,17 @@ if(BUILD_TESTS)
       openssl_server_test
       PRIVATE "LINKER:--wrap=uv_async_send"
     )
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+      add_custom_target(
+        locking_thread_safety
+        COMMAND
+          ${CMAKE_CXX_COMPILER} -std=c++23 -I${CMAKE_CURRENT_SOURCE_DIR}/include
+          -Wthread-safety -Xclang -verify -fsyntax-only
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/locking_thread_safety.cpp
+        VERBATIM
+      )
+      add_dependencies(openssl_server_test locking_thread_safety)
+    endif()
 
     add_unit_test(
       node_connections_test

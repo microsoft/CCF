@@ -15,12 +15,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- RPC event-loop notifications can run concurrently while retaining exclusive protection for transport shutdown (#8435).
 - The `worker_threads` configuration option now defaults to `1`. CCF starts one more worker thread than configured, in addition to the dispatch thread, preserving task execution capacity now that the dispatch thread no longer executes tasks. A configured value of `0` starts one worker and logs a warning; positive values are incremented silently (#8404, #8411).
 - Adding or resetting a member no longer eagerly records a state digest for them to acknowledge. Members must call the state digest `:update` endpoint before acknowledging the current service state; until then, the state digest `GET` endpoint returns HTTP 404 (#8407).
 
 ### Fixed
 
+- Fixed an RPC performance regression on SNP by allowing concurrent event-loop notifications (#8435).
 - JS registry tables and their configured namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. The governance-driven registry uses `public:ccf.gov.*` and leaves application namespaces unchanged. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`; platform permissions still apply (#8359).
 - Fixed `set_member` failures on services which have only ever emitted COSE ledger signatures (#8407).
 

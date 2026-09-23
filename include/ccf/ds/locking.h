@@ -7,10 +7,81 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <shared_mutex>
 #include <utility>
 
 namespace ccf::ds
 {
+  class CCF_CAPABILITY("mutex") SharedMutex
+  {
+  private:
+    std::shared_mutex mutex;
+
+  public:
+    void lock() CCF_ACQUIRE()
+    {
+      mutex.lock();
+    }
+
+    void unlock() CCF_RELEASE()
+    {
+      mutex.unlock();
+    }
+
+    void lock_shared() CCF_ACQUIRE_SHARED()
+    {
+      mutex.lock_shared();
+    }
+
+    void unlock_shared() CCF_RELEASE_SHARED()
+    {
+      mutex.unlock_shared();
+    }
+  };
+
+  class CCF_SCOPED_CAPABILITY SharedMutexGuard
+  {
+  private:
+    std::unique_lock<SharedMutex> guard;
+
+  public:
+    explicit SharedMutexGuard(SharedMutex& mutex) CCF_ACQUIRE(mutex) :
+      guard(mutex)
+    {}
+
+    ~SharedMutexGuard() CCF_RELEASE() = default;
+
+    void unlock() CCF_RELEASE()
+    {
+      guard.unlock();
+    }
+
+    void lock() CCF_ACQUIRE()
+    {
+      guard.lock();
+    }
+
+    SharedMutexGuard(const SharedMutexGuard&) = delete;
+    SharedMutexGuard& operator=(const SharedMutexGuard&) = delete;
+  };
+
+  class CCF_SCOPED_CAPABILITY SharedMutexReadGuard
+  {
+  private:
+    std::shared_lock<SharedMutex> guard;
+
+  public:
+    explicit SharedMutexReadGuard(SharedMutex& mutex)
+      CCF_ACQUIRE_SHARED(mutex) :
+      guard(mutex)
+    {}
+
+    ~SharedMutexReadGuard() CCF_RELEASE_GENERIC() = default;
+
+    SharedMutexReadGuard(const SharedMutexReadGuard&) = delete;
+    SharedMutexReadGuard& operator=(const SharedMutexReadGuard&) = delete;
+  };
+
   class ConditionVariable;
   class MutexGuard;
 

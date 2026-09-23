@@ -47,21 +47,29 @@ namespace
 {
   struct NotificationGate
   {
-    std::mutex mutex;
-    std::condition_variable cv;
-    size_t calls = 0;
-    bool released = false;
+    ccf::ds::Mutex mutex;
+    ccf::ds::ConditionVariable cv;
+    size_t calls CCF_GUARDED_BY(mutex) = 0;
+    bool released CCF_GUARDED_BY(mutex) = false;
 
-    bool wait_for_calls(size_t count)
+    size_t call_count() CCF_EXCLUDES(mutex)
     {
-      std::unique_lock<std::mutex> lock(mutex);
-      return cv.wait_for(
-        lock, std::chrono::seconds(5), [&]() { return calls >= count; });
+      ccf::ds::MutexGuard lock(mutex);
+      return calls;
     }
 
-    void release()
+    bool wait_for_calls(size_t count) CCF_EXCLUDES(mutex)
     {
-      std::lock_guard<std::mutex> lock(mutex);
+      ccf::ds::MutexGuard lock(mutex);
+      return cv.wait_for(
+        lock, std::chrono::seconds(5), [&]() CCF_REQUIRES(mutex) {
+          return calls >= count;
+        });
+    }
+
+    void release() CCF_EXCLUDES(mutex)
+    {
+      ccf::ds::MutexGuard lock(mutex);
       released = true;
       cv.notify_all();
     }
@@ -77,12 +85,13 @@ extern "C" int __wrap_uv_async_send(uv_async_t* handle)
 {
   if (auto* gate = notification_gate.load())
   {
-    std::unique_lock<std::mutex> lock(gate->mutex);
+    ccf::ds::MutexGuard lock(gate->mutex);
     const auto call = ++gate->calls;
     gate->cv.notify_all();
     if (call == 1)
     {
-      gate->cv.wait(lock, [&]() { return gate->released; });
+      gate->cv.wait(
+        lock, [&]() CCF_REQUIRES(gate->mutex) { return gate->released; });
     }
   }
   return __real_uv_async_send(handle);
@@ -746,9 +755,9 @@ TEST_CASE("Concurrent notifications retain the wake handle until they return")
   first.join();
   second.join();
   stopper.join();
-  const auto calls_before = gate.calls;
+  const auto calls_before = gate.call_count();
   server->send(0, {});
-  const auto calls_after = gate.calls;
+  const auto calls_after = gate.call_count();
   notification_gate.store(nullptr);
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
