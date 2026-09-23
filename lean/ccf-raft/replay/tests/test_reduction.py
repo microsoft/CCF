@@ -354,9 +354,7 @@ class ReductionTests(unittest.TestCase):
         # The term update and the handling are one receive, before the observation.
         receive = document["instructions"][position - 1]
         self.assertEqual(receive["action"], "receive")
-        self.assertIn(
-            "become_follower", [o["function"] for o in receive["origin"]]
-        )
+        self.assertIn("become_follower", [o["function"] for o in receive["origin"]])
         self.assertEqual(
             [
                 i["action"]

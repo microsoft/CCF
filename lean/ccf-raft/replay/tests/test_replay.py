@@ -314,6 +314,14 @@ class CanonicalReplayTests(unittest.TestCase):
         self.assertIn("physical ledger indices", result.stderr)
         self.assertEqual(result.stdout, "")
 
+    def test_update_term_schema_is_rejected(self):
+        document = self.bootstrap()
+        document["schema"] = "ccfraft-replay/v2"
+        result = self.replay(document)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("without updateTerm", result.stderr)
+        self.assertEqual(result.stdout, "")
+
     def test_empty_instruction_array_is_rejected(self):
         document = self.bootstrap()
         document["instructions"] = []

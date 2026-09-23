@@ -363,8 +363,10 @@ def replay (document : Json) : Except String Result := do
   keys document ["schema", "bootstrap", "instructions"]
   let schema ← stringField document "schema"
   if schema == "ccfraft-replay/v1" then
-    throw "ccfraft-replay/v1 is unsupported: v2 requires physical ledger indices"
-  unless schema == "ccfraft-replay/v2" do
+    throw "ccfraft-replay/v1 is unsupported: v3 requires physical ledger indices"
+  if schema == "ccfraft-replay/v2" then
+    throw "ccfraft-replay/v2 is unsupported: v3 receives adopt newer terms without updateTerm"
+  unless schema == "ccfraft-replay/v3" do
     throw s!"unsupported replay schema '{schema}'"
   let header ← (parseHeader (← field document "bootstrap")).mapError
     fun error => s!"bootstrap: {error}"

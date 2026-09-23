@@ -138,7 +138,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          lake exe cache get Mathlib.Data.Finmap
+          lake exe cache get Mathlib.Data.Finset.Card Mathlib.Data.Finset.Lattice.Fold
           lake build ccfraft-replay
 
       - name: Validate every Raft scenario with Lean

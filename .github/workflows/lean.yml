@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           lake exe mk_all --check --lib CCFRaft
-          lake build CCFRaft canonical-checks ccfraft-replay
+          lake build --wfail
           lake lint
           lake exe canonical-checks
 

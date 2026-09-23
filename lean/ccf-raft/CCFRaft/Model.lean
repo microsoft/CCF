@@ -31,10 +31,10 @@ abbrev State (Node TxId : Type) :=
 abbrev Action (Node TxId : Type) :=
   MultiNodeTransitionSystem.Action Node (Message Node TxId) (Input Node TxId)
 
-def protocol :
-    MultiNodeTransitionSystem.Protocol
-      Node (NodeState Node TxId) (Event Node TxId) (Message Node TxId) Notification
-      (Input Node TxId) where
+def protocol
+    : MultiNodeTransitionSystem.Protocol
+        Node (NodeState Node TxId) (Event Node TxId) (Message Node TxId) Notification
+        (Input Node TxId) where
   init node state := state = initialNodeState node
   step := Local.step
   receive := .receive
@@ -42,8 +42,7 @@ def protocol :
 
 /-- The network of `nodes`. Bootstrap membership, the initial leader, and
 pre-vote modes come from the `Bootstrap` instance. -/
-def transitionSystem (nodes : List Node) :
-    TransitionSystem (State Node TxId) (Action Node TxId) :=
+def transitionSystem (nodes : List Node) : TransitionSystem (State Node TxId) (Action Node TxId) :=
   MultiNodeTransitionSystem.lift nodes protocol
 
 end CCFRaft.Model

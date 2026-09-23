@@ -17,7 +17,7 @@ from typing import Any
 
 from trace_io import Record, TraceError, read_trace
 
-SCHEMA = "ccfraft-replay/v2"
+SCHEMA = "ccfraft-replay/v3"
 MESSAGE_FIELDS = {
     "add_configuration": {"args", "configurations"},
     "become_candidate": {"configurations"},

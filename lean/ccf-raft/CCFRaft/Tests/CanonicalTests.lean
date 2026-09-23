@@ -328,7 +328,7 @@ private def replayDocument (rawInstructions : List String) : IO Lean.Json := do
     | .ok fields =>
         return Lean.Json.mkObj (("origin", origin) :: fields.toList)
   return Lean.Json.mkObj [
-    ("schema", Lean.toJson "ccfraft-replay/v2"),
+    ("schema", Lean.toJson "ccfraft-replay/v3"),
     ("bootstrap", bootstrap),
     ("instructions", Lean.toJson instructions)]
 
@@ -346,7 +346,12 @@ private def jsonReplay : IO Unit := do
   match CCFRaft.Replay.replay obsolete with
   | .ok _ => throw (IO.userError "accepted obsolete erased-index schema")
   | .error error =>
-      check (error.contains "v1 is unsupported: v2 requires physical ledger indices") error
+      check (error.contains "v1 is unsupported: v3 requires physical ledger indices") error
+  let updateTerm := (← replayDocument []).setObjVal! "schema"
+    (Lean.toJson "ccfraft-replay/v2")
+  match CCFRaft.Replay.replay updateTerm with
+  | .ok _ => throw (IO.userError "accepted a schema with separate updateTerm actions")
+  | .error error => check (error.contains "v2 is unsupported") error
   match CCFRaft.Replay.replay (← replayDocument []) with
   | .ok _ => throw (IO.userError "accepted an empty replay")
   | .error error => check (error.contains "instructions must not be empty") error
@@ -448,7 +453,7 @@ private def jsonReplay : IO Unit := do
   | .error error =>
       check (error.contains "instruction 1: invalid origin") error
   let malformed ← parseJson r#"{
-    "schema":"ccfraft-replay/v2",
+    "schema":"ccfraft-replay/v3",
     "bootstrap":{"configuration":["alpha"],"leader":"outsider","pre_vote_enabled":{"alpha":false}},
     "instructions":[]
   }"#
