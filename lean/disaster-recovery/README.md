@@ -130,3 +130,24 @@ import root when adding a module.
 When refreshing the auditor dependency, use
 `lake --keep-toolchain update axiomAudit` to retain the package's pinned
 Lean and Mathlib versions.
+
+## Formatting
+
+Install Lean via [elan](https://lean-lang.org/install/) and run
+`lake exe cache get` from this directory before the first formatting check.
+From the repository root, check every tracked `.lean` file:
+
+```console
+scripts/lean-format-checks.sh
+```
+
+To apply formatting fixes, run:
+
+```console
+scripts/lean-format-checks.sh -f
+```
+
+The script builds the model's imported modules and runs the pinned leanfmt
+dependency. Virtual A runs the same check through `scripts/ci-checks.sh`.
+Files outside `lean/` are included; untracked files and downloaded dependencies
+are excluded. Add new Lean files to Git before running the check.

@@ -42,6 +42,12 @@ File: `copilot-setup-steps.yml`
 
 Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests. Runs on PRs, merge queue runs, manually, and once a week, regardless of commits.
 
+Virtual A runs `scripts/ci-checks.sh`, including the check for every tracked
+`.lean` file, and `scripts/lean-format-tests.sh`. Its Lean setup installs the
+pinned toolchain and restores the Mathlib build cache before the formatting check.
+See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting)
+to apply fixes.
+
 File: `ci.yml`
 3rd party dependencies: None
 
@@ -114,7 +120,7 @@ File: `tla-shallow.yml`
 
 # Lean
 
-Runs all Lean verification for the repository. Future Lean checks should be
+Runs Lean model and proof verification for the repository. Future proof checks should be
 added as jobs to this workflow.
 
 The disaster recovery job builds the canonical model with `lake build --wfail`,

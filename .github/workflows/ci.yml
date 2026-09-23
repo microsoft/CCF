@@ -53,11 +53,18 @@ jobs:
           set -ex
           ./scripts/setup-dev.sh
 
+      - name: "Install Lean formatting dependencies"
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory /__w/CCF/CCF
+          ./scripts/setup-lean.sh
+
       - name: "Run Checks and Build Debug with clang-tidy"
         run: |
           set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
           ./scripts/ci-checks.sh
+          ./scripts/lean-format-tests.sh
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCLANG_TIDY=ON \

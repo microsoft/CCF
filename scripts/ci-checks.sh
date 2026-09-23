@@ -43,6 +43,7 @@ CHECKS=(
   "Non-ASCII characters:ascii-checks.sh"
   "ASCII policy regression tests:ascii-policy-tests.sh"
   "C/C++ format:cpp-format-checks.sh"
+  "Lean format:lean-format-checks.sh"
   "TypeScript, JavaScript, Markdown, TypeSpec, YAML and JSON format:prettier-checks.sh"
   "OpenAPI:openapi-checks.sh"
   "Copyright notice headers:copyright-checks.sh"
