@@ -89,7 +89,8 @@ private def quorumTrace : Properties.GlobalTrace :=
       ]
   }
 
-private theorem quorum_valid : quorumTrace.Valid (Model.transitionSystem quorumConfig) := by
+private theorem quorum_valid
+    : quorumTrace.Valid (Model.transitionSystem quorumConfig) := by
   refine valid_of_adjacent
     ⟨initial quorumConfig, rfl, initialized (by unfold Model.Config.Valid; decide)⟩ ?_
   intro i
@@ -102,7 +103,8 @@ private theorem quorum_valid : quorumTrace.Valid (Model.transitionSystem quorumC
       Model.GlobalHelper.receive, step, guard] <;> cbv
 
 private theorem quorum_notified
-    : Properties.Trace.NotificationAt quorumConfig quorumTrace 3 "A" (.opening .quorum) := by
+    : Properties.Trace.NotificationAt quorumConfig quorumTrace 3 "A"
+        (.opening .quorum) := by
   refine ⟨quorumVoteSent, quorumOpened, .deliver vote, quorumSelected, quorumOpener,
     _, { notifications := [.opening .quorum] }, ?_, ?_, ?_, rfl, rfl, rfl, rfl, ?_, ?_⟩
   · rfl
@@ -117,7 +119,8 @@ private theorem quorum_notified
 theorem quorum_opener_unique_witness : Properties.QuorumOpenerUniqueWitness :=
   ⟨quorumConfig, quorumTrace, 3, "A", quorum_valid, quorum_notified⟩
 
-theorem quorum_open_preserves_commit_witness : Properties.QuorumOpenPreservesCommitWitness := by
+theorem quorum_open_preserves_commit_witness
+    : Properties.QuorumOpenPreservesCommitWitness := by
   refine ⟨
     quorumConfig,
     quorumTrace,
@@ -141,8 +144,11 @@ theorem quorum_open_preserves_commit_witness : Properties.QuorumOpenPreservesCom
 private def fullConfig : Model.Config :=
   {
     protocol :=
-      { instanceId := "full-gossip-failover-witness", expectedLocations := ["A", "B", "C"] }
-    recovered := [("A", high), ("B", { view := 1, seqno := 8 }), ("C", { view := 1, seqno := 5 })]
+      {
+        instanceId := "full-gossip-failover-witness", expectedLocations := ["A", "B", "C"]
+      }
+    recovered :=
+      [("A", high), ("B", { view := 1, seqno := 8 }), ("C", { view := 1, seqno := 5 })]
   }
 
 private def fullActions : List Model.Action :=
@@ -166,7 +172,12 @@ private def fullActions : List Model.Action :=
   ]
 
 private def fullSelected (node : Location) : NodeState :=
-  { location := node, phase := .voting, chosen := some "A", gossips := fullConfig.recovered }
+  {
+    location := node,
+    phase := .voting,
+    chosen := some "A",
+    gossips := fullConfig.recovered
+  }
 
 private def fullGossiped : Model.State :=
   {
@@ -203,7 +214,8 @@ private def partialNode (node : Location) (count : Nat) : NodeState :=
 
 private def partialGossip (a b c : Nat) : Model.State :=
   {
-    nodes := [("A", partialNode "A" a), ("B", partialNode "B" b), ("C", partialNode "C" c)]
+    nodes :=
+      [("A", partialNode "A" a), ("B", partialNode "B" b), ("C", partialNode "C" c)]
     active := ["A", "B", "C"]
     network := fullPending a b c
   }
@@ -272,7 +284,8 @@ private theorem full_valid : fullTrace.Valid (Model.transitionSystem fullConfig)
       MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
       Model.GlobalHelper.receive, step, guard] <;> cbv
 
-theorem full_gossip_preserves_commit_witness : Properties.FullGossipPreservesCommitWitness := by
+theorem full_gossip_preserves_commit_witness
+    : Properties.FullGossipPreservesCommitWitness := by
   refine ⟨
     fullConfig,
     fullTrace,
@@ -302,7 +315,8 @@ private def frozenGossip : Properties.LocalStep :=
     effects := { notifications := [.rejected "gossip-frozen"] }
   }
 
-theorem gossip_freezes_after_choice_witness : Properties.GossipFreezesAfterChoiceWitness := by
+theorem gossip_freezes_after_choice_witness
+    : Properties.GossipFreezesAfterChoiceWitness := by
   refine ⟨quorumConfig, frozenGossip, "A", high, ⟨_, rfl, ?_⟩, rfl, rfl⟩
   cbv
 

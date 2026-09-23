@@ -13,14 +13,16 @@ abbrev LocalStep :=
 open Model.Local in
 /-- Raft's vote freshness check on last signed TxIDs, not a log-prefix relation. -/
 abbrev LogUpToDate (candidate voter : TxID) : Prop :=
-  voter.view < candidate.view \/ (voter.view = candidate.view /\ voter.seqno <= candidate.seqno)
+  voter.view < candidate.view
+  \/ (voter.view = candidate.view /\ voter.seqno <= candidate.seqno)
 
 open Model.Local in
 /-- The candidate passes Raft's log freshness check against a strict majority.
 Valid model configs give one recovered ledger per configured node. -/
 def UpToDateWithQuorum (config : Model.Config) (candidate : TxID) : Prop :=
   voteQuorum config.protocol
-  <= (config.recovered.filter fun (_, voter) => decide (LogUpToDate candidate voter)).length
+  <= (config.recovered.filter
+        fun (_, voter) => decide (LogUpToDate candidate voter)).length
 
 open Model.Local in
 def ReceivedOwnGossip (trace : GlobalTrace) (node : Location) : Prop :=
@@ -54,7 +56,8 @@ def NotificationAt (config : Model.Config) (trace : GlobalTrace) (step : Nat)
     /\ actor action = node
     /\ Shared.MultiNodeTransitionSystem.nodeState before node = some nodeBefore
     /\ Shared.MultiNodeTransitionSystem.nodeState after node = some nodeAfter
-    /\ (Model.protocol config).step (Shared.Capabilities.record node) node nodeBefore (event action)
+    /\ (Model.protocol config).step (Shared.Capabilities.record node) node nodeBefore
+          (event action)
         = some execute
     /\ execute.run {} = (nodeAfter, outputs)
     /\ notification ∈ outputs.notifications

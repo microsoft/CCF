@@ -31,7 +31,8 @@ private def voteSent : Model.State := { ready with network := [vote, gossip] }
 private def opening : NodeState :=
   { selected with phase := .opening, openKind := some .quorum, votes := ["A"] }
 
-private def opened : Model.State := { ready with nodes := [("A", opening)], network := [gossip] }
+private def opened : Model.State :=
+  { ready with nodes := [("A", opening)], network := [gossip] }
 
 private def trace : Properties.GlobalTrace :=
   { states := [initial, gossipSent, ready, voteSent, opened] }
@@ -63,7 +64,8 @@ private theorem valid : trace.Valid (Model.transitionSystem config) := by
       gossipSent, ready, voteSent, opened, gossip, vote, recovered]
     cbv
 
-private theorem observedOpening : NotificationAt config trace 3 "A" (.opening .quorum) := by
+private theorem observedOpening
+    : NotificationAt config trace 3 "A" (.opening .quorum) := by
   refine ⟨
     voteSent,
     opened,
@@ -93,7 +95,8 @@ example : (Model.transitionSystem config).Reachable opened :=
 
 example : NotificationAt config trace 3 "A" (.opening .quorum) := observedOpening
 
-example (notification : Notification) : ¬ NotificationAt config trace 4 "A" notification := by
+example (notification : Notification)
+    : ¬ NotificationAt config trace 4 "A" notification := by
   rintro ⟨_, _, _, _, _, _, _, _, after, _⟩
   simp [trace] at after
 
@@ -105,7 +108,9 @@ example (notification : Notification)
   simp [voteSent, ready, MultiNodeTransitionSystem.nodeState] at found
 
 -- The local run alone is insufficient: its successor must match the trace.
-example : ¬ NotificationAt config { states := [voteSent, voteSent] } 0 "A" (.opening .quorum) := by
+example
+    : ¬ NotificationAt config { states := [voteSent, voteSent] } 0 "A"
+          (.opening .quorum) := by
   rintro ⟨before, after, action, nodeBefore, nodeAfter, execute, outputs,
     first, second, transition, actor, foundBefore, foundAfter, enabled, run, notified⟩
   simp only [List.getElem?_cons_zero, List.getElem?_cons_succ, Option.some.injEq] at first second
@@ -188,7 +193,8 @@ example
     : quorumTimeout.after.phase = .opening
       /\ quorumTimeout.after.openKind = some .quorum
       /\ .opening .quorum ∈ quorumTimeout.effects.notifications :=
-  Proofs.Local.quorum_step_opens config quorumTimeout ⟨⟨_, rfl, by cbv⟩, Or.inl rfl, rfl, by decide⟩
+  Proofs.Local.quorum_step_opens config quorumTimeout
+    ⟨⟨_, rfl, by cbv⟩, Or.inl rfl, rfl, by decide⟩
 
 example
     : ¬ ({ states := [ready, voteSent] } : Properties.GlobalTrace).Valid

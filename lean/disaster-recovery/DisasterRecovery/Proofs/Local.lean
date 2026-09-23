@@ -10,7 +10,8 @@ lemma advance_result_independent
     (first second : Capabilities Location Message Notification)
     (config : Config) (state : NodeState) (timeout : Bool)
     (firstPending secondPending : Outputs Location Message Notification)
-    : (advance first config state timeout).map (fun execute => (execute.run firstPending).1)
+    : (advance first config state timeout).map
+        (fun execute => (execute.run firstPending).1)
       = (advance second config state timeout).map
           (fun execute => (execute.run secondPending).1) := by
   simp [advance]
@@ -20,7 +21,8 @@ lemma step_result_independent
     (first second : Capabilities Location Message Notification)
     (config : Config) (recovered : TxID) (state : NodeState) (event : Event)
     (firstPending secondPending : Outputs Location Message Notification)
-    : (step first config recovered state event).map (fun execute => (execute.run firstPending).1)
+    : (step first config recovered state event).map
+        (fun execute => (execute.run firstPending).1)
       = (step second config recovered state event).map
           (fun execute => (execute.run secondPending).1) := by
   cases event <;> try cases_type Validation
@@ -36,7 +38,8 @@ lemma step_enabled_independent
     (step_result_independent first second config recovered state event {} {})
 
 lemma validStep_run {config : Model.Config}
-    {s : MultiNodeTransitionSystem.LocalStep Location NodeState Event Message Notification}
+    {s
+      : MultiNodeTransitionSystem.LocalStep Location NodeState Event Message Notification}
     (valid : (Model.protocol config).ValidStep s)
     : exists recovered execute,
         Model.recoveredTxID config s.node = some recovered

@@ -38,7 +38,10 @@ def Capabilities.record (source : Node) : Capabilities Node Message Notification
   send message target :=
     modify
       fun outputs =>
-        { outputs with outgoing := outputs.outgoing ++ [{ source, target, payload := message }] }
+        {
+          outputs with
+            outgoing := outputs.outgoing ++ [{ source, target, payload := message }]
+        }
   notify notification :=
     modify
       fun outputs =>

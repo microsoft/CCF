@@ -105,7 +105,8 @@ lemma maximumGossip_upper_bound
       apply foldl_selectMaximum_upper_bound head member tail
       simpa using membership
 
-lemma foldl_selectMaximum_mem (current : Prod Location TxID) (tail : List (Prod Location TxID))
+lemma foldl_selectMaximum_mem (current : Prod Location TxID)
+    (tail : List (Prod Location TxID))
     : tail.foldl selectMaximum current ∈ current :: tail := by
   induction tail generalizing current with
   | nil => simp
@@ -184,7 +185,8 @@ lemma up_to_date_with_quorum_of_voters
     (fresh
       : forall voter,
           voter ∈ voters
-          -> exists txid, recoveredTxID config voter = some txid /\ TxID.EarlierThan txid candidate)
+          -> exists txid,
+              recoveredTxID config voter = some txid /\ TxID.EarlierThan txid candidate)
     : Properties.UpToDateWithQuorum config candidate := by
   let eligible := config.recovered.filter fun (_, voter) =>
     decide (Properties.LogUpToDate candidate voter)
@@ -229,7 +231,8 @@ lemma full_gossip_selection_preserves_commit
     (full : FullGossipSelection config state opener)
     (durable : DurableCommit config committed)
     : exists recovered,
-        recoveredTxID config opener = some recovered /\ TxID.EarlierThan committed recovered := by
+        recoveredTxID config opener = some recovered
+        /\ TxID.EarlierThan committed recovered := by
   have configValid := reachable_config_valid reachable
   have wellFormed := reachable_well_formed reachable
   have invariant := reachable_quorum_invariant reachable

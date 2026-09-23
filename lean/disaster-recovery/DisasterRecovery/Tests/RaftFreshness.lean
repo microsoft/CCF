@@ -8,10 +8,12 @@ open Properties
 private def low : TxID := { view := 1, seqno := 5 }
 private def high : TxID := { view := 1, seqno := 10 }
 
-private def config (ledgers : List (Location × TxID)) : Model.Config := {
-  protocol := { instanceId := "raft-freshness-tests", expectedLocations := ledgers.map Prod.fst }
-  recovered := ledgers
-}
+private def config (ledgers : List (Location × TxID)) : Model.Config :=
+  {
+    protocol :=
+      { instanceId := "raft-freshness-tests", expectedLocations := ledgers.map Prod.fst }
+    recovered := ledgers
+  }
 
 example : LogUpToDate high high := by decide
 example : LogUpToDate high low := by decide
@@ -48,16 +50,19 @@ example : UpToDateWithQuorum evenConfig high := by
   unfold UpToDateWithQuorum
   decide
 
-example : UpToDateWithQuorum
-    (config [("A", low), ("B", low), ("C", low), ("D", high)]) low := by
+example
+    : UpToDateWithQuorum
+        (config [("A", low), ("B", low), ("C", low), ("D", high)]) low := by
   unfold UpToDateWithQuorum
   decide
 
 -- The old majority-supported-bound condition admitted the same two-of-four candidate.
 example (txid : TxID)
-    (majority : voteQuorum evenConfig.protocol <=
-      (evenConfig.recovered.filter fun (_, head) => decide (LogUpToDate head txid)).length) :
-    LogUpToDate low txid := by
+    (majority
+      : voteQuorum evenConfig.protocol
+        <= (evenConfig.recovered.filter
+              fun (_, head) => decide (LogUpToDate head txid)).length)
+    : LogUpToDate low txid := by
   by_cases atLow : LogUpToDate low txid
   · exact atLow
   · simp [evenConfig, config, voteQuorum, atLow] at majority

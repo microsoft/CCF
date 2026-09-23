@@ -26,7 +26,8 @@ theorem full_gossip_preserves_commit : Properties.FullGossipPreservesCommit :=
 theorem quorum_open_preserves_commit : Properties.QuorumOpenPreservesCommit :=
   Proofs.Model.quorum_open_preserves_commit
 
-theorem gossip_freezes_after_choice_witness : Properties.GossipFreezesAfterChoiceWitness :=
+theorem gossip_freezes_after_choice_witness
+    : Properties.GossipFreezesAfterChoiceWitness :=
   Proofs.Witnesses.gossip_freezes_after_choice_witness
 
 theorem rejected_gossip_stutters_witness : Properties.RejectedGossipStuttersWitness :=
@@ -42,10 +43,12 @@ theorem aligned_opening_timeout_completes_witness
 theorem quorum_opener_unique_witness : Properties.QuorumOpenerUniqueWitness :=
   Proofs.Witnesses.quorum_opener_unique_witness
 
-theorem quorum_open_preserves_commit_witness : Properties.QuorumOpenPreservesCommitWitness :=
+theorem quorum_open_preserves_commit_witness
+    : Properties.QuorumOpenPreservesCommitWitness :=
   Proofs.Witnesses.quorum_open_preserves_commit_witness
 
-theorem full_gossip_preserves_commit_witness : Properties.FullGossipPreservesCommitWitness :=
+theorem full_gossip_preserves_commit_witness
+    : Properties.FullGossipPreservesCommitWitness :=
   Proofs.Witnesses.full_gossip_preserves_commit_witness
 
 end DisasterRecovery.Proof

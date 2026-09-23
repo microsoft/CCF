@@ -43,19 +43,22 @@ private def s1 :=
     [gossip "C" "A" low, gossip "C" "B" low, gossip "C" "C" low]
 
 private def s2 :=
-  snapshot (heard "A") (initialNode "B") (initialNode "C") [gossip "C" "B" low, gossip "C" "C" low]
+  snapshot (heard "A") (initialNode "B") (initialNode "C")
+    [gossip "C" "B" low, gossip "C" "C" low]
 
 private def s3 := snapshot (selected "A") (initialNode "B") (initialNode "C") s2.network
 private def s4 := { s3 with network := s3.network ++ vote "A" :: aGossips }
 
 private def s5 :=
-  snapshot (selected "A") (heard "B") (initialNode "C") (gossip "C" "C" low :: vote "A" :: aGossips)
+  snapshot (selected "A") (heard "B") (initialNode "C")
+    (gossip "C" "C" low :: vote "A" :: aGossips)
 
 private def s6 := snapshot (selected "A") (selected "B") (initialNode "C") s5.network
 private def s7 := { s6 with network := s6.network ++ vote "B" :: bGossips }
 
 private def s8 :=
-  snapshot (selected "A") (selected "B") (heard "C") (vote "A" :: aGossips ++ vote "B" :: bGossips)
+  snapshot (selected "A") (selected "B") (heard "C")
+    (vote "A" :: aGossips ++ vote "B" :: bGossips)
 
 private def s9 := snapshot (selected "A") (selected "B") (selected "C") s8.network
 
@@ -136,7 +139,9 @@ private theorem missing_own : ¬ Properties.ReceivedOwnGossip trace "A" := by
     subst current
     simp at gossipPresent
 
-example : ¬ (forall voter, voter ∈ openedC.votes -> Properties.ReceivedOwnGossip trace voter) :=
+example
+    : ¬ (forall voter,
+          voter ∈ openedC.votes -> Properties.ReceivedOwnGossip trace voter) :=
   fun own => missing_own (own "A" (by simp [openedC]))
 
 end DisasterRecovery.Tests.QuorumCommit

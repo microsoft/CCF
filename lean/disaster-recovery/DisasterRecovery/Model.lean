@@ -29,7 +29,8 @@ abbrev State := MultiNodeTransitionSystem.State Location NodeState Message
 abbrev Action := MultiNodeTransitionSystem.Action Location Message Input
 
 def protocol (config : Config)
-    : MultiNodeTransitionSystem.Protocol Location NodeState Event Message Notification Input where
+    : MultiNodeTransitionSystem.Protocol Location NodeState Event Message Notification
+        Input where
   init node state := state = initialNode node
   step host source state action := do
     let recovered <- recoveredTxID config source
@@ -40,7 +41,8 @@ def protocol (config : Config)
     | .timeout => .timeout
 
 def transitionSystem (config : Config) : TransitionSystem State Action :=
-  let network := MultiNodeTransitionSystem.lift config.protocol.expectedLocations (protocol config)
+  let network :=
+    MultiNodeTransitionSystem.lift config.protocol.expectedLocations (protocol config)
   { network with init := fun state => config.Valid /\ network.init state }
 
 end DisasterRecovery.Model

@@ -16,7 +16,8 @@ structure Evolves (before after : NodeState) : Prop where
   gossips : before.gossips ⊆ after.gossips
   votes : before.votes ⊆ after.votes
   frozen
-    : before.chosen.isSome = true -> after.chosen.isSome = true /\ after.gossips = before.gossips
+    : before.chosen.isSome = true
+      -> after.chosen.isSome = true /\ after.gossips = before.gossips
 
 lemma evolves_refl (state : NodeState) : Evolves state state :=
   ⟨fun _ h => h, fun _ h => h, fun h => ⟨h, rfl⟩⟩
@@ -33,7 +34,8 @@ lemma evolves_trans {first second third : NodeState}
       exact ⟨chosen'', same'.trans same⟩
   ⟩
 
-lemma insertGossip_extends (source : Location) (txid : TxID) (gossips : List (Location × TxID))
+lemma insertGossip_extends (source : Location) (txid : TxID)
+    (gossips : List (Location × TxID))
     : gossips ⊆ insertGossip source txid gossips := by
   intro entry member
   unfold insertGossip
@@ -68,8 +70,9 @@ def EventGenuine (config : Config) : Event -> Prop
   | .receiveGossip source txid .accepted => (source, txid) ∈ config.recovered
   | _ => True
 
-lemma insertGossip_genuine {config : Config} {state : NodeState} {source : Location} {txid : TxID}
-    (prior : state.gossips ⊆ config.recovered) (incoming : (source, txid) ∈ config.recovered)
+lemma insertGossip_genuine {config : Config} {state : NodeState} {source : Location}
+    {txid : TxID} (prior : state.gossips ⊆ config.recovered)
+    (incoming : (source, txid) ∈ config.recovered)
     : insertGossip source txid state.gossips ⊆ config.recovered := by
   intro entry member
   unfold insertGossip at member
@@ -135,9 +138,10 @@ lemma systemStep_genuine {config : Config} {before after : SystemState}
 
 lemma next_evolves {config : Config} {before after : State} {action : Action}
     (wf : Predicates.WellFormed config before)
-    (transition : next config before action = some after)
-    {node : Location} {current : NodeState} (member : (node, current) ∈ before.system.nodes)
-    : exists updated, (node, updated) ∈ after.system.nodes /\ Evolves current updated := by
+    (transition : next config before action = some after) {node : Location}
+    {current : NodeState} (member : (node, current) ∈ before.system.nodes)
+    : exists updated,
+        (node, updated) ∈ after.system.nodes /\ Evolves current updated := by
   cases action with
   | retry source =>
       rw [retry_system_eq transition]
@@ -177,7 +181,8 @@ lemma next_genuine {config : Config} {before after : State} {action : Action}
   | timeout target =>
       simp [next, Option.bind_eq_some_iff] at transition
       obtain ⟨_, system, output, updated, _, rfl⟩ := transition
-      simpa only [recordEffects_system] using systemStep_genuine prior (by trivial) updated
+      simpa only [recordEffects_system]
+        using systemStep_genuine prior (by trivial) updated
 
 def FrozenVotes (state : State) : Prop :=
   forall envelope,
@@ -240,8 +245,8 @@ lemma reachable_gossip_invariant {config : Config} {state : State}
 
 lemma model_step_evolves {config : Model.Config} {before after : Model.State}
     {action : Model.Action} (reachable : (Model.transitionSystem config).Reachable before)
-    (transition : (Model.transitionSystem config).step before action = some after) {node : Location}
-    {current : NodeState} (member : (node, current) ∈ before.nodes)
+    (transition : (Model.transitionSystem config).step before action = some after)
+    {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes)
     : exists updated, (node, updated) ∈ after.nodes /\ Evolves current updated := by
   obtain ⟨ghostBefore, ghostAction, ghostAfter, reachable', projected, _, step, projected'⟩ :=
     Lifting.model_step_lifts reachable transition
@@ -271,13 +276,15 @@ lemma trace_node_final {config : Model.Config} {trace : Properties.GlobalTrace}
   obtain ⟨suffix, run⟩ := linked.suffix state member
   exact steps_evolve run (valid.reachable member) present
 
-lemma quorum_notification_final_votes {config : Model.Config} {trace : Properties.GlobalTrace}
-    (valid : trace.Valid (Model.transitionSystem config))
-    {ghost : State} (linked : History.Correspondence config trace ghost)
-    {index : Nat} {node : Location}
-    (notification : Properties.Trace.NotificationAt config trace index node (.opening .quorum))
+lemma quorum_notification_final_votes {config : Model.Config}
+    {trace : Properties.GlobalTrace} (valid : trace.Valid (Model.transitionSystem config))
+    {ghost : State} (linked : History.Correspondence config trace ghost) {index : Nat}
+    {node : Location}
+    (notification
+      : Properties.Trace.NotificationAt config trace index node (.opening .quorum))
     : exists final,
-        (node, final) ∈ ghost.system.nodes /\ voteQuorum config.protocol <= final.votes.length := by
+        (node, final) ∈ ghost.system.nodes
+        /\ voteQuorum config.protocol <= final.votes.length := by
   obtain ⟨after, current, inTrace, present, opened⟩ :=
     Observed.notification_opening_state notification
   obtain ⟨atOpening, openingReachable, projected⟩ :=
@@ -294,10 +301,10 @@ lemma quorum_notification_final_votes {config : Model.Config} {trace : Propertie
   rw [List.toFinset_card_of_nodup nodup] at count
   exact ⟨final, finalMember, threshold.trans (count.trans (List.toFinset_card_le _))⟩
 
-lemma sent_vote_preserves_own {config : Config} {trace : Properties.GlobalTrace} {ghost : State}
-    (valid : trace.Valid (Model.transitionSystem config))
-    (linked : History.Correspondence config trace ghost)
-    {envelope : Envelope} (sent : envelope ∈ ghost.sent) (vote : envelope.payload = .vote)
+lemma sent_vote_preserves_own {config : Config} {trace : Properties.GlobalTrace}
+    {ghost : State} (valid : trace.Valid (Model.transitionSystem config))
+    (linked : History.Correspondence config trace ghost) {envelope : Envelope}
+    (sent : envelope ∈ ghost.sent) (vote : envelope.payload = .vote)
     (own : Properties.ReceivedOwnGossip trace envelope.source)
     : exists sourceTx targetTx,
         Model.recoveredTxID config envelope.source = some sourceTx
@@ -360,16 +367,17 @@ lemma quorum_open_preserves_commit : Properties.QuorumOpenPreservesCommit := by
   have same := Option.some.inj (candidateRecovered.symm.trans targetRecovered)
   exact ⟨sourceTx, sourceRecovered, same ▸ earlier⟩
 
-lemma sent_vote_full_gossip {config : Config} {trace : Properties.GlobalTrace} {ghost : State}
-    (valid : trace.Valid (Model.transitionSystem config))
-    (linked : History.Correspondence config trace ghost)
-    {gossiped : Model.State} (inTrace : gossiped ∈ trace.states)
+lemma sent_vote_full_gossip {config : Config} {trace : Properties.GlobalTrace}
+    {ghost : State} (valid : trace.Valid (Model.transitionSystem config))
+    (linked : History.Correspondence config trace ghost) {gossiped : Model.State}
+    (inTrace : gossiped ∈ trace.states)
     (full
       : forall node nodeState,
           (node, nodeState) ∈ gossiped.nodes
           -> forall gossip, gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
     {envelope : Envelope} (sent : envelope ∈ ghost.sent) (vote : envelope.payload = .vote)
-    : forall gossip, gossip ∈ envelope.sourceState.gossips <-> gossip ∈ config.recovered := by
+    : forall gossip,
+        gossip ∈ envelope.sourceState.gossips <-> gossip ∈ config.recovered := by
   have wf := reachable_well_formed linked.reachable
   obtain ⟨genuine, frozen⟩ := reachable_gossip_invariant linked.reachable
   obtain ⟨current, present, _, same⟩ := frozen envelope sent vote

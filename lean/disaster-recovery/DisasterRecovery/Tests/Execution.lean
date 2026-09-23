@@ -22,9 +22,9 @@ private theorem counting_valid : counting.Valid counter := by
 
 example : counter.Reachable 2 := counting_valid.reachable (by simp [counting])
 
-example (state : Nat) :
-    counter.Reachable state <->
-      exists trace : Trace Nat, trace.Valid counter /\ state ∈ trace.states :=
+example (state : Nat)
+    : counter.Reachable state
+      <-> exists trace : Trace Nat, trace.Valid counter /\ state ∈ trace.states :=
   reachable_iff_trace
 
 -- An empty trace has no initial state.
@@ -44,9 +44,10 @@ example : ¬ (⟨[0, 2]⟩ : Trace Nat).Valid counter := by
   obtain ⟨action, step⟩ := steps 0 0 2 rfl rfl
   cases action <;> simp [counter] at step
 
-example :
-    ¬ (⟨[0, 0]⟩ : Trace Nat).Valid
-      ({ init := fun state => state = 0, step := fun _ _ => none } : TransitionSystem Nat Unit) := by
+example
+    : ¬ (⟨[0, 0]⟩ : Trace Nat).Valid
+          ({ init := fun state => state = 0, step := fun _ _ => none }
+            : TransitionSystem Nat Unit) := by
   rintro ⟨_, steps⟩
   obtain ⟨_, step⟩ := steps 0 0 0 rfl rfl
   cases step

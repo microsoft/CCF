@@ -81,11 +81,13 @@ def voteQuorum (config : Config) : Nat :=
 def validTimeout (state : NodeState) (timeout : Bool) : Bool :=
   timeout && decide (state.phase = state.timeoutState)
 
-def txScoreGreater (leftName : Location) (left : TxID) (rightName : Location) (right : TxID)
+def txScoreGreater (leftName : Location) (left : TxID) (rightName : Location)
+    (right : TxID)
     : Bool :=
   right.view < left.view
   || (right.view == left.view
-      && (right.seqno < left.seqno || (right.seqno == left.seqno && rightName < leftName)))
+      && (right.seqno < left.seqno
+          || (right.seqno == left.seqno && rightName < leftName)))
 
 def selectMaximum (current candidate : Prod Location TxID) : Prod Location TxID :=
   if txScoreGreater candidate.1 candidate.2 current.1 current.2 then
@@ -188,7 +190,8 @@ def step (host : Capabilities Location Message Notification) (config : Config)
           if state.chosen != none then
             pure (rejected host state "gossip-frozen")
           else
-            let received := { state with gossips := insertGossip source txid state.gossips }
+            let received :=
+              { state with gossips := insertGossip source txid state.gossips }
             pure
               ((advance host config received false).getD
                 (rejected host state "empty-gossip-advance"))
@@ -197,7 +200,9 @@ def step (host : Capabilities Location Message Notification) (config : Config)
       | .rejected => pure (rejected host state "quote-or-certificate")
       | .accepted =>
           let received := { state with votes := insertVote source state.votes }
-          pure ((advance host config received false).getD (rejected host state "vote-advance"))
+          pure
+            ((advance host config received false).getD
+              (rejected host state "vote-advance"))
   | .receiveIAmOpen source validation =>
       match validation with
       | .rejected => pure (rejected host state "quote-or-certificate")

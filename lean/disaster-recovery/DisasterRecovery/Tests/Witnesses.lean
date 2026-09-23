@@ -5,8 +5,9 @@ namespace DisasterRecovery.Tests.Witnesses
 open Model.Local
 
 example
-    : exists (config : Model.Config) (trace : Properties.GlobalTrace) (step : Nat) (opener
-                                                                                    : Location),
+    : exists (config : Model.Config) (trace : Properties.GlobalTrace) (step
+                                                                        : Nat) (opener
+                                                                                : Location),
         trace.Valid (Model.transitionSystem config)
         /\ Properties.Trace.NotificationAt config trace step opener (.opening .quorum)
         /\ opener = opener := by

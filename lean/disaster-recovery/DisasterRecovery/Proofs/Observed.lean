@@ -11,7 +11,8 @@ def OpeningThresholds (config : Model.Config) (state : State) : Prop :=
     entry ∈ state.system.nodes
     -> forall kind,
         entry.2.openKind = some kind
-        -> (if kind = .quorum then voteQuorum config.protocol else 1) <= entry.2.votes.length
+        -> (if kind = .quorum then voteQuorum config.protocol else 1)
+            <= entry.2.votes.length
 
 lemma step_preserves_opening_threshold (config : Config) (state : NodeState)
     (event : Event)
@@ -50,7 +51,8 @@ lemma systemStep_preserves_opening_thresholds
           entry ∈ before.nodes
           -> forall kind,
               entry.2.openKind = some kind
-              -> (if kind = .quorum then voteQuorum config.protocol else 1) <= entry.2.votes.length)
+              -> (if kind = .quorum then voteQuorum config.protocol else 1)
+                  <= entry.2.votes.length)
     (trans : systemStep config.protocol before target event = some (after, output))
     : forall entry,
         entry ∈ after.nodes
@@ -126,9 +128,12 @@ lemma reachable_opening_has_vote {config : Model.Config} {state : State}
 
 lemma notification_opening_state {config : Model.Config} {trace : Properties.GlobalTrace}
     {index : Nat} {node : Location} {kind : OpenKind}
-    (notification : Properties.Trace.NotificationAt config trace index node (.opening kind))
+    (notification
+      : Properties.Trace.NotificationAt config trace index node (.opening kind))
     : exists after current,
-        after ∈ trace.states /\ (node, current) ∈ after.nodes /\ current.openKind = some kind := by
+        after ∈ trace.states
+        /\ (node, current) ∈ after.nodes
+        /\ current.openKind = some kind := by
   obtain ⟨before, after, action, nodeBefore, nodeAfter, execute, outputs,
     _, atAfter, _, _, _, foundAfter, enabled, run, notified⟩ := notification
   simp [Model.protocol, Option.bind_eq_some_iff] at enabled

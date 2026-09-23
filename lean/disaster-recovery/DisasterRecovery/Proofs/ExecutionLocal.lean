@@ -13,7 +13,8 @@ export DisasterRecovery.Model.Local (
   Location TxID Phase OpenKind Validation Config NodeState Event
   initialNode voteQuorum validTimeout txScoreGreater
   selectMaximum maximumGossip insertGossip insertVote advanceTimeoutState
-  advanceTimeoutLane)
+  advanceTimeoutLane
+)
 
 inductive Effect where
   | sendGossip (destination : Location)
@@ -32,13 +33,15 @@ def Effect.diagnostic : Effect -> Option Model.Local.Notification
   | .rejected reason => some (.rejected reason)
   | _ => none
 
-def messages (source : Location) (recovered : TxID) (effects : List Effect) : List Model.Envelope :=
-  effects.filterMap fun effect =>
-    match effect with
-    | .sendGossip target => some { source, target, payload := .gossip recovered }
-    | .sendVote target => some { source, target, payload := .vote }
-    | .sendIAmOpen target => some { source, target, payload := .iAmOpen }
-    | _ => none
+def messages (source : Location) (recovered : TxID) (effects : List Effect)
+    : List Model.Envelope :=
+  effects.filterMap
+    fun effect =>
+      match effect with
+      | .sendGossip target => some { source, target, payload := .gossip recovered }
+      | .sendVote target => some { source, target, payload := .vote }
+      | .sendIAmOpen target => some { source, target, payload := .iAmOpen }
+      | _ => none
 
 structure StepOutput where
   state : NodeState
@@ -51,11 +54,14 @@ structure SystemState where
 deriving Repr, BEq, Hashable, Inhabited
 
 def initialSystem (config : Config) : SystemState :=
-  { nodes := config.expectedLocations.map fun location =>
-      (location, initialNode location) }
+  {
+    nodes :=
+      config.expectedLocations.map
+        fun location =>
+          (location, initialNode location)
+  }
 
-def advance (config : Config) (state : NodeState) (timeout : Bool) :
-    Option StepOutput :=
+def advance (config : Config) (state : NodeState) (timeout : Bool) : Option StepOutput :=
   let aligned := validTimeout state timeout
   match state.phase with
   | .gossiping =>
@@ -74,32 +80,35 @@ def advance (config : Config) (state : NodeState) (timeout : Bool) :
           some { state }
         else
           let kind := if aligned && !sufficient then .failover else .quorum
-          let next := {
-            state with
-            phase := .opening
-            openKind := some kind
-          }
-          some {
-            state := advanceTimeoutLane next timeout
-            effects := [.opening kind]
-          }
+          let next :=
+            {
+              state with
+                phase := .opening
+                openKind := some kind
+            }
+          some
+            {
+              state := advanceTimeoutLane next timeout
+              effects := [.opening kind]
+            }
       else
         some { state := advanceTimeoutLane state timeout }
   | .joining =>
       match state.chosen with
       | none => none
       | some chosen =>
-          some {
-            state := advanceTimeoutLane
-              { state with restartRequested := true } timeout
-            effects := [.restart chosen]
-          }
+          some
+            {
+              state := advanceTimeoutLane { state with restartRequested := true } timeout
+              effects := [.restart chosen]
+            }
   | .opening =>
       if aligned then
-        some {
-          state := advanceTimeoutLane { state with phase := .open } timeout
-          effects := [.completed]
-        }
+        some
+          {
+            state := advanceTimeoutLane { state with phase := .open } timeout
+            effects := [.completed]
+          }
       else
         some { state := advanceTimeoutLane state timeout }
   | .open =>
@@ -108,8 +117,8 @@ def advance (config : Config) (state : NodeState) (timeout : Bool) :
 def rejected (state : NodeState) (reason : String) : StepOutput :=
   { state, effects := [.rejected reason], accepted := false }
 
-def transitionSystem (config : Config) (location : Location) :
-    TransitionSystem StepOutput Event where
+def transitionSystem (config : Config) (location : Location)
+    : TransitionSystem StepOutput Event where
   init := fun current => current = { state := initialNode location }
   step current event :=
     let state := current.state
@@ -117,8 +126,7 @@ def transitionSystem (config : Config) (location : Location) :
     | .receiveGossip source txid validation => do
         guard (validation = .accepted)
         guard (state.chosen = none)
-        let received := { state with
-          gossips := insertGossip source txid state.gossips }
+        let received := { state with gossips := insertGossip source txid state.gossips }
         advance config received false
     | .receiveVote source validation => do
         guard (validation = .accepted)
@@ -127,11 +135,12 @@ def transitionSystem (config : Config) (location : Location) :
     | .receiveIAmOpen source validation => do
         guard (validation = .accepted)
         guard (state.phase ≠ .opening ∧ state.phase ≠ .open)
-        let received := {
-          state with
-          phase := .joining
-          chosen := some source
-        }
+        let received :=
+          {
+            state with
+              phase := .joining
+              chosen := some source
+          }
         advance config received false
     | .timeout =>
         advance config state true
@@ -147,7 +156,8 @@ def transitionSystem (config : Config) (location : Location) :
                   .sendVote chosen :: config.expectedLocations.map .sendGossip
           | .opening =>
               (config.expectedLocations.filter
-                (fun location => location != state.location)).map .sendIAmOpen
+                (fun location => location != state.location)).map
+                .sendIAmOpen
           | .joining | .open => []
         pure { state, effects }
 
@@ -173,20 +183,14 @@ def step (config : Config) (state : NodeState) (event : Event) : StepOutput :=
 def replaceNode
     (target : Location)
     (next : NodeState)
-    (nodes : List (Prod Location NodeState)) :
-    List (Prod Location NodeState) :=
+    (nodes : List (Prod Location NodeState))
+    : List (Prod Location NodeState) :=
   nodes.map fun entry => if entry.1 == target then (target, next) else entry
 
-def systemStep
-    (config : Config)
-    (state : SystemState)
-    (target : Location)
-    (event : Event) :
-    Option (Prod SystemState StepOutput) := do
+def systemStep (config : Config) (state : SystemState) (target : Location) (event : Event)
+    : Option (Prod SystemState StepOutput) := do
   let node <- (state.nodes.find? fun entry => entry.1 == target).map Prod.snd
   let output := step config node event
-  pure ({
-    nodes := replaceNode target output.state state.nodes
-  }, output)
+  pure ({ nodes := replaceNode target output.state state.nodes }, output)
 
 end DisasterRecovery.Proofs.Execution.Local

@@ -33,7 +33,8 @@ def QuorumOpenPreservesCommit : Prop :=
       /\ openerState.openKind = some .quorum
       /\ (forall voter, voter ∈ openerState.votes -> ReceivedOwnGossip trace voter))
     -> exists openerTxID,
-        Model.recoveredTxID config opener = some openerTxID /\ UpToDateWithQuorum config openerTxID
+        Model.recoveredTxID config opener = some openerTxID
+        /\ UpToDateWithQuorum config openerTxID
 
 /-- Witness: a valid trace and a state in it with a node with `openKind = quorum` whose
 voters all satisfy `ReceivedOwnGossip` exist. -/
@@ -49,7 +50,8 @@ def QuorumOpenPreservesCommitWitness : Prop :=
 /-- If every node has full gossip somewhere in a valid trace, every opener,
 including failover openers, is up to date with a quorum of recovered ledgers. -/
 def FullGossipPreservesCommit : Prop :=
-  forall (config : Model.Config) (trace : GlobalTrace) (gossipedState openedState : Model.State),
+  forall (config : Model.Config) (trace : GlobalTrace)
+          (gossipedState openedState : Model.State),
   forall (opener : Location) (openerState : NodeState),
     (trace.Valid (Model.transitionSystem config)
       /\ gossipedState ∈ trace.states
@@ -60,12 +62,14 @@ def FullGossipPreservesCommit : Prop :=
       /\ (opener, openerState) ∈ openedState.nodes
       /\ openerState.openKind.isSome = true)
     -> exists openerTxID,
-        Model.recoveredTxID config opener = some openerTxID /\ UpToDateWithQuorum config openerTxID
+        Model.recoveredTxID config opener = some openerTxID
+        /\ UpToDateWithQuorum config openerTxID
 
 /-- Witness: a valid trace with a full-gossip state and a state in it with a node with
 `openKind = failover` exist. -/
 def FullGossipPreservesCommitWitness : Prop :=
-  exists (config : Model.Config) (trace : GlobalTrace) (gossipedState openedState : Model.State),
+  exists
+  (config : Model.Config) (trace : GlobalTrace) (gossipedState openedState : Model.State),
   exists (opener : Location) (openerState : NodeState),
     trace.Valid (Model.transitionSystem config)
     /\ gossipedState ∈ trace.states

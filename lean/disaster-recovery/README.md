@@ -89,15 +89,14 @@ lake exe mk_all --check --lib DisasterRecovery
 lake build --wfail
 lake lint
 lake exe canonical-checks
-lake exe fmt --line-width 100 --check DisasterRecovery/Model.lean DisasterRecovery/Properties.lean -r DisasterRecovery/Model DisasterRecovery/Properties DisasterRecovery/Shared
 ```
 
 `--wfail` treats `sorry` as an error. `lake lint` runs
 [axiom-audit](https://github.com/leanprover-community/axiom-audit); only
 `propext`, `Classical.choice`, and `Quot.sound` are permitted.
 `Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof
-module or if a removed name is reintroduced. `lake exe fmt` runs
-[leanfmt](https://github.com/duckki/leanfmt), pinned in `lakefile.toml`.
+module or if a removed name is reintroduced. See [Formatting](#formatting) for
+the [leanfmt](https://github.com/duckki/leanfmt) check.
 To update a tool dependency without changing the toolchain, run
 `lake update --keep-toolchain <package>`.
 

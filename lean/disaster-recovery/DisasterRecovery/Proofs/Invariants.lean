@@ -20,10 +20,8 @@ lemma messageForEffect_source
     {sourceState : NodeState}
     {effect : Effect}
     {envelope : Envelope}
-    (created :
-      messageForEffect config source sourceState effect = some envelope) :
-    envelope.source = source /\
-      envelope.sourceState = sourceState := by
+    (created : messageForEffect config source sourceState effect = some envelope)
+    : envelope.source = source /\ envelope.sourceState = sourceState := by
   cases effect with
   | sendGossip target =>
       cases found : recoveredTxID config source with
@@ -55,10 +53,8 @@ lemma retryMessages_source
     {source : Location}
     {sourceState : NodeState}
     {envelope : Envelope}
-    (created :
-      envelope ∈ retryMessages config source sourceState) :
-    envelope.source = source /\
-      envelope.sourceState = sourceState := by
+    (created : envelope ∈ retryMessages config source sourceState)
+    : envelope.source = source /\ envelope.sourceState = sourceState := by
   rw [retryMessages, List.mem_filterMap] at created
   rcases created with ⟨effect, _, produced⟩
   exact messageForEffect_source produced
@@ -67,10 +63,9 @@ lemma retryMessages_valid
     (config : Config)
     (source : Location)
     (sourceState : NodeState)
-    (sourceLocation : sourceState.location = source) :
-    forall envelope,
-      envelope ∈ retryMessages config source sourceState ->
-      envelope.Valid config := by
+    (sourceLocation : sourceState.location = source)
+    : forall envelope,
+        envelope ∈ retryMessages config source sourceState -> envelope.Valid config := by
   intro envelope created
   rcases retryMessages_source created with
     ⟨sourceEq, stateEq⟩
@@ -83,12 +78,11 @@ lemma retryMessages_valid
 lemma valid_envelope_effect
     {config : Config}
     {envelope : Envelope}
-    (valid : envelope.Valid config) :
-    exists effect,
-      effect ∈
-        (step config.protocol envelope.sourceState .retry).effects /\
-      messageForEffect config envelope.source
-        envelope.sourceState effect = some envelope := by
+    (valid : envelope.Valid config)
+    : exists effect,
+        effect ∈ (step config.protocol envelope.sourceState .retry).effects
+        /\ messageForEffect config envelope.source envelope.sourceState effect
+            = some envelope := by
   rcases valid with ⟨_, created⟩
   rw [retryMessages, List.mem_filterMap] at created
   exact created
@@ -98,8 +92,8 @@ lemma valid_gossip_uses_recovered_txid
     {envelope : Envelope}
     {txid : TxID}
     (valid : envelope.Valid config)
-    (gossip : envelope.payload = .gossip txid) :
-    recoveredTxID config envelope.source = some txid := by
+    (gossip : envelope.payload = .gossip txid)
+    : recoveredTxID config envelope.source = some txid := by
   rcases valid_envelope_effect valid with
     ⟨effect, _, created⟩
   cases effect with
@@ -133,8 +127,8 @@ lemma valid_gossip_uses_recovered_txid
 lemma step_preserves_location
     (config : Execution.Local.Config)
     (state : NodeState)
-    (event : Event) :
-    (step config state event).state.location = state.location := by
+    (event : Event)
+    : (step config state event).state.location = state.location := by
   cases event
   all_goals try cases_type Validation
   all_goals
@@ -145,11 +139,9 @@ lemma nodeState_location
     {state : State}
     {node : Location}
     {foundState : NodeState}
-    (locations :
-      forall entry, entry ∈ state.system.nodes ->
-        entry.2.location = entry.1)
-    (found : nodeState state node = some foundState) :
-    foundState.location = node := by
+    (locations : forall entry, entry ∈ state.system.nodes -> entry.2.location = entry.1)
+    (found : nodeState state node = some foundState)
+    : foundState.location = node := by
   rw [nodeState, Option.map_eq_some_iff] at found
   rcases found with ⟨entry, findEq, stateEq⟩
   have membership : entry ∈ state.system.nodes :=
@@ -166,10 +158,9 @@ lemma initial_well_formed
     (active : List Location)
     (valid : config.Valid)
     (activeNodup : active.Nodup)
-    (activeConfigured :
-      forall node, node ∈ active ->
-        node ∈ config.protocol.expectedLocations) :
-    WellFormed config (initial config active) := by
+    (activeConfigured
+      : forall node, node ∈ active -> node ∈ config.protocol.expectedLocations)
+    : WellFormed config (initial config active) := by
   constructor
   · simp [Execution.Global.initial, initialSystem, Function.comp_def]
   · simpa [Execution.Global.initial, initialSystem, Function.comp_def] using valid.2.1
@@ -186,16 +177,15 @@ lemma recordEffects_active
     (node : Location)
     (nodeState : NodeState)
     (effects : List Effect)
-    (state : State) :
-    (recordEffects node nodeState effects state).active = state.active := by
+    (state : State)
+    : (recordEffects node nodeState effects state).active = state.active := by
   induction effects generalizing state with
   | nil => rfl
   | cons effect tail ih =>
       simp only [recordEffects, List.foldl_cons]
-      change
-        (recordEffects node nodeState tail
-          (recordEffect node nodeState state effect)).active =
-          state.active
+      change (recordEffects node nodeState tail
+                (recordEffect node nodeState state effect)).active
+      = state.active
       rw [ih]
       cases effect <;> rfl
 
@@ -204,16 +194,15 @@ lemma recordEffects_system
     (node : Location)
     (nodeState : NodeState)
     (effects : List Effect)
-    (state : State) :
-    (recordEffects node nodeState effects state).system = state.system := by
+    (state : State)
+    : (recordEffects node nodeState effects state).system = state.system := by
   induction effects generalizing state with
   | nil => rfl
   | cons effect tail ih =>
       simp only [recordEffects, List.foldl_cons]
-      change
-        (recordEffects node nodeState tail
-          (recordEffect node nodeState state effect)).system =
-          state.system
+      change (recordEffects node nodeState tail
+                (recordEffect node nodeState state effect)).system
+      = state.system
       rw [ih]
       cases effect <;> rfl
 
@@ -222,16 +211,15 @@ lemma recordEffects_network
     (node : Location)
     (nodeState : NodeState)
     (effects : List Effect)
-    (state : State) :
-    (recordEffects node nodeState effects state).network = state.network := by
+    (state : State)
+    : (recordEffects node nodeState effects state).network = state.network := by
   induction effects generalizing state with
   | nil => rfl
   | cons effect tail ih =>
       simp only [recordEffects, List.foldl_cons]
-      change
-        (recordEffects node nodeState tail
-          (recordEffect node nodeState state effect)).network =
-          state.network
+      change (recordEffects node nodeState tail
+                (recordEffect node nodeState state effect)).network
+      = state.network
       rw [ih]
       cases effect <;> rfl
 
@@ -240,16 +228,15 @@ lemma recordEffects_sent
     (node : Location)
     (nodeState : NodeState)
     (effects : List Effect)
-    (state : State) :
-    (recordEffects node nodeState effects state).sent = state.sent := by
+    (state : State)
+    : (recordEffects node nodeState effects state).sent = state.sent := by
   induction effects generalizing state with
   | nil => rfl
   | cons effect tail ih =>
       simp only [recordEffects, List.foldl_cons]
-      change
-        (recordEffects node nodeState tail
-          (recordEffect node nodeState state effect)).sent =
-          state.sent
+      change (recordEffects node nodeState tail
+                (recordEffect node nodeState state effect)).sent
+      = state.sent
       rw [ih]
       cases effect <;> rfl
 
@@ -259,8 +246,8 @@ lemma recordEffect_preserves_histories_active
     {state : State}
     {effect : Effect}
     (wellFormed : HistoriesActive state)
-    (nodeActive : node ∈ state.active) :
-    HistoriesActive (recordEffect node nodeState state effect) := by
+    (nodeActive : node ∈ state.active)
+    : HistoriesActive (recordEffect node nodeState state effect) := by
   rcases wellFormed with ⟨openings, restarts, completed⟩
   cases effect <;>
     constructor <;>
@@ -272,8 +259,8 @@ lemma recordEffects_preserves_histories_active
     {effects : List Effect}
     {state : State}
     (wellFormed : HistoriesActive state)
-    (nodeActive : node ∈ state.active) :
-    HistoriesActive (recordEffects node nodeState effects state) := by
+    (nodeActive : node ∈ state.active)
+    : HistoriesActive (recordEffects node nodeState effects state) := by
   induction effects generalizing state with
   | nil => exact wellFormed
   | cons effect tail ih =>
@@ -282,12 +269,8 @@ lemma recordEffects_preserves_histories_active
       · exact recordEffect_preserves_histories_active wellFormed nodeActive
       · cases effect <;> simpa [recordEffect] using nodeActive
 
-lemma mem_of_mem_removeOne
-    [BEq α]
-    (value member : α)
-    (values : List α) :
-    member ∈ removeOne value values ->
-      member ∈ values := by
+lemma mem_of_mem_removeOne [BEq α] (value member : α) (values : List α)
+    : member ∈ removeOne value values -> member ∈ values := by
   induction values with
   | nil => simp [removeOne]
   | cons head tail ih =>
@@ -304,8 +287,8 @@ lemma mem_openings_recordEffect
     {state : State}
     {effect : Effect}
     {opening : Opening}
-    (membership : opening ∈ state.openings) :
-    opening ∈ (recordEffect node nodeState state effect).openings := by
+    (membership : opening ∈ state.openings)
+    : opening ∈ (recordEffect node nodeState state effect).openings := by
   cases effect <;> simp_all [recordEffect]
 
 lemma mem_restarts_recordEffect
@@ -314,8 +297,8 @@ lemma mem_restarts_recordEffect
     {state : State}
     {effect : Effect}
     {restart : Location}
-    (membership : restart ∈ state.restarts) :
-    restart ∈ (recordEffect node nodeState state effect).restarts := by
+    (membership : restart ∈ state.restarts)
+    : restart ∈ (recordEffect node nodeState state effect).restarts := by
   cases effect <;> simp_all [recordEffect]
 
 lemma mem_completed_recordEffect
@@ -324,8 +307,8 @@ lemma mem_completed_recordEffect
     {state : State}
     {effect : Effect}
     {completed : Location}
-    (membership : completed ∈ state.completed) :
-    completed ∈ (recordEffect node nodeState state effect).completed := by
+    (membership : completed ∈ state.completed)
+    : completed ∈ (recordEffect node nodeState state effect).completed := by
   cases effect <;> simp_all [recordEffect]
 
 lemma mem_openings_recordEffects
@@ -334,8 +317,8 @@ lemma mem_openings_recordEffects
     {state : State}
     {effects : List Effect}
     {opening : Opening}
-    (membership : opening ∈ state.openings) :
-    opening ∈ (recordEffects node nodeState effects state).openings := by
+    (membership : opening ∈ state.openings)
+    : opening ∈ (recordEffects node nodeState effects state).openings := by
   induction effects generalizing state with
   | nil => exact membership
   | cons effect tail ih =>
@@ -348,8 +331,8 @@ lemma mem_restarts_recordEffects
     {state : State}
     {effects : List Effect}
     {restart : Location}
-    (membership : restart ∈ state.restarts) :
-    restart ∈ (recordEffects node nodeState effects state).restarts := by
+    (membership : restart ∈ state.restarts)
+    : restart ∈ (recordEffects node nodeState effects state).restarts := by
   induction effects generalizing state with
   | nil => exact membership
   | cons effect tail ih =>
@@ -362,8 +345,8 @@ lemma mem_completed_recordEffects
     {state : State}
     {effects : List Effect}
     {completed : Location}
-    (membership : completed ∈ state.completed) :
-    completed ∈ (recordEffects node nodeState effects state).completed := by
+    (membership : completed ∈ state.completed)
+    : completed ∈ (recordEffects node nodeState effects state).completed := by
   induction effects generalizing state with
   | nil => exact membership
   | cons effect tail ih =>
@@ -373,9 +356,8 @@ lemma mem_completed_recordEffects
 lemma replaceNode_keys
     (target : Location)
     (nextState : NodeState)
-    (nodes : List (Prod Location NodeState)) :
-    (replaceNode target nextState nodes).map Prod.fst =
-      nodes.map Prod.fst := by
+    (nodes : List (Prod Location NodeState))
+    : (replaceNode target nextState nodes).map Prod.fst = nodes.map Prod.fst := by
   induction nodes with
   | nil => rfl
   | cons entry tail ih =>
@@ -396,12 +378,10 @@ lemma replaceNode_locations
     (target : Location)
     (nextState : NodeState)
     (nodes : List (Prod Location NodeState))
-    (locations :
-      forall entry, entry ∈ nodes ->
-        entry.2.location = entry.1)
-    (nextLocation : nextState.location = target) :
-    forall entry, entry ∈ replaceNode target nextState nodes ->
-      entry.2.location = entry.1 := by
+    (locations : forall entry, entry ∈ nodes -> entry.2.location = entry.1)
+    (nextLocation : nextState.location = target)
+    : forall entry,
+        entry ∈ replaceNode target nextState nodes -> entry.2.location = entry.1 := by
   intro entry membership
   rw [replaceNode, List.mem_map] at membership
   rcases membership with ⟨previous, previousMember, rfl⟩
@@ -413,10 +393,10 @@ lemma findNode_replaceNode_ne
     (target other : Location)
     (nextState : NodeState)
     (nodes : List (Prod Location NodeState))
-    (different : other ≠ target) :
-    ((replaceNode target nextState nodes).find?
-      fun entry => entry.1 == other).map Prod.snd =
-        (nodes.find? fun entry => entry.1 == other).map Prod.snd := by
+    (different : other ≠ target)
+    : ((replaceNode target nextState nodes).find? fun entry => entry.1 == other).map
+        Prod.snd
+      = (nodes.find? fun entry => entry.1 == other).map Prod.snd := by
   let replace : Prod Location NodeState -> Prod Location NodeState :=
     fun entry =>
       if entry.1 == target then (target, nextState) else entry
@@ -436,9 +416,11 @@ lemma findNode_replaceNode_ne
     · simp [replace, atTarget]
     · simp [replace, atTarget]
   rw [predicate]
-  cases found :
-      List.find? (fun entry : Prod Location NodeState =>
-        entry.1 == other) nodes with
+  cases found
+        : List.find?
+            (fun entry : Prod Location NodeState =>
+              entry.1 == other)
+            nodes with
   | none => simp
   | some entry =>
       have condition :
@@ -448,8 +430,7 @@ lemma findNode_replaceNode_ne
             entry.1 == other) found
       have entryOther : entry.1 = other :=
         beq_iff_eq.mp condition
-      have notTarget : entry.1 ≠ target := by
-        simpa [entryOther] using different
+      have notTarget : entry.1 ≠ target := by simpa [entryOther] using different
       simp [replace, notTarget]
 
 lemma systemStep_node_keys_eq
@@ -458,9 +439,8 @@ lemma systemStep_node_keys_eq
     {target : Location}
     {event : Event}
     {output : StepOutput}
-    (transition :
-      systemStep config before target event = some (after, output)) :
-    after.nodes.map Prod.fst = before.nodes.map Prod.fst := by
+    (transition : systemStep config before target event = some (after, output))
+    : after.nodes.map Prod.fst = before.nodes.map Prod.fst := by
   simp [systemStep, Option.bind_eq_some_iff] at transition
   rcases transition with ⟨node, _, stateEq, _⟩
   rw [←stateEq]
@@ -473,13 +453,9 @@ lemma systemStep_preserves_node_locations
     {target : Location}
     {event : Event}
     {output : StepOutput}
-    (locations :
-      forall entry, entry ∈ before.nodes ->
-        entry.2.location = entry.1)
-    (transition :
-      systemStep config before target event = some (after, output)) :
-    forall entry, entry ∈ after.nodes ->
-      entry.2.location = entry.1 := by
+    (locations : forall entry, entry ∈ before.nodes -> entry.2.location = entry.1)
+    (transition : systemStep config before target event = some (after, output))
+    : forall entry, entry ∈ after.nodes -> entry.2.location = entry.1 := by
   simp [systemStep, Option.bind_eq_some_iff] at transition
   rcases transition with
     ⟨node, ⟨key, found⟩, stateEq, _⟩
@@ -504,10 +480,9 @@ lemma systemStep_other_node_eq
     {event : Event}
     {output : StepOutput}
     (different : other ≠ target)
-    (transition :
-      systemStep config before target event = some (after, output)) :
-    (after.nodes.find? fun entry => entry.1 == other).map Prod.snd =
-      (before.nodes.find? fun entry => entry.1 == other).map Prod.snd := by
+    (transition : systemStep config before target event = some (after, output))
+    : (after.nodes.find? fun entry => entry.1 == other).map Prod.snd
+      = (before.nodes.find? fun entry => entry.1 == other).map Prod.snd := by
   simp [systemStep, Option.bind_eq_some_iff] at transition
   rcases transition with ⟨node, _, stateEq, _⟩
   rw [←stateEq]
@@ -518,8 +493,8 @@ lemma next_active_eq
     {config : Config}
     {before after : State}
     {action : Action}
-    (transition : next config before action = some after) :
-    after.active = before.active := by
+    (transition : next config before action = some after)
+    : after.active = before.active := by
   cases action with
   | retry source =>
       simp [next, Option.bind_eq_some_iff] at transition
@@ -538,9 +513,8 @@ lemma next_node_keys_eq
     {config : Config}
     {before after : State}
     {action : Action}
-    (transition : next config before action = some after) :
-    after.system.nodes.map Prod.fst =
-      before.system.nodes.map Prod.fst := by
+    (transition : next config before action = some after)
+    : after.system.nodes.map Prod.fst = before.system.nodes.map Prod.fst := by
   cases action with
   | retry source =>
       simp [next, Option.bind_eq_some_iff] at transition
@@ -559,8 +533,8 @@ lemma retry_system_eq
     {config : Config}
     {before after : State}
     {source : Location}
-    (transition : next config before (.retry source) = some after) :
-    after.system = before.system := by
+    (transition : next config before (.retry source) = some after)
+    : after.system = before.system := by
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with ⟨_, sourceState, _, _, rfl⟩
   rfl
@@ -569,8 +543,8 @@ lemma deliver_network_eq
     {config : Config}
     {before after : State}
     {envelope : Envelope}
-    (transition : next config before (.deliver envelope) = some after) :
-    after.network = removeOne envelope before.network := by
+    (transition : next config before (.deliver envelope) = some after)
+    : after.network = removeOne envelope before.network := by
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with
     ⟨_, _, system, output, _, rfl⟩
@@ -580,8 +554,8 @@ lemma timeout_network_eq
     {config : Config}
     {before after : State}
     {target : Location}
-    (transition : next config before (.timeout target) = some after) :
-    after.network = before.network := by
+    (transition : next config before (.timeout target) = some after)
+    : after.network = before.network := by
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with
     ⟨_, system, output, _, _, rfl⟩
@@ -593,8 +567,8 @@ lemma deliver_other_node_eq
     {envelope : Envelope}
     {other : Location}
     (different : other ≠ envelope.target)
-    (transition : next config before (.deliver envelope) = some after) :
-    nodeState after other = nodeState before other := by
+    (transition : next config before (.deliver envelope) = some after)
+    : nodeState after other = nodeState before other := by
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with
     ⟨_, _, system, output, systemStep, stateEq⟩
@@ -607,8 +581,8 @@ lemma timeout_other_node_eq
     {before after : State}
     {target other : Location}
     (different : other ≠ target)
-    (transition : next config before (.timeout target) = some after) :
-    nodeState after other = nodeState before other := by
+    (transition : next config before (.timeout target) = some after)
+    : nodeState after other = nodeState before other := by
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with
     ⟨_, system, output, systemStep, _, stateEq⟩
@@ -620,8 +594,8 @@ lemma next_sent_extends
     {config : Config}
     {before after : State}
     {action : Action}
-    (transition : next config before action = some after) :
-    exists added, after.sent = before.sent ++ added := by
+    (transition : next config before action = some after)
+    : exists added, after.sent = before.sent ++ added := by
   cases action with
   | retry source =>
       simp [next, Option.bind_eq_some_iff] at transition
@@ -644,9 +618,8 @@ lemma next_openings_monotonic
     {config : Config}
     {before after : State}
     {action : Action}
-    (transition : next config before action = some after) :
-    forall opening, opening ∈ before.openings ->
-      opening ∈ after.openings := by
+    (transition : next config before action = some after)
+    : forall opening, opening ∈ before.openings -> opening ∈ after.openings := by
   intro opening membership
   cases action with
   | retry source =>
@@ -670,9 +643,8 @@ lemma next_restarts_monotonic
     {config : Config}
     {before after : State}
     {action : Action}
-    (transition : next config before action = some after) :
-    forall restart, restart ∈ before.restarts ->
-      restart ∈ after.restarts := by
+    (transition : next config before action = some after)
+    : forall restart, restart ∈ before.restarts -> restart ∈ after.restarts := by
   intro restart membership
   cases action with
   | retry source =>
@@ -696,9 +668,8 @@ lemma next_completed_monotonic
     {config : Config}
     {before after : State}
     {action : Action}
-    (transition : next config before action = some after) :
-    forall completed, completed ∈ before.completed ->
-      completed ∈ after.completed := by
+    (transition : next config before action = some after)
+    : forall completed, completed ∈ before.completed -> completed ∈ after.completed := by
   intro completed membership
   cases action with
   | retry source =>
@@ -723,8 +694,8 @@ lemma retry_preserves_well_formed
     {before after : State}
     {source : Location}
     (wellFormed : WellFormed config before)
-    (transition : next config before (.retry source) = some after) :
-    WellFormed config after := by
+    (transition : next config before (.retry source) = some after)
+    : WellFormed config after := by
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with
     ⟨sourceActive, sourceState, found, _, stateEq⟩
@@ -764,8 +735,8 @@ lemma deliver_preserves_well_formed
     {before after : State}
     {envelope : Envelope}
     (wellFormed : WellFormed config before)
-    (transition : next config before (.deliver envelope) = some after) :
-    WellFormed config after := by
+    (transition : next config before (.deliver envelope) = some after)
+    : WellFormed config after := by
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with
     ⟨_, targetActive, system, output, systemStep, stateEq⟩
@@ -805,8 +776,8 @@ lemma timeout_preserves_well_formed
     {before after : State}
     {target : Location}
     (wellFormed : WellFormed config before)
-    (transition : next config before (.timeout target) = some after) :
-    WellFormed config after := by
+    (transition : next config before (.timeout target) = some after)
+    : WellFormed config after := by
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with
     ⟨targetActive, system, output, systemStep, _, stateEq⟩
@@ -845,8 +816,8 @@ lemma next_preserves_well_formed
     {before after : State}
     {action : Action}
     (wellFormed : WellFormed config before)
-    (transition : next config before action = some after) :
-    WellFormed config after := by
+    (transition : next config before action = some after)
+    : WellFormed config after := by
   cases action with
   | retry source =>
       exact retry_preserves_well_formed wellFormed transition
@@ -858,8 +829,8 @@ lemma next_preserves_well_formed
 lemma reachable_well_formed
     {config : Config}
     {state : State}
-    (reachable : Reachable config state) :
-    WellFormed config state := by
+    (reachable : Reachable config state)
+    : WellFormed config state := by
   induction reachable with
   | initial initialized =>
       rcases initialized with ⟨active, valid, nodup, configured, rfl⟩
@@ -870,8 +841,8 @@ lemma reachable_well_formed
 lemma reachable_config_valid
     {config : Config}
     {state : State}
-    (reachable : Reachable config state) :
-    config.Valid := by
+    (reachable : Reachable config state)
+    : config.Valid := by
   induction reachable with
   | initial initialized =>
       rcases initialized with ⟨_, valid, _⟩

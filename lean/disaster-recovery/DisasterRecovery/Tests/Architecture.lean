@@ -23,19 +23,26 @@ private def allowedImport (owner dependency : Name) : Bool :=
 example : allowedImport `DisasterRecovery.Properties `DisasterRecovery.Model = true := rfl
 
 example
-    : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Shared.Execution = true :=
-  rfl
-
-example : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Proofs.Model = false :=
-  rfl
-
-example : allowedImport `DisasterRecovery.Properties `DisasterRecovery.Proof = false := rfl
-
-example : allowedImport `DisasterRecovery.Model.Local `DisasterRecovery.Properties.Utils = false :=
+    : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Shared.Execution
+      = true :=
   rfl
 
 example
-    : allowedImport `DisasterRecovery.Shared.MultiNodeTransitionSystem `DisasterRecovery.Model
+    : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Proofs.Model
+      = false :=
+  rfl
+
+example : allowedImport `DisasterRecovery.Properties `DisasterRecovery.Proof = false :=
+  rfl
+
+example
+    : allowedImport `DisasterRecovery.Model.Local `DisasterRecovery.Properties.Utils
+      = false :=
+  rfl
+
+example
+    : allowedImport `DisasterRecovery.Shared.MultiNodeTransitionSystem
+        `DisasterRecovery.Model
       = false :=
   rfl
 
