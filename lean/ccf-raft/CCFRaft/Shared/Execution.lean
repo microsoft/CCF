@@ -32,8 +32,9 @@ def Trace.Valid (trace : Trace State) (system : TransitionSystem State Action) :
       -> exists action, system.step before action = some after
 
 /-- Every state in a valid trace is reachable. -/
-theorem Trace.Valid.reachable {system : TransitionSystem State Action} {trace : Trace State}
-    (valid : trace.Valid system) {state : State} (member : state ∈ trace.states)
+theorem Trace.Valid.reachable {system : TransitionSystem State Action}
+    {trace : Trace State} (valid : trace.Valid system) {state : State}
+    (member : state ∈ trace.states)
     : system.Reachable state := by
   obtain ⟨i, found⟩ := List.mem_iff_getElem?.mp member
   have reaches : forall (i : Nat) current, trace.states[i]? = some current -> system.Reachable current := by

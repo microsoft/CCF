@@ -21,8 +21,8 @@ section Runs
 variable {State Action : Type}
 
 /-- The states visited by choosing each action from the current state. -/
-def runTrace (system : TransitionSystem State Action) (start : State) :
-    List (State -> Action) -> List State
+def runTrace (system : TransitionSystem State Action) (start : State)
+    : List (State -> Action) -> List State
   | [] => [start]
   | choose :: rest =>
       match system.step start (choose start) with
@@ -30,13 +30,15 @@ def runTrace (system : TransitionSystem State Action) (start : State) :
       | none => [start]
 
 /-- The final state of `runTrace`, when every chosen action is enabled. -/
-def run (system : TransitionSystem State Action) (start : State) :
-    List (State -> Action) -> Option State
+def run (system : TransitionSystem State Action) (start : State)
+    : List (State -> Action) -> Option State
   | [] => some start
-  | choose :: rest => (system.step start (choose start)).bind fun next => run system next rest
+  | choose :: rest =>
+      (system.step start (choose start)).bind fun next => run system next rest
 
 theorem runTrace_head (system : TransitionSystem State Action) (start : State)
-    (choices : List (State -> Action)) : (runTrace system start choices)[0]? = some start := by
+    (choices : List (State -> Action))
+    : (runTrace system start choices)[0]? = some start := by
   cases choices with
   | nil => rfl
   | cons choose rest =>
@@ -44,11 +46,11 @@ theorem runTrace_head (system : TransitionSystem State Action) (start : State)
       split <;> rfl
 
 theorem runTrace_steps (system : TransitionSystem State Action) (start : State)
-    (choices : List (State -> Action)) :
-    forall i before after,
-      (runTrace system start choices)[i]? = some before ->
-      (runTrace system start choices)[i + 1]? = some after ->
-      exists action, system.step before action = some after := by
+    (choices : List (State -> Action))
+    : forall i before after,
+        (runTrace system start choices)[i]? = some before
+        -> (runTrace system start choices)[i + 1]? = some after
+        -> exists action, system.step before action = some after := by
   induction choices generalizing start with
   | nil =>
       intro i before after _ second
@@ -70,13 +72,16 @@ theorem runTrace_steps (system : TransitionSystem State Action) (start : State)
             exact ih next i before after (by simpa using first) (by simpa using second)
 
 theorem runTrace_valid {system : TransitionSystem State Action} {start : State}
-    (initialized : system.init start) (choices : List (State -> Action)) :
-    (⟨runTrace system start choices⟩ : Trace State).Valid system :=
-  ⟨⟨start, runTrace_head system start choices, initialized⟩, runTrace_steps system start choices⟩
+    (initialized : system.init start) (choices : List (State -> Action))
+    : (⟨runTrace system start choices⟩ : Trace State).Valid system :=
+  ⟨
+    ⟨start, runTrace_head system start choices, initialized⟩,
+    runTrace_steps system start choices
+  ⟩
 
 theorem run_mem {system : TransitionSystem State Action} {start final : State}
-    {choices : List (State -> Action)} (finished : run system start choices = some final) :
-    final ∈ runTrace system start choices := by
+    {choices : List (State -> Action)} (finished : run system start choices = some final)
+    : final ∈ runTrace system start choices := by
   induction choices generalizing start with
   | nil =>
       simp only [run, Option.some.injEq] at finished
@@ -90,8 +95,8 @@ theorem run_mem {system : TransitionSystem State Action} {start final : State}
 
 theorem runTrace_get {system : TransitionSystem State Action} {start final : State}
     {choices : List (State -> Action)} {index : Nat} (bounded : index <= choices.length)
-    (finished : run system start (choices.take index) = some final) :
-    (runTrace system start choices)[index]? = some final := by
+    (finished : run system start (choices.take index) = some final)
+    : (runTrace system start choices)[index]? = some final := by
   induction choices generalizing start index with
   | nil =>
       have zero : index = 0 := by simpa using bounded
@@ -114,8 +119,10 @@ theorem runTrace_get {system : TransitionSystem State Action} {start final : Sta
 end Runs
 
 /-- Nodes are numbered; bootstrap membership and leader vary per witness. -/
-@[reducible] def bootstrapOf (configuration : Finset Nat) (leader : Nat)
-    (member : leader ∈ configuration) : Bootstrap Nat where
+@[reducible]
+def bootstrapOf (configuration : Finset Nat) (leader : Nat)
+    (member : leader ∈ configuration)
+    : Bootstrap Nat where
   configuration
   leader
   leader_mem := member
@@ -124,9 +131,16 @@ end Runs
 def start [Bootstrap Nat] (nodes : List Nat) : CCFRaft.Model.State Nat Nat :=
   { nodes := nodes.map fun node => (node, initialNodeState node), active := nodes }
 
-theorem start_initial [Bootstrap Nat] {nodes : List Nat} (distinct : nodes.Nodup) :
-    (CCFRaft.Model.transitionSystem (TxId := Nat) nodes).init (start nodes) := by
-  refine ⟨distinct, by simp [start, Function.comp_def], distinct, fun _ member => member, rfl, ?_⟩
+theorem start_initial [Bootstrap Nat] {nodes : List Nat} (distinct : nodes.Nodup)
+    : (CCFRaft.Model.transitionSystem (TxId := Nat) nodes).init (start nodes) := by
+  refine ⟨
+    distinct,
+    by simp [start, Function.comp_def],
+    distinct,
+    fun _ member => member,
+    rfl,
+    ?_
+  ⟩
   intro entry member
   obtain ⟨node, _, rfl⟩ := List.mem_map.mp member
   rfl
@@ -138,13 +152,13 @@ def deliverOldest (state : CCFRaft.Model.State Nat Nat) : CCFRaft.Model.Action N
   | [] => .local 0 .timeout
 
 /-- Take `input` at `node` regardless of the current state. -/
-def input (node : Nat) (input : CCFRaft.Model.Local.Input Nat Nat) :
-    CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Nat Nat :=
+def input (node : Nat) (input : CCFRaft.Model.Local.Input Nat Nat)
+    : CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Nat Nat :=
   fun _ => .local node input
 
 theorem member_of_nodeState {state : CCFRaft.Model.State Nat Nat} {node : Nat}
-    (present : (nodeState state node).isSome) :
-    (node, (nodeState state node).get present) ∈ state.nodes := by
+    (present : (nodeState state node).isSome)
+    : (node, (nodeState state node).get present) ∈ state.nodes := by
   generalize fetched : (nodeState state node).get present = value
   have found : nodeState state node = some value := by
     rw [← fetched]
@@ -162,19 +176,27 @@ section Election
 local instance : Bootstrap Nat := bootstrapOf {0, 1, 2} 0 (by decide)
 
 /-- Node 1 wins term 3 with node 2's vote while node 0 still leads term 2. -/
-def electionChoices : List (CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Nat Nat) :=
-  [input 1 .timeout, input 1 (.requestVote 2), deliverOldest, deliverOldest, input 1 .becomeLeader]
+def electionChoices
+    : List (CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Nat Nat) :=
+  [
+    input 1 .timeout,
+    input 1 (.requestVote 2),
+    deliverOldest,
+    deliverOldest,
+    input 1 .becomeLeader
+  ]
 
 def electionSystem := CCFRaft.Model.transitionSystem (TxId := Nat) [0, 1, 2]
 
-theorem election_finished : (run electionSystem (start [0, 1, 2]) electionChoices).isSome := by
+theorem election_finished
+    : (run electionSystem (start [0, 1, 2]) electionChoices).isSome := by
   decide
 
 def electionFinal : CCFRaft.Model.State Nat Nat :=
   (run electionSystem (start [0, 1, 2]) electionChoices).get election_finished
 
-theorem election_present (node : Nat) (listed : node ∈ [0, 1, 2]) :
-    (nodeState electionFinal node).isSome := by
+theorem election_present (node : Nat) (listed : node ∈ [0, 1, 2])
+    : (nodeState electionFinal node).isSome := by
   simp only [List.mem_cons, List.not_mem_nil, or_false] at listed
   rcases listed with rfl | rfl | rfl <;> decide
 
@@ -182,12 +204,27 @@ end Election
 
 theorem election_safety_witness : Properties.ElectionSafetyWitness := by
   let _ : Bootstrap Nat := bootstrapOf {0, 1, 2} 0 (by decide)
-  refine ⟨Nat, Nat, inferInstance, inferInstance, bootstrapOf {0, 1, 2} 0 (by decide), [0, 1, 2],
-    ⟨runTrace electionSystem (start [0, 1, 2]) electionChoices⟩, electionFinal, 0, 1,
+  refine ⟨
+    Nat,
+    Nat,
+    inferInstance,
+    inferInstance,
+    bootstrapOf {0, 1, 2} 0 (by decide),
+    [0, 1, 2],
+    ⟨runTrace electionSystem (start [0, 1, 2]) electionChoices⟩,
+    electionFinal,
+    0,
+    1,
     (nodeState electionFinal 0).get (election_present 0 (by simp)),
     (nodeState electionFinal 1).get (election_present 1 (by simp)),
-    runTrace_valid (start_initial (by decide)) _, run_mem (Option.some_get _).symm,
-    member_of_nodeState _, member_of_nodeState _, by decide, by decide, by decide⟩
+    runTrace_valid (start_initial (by decide)) _,
+    run_mem (Option.some_get _).symm,
+    member_of_nodeState _,
+    member_of_nodeState _,
+    by decide,
+    by decide,
+    by decide
+  ⟩
 
 section Commit
 
@@ -195,9 +232,16 @@ local instance : Bootstrap Nat := bootstrapOf {0, 1} 0 (by decide)
 
 /-- Node 0 commits the bootstrap signature with node 1, then tells node 1. -/
 def commitChoices : List (CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Nat Nat) :=
-  [input 0 .initializeConfiguration, input 0 .signCommittableMessages, input 0 (.appendEntries 1 2),
-    deliverOldest, deliverOldest, input 0 .advanceCommitIndex, input 0 (.appendEntries 1 2),
-    deliverOldest]
+  [
+    input 0 .initializeConfiguration,
+    input 0 .signCommittableMessages,
+    input 0 (.appendEntries 1 2),
+    deliverOldest,
+    deliverOldest,
+    input 0 .advanceCommitIndex,
+    input 0 (.appendEntries 1 2),
+    deliverOldest
+  ]
 
 def commitSystem := CCFRaft.Model.transitionSystem (TxId := Nat) [0, 1]
 
@@ -207,8 +251,8 @@ theorem commit_finished : (run commitSystem (start [0, 1]) commitChoices).isSome
 def commitFinal : CCFRaft.Model.State Nat Nat :=
   (run commitSystem (start [0, 1]) commitChoices).get commit_finished
 
-theorem commit_present (node : Nat) (listed : node ∈ [0, 1]) :
-    (nodeState commitFinal node).isSome := by
+theorem commit_present (node : Nat) (listed : node ∈ [0, 1])
+    : (nodeState commitFinal node).isSome := by
   simp only [List.mem_cons, List.not_mem_nil, or_false] at listed
   rcases listed with rfl | rfl <;> decide
 
@@ -216,12 +260,27 @@ end Commit
 
 theorem committed_logs_prefix_witness : Properties.CommittedLogsPrefixWitness := by
   let _ : Bootstrap Nat := bootstrapOf {0, 1} 0 (by decide)
-  refine ⟨Nat, Nat, inferInstance, inferInstance, bootstrapOf {0, 1} 0 (by decide), [0, 1],
-    ⟨runTrace commitSystem (start [0, 1]) commitChoices⟩, commitFinal, 0, 1,
+  refine ⟨
+    Nat,
+    Nat,
+    inferInstance,
+    inferInstance,
+    bootstrapOf {0, 1} 0 (by decide),
+    [0, 1],
+    ⟨runTrace commitSystem (start [0, 1]) commitChoices⟩,
+    commitFinal,
+    0,
+    1,
     (nodeState commitFinal 0).get (commit_present 0 (by simp)),
     (nodeState commitFinal 1).get (commit_present 1 (by simp)),
-    runTrace_valid (start_initial (by decide)) _, run_mem (Option.some_get _).symm,
-    member_of_nodeState _, member_of_nodeState _, by decide, by decide, by decide⟩
+    runTrace_valid (start_initial (by decide)) _,
+    run_mem (Option.some_get _).symm,
+    member_of_nodeState _,
+    member_of_nodeState _,
+    by decide,
+    by decide,
+    by decide
+  ⟩
 
 section Single
 
@@ -229,7 +288,11 @@ local instance : Bootstrap Nat := bootstrapOf {0} 0 (by decide)
 
 /-- A single bootstrap leader commits its first signature. -/
 def singleChoices : List (CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Nat Nat) :=
-  [input 0 .initializeConfiguration, input 0 .signCommittableMessages, input 0 .advanceCommitIndex]
+  [
+    input 0 .initializeConfiguration,
+    input 0 .signCommittableMessages,
+    input 0 .advanceCommitIndex
+  ]
 
 def singleSystem := CCFRaft.Model.transitionSystem (TxId := Nat) [0]
 
@@ -251,24 +314,48 @@ theorem single_final_present : (nodeState singleFinal 0).isSome := by decide
 
 end Single
 
-theorem committed_frontier_is_signature_witness :
-    Properties.CommittedFrontierIsSignatureWitness := by
+theorem committed_frontier_is_signature_witness
+    : Properties.CommittedFrontierIsSignatureWitness := by
   let _ : Bootstrap Nat := bootstrapOf {0} 0 (by decide)
-  exact ⟨Nat, Nat, inferInstance, inferInstance, bootstrapOf {0} 0 (by decide), [0],
-    ⟨runTrace singleSystem (start [0]) singleChoices⟩, singleFinal, 0,
+  exact ⟨
+    Nat,
+    Nat,
+    inferInstance,
+    inferInstance,
+    bootstrapOf {0} 0 (by decide),
+    [0],
+    ⟨runTrace singleSystem (start [0]) singleChoices⟩,
+    singleFinal,
+    0,
     (nodeState singleFinal 0).get single_final_present,
-    runTrace_valid (start_initial (by decide)) _, run_mem (Option.some_get _).symm,
-    member_of_nodeState _, by decide⟩
+    runTrace_valid (start_initial (by decide)) _,
+    run_mem (Option.some_get _).symm,
+    member_of_nodeState _,
+    by decide
+  ⟩
 
 theorem committed_log_append_only_witness : Properties.CommittedLogAppendOnlyWitness := by
   let _ : Bootstrap Nat := bootstrapOf {0} 0 (by decide)
-  exact ⟨Nat, Nat, inferInstance, inferInstance, bootstrapOf {0} 0 (by decide), [0],
-    ⟨runTrace singleSystem (start [0]) singleChoices⟩, 2, singleSigned, singleFinal, 0,
+  exact ⟨
+    Nat,
+    Nat,
+    inferInstance,
+    inferInstance,
+    bootstrapOf {0} 0 (by decide),
+    [0],
+    ⟨runTrace singleSystem (start [0]) singleChoices⟩,
+    2,
+    singleSigned,
+    singleFinal,
+    0,
     (nodeState singleSigned 0).get single_signed_present,
     (nodeState singleFinal 0).get single_final_present,
     runTrace_valid (start_initial (by decide)) _,
     runTrace_get (by decide) (Option.some_get _).symm,
     runTrace_get (by decide) (Option.some_get _).symm,
-    member_of_nodeState _, member_of_nodeState _, by decide⟩
+    member_of_nodeState _,
+    member_of_nodeState _,
+    by decide
+  ⟩
 
 end CCFRaft.Proofs.Witnesses

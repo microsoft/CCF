@@ -15,8 +15,7 @@ private def allowedImport (owner dependency : Name) : Bool :=
   else if (`CCFRaft.Shared).isPrefixOf owner then
     (`CCFRaft.Shared).isPrefixOf dependency
   else if (`CCFRaft.Model).isPrefixOf owner then
-    (`CCFRaft.Shared).isPrefixOf dependency
-    || (`CCFRaft.Model).isPrefixOf dependency
+    (`CCFRaft.Shared).isPrefixOf dependency || (`CCFRaft.Model).isPrefixOf dependency
   else if (`CCFRaft.Properties).isPrefixOf owner || owner == `CCFRaft.Replay then
     (`CCFRaft.Shared).isPrefixOf dependency
     || (`CCFRaft.Model).isPrefixOf dependency
@@ -34,7 +33,9 @@ example : allowedImport `CCFRaft.Properties `CCFRaft.Proof = false := rfl
 
 example : allowedImport `CCFRaft.Model.Local `CCFRaft.Properties.Utils = false := rfl
 
-example : allowedImport `CCFRaft.Shared.MultiNodeTransitionSystem `CCFRaft.Model = false := rfl
+example
+    : allowedImport `CCFRaft.Shared.MultiNodeTransitionSystem `CCFRaft.Model = false :=
+  rfl
 
 example : allowedImport `CCFRaft.Replay `CCFRaft.Proofs.Model = false := rfl
 

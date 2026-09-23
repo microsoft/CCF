@@ -2,11 +2,25 @@
 -- Licensed under the Apache 2.0 License.
 
 import CCFRaft.Proofs.Abstract.Model
-
 import CCFRaft.Proofs.Abstract.Support
 
-open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety CCFRaft.Proofs.Abstract.Support
-open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
+open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety
+  CCFRaft.Proofs.Abstract.Support
+open CCFRaft.Model.Local (
+  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
+    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
+    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
+    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
+    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
+    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
+    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
+    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
+    messageEntries refreshRetirementState retiredCommittedIndexFrom
+    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
+    retirementCommittableIndexInLog retirementCompletedNodes
+    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
+    updateIndex
+  )
 
 set_option autoImplicit false
 
@@ -23,18 +37,18 @@ namespace CCFRaft.Proofs.Abstract.ModelProofs
 lemma initialLeader_mem_initialConfiguration
     {Node : Type}
     [DecidableEq Node]
-    [bootstrap : Bootstrap Node] :
-    Membership.mem
-      (INITIAL_CONFIGURATION (Node := Node))
-      (INITIAL_LEADER (Node := Node)) :=
+    [bootstrap : Bootstrap Node]
+    : Membership.mem
+        (INITIAL_CONFIGURATION (Node := Node))
+        (INITIAL_LEADER (Node := Node)) :=
   bootstrap.leader_mem
 
 /-- Every valid bootstrap configuration is nonempty. -/
 lemma initialConfiguration_nonempty
     {Node : Type}
     [DecidableEq Node]
-    [bootstrap : Bootstrap Node] :
-    (INITIAL_CONFIGURATION (Node := Node)).Nonempty := by
+    [bootstrap : Bootstrap Node]
+    : (INITIAL_CONFIGURATION (Node := Node)).Nonempty := by
   exact
     Exists.intro
       (INITIAL_LEADER (Node := Node))
@@ -52,8 +66,8 @@ variable [DecidableEq Node]
 lemma node?_set_same
     (nodes : NodeStore Node TxId)
     (node : Node)
-    (value : NodeState Node TxId) :
-    (nodes.set node value).node? node = some value := by
+    (value : NodeState Node TxId)
+    : (nodes.set node value).node? node = some value := by
   simp [node?, CCFRaft.Proofs.Abstract.Model.NodeStore.set]
 
 @[simp]
@@ -61,16 +75,16 @@ lemma node?_set_of_ne
     (nodes : NodeStore Node TxId)
     (node candidate : Node)
     (value : NodeState Node TxId)
-    (different : Not (candidate = node)) :
-    (nodes.set node value).node? candidate = nodes.node? candidate := by
+    (different : Not (candidate = node))
+    : (nodes.set node value).node? candidate = nodes.node? candidate := by
   simp [node?, CCFRaft.Proofs.Abstract.Model.NodeStore.set, Finmap.lookup_insert_of_ne, different]
 
 @[simp]
 lemma get_set_same
     (nodes : NodeStore Node TxId)
     (node : Node)
-    (value : NodeState Node TxId) :
-    nodes.set node value node = value := by
+    (value : NodeState Node TxId)
+    : nodes.set node value node = value := by
   simp [CCFRaft.Proofs.Abstract.Model.NodeStore.get]
 
 @[simp]
@@ -78,8 +92,8 @@ lemma get_set_of_ne
     (nodes : NodeStore Node TxId)
     (node candidate : Node)
     (value : NodeState Node TxId)
-    (different : Not (candidate = node)) :
-    nodes.set node value candidate = nodes candidate := by
+    (different : Not (candidate = node))
+    : nodes.set node value candidate = nodes candidate := by
   simp [CCFRaft.Proofs.Abstract.Model.NodeStore.get, node?_set_of_ne, different]
 
 @[simp]
@@ -87,8 +101,8 @@ lemma node?_ofFinset_of_mem
     (keys : Finset Node)
     (value : Node -> NodeState Node TxId)
     (node : Node)
-    (member : node ∈ keys) :
-    (ofFinset keys value).node? node = some (value node) := by
+    (member : node ∈ keys)
+    : (ofFinset keys value).node? node = some (value node) := by
   rw [node?, Finmap.lookup_eq_some_iff]
   simp [ofFinset, member]
 
@@ -97,8 +111,8 @@ lemma node?_ofFinset_of_not_mem
     (keys : Finset Node)
     (value : Node -> NodeState Node TxId)
     (node : Node)
-    (notMember : node ∉ keys) :
-    (ofFinset keys value).node? node = none := by
+    (notMember : node ∉ keys)
+    : (ofFinset keys value).node? node = none := by
   rw [node?, Finmap.lookup_eq_none]
   simpa [ofFinset, Finmap.mem_def, Multiset.keys] using notMember
 
@@ -106,9 +120,8 @@ lemma node?_ofFinset_of_not_mem
 lemma get_ofFinset
     (keys : Finset Node)
     (value : Node -> NodeState Node TxId)
-    (node : Node) :
-    ofFinset keys value node =
-      if node ∈ keys then value node else freshNodeState := by
+    (node : Node)
+    : ofFinset keys value node = if node ∈ keys then value node else freshNodeState := by
   simp only [CCFRaft.Proofs.Abstract.Model.NodeStore.get]
   split <;> simp_all
 
@@ -117,8 +130,8 @@ lemma node?_allocate_of_allocated
     (nodes : NodeStore Node TxId)
     (added : Finset Node)
     (node : Node)
-    (allocated : nodes.allocated node) :
-    (nodes.allocate added).node? node = nodes.node? node := by
+    (allocated : nodes.allocated node)
+    : (nodes.allocate added).node? node = nodes.node? node := by
   change (nodes.node? node).isSome at allocated
   rw [Option.isSome_iff_exists] at allocated
   rcases allocated with ⟨value, found⟩
@@ -131,8 +144,8 @@ lemma node?_allocate_of_not_allocated_of_mem
     (added : Finset Node)
     (node : Node)
     (notAllocated : Not (nodes.allocated node))
-    (member : node ∈ added) :
-    (nodes.allocate added).node? node = some freshNodeState := by
+    (member : node ∈ added)
+    : (nodes.allocate added).node? node = some freshNodeState := by
   have missing : nodes.node? node = none := by
     cases found : nodes.node? node <;>
       simp_all [NodeStore.allocated]
@@ -144,8 +157,7 @@ lemma node?_allocate_of_not_allocated_of_mem
   exact node?_ofFinset_of_mem added (fun _ => freshNodeState) node member
 
 @[simp]
-lemma allocate_empty (nodes : NodeStore Node TxId) :
-    nodes.allocate ∅ = nodes := by
+lemma allocate_empty (nodes : NodeStore Node TxId) : nodes.allocate ∅ = nodes := by
   cases nodes with
   | mk entries =>
       change NodeStore.mk (entries ∪ (∅ : Finmap (fun _ : Node => NodeState Node TxId))) =
@@ -161,8 +173,8 @@ variable [DecidableEq Node]
 lemma updateNode_same
     (nodes : NodeStore Node TxId)
     (node : Node)
-    (value : NodeState Node TxId) :
-    updateNode nodes node value node = value := by
+    (value : NodeState Node TxId)
+    : updateNode nodes node value node = value := by
   simp [updateNode]
 
 /-- Reading another node after an update returns its old value. -/
@@ -171,17 +183,14 @@ lemma updateNode_of_ne
     (nodes : NodeStore Node TxId)
     (node candidate : Node)
     (value : NodeState Node TxId)
-    (different : Not (candidate = node)) :
-    updateNode nodes node value candidate = nodes candidate := by
+    (different : Not (candidate = node))
+    : updateNode nodes node value candidate = nodes candidate := by
   simp [updateNode, different]
 
 /-- Reading the updated peer index returns the new value. -/
 @[simp]
-lemma updateIndex_same
-    (indices : Node -> Nat)
-    (node : Node)
-    (value : Nat) :
-    updateIndex indices node value node = value := by
+lemma updateIndex_same (indices : Node -> Nat) (node : Node) (value : Nat)
+    : updateIndex indices node value node = value := by
   simp [updateIndex]
 
 /-- Updating one peer index leaves all other peer indices unchanged. -/
@@ -190,8 +199,8 @@ lemma updateIndex_of_ne
     (indices : Node -> Nat)
     (node candidate : Node)
     (value : Nat)
-    (different : Not (candidate = node)) :
-    updateIndex indices node value candidate = indices candidate := by
+    (different : Not (candidate = node))
+    : updateIndex indices node value candidate = indices candidate := by
   simp [updateIndex, different]
 
 /-- Reading the replaced destination queue returns the new queue. -/
@@ -199,8 +208,8 @@ lemma updateIndex_of_ne
 lemma updateQueue_same
     (network : Node -> List (Message Node TxId))
     (destination : Node)
-    (queue : List (Message Node TxId)) :
-    updateQueue network destination queue destination = queue := by
+    (queue : List (Message Node TxId))
+    : updateQueue network destination queue destination = queue := by
   simp [updateQueue]
 
 /-- Replacing one destination queue leaves other queues unchanged. -/
@@ -209,8 +218,8 @@ lemma updateQueue_of_ne
     (network : Node -> List (Message Node TxId))
     (destination candidate : Node)
     (queue : List (Message Node TxId))
-    (different : Not (candidate = destination)) :
-    updateQueue network destination queue candidate = network candidate := by
+    (different : Not (candidate = destination))
+    : updateQueue network destination queue candidate = network candidate := by
   simp [updateQueue, different]
 
 /-- Selecting a packet only removes an occurrence from the original queue. -/
@@ -219,8 +228,8 @@ lemma takeOccurrenceFrom_sublist
     (occurrence : Nat)
     (queue remaining : List (Message Node TxId))
     (selected : Message Node TxId)
-    (removed : takeOccurrenceFrom source occurrence queue = some (selected, remaining)) :
-    remaining.Sublist queue := by
+    (removed : takeOccurrenceFrom source occurrence queue = some (selected, remaining))
+    : remaining.Sublist queue := by
   induction queue generalizing occurrence remaining with
   | nil => simp [takeOccurrenceFrom] at removed
   | cons head tail inductionHypothesis =>
@@ -250,121 +259,108 @@ lemma takeOccurrenceFrom_sublist
 section
 omit [DecidableEq Node]
 
-@[simp] lemma protocolNodeState_idempotent
-    (state : NodeState Node TxId) :
-    protocolNodeState (protocolNodeState state) = protocolNodeState state := by
+@[simp]
+lemma protocolNodeState_idempotent (state : NodeState Node TxId)
+    : protocolNodeState (protocolNodeState state) = protocolNodeState state := by
   simp [protocolNodeState]
 
-@[simp] lemma protocolNodeState_set_votedFor
+@[simp]
+lemma protocolNodeState_set_votedFor
     (state : NodeState Node TxId)
-    (votedFor : Option Node) :
-    protocolNodeState { state with votedFor } =
-      { protocolNodeState state with votedFor } := by
+    (votedFor : Option Node)
+    : protocolNodeState { state with votedFor }
+      = { protocolNodeState state with votedFor } := by
   simp [protocolNodeState]
 
-@[simp] lemma protocolNodeState_set_sentIndex
+@[simp]
+lemma protocolNodeState_set_sentIndex
     (state : NodeState Node TxId)
-    (sentIndex : Node -> Nat) :
-    protocolNodeState { state with sentIndex } =
-      { protocolNodeState state with sentIndex } := by
+    (sentIndex : Node -> Nat)
+    : protocolNodeState { state with sentIndex }
+      = { protocolNodeState state with sentIndex } := by
   simp [protocolNodeState]
 
-@[simp] lemma protocolNodeState_idempotent_set_votedFor
+@[simp]
+lemma protocolNodeState_idempotent_set_votedFor
     (state : NodeState Node TxId)
-    (votedFor : Option Node) :
-    protocolNodeState { protocolNodeState state with votedFor } =
-      { protocolNodeState state with votedFor } := by
+    (votedFor : Option Node)
+    : protocolNodeState { protocolNodeState state with votedFor }
+      = { protocolNodeState state with votedFor } := by
   simp [protocolNodeState]
 
 end
 
 variable [Bootstrap Node] [DecidableEq TxId]
 
-@[simp] lemma refreshRetirementState_role
-    (node : Node)
-    (state : NodeState Node TxId) :
-    (refreshRetirementState node state).role = state.role := by
+@[simp]
+lemma refreshRetirementState_role (node : Node) (state : NodeState Node TxId)
+    : (refreshRetirementState node state).role = state.role := by
   simp [refreshRetirementState]
 
-@[simp] lemma refreshRetirementState_currentTerm
-    (node : Node)
-    (state : NodeState Node TxId) :
-    (refreshRetirementState node state).currentTerm = state.currentTerm := by
+@[simp]
+lemma refreshRetirementState_currentTerm (node : Node) (state : NodeState Node TxId)
+    : (refreshRetirementState node state).currentTerm = state.currentTerm := by
   simp [refreshRetirementState]
 
-@[simp] lemma refreshRetirementState_log
-    (node : Node)
-    (state : NodeState Node TxId) :
-    (refreshRetirementState node state).log = state.log := by
+@[simp]
+lemma refreshRetirementState_log (node : Node) (state : NodeState Node TxId)
+    : (refreshRetirementState node state).log = state.log := by
   simp [refreshRetirementState]
 
-@[simp] lemma refreshRetirementState_commitIndex
-    (node : Node)
-    (state : NodeState Node TxId) :
-    (refreshRetirementState node state).commitIndex = state.commitIndex := by
+@[simp]
+lemma refreshRetirementState_commitIndex (node : Node) (state : NodeState Node TxId)
+    : (refreshRetirementState node state).commitIndex = state.commitIndex := by
   simp [refreshRetirementState]
 
-@[simp] lemma refreshRetirementState_sentIndex
-    (node : Node)
-    (state : NodeState Node TxId) :
-    (refreshRetirementState node state).sentIndex = state.sentIndex := by
+@[simp]
+lemma refreshRetirementState_sentIndex (node : Node) (state : NodeState Node TxId)
+    : (refreshRetirementState node state).sentIndex = state.sentIndex := by
   simp [refreshRetirementState]
 
-@[simp] lemma refreshRetirementState_matchIndex
-    (node : Node)
-    (state : NodeState Node TxId) :
-    (refreshRetirementState node state).matchIndex = state.matchIndex := by
+@[simp]
+lemma refreshRetirementState_matchIndex (node : Node) (state : NodeState Node TxId)
+    : (refreshRetirementState node state).matchIndex = state.matchIndex := by
   simp [refreshRetirementState]
 
-@[simp] lemma refreshRetirementState_isNewFollower
-    (node : Node)
-    (state : NodeState Node TxId) :
-    (refreshRetirementState node state).isNewFollower =
-      state.isNewFollower := by
+@[simp]
+lemma refreshRetirementState_isNewFollower (node : Node) (state : NodeState Node TxId)
+    : (refreshRetirementState node state).isNewFollower = state.isNewFollower := by
   simp [refreshRetirementState]
 
-@[simp] lemma refreshRetirementState_votedFor
-    (node : Node)
-    (state : NodeState Node TxId) :
-    (refreshRetirementState node state).votedFor = state.votedFor := by
+@[simp]
+lemma refreshRetirementState_votedFor (node : Node) (state : NodeState Node TxId)
+    : (refreshRetirementState node state).votedFor = state.votedFor := by
   simp [refreshRetirementState]
 
-@[simp] lemma refreshRetirementState_votesGranted
-    (node : Node)
-    (state : NodeState Node TxId) :
-    (refreshRetirementState node state).votesGranted =
-      state.votesGranted := by
+@[simp]
+lemma refreshRetirementState_votesGranted (node : Node) (state : NodeState Node TxId)
+    : (refreshRetirementState node state).votesGranted = state.votesGranted := by
   simp [refreshRetirementState]
 
-@[simp] lemma refreshRetirementState_preVotesGranted
-    (node : Node)
-    (state : NodeState Node TxId) :
-    (refreshRetirementState node state).preVotesGranted =
-      state.preVotesGranted := by
+@[simp]
+lemma refreshRetirementState_preVotesGranted (node : Node) (state : NodeState Node TxId)
+    : (refreshRetirementState node state).preVotesGranted = state.preVotesGranted := by
   simp [refreshRetirementState]
 
-@[simp] lemma refreshRetirementState_idempotent
-    (node : Node)
-    (state : NodeState Node TxId) :
-    refreshRetirementState node (refreshRetirementState node state) =
-      refreshRetirementState node state := by
+@[simp]
+lemma refreshRetirementState_idempotent (node : Node) (state : NodeState Node TxId)
+    : refreshRetirementState node (refreshRetirementState node state)
+      = refreshRetirementState node state := by
   have repeatOr (left right : Option Nat) :
       (left.or right).or right = left.or right := by
     cases left <;> cases right <;> rfl
   simp [refreshRetirementState, repeatOr]
 
-@[simp] lemma protocolNodeState_refreshRetirementState
-    (node : Node)
-    (state : NodeState Node TxId) :
-    protocolNodeState (refreshRetirementState node state) =
-      protocolNodeState state := by
+@[simp]
+lemma protocolNodeState_refreshRetirementState (node : Node) (state : NodeState Node TxId)
+    : protocolNodeState (refreshRetirementState node state)
+      = protocolNodeState state := by
   simp [protocolNodeState]
 
 namespace Reachable
 
 /-- The Raft initial state is reachable. -/
-lemma initial :
-    Reachable (initialState : State Node TxId) :=
+lemma initial : Reachable (initialState : State Node TxId) :=
   ExecutableTransitionSystem.Reachable.initial
 
 /-- Taking an enabled action from a reachable state preserves reachability. -/
@@ -372,8 +368,8 @@ lemma step
     {state : State Node TxId}
     (reachable : Reachable state)
     {action : Action Node TxId}
-    (enabled : Enabled state action) :
-    Reachable (next state action) :=
+    (enabled : Enabled state action)
+    : Reachable (next state action) :=
   ExecutableTransitionSystem.Reachable.step reachable enabled
 
 /-- A successfully executed action list ends in a reachable state. -/
@@ -381,8 +377,8 @@ lemma runActionsReachable
     {start final : State Node TxId}
     {actions : List (Action Node TxId)}
     (startReachable : Reachable start)
-    (ran : runActions start actions = some final) :
-    Reachable final := by
+    (ran : runActions start actions = some final)
+    : Reachable final := by
   induction actions generalizing start final with
   | nil =>
       simp [runActions] at ran
@@ -407,9 +403,7 @@ lemma runActionsReachable
           have nextReachable : Reachable nextState := by
             rw [← nextEq]
             exact step startReachable enabled
-          exact
-            inductionHypothesis nextReachable
-              (by simpa [applied] using ran)
+          exact inductionHypothesis nextReachable (by simpa [applied] using ran)
 
 end Reachable
 

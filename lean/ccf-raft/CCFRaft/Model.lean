@@ -42,7 +42,8 @@ def protocol
 
 /-- The network of `nodes`. Bootstrap membership, the initial leader, and
 pre-vote modes come from the `Bootstrap` instance. -/
-def transitionSystem (nodes : List Node) : TransitionSystem (State Node TxId) (Action Node TxId) :=
+def transitionSystem (nodes : List Node)
+    : TransitionSystem (State Node TxId) (Action Node TxId) :=
   MultiNodeTransitionSystem.lift nodes protocol
 
 end CCFRaft.Model

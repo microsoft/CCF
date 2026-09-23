@@ -2,11 +2,25 @@
 -- Licensed under the Apache 2.0 License.
 
 import CCFRaft.Proofs.Abstract.ModelProofs
-
 import CCFRaft.Proofs.Abstract.Support
 
-open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety CCFRaft.Proofs.Abstract.Support CCFRaft.Proofs.Abstract.ModelProofs
-open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
+open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety
+  CCFRaft.Proofs.Abstract.Support CCFRaft.Proofs.Abstract.ModelProofs
+open CCFRaft.Model.Local (
+  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
+    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
+    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
+    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
+    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
+    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
+    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
+    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
+    messageEntries refreshRetirementState retiredCommittedIndexFrom
+    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
+    retirementCommittableIndexInLog retirementCompletedNodes
+    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
+    updateIndex
+  )
 
 set_option autoImplicit false
 
@@ -24,16 +38,12 @@ variable [DecidableEq Node] [DecidableEq TxId]
 /-! ## Generic list, quorum, and message facts -/
 
 /-- Every list is a prefix of itself. -/
-lemma prefixRefl {Alpha : Type} (values : List Alpha) :
-    values <+: values :=
+lemma prefixRefl {Alpha : Type} (values : List Alpha) : values <+: values :=
   ⟨[], by simp⟩
 
 /-- Taking the length of a known prefix recovers that prefix. -/
-lemma prefixEqTake
-    {Alpha : Type}
-    {head values : List Alpha}
-    (isPrefix : head <+: values) :
-    values.take head.length = head := by
+lemma prefixEqTake {Alpha : Type} {head values : List Alpha} (isPrefix : head <+: values)
+    : values.take head.length = head := by
   rw [List.prefix_iff_eq_take] at isPrefix
   exact isPrefix.symm
 
@@ -43,8 +53,8 @@ lemma takeEqOfPrefix
     {left right : List Alpha}
     (isPrefix : left <+: right)
     {count : Nat}
-    (within : count <= left.length) :
-    left.take count = right.take count := by
+    (within : count <= left.length)
+    : left.take count = right.take count := by
   rw [List.prefix_iff_eq_take] at isPrefix
   rw [isPrefix, List.take_take, Nat.min_eq_left within]
 
@@ -53,14 +63,13 @@ lemma prefixesComparable
     {Alpha : Type}
     {left right common : List Alpha}
     (leftPrefix : left <+: common)
-    (rightPrefix : right <+: common) :
-    left <+: right \/ right <+: left := by
+    (rightPrefix : right <+: common)
+    : left <+: right \/ right <+: left := by
   by_cases leftShorter : left.length <= right.length
   · left
     have leftEq : right.take left.length = left := by
       calc
-        right.take left.length =
-            common.take left.length :=
+        right.take left.length = common.take left.length :=
           takeEqOfPrefix rightPrefix leftShorter
         _ = left := prefixEqTake leftPrefix
     have takenPrefix := List.take_prefix left.length right
@@ -69,8 +78,7 @@ lemma prefixesComparable
     have rightShorter : right.length <= left.length := by omega
     have rightEq : left.take right.length = right := by
       calc
-        left.take right.length =
-            common.take right.length :=
+        left.take right.length = common.take right.length :=
           takeEqOfPrefix leftPrefix rightShorter
         _ = right := prefixEqTake rightPrefix
     have takenPrefix := List.take_prefix right.length left
@@ -83,11 +91,10 @@ lemma configurationMajoritiesIntersect
     {configuration : Configuration Node}
     {left right : Finset Node}
     (leftMajority : hasConfigurationMajority left configuration)
-    (rightMajority : hasConfigurationMajority right configuration) :
-    Exists fun node =>
-      node ∈ configuration.nodes /\
-        node ∈ left /\
-        node ∈ right := by
+    (rightMajority : hasConfigurationMajority right configuration)
+    : Exists
+        fun node =>
+          node ∈ configuration.nodes /\ node ∈ left /\ node ∈ right := by
   let leftMembers := left ∩ configuration.nodes
   let rightMembers := right ∩ configuration.nodes
   have leftStrict :
@@ -120,19 +127,20 @@ lemma configurationMajoritiesIntersect
   rcases common with ⟨node, member⟩
   have leftMember := (Finset.mem_inter.mp member).1
   have rightMember := (Finset.mem_inter.mp member).2
-  exact
-    ⟨node,
-      (Finset.mem_inter.mp leftMember).2,
-      (Finset.mem_inter.mp leftMember).1,
-      (Finset.mem_inter.mp rightMember).1⟩
+  exact ⟨
+    node,
+    (Finset.mem_inter.mp leftMember).2,
+    (Finset.mem_inter.mp leftMember).1,
+    (Finset.mem_inter.mp rightMember).1
+  ⟩
 
 /-- Enlarging a support set preserves a strict majority in one configuration. -/
 lemma hasConfigurationMajority_mono
     {configuration : Configuration Node}
     {smaller larger : Finset Node}
     (subset : smaller ⊆ larger)
-    (majority : hasConfigurationMajority smaller configuration) :
-    hasConfigurationMajority larger configuration := by
+    (majority : hasConfigurationMajority smaller configuration)
+    : hasConfigurationMajority larger configuration := by
   unfold hasConfigurationMajority at majority ⊢
   have intersectionSubset :
       smaller ∩ configuration.nodes ⊆
@@ -149,9 +157,10 @@ lemma hasConfigurationMajority_mono
 lemma configurationMajorityNonempty
     {configuration : Configuration Node}
     {support : Finset Node}
-    (majority : hasConfigurationMajority support configuration) :
-    Exists fun node =>
-      node ∈ configuration.nodes /\ node ∈ support := by
+    (majority : hasConfigurationMajority support configuration)
+    : Exists
+        fun node =>
+          node ∈ configuration.nodes /\ node ∈ support := by
   have common :=
     configurationMajoritiesIntersect majority majority
   rcases common with ⟨node, configurationMember, supportMember, _⟩
@@ -161,12 +170,10 @@ lemma configurationMajorityNonempty
 
 omit [DecidableEq Node] [DecidableEq TxId] in
 /-- Projecting configurations distributes over log concatenation. -/
-lemma configurationsInLogFrom_append
-    (start : Nat)
-    (left right : List (Entry Node TxId)) :
-    configurationsInLogFrom start (left ++ right) =
-      configurationsInLogFrom start left ++
-        configurationsInLogFrom (start + left.length) right := by
+lemma configurationsInLogFrom_append (start : Nat) (left right : List (Entry Node TxId))
+    : configurationsInLogFrom start (left ++ right)
+      = configurationsInLogFrom start left
+        ++ configurationsInLogFrom (start + left.length) right := by
   induction left generalizing start with
   | nil =>
       simp [configurationsInLogFrom]
@@ -198,9 +205,8 @@ omit [DecidableEq Node] [DecidableEq TxId] in
 lemma configurationsInLogFrom_mono_prefix
     (start : Nat)
     {left right : List (Entry Node TxId)}
-    (isPrefix : left <+: right) :
-    configurationsInLogFrom start left <+:
-      configurationsInLogFrom start right := by
+    (isPrefix : left <+: right)
+    : configurationsInLogFrom start left <+: configurationsInLogFrom start right := by
   rcases isPrefix with ⟨suffix, rfl⟩
   rw [configurationsInLogFrom_append]
   exact List.prefix_append _ _
@@ -213,8 +219,8 @@ omit [DecidableEq TxId]
 /-- A log prefix retains every known implicit or physical configuration. -/
 lemma allConfigurations_mono_prefix
     {left right : List (Entry Node TxId)}
-    (isPrefix : left <+: right) :
-    allConfigurations left <+: allConfigurations right := by
+    (isPrefix : left <+: right)
+    : allConfigurations left <+: allConfigurations right := by
   unfold allConfigurations configurationsInLog
   rcases configurationsInLogFrom_mono_prefix 1 isPrefix with
     ⟨suffix, agreed⟩
@@ -227,11 +233,11 @@ lemma retirementIndexFromConfigurations_some_append
     (previouslyIncluded : Bool)
     (configurations suffix : List (Configuration Node))
     (index : Nat)
-    (found :
-      retirementIndexFromConfigurations
-        node previouslyIncluded configurations = some index) :
-    retirementIndexFromConfigurations
-      node previouslyIncluded (configurations ++ suffix) = some index := by
+    (found
+      : retirementIndexFromConfigurations node previouslyIncluded configurations
+        = some index)
+    : retirementIndexFromConfigurations node previouslyIncluded (configurations ++ suffix)
+      = some index := by
   induction configurations generalizing previouslyIncluded with
   | nil =>
       simp [retirementIndexFromConfigurations] at found
@@ -251,8 +257,8 @@ lemma retirementIndexInLog_some_of_prefix
     {left right : List (Entry Node TxId)}
     {index : Nat}
     (isPrefix : left <+: right)
-    (found : retirementIndexInLog node left = some index) :
-    retirementIndexInLog node right = some index := by
+    (found : retirementIndexInLog node left = some index)
+    : retirementIndexInLog node right = some index := by
   unfold retirementIndexInLog at found ⊢
   rcases allConfigurations_mono_prefix (TxId := TxId) isPrefix with
     ⟨suffix, configurationsEq⟩
@@ -266,22 +272,22 @@ lemma retirementIndexInLog_isSome_of_prefix
     (node : Node)
     {left right : List (Entry Node TxId)}
     (isPrefix : left <+: right)
-    (found : (retirementIndexInLog node left).isSome) :
-    (retirementIndexInLog node right).isSome := by
+    (found : (retirementIndexInLog node left).isSome)
+    : (retirementIndexInLog node right).isSome := by
   rw [Option.isSome_iff_exists] at found ⊢
   rcases found with ⟨index, indexFound⟩
-  exact
-    ⟨index,
-      retirementIndexInLog_some_of_prefix
-        (TxId := TxId) node isPrefix indexFound⟩
+  exact ⟨
+    index,
+    retirementIndexInLog_some_of_prefix (TxId := TxId) node isPrefix indexFound
+  ⟩
 
 /-- Every completed-retirement set member has a committed removal prefix. -/
 lemma retirementCompletedNodes_hasRemoval
     (log : List (Entry Node TxId))
     (commitIndex : Nat)
     {node : Node}
-    (member : node ∈ retirementCompletedNodes log commitIndex) :
-    (retirementIndexInLog node (log.take commitIndex)).isSome := by
+    (member : node ∈ retirementCompletedNodes log commitIndex)
+    : (retirementIndexInLog node (log.take commitIndex)).isSome := by
   simpa [retirementCompletedNodes] using (Finset.mem_filter.mp member).2
 
 omit [DecidableEq Node] [Bootstrap Node] in
@@ -290,9 +296,8 @@ lemma configurationsInLogFrom_index_bounds
     (start : Nat)
     (log : List (Entry Node TxId))
     {configuration : Configuration Node}
-    (member : configuration ∈ configurationsInLogFrom start log) :
-    start <= configuration.index /\
-      configuration.index < start + log.length := by
+    (member : configuration ∈ configurationsInLogFrom start log)
+    : start <= configuration.index /\ configuration.index < start + log.length := by
   induction log generalizing start with
   | nil =>
       simp [configurationsInLogFrom] at member
@@ -301,22 +306,19 @@ lemma configurationsInLogFrom_index_bounds
       | transaction txId =>
           have bounds :=
             inductionHypothesis (start := start + 1)
-              (by
-                simpa [configurationsInLogFrom, content] using member)
+              (by simpa [configurationsInLogFrom, content] using member)
           simp only [List.length_cons]
           omega
       | signature =>
           have bounds :=
             inductionHypothesis (start := start + 1)
-              (by
-                simpa [configurationsInLogFrom, content] using member)
+              (by simpa [configurationsInLogFrom, content] using member)
           simp only [List.length_cons]
           omega
       | retiredCommitted nodes =>
           have bounds :=
             inductionHypothesis (start := start + 1)
-              (by
-                simpa [configurationsInLogFrom, content] using member)
+              (by simpa [configurationsInLogFrom, content] using member)
           simp only [List.length_cons]
           omega
       | reconfiguration nodes =>
@@ -337,23 +339,23 @@ omit [DecidableEq Node] [Bootstrap Node] in
 /-- Physical configuration indices are strictly increasing in log order. -/
 lemma configurationsInLogFrom_pairwise_index_lt
     (start : Nat)
-    (log : List (Entry Node TxId)) :
-    (configurationsInLogFrom start log).Pairwise
-      (fun left right => left.index < right.index) := by
+    (log : List (Entry Node TxId))
+    : (configurationsInLogFrom start log).Pairwise
+        (fun left right => left.index < right.index) := by
   induction log generalizing start with
   | nil =>
       simp [configurationsInLogFrom]
   | cons entry entries inductionHypothesis =>
       cases content : entry.content with
       | transaction txId =>
-          simpa [configurationsInLogFrom, content] using
-            inductionHypothesis (start := start + 1)
+          simpa [configurationsInLogFrom, content]
+            using inductionHypothesis (start := start + 1)
       | signature =>
-          simpa [configurationsInLogFrom, content] using
-            inductionHypothesis (start := start + 1)
+          simpa [configurationsInLogFrom, content]
+            using inductionHypothesis (start := start + 1)
       | retiredCommitted nodes =>
-          simpa [configurationsInLogFrom, content] using
-            inductionHypothesis (start := start + 1)
+          simpa [configurationsInLogFrom, content]
+            using inductionHypothesis (start := start + 1)
       | reconfiguration nodes =>
           rw [
             show configurationsInLogFrom start (entry :: entries) =
@@ -376,9 +378,8 @@ omit [DecidableEq Node] [Bootstrap Node] in
 lemma configurationsInLog_index_bounds
     (log : List (Entry Node TxId))
     {configuration : Configuration Node}
-    (member : configuration ∈ configurationsInLog log) :
-    0 < configuration.index /\
-      configuration.index <= log.length := by
+    (member : configuration ∈ configurationsInLog log)
+    : 0 < configuration.index /\ configuration.index <= log.length := by
   have bounds :=
     configurationsInLogFrom_index_bounds
       (TxId := TxId) 1 log (by simpa [configurationsInLog] using member)
@@ -391,8 +392,8 @@ lemma allConfigurations_mem_take_of_index_le
     {configuration : Configuration Node}
     (frontierBound : frontier <= log.length)
     (known : configuration ∈ allConfigurations log)
-    (within : configuration.index <= frontier) :
-    configuration ∈ allConfigurations (log.take frontier) := by
+    (within : configuration.index <= frontier)
+    : configuration ∈ allConfigurations (log.take frontier) := by
   rw [allConfigurations] at known ⊢
   rcases List.mem_cons.mp known with implicit | physical
   · exact List.mem_cons.mpr (Or.inl implicit)
@@ -403,11 +404,8 @@ lemma allConfigurations_mem_take_of_index_le
             configurationsInLogFrom
               (1 + (log.take frontier).length)
               (log.drop frontier) := by
-      simpa [
-        configurationsInLog,
-        List.take_append_drop
-      ] using
-        configurationsInLogFrom_append
+      simpa [configurationsInLog, List.take_append_drop]
+        using configurationsInLogFrom_append
           (TxId := TxId) 1
           (log.take frontier) (log.drop frontier)
     rw [split] at physical
@@ -426,18 +424,15 @@ lemma allConfigurations_mem_take_of_index_le
 
 omit [DecidableEq Node] [Bootstrap Node] in
 /-- Physical configuration indices are strictly increasing. -/
-lemma configurationsInLog_pairwise_index_lt
-    (log : List (Entry Node TxId)) :
-    (configurationsInLog log).Pairwise
-      (fun left right => left.index < right.index) := by
-  simpa [configurationsInLog] using
-    configurationsInLogFrom_pairwise_index_lt (TxId := TxId) 1 log
+lemma configurationsInLog_pairwise_index_lt (log : List (Entry Node TxId))
+    : (configurationsInLog log).Pairwise
+        (fun left right => left.index < right.index) := by
+  simpa [configurationsInLog]
+    using configurationsInLogFrom_pairwise_index_lt (TxId := TxId) 1 log
 
 /-- The implicit index zero precedes every physical configuration index. -/
-lemma allConfigurations_pairwise_index_lt
-    (log : List (Entry Node TxId)) :
-    (allConfigurations log).Pairwise
-      (fun left right => left.index < right.index) := by
+lemma allConfigurations_pairwise_index_lt (log : List (Entry Node TxId))
+    : (allConfigurations log).Pairwise (fun left right => left.index < right.index) := by
   rw [allConfigurations, List.pairwise_cons]
   constructor
   · intro configuration member
@@ -449,10 +444,10 @@ lemma allConfigurations_pairwise_index_lt
 
 omit [DecidableEq Node] [Bootstrap Node] in
 /-- Physical configuration indices contain no duplicates. -/
-lemma configurationsInLog_indices_nodup
-    (log : List (Entry Node TxId)) :
-    ((configurationsInLog log).map fun configuration =>
-      configuration.index).Nodup := by
+lemma configurationsInLog_indices_nodup (log : List (Entry Node TxId))
+    : ((configurationsInLog log).map
+        fun configuration =>
+          configuration.index).Nodup := by
   have ordered :
       ((configurationsInLog log).map fun configuration =>
         configuration.index).Pairwise (fun left right => left < right) :=
@@ -461,10 +456,10 @@ lemma configurationsInLog_indices_nodup
   exact ordered.nodup
 
 /-- Known configuration indices, including implicit index zero, are unique. -/
-lemma allConfigurations_indices_nodup
-    (log : List (Entry Node TxId)) :
-    ((allConfigurations log).map fun configuration =>
-      configuration.index).Nodup := by
+lemma allConfigurations_indices_nodup (log : List (Entry Node TxId))
+    : ((allConfigurations log).map
+        fun configuration =>
+          configuration.index).Nodup := by
   have ordered :
       ((allConfigurations log).map fun configuration =>
         configuration.index).Pairwise (fun left right => left < right) :=
@@ -476,14 +471,12 @@ omit [Bootstrap Node] in
 /-- A strictly index-ordered configuration list has unique index ownership. -/
 private lemma pairwiseConfigurationIndex_unique
     {configurations : List (Configuration Node)}
-    (ordered :
-      configurations.Pairwise
-        (fun left right => left.index < right.index))
+    (ordered : configurations.Pairwise (fun left right => left.index < right.index))
     {left right : Configuration Node}
     (leftMember : left ∈ configurations)
     (rightMember : right ∈ configurations)
-    (sameIndex : left.index = right.index) :
-    left = right := by
+    (sameIndex : left.index = right.index)
+    : left = right := by
   induction configurations generalizing left right with
   | nil =>
       simp at leftMember
@@ -509,8 +502,8 @@ lemma configurationsInLog_index_unique
     {left right : Configuration Node}
     (leftMember : left ∈ configurationsInLog log)
     (rightMember : right ∈ configurationsInLog log)
-    (sameIndex : left.index = right.index) :
-    left = right :=
+    (sameIndex : left.index = right.index)
+    : left = right :=
   pairwiseConfigurationIndex_unique
     (configurationsInLog_pairwise_index_lt (TxId := TxId) log)
     leftMember rightMember sameIndex
@@ -521,36 +514,30 @@ lemma allConfigurations_index_unique
     {left right : Configuration Node}
     (leftMember : left ∈ allConfigurations log)
     (rightMember : right ∈ allConfigurations log)
-    (sameIndex : left.index = right.index) :
-    left = right :=
+    (sameIndex : left.index = right.index)
+    : left = right :=
   pairwiseConfigurationIndex_unique
     (allConfigurations_pairwise_index_lt (TxId := TxId) log)
     leftMember rightMember sameIndex
 
 omit [DecidableEq Node] [Bootstrap Node] in
 /-- Physical configurations contain no duplicate records. -/
-lemma configurationsInLog_nodup
-    (log : List (Entry Node TxId)) :
-    (configurationsInLog log).Nodup := by
+lemma configurationsInLog_nodup (log : List (Entry Node TxId))
+    : (configurationsInLog log).Nodup := by
   rw [List.nodup_iff_pairwise_ne]
-  exact
-    (configurationsInLog_pairwise_index_lt (TxId := TxId) log).imp
-      (by
-        intro left right ordered same
-        subst right
-        omega)
+  exact (configurationsInLog_pairwise_index_lt (TxId := TxId) log).imp (by
+    intro left right ordered same
+    subst right
+    omega)
 
 /-- Known configurations contain no duplicate records. -/
-lemma allConfigurations_nodup
-    (log : List (Entry Node TxId)) :
-    (allConfigurations log).Nodup := by
+lemma allConfigurations_nodup (log : List (Entry Node TxId))
+    : (allConfigurations log).Nodup := by
   rw [List.nodup_iff_pairwise_ne]
-  exact
-    (allConfigurations_pairwise_index_lt (TxId := TxId) log).imp
-      (by
-        intro left right ordered same
-        subst right
-        omega)
+  exact (allConfigurations_pairwise_index_lt (TxId := TxId) log).imp (by
+    intro left right ordered same
+    subst right
+    omega)
 
 omit [DecidableEq Node] [Bootstrap Node] in
 /-- Appending a non-reconfiguration entry does not add a configuration. -/
@@ -558,11 +545,9 @@ lemma configurationsInLogFrom_append_nonreconfiguration
     (start : Nat)
     (log : List (Entry Node TxId))
     (entry : Entry Node TxId)
-    (notReconfiguration :
-      forall nodes,
-        Not (entry.content = .reconfiguration nodes)) :
-    configurationsInLogFrom start (log ++ [entry]) =
-      configurationsInLogFrom start log := by
+    (notReconfiguration : forall nodes, Not (entry.content = .reconfiguration nodes))
+    : configurationsInLogFrom start (log ++ [entry])
+      = configurationsInLogFrom start log := by
   induction log generalizing start with
   | nil =>
       cases content : entry.content with
@@ -577,14 +562,14 @@ lemma configurationsInLogFrom_append_nonreconfiguration
   | cons head tail inductionHypothesis =>
       cases content : head.content with
       | transaction txId =>
-          simpa [configurationsInLogFrom, content] using
-            inductionHypothesis (start := start + 1)
+          simpa [configurationsInLogFrom, content]
+            using inductionHypothesis (start := start + 1)
       | signature =>
-          simpa [configurationsInLogFrom, content] using
-            inductionHypothesis (start := start + 1)
+          simpa [configurationsInLogFrom, content]
+            using inductionHypothesis (start := start + 1)
       | retiredCommitted nodes =>
-          simpa [configurationsInLogFrom, content] using
-            inductionHypothesis (start := start + 1)
+          simpa [configurationsInLogFrom, content]
+            using inductionHypothesis (start := start + 1)
       | reconfiguration nodes =>
           simp [
             configurationsInLogFrom, content,
@@ -596,11 +581,8 @@ omit [DecidableEq Node] [Bootstrap Node] in
 lemma configurationsInLog_append_nonreconfiguration
     (log : List (Entry Node TxId))
     (entry : Entry Node TxId)
-    (notReconfiguration :
-      forall nodes,
-        Not (entry.content = .reconfiguration nodes)) :
-    configurationsInLog (log ++ [entry]) =
-      configurationsInLog log := by
+    (notReconfiguration : forall nodes, Not (entry.content = .reconfiguration nodes))
+    : configurationsInLog (log ++ [entry]) = configurationsInLog log := by
   exact
     configurationsInLogFrom_append_nonreconfiguration
       (TxId := TxId) 1 log entry notReconfiguration
@@ -610,11 +592,9 @@ lemma currentConfigurationAt_append_nonreconfiguration
     (log : List (Entry Node TxId))
     (entry : Entry Node TxId)
     (commitIndex : Nat)
-    (notReconfiguration :
-      forall nodes,
-        Not (entry.content = .reconfiguration nodes)) :
-    currentConfigurationAt (log ++ [entry]) commitIndex =
-      currentConfigurationAt log commitIndex := by
+    (notReconfiguration : forall nodes, Not (entry.content = .reconfiguration nodes))
+    : currentConfigurationAt (log ++ [entry]) commitIndex
+      = currentConfigurationAt log commitIndex := by
   simp [
     currentConfigurationAt,
     configurationsInLog_append_nonreconfiguration
@@ -625,11 +605,9 @@ lemma currentConfigurationAt_append_nonreconfiguration
 lemma activeConfigurations_append_nonreconfiguration
     (state : NodeState Node TxId)
     (entry : Entry Node TxId)
-    (notReconfiguration :
-      forall nodes,
-        Not (entry.content = .reconfiguration nodes)) :
-    activeConfigurations { state with log := state.log ++ [entry] } =
-      activeConfigurations state := by
+    (notReconfiguration : forall nodes, Not (entry.content = .reconfiguration nodes))
+    : activeConfigurations { state with log := state.log ++ [entry] }
+      = activeConfigurations state := by
   simp [
     activeConfigurations, currentConfiguration,
     allConfigurations,
@@ -644,8 +622,8 @@ lemma activeConfigurations_append_nonreconfiguration
 /-- Select a configuration exactly when its physical index is committed. -/
 private def selectConfiguration
     (commitIndex : Nat)
-    (current configuration : Configuration Node) :
-    Configuration Node :=
+    (current configuration : Configuration Node)
+    : Configuration Node :=
   if configuration.index <= commitIndex then configuration else current
 
 omit [DecidableEq Node] [Bootstrap Node] in
@@ -653,11 +631,10 @@ omit [DecidableEq Node] [Bootstrap Node] in
 private lemma foldlSelectConfiguration_mem
     (commitIndex : Nat)
     (configurations : List (Configuration Node))
-    (fallback : Configuration Node) :
-    configurations.foldl (selectConfiguration commitIndex) fallback =
-        fallback \/
-      configurations.foldl (selectConfiguration commitIndex) fallback ∈
-        configurations := by
+    (fallback : Configuration Node)
+    : configurations.foldl (selectConfiguration commitIndex) fallback = fallback
+      \/ configurations.foldl (selectConfiguration commitIndex) fallback
+          ∈ configurations := by
   induction configurations generalizing fallback with
   | nil =>
       simp
@@ -679,9 +656,9 @@ private lemma foldlSelectConfiguration_index_le
     (commitIndex : Nat)
     (configurations : List (Configuration Node))
     (fallback : Configuration Node)
-    (fallbackBound : fallback.index <= commitIndex) :
-    (configurations.foldl
-      (selectConfiguration commitIndex) fallback).index <= commitIndex := by
+    (fallbackBound : fallback.index <= commitIndex)
+    : (configurations.foldl (selectConfiguration commitIndex) fallback).index
+      <= commitIndex := by
   induction configurations generalizing fallback with
   | nil =>
       exact fallbackBound
@@ -699,16 +676,12 @@ private lemma foldlSelectConfiguration_index_ge
     (commitIndex : Nat)
     (configurations : List (Configuration Node))
     (fallback : Configuration Node)
-    (afterFallback :
-      forall configuration,
-        configuration ∈ configurations ->
-          fallback.index < configuration.index)
-    (ordered :
-      configurations.Pairwise
-        (fun left right => left.index < right.index)) :
-    fallback.index <=
-      (configurations.foldl
-        (selectConfiguration commitIndex) fallback).index := by
+    (afterFallback
+      : forall configuration,
+          configuration ∈ configurations -> fallback.index < configuration.index)
+    (ordered : configurations.Pairwise (fun left right => left.index < right.index))
+    : fallback.index
+      <= (configurations.foldl (selectConfiguration commitIndex) fallback).index := by
   induction configurations generalizing fallback with
   | nil =>
       simp
@@ -720,10 +693,8 @@ private lemma foldlSelectConfiguration_index_ge
         have fallbackBeforeHead :
             fallback.index < head.index :=
           afterFallback head (by simp)
-        exact
-          (Nat.le_of_lt fallbackBeforeHead).trans
-            (inductionHypothesis
-              head ordered.1 ordered.2)
+        exact (Nat.le_of_lt fallbackBeforeHead).trans
+          (inductionHypothesis head ordered.1 ordered.2)
       · rw [selectConfiguration, ite_eq_right committed]
         exact
           inductionHypothesis
@@ -741,19 +712,15 @@ private lemma foldlSelectConfiguration_greatest
     (commitIndex : Nat)
     (configurations : List (Configuration Node))
     (fallback : Configuration Node)
-    (afterFallback :
-      forall configuration,
-        configuration ∈ configurations ->
-          fallback.index < configuration.index)
-    (ordered :
-      configurations.Pairwise
-        (fun left right => left.index < right.index))
+    (afterFallback
+      : forall configuration,
+          configuration ∈ configurations -> fallback.index < configuration.index)
+    (ordered : configurations.Pairwise (fun left right => left.index < right.index))
     {configuration : Configuration Node}
     (member : configuration ∈ configurations)
-    (committed : configuration.index <= commitIndex) :
-    configuration.index <=
-      (configurations.foldl
-        (selectConfiguration commitIndex) fallback).index := by
+    (committed : configuration.index <= commitIndex)
+    : configuration.index
+      <= (configurations.foldl (selectConfiguration commitIndex) fallback).index := by
   induction configurations generalizing fallback with
   | nil =>
       simp at member
@@ -792,12 +759,10 @@ private lemma foldlSelectConfiguration_eq_of_all_after
     (commitIndex : Nat)
     (configurations : List (Configuration Node))
     (fallback : Configuration Node)
-    (pending :
-      forall configuration,
-        configuration ∈ configurations ->
-          commitIndex < configuration.index) :
-    configurations.foldl (selectConfiguration commitIndex) fallback =
-      fallback := by
+    (pending
+      : forall configuration,
+          configuration ∈ configurations -> commitIndex < configuration.index)
+    : configurations.foldl (selectConfiguration commitIndex) fallback = fallback := by
   induction configurations generalizing fallback with
   | nil =>
       rfl
@@ -811,23 +776,22 @@ private lemma foldlSelectConfiguration_eq_of_all_after
         selectConfiguration,
         ite_eq_right headNotCommitted
       ]
-      exact
-        inductionHypothesis
-          fallback
-          (by
-            intro configuration member
-            exact
-              pending configuration
-                (List.mem_cons_of_mem head member))
+      exact inductionHypothesis
+        fallback
+        (by
+          intro configuration member
+          exact
+            pending configuration
+              (List.mem_cons_of_mem head member))
 
 /--
 The current configuration is either implicit or one of the physical
 configurations projected from the log.
 -/
 lemma currentConfiguration_eq_implicit_or_mem_configurationsInLog
-    (state : NodeState Node TxId) :
-    currentConfiguration state = implicitConfiguration \/
-      currentConfiguration state ∈ configurationsInLog state.log := by
+    (state : NodeState Node TxId)
+    : currentConfiguration state = implicitConfiguration
+      \/ currentConfiguration state ∈ configurationsInLog state.log := by
   exact
     foldlSelectConfiguration_mem
       state.commitIndex
@@ -835,9 +799,8 @@ lemma currentConfiguration_eq_implicit_or_mem_configurationsInLog
       implicitConfiguration
 
 /-- The current configuration is always known from the local log. -/
-lemma currentConfiguration_mem_allConfigurations
-    (state : NodeState Node TxId) :
-    currentConfiguration state ∈ allConfigurations state.log := by
+lemma currentConfiguration_mem_allConfigurations (state : NodeState Node TxId)
+    : currentConfiguration state ∈ allConfigurations state.log := by
   rcases
       currentConfiguration_eq_implicit_or_mem_configurationsInLog state with
     implicit | physical
@@ -845,15 +808,13 @@ lemma currentConfiguration_mem_allConfigurations
   · simp [allConfigurations, physical]
 
 /-- The current configuration index never exceeds the local commit frontier. -/
-lemma currentConfiguration_index_le_commitIndex
-    (state : NodeState Node TxId) :
-    (currentConfiguration state).index <= state.commitIndex := by
-  exact
-    foldlSelectConfiguration_index_le
-      state.commitIndex
-      (configurationsInLog state.log)
-      implicitConfiguration
-      (by simp [implicitConfiguration])
+lemma currentConfiguration_index_le_commitIndex (state : NodeState Node TxId)
+    : (currentConfiguration state).index <= state.commitIndex := by
+  exact foldlSelectConfiguration_index_le
+    state.commitIndex
+    (configurationsInLog state.log)
+    implicitConfiguration
+    (by simp [implicitConfiguration])
 
 /--
 The current configuration has the greatest known configuration index at or
@@ -863,8 +824,8 @@ lemma configuration_index_le_currentConfiguration
     (state : NodeState Node TxId)
     (configuration : Configuration Node)
     (known : configuration ∈ allConfigurations state.log)
-    (committed : configuration.index <= state.commitIndex) :
-    configuration.index <= (currentConfiguration state).index := by
+    (committed : configuration.index <= state.commitIndex)
+    : configuration.index <= (currentConfiguration state).index := by
   rw [allConfigurations] at known
   rcases List.mem_cons.mp known with implicit | physical
   · subst configuration
@@ -894,12 +855,11 @@ lemma configuration_index_le_currentConfiguration
 The implicit configuration is current exactly when every physical
 reconfiguration is still beyond the commit frontier.
 -/
-lemma currentConfiguration_eq_implicit_iff
-    (state : NodeState Node TxId) :
-    currentConfiguration state = implicitConfiguration <->
-      forall configuration,
-        configuration ∈ configurationsInLog state.log ->
-          state.commitIndex < configuration.index := by
+lemma currentConfiguration_eq_implicit_iff (state : NodeState Node TxId)
+    : currentConfiguration state = implicitConfiguration
+      <-> forall configuration,
+            configuration ∈ configurationsInLog state.log
+            -> state.commitIndex < configuration.index := by
   constructor
   · intro currentImplicit configuration physical
     by_contra notPending
@@ -925,9 +885,8 @@ lemma currentConfiguration_eq_implicit_iff
         pending
 
 /-- The current configuration is one of the active configurations. -/
-lemma currentConfiguration_mem_activeConfigurations
-    (state : NodeState Node TxId) :
-    currentConfiguration state ∈ activeConfigurations state := by
+lemma currentConfiguration_mem_activeConfigurations (state : NodeState Node TxId)
+    : currentConfiguration state ∈ activeConfigurations state := by
   simp [
     activeConfigurations,
     currentConfiguration_mem_allConfigurations
@@ -945,8 +904,8 @@ lemma activeConfigurationAtCommittedIndex_eq_current
     (state : NodeState Node TxId)
     (configuration : Configuration Node)
     (active : configuration ∈ activeConfigurations state)
-    (committed : configuration.index <= state.commitIndex) :
-    configuration = currentConfiguration state := by
+    (committed : configuration.index <= state.commitIndex)
+    : configuration = currentConfiguration state := by
   have activeFacts :
       configuration ∈ allConfigurations state.log /\
         (currentConfiguration state).index <= configuration.index := by
@@ -972,8 +931,8 @@ lemma activeConfigurationsAtCommittedIndices_unique
     (leftActive : left ∈ activeConfigurations state)
     (rightActive : right ∈ activeConfigurations state)
     (leftCommitted : left.index <= state.commitIndex)
-    (rightCommitted : right.index <= state.commitIndex) :
-    left = right := by
+    (rightCommitted : right.index <= state.commitIndex)
+    : left = right := by
   rw [
     activeConfigurationAtCommittedIndex_eq_current
       state left leftActive leftCommitted,
@@ -991,8 +950,8 @@ lemma activeConfigurationGoverningCommittedIndex_eq_current
     {index : Nat}
     (active : configuration ∈ activeConfigurations state)
     (governs : configuration.index <= index)
-    (committed : index <= state.commitIndex) :
-    configuration = currentConfiguration state :=
+    (committed : index <= state.commitIndex)
+    : configuration = currentConfiguration state :=
   activeConfigurationAtCommittedIndex_eq_current
     state configuration active (governs.trans committed)
 
@@ -1006,12 +965,12 @@ lemma activeConfigurations_all_at_committed_index_iff_current
     (index : Nat)
     (committed : index <= state.commitIndex)
     (predicate : Configuration Node -> Prop)
-    [DecidablePred predicate] :
-    (activeConfigurations state).all
+    [DecidablePred predicate]
+    : (activeConfigurations state).all
         (fun configuration =>
-          decide (configuration.index <= index -> predicate configuration)) <->
-      ((currentConfiguration state).index <= index ->
-        predicate (currentConfiguration state)) := by
+          decide (configuration.index <= index -> predicate configuration))
+      <-> ((currentConfiguration state).index <= index
+            -> predicate (currentConfiguration state)) := by
   constructor
   · intro allActive currentGoverns
     rw [List.all_eq_true] at allActive
@@ -1040,12 +999,12 @@ lemma hasMajorityAt_committed_iff_currentConfiguration
     (state : State Node TxId)
     (leader : Node)
     (index : Nat)
-    (committed : index <= (state.nodes leader).commitIndex) :
-    hasMajorityAt state leader index <->
-      ((currentConfiguration (state.nodes leader)).index <= index ->
-        hasConfigurationMajority
-          (acknowledgingNodes state leader index)
-          (currentConfiguration (state.nodes leader))) := by
+    (committed : index <= (state.nodes leader).commitIndex)
+    : hasMajorityAt state leader index
+      <-> ((currentConfiguration (state.nodes leader)).index <= index
+            -> hasConfigurationMajority
+                (acknowledgingNodes state leader index)
+                (currentConfiguration (state.nodes leader))) := by
   unfold hasMajorityAt
   exact
     activeConfigurations_all_at_committed_index_iff_current
@@ -1065,8 +1024,8 @@ lemma entryAtSomeIndexBound
     {log : List (Entry Node TxId)}
     {index : Nat}
     {entry : Entry Node TxId}
-    (found : entryAt? log index = some entry) :
-    index <= log.length := by
+    (found : entryAt? log index = some entry)
+    : index <= log.length := by
   unfold entryAt? at found
   split at found
   · simp_all
@@ -1081,8 +1040,8 @@ lemma entryAt_mem
     {log : List (Entry Node TxId)}
     {index : Nat}
     {entry : Entry Node TxId}
-    (found : entryAt? log index = some entry) :
-    entry ∈ log := by
+    (found : entryAt? log index = some entry)
+    : entry ∈ log := by
   unfold entryAt? at found
   split at found
   · simp_all
@@ -1098,8 +1057,8 @@ lemma entryAt_of_prefix
     (isPrefix : left <+: right)
     {index : Nat}
     {entry : Entry Node TxId}
-    (found : entryAt? left index = some entry) :
-    entryAt? right index = some entry := by
+    (found : entryAt? left index = some entry)
+    : entryAt? right index = some entry := by
   rcases isPrefix with ⟨suffix, rightEq⟩
   rw [← rightEq]
   unfold entryAt? at found ⊢
@@ -1118,9 +1077,8 @@ lemma messageEntriesLength
     (log : List (Entry Node TxId))
     {previousIndex batchEnd : Nat}
     (ordered : previousIndex <= batchEnd)
-    (within : batchEnd <= log.length) :
-    (messageEntries log previousIndex batchEnd).length =
-      batchEnd - previousIndex := by
+    (within : batchEnd <= log.length)
+    : (messageEntries log previousIndex batchEnd).length = batchEnd - previousIndex := by
   rw [← Nat.sub_add_cancel ordered] at within ⊢
   simp [
     messageEntries,
@@ -1135,9 +1093,9 @@ lemma memEnqueue
     (network : Node -> List (Message Node TxId))
     (newMessage message : Message Node TxId)
     (destination : Node)
-    (member : message ∈ enqueue network newMessage destination) :
-    message ∈ network destination \/
-      (destination = newMessage.destination /\ message = newMessage) := by
+    (member : message ∈ enqueue network newMessage destination)
+    : message ∈ network destination
+      \/ (destination = newMessage.destination /\ message = newMessage) := by
   unfold enqueue at member
   by_cases destinationEq : destination = newMessage.destination
   · subst destination
@@ -1156,11 +1114,10 @@ lemma takeFirstFromSound
     {source : Node}
     {queue remaining : List (Message Node TxId)}
     {selected : Message Node TxId}
-    (taken :
-      takeFirstFrom source queue = some (selected, remaining)) :
-    selected.source = source /\
-      selected ∈ queue /\
-      (forall message, message ∈ remaining -> message ∈ queue) := by
+    (taken : takeFirstFrom source queue = some (selected, remaining))
+    : selected.source = source
+      /\ selected ∈ queue
+      /\ (forall message, message ∈ remaining -> message ∈ queue) := by
   induction queue generalizing selected remaining with
   | nil =>
       simp [takeFirstFrom] at taken
@@ -1198,8 +1155,8 @@ lemma memOfPrefix
     {left right : List Alpha}
     (isPrefix : left <+: right)
     {value : Alpha}
-    (member : value ∈ left) :
-    value ∈ right := by
+    (member : value ∈ left)
+    : value ∈ right := by
   rcases isPrefix with ⟨suffix, rightEq⟩
   rw [← rightEq]
   simp [member]
@@ -1210,10 +1167,10 @@ lemma memOfPrefix
 lemma isSignatureAtTrue
     {log : List (Entry Node TxId)}
     {index : Nat}
-    (signature : isSignatureAt log index = true) :
-    Exists fun entry =>
-      entryAt? log index = some entry /\
-        entry.content = .signature := by
+    (signature : isSignatureAt log index = true)
+    : Exists
+        fun entry =>
+          entryAt? log index = some entry /\ entry.content = .signature := by
   cases found : entryAt? log index with
   | none =>
       simp [isSignatureAt, found] at signature
@@ -1222,9 +1179,8 @@ lemma isSignatureAtTrue
       simpa [isSignatureAt, found] using signature
 
 /-- The latest signature index lies within the log. -/
-lemma maxCommittableIndexBounded
-    (log : List (Entry Node TxId)) :
-    maxCommittableIndex log <= log.length := by
+lemma maxCommittableIndexBounded (log : List (Entry Node TxId))
+    : maxCommittableIndex log <= log.length := by
   unfold maxCommittableIndex
   let candidates := List.range (log.length + 1)
   let choose :=
@@ -1261,8 +1217,8 @@ lemma maxCommittableIndexBounded
 /-- A positive latest committable index points to a signature. -/
 lemma maxCommittableIndexPositiveIsSignature
     {log : List (Entry Node TxId)}
-    (positive : 0 < maxCommittableIndex log) :
-    isSignatureAt log (maxCommittableIndex log) = true := by
+    (positive : 0 < maxCommittableIndex log)
+    : isSignatureAt log (maxCommittableIndex log) = true := by
   unfold maxCommittableIndex at positive ⊢
   let valid := fun index => isSignatureAt log index = true
   let choose :=
@@ -1305,8 +1261,8 @@ lemma maxCommittableIndexPositiveIsSignature
 lemma signatureIndex_le_maxCommittableIndex
     {log : List (Entry Node TxId)}
     {index : Nat}
-    (signature : isSignatureAt log index = true) :
-    index <= maxCommittableIndex log := by
+    (signature : isSignatureAt log index = true)
+    : index <= maxCommittableIndex log := by
   have indexBound : index <= log.length := by
     rcases isSignatureAtTrue signature with ⟨entry, found, _⟩
     exact entryAtSomeIndexBound found
@@ -1349,24 +1305,19 @@ lemma signatureIndex_le_maxCommittableIndex
               choose best index = max best index := by
             simp [choose, signature]
           rw [selected]
-          exact
-            (le_max_right best index).trans
-              (foldAboveStart tail (max best index))
+          exact (le_max_right best index).trans (foldAboveStart tail (max best index))
         · exact
             inductionHypothesis
               (choose best head) tailMember
   change index <= candidates.foldl choose 0
-  exact
-    foldContains candidates 0
-      (by
-        simp [candidates]
-        omega)
+  exact foldContains candidates 0
+    (by
+      simp [candidates]
+      omega)
 
 /-- There is no signature exactly when the latest committable index is zero. -/
-lemma maxCommittableIndex_eq_zero_iff
-    (log : List (Entry Node TxId)) :
-    maxCommittableIndex log = 0 <->
-      forall index, isSignatureAt log index = false := by
+lemma maxCommittableIndex_eq_zero_iff (log : List (Entry Node TxId))
+    : maxCommittableIndex log = 0 <-> forall index, isSignatureAt log index = false := by
   constructor
   · intro zero index
     cases signature : isSignatureAt log index with
@@ -1393,8 +1344,8 @@ lemma isSignatureAt_of_prefix
     {left right : List (Entry Node TxId)}
     (isPrefix : left <+: right)
     {index : Nat}
-    (signature : isSignatureAt left index = true) :
-    isSignatureAt right index = true := by
+    (signature : isSignatureAt left index = true)
+    : isSignatureAt right index = true := by
   rcases isSignatureAtTrue signature with ⟨entry, found, content⟩
   have extended := entryAt_of_prefix isPrefix found
   simp [isSignatureAt, extended, content]
@@ -1402,8 +1353,8 @@ lemma isSignatureAt_of_prefix
 /-- Extending a log cannot move its latest signature backwards. -/
 lemma maxCommittableIndex_le_of_prefix
     {left right : List (Entry Node TxId)}
-    (isPrefix : left <+: right) :
-    maxCommittableIndex left <= maxCommittableIndex right := by
+    (isPrefix : left <+: right)
+    : maxCommittableIndex left <= maxCommittableIndex right := by
   by_cases zero : maxCommittableIndex left = 0
   · omega
   · have positive : 0 < maxCommittableIndex left :=
@@ -1417,8 +1368,8 @@ lemma maxCommittableIndex_le_of_prefix
 lemma maxCommittableIndex_append_signature
     (log : List (Entry Node TxId))
     (entry : Entry Node TxId)
-    (signature : entry.content = .signature) :
-    maxCommittableIndex (log ++ [entry]) = log.length + 1 := by
+    (signature : entry.content = .signature)
+    : maxCommittableIndex (log ++ [entry]) = log.length + 1 := by
   have appendedSignature :
       isSignatureAt (log ++ [entry]) (log.length + 1) = true := by
     simp [isSignatureAt, entryAt?, signature]
@@ -1434,8 +1385,8 @@ lemma isSignatureAt_take_of_le
     {log : List (Entry Node TxId)}
     {index count : Nat}
     (within : index <= count)
-    (signature : isSignatureAt log index = true) :
-    isSignatureAt (log.take count) index = true := by
+    (signature : isSignatureAt log index = true)
+    : isSignatureAt (log.take count) index = true := by
   rcases isSignatureAtTrue signature with ⟨entry, found, content⟩
   have taken : entryAt? (log.take count) index = some entry := by
     by_cases zero : index = 0
@@ -1450,20 +1401,14 @@ lemma isSignatureAt_take_of_le
   simp [isSignatureAt, taken, content]
 
 /-- The bounded committable frontier does not exceed its supplied frontier. -/
-lemma maxCommittableIndexUpTo_le_frontier
-    (log : List (Entry Node TxId))
-    (frontier : Nat) :
-    maxCommittableIndexUpTo log frontier <= frontier := by
+lemma maxCommittableIndexUpTo_le_frontier (log : List (Entry Node TxId)) (frontier : Nat)
+    : maxCommittableIndexUpTo log frontier <= frontier := by
   unfold maxCommittableIndexUpTo
-  exact
-    (maxCommittableIndexBounded (log.take frontier)).trans
-      (by simp)
+  exact (maxCommittableIndexBounded (log.take frontier)).trans (by simp)
 
 /-- The bounded committable frontier does not exceed the complete log. -/
-lemma maxCommittableIndexUpTo_le_length
-    (log : List (Entry Node TxId))
-    (frontier : Nat) :
-    maxCommittableIndexUpTo log frontier <= log.length := by
+lemma maxCommittableIndexUpTo_le_length (log : List (Entry Node TxId)) (frontier : Nat)
+    : maxCommittableIndexUpTo log frontier <= log.length := by
   unfold maxCommittableIndexUpTo
   have bounded :=
     maxCommittableIndexBounded (log.take frontier)
@@ -1471,11 +1416,8 @@ lemma maxCommittableIndexUpTo_le_length
   omega
 
 /-- Restricting the search frontier cannot reveal a later signature. -/
-lemma maxCommittableIndexUpTo_le
-    (log : List (Entry Node TxId))
-    (frontier : Nat) :
-    maxCommittableIndexUpTo log frontier <=
-      maxCommittableIndex log := by
+lemma maxCommittableIndexUpTo_le (log : List (Entry Node TxId)) (frontier : Nat)
+    : maxCommittableIndexUpTo log frontier <= maxCommittableIndex log := by
   unfold maxCommittableIndexUpTo
   exact
     maxCommittableIndex_le_of_prefix
@@ -1485,8 +1427,8 @@ lemma maxCommittableIndexUpTo_le
 lemma maxCommittableIndexUpToPositiveIsSignature
     {log : List (Entry Node TxId)}
     {frontier : Nat}
-    (positive : 0 < maxCommittableIndexUpTo log frontier) :
-    isSignatureAt log (maxCommittableIndexUpTo log frontier) = true := by
+    (positive : 0 < maxCommittableIndexUpTo log frontier)
+    : isSignatureAt log (maxCommittableIndexUpTo log frontier) = true := by
   unfold maxCommittableIndexUpTo at positive ⊢
   exact
     isSignatureAt_of_prefix
@@ -1498,11 +1440,8 @@ section BootstrapCommit
 variable [Bootstrap Node]
 
 /-- The computed commit frontier never exceeds the leader log length. -/
-lemma highestCommittableIndexBounded
-    (state : State Node TxId)
-    (leader : Node) :
-    highestCommittableIndex state leader <=
-      (state.nodes leader).log.length := by
+lemma highestCommittableIndexBounded (state : State Node TxId) (leader : Node)
+    : highestCommittableIndex state leader <= (state.nodes leader).log.length := by
   unfold highestCommittableIndex
   let candidates := List.range ((state.nodes leader).log.length + 1)
   let choose :=
@@ -1549,18 +1488,11 @@ lemma highestCommittableIndexBounded
 lemma highestCommittableIndexFacts
     (state : State Node TxId)
     (leader : Node)
-    (advances :
-      (state.nodes leader).commitIndex <
-        highestCommittableIndex state leader) :
-    isSignatureAt
-        (state.nodes leader).log
-        (highestCommittableIndex state leader) = true /\
-      termAt
-        (state.nodes leader).log
-        (highestCommittableIndex state leader) =
-        (state.nodes leader).currentTerm /\
-      hasMajorityAt state leader
-          (highestCommittableIndex state leader) := by
+    (advances : (state.nodes leader).commitIndex < highestCommittableIndex state leader)
+    : isSignatureAt (state.nodes leader).log (highestCommittableIndex state leader) = true
+      /\ termAt (state.nodes leader).log (highestCommittableIndex state leader)
+          = (state.nodes leader).currentTerm
+      /\ hasMajorityAt state leader (highestCommittableIndex state leader) := by
   unfold highestCommittableIndex at advances ⊢
   let leaderState := state.nodes leader
   let valid :=
@@ -1603,34 +1535,25 @@ lemma highestCommittableIndexFacts
   rcases resultValid with resultZero | resultValid
   · rw [resultZero] at advances
     omega
-  · exact
-      ⟨resultValid.2.1, resultValid.2.2.1, resultValid.2.2.2⟩
+  · exact ⟨resultValid.2.1, resultValid.2.2.1, resultValid.2.2.2⟩
 
 /-- A newly selected commit frontier satisfies the term and majority guards. -/
 lemma highestCommittableIndexValid
     (state : State Node TxId)
     (leader : Node)
-    (advances :
-      (state.nodes leader).commitIndex <
-        highestCommittableIndex state leader) :
-    termAt
-        (state.nodes leader).log
-        (highestCommittableIndex state leader) =
-      (state.nodes leader).currentTerm /\
-      hasMajorityAt state leader
-        (highestCommittableIndex state leader) :=
+    (advances : (state.nodes leader).commitIndex < highestCommittableIndex state leader)
+    : termAt (state.nodes leader).log (highestCommittableIndex state leader)
+        = (state.nodes leader).currentTerm
+      /\ hasMajorityAt state leader (highestCommittableIndex state leader) :=
   (highestCommittableIndexFacts state leader advances).2
 
 /-- A newly selected positive commit frontier points to a signature. -/
 lemma highestCommittableIndexIsSignature
     (state : State Node TxId)
     (leader : Node)
-    (advances :
-      (state.nodes leader).commitIndex <
-        highestCommittableIndex state leader) :
-    isSignatureAt
-        (state.nodes leader).log
-        (highestCommittableIndex state leader) = true :=
+    (advances : (state.nodes leader).commitIndex < highestCommittableIndex state leader)
+    : isSignatureAt (state.nodes leader).log (highestCommittableIndex state leader)
+      = true :=
   (highestCommittableIndexFacts state leader advances).1
 
 end BootstrapCommit
@@ -1640,17 +1563,16 @@ end BootstrapCommit
 variable [Bootstrap Node]
 
 private def withProtocolNodeState
-    (result : NodeState Node TxId × AppendEntriesResponse Node) :
-    NodeState Node TxId × AppendEntriesResponse Node :=
+    (result : NodeState Node TxId × AppendEntriesResponse Node)
+    : NodeState Node TxId × AppendEntriesResponse Node :=
   (protocolNodeState result.1, result.2)
 
 omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 lemma rejectAppendEntriesRequest_protocolNodeState
     (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId) :
-    rejectAppendEntriesRequest? (protocolNodeState node) request =
-      (rejectAppendEntriesRequest? node request).map
-        withProtocolNodeState := by
+    (request : AppendEntriesRequest Node TxId)
+    : rejectAppendEntriesRequest? (protocolNodeState node) request
+      = (rejectAppendEntriesRequest? node request).map withProtocolNodeState := by
   unfold rejectAppendEntriesRequest?
   simp only [protocolNodeState, logOk]
   split_ifs <;>
@@ -1661,10 +1583,9 @@ lemma rejectAppendEntriesRequest_protocolNodeState
 omit [Bootstrap Node] in
 lemma appendEntriesAlreadyDone_protocolNodeState
     (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId) :
-    appendEntriesAlreadyDone? (protocolNodeState node) request =
-      (appendEntriesAlreadyDone? node request).map
-        withProtocolNodeState := by
+    (request : AppendEntriesRequest Node TxId)
+    : appendEntriesAlreadyDone? (protocolNodeState node) request
+      = (appendEntriesAlreadyDone? node request).map withProtocolNodeState := by
   unfold appendEntriesAlreadyDone?
   simp only [alreadyDone, protocolNodeState]
   split_ifs <;>
@@ -1676,10 +1597,9 @@ lemma appendEntriesAlreadyDone_protocolNodeState
 omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 lemma conflictAppendEntriesRequest_protocolNodeState
     (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId) :
-    conflictAppendEntriesRequest? (protocolNodeState node) request =
-      (conflictAppendEntriesRequest? node request).map
-        protocolNodeState := by
+    (request : AppendEntriesRequest Node TxId)
+    : conflictAppendEntriesRequest? (protocolNodeState node) request
+      = (conflictAppendEntriesRequest? node request).map protocolNodeState := by
   unfold conflictAppendEntriesRequest?
   simp only [hasTermConflict, overlapLength, protocolNodeState]
   split_ifs <;> simp_all [protocolNodeState]
@@ -1687,11 +1607,10 @@ lemma conflictAppendEntriesRequest_protocolNodeState
 /-- Retirement refresh preserves protocol observations, not erased result metadata. -/
 lemma noConflictAppendEntriesRequest_protocolNodeState
     (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId) :
-    (noConflictAppendEntriesRequest? (protocolNodeState node) request).map
-        withProtocolNodeState =
-      (noConflictAppendEntriesRequest? node request).map
-        withProtocolNodeState := by
+    (request : AppendEntriesRequest Node TxId)
+    : (noConflictAppendEntriesRequest? (protocolNodeState node) request).map
+        withProtocolNodeState
+      = (noConflictAppendEntriesRequest? node request).map withProtocolNodeState := by
   unfold noConflictAppendEntriesRequest?
   simp only [noConflictExtension, protocolNodeState]
   split_ifs <;>
@@ -1702,11 +1621,10 @@ lemma noConflictAppendEntriesRequest_protocolNodeState
 
 lemma acceptAppendEntriesRequest_protocolNodeState
     (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId) :
-    (acceptAppendEntriesRequest? (protocolNodeState node) request).map
-        withProtocolNodeState =
-      (acceptAppendEntriesRequest? node request).map
-        withProtocolNodeState := by
+    (request : AppendEntriesRequest Node TxId)
+    : (acceptAppendEntriesRequest? (protocolNodeState node) request).map
+        withProtocolNodeState
+      = (acceptAppendEntriesRequest? node request).map withProtocolNodeState := by
   unfold acceptAppendEntriesRequest?
   by_cases accepted :
       request.term = node.currentTerm /\
@@ -1725,25 +1643,25 @@ lemma acceptAppendEntriesRequest_protocolNodeState
     cases already : appendEntriesAlreadyDone? node request with
     | some result => simp [withProtocolNodeState]
     | none =>
-      simp only [Option.map_none]
-      have extension := noConflictAppendEntriesRequest_protocolNodeState node request
-      cases extended : noConflictAppendEntriesRequest? node request <;>
-        cases projected : noConflictAppendEntriesRequest? (protocolNodeState node) request <;>
-        simp only [extended, projected, Option.map_none, Option.map_some,
-          Option.some.injEq] at extension ⊢
-      · rw [conflictAppendEntriesRequest_protocolNodeState]
-        cases conflictResult : conflictAppendEntriesRequest? node request with
-        | none => rfl
-        | some truncated =>
-          simp only [Option.map_some]
-          rw [appendEntriesAlreadyDone_protocolNodeState]
-          cases appendEntriesAlreadyDone? truncated request with
-          | some result => simp [withProtocolNodeState]
-          | none =>
-            exact noConflictAppendEntriesRequest_protocolNodeState truncated request
-      · contradiction
-      · contradiction
-      · exact extension
+        simp only [Option.map_none]
+        have extension := noConflictAppendEntriesRequest_protocolNodeState node request
+        cases extended : noConflictAppendEntriesRequest? node request <;>
+          cases projected : noConflictAppendEntriesRequest? (protocolNodeState node) request <;>
+          simp only [extended, projected, Option.map_none, Option.map_some,
+            Option.some.injEq] at extension ⊢
+        · rw [conflictAppendEntriesRequest_protocolNodeState]
+          cases conflictResult : conflictAppendEntriesRequest? node request with
+          | none => rfl
+          | some truncated =>
+              simp only [Option.map_some]
+              rw [appendEntriesAlreadyDone_protocolNodeState]
+              cases appendEntriesAlreadyDone? truncated request with
+              | some result => simp [withProtocolNodeState]
+              | none =>
+                  exact noConflictAppendEntriesRequest_protocolNodeState truncated request
+        · contradiction
+        · contradiction
+        · exact extension
   · have rejectedProtocol :
         Not (
           request.term = (protocolNodeState node).currentTerm /\
@@ -1756,11 +1674,10 @@ lemma acceptAppendEntriesRequest_protocolNodeState
 
 lemma handleAppendEntriesRequest_protocolNodeState
     (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId) :
-    (handleAppendEntriesRequest? (protocolNodeState node) request).map
-        withProtocolNodeState =
-      (handleAppendEntriesRequest? node request).map
-        withProtocolNodeState := by
+    (request : AppendEntriesRequest Node TxId)
+    : (handleAppendEntriesRequest? (protocolNodeState node) request).map
+        withProtocolNodeState
+      = (handleAppendEntriesRequest? node request).map withProtocolNodeState := by
   unfold handleAppendEntriesRequest?
   rw [rejectAppendEntriesRequest_protocolNodeState]
   cases rejectAppendEntriesRequest? node request
@@ -1772,30 +1689,29 @@ lemma handleAppendEntriesRequest_protocolNodeState_some
     {before after : NodeState Node TxId}
     {request : AppendEntriesRequest Node TxId}
     {response : AppendEntriesResponse Node}
-    (handled :
-      handleAppendEntriesRequest? before request = some (after, response)) :
-    Exists fun projectedAfter =>
-      handleAppendEntriesRequest? (protocolNodeState before) request =
-        some (projectedAfter, response) /\
-      protocolNodeState projectedAfter = protocolNodeState after := by
+    (handled : handleAppendEntriesRequest? before request = some (after, response))
+    : Exists
+        fun projectedAfter =>
+          handleAppendEntriesRequest? (protocolNodeState before) request
+            = some (projectedAfter, response)
+          /\ protocolNodeState projectedAfter = protocolNodeState after := by
   have observations := handleAppendEntriesRequest_protocolNodeState before request
   rw [handled] at observations
-  cases projected :
-      handleAppendEntriesRequest? (protocolNodeState before) request with
+  cases projected : handleAppendEntriesRequest? (protocolNodeState before) request with
   | none => simp [projected] at observations
   | some result =>
-    rcases result with ⟨projectedAfter, projectedResponse⟩
-    simp only [projected, Option.map_some, Option.some.injEq,
-      withProtocolNodeState, Prod.mk.injEq] at observations
-    exact ⟨projectedAfter, by rw [observations.2], observations.1⟩
+      rcases result with ⟨projectedAfter, projectedResponse⟩
+      simp only [projected, Option.map_some, Option.some.injEq,
+        withProtocolNodeState, Prod.mk.injEq] at observations
+      exact ⟨projectedAfter, by rw [observations.2], observations.1⟩
 
 omit [DecidableEq TxId] [Bootstrap Node] in
 /-- Replies received after stepping down are consumed without changing state. -/
 lemma handleAppendEntriesResponseNonLeaderUnchanged
     (before : NodeState Node TxId)
     (response : AppendEntriesResponse Node)
-    (notLeader : before.role ≠ .leader) :
-    handleAppendEntriesResponse? before response = some before := by
+    (notLeader : before.role ≠ .leader)
+    : handleAppendEntriesResponse? before response = some before := by
   simp [handleAppendEntriesResponse?, notLeader]
 
 /-- Once recorded, a retirement commit frontier survives later refreshes. -/
@@ -1803,9 +1719,8 @@ lemma refreshRetirementState_retiredCommittedIndex_preserved
     (node : Node)
     (state : NodeState Node TxId)
     {frontier : Nat}
-    (recorded : state.retiredCommittedIndex = some frontier) :
-    (refreshRetirementState node state).retiredCommittedIndex =
-      some frontier := by
+    (recorded : state.retiredCommittedIndex = some frontier)
+    : (refreshRetirementState node state).retiredCommittedIndex = some frontier := by
   simp [refreshRetirementState, recorded]
 
 /-- The first covering refresh records the commit frontier, not the marker index. -/
@@ -1815,15 +1730,16 @@ lemma refreshRetirementState_retiredCommittedIndex_first
     {markerIndex : Nat}
     (unrecorded : state.retiredCommittedIndex = none)
     (marker : retiredCommittedIndexInLog node state.log = some markerIndex)
-    (covered : markerIndex <= state.commitIndex) :
-    (refreshRetirementState node state).retiredCommittedIndex =
-      some state.commitIndex := by
+    (covered : markerIndex <= state.commitIndex)
+    : (refreshRetirementState node state).retiredCommittedIndex
+      = some state.commitIndex := by
   simp [refreshRetirementState, unrecorded, marker, covered]
 
 /-- Facts guaranteed after tallying a RequestVote response. -/
 structure VoteResponseHandlerPost
     (before after : NodeState Node TxId)
-    (response : RequestVoteResponse Node) : Prop where
+    (response : RequestVoteResponse Node)
+    : Prop where
   roleUnchanged : after.role = before.role
   currentTermUnchanged : after.currentTerm = before.currentTerm
   logUnchanged : after.log = before.log
@@ -1831,44 +1747,35 @@ structure VoteResponseHandlerPost
   sentIndexUnchanged : after.sentIndex = before.sentIndex
   matchIndexUnchanged : after.matchIndex = before.matchIndex
   votedForUnchanged : after.votedFor = before.votedFor
-  preVotesGrantedUnchanged :
-    after.preVotesGranted = before.preVotesGranted
-  membershipStateUnchanged :
-    after.membershipState = before.membershipState
-  retirementIndexUnchanged :
-    after.retirementIndex = before.retirementIndex
-  retirementCommittableIndexUnchanged :
-    after.retirementCommittableIndex = before.retirementCommittableIndex
-  retiredCommittedIndexUnchanged :
-    after.retiredCommittedIndex = before.retiredCommittedIndex
-  votesUpdate :
-    after.votesGranted = before.votesGranted \/
-      (response.voteGranted = true /\
-        before.role = .candidate /\
-        after.votesGranted =
-          insert response.source before.votesGranted)
+  preVotesGrantedUnchanged : after.preVotesGranted = before.preVotesGranted
+  membershipStateUnchanged : after.membershipState = before.membershipState
+  retirementIndexUnchanged : after.retirementIndex = before.retirementIndex
+  retirementCommittableIndexUnchanged
+    : after.retirementCommittableIndex = before.retirementCommittableIndex
+  retiredCommittedIndexUnchanged
+    : after.retiredCommittedIndex = before.retiredCommittedIndex
+  votesUpdate
+    : after.votesGranted = before.votesGranted
+      \/ (response.voteGranted = true
+          /\ before.role = .candidate
+          /\ after.votesGranted = insert response.source before.votesGranted)
 
 omit [DecidableEq TxId] [Bootstrap Node] in
 /-- Tallying a response changes only the candidate's recorded vote set. -/
 lemma handleRequestVoteResponsePreserves
     {before after : NodeState Node TxId}
     {response : RequestVoteResponse Node}
-    (handled :
-      handleRequestVoteResponse? before response = some after) :
-    VoteResponseHandlerPost before after response := by
+    (handled : handleRequestVoteResponse? before response = some after)
+    : VoteResponseHandlerPost before after response := by
   unfold handleRequestVoteResponse? at handled
   split at handled
   · simp at handled
     subst after
-    exact
-      ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, rfl, Or.inl rfl⟩
+    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
   · split at handled
     · simp at handled
       subst after
-      exact
-        ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-          rfl, rfl, rfl, rfl, Or.inl rfl⟩
+      exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
     · rename_i candidateRole
       split at handled
       · rename_i currentTerm
@@ -1876,15 +1783,24 @@ lemma handleRequestVoteResponsePreserves
         · rename_i granted
           simp at handled
           subst after
-          exact
-            ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-              rfl, rfl, rfl, rfl,
-              Or.inr ⟨granted, by simpa using candidateRole, rfl⟩⟩
+          exact ⟨
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            Or.inr ⟨granted, by simpa using candidateRole, rfl⟩
+          ⟩
         · simp at handled
           subst after
-          exact
-            ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-              rfl, rfl, rfl, rfl, Or.inl rfl⟩
+          exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
       · contradiction
 
 omit [Bootstrap Node] in
@@ -1893,9 +1809,8 @@ lemma handleRequestPreVoteStateUnchanged
     {before after : NodeState Node TxId}
     {request : RequestPreVote Node}
     {response : RequestPreVoteResponse Node}
-    (handled :
-      handleRequestPreVote? before request = some (after, response)) :
-    after = before := by
+    (handled : handleRequestPreVote? before request = some (after, response))
+    : after = before := by
   unfold handleRequestPreVote? at handled
   split at handled
   · simp at handled
@@ -1908,10 +1823,8 @@ lemma handleRequestPreVoteResponseAddressed
     {before after : NodeState Node TxId}
     {request : RequestPreVote Node}
     {response : RequestPreVoteResponse Node}
-    (handled :
-      handleRequestPreVote? before request = some (after, response)) :
-    response.source = request.destination /\
-      response.destination = request.source := by
+    (handled : handleRequestPreVote? before request = some (after, response))
+    : response.source = request.destination /\ response.destination = request.source := by
   unfold handleRequestPreVote? at handled
   split at handled
   · simp at handled
@@ -1922,7 +1835,8 @@ lemma handleRequestPreVoteResponseAddressed
 /-- Tallying a pre-vote response changes only the speculative vote set. -/
 structure PreVoteResponseHandlerPost
     (before after : NodeState Node TxId)
-    (response : RequestPreVoteResponse Node) : Prop where
+    (response : RequestPreVoteResponse Node)
+    : Prop where
   roleUnchanged : after.role = before.role
   currentTermUnchanged : after.currentTerm = before.currentTerm
   logUnchanged : after.log = before.log
@@ -1932,42 +1846,34 @@ structure PreVoteResponseHandlerPost
   isNewFollowerUnchanged : after.isNewFollower = before.isNewFollower
   votedForUnchanged : after.votedFor = before.votedFor
   votesGrantedUnchanged : after.votesGranted = before.votesGranted
-  membershipStateUnchanged :
-    after.membershipState = before.membershipState
-  retirementIndexUnchanged :
-    after.retirementIndex = before.retirementIndex
-  retirementCommittableIndexUnchanged :
-    after.retirementCommittableIndex = before.retirementCommittableIndex
-  retiredCommittedIndexUnchanged :
-    after.retiredCommittedIndex = before.retiredCommittedIndex
-  preVotesUpdate :
-    after.preVotesGranted = before.preVotesGranted \/
-      (response.voteGranted = true /\
-        response.term = before.currentTerm /\
-        before.role = .preVoteCandidate /\
-        after.preVotesGranted =
-          insert response.source before.preVotesGranted)
+  membershipStateUnchanged : after.membershipState = before.membershipState
+  retirementIndexUnchanged : after.retirementIndex = before.retirementIndex
+  retirementCommittableIndexUnchanged
+    : after.retirementCommittableIndex = before.retirementCommittableIndex
+  retiredCommittedIndexUnchanged
+    : after.retiredCommittedIndex = before.retiredCommittedIndex
+  preVotesUpdate
+    : after.preVotesGranted = before.preVotesGranted
+      \/ (response.voteGranted = true
+          /\ response.term = before.currentTerm
+          /\ before.role = .preVoteCandidate
+          /\ after.preVotesGranted = insert response.source before.preVotesGranted)
 
 omit [DecidableEq TxId] [Bootstrap Node] in
 lemma handleRequestPreVoteResponsePreserves
     {before after : NodeState Node TxId}
     {response : RequestPreVoteResponse Node}
-    (handled :
-      handleRequestPreVoteResponse? before response = some after) :
-    PreVoteResponseHandlerPost before after response := by
+    (handled : handleRequestPreVoteResponse? before response = some after)
+    : PreVoteResponseHandlerPost before after response := by
   unfold handleRequestPreVoteResponse? at handled
   split at handled
   · simp at handled
     subst after
-    exact
-      ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-        rfl, rfl, rfl, rfl, Or.inl rfl⟩
+    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
   · split at handled
     · simp at handled
       subst after
-      exact
-        ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-          rfl, rfl, rfl, rfl, Or.inl rfl⟩
+      exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
     · rename_i preVoteCandidate
       split at handled
       · rename_i currentTerm
@@ -1975,18 +1881,40 @@ lemma handleRequestPreVoteResponsePreserves
         · rename_i granted
           simp at handled
           subst after
-          exact
-            ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-              rfl, rfl, rfl, rfl,
-              Or.inr
-                ⟨granted, currentTerm,
-                  by simpa using preVoteCandidate, rfl⟩⟩
+          exact ⟨
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            Or.inr ⟨granted, currentTerm, by simpa using preVoteCandidate, rfl⟩
+          ⟩
         · simp at handled
           subst after
-          exact
-            ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-              rfl, rfl, rfl, rfl,
-              Or.inl rfl⟩
+          exact ⟨
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            Or.inl rfl
+          ⟩
       · contradiction
 
 /--
@@ -1998,14 +1926,11 @@ lemma handleProposeVoteRequestCases
     {destination : Node}
     {request : ProposeVoteRequest Node}
     {after : NodeState Node TxId}
-    (handled :
-      handleProposeVoteRequest? state destination request = some after) :
-    after = state.nodes destination \/
-        (request.term = (state.nodes destination).currentTerm /\
-          candidateTransitionEnabled state destination /\
-          after =
-            becomeCandidateNodeState
-              (state.nodes destination) destination) := by
+    (handled : handleProposeVoteRequest? state destination request = some after)
+    : after = state.nodes destination
+      \/ (request.term = (state.nodes destination).currentTerm
+          /\ candidateTransitionEnabled state destination
+          /\ after = becomeCandidateNodeState (state.nodes destination) destination) := by
   simp only [handleProposeVoteRequest?] at handled
   split at handled
   · rename_i eligible
@@ -2021,14 +1946,13 @@ lemma newerMessageSound
     {state : State Node TxId}
     {source destination : Node}
     {selected : Message Node TxId}
-    (found : newerMessage? state source destination = some selected) :
-    Exists fun remaining =>
-      takeFirstFrom source (state.network destination) =
-        some (selected, remaining) /\
-      (state.nodes destination).currentTerm < selected.term := by
+    (found : newerMessage? state source destination = some selected)
+    : Exists
+        fun remaining =>
+          takeFirstFrom source (state.network destination) = some (selected, remaining)
+          /\ (state.nodes destination).currentTerm < selected.term := by
   unfold newerMessage? at found
-  cases taken :
-      takeFirstFrom source (state.network destination) with
+  cases taken : takeFirstFrom source (state.network destination) with
   | none =>
       simp [taken] at found
   | some result =>
@@ -2050,10 +1974,10 @@ omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Failure-response routing and the failure bit do not depend on its NACK index. -/
 lemma failureResponseMetadata
     (before : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId) :
-    (failureResponse before request).source = request.destination /\
-      (failureResponse before request).destination = request.source /\
-      (failureResponse before request).success = false := by
+    (request : AppendEntriesRequest Node TxId)
+    : (failureResponse before request).source = request.destination
+      /\ (failureResponse before request).destination = request.source
+      /\ (failureResponse before request).success = false := by
   unfold failureResponse
   split
   · exact ⟨rfl, rfl, rfl⟩
@@ -2070,9 +1994,9 @@ leader frontier, apart from an already committed local prefix. -/
 lemma committedFromLeader_le_max_leaderCommit
     (before : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
-    (newLog : List (Entry Node TxId)) :
-    committedFromLeader before request newLog <=
-    max before.commitIndex request.leaderCommit := by
+    (newLog : List (Entry Node TxId))
+    : committedFromLeader before request newLog
+      <= max before.commitIndex request.leaderCommit := by
   unfold committedFromLeader
   exact
     max_le_max_left before.commitIndex
@@ -2090,10 +2014,9 @@ verified end, apart from an already committed local prefix. -/
 lemma committedFromLeader_le_max_requestEnd
     (before : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
-    (newLog : List (Entry Node TxId)) :
-    committedFromLeader before request newLog <=
-    max before.commitIndex
-      (request.prevLogIndex + request.entries.length) := by
+    (newLog : List (Entry Node TxId))
+    : committedFromLeader before request newLog
+      <= max before.commitIndex (request.prevLogIndex + request.entries.length) := by
   unfold committedFromLeader
   exact
     max_le_max_left before.commitIndex
@@ -2111,9 +2034,9 @@ apart from an already committed local prefix. -/
 lemma committedFromLeader_le_max_committable
     (before : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
-    (newLog : List (Entry Node TxId)) :
-    committedFromLeader before request newLog <=
-      max before.commitIndex (maxCommittableIndex newLog) := by
+    (newLog : List (Entry Node TxId))
+    : committedFromLeader before request newLog
+      <= max before.commitIndex (maxCommittableIndex newLog) := by
   unfold committedFromLeader
   exact
     max_le_max_left before.commitIndex
@@ -2129,8 +2052,8 @@ lemma committedFromLeader_bounded
     (before : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
     (newLog : List (Entry Node TxId))
-    (oldBound : before.commitIndex <= newLog.length) :
-    committedFromLeader before request newLog <= newLog.length := by
+    (oldBound : before.commitIndex <= newLog.length)
+    : committedFromLeader before request newLog <= newLog.length := by
   unfold committedFromLeader
   apply max_le oldBound
   exact
@@ -2145,9 +2068,8 @@ lemma committedSignature_retained
     (before : NodeState Node TxId)
     (newLog : List (Entry Node TxId))
     (retainedPrefix : before.committedLog <+: newLog)
-    (signature :
-      isSignatureAt before.log before.commitIndex = true) :
-    isSignatureAt newLog before.commitIndex = true := by
+    (signature : isSignatureAt before.log before.commitIndex = true)
+    : isSignatureAt newLog before.commitIndex = true := by
   apply isSignatureAt_of_prefix retainedPrefix
   unfold NodeState.committedLog
   exact isSignatureAt_take_of_le le_rfl signature
@@ -2158,13 +2080,10 @@ lemma committedFromLeader_isSignature
     (before : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
     (newLog : List (Entry Node TxId))
-    (oldSignature :
-      0 < before.commitIndex ->
-        isSignatureAt newLog before.commitIndex = true)
-    (positive : 0 < committedFromLeader before request newLog) :
-    isSignatureAt
-      newLog
-      (committedFromLeader before request newLog) = true := by
+    (oldSignature
+      : 0 < before.commitIndex -> isSignatureAt newLog before.commitIndex = true)
+    (positive : 0 < committedFromLeader before request newLog)
+    : isSignatureAt newLog (committedFromLeader before request newLog) = true := by
   unfold committedFromLeader at positive ⊢
   let learned :=
     maxCommittableIndexUpTo newLog
@@ -2183,99 +2102,70 @@ lemma committedFromLeader_isSignature
 structure AppendRequestLocalPost
     (before after : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
-    (response : AppendEntriesResponse Node) : Prop where
+    (response : AppendEntriesResponse Node)
+    : Prop where
   roleUnchanged : after.role = before.role
   currentTermUnchanged : after.currentTerm = before.currentTerm
   sentIndexUnchanged : after.sentIndex = before.sentIndex
   matchIndexUnchanged : after.matchIndex = before.matchIndex
   votedForUnchanged : after.votedFor = before.votedFor
   votesGrantedUnchanged : after.votesGranted = before.votesGranted
-  logShape :
-    after.log = before.log \/
-      after.log = before.log.take request.prevLogIndex \/
-      after.log = before.log.take request.prevLogIndex ++ request.entries
-  logUnchangedOrPreviousBound :
-    after.log = before.log \/
-      request.prevLogIndex <= before.log.length
-  logUnchangedOrPreviousMatches :
-    after.log = before.log \/
-      request.prevLogIndex = 0 \/
-        termAt before.log request.prevLogIndex =
-          request.prevLogTerm
-  logUnchangedOrCurrentTerm :
-    after.log = before.log \/
-      request.term = before.currentTerm
-  previousCommittedPrefix :
-    before.committedLog <+: after.log
-  commitIndexBounded :
-    before.commitIndex <= before.log.length ->
-      after.commitIndex <= after.log.length
-  commitIndexMonotone :
-    before.commitIndex <= after.commitIndex
-  commitRequestEndBound :
-    after.commitIndex <=
-      max before.commitIndex
-        (request.prevLogIndex + request.entries.length)
-  commitUpperBound :
-    after.commitIndex <= max before.commitIndex request.leaderCommit
-  commitCommittableBound :
-    after.commitIndex <=
-      max before.commitIndex (maxCommittableIndex after.log)
-  commitIndexSignature :
-    (0 < before.commitIndex ->
-      isSignatureAt before.log before.commitIndex = true) ->
-    0 < after.commitIndex ->
-      isSignatureAt after.log after.commitIndex = true
+  logShape
+    : after.log = before.log
+      \/ after.log = before.log.take request.prevLogIndex
+      \/ after.log = before.log.take request.prevLogIndex ++ request.entries
+  logUnchangedOrPreviousBound
+    : after.log = before.log \/ request.prevLogIndex <= before.log.length
+  logUnchangedOrPreviousMatches
+    : after.log = before.log
+      \/ request.prevLogIndex = 0
+      \/ termAt before.log request.prevLogIndex = request.prevLogTerm
+  logUnchangedOrCurrentTerm : after.log = before.log \/ request.term = before.currentTerm
+  previousCommittedPrefix : before.committedLog <+: after.log
+  commitIndexBounded
+    : before.commitIndex <= before.log.length -> after.commitIndex <= after.log.length
+  commitIndexMonotone : before.commitIndex <= after.commitIndex
+  commitRequestEndBound
+    : after.commitIndex
+      <= max before.commitIndex (request.prevLogIndex + request.entries.length)
+  commitUpperBound : after.commitIndex <= max before.commitIndex request.leaderCommit
+  commitCommittableBound
+    : after.commitIndex <= max before.commitIndex (maxCommittableIndex after.log)
+  commitIndexSignature
+    : (0 < before.commitIndex -> isSignatureAt before.log before.commitIndex = true)
+      -> 0 < after.commitIndex -> isSignatureAt after.log after.commitIndex = true
   responseSource : response.source = request.destination
   responseDestination : response.destination = request.source
-  successfulIndexBound :
-    response.success = true ->
-      response.lastLogIndex <=
-        request.prevLogIndex + request.entries.length
-  successfulCurrentTerm :
-    response.success = true ->
-      request.term = before.currentTerm
-  commitAdvancedSuccessful :
-    before.commitIndex < after.commitIndex ->
-      response.success = true
-  successfulUnchangedEntryTerms :
-    response.success = true ->
-      after.log = before.log ->
-        ((before.log.drop request.prevLogIndex).take
-            request.entries.length).map Entry.term =
-          request.entries.map Entry.term
-  successfulLogOk :
-    response.success = true ->
-      logOk before request
-  successfulResponseTerm :
-    response.success = true ->
-      response.term = before.currentTerm
-  successfulIndexExact :
-    response.success = true ->
-      response.lastLogIndex =
-        request.prevLogIndex + request.entries.length
-  failedResponse :
-    response.success = false ->
-      response = failureResponse before request
-  failedStateUnchanged :
-    response.success = false ->
-      after = before
-  failedRequestNotNewer :
-    response.success = false ->
-      request.term <= before.currentTerm
-  failedSameTermNotLogOk :
-    response.success = false ->
-      request.term = before.currentTerm ->
-        Not (logOk before request)
+  successfulIndexBound
+    : response.success = true
+      -> response.lastLogIndex <= request.prevLogIndex + request.entries.length
+  successfulCurrentTerm : response.success = true -> request.term = before.currentTerm
+  commitAdvancedSuccessful
+    : before.commitIndex < after.commitIndex -> response.success = true
+  successfulUnchangedEntryTerms
+    : response.success = true -> after.log = before.log
+      -> ((before.log.drop request.prevLogIndex).take request.entries.length).map
+            Entry.term
+          = request.entries.map Entry.term
+  successfulLogOk : response.success = true -> logOk before request
+  successfulResponseTerm : response.success = true -> response.term = before.currentTerm
+  successfulIndexExact
+    : response.success = true
+      -> response.lastLogIndex = request.prevLogIndex + request.entries.length
+  failedResponse : response.success = false -> response = failureResponse before request
+  failedStateUnchanged : response.success = false -> after = before
+  failedRequestNotNewer : response.success = false -> request.term <= before.currentTerm
+  failedSameTermNotLogOk
+    : response.success = false -> request.term = before.currentTerm
+      -> Not (logOk before request)
 
 /-- Every successful AppendEntries handler branch has the common local shape. -/
 lemma handleAppendEntriesRequestLocalPost
     {before after : NodeState Node TxId}
     {request : AppendEntriesRequest Node TxId}
     {response : AppendEntriesResponse Node}
-    (handled :
-      handleAppendEntriesRequest? before request = some (after, response)) :
-    AppendRequestLocalPost before after request response := by
+    (handled : handleAppendEntriesRequest? before request = some (after, response))
+    : AppendRequestLocalPost before after request response := by
   unfold handleAppendEntriesRequest? at handled
   split at handled
   · rename_i rejectedState rejectedResponse rejected
@@ -2289,43 +2179,52 @@ lemma handleAppendEntriesRequestLocalPost
       subst after
       subst response
       have metadata := failureResponseMetadata before request
-      exact
-        ⟨rfl, rfl, rfl, rfl, rfl, rfl,
-          Or.inl rfl, Or.inl rfl, Or.inl rfl,
-          Or.inl rfl, List.take_prefix _ _,
-          (by intro bound; exact bound),
-          le_rfl,
-          le_max_left _ _,
-          le_max_left _ _,
-          le_max_left _ _,
-          (by intro oldSignature positive; exact oldSignature positive),
-          metadata.1,
-          metadata.2.1,
-          (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
-          (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
-          (by intro advanced; omega),
-          (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
-          (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
-          (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
-          (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
-          (by intro _; rfl),
-          (by intro _; rfl),
-          (by
-            intro _
-            rcases ‹request.term < before.currentTerm \/
-                (request.term = before.currentTerm /\
-                  before.role = .follower /\
-                  Not (logOk before request))› with stale | same
-            · omega
-            · omega),
-          (by
-            intro _ equal
-            rcases ‹request.term < before.currentTerm \/
-                (request.term = before.currentTerm /\
-                  before.role = .follower /\
-                  Not (logOk before request))› with stale | same
-            · omega
-            · exact same.2.2)⟩
+      exact ⟨
+        rfl,
+        rfl,
+        rfl,
+        rfl,
+        rfl,
+        rfl,
+        Or.inl rfl,
+        Or.inl rfl,
+        Or.inl rfl,
+        Or.inl rfl,
+        List.take_prefix _ _,
+        (by intro bound; exact bound),
+        le_rfl,
+        le_max_left _ _,
+        le_max_left _ _,
+        le_max_left _ _,
+        (by intro oldSignature positive; exact oldSignature positive),
+        metadata.1,
+        metadata.2.1,
+        (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
+        (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
+        (by intro advanced; omega),
+        (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
+        (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
+        (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
+        (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
+        (by intro _; rfl),
+        (by intro _; rfl),
+        (by
+          intro _
+          rcases ‹request.term < before.currentTerm \/
+              (request.term = before.currentTerm /\
+                before.role = .follower /\
+                Not (logOk before request))› with stale | same
+          · omega
+          · omega),
+        (by
+          intro _ equal
+          rcases ‹request.term < before.currentTerm \/
+              (request.term = before.currentTerm /\
+                before.role = .follower /\
+                Not (logOk before request))› with stale | same
+          · omega
+          · exact same.2.2)
+      ⟩
     · contradiction
   · unfold acceptAppendEntriesRequest? at handled
     split at handled
@@ -2343,45 +2242,51 @@ lemma handleAppendEntriesRequestLocalPost
           subst after
           subst response
           simp only [committedFromLeader]
-          exact
-            ⟨rfl, rfl, rfl, rfl, rfl, rfl,
-              Or.inl rfl, Or.inl rfl, Or.inl rfl,
-              Or.inl rfl, List.take_prefix _ _,
-              (by
-                intro bound
-                exact
-                  committedFromLeader_bounded
-                    before request before.log bound),
-              le_max_left _ _,
-              committedFromLeader_le_max_requestEnd
-                before request before.log,
-              committedFromLeader_le_max_leaderCommit
-                before request before.log,
-              committedFromLeader_le_max_committable
-                before request before.log,
-              (by
-                intro oldSignature positive
-                exact
-                  committedFromLeader_isSignature
-                    before request before.log oldSignature positive),
-              by simp [successResponse],
-              by simp [successResponse],
-              by simp [successResponse],
-              by intro; exact accepted.1,
-              by simp [successResponse],
-              (by
-                intro _ _
-                have done : alreadyDone before request := by assumption
-                rcases done with empty | represented
-                · simp [empty]
-                · exact represented.2),
-              by intro; exact accepted.2.2.1,
-              by simp [successResponse],
-              by simp [successResponse],
-              by simp [successResponse],
-              by simp [successResponse],
-              by simp [successResponse],
-              by simp [successResponse]⟩
+          exact ⟨
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            rfl,
+            Or.inl rfl,
+            Or.inl rfl,
+            Or.inl rfl,
+            Or.inl rfl,
+            List.take_prefix _ _,
+            (by
+              intro bound
+              exact
+                committedFromLeader_bounded
+                  before request before.log bound),
+            le_max_left _ _,
+            committedFromLeader_le_max_requestEnd before request before.log,
+            committedFromLeader_le_max_leaderCommit before request before.log,
+            committedFromLeader_le_max_committable before request before.log,
+            (by
+              intro oldSignature positive
+              exact
+                committedFromLeader_isSignature
+                  before request before.log oldSignature positive),
+            by simp [successResponse],
+            by simp [successResponse],
+            by simp [successResponse],
+            by intro; exact accepted.1,
+            by simp [successResponse],
+            (by
+              intro _ _
+              have done : alreadyDone before request := by assumption
+              rcases done with empty | represented
+              · simp [empty]
+              · exact represented.2),
+            by intro; exact accepted.2.2.1,
+            by simp [successResponse],
+            by simp [successResponse],
+            by simp [successResponse],
+            by simp [successResponse],
+            by simp [successResponse],
+            by simp [successResponse]
+          ⟩
         · contradiction
       · split at handled
         · rename_i extendedState extendedResponse extended
@@ -2395,103 +2300,107 @@ lemma handleAppendEntriesRequestLocalPost
             subst after
             subst response
             simp only [committedFromLeader]
-            exact
-              ⟨rfl, rfl, rfl, rfl, rfl, rfl,
-                Or.inr (Or.inr rfl),
-                Or.inr ‹noConflictExtension before request›.2.1,
-                Or.inr (by
+            exact ⟨
+              rfl,
+              rfl,
+              rfl,
+              rfl,
+              rfl,
+              rfl,
+              Or.inr (Or.inr rfl),
+              Or.inr ‹noConflictExtension before request›.2.1,
+              Or.inr
+                (by
                   rcases accepted.2.2.1 with zero | present
                   · exact Or.inl zero
                   · exact Or.inr present.2),
-                Or.inr accepted.1,
-                (by
-                  unfold NodeState.committedLog
-                  have first :
-                      before.log.take before.commitIndex <+:
-                        before.log.take request.prevLogIndex := by
-                    rw [List.prefix_take_iff]
-                    constructor
-                    · exact List.take_prefix _ _
-                    · simp only [List.length_take]
-                      omega
-                  exact first.trans
-                    (List.prefix_append
-                      (before.log.take request.prevLogIndex)
-                      request.entries)),
-                (by
-                  intro bound
-                  have previousBound :=
-                    ‹noConflictExtension before request›.2.1
-                  apply committedFromLeader_bounded
-                  simp [List.length_take, previousBound]
-                  omega),
-                le_max_left _ _,
-                committedFromLeader_le_max_requestEnd
-                  before request
-                    (before.log.take request.prevLogIndex ++
-                      request.entries),
-                committedFromLeader_le_max_leaderCommit
-                  before request
-                    (before.log.take request.prevLogIndex ++
-                      request.entries),
-                committedFromLeader_le_max_committable
-                  before request
-                    (before.log.take request.prevLogIndex ++
-                      request.entries),
-                (by
-                  intro oldSignature positive
-                  apply
-                    committedFromLeader_isSignature
-                      before request
-                        (before.log.take request.prevLogIndex ++
-                          request.entries)
-                  · intro oldPositive
-                    apply committedSignature_retained before
-                    · unfold NodeState.committedLog
-                      have first :
-                          before.log.take before.commitIndex <+:
-                            before.log.take request.prevLogIndex := by
-                        rw [List.prefix_take_iff]
-                        constructor
-                        · exact List.take_prefix _ _
-                        · simp only [List.length_take]
-                          omega
-                      exact first.trans
-                        (List.prefix_append
-                          (before.log.take request.prevLogIndex)
-                          request.entries)
-                    · exact oldSignature oldPositive
-                  · exact positive),
-                by simp [successResponse],
-                by simp [successResponse],
-                by
-                  intro
-                  simp only [successResponse]
-                  have previousBound :=
-                    ‹noConflictExtension before request›.2.1
-                  simp [List.length_take, previousBound],
-                by intro; exact accepted.1,
-                by simp [successResponse],
-                (by
-                  intro _ same
-                  have logEq :
-                      before.log =
-                        before.log.take request.prevLogIndex ++
-                          request.entries := same.symm
-                  nth_rewrite 1 [logEq]
-                  simp [
-                    ‹noConflictExtension before request›.2.1]),
-                by intro; exact accepted.2.2.1,
-                by simp [successResponse],
-                (by
-                  intro
-                  simp [
-                    successResponse, List.length_take,
-                    ‹noConflictExtension before request›.2.1]),
-                by simp [successResponse],
-                by simp [successResponse],
-                by simp [successResponse],
-                by simp [successResponse]⟩
+              Or.inr accepted.1,
+              (by
+                unfold NodeState.committedLog
+                have first :
+                    before.log.take before.commitIndex <+:
+                      before.log.take request.prevLogIndex := by
+                  rw [List.prefix_take_iff]
+                  constructor
+                  · exact List.take_prefix _ _
+                  · simp only [List.length_take]
+                    omega
+                exact first.trans
+                  (List.prefix_append
+                    (before.log.take request.prevLogIndex)
+                    request.entries)),
+              (by
+                intro bound
+                have previousBound :=
+                  ‹noConflictExtension before request›.2.1
+                apply committedFromLeader_bounded
+                simp [List.length_take, previousBound]
+                omega),
+              le_max_left _ _,
+              committedFromLeader_le_max_requestEnd
+                before request
+                (before.log.take request.prevLogIndex ++ request.entries),
+              committedFromLeader_le_max_leaderCommit
+                before request
+                (before.log.take request.prevLogIndex ++ request.entries),
+              committedFromLeader_le_max_committable
+                before request
+                (before.log.take request.prevLogIndex ++ request.entries),
+              (by
+                intro oldSignature positive
+                apply
+                  committedFromLeader_isSignature
+                    before request
+                      (before.log.take request.prevLogIndex ++
+                        request.entries)
+                · intro oldPositive
+                  apply committedSignature_retained before
+                  · unfold NodeState.committedLog
+                    have first :
+                        before.log.take before.commitIndex <+:
+                          before.log.take request.prevLogIndex := by
+                      rw [List.prefix_take_iff]
+                      constructor
+                      · exact List.take_prefix _ _
+                      · simp only [List.length_take]
+                        omega
+                    exact first.trans
+                      (List.prefix_append
+                        (before.log.take request.prevLogIndex)
+                        request.entries)
+                  · exact oldSignature oldPositive
+                · exact positive),
+              by simp [successResponse],
+              by simp [successResponse],
+              by
+                intro
+                simp only [successResponse]
+                have previousBound :=
+                  ‹noConflictExtension before request›.2.1
+                simp [List.length_take, previousBound],
+              by intro; exact accepted.1,
+              by simp [successResponse],
+              (by
+                intro _ same
+                have logEq :
+                    before.log =
+                      before.log.take request.prevLogIndex ++
+                        request.entries := same.symm
+                nth_rewrite 1 [logEq]
+                simp [
+                  ‹noConflictExtension before request›.2.1]),
+              by intro; exact accepted.2.2.1,
+              by simp [successResponse],
+              (by
+                intro
+                simp [
+                  successResponse, List.length_take,
+                  ‹noConflictExtension before request›.2.1]),
+              by simp [successResponse],
+              by simp [successResponse],
+              by simp [successResponse],
+              by simp [successResponse]
+            ⟩
           · contradiction
         · split at handled
           · contradiction
@@ -2514,83 +2423,91 @@ lemma handleAppendEntriesRequestLocalPost
                   subst after
                   subst response
                   simp only [committedFromLeader]
-                  exact
-                    ⟨rfl, rfl, rfl, rfl, rfl, rfl,
-                      Or.inr (Or.inl rfl),
-                      Or.inr (by
+                  exact ⟨
+                    rfl,
+                    rfl,
+                    rfl,
+                    rfl,
+                    rfl,
+                    rfl,
+                    Or.inr (Or.inl rfl),
+                    Or.inr
+                      (by
                         rcases accepted.2.2.1 with zero | present
                         · omega
                         · exact present.1),
-                      Or.inr (by
+                    Or.inr
+                      (by
                         rcases accepted.2.2.1 with zero | present
                         · exact Or.inl zero
                         · exact Or.inr present.2),
-                      Or.inr accepted.1,
-                      (by
-                        unfold NodeState.committedLog
-                        rw [List.prefix_take_iff]
-                        constructor
-                        · exact List.take_prefix _ _
-                        · simp [List.length_take]
-                          omega),
-                      (by
-                        intro bound
-                        apply committedFromLeader_bounded
-                        simp [List.length_take]
-                        rcases accepted.2.2.1 with zero | present
-                        · omega
-                        · omega),
-                      le_max_left _ _,
-                      committedFromLeader_le_max_requestEnd
-                        before request
-                          (before.log.take request.prevLogIndex),
-                      committedFromLeader_le_max_leaderCommit
-                        before request
-                          (before.log.take request.prevLogIndex),
-                      committedFromLeader_le_max_committable
-                        before request
-                          (before.log.take request.prevLogIndex),
-                      (by
-                        intro oldSignature positive
-                        apply
-                          committedFromLeader_isSignature
-                            before request
-                              (before.log.take request.prevLogIndex)
-                        · intro oldPositive
-                          apply committedSignature_retained before
-                          · unfold NodeState.committedLog
-                            rw [List.prefix_take_iff]
-                            constructor
-                            · exact List.take_prefix _ _
-                            · simp [List.length_take]
-                              omega
-                          · exact oldSignature oldPositive
-                        · exact positive),
-                      by simp [successResponse],
-                      by simp [successResponse],
-                      by simp [successResponse],
-                      by intro; exact accepted.1,
-                      by simp [successResponse],
-                      (by
-                        intro _ same
-                        have done :
-                            alreadyDone
-                              { before with
-                                log := before.log.take request.prevLogIndex
-                                isNewFollower := false }
-                              request := by
-                          assumption
-                        rcases done with empty | represented
-                        · simp [empty]
-                        · rw [← same]
-                          exact represented.2),
-                      by intro; exact accepted.2.2.1,
-                      by simp [successResponse],
-                      by simp [successResponse],
-                      by simp [successResponse],
-                      by simp [successResponse],
-                      by simp [successResponse],
-                      by simp [successResponse]⟩
+                    Or.inr accepted.1,
+                    (by
+                      unfold NodeState.committedLog
+                      rw [List.prefix_take_iff]
+                      constructor
+                      · exact List.take_prefix _ _
+                      · simp [List.length_take]
+                        omega),
+                    (by
+                      intro bound
+                      apply committedFromLeader_bounded
+                      simp [List.length_take]
+                      rcases accepted.2.2.1 with zero | present
+                      · omega
+                      · omega),
+                    le_max_left _ _,
+                    committedFromLeader_le_max_requestEnd
+                      before request
+                      (before.log.take request.prevLogIndex),
+                    committedFromLeader_le_max_leaderCommit
+                      before request
+                      (before.log.take request.prevLogIndex),
+                    committedFromLeader_le_max_committable
+                      before request
+                      (before.log.take request.prevLogIndex),
+                    (by
+                      intro oldSignature positive
+                      apply
+                        committedFromLeader_isSignature
+                          before request
+                            (before.log.take request.prevLogIndex)
+                      · intro oldPositive
+                        apply committedSignature_retained before
+                        · unfold NodeState.committedLog
+                          rw [List.prefix_take_iff]
+                          constructor
+                          · exact List.take_prefix _ _
+                          · simp [List.length_take]
+                            omega
+                        · exact oldSignature oldPositive
+                      · exact positive),
+                    by simp [successResponse],
+                    by simp [successResponse],
+                    by simp [successResponse],
+                    by intro; exact accepted.1,
+                    by simp [successResponse],
+                    (by
+                      intro _ same
+                      have done :
+                          alreadyDone
+                            { before with
+                              log := before.log.take request.prevLogIndex
+                              isNewFollower := false }
+                            request := by
+                        assumption
+                      rcases done with empty | represented
+                      · simp [empty]
+                      · rw [← same]
+                        exact represented.2),
+                    by intro; exact accepted.2.2.1,
+                    by simp [successResponse],
+                    by simp [successResponse],
+                    by simp [successResponse],
+                    by simp [successResponse],
+                    by simp [successResponse],
+                    by simp [successResponse]
+                  ⟩
                 · contradiction
               · unfold noConflictAppendEntriesRequest? at handled
                 split at handled
@@ -2601,121 +2518,127 @@ lemma handleAppendEntriesRequestLocalPost
                   subst after
                   subst response
                   simp only [committedFromLeader]
-                  refine
-                    ⟨rfl, rfl, rfl, rfl, rfl, rfl, ?_,
-                      Or.inr (by
+                  refine ⟨
+                    rfl,
+                    rfl,
+                    rfl,
+                    rfl,
+                    rfl,
+                    rfl,
+                    ?_,
+                    Or.inr
+                      (by
                         rcases accepted.2.2.1 with zero | present
                         · omega
                         · exact present.1),
-                      Or.inr (by
+                    Or.inr
+                      (by
                         rcases accepted.2.2.1 with zero | present
                         · exact Or.inl zero
                         · exact Or.inr present.2),
-                      Or.inr accepted.1,
-                      (by
-                        unfold NodeState.committedLog
-                        simp only [List.take_take, Nat.min_self]
-                        have first :
-                            before.log.take before.commitIndex <+:
-                              before.log.take request.prevLogIndex := by
-                          rw [List.prefix_take_iff]
-                          constructor
-                          · exact List.take_prefix _ _
-                          · simp only [List.length_take]
-                            omega
-                        exact first.trans
-                          (List.prefix_append
-                            (before.log.take request.prevLogIndex)
-                            request.entries)),
-                      (by
-                        intro bound
-                        apply committedFromLeader_bounded
-                        simp [List.length_take, List.take_take]
+                    Or.inr accepted.1,
+                    (by
+                      unfold NodeState.committedLog
+                      simp only [List.take_take, Nat.min_self]
+                      have first :
+                          before.log.take before.commitIndex <+:
+                            before.log.take request.prevLogIndex := by
+                        rw [List.prefix_take_iff]
+                        constructor
+                        · exact List.take_prefix _ _
+                        · simp only [List.length_take]
+                          omega
+                      exact first.trans
+                        (List.prefix_append
+                          (before.log.take request.prevLogIndex)
+                          request.entries)),
+                    (by
+                      intro bound
+                      apply committedFromLeader_bounded
+                      simp [List.length_take, List.take_take]
+                      rcases accepted.2.2.1 with zero | present
+                      · omega
+                      · omega),
+                    le_max_left _ _,
+                    committedFromLeader_le_max_requestEnd
+                      before request
+                      ((before.log.take request.prevLogIndex).take request.prevLogIndex
+                        ++ request.entries),
+                    committedFromLeader_le_max_leaderCommit
+                      before request
+                      ((before.log.take request.prevLogIndex).take request.prevLogIndex
+                        ++ request.entries),
+                    committedFromLeader_le_max_committable
+                      before request
+                      ((before.log.take request.prevLogIndex).take request.prevLogIndex
+                        ++ request.entries),
+                    (by
+                      intro oldSignature positive
+                      apply
+                        committedFromLeader_isSignature
+                          before request
+                            ((before.log.take request.prevLogIndex).take
+                                request.prevLogIndex ++
+                              request.entries)
+                      · intro oldPositive
+                        apply committedSignature_retained before
+                        · unfold NodeState.committedLog
+                          simp only [List.take_take, Nat.min_self]
+                          have first :
+                              before.log.take before.commitIndex <+:
+                                before.log.take
+                                  request.prevLogIndex := by
+                            rw [List.prefix_take_iff]
+                            constructor
+                            · exact List.take_prefix _ _
+                            · simp only [List.length_take]
+                              omega
+                          exact first.trans
+                            (List.prefix_append
+                              (before.log.take request.prevLogIndex)
+                              request.entries)
+                        · exact oldSignature oldPositive
+                      · exact positive),
+                    by simp [successResponse],
+                    by simp [successResponse],
+                    by
+                      intro
+                      simp only [successResponse]
+                      simp [List.length_take],
+                    by intro; exact accepted.1,
+                    by simp [successResponse],
+                    (by
+                      intro _ same
+                      have logEq :
+                          before.log =
+                            (before.log.take request.prevLogIndex).take
+                                request.prevLogIndex ++ request.entries :=
+                        same.symm
+                      nth_rewrite 1 [logEq]
+                      have previousBound :
+                          request.prevLogIndex <= before.log.length := by
                         rcases accepted.2.2.1 with zero | present
                         · omega
-                        · omega),
-                      le_max_left _ _,
-                      committedFromLeader_le_max_requestEnd
-                        before request
-                          ((before.log.take request.prevLogIndex).take
-                              request.prevLogIndex ++
-                            request.entries),
-                      committedFromLeader_le_max_leaderCommit
-                        before request
-                          ((before.log.take request.prevLogIndex).take
-                              request.prevLogIndex ++
-                            request.entries),
-                      committedFromLeader_le_max_committable
-                        before request
-                          ((before.log.take request.prevLogIndex).take
-                              request.prevLogIndex ++
-                            request.entries),
-                      (by
-                        intro oldSignature positive
-                        apply
-                          committedFromLeader_isSignature
-                            before request
-                              ((before.log.take request.prevLogIndex).take
-                                  request.prevLogIndex ++
-                                request.entries)
-                        · intro oldPositive
-                          apply committedSignature_retained before
-                          · unfold NodeState.committedLog
-                            simp only [List.take_take, Nat.min_self]
-                            have first :
-                                before.log.take before.commitIndex <+:
-                                  before.log.take
-                                    request.prevLogIndex := by
-                              rw [List.prefix_take_iff]
-                              constructor
-                              · exact List.take_prefix _ _
-                              · simp only [List.length_take]
-                                omega
-                            exact first.trans
-                              (List.prefix_append
-                                (before.log.take request.prevLogIndex)
-                                request.entries)
-                          · exact oldSignature oldPositive
-                        · exact positive),
-                      by simp [successResponse],
-                      by simp [successResponse],
-                      by
-                        intro
-                        simp only [successResponse]
-                        simp [List.length_take],
-                      by intro; exact accepted.1,
-                      by simp [successResponse],
-                      (by
-                        intro _ same
-                        have logEq :
-                            before.log =
-                              (before.log.take request.prevLogIndex).take
-                                  request.prevLogIndex ++ request.entries :=
-                          same.symm
-                        nth_rewrite 1 [logEq]
-                        have previousBound :
-                            request.prevLogIndex <= before.log.length := by
-                          rcases accepted.2.2.1 with zero | present
-                          · omega
-                          · exact present.1
-                        simp [
-                          List.take_take, previousBound]),
-                      by intro; exact accepted.2.2.1,
-                      by simp [successResponse],
-                      (by
-                        intro
-                        have previousBound :
-                            request.prevLogIndex <= before.log.length := by
-                          rcases accepted.2.2.1 with zero | present
-                          · omega
-                          · exact present.1
-                        simp [
-                          successResponse, List.take_take,
-                          List.length_take, previousBound]),
-                      by simp [successResponse],
-                      by simp [successResponse],
-                      by simp [successResponse],
-                      by simp [successResponse]⟩
+                        · exact present.1
+                      simp [
+                        List.take_take, previousBound]),
+                    by intro; exact accepted.2.2.1,
+                    by simp [successResponse],
+                    (by
+                      intro
+                      have previousBound :
+                          request.prevLogIndex <= before.log.length := by
+                        rcases accepted.2.2.1 with zero | present
+                        · omega
+                        · exact present.1
+                      simp [
+                        successResponse, List.take_take,
+                        List.length_take, previousBound]),
+                    by simp [successResponse],
+                    by simp [successResponse],
+                    by simp [successResponse],
+                    by simp [successResponse]
+                  ⟩
                   right
                   right
                   simp [List.take_take]
@@ -2729,9 +2652,8 @@ lemma handleAppendEntriesRequestLeaderUnchanged
     {request : AppendEntriesRequest Node TxId}
     {response : AppendEntriesResponse Node}
     (leader : before.role = .leader)
-    (handled :
-      handleAppendEntriesRequest? before request = some (after, response)) :
-    after = before := by
+    (handled : handleAppendEntriesRequest? before request = some (after, response))
+    : after = before := by
   unfold handleAppendEntriesRequest? at handled
   split at handled
   · rename_i rejectedState rejectedResponse rejected
@@ -2755,9 +2677,8 @@ lemma handleAppendEntriesRequestNonFollowerUnchanged
     {request : AppendEntriesRequest Node TxId}
     {response : AppendEntriesResponse Node}
     (notFollower : Not (before.role = .follower))
-    (handled :
-      handleAppendEntriesRequest? before request = some (after, response)) :
-    after = before := by
+    (handled : handleAppendEntriesRequest? before request = some (after, response))
+    : after = before := by
   unfold handleAppendEntriesRequest? at handled
   split at handled
   · rename_i rejectedState rejectedResponse rejected
@@ -2788,39 +2709,45 @@ private def retirementExampleRequest : AppendEntriesRequest Bool Unit where
   prevLogIndex := 0
   prevLogTerm := 0
   entries :=
-    [ ⟨1, .reconfiguration {true}⟩,
+    [
+      ⟨1, .reconfiguration {true}⟩,
       ⟨1, .retiredCommitted {false}⟩,
       ⟨1, .signature⟩,
-      ⟨1, .signature⟩ ]
+      ⟨1, .signature⟩
+    ]
   leaderCommit := 4
   source := true
   destination := false
 
 -- Marker 2 is first covered at signature 3, even when the batch commits to 4.
-example :
-    (handleAppendEntriesRequest? retirementExampleNode retirementExampleRequest).map
+example
+    : (handleAppendEntriesRequest? retirementExampleNode retirementExampleRequest).map
         (fun result =>
-          (result.1.retiredCommittedIndex, result.1.commitIndex,
-            result.1.membershipState)) =
-      some (some 3, 4, .retiredCommitted) := by
+          (
+            result.1.retiredCommittedIndex,
+            result.1.commitIndex,
+            result.1.membershipState
+          ))
+      = some (some 3, 4, .retiredCommitted) := by
   decide
 
 -- The old unprojected-result equality incorrectly erased freshly derived metadata.
-example :
-    handleAppendEntriesRequest? (protocolNodeState retirementExampleNode)
-        retirementExampleRequest ≠
-      (handleAppendEntriesRequest? retirementExampleNode retirementExampleRequest).map
-        withProtocolNodeState := by
+example
+    : handleAppendEntriesRequest? (protocolNodeState retirementExampleNode)
+        retirementExampleRequest
+      ≠ (handleAppendEntriesRequest? retirementExampleNode retirementExampleRequest).map
+          withProtocolNodeState := by
   intro commutes
   have membership := congrArg
     (fun result => result.map (fun pair => pair.1.membershipState)) commutes
   change some MembershipState.retiredCommitted = some MembershipState.active at membership
   contradiction
 
-example :
-    (handleProposeVoteRequest? (initialState : State Bool Unit) false
+example
+    : (handleProposeVoteRequest? (initialState : State Bool Unit) false
         { term := BOOTSTRAP_TERM + 1, source := true, destination := false }).map
-        (fun node => node.currentTerm) = some BOOTSTRAP_TERM := by
+        (fun node => node.currentTerm)
+      = some BOOTSTRAP_TERM := by
   decide
 
 end RetirementExamples

@@ -24,24 +24,30 @@ open Abstract.Invariant (SystemInductiveInvariant)
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
 /-- Abstract moves that simulate one concrete step. -/
-inductive Moves : Abstract.Model.State Node TxId -> Abstract.Model.State Node TxId -> Prop where
+inductive Moves
+    : Abstract.Model.State Node TxId -> Abstract.Model.State Node TxId -> Prop where
   | done (state : Abstract.Model.State Node TxId) : Moves state state
-  | step {state final : Abstract.Model.State Node TxId} (action : Abstract.Model.Action Node TxId)
-      (enabled : Abstract.Model.Enabled state action)
-      (rest : Moves (Abstract.Model.next state action) final) : Moves state final
+  | step {state final : Abstract.Model.State Node TxId}
+    (action : Abstract.Model.Action Node TxId)
+    (enabled : Abstract.Model.Enabled state action)
+    (rest : Moves (Abstract.Model.next state action) final)
+    : Moves state final
   | reorder {state final : Abstract.Model.State Node TxId} (destination : Node)
-      (queue : List (Abstract.Model.Message Node TxId))
-      (perm : queue.Perm (state.network destination))
-      (rest : Moves { state with network := updateQueue state.network destination queue } final) :
-      Moves state final
+    (queue : List (Abstract.Model.Message Node TxId))
+    (perm : queue.Perm (state.network destination))
+    (rest
+      : Moves { state with network := updateQueue state.network destination queue } final)
+    : Moves state final
 
-theorem Moves.single {state : Abstract.Model.State Node TxId} {action : Abstract.Model.Action Node TxId}
-    (enabled : Abstract.Model.Enabled state action) :
-    Moves state (Abstract.Model.next state action) :=
+theorem Moves.single {state : Abstract.Model.State Node TxId}
+    {action : Abstract.Model.Action Node TxId}
+    (enabled : Abstract.Model.Enabled state action)
+    : Moves state (Abstract.Model.next state action) :=
   .step action enabled (.done _)
 
 theorem Moves.trans {first second third : Abstract.Model.State Node TxId}
-    (head : Moves first second) (tail : Moves second third) : Moves first third := by
+    (head : Moves first second) (tail : Moves second third)
+    : Moves first third := by
   induction head with
   | done => exact tail
   | step action enabled _ ih => exact .step action enabled (ih tail)
@@ -49,9 +55,10 @@ theorem Moves.trans {first second third : Abstract.Model.State Node TxId}
 
 /-- Moves preserve the invariant and never shorten or rewrite a committed log. -/
 theorem Moves.preserves {first second : Abstract.Model.State Node TxId}
-    (moves : Moves first second) (invariant : SystemInductiveInvariant first) :
-    SystemInductiveInvariant second /\
-      forall node, (first.nodes node).committedLog <+: (second.nodes node).committedLog := by
+    (moves : Moves first second) (invariant : SystemInductiveInvariant first)
+    : SystemInductiveInvariant second
+      /\ forall node,
+          (first.nodes node).committedLog <+: (second.nodes node).committedLog := by
   induction moves with
   | done => exact ⟨invariant, fun _ => List.prefix_refl _⟩
   | @step state _ action enabled _ ih =>

@@ -181,7 +181,8 @@ def allConfigurations (log : List (Entry Node TxId)) : List (Configuration Node)
 
 /-- The last configuration in a node's log. -/
 def latestConfiguration (state : NodeState Node TxId) : Configuration Node :=
-  (configurationsInLog state.log).foldl (fun _ configuration => configuration) implicitConfiguration
+  (configurationsInLog state.log).foldl (fun _ configuration => configuration)
+    implicitConfiguration
 
 /-- The last configuration of a log at or before a commit index. -/
 def currentConfigurationAt (log : List (Entry Node TxId)) (commitIndex : Nat)
@@ -206,10 +207,12 @@ def activeConfigurations (state : NodeState Node TxId) : List (Configuration Nod
 
 /-- Union of the nodes in a node's active configurations. -/
 def activeNodeUnion (state : NodeState Node TxId) : Finset Node :=
-  (activeConfigurations state).foldl (fun nodes configuration => nodes ∪ configuration.nodes) ∅
+  (activeConfigurations state).foldl
+    (fun nodes configuration => nodes ∪ configuration.nodes) ∅
 
 /-- The highest active configuration index containing a node, or zero if none. -/
-def highestActiveConfigurationWithNode (state : NodeState Node TxId) (node : Node) : Nat :=
+def highestActiveConfigurationWithNode (state : NodeState Node TxId) (node : Node)
+    : Nat :=
   (activeConfigurations state).foldl
     (fun highest configuration =>
       if node ∈ configuration.nodes then
@@ -261,7 +264,8 @@ def retiredCommittedIndexFrom (node : Node) : Nat -> List (Entry Node TxId) -> O
       | _ => retiredCommittedIndexFrom node (index + 1) entries
 
 /-- The index of the first retired-committed entry naming a node. -/
-def retiredCommittedIndexInLog (node : Node) (log : List (Entry Node TxId)) : Option Nat :=
+def retiredCommittedIndexInLog (node : Node) (log : List (Entry Node TxId))
+    : Option Nat :=
   retiredCommittedIndexFrom node 1 log
 
 /-- Nodes named by retired-committed entries at or before a commit index. -/
@@ -277,7 +281,8 @@ def retiredCommittedNodesUpToFrom : Nat -> Nat -> List (Entry Node TxId) -> Fins
         remaining
 
 /-- Nodes whose retired-committed records are locally committed. -/
-def retiredCommittedNodesUpTo (log : List (Entry Node TxId)) (commitIndex : Nat) : Finset Node :=
+def retiredCommittedNodesUpTo (log : List (Entry Node TxId)) (commitIndex : Nat)
+    : Finset Node :=
   retiredCommittedNodesUpToFrom commitIndex 1 log
 
 /-- All nodes already named by any retired-committed log entry. -/
@@ -285,7 +290,8 @@ def allRetiredCommittedNodes (log : List (Entry Node TxId)) : Finset Node :=
   retiredCommittedNodesUpToFrom log.length 1 log
 
 /-- Nodes removed by committed configurations but not retired-committed yet. -/
-def retirementCompletedNodes (log : List (Entry Node TxId)) (commitIndex : Nat) : Finset Node :=
+def retirementCompletedNodes (log : List (Entry Node TxId)) (commitIndex : Nat)
+    : Finset Node :=
   let current := currentConfigurationAt log commitIndex
   let previouslyConfigured :=
     (allConfigurations log).foldl
@@ -295,12 +301,14 @@ def retirementCompletedNodes (log : List (Entry Node TxId)) (commitIndex : Nat) 
         else
           nodes)
       ∅
-  ((previouslyConfigured \ current.nodes) \ retiredCommittedNodesUpTo log commitIndex).filter
+  ((previouslyConfigured \ current.nodes)
+    \ retiredCommittedNodesUpTo log commitIndex).filter
     fun node =>
       (retirementIndexInLog node (log.take commitIndex)).isSome
 
 /-- Recompute a node's retirement metadata from its log and commit index. -/
-def refreshRetirementState (node : Node) (state : NodeState Node TxId) : NodeState Node TxId :=
+def refreshRetirementState (node : Node) (state : NodeState Node TxId)
+    : NodeState Node TxId :=
   let retirementIndex := retirementIndexInLog node state.log
   let retirementCommittableIndex :=
     retirementIndex.bind
@@ -363,15 +371,19 @@ members even before the first signature.
 def campaignEligible (node : Node) (state : NodeState Node TxId) : Prop :=
   (activeConfigurations state).any
     fun configuration =>
-      decide (node ∈ configuration.nodes /\ configuration.index <= maxCommittableIndex state.log)
+      decide
+        (node ∈ configuration.nodes
+          /\ configuration.index <= maxCommittableIndex state.log)
 
-instance (node : Node) (state : NodeState Node TxId) : Decidable (campaignEligible node state) := by
+instance (node : Node) (state : NodeState Node TxId)
+    : Decidable (campaignEligible node state) := by
   unfold campaignEligible
   infer_instance
 
 /-- Enter the next term as a candidate and vote for self. -/
 @[simp]
-def becomeCandidateNodeState (state : NodeState Node TxId) (node : Node) : NodeState Node TxId :=
+def becomeCandidateNodeState (state : NodeState Node TxId) (node : Node)
+    : NodeState Node TxId :=
   {
     state with
       role := .candidate
@@ -416,7 +428,8 @@ def findHighestPossibleMatch (log : List (Entry Node TxId)) (index term : Nat) :
     0
 
 /-- True when a set of nodes is a strict majority of one configuration. -/
-def hasConfigurationMajority (support : Finset Node) (configuration : Configuration Node) : Prop :=
+def hasConfigurationMajority (support : Finset Node) (configuration : Configuration Node)
+    : Prop :=
   (support ∩ configuration.nodes).card * 2 > configuration.nodes.card
 
 instance (support : Finset Node) (configuration : Configuration Node)

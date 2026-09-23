@@ -34,9 +34,10 @@ def ReplayState.live (replay : ReplayState) : List Envelope :=
     replay.state.network
 
 /-- Live envelopes from `source` to `destination`, oldest first. -/
-def ReplayState.pending (replay : ReplayState) (source destination : String) :
-    List Envelope :=
-  replay.live.filter fun envelope => envelope.source == source && envelope.target == destination
+def ReplayState.pending (replay : ReplayState) (source destination : String)
+    : List Envelope :=
+  replay.live.filter
+    fun envelope => envelope.source == source && envelope.target == destination
 
 private def objectFields (value : Json) : Except String (List (String × Json)) := do
   return (← value.getObj?).toList
@@ -60,7 +61,8 @@ private def stringField (value : Json) (key : String) : Except String String := 
 private def natField (value : Json) (key : String) : Except String Nat := do
   (← field value key).getNat?
 
-private def optionalField (value : Json) (key : String) : Except String (Option Json) := do
+private def optionalField (value : Json) (key : String)
+    : Except String (Option Json) := do
   return (← objectFields value).lookup key
 
 private def occurrence (value : Json) : Except String Nat := do
@@ -82,8 +84,10 @@ structure Header where
 /-- Every declared node, in its initial state and able to act. -/
 def Header.initial (header : Header) : Model.State String String :=
   let _ : Bootstrap String := header.bootstrap
-  { nodes := header.declared.map fun node => (node, initialNodeState node)
-    active := header.declared }
+  {
+    nodes := header.declared.map fun node => (node, initialNodeState node)
+    active := header.declared
+  }
 
 private def parseHeader (value : Json) : Except String Header := do
   keys value ["configuration", "leader", "pre_vote_enabled"]
@@ -91,10 +95,12 @@ private def parseHeader (value : Json) : Except String Header := do
   let configuration := configuredNodes.toFinset
   let leader ← stringField value "leader"
   let modes ← objectFields (← field value "pre_vote_enabled")
-  let modes ← modes.mapM fun (node, enabled) => do
-    let node ← text (.str node)
-    let enabled ← enabled.getBool?
-    return (node, enabled)
+  let modes ←
+    modes.mapM
+      fun (node, enabled) => do
+        let node ← text (.str node)
+        let enabled ← enabled.getBool?
+        return (node, enabled)
   let declared := modes.map Prod.fst
   for node in configuredNodes do
     unless node ∈ declared do
@@ -102,19 +108,21 @@ private def parseHeader (value : Json) : Except String Header := do
   if member : leader ∈ configuration then
     return {
       declared
-      bootstrap := {
-        configuration
-        leader
-        leader_mem := member
-        preVoteStatus := fun node =>
-          if modes.lookup node == some true then .enabled else .capable
-      }
+      bootstrap :=
+        {
+          configuration
+          leader
+          leader_mem := member
+          preVoteStatus :=
+            fun node =>
+              if modes.lookup node == some true then .enabled else .capable
+        }
     }
   else
     throw s!"bootstrap leader '{leader}' is not in the configuration"
 
-private def nodeField (header : Header) (value : Json) (key : String) :
-    Except String String := do
+private def nodeField (header : Header) (value : Json) (key : String)
+    : Except String String := do
   let node ← stringField value key
   unless node ∈ header.declared do
     throw s!"{key}: undeclared node '{node}'"
@@ -140,17 +148,22 @@ private def parseAction (header : Header) (value : Json) : Except String Step :=
       for node in nodes do
         unless node ∈ header.declared do
           throw s!"configuration: undeclared node '{node}'"
-      return .local (← nodeField header value "source") (.changeConfiguration nodes.toFinset)
+      return .local (← nodeField header value "source")
+        (.changeConfiguration nodes.toFinset)
   | "appendEntries" =>
       keys value (base ++ ["source", "destination", "batchEnd"])
       return .local (← nodeField header value "source")
-        (.appendEntries (← nodeField header value "destination") (← natField value "batchEnd"))
+        (.appendEntries (← nodeField header value "destination")
+          (← natField value "batchEnd"))
   | "drop" =>
       keys value (base ++ ["source", "destination", "occurrence"])
       return .drop (← nodeField header value "source")
         (← nodeField header value "destination") (← occurrence value)
-  | "receive" | "requestVote" | "requestPreVote" | "proposeVote"
-      | "advanceCommitIndexAndProposeVote" =>
+  | "receive"
+  | "requestVote"
+  | "requestPreVote"
+  | "proposeVote"
+  | "advanceCommitIndexAndProposeVote" =>
       keys value (base ++ ["source", "destination"])
       let source ← nodeField header value "source"
       let destination ← nodeField header value "destination"
@@ -160,9 +173,15 @@ private def parseAction (header : Header) (value : Json) : Except String Step :=
       | "requestPreVote" => return .local source (.requestPreVote destination)
       | "proposeVote" => return .local source (.proposeVote destination)
       | _ => return .local source (.advanceCommitIndexAndProposeVote destination)
-  | "initializeConfiguration" | "appendRetiredCommitted" | "signCommittableMessages" | "advanceCommitIndex"
-      | "timeout" | "becomePreVoteCandidate" | "becomeCandidate" | "checkQuorum"
-      | "becomeLeader" =>
+  | "initializeConfiguration"
+  | "appendRetiredCommitted"
+  | "signCommittableMessages"
+  | "advanceCommitIndex"
+  | "timeout"
+  | "becomePreVoteCandidate"
+  | "becomeCandidate"
+  | "checkQuorum"
+  | "becomeLeader" =>
       keys value (base ++ ["node"])
       let node ← nodeField header value "node"
       match name with
@@ -179,8 +198,8 @@ private def parseAction (header : Header) (value : Json) : Except String Step :=
 
 /-- Run one decoded instruction. A receive delivers the oldest live envelope;
 a drop only records that the replay must never deliver that envelope. -/
-private def runStep (header : Header) (replay : ReplayState) (step : Step) (name : String) :
-    Except String ReplayState := do
+private def runStep (header : Header) (replay : ReplayState) (step : Step) (name : String)
+    : Except String ReplayState := do
   let _ : Bootstrap String := header.bootstrap
   let system := Model.transitionSystem (TxId := String) header.declared
   match step with
@@ -190,13 +209,15 @@ private def runStep (header : Header) (replay : ReplayState) (step : Step) (name
       | none => throw s!"disabled canonical action '{name}'"
   | .receive source destination =>
       let some envelope := (replay.pending source destination).head?
-        | throw s!"disabled canonical action '{name}': no pending packet from '{source}' to '{destination}'"
+      | throw
+          s!"disabled canonical action '{name}': no pending packet from '{source}' to '{destination}'"
       match system.step replay.state (.deliver envelope) with
       | some state => return { replay with state }
       | none => throw s!"disabled canonical action '{name}'"
   | .drop source destination index =>
       let some envelope := (replay.pending source destination)[index]?
-        | throw s!"no pending packet from '{source}' to '{destination}' at occurrence {index}"
+      | throw
+          s!"no pending packet from '{source}' to '{destination}' at occurrence {index}"
       return { replay with dropped := replay.dropped ++ [envelope] }
 
 private def roleName : Role → String
@@ -217,114 +238,172 @@ private def checkFields (expected actual : Json) : Except String Unit := do
   let observed ← objectFields expected
   if observed.isEmpty then throw "observation must contain at least one field"
   for (key, expectedValue) in observed do
-    let actualValue ← (field actual key).mapError fun _ =>
-      s!"unsupported observation field '{key}'"
+    let actualValue ←
+      (field actual key).mapError
+        fun _ =>
+          s!"unsupported observation field '{key}'"
     unless expectedValue == actualValue do
       throw s!"{key}: observed {expectedValue.compress}, canonical {actualValue.compress}"
 
-private def lookup (replay : ReplayState) (node : String) :
-    Except String (NodeState String String) :=
+private def lookup (replay : ReplayState) (node : String)
+    : Except String (NodeState String String) :=
   match nodeState replay.state node with
   | some state => pure state
   | none => throw s!"node '{node}' is not in the network"
 
-private def observeState (header : Header) (replay : ReplayState) (value : Json) :
-    Except String Unit := do
+private def observeState (header : Header) (replay : ReplayState) (value : Json)
+    : Except String Unit := do
   keys value ["kind", "observation", "origin", "node", "peer", "fields"]
   let node ← nodeField header value "node"
   let _ : Bootstrap String := header.bootstrap
   let nodeState ← lookup replay node
-  let committableIndices := (List.range' 1 nodeState.log.length).filter fun index =>
-    index > nodeState.commitIndex && isSignatureAt nodeState.log index
-  let configurations := (activeConfigurations nodeState).filterMap fun configuration =>
-    if configuration.index == 0 then none else some (Json.mkObj [
-      ("index", toJson configuration.index),
-      ("nodes", toJson (header.declared.filter fun member => member ∈ configuration.nodes))])
-  let mut fields := [
-    ("role", toJson (roleName nodeState.role)),
-    ("currentTerm", toJson nodeState.currentTerm),
-    ("logLength", toJson nodeState.log.length),
-    ("commitIndex", toJson nodeState.commitIndex),
-    ("committableIndices", toJson committableIndices),
-    ("configurations", toJson configurations),
-    ("membershipState", toJson (membershipName nodeState.membershipState)),
-    ("retirementIndex", toJson nodeState.retirementIndex),
-    ("retirementCommittableIndex", toJson nodeState.retirementCommittableIndex),
-    ("retiredCommittedIndex", toJson nodeState.retiredCommittedIndex),
-    ("preVoteEnabled", toJson (decide (INITIAL_PRE_VOTE_STATUS node = .enabled)))]
+  let committableIndices :=
+    (List.range' 1 nodeState.log.length).filter
+      fun index =>
+        index > nodeState.commitIndex && isSignatureAt nodeState.log index
+  let configurations :=
+    (activeConfigurations nodeState).filterMap
+      fun configuration =>
+        if configuration.index == 0 then
+          none
+        else
+          some
+            (Json.mkObj
+              [
+                ("index", toJson configuration.index),
+                (
+                  "nodes",
+                  toJson
+                    (header.declared.filter fun member => member ∈ configuration.nodes)
+                )
+              ])
+  let mut fields :=
+    [
+      ("role", toJson (roleName nodeState.role)),
+      ("currentTerm", toJson nodeState.currentTerm),
+      ("logLength", toJson nodeState.log.length),
+      ("commitIndex", toJson nodeState.commitIndex),
+      ("committableIndices", toJson committableIndices),
+      ("configurations", toJson configurations),
+      ("membershipState", toJson (membershipName nodeState.membershipState)),
+      ("retirementIndex", toJson nodeState.retirementIndex),
+      ("retirementCommittableIndex", toJson nodeState.retirementCommittableIndex),
+      ("retiredCommittedIndex", toJson nodeState.retiredCommittedIndex),
+      ("preVoteEnabled", toJson (decide (INITIAL_PRE_VOTE_STATUS node = .enabled)))
+    ]
   if (← optionalField value "peer").isSome then
     let peer ← nodeField header value "peer"
-    fields := fields ++ [
-      ("sentIndex", toJson (nodeState.sentIndex peer)),
-      ("matchIndex", toJson (nodeState.matchIndex peer))]
+    fields :=
+      fields
+      ++ [
+        ("sentIndex", toJson (nodeState.sentIndex peer)),
+        ("matchIndex", toJson (nodeState.matchIndex peer))
+      ]
   checkFields (← field value "fields") (Json.mkObj fields)
 
-private def observeEntry (header : Header) (replay : ReplayState) (value : Json) :
-    Except String Unit := do
+private def observeEntry (header : Header) (replay : ReplayState) (value : Json)
+    : Except String Unit := do
   keys value ["kind", "observation", "origin", "node", "index", "fields"]
   let node ← nodeField header value "node"
   let index ← natField value "index"
   if index == 0 then throw "log entry index must be positive"
   let nodeState ← lookup replay node
   let some entry := entryAt? nodeState.log index
-    | throw s!"node '{node}' has no log entry at index {index}"
-  let contentFields := match entry.content with
+  | throw s!"node '{node}' has no log entry at index {index}"
+  let contentFields :=
+    match entry.content with
     | .transaction transaction =>
         [("kind", toJson "transaction"), ("transaction", toJson transaction)]
     | .signature => [("kind", toJson "signature")]
     | .reconfiguration configuration =>
-        [("kind", toJson "configuration"),
-         ("configuration", toJson (header.declared.filter fun member => member ∈ configuration))]
+        [
+          ("kind", toJson "configuration"),
+          (
+            "configuration",
+            toJson (header.declared.filter fun member => member ∈ configuration)
+          )
+        ]
     | .retiredCommitted nodes =>
-        [("kind", toJson "retiredCommitted"),
-         ("nodes", toJson (header.declared.filter fun member => member ∈ nodes))]
-  let fields := [
-    ("term", toJson entry.term),
-    ("committed", toJson (decide (index <= nodeState.commitIndex)))] ++ contentFields
+        [
+          ("kind", toJson "retiredCommitted"),
+          ("nodes", toJson (header.declared.filter fun member => member ∈ nodes))
+        ]
+  let fields :=
+    [
+      ("term", toJson entry.term),
+      ("committed", toJson (decide (index <= nodeState.commitIndex)))
+    ]
+    ++ contentFields
   checkFields (← field value "fields") (Json.mkObj fields)
 
 /-- Only modeled packet fields, plus the fixed unused compatibility bit.
 `contains_new_view` is initialized false in raft_types.h and never set. -/
 def messageJson (message : Message String String) : Json :=
-  let fields := match message with
+  let fields :=
+    match message with
     | .appendEntriesRequest request =>
-        [("msg", toJson "raft_append_entries"),
-         ("prev_idx", toJson request.prevLogIndex),
-         ("prev_term", toJson request.prevLogTerm),
-         ("idx", toJson (request.prevLogIndex + request.entries.length)),
-         ("leader_commit_idx", toJson request.leaderCommit),
-         ("term_of_idx", toJson
-           (request.entries.getLast?.map Entry.term |>.getD request.prevLogTerm)),
-         ("contains_new_view", toJson false)]
+        [
+          ("msg", toJson "raft_append_entries"),
+          ("prev_idx", toJson request.prevLogIndex),
+          ("prev_term", toJson request.prevLogTerm),
+          ("idx", toJson (request.prevLogIndex + request.entries.length)),
+          ("leader_commit_idx", toJson request.leaderCommit),
+          (
+            "term_of_idx",
+            toJson (request.entries.getLast?.map Entry.term |>.getD request.prevLogTerm)
+          ),
+          ("contains_new_view", toJson false)
+        ]
     | .appendEntriesResponse response =>
-        [("msg", toJson "raft_append_entries_response"),
-         ("success", toJson (if response.success then "OK" else "FAIL")),
-         ("last_log_idx", toJson response.lastLogIndex)]
+        [
+          ("msg", toJson "raft_append_entries_response"),
+          ("success", toJson (if response.success then "OK" else "FAIL")),
+          ("last_log_idx", toJson response.lastLogIndex)
+        ]
     | .requestVoteRequest request =>
-        [("msg", toJson "raft_request_vote"),
-         ("last_committable_idx", toJson request.lastCommittableIndex),
-         ("term_of_last_committable_idx", toJson request.lastCommittableTerm)]
+        [
+          ("msg", toJson "raft_request_vote"),
+          ("last_committable_idx", toJson request.lastCommittableIndex),
+          ("term_of_last_committable_idx", toJson request.lastCommittableTerm)
+        ]
     | .requestPreVote request =>
-        [("msg", toJson "raft_request_pre_vote"),
-         ("last_committable_idx", toJson request.lastCommittableIndex),
-         ("term_of_last_committable_idx", toJson request.lastCommittableTerm)]
+        [
+          ("msg", toJson "raft_request_pre_vote"),
+          ("last_committable_idx", toJson request.lastCommittableIndex),
+          ("term_of_last_committable_idx", toJson request.lastCommittableTerm)
+        ]
     | .requestVoteResponse response =>
-        [("msg", toJson "raft_request_vote_response"),
-         ("vote_granted", toJson response.voteGranted)]
+        [
+          ("msg", toJson "raft_request_vote_response"),
+          ("vote_granted", toJson response.voteGranted)
+        ]
     | .requestPreVoteResponse response =>
-        [("msg", toJson "raft_request_pre_vote_response"),
-         ("vote_granted", toJson response.voteGranted)]
+        [
+          ("msg", toJson "raft_request_pre_vote_response"),
+          ("vote_granted", toJson response.voteGranted)
+        ]
     | .proposeVoteRequest _ =>
         [("msg", toJson "raft_propose_request_vote")]
   Json.mkObj (("term", toJson message.term) :: fields)
 
-private def observeMessage (header : Header) (replay : ReplayState) (value : Json) :
-    Except String Unit := do
-  keys value ["kind", "observation", "origin", "source", "destination", "packet", "occurrence", "selection"]
+private def observeMessage (header : Header) (replay : ReplayState) (value : Json)
+    : Except String Unit := do
+  keys value
+    [
+      "kind",
+      "observation",
+      "origin",
+      "source",
+      "destination",
+      "packet",
+      "occurrence",
+      "selection"
+    ]
   let source ← nodeField header value "source"
   let destination ← nodeField header value "destination"
   let pending := replay.pending source destination
-  let index ← match ← optionalField value "selection" with
+  let index ←
+    match ← optionalField value "selection" with
     | none => occurrence value
     | some selection => do
         if (← optionalField value "occurrence").isSome then
@@ -334,7 +413,7 @@ private def observeMessage (header : Header) (replay : ReplayState) (value : Jso
         | "last" => pure pending.length.pred
         | name => throw s!"unsupported message selection '{name}'"
   let some envelope := pending[index]?
-    | throw s!"no pending packet from '{source}' to '{destination}' at occurrence {index}"
+  | throw s!"no pending packet from '{source}' to '{destination}' at occurrence {index}"
   let message := envelope.payload
   let packet ← field value "packet"
   let _ ← stringField packet "msg"
@@ -343,19 +422,21 @@ private def observeMessage (header : Header) (replay : ReplayState) (value : Jso
 private def originLabel (value : Json) : Except String String := do
   let origins ← (← field value "origin").getArr?
   if origins.isEmpty then throw "origin must not be empty"
-  let labels ← origins.toList.mapM fun origin => do
-    let file ← stringField origin "file"
-    let line ← natField origin "line"
-    if line == 0 then throw "origin line must be positive"
-    let rule ← stringField origin "rule"
-    return s!"{file}:{line} [{rule}]"
+  let labels ←
+    origins.toList.mapM
+      fun origin => do
+        let file ← stringField origin "file"
+        let line ← natField origin "line"
+        if line == 0 then throw "origin line must be positive"
+        let rule ← stringField origin "rule"
+        return s!"{file}:{line} [{rule}]"
   return String.intercalate ", " labels
 
 structure Result where
   instructions : Nat
   actions : Nat
   observations : Nat
-  deriving Repr
+deriving Repr
 
 /-- Replay in input order. Later malformed instructions cannot hide an earlier
 guard failure or discrepancy. Observations never update protocol state. -/
@@ -365,11 +446,13 @@ def replay (document : Json) : Except String Result := do
   if schema == "ccfraft-replay/v1" then
     throw "ccfraft-replay/v1 is unsupported: v3 requires physical ledger indices"
   if schema == "ccfraft-replay/v2" then
-    throw "ccfraft-replay/v2 is unsupported: v3 receives adopt newer terms without updateTerm"
+    throw
+      "ccfraft-replay/v2 is unsupported: v3 receives adopt newer terms without updateTerm"
   unless schema == "ccfraft-replay/v3" do
     throw s!"unsupported replay schema '{schema}'"
-  let header ← (parseHeader (← field document "bootstrap")).mapError
-    fun error => s!"bootstrap: {error}"
+  let header ←
+    (parseHeader (← field document "bootstrap")).mapError
+      fun error => s!"bootstrap: {error}"
   let instructions ← (← field document "instructions").getArr?
   if instructions.isEmpty then
     throw "replay instructions must not be empty"
@@ -378,8 +461,9 @@ def replay (document : Json) : Except String Result := do
   let mut observations := 0
   for index in [:instructions.size] do
     let instruction := instructions[index]!
-    let label ← (originLabel instruction).mapError
-      fun error => s!"instruction {index + 1}: invalid origin: {error}"
+    let label ←
+      (originLabel instruction).mapError
+        fun error => s!"instruction {index + 1}: invalid origin: {error}"
     let step : Except String (ReplayState × Bool) := do
       match ← stringField instruction "kind" with
       | "action" =>
@@ -393,8 +477,8 @@ def replay (document : Json) : Except String Result := do
           | name => throw s!"unsupported observation '{name}'"
           return (state, false)
       | kind => throw s!"unsupported instruction kind '{kind}'"
-    let (nextState, isAction) ← step.mapError
-      fun error => s!"instruction {index + 1} at {label}: {error}"
+    let (nextState, isAction) ←
+      step.mapError fun error => s!"instruction {index + 1} at {label}: {error}"
     state := nextState
     if isAction then actions := actions + 1 else observations := observations + 1
   return { instructions := instructions.size, actions, observations }

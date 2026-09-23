@@ -3,11 +3,26 @@
 
 import CCFRaft.Proofs.Abstract.Invariant
 import CCFRaft.Proofs.Abstract.HandlerProofs
-
 import CCFRaft.Proofs.Abstract.Support
 
-open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety CCFRaft.Proofs.Abstract.Support CCFRaft.Proofs.Abstract.ModelProofs CCFRaft.Proofs.Abstract.Invariant CCFRaft.Proofs.Abstract.HandlerProofs
-open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
+open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety
+  CCFRaft.Proofs.Abstract.Support CCFRaft.Proofs.Abstract.ModelProofs
+  CCFRaft.Proofs.Abstract.Invariant CCFRaft.Proofs.Abstract.HandlerProofs
+open CCFRaft.Model.Local (
+  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
+    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
+    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
+    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
+    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
+    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
+    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
+    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
+    messageEntries refreshRetirementState retiredCommittedIndexFrom
+    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
+    retirementCommittableIndexInLog retirementCompletedNodes
+    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
+    updateIndex
+  )
 
 set_option autoImplicit false
 
@@ -38,8 +53,8 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
     {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
     {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
-    {voteCandidateHistory voteVoterHistory :
-      RequestVoteResponse Node -> List (Entry Node TxId)}
+    {voteCandidateHistory voteVoterHistory
+      : RequestVoteResponse Node -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
@@ -49,104 +64,71 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
     {configuration : Configuration Node}
     (sourceNodeEq : after.nodes source = before.nodes source)
     (candidateNodeEq : after.nodes candidate = before.nodes candidate)
-    (logEq :
-      forall node,
-        (after.nodes node).log = (before.nodes node).log)
-    (termMonotone :
-      forall node,
-        (before.nodes node).currentTerm <=
-          (after.nodes node).currentTerm)
+    (logEq : forall node, (after.nodes node).log = (before.nodes node).log)
+    (termMonotone
+      : forall node, (before.nodes node).currentTerm <= (after.nodes node).currentTerm)
     (hasJoinedEq : after.hasJoined = before.hasJoined)
-    (effectiveAckersBack :
-      effectiveAckers after responseHistory source index ⊆
-        effectiveAckers before responseHistory source index)
-    (effectiveElectionVotersBack :
-      effectiveElectionVoters after candidate ⊆
-        effectiveElectionVoters before candidate)
-    (snapshots :
-      GrantedVoteSnapshots
-        before votes voteCandidateHistory voteVoterHistory)
+    (effectiveAckersBack
+      : effectiveAckers after responseHistory source index
+        ⊆ effectiveAckers before responseHistory source index)
+    (effectiveElectionVotersBack
+      : effectiveElectionVoters after candidate
+        ⊆ effectiveElectionVoters before candidate)
+    (snapshots : GrantedVoteSnapshots before votes voteCandidateHistory voteVoterHistory)
     (termsPositive : CurrentTermsPositive before)
     (committedSignature : CommittedFrontierIsSignature before)
     (entriesBounded : EntriesDoNotExceedCurrentTerm before)
     (voteFacts : VoteHistoryFacts before votes)
-    (canonicalSnapshots :
-      GrantedVoteCanonicalSnapshots
-        before canonicalHistory voteCandidateHistory voteVoterHistory)
-    (ownership :
-      TermOwnershipFacts
-        before votes appendHistory canonicalHistory owners)
-    (electionFacts :
-      ElectionHistoryFacts
-        before votes canonicalHistory owners elections)
-    (configurationFacts :
-      ElectionConfigurationFacts before elections activations)
-    (currentHistory :
-      AckerCurrentHistory before responseHistory elections)
-    (voteHistory :
-      AckerVoteHistory
-        before votes responseHistory voteVoterHistory elections)
-    (electedHistory :
-      AckerElectionHistory before responseHistory elections)
-    (activationQuorums :
-      ActivationQuorumFacts
-        before appendHistory responseHistory elections activations)
+    (canonicalSnapshots
+      : GrantedVoteCanonicalSnapshots
+          before canonicalHistory voteCandidateHistory voteVoterHistory)
+    (ownership : TermOwnershipFacts before votes appendHistory canonicalHistory owners)
+    (electionFacts : ElectionHistoryFacts before votes canonicalHistory owners elections)
+    (configurationFacts : ElectionConfigurationFacts before elections activations)
+    (currentHistory : AckerCurrentHistory before responseHistory elections)
+    (voteHistory
+      : AckerVoteHistory before votes responseHistory voteVoterHistory elections)
+    (electedHistory : AckerElectionHistory before responseHistory elections)
+    (activationQuorums
+      : ActivationQuorumFacts before appendHistory responseHistory elections activations)
     (sourceRole : (after.nodes source).role = .leader)
-    (currentEntry :
-      termAt (after.nodes source).log index =
-        (after.nodes source).currentTerm)
-    (currentSignature :
-      isSignatureAt (after.nodes source).log index = true)
-    (potential :
-      hasPotentialMajorityAt
-        after appendHistory responseHistory source index)
+    (currentEntry
+      : termAt (after.nodes source).log index = (after.nodes source).currentTerm)
+    (currentSignature : isSignatureAt (after.nodes source).log index = true)
+    (potential : hasPotentialMajorityAt after appendHistory responseHistory source index)
     (candidateRole : (after.nodes candidate).role = .candidate)
-    (candidateMajority :
-      hasPotentialElectionMajority after candidate)
-    (sourceConfigurationActive :
-      configuration ∈ activeConfigurations (after.nodes source))
+    (candidateMajority : hasPotentialElectionMajority after candidate)
+    (sourceConfigurationActive
+      : configuration ∈ activeConfigurations (after.nodes source))
     (configurationGoverns : configuration.index <= index)
-    (candidateConfigurationActive :
-      configuration ∈ activeConfigurations (after.nodes candidate))
-    (newer :
-      (after.nodes source).currentTerm <
-        (after.nodes candidate).currentTerm)
-    (preGhostAuthority :
-      CurrentTermsPositive before ->
-      CommittedFrontierIsSignature before ->
-      EntriesDoNotExceedCurrentTerm before ->
-      VoteHistoryFacts before votes ->
-      GrantedVoteSnapshots
-        before votes voteCandidateHistory voteVoterHistory ->
-      GrantedVoteCanonicalSnapshots
-        before canonicalHistory voteCandidateHistory voteVoterHistory ->
-      TermOwnershipFacts
-        before votes appendHistory canonicalHistory owners ->
-      ElectionHistoryFacts
-        before votes canonicalHistory owners elections ->
-      ElectionConfigurationFacts before elections activations ->
-      AckerCurrentHistory before responseHistory elections ->
-      AckerVoteHistory
-        before votes responseHistory voteVoterHistory elections ->
-      AckerElectionHistory before responseHistory elections ->
-      ActivationQuorumFacts
-        before appendHistory responseHistory elections activations ->
-      (before.nodes source).role = .leader ->
-      termAt (before.nodes source).log index =
-        (before.nodes source).currentTerm ->
-      isSignatureAt (before.nodes source).log index = true ->
-      hasPotentialMajorityAt
-        after appendHistory responseHistory source index ->
-      (before.nodes candidate).role = .candidate ->
-      (before.nodes source).currentTerm <
-        (before.nodes candidate).currentTerm ->
-      forall voter,
-        voter ∈ effectiveAckers before responseHistory source index ->
-        voter ∈ relaxedElectionVoters before candidate ->
-          (before.nodes source).log.take index <+:
-            (before.nodes candidate).log) :
-    (after.nodes source).log.take index <+:
-      (after.nodes candidate).log := by
+    (candidateConfigurationActive
+      : configuration ∈ activeConfigurations (after.nodes candidate))
+    (newer : (after.nodes source).currentTerm < (after.nodes candidate).currentTerm)
+    (preGhostAuthority
+      : CurrentTermsPositive before -> CommittedFrontierIsSignature before
+        -> EntriesDoNotExceedCurrentTerm before -> VoteHistoryFacts before votes
+        -> GrantedVoteSnapshots before votes voteCandidateHistory voteVoterHistory
+        -> GrantedVoteCanonicalSnapshots
+            before canonicalHistory voteCandidateHistory voteVoterHistory
+        -> TermOwnershipFacts before votes appendHistory canonicalHistory owners
+        -> ElectionHistoryFacts before votes canonicalHistory owners elections
+        -> ElectionConfigurationFacts before elections activations
+        -> AckerCurrentHistory before responseHistory elections
+        -> AckerVoteHistory before votes responseHistory voteVoterHistory elections
+        -> AckerElectionHistory before responseHistory elections
+        -> ActivationQuorumFacts
+            before appendHistory responseHistory elections activations
+        -> (before.nodes source).role = .leader
+        -> termAt (before.nodes source).log index = (before.nodes source).currentTerm
+        -> isSignatureAt (before.nodes source).log index = true
+        -> hasPotentialMajorityAt after appendHistory responseHistory source index
+        -> (before.nodes candidate).role = .candidate
+        -> (before.nodes source).currentTerm < (before.nodes candidate).currentTerm
+        -> forall voter,
+            voter ∈ effectiveAckers before responseHistory source index
+            -> voter ∈ relaxedElectionVoters before candidate
+            -> (before.nodes source).log.take index <+: (before.nodes candidate).log)
+    : (after.nodes source).log.take index <+: (after.nodes candidate).log := by
   have sourceRoleBefore :
       (before.nodes source).role = .leader := by
     simpa [sourceNodeEq] using sourceRole
@@ -201,10 +183,8 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
           after appendHistory responseHistory source index)
         configuration := by
     rw [hasPotentialMajorityAt, List.all_eq_true] at potential
-    exact
-      (of_decide_eq_true
-        (potential configuration sourceConfigurationActive))
-        configurationGoverns
+    exact (of_decide_eq_true (potential configuration sourceConfigurationActive))
+      configurationGoverns
   have electionMajority :
       hasConfigurationMajority
         (potentialElectionVoters after candidate)
@@ -237,11 +217,10 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
             CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
           have voterTerm :
               request.term = (after.nodes voter).currentTerm := by
-            simpa [requestDestination, protocolNodeState] using
-              localPost.successfulCurrentTerm success
+            simpa [requestDestination, protocolNodeState]
+              using localPost.successfulCurrentTerm success
           exact (voterTerm.symm.trans requestTerm).le
-        · exact
-            (by simpa [requestDestination, requestTerm] using prepared.1.le)
+        · exact (by simpa [requestDestination, requestTerm] using prepared.1.le)
       have voterTermBound :=
         prospectiveVoterTermBound voter electionMember
       omega
@@ -254,20 +233,18 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
       relaxedElectionVoters, Finset.mem_filter
     ]
     rcases electionMember with ⟨joinedAfter, effective | eligible⟩
-    · refine
-        ⟨by simpa [hasJoinedEq] using joinedAfter,
-          Or.inl (effectiveElectionVotersBack effective)⟩
-    · refine
-        ⟨by simpa [hasJoinedEq] using joinedAfter, Or.inr ?_⟩
+    · refine ⟨
+        by simpa [hasJoinedEq] using joinedAfter,
+        Or.inl (effectiveElectionVotersBack effective)
+      ⟩
+    · refine ⟨by simpa [hasJoinedEq] using joinedAfter, Or.inr ?_⟩
       refine ⟨?_, ?_⟩
       · calc
-          (before.nodes voter).currentTerm <=
-              (after.nodes voter).currentTerm := termMonotone voter
+          (before.nodes voter).currentTerm <= (after.nodes voter).currentTerm :=
+            termMonotone voter
           _ = (after.nodes candidate).currentTerm := by
-            simpa [
-              currentlyEligibleElectionVoter,
-              makeRequestVoteRequest
-            ] using eligible.1.symm
+            simpa [currentlyEligibleElectionVoter, makeRequestVoteRequest]
+              using eligible.1.symm
           _ = (before.nodes candidate).currentTerm := by
             rw [candidateNodeEq]
       · simpa [

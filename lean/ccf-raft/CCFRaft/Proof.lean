@@ -25,8 +25,8 @@ theorem election_safety_witness : Properties.ElectionSafetyWitness :=
 theorem committed_logs_prefix_witness : Properties.CommittedLogsPrefixWitness :=
   Proofs.Witnesses.committed_logs_prefix_witness
 
-theorem committed_frontier_is_signature_witness :
-    Properties.CommittedFrontierIsSignatureWitness :=
+theorem committed_frontier_is_signature_witness
+    : Properties.CommittedFrontierIsSignatureWitness :=
   Proofs.Witnesses.committed_frontier_is_signature_witness
 
 theorem committed_log_append_only_witness : Properties.CommittedLogAppendOnlyWitness :=

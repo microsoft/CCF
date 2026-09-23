@@ -8,8 +8,24 @@ set_option autoImplicit false
 
 namespace CCFRaft.Proofs.Abstract.CommittedLog
 
-open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety CCFRaft.Proofs.Abstract.ModelProofs CCFRaft.Proofs.Abstract.HandlerProofs CCFRaft.Proofs.Abstract.Invariant
-open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
+open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety
+  CCFRaft.Proofs.Abstract.ModelProofs CCFRaft.Proofs.Abstract.HandlerProofs
+  CCFRaft.Proofs.Abstract.Invariant
+open CCFRaft.Model.Local (
+  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
+    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
+    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
+    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
+    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
+    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
+    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
+    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
+    messageEntries refreshRetirementState retiredCommittedIndexFrom
+    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
+    retirementCommittableIndexInLog retirementCompletedNodes
+    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
+    updateIndex
+  )
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
@@ -19,8 +35,8 @@ omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 lemma committedLog_prefix
     {before after : NodeState Node TxId}
     (retained : before.committedLog <+: after.log)
-    (monotone : before.commitIndex <= after.commitIndex) :
-    before.committedLog <+: after.committedLog := by
+    (monotone : before.commitIndex <= after.commitIndex)
+    : before.committedLog <+: after.committedLog := by
   apply List.prefix_take_iff.mpr
   exact ⟨retained, (List.length_take_le _ _).trans monotone⟩
 
@@ -28,9 +44,9 @@ lemma committedLog_prefix
 lemma receive_committedLog_prefix
     {state after : State Node TxId}
     {source destination : Node}
-    (handled : handleReceive? state source destination = some after) :
-    forall node,
-      (state.nodes node).committedLog <+: (after.nodes node).committedLog := by
+    (handled : handleReceive? state source destination = some after)
+    : forall node,
+        (state.nodes node).committedLog <+: (after.nodes node).committedLog := by
   unfold handleReceive? at handled
   split at handled
   · contradiction
@@ -58,8 +74,9 @@ lemma receive_committedLog_prefix
               intro node
               by_cases same : node = destination
               · subst node
-                simpa [NodeState.committedLog] using
-                  committedLog_prefix post.previousCommittedPrefix post.commitIndexMonotone
+                simpa [NodeState.committedLog]
+                  using committedLog_prefix post.previousCommittedPrefix
+                    post.commitIndexMonotone
               · simp [same]
       | appendEntriesResponse response =>
           simp only at handled
@@ -152,24 +169,23 @@ lemma receive_committedLog_prefix
 
 omit [DecidableEq TxId] [Bootstrap Node] in
 private lemma demoteRetiredCommitted_committedLog
-    (state : State Node TxId) (retired node : Node) :
-    ((demoteRetiredCommitted state retired).nodes node).committedLog =
-      (state.nodes node).committedLog := by
+    (state : State Node TxId) (retired node : Node)
+    : ((demoteRetiredCommitted state retired).nodes node).committedLog
+      = (state.nodes node).committedLog := by
   dsimp only [demoteRetiredCommitted]
   split <;> by_cases same : node = retired <;>
     simp [same, NodeState.committedLog]
 
 private lemma advanceCommitState_committedLog_prefix
     (state : State Node TxId) (leader node : Node)
-    (advances :
-      (state.nodes leader).commitIndex <= highestCommittableIndex state leader) :
-    (state.nodes node).committedLog <+:
-      ((advanceCommitState state leader).nodes node).committedLog := by
+    (advances : (state.nodes leader).commitIndex <= highestCommittableIndex state leader)
+    : (state.nodes node).committedLog
+      <+: ((advanceCommitState state leader).nodes node).committedLog := by
   by_cases same : node = leader
   · subst node
     apply committedLog_prefix
-    · simpa [advanceCommitState, NodeState.committedLog] using
-        List.take_prefix (state.nodes leader).commitIndex (state.nodes leader).log
+    · simpa [advanceCommitState, NodeState.committedLog]
+        using List.take_prefix (state.nodes leader).commitIndex (state.nodes leader).log
     · simpa [advanceCommitState] using advances
   · simp [advanceCommitState, same]
 
@@ -178,10 +194,10 @@ lemma next_committedLog_prefix
     (state : State Node TxId) (action : Action Node TxId)
     (bounded : CommitIndicesBounded state)
     (signature : CommittedFrontierIsSignature state)
-    (enabled : Enabled state action) :
-    forall node,
-      (state.nodes node).committedLog <+:
-        ((next state action).nodes node).committedLog := by
+    (enabled : Enabled state action)
+    : forall node,
+        (state.nodes node).committedLog
+        <+: ((next state action).nodes node).committedLog := by
   intro node
   cases action with
   | initializeConfiguration leader =>
@@ -218,15 +234,15 @@ lemma next_committedLog_prefix
       cases received : handleReceive? state source destination with
       | none => simp [next, received]
       | some after =>
-          simpa [next, received] using
-            receive_committedLog_prefix received node
+          simpa [next, received] using receive_committedLog_prefix received node
   | drop source destination occurrence =>
-      cases removed : takeOccurrenceFrom source occurrence (state.network destination) with
+      cases removed
+            : takeOccurrenceFrom source occurrence (state.network destination) with
       | none => simp [next, removed]
       | some result => simp [next, removed]
   | advanceCommitIndex leader =>
-      simpa only [next, definition, demoteRetiredCommitted_committedLog] using
-        advanceCommitState_committedLog_prefix state leader node
+      simpa only [next, definition, demoteRetiredCommitted_committedLog]
+        using advanceCommitState_committedLog_prefix state leader node
           (Nat.le_of_lt enabled.2.2.1)
   | timeout candidate =>
       by_cases same : node = candidate <;>
@@ -260,8 +276,8 @@ lemma next_committedLog_prefix
           List.take_take, Nat.min_eq_left frontier]
   | proposeVote source destination => exact prefixRefl _
   | advanceCommitIndexAndProposeVote source destination =>
-      simpa only [next, definition, demoteRetiredCommitted_committedLog] using
-        advanceCommitState_committedLog_prefix state source node
+      simpa only [next, definition, demoteRetiredCommitted_committedLog]
+        using advanceCommitState_committedLog_prefix state source node
           (Nat.le_of_lt enabled.2.2.2.1)
 
 end CCFRaft.Proofs.Abstract.CommittedLog

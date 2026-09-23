@@ -17,11 +17,12 @@ open Refinement
 open CCFRaft.Model.Local (NodeState Bootstrap)
 open Abstract.ReconfigurationPreservation (systemInductiveInvariantSafety)
 
-theorem refines_of_trace {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
-    {nodes : List Node} {trace : Properties.GlobalTrace Node TxId}
+theorem refines_of_trace {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId]
+    [Bootstrap Node] {nodes : List Node} {trace : Properties.GlobalTrace Node TxId}
     {state : CCFRaft.Model.State Node TxId}
-    (valid : trace.Valid (CCFRaft.Model.transitionSystem nodes)) (member : state ∈ trace.states) :
-    Refines state :=
+    (valid : trace.Valid (CCFRaft.Model.transitionSystem nodes))
+    (member : state ∈ trace.states)
+    : Refines state :=
   reachable_refines (valid.reachable member)
 
 theorem election_safety : Properties.ElectionSafety := by

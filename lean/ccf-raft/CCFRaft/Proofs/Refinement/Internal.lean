@@ -17,24 +17,27 @@ the same name, taken by the same node.
 namespace CCFRaft.Proofs.Refinement
 
 open Shared Shared.MultiNodeTransitionSystem
-open Model.Local (NodeState Bootstrap Role Entry retirementCompletedNodes activeNodeUnion updateIndex
-  refreshRetirementState INITIAL_PRE_VOTE_STATUS)
+open Model.Local (
+  NodeState Bootstrap Role Entry retirementCompletedNodes activeNodeUnion updateIndex
+    refreshRetirementState INITIAL_PRE_VOTE_STATUS
+  )
 open Abstract.Model (NodeStore updateNode updateQueue enqueue)
 open Abstract.Invariant (SystemInductiveInvariant)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
 theorem get_updateNode (nodes : NodeStore Node TxId) (node member : Node)
-    (value : NodeState Node TxId) :
-    updateNode nodes node value member = if member = node then value else nodes member := by
+    (value : NodeState Node TxId)
+    : updateNode nodes node value member
+      = if member = node then value else nodes member := by
   by_cases same : member = node
   · subst member
     simp [updateNode]
   · simp [updateNode, same, Abstract.ModelProofs.NodeStore.get_set_of_ne]
 
 theorem allocated_updateNode {nodes : NodeStore Node TxId} {node member : Node}
-    {value : NodeState Node TxId} (allocated : nodes.allocated member) :
-    (updateNode nodes node value).allocated member := by
+    {value : NodeState Node TxId} (allocated : nodes.allocated member)
+    : (updateNode nodes node value).allocated member := by
   by_cases same : member = node
   · subst member
     simp [updateNode, NodeStore.allocated, Abstract.ModelProofs.NodeStore.node?_set_same]
@@ -42,17 +45,18 @@ theorem allocated_updateNode {nodes : NodeStore Node TxId} {node member : Node}
       Abstract.ModelProofs.NodeStore.node?_set_of_ne, same] using allocated
 
 theorem enqueue_apply (network : Node -> List (Abstract.Model.Message Node TxId))
-    (message : Abstract.Model.Message Node TxId) (target : Node) :
-    enqueue network message target =
-      network target ++ (if message.destination = target then [message] else []) := by
+    (message : Abstract.Model.Message Node TxId) (target : Node)
+    : enqueue network message target
+      = network target ++ (if message.destination = target then [message] else []) := by
   by_cases same : message.destination = target
   · subst target
     simp [enqueue, Abstract.Model.updateQueue]
   · simp [enqueue, Abstract.Model.updateQueue, same, Ne.symm same]
 
 theorem enqueue_toAbstract (network : Node -> List (Abstract.Model.Message Node TxId))
-    (envelope : Model.Envelope Node TxId) (target : Node) :
-    enqueue network (toAbstract envelope) target = network target ++ absQueue [envelope] target := by
+    (envelope : Model.Envelope Node TxId) (target : Node)
+    : enqueue network (toAbstract envelope) target
+      = network target ++ absQueue [envelope] target := by
   rw [enqueue_apply, absQueue_singleton, toAbstract_destination]
 
 /--
@@ -64,19 +68,32 @@ theorem Corr.local {concrete : Model.State Node TxId}
     {abstract after : Abstract.Model.State Node TxId} {node : Node}
     {value : NodeState Node TxId} {sends : List (Model.Envelope Node TxId)}
     (corr : Corr concrete abstract)
-    (nodesEq : forall member,
-      after.nodes member = if member = node then value else abstract.nodes member)
-    (networkEq : forall target, after.network target = abstract.network target ++ absQueue sends target)
+    (nodesEq
+      : forall member,
+          after.nodes member = if member = node then value else abstract.nodes member)
+    (networkEq
+      : forall target,
+          after.network target = abstract.network target ++ absQueue sends target)
     (preVote : after.preVoteStatus = abstract.preVoteStatus)
     (allocatedMono : forall member, abstract.allocated member -> after.allocated member)
-    (retirementHere : after.retirementCompleted node = retirementCompletedNodes value.log value.commitIndex)
-    (retirementOther : forall member, Not (member = node) ->
-      after.retirementCompleted member = abstract.retirementCompleted member)
-    (sendsAllocated : forall envelope, envelope ∈ sends ->
-      after.allocated envelope.source /\ after.allocated envelope.target) :
-    Corr { concrete with
-      nodes := replaceNode concrete.nodes node value
-      network := concrete.network ++ sends } after := by
+    (retirementHere
+      : after.retirementCompleted node
+        = retirementCompletedNodes value.log value.commitIndex)
+    (retirementOther
+      : forall member,
+          Not (member = node)
+          -> after.retirementCompleted member = abstract.retirementCompleted member)
+    (sendsAllocated
+      : forall envelope,
+          envelope ∈ sends
+          -> after.allocated envelope.source /\ after.allocated envelope.target)
+    : Corr
+        {
+          concrete with
+            nodes := replaceNode concrete.nodes node value
+            network := concrete.network ++ sends
+        }
+        after := by
   apply corr.update nodesEq _ preVote _ _
   · intro target
     rw [networkEq, absQueue_append]
@@ -94,54 +111,63 @@ theorem Corr.local {concrete : Model.State Node TxId}
     · exact sendsAllocated envelope new
 
 /-- The acting node's local state is the abstract state of that node. -/
-theorem Corr.state {concrete : Model.State Node TxId} {abstract : Abstract.Model.State Node TxId}
-    (corr : Corr concrete abstract) {node : Node} {state : NodeState Node TxId}
-    (found : nodeState concrete node = some state) : abstract.nodes node = state :=
+theorem Corr.state {concrete : Model.State Node TxId}
+    {abstract : Abstract.Model.State Node TxId} (corr : Corr concrete abstract)
+    {node : Node} {state : NodeState Node TxId}
+    (found : nodeState concrete node = some state)
+    : abstract.nodes node = state :=
   corr.nodes node state (mem_of_nodeState found)
 
 theorem guard_holds {p : Prop} [Decidable p] {done : Unit}
-    (holds : (if p then pure () else failure : Option Unit) = some done) : p := by
+    (holds : (if p then pure () else failure : Option Unit) = some done)
+    : p := by
   by_contra absent
   simp [absent] at holds
 
 set_option hygiene false in
 /-- Split an enabled `act` into its guard `enabled` and its effect. -/
-macro "extract_guard" : tactic => `(tactic| (
-  simp only [Model.Local.act, guard, bind, Option.bind] at acted
-  split at acted
-  · simp at acted
-  rename_i _ _ _ condition
-  have enabled := guard_holds condition
-  have acted := Option.some.inj acted
-  subst acted))
+macro "extract_guard" : tactic =>
+  `(tactic| (
+    simp only [Model.Local.act, guard, bind, Option.bind] at acted
+    split at acted
+    · simp at acted
+    rename_i _ _ _ condition
+    have enabled := guard_holds condition
+    have acted := Option.some.inj acted
+    subst acted))
 
-theorem highestCommittableIndex_eq (abstract : Abstract.Model.State Node TxId) (node : Node) :
-    Abstract.Model.highestCommittableIndex abstract node =
-      Model.Local.highestCommittableIndex (abstract.nodes node) node :=
+theorem highestCommittableIndex_eq (abstract : Abstract.Model.State Node TxId)
+    (node : Node)
+    : Abstract.Model.highestCommittableIndex abstract node
+      = Model.Local.highestCommittableIndex (abstract.nodes node) node :=
   rfl
 
-theorem advanceCommit_eq (abstract : Abstract.Model.State Node TxId) (node : Node) :
-    refreshRetirementState node
-        { abstract.nodes node with
-          commitIndex := Abstract.Model.highestCommittableIndex abstract node } =
-      Model.Local.advanceCommit (abstract.nodes node) node :=
+theorem advanceCommit_eq (abstract : Abstract.Model.State Node TxId) (node : Node)
+    : refreshRetirementState node
+        {
+          abstract.nodes node with
+            commitIndex := Abstract.Model.highestCommittableIndex abstract node
+        }
+      = Model.Local.advanceCommit (abstract.nodes node) node :=
   rfl
 
 theorem retirementCompleted_eq {concrete : Model.State Node TxId}
-    {abstract : Abstract.Model.State Node TxId} (corr : Corr concrete abstract) (node : Node) :
-    abstract.retirementCompleted node = (abstract.nodes node).retirementCompleted :=
+    {abstract : Abstract.Model.State Node TxId} (corr : Corr concrete abstract)
+    (node : Node)
+    : abstract.retirementCompleted node = (abstract.nodes node).retirementCompleted :=
   corr.retirementCompleted node
 
 theorem candidateTransitionEnabled_iff {concrete : Model.State Node TxId}
-    {abstract : Abstract.Model.State Node TxId} (corr : Corr concrete abstract) (node : Node) :
-    Abstract.Model.candidateTransitionEnabled abstract node <->
-      abstract.allocated node /\
-        Model.Local.candidateTransitionEnabled (abstract.nodes node) node := by
+    {abstract : Abstract.Model.State Node TxId} (corr : Corr concrete abstract)
+    (node : Node)
+    : Abstract.Model.candidateTransitionEnabled abstract node
+      <-> abstract.allocated node
+          /\ Model.Local.candidateTransitionEnabled (abstract.nodes node) node := by
   simp only [Abstract.Model.candidateTransitionEnabled, Model.Local.candidateTransitionEnabled,
     retirementCompleted_eq corr]
 
-theorem get_allocate (nodes : NodeStore Node TxId) (added : Finset Node) (member : Node) :
-    nodes.allocate added member = nodes member := by
+theorem get_allocate (nodes : NodeStore Node TxId) (added : Finset Node) (member : Node)
+    : nodes.allocate added member = nodes member := by
   by_cases allocated : nodes.allocated member
   · simp [Abstract.Model.NodeStore.get,
       Abstract.ModelProofs.NodeStore.node?_allocate_of_allocated _ _ _ allocated]
@@ -158,18 +184,27 @@ theorem get_allocate (nodes : NodeStore Node TxId) (added : Finset Node) (member
         exact Abstract.ModelProofs.NodeStore.node?_ofFinset_of_not_mem added _ member fresh
       simp [Abstract.Model.NodeStore.get, missing, stillMissing]
 
-theorem allocated_allocate {nodes : NodeStore Node TxId} {added : Finset Node} {member : Node}
-    (allocated : nodes.allocated member) : (nodes.allocate added).allocated member := by
+theorem allocated_allocate {nodes : NodeStore Node TxId} {added : Finset Node}
+    {member : Node} (allocated : nodes.allocated member)
+    : (nodes.allocate added).allocated member := by
   simpa [NodeStore.allocated,
-    Abstract.ModelProofs.NodeStore.node?_allocate_of_allocated _ _ _ allocated] using allocated
+    Abstract.ModelProofs.NodeStore.node?_allocate_of_allocated _ _ _ allocated]
+    using allocated
 
 /-- The shape of an abstract step simulating one local input. -/
-def Simulates (concrete : Model.State Node TxId) (abstract : Abstract.Model.State Node TxId)
-    (node : Node) (value : NodeState Node TxId) (sends : List (Model.Envelope Node TxId)) : Prop :=
-  exists after, Moves abstract after /\
-    Corr { concrete with
-      nodes := replaceNode concrete.nodes node value
-      network := concrete.network ++ sends } after
+def Simulates (concrete : Model.State Node TxId)
+    (abstract : Abstract.Model.State Node TxId) (node : Node)
+    (value : NodeState Node TxId) (sends : List (Model.Envelope Node TxId))
+    : Prop :=
+  exists after,
+    Moves abstract after
+    /\ Corr
+        {
+          concrete with
+            nodes := replaceNode concrete.nodes node value
+            network := concrete.network ++ sends
+        }
+        after
 
 theorem simulate_appendEntries {concrete : Model.State Node TxId}
     {abstract : Abstract.Model.State Node TxId}
@@ -177,9 +212,12 @@ theorem simulate_appendEntries {concrete : Model.State Node TxId}
     {node destination : Node} {batchEnd : Nat} {state : NodeState Node TxId}
     {execute : Model.Local.NodeEffect Node TxId (NodeState Node TxId)}
     (found : nodeState concrete node = some state)
-    (acted : Model.Local.act (Capabilities.record node) node state
-      (.appendEntries destination batchEnd) = some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state
+          (.appendEntries destination batchEnd)
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨leader, distinct, target, sentBound, batchBound, sameTerm, progress⟩ := enabled
@@ -222,7 +260,6 @@ theorem simulate_appendEntries {concrete : Model.State Node TxId}
       subst member
       exact ⟨allocated_updateNode sourceAllocated, allocated_updateNode destinationAllocated⟩
 
-
 variable {concrete : Model.State Node TxId} {abstract : Abstract.Model.State Node TxId}
   {node : Node} {state : NodeState Node TxId}
   {execute : Model.Local.NodeEffect Node TxId (NodeState Node TxId)}
@@ -233,14 +270,19 @@ theorem simulate_leaderAppend
     (content : Model.Local.EntryContent Node TxId)
     (action : Abstract.Model.Action Node TxId)
     (enabled : Abstract.Model.Enabled abstract action)
-    (nextEq : Abstract.Model.next abstract action =
-      { abstract with
-        nodes := updateNode abstract.nodes node (Model.Local.appendEntry state node content)
-        submittedTxIds := (Abstract.Model.next abstract action).submittedTxIds
-        retirementCompleted :=
-          Abstract.Model.refreshRetirementCompleted abstract.retirementCompleted node
-            (Model.Local.appendEntry state node content) }) :
-    Simulates concrete abstract node (Model.Local.appendEntry state node content) [] := by
+    (nextEq
+      : Abstract.Model.next abstract action
+        = {
+          abstract with
+            nodes :=
+              updateNode abstract.nodes node (Model.Local.appendEntry state node content)
+            submittedTxIds := (Abstract.Model.next abstract action).submittedTxIds
+            retirementCompleted :=
+              Abstract.Model.refreshRetirementCompleted abstract.retirementCompleted node
+                (Model.Local.appendEntry state node content)
+        })
+    : Simulates concrete abstract node (Model.Local.appendEntry state node content)
+        [] := by
   have here := corr.state found
   refine ⟨_, Moves.single enabled, ?_⟩
   apply corr.local
@@ -262,13 +304,16 @@ theorem simulate_leaderAppend
 
 theorem simulate_clientRequest (corr : Corr concrete abstract)
     (found : nodeState concrete node = some state) {txId : TxId}
-    (acted : Model.Local.act (Capabilities.record node) node state (.clientRequest txId) =
-      some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state (.clientRequest txId)
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨leader, active, stays⟩ := enabled
-  show Simulates concrete abstract node (Model.Local.appendEntry state node (.transaction txId)) []
+  show Simulates concrete abstract node
+    (Model.Local.appendEntry state node (.transaction txId)) []
   apply simulate_leaderAppend corr found _ (.clientRequest node txId)
   · refine ⟨allocated_of_role (by rw [here, leader]; decide), ?_⟩
     simp only [here]
@@ -277,9 +322,11 @@ theorem simulate_clientRequest (corr : Corr concrete abstract)
 
 theorem simulate_appendRetiredCommitted (corr : Corr concrete abstract)
     (found : nodeState concrete node = some state)
-    (acted : Model.Local.act (Capabilities.record node) node state .appendRetiredCommitted =
-      some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state .appendRetiredCommitted
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨leader, active, pending, stays⟩ := enabled
@@ -298,9 +345,11 @@ theorem simulate_appendRetiredCommitted (corr : Corr concrete abstract)
 
 theorem simulate_signCommittableMessages (corr : Corr concrete abstract)
     (found : nodeState concrete node = some state)
-    (acted : Model.Local.act (Capabilities.record node) node state .signCommittableMessages =
-      some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state .signCommittableMessages
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨leader, active, nonempty, stays⟩ := enabled
@@ -311,18 +360,19 @@ theorem simulate_signCommittableMessages (corr : Corr concrete abstract)
     exact ⟨leader, active, nonempty, stays⟩
   · simp [Abstract.Model.next, here, Model.Local.appendEntry]
 
-
 /-- A step that changes only the acting node, not its log or commit index. -/
 theorem simulate_nodeUpdate
     (corr : Corr concrete abstract) (found : nodeState concrete node = some state)
     (action : Abstract.Model.Action Node TxId)
     (enabled : Abstract.Model.Enabled abstract action)
     (value : NodeState Node TxId)
-    (nextEq : Abstract.Model.next abstract action =
-      { abstract with nodes := updateNode abstract.nodes node value })
-    (retirementEq : retirementCompletedNodes value.log value.commitIndex =
-      retirementCompletedNodes state.log state.commitIndex) :
-    Simulates concrete abstract node value [] := by
+    (nextEq
+      : Abstract.Model.next abstract action
+        = { abstract with nodes := updateNode abstract.nodes node value })
+    (retirementEq
+      : retirementCompletedNodes value.log value.commitIndex
+        = retirementCompletedNodes state.log state.commitIndex)
+    : Simulates concrete abstract node value [] := by
   have here := corr.state found
   refine ⟨_, Moves.single enabled, ?_⟩
   apply corr.local
@@ -349,9 +399,10 @@ theorem simulate_send
     (envelope : Model.Envelope Node TxId)
     (sourceAllocated : abstract.allocated envelope.source)
     (targetAllocated : abstract.allocated envelope.target)
-    (nextEq : Abstract.Model.next abstract action =
-      { abstract with network := enqueue abstract.network (toAbstract envelope) }) :
-    Simulates concrete abstract node state [envelope] := by
+    (nextEq
+      : Abstract.Model.next abstract action
+        = { abstract with network := enqueue abstract.network (toAbstract envelope) })
+    : Simulates concrete abstract node state [envelope] := by
   have here := corr.state found
   refine ⟨_, Moves.single enabled, ?_⟩
   apply corr.local
@@ -379,12 +430,15 @@ theorem simulate_send
 
 theorem simulate_timeout (corr : Corr concrete abstract)
     (found : nodeState concrete node = some state)
-    (acted : Model.Local.act (Capabilities.record node) node state .timeout = some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state .timeout = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨eligible, capable⟩ := enabled
-  show Simulates concrete abstract node (Model.Local.becomeCandidateNodeState state node) []
+  show Simulates concrete abstract node (Model.Local.becomeCandidateNodeState state node)
+    []
   have allocated : abstract.allocated node :=
     allocated_of_role (by rw [here]; rcases eligible.1 with role | role | role <;> rw [role] <;> decide)
   apply simulate_nodeUpdate corr found (.timeout node)
@@ -396,9 +450,11 @@ theorem simulate_timeout (corr : Corr concrete abstract)
 
 theorem simulate_becomePreVoteCandidate (corr : Corr concrete abstract)
     (found : nodeState concrete node = some state)
-    (acted : Model.Local.act (Capabilities.record node) node state .becomePreVoteCandidate =
-      some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state .becomePreVoteCandidate
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨eligible, capable⟩ := enabled
@@ -415,13 +471,16 @@ theorem simulate_becomePreVoteCandidate (corr : Corr concrete abstract)
 
 theorem simulate_becomeCandidate (corr : Corr concrete abstract)
     (found : nodeState concrete node = some state)
-    (acted : Model.Local.act (Capabilities.record node) node state .becomeCandidate =
-      some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state .becomeCandidate
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨role, eligible, capable, majority⟩ := enabled
-  show Simulates concrete abstract node (Model.Local.becomeCandidateNodeState state node) []
+  show Simulates concrete abstract node (Model.Local.becomeCandidateNodeState state node)
+    []
   have allocated : abstract.allocated node := allocated_of_role (by rw [here, role]; decide)
   apply simulate_nodeUpdate corr found (.becomeCandidate node)
   · refine ⟨allocated, ?_⟩
@@ -435,12 +494,15 @@ theorem simulate_becomeCandidate (corr : Corr concrete abstract)
 
 theorem simulate_checkQuorum (corr : Corr concrete abstract)
     (found : nodeState concrete node = some state)
-    (acted : Model.Local.act (Capabilities.record node) node state .checkQuorum = some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state .checkQuorum = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨leader, others⟩ := enabled
-  show Simulates concrete abstract node { state with role := .follower, isNewFollower := true } []
+  show Simulates concrete abstract node
+    { state with role := .follower, isNewFollower := true } []
   apply simulate_nodeUpdate corr found (.checkQuorum node)
   · refine ⟨allocated_of_role (by rw [here, leader]; decide), ?_⟩
     simp only [here]
@@ -454,9 +516,11 @@ theorem simulate_checkQuorum (corr : Corr concrete abstract)
 theorem simulate_requestVote (invariant : SystemInductiveInvariant abstract)
     (corr : Corr concrete abstract) (found : nodeState concrete node = some state)
     {destination : Node}
-    (acted : Model.Local.act (Capabilities.record node) node state (.requestVote destination) =
-      some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state (.requestVote destination)
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨candidate, distinct, active⟩ := enabled
@@ -467,8 +531,8 @@ theorem simulate_requestVote (invariant : SystemInductiveInvariant abstract)
   have sourceAllocated : abstract.allocated node := allocated_of_role (by rw [here, candidate]; decide)
   have targetAllocated : abstract.allocated destination :=
     allocated_of_activeNodeUnion invariant (node := node) (by rw [here]; exact active)
-  refine simulate_send corr found (.requestVote node destination) ?enabled envelope sourceAllocated
-    targetAllocated ?next
+  refine simulate_send corr found (.requestVote node destination) ?enabled envelope
+    sourceAllocated targetAllocated ?next
   case enabled =>
     refine ⟨sourceAllocated, targetAllocated, ?_⟩
     simp only [here]
@@ -480,9 +544,12 @@ theorem simulate_requestVote (invariant : SystemInductiveInvariant abstract)
 theorem simulate_requestPreVote (invariant : SystemInductiveInvariant abstract)
     (corr : Corr concrete abstract) (found : nodeState concrete node = some state)
     {destination : Node}
-    (acted : Model.Local.act (Capabilities.record node) node state (.requestPreVote destination) =
-      some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state
+          (.requestPreVote destination)
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨candidate, distinct, active⟩ := enabled
@@ -493,8 +560,8 @@ theorem simulate_requestPreVote (invariant : SystemInductiveInvariant abstract)
   have sourceAllocated : abstract.allocated node := allocated_of_role (by rw [here, candidate]; decide)
   have targetAllocated : abstract.allocated destination :=
     allocated_of_activeNodeUnion invariant (node := node) (by rw [here]; exact active)
-  refine simulate_send corr found (.requestPreVote node destination) ?enabled envelope sourceAllocated
-    targetAllocated ?next
+  refine simulate_send corr found (.requestPreVote node destination) ?enabled envelope
+    sourceAllocated targetAllocated ?next
   case enabled =>
     refine ⟨sourceAllocated, targetAllocated, ?_⟩
     simp only [here]
@@ -506,9 +573,11 @@ theorem simulate_requestPreVote (invariant : SystemInductiveInvariant abstract)
 theorem simulate_proposeVote (invariant : SystemInductiveInvariant abstract)
     (corr : Corr concrete abstract) (found : nodeState concrete node = some state)
     {destination : Node}
-    (acted : Model.Local.act (Capabilities.record node) node state (.proposeVote destination) =
-      some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state (.proposeVote destination)
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨leader, successor⟩ := enabled
@@ -519,8 +588,8 @@ theorem simulate_proposeVote (invariant : SystemInductiveInvariant abstract)
   have targetAllocated : abstract.allocated destination :=
     allocated_of_activeNodeUnion invariant (node := node)
       (by rw [here]; exact Finset.mem_of_mem_erase successor.1)
-  refine simulate_send corr found (.proposeVote node destination) ?enabled envelope sourceAllocated
-    targetAllocated ?next
+  refine simulate_send corr found (.proposeVote node destination) ?enabled envelope
+    sourceAllocated targetAllocated ?next
   case enabled =>
     refine ⟨sourceAllocated, targetAllocated, ?_⟩
     simp only [here]
@@ -531,9 +600,8 @@ theorem simulate_proposeVote (invariant : SystemInductiveInvariant abstract)
   case next =>
     simp [Abstract.Model.next, envelope, toAbstract, Abstract.Model.makeProposeVoteRequest, here]
 
-
-theorem retirementCompletedNodes_zero_singleton (entry : Entry Node TxId) :
-    retirementCompletedNodes [entry] 0 = ∅ := by
+theorem retirementCompletedNodes_zero_singleton (entry : Entry Node TxId)
+    : retirementCompletedNodes [entry] 0 = ∅ := by
   rcases entry with ⟨term, content⟩
   cases content <;>
     simp [retirementCompletedNodes, Model.Local.currentConfigurationAt,
@@ -542,9 +610,11 @@ theorem retirementCompletedNodes_zero_singleton (entry : Entry Node TxId) :
 
 theorem simulate_initializeConfiguration (corr : Corr concrete abstract)
     (found : nodeState concrete node = some state)
-    (acted : Model.Local.act (Capabilities.record node) node state .initializeConfiguration =
-      some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state .initializeConfiguration
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨initial, leader, term, empty, zero, active⟩ := enabled
@@ -558,16 +628,20 @@ theorem simulate_initializeConfiguration (corr : Corr concrete abstract)
   · simp [Abstract.Model.next, here, entry]
   · simp [empty, zero, retirementCompletedNodes_zero_singleton, retirementCompletedNodes_nil]
 
-theorem refresh_sentIndex (self : Node) (value : NodeState Node TxId) (sentIndex : Node -> Nat) :
-    { refreshRetirementState self value with sentIndex } =
-      refreshRetirementState self { value with sentIndex } :=
+theorem refresh_sentIndex (self : Node) (value : NodeState Node TxId)
+    (sentIndex : Node -> Nat)
+    : { refreshRetirementState self value with sentIndex }
+      = refreshRetirementState self { value with sentIndex } :=
   rfl
 
 theorem simulate_changeConfiguration (corr : Corr concrete abstract)
     (found : nodeState concrete node = some state) {newConfiguration : Finset Node}
-    (acted : Model.Local.act (Capabilities.record node) node state
-      (.changeConfiguration newConfiguration) = some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state
+          (.changeConfiguration newConfiguration)
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨leader, active, nonempty, changed, stays⟩ := enabled
@@ -607,72 +681,86 @@ theorem simulate_changeConfiguration (corr : Corr concrete abstract)
     · simp
 
 theorem updateNode_updateNode (nodes : NodeStore Node TxId) (node : Node)
-    (first second : NodeState Node TxId) :
-    updateNode (updateNode nodes node first) node second = updateNode nodes node second := by
+    (first second : NodeState Node TxId)
+    : updateNode (updateNode nodes node first) node second
+      = updateNode nodes node second := by
   simp [updateNode, NodeStore.set, Finmap.insert_insert]
 
-theorem advanced_eq (abstract : Abstract.Model.State Node TxId) (node : Node) :
-    Abstract.Model.demoteRetiredCommitted (Abstract.Model.advanceCommitState abstract node) node =
-      { abstract with
-        nodes := updateNode abstract.nodes node
-          (Model.Local.demoteRetiredCommitted (Model.Local.advanceCommit (abstract.nodes node) node))
-        retirementCompleted :=
-          Abstract.Model.refreshRetirementCompleted abstract.retirementCompleted node
-            (Model.Local.advanceCommit (abstract.nodes node) node) } := by
+theorem advanced_eq (abstract : Abstract.Model.State Node TxId) (node : Node)
+    : Abstract.Model.demoteRetiredCommitted
+        (Abstract.Model.advanceCommitState abstract node) node
+      = {
+        abstract with
+          nodes :=
+            updateNode abstract.nodes node
+              (Model.Local.demoteRetiredCommitted
+                (Model.Local.advanceCommit (abstract.nodes node) node))
+          retirementCompleted :=
+            Abstract.Model.refreshRetirementCompleted abstract.retirementCompleted node
+              (Model.Local.advanceCommit (abstract.nodes node) node)
+      } := by
   simp only [Abstract.Model.demoteRetiredCommitted, Abstract.Model.advanceCommitState,
     advanceCommit_eq, Abstract.ModelProofs.updateNode_same, Model.Local.demoteRetiredCommitted]
   split_ifs <;> simp [updateNode_updateNode]
 
-theorem advanced_nodes (abstract : Abstract.Model.State Node TxId) (node member : Node) :
-    (Abstract.Model.demoteRetiredCommitted (Abstract.Model.advanceCommitState abstract node)
-        node).nodes member =
-      if member = node then
-        Model.Local.demoteRetiredCommitted (Model.Local.advanceCommit (abstract.nodes node) node)
-      else abstract.nodes member := by
+theorem advanced_nodes (abstract : Abstract.Model.State Node TxId) (node member : Node)
+    : (Abstract.Model.demoteRetiredCommitted
+        (Abstract.Model.advanceCommitState abstract node) node).nodes
+        member
+      = if member = node then
+          Model.Local.demoteRetiredCommitted
+            (Model.Local.advanceCommit (abstract.nodes node) node)
+        else
+          abstract.nodes member := by
   rw [advanced_eq, get_updateNode]
 
-theorem advanced_retirementCompleted (abstract : Abstract.Model.State Node TxId) (node : Node) :
-    (Abstract.Model.demoteRetiredCommitted (Abstract.Model.advanceCommitState abstract node)
-        node).retirementCompleted =
-      Abstract.Model.refreshRetirementCompleted abstract.retirementCompleted node
-        (Model.Local.advanceCommit (abstract.nodes node) node) := by
+theorem advanced_retirementCompleted (abstract : Abstract.Model.State Node TxId)
+    (node : Node)
+    : (Abstract.Model.demoteRetiredCommitted
+        (Abstract.Model.advanceCommitState abstract node) node).retirementCompleted
+      = Abstract.Model.refreshRetirementCompleted abstract.retirementCompleted node
+          (Model.Local.advanceCommit (abstract.nodes node) node) := by
   rw [advanced_eq]
 
-theorem advanced_network (abstract : Abstract.Model.State Node TxId) (node : Node) :
-    (Abstract.Model.demoteRetiredCommitted (Abstract.Model.advanceCommitState abstract node)
-        node).network = abstract.network := by
+theorem advanced_network (abstract : Abstract.Model.State Node TxId) (node : Node)
+    : (Abstract.Model.demoteRetiredCommitted
+        (Abstract.Model.advanceCommitState abstract node) node).network
+      = abstract.network := by
   rw [advanced_eq]
 
-theorem advanced_preVoteStatus (abstract : Abstract.Model.State Node TxId) (node : Node) :
-    (Abstract.Model.demoteRetiredCommitted (Abstract.Model.advanceCommitState abstract node)
-        node).preVoteStatus = abstract.preVoteStatus := by
+theorem advanced_preVoteStatus (abstract : Abstract.Model.State Node TxId) (node : Node)
+    : (Abstract.Model.demoteRetiredCommitted
+        (Abstract.Model.advanceCommitState abstract node) node).preVoteStatus
+      = abstract.preVoteStatus := by
   rw [advanced_eq]
 
-theorem advanced_allocated (abstract : Abstract.Model.State Node TxId) (node member : Node)
-    (allocated : abstract.allocated member) :
-    (Abstract.Model.demoteRetiredCommitted (Abstract.Model.advanceCommitState abstract node)
-        node).allocated member := by
+theorem advanced_allocated (abstract : Abstract.Model.State Node TxId)
+    (node member : Node) (allocated : abstract.allocated member)
+    : (Abstract.Model.demoteRetiredCommitted
+        (Abstract.Model.advanceCommitState abstract node) node).allocated
+        member := by
   rw [advanced_eq]
   exact allocated_updateNode allocated
 
-theorem demote_retirementCompleted (value : NodeState Node TxId) :
-    retirementCompletedNodes (Model.Local.demoteRetiredCommitted value).log
-        (Model.Local.demoteRetiredCommitted value).commitIndex =
-      retirementCompletedNodes value.log value.commitIndex := by
+theorem demote_retirementCompleted (value : NodeState Node TxId)
+    : retirementCompletedNodes (Model.Local.demoteRetiredCommitted value).log
+        (Model.Local.demoteRetiredCommitted value).commitIndex
+      = retirementCompletedNodes value.log value.commitIndex := by
   unfold Model.Local.demoteRetiredCommitted
   split <;> rfl
 
 theorem advanceCommit_enabled (corr : Corr concrete abstract)
     (found : nodeState concrete node = some state)
-    (progress : state.commitIndex < Model.Local.highestCommittableIndex state node) :
-    (abstract.nodes node).commitIndex < Abstract.Model.highestCommittableIndex abstract node := by
+    (progress : state.commitIndex < Model.Local.highestCommittableIndex state node)
+    : (abstract.nodes node).commitIndex
+      < Abstract.Model.highestCommittableIndex abstract node := by
   rw [highestCommittableIndex_eq, corr.state found]
   exact progress
 
 theorem terminal_iff (corr : Corr concrete abstract)
-    (found : nodeState concrete node = some state) :
-    Abstract.Model.terminalRetirementCommit abstract node <->
-      Model.Local.terminalRetirementCommit state node := by
+    (found : nodeState concrete node = some state)
+    : Abstract.Model.terminalRetirementCommit abstract node
+      <-> Model.Local.terminalRetirementCommit state node := by
   show (refreshRetirementState node
       { abstract.nodes node with
         commitIndex := Abstract.Model.highestCommittableIndex abstract node }).membershipState = _ <-> _
@@ -681,9 +769,11 @@ theorem terminal_iff (corr : Corr concrete abstract)
 
 theorem simulate_advanceCommitIndex (corr : Corr concrete abstract)
     (found : nodeState concrete node = some state)
-    (acted : Model.Local.act (Capabilities.record node) node state .advanceCommitIndex =
-      some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state .advanceCommitIndex
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨leader, progress, notTerminal⟩ := enabled
@@ -714,12 +804,15 @@ theorem simulate_advanceCommitIndex (corr : Corr concrete abstract)
       simp [Abstract.Model.refreshRetirementCompleted, different]
     · simp
 
-theorem simulate_advanceCommitIndexAndProposeVote (invariant : SystemInductiveInvariant abstract)
-    (corr : Corr concrete abstract) (found : nodeState concrete node = some state)
-    {destination : Node}
-    (acted : Model.Local.act (Capabilities.record node) node state
-      (.advanceCommitIndexAndProposeVote destination) = some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+theorem simulate_advanceCommitIndexAndProposeVote
+    (invariant : SystemInductiveInvariant abstract) (corr : Corr concrete abstract)
+    (found : nodeState concrete node = some state) {destination : Node}
+    (acted
+      : Model.Local.act (Capabilities.record node) node state
+          (.advanceCommitIndexAndProposeVote destination)
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨leader, progress, terminal, successor⟩ := enabled
@@ -731,7 +824,11 @@ theorem simulate_advanceCommitIndexAndProposeVote (invariant : SystemInductiveIn
   have targetAllocated : abstract.allocated destination :=
     allocated_of_activeNodeUnion invariant (node := node)
       (by rw [here]; exact Finset.mem_of_mem_erase successor.1)
-  refine ⟨_, Moves.single (action := .advanceCommitIndexAndProposeVote node destination) ?_, ?_⟩
+  refine ⟨
+    _,
+    Moves.single (action := .advanceCommitIndexAndProposeVote node destination) ?_,
+    ?_
+  ⟩
   · refine ⟨sourceAllocated, targetAllocated, by rw [here]; exact leader,
       advanceCommit_enabled corr found progress, (terminal_iff corr found).mpr terminal, ?_⟩
     unfold Abstract.Model.plausibleSuccessor
@@ -765,8 +862,11 @@ theorem simulate_advanceCommitIndexAndProposeVote (invariant : SystemInductiveIn
 
 theorem simulate_becomeLeader (corr : Corr concrete abstract)
     (found : nodeState concrete node = some state)
-    (acted : Model.Local.act (Capabilities.record node) node state .becomeLeader = some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted
+      : Model.Local.act (Capabilities.record node) node state .becomeLeader
+        = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   have here := corr.state found
   extract_guard
   obtain ⟨candidate, active, majority, stays⟩ := enabled
@@ -812,8 +912,9 @@ theorem simulate_becomeLeader (corr : Corr concrete abstract)
 theorem simulate_act (invariant : SystemInductiveInvariant abstract)
     (corr : Corr concrete abstract) (found : nodeState concrete node = some state)
     {input : Model.Local.Input Node TxId}
-    (acted : Model.Local.act (Capabilities.record node) node state input = some execute) :
-    Simulates concrete abstract node (execute.run {}).1 (execute.run {}).2.outgoing := by
+    (acted : Model.Local.act (Capabilities.record node) node state input = some execute)
+    : Simulates concrete abstract node (execute.run {}).1
+        (execute.run {}).2.outgoing := by
   cases input with
   | initializeConfiguration => exact simulate_initializeConfiguration corr found acted
   | clientRequest => exact simulate_clientRequest corr found acted

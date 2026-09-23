@@ -176,7 +176,8 @@ instance (state : NodeState Node TxId) (self : Node)
   infer_instance
 
 /-- Nodes which the leader locally knows to have reached an index. -/
-def acknowledgingNodes (state : NodeState Node TxId) (self : Node) (index : Nat) : Finset Node :=
+def acknowledgingNodes (state : NodeState Node TxId) (self : Node) (index : Nat)
+    : Finset Node :=
   (activeNodeUnion state).filter
     fun node =>
       node = self \/ state.matchIndex node >= index
@@ -244,7 +245,8 @@ def highestCommittableIndex (state : NodeState Node TxId) (self : Node) : Nat :=
 
 /-- Advance a leader's commit index and refresh its retirement metadata. -/
 def advanceCommit (state : NodeState Node TxId) (self : Node) : NodeState Node TxId :=
-  refreshRetirementState self { state with commitIndex := highestCommittableIndex state self }
+  refreshRetirementState self
+    { state with commitIndex := highestCommittableIndex state self }
 
 /-- Whether advancing this leader's commit frontier completes its retirement. -/
 def terminalRetirementCommit (state : NodeState Node TxId) (self : Node) : Prop :=
@@ -266,7 +268,8 @@ def demoteRetiredCommitted (state : NodeState Node TxId) : NodeState Node TxId :
     state
 
 /-- Append one current-term entry and refresh the retirement metadata. -/
-def appendEntry (state : NodeState Node TxId) (self : Node) (content : EntryContent Node TxId)
+def appendEntry (state : NodeState Node TxId) (self : Node)
+    (content : EntryContent Node TxId)
     : NodeState Node TxId :=
   refreshRetirementState self
     { state with log := state.log ++ [{ term := state.currentTerm, content }] }
@@ -274,7 +277,8 @@ def appendEntry (state : NodeState Node TxId) (self : Node) (content : EntryCont
 /-! ## Outgoing messages -/
 
 /-- Build an AppendEntries request for one destination. -/
-def makeAppendEntriesRequest (state : NodeState Node TxId) (destination : Node) (batchEnd : Nat)
+def makeAppendEntriesRequest (state : NodeState Node TxId) (destination : Node)
+    (batchEnd : Nat)
     : AppendEntriesRequest Node TxId :=
   let previousIndex := state.sentIndex destination
   {
@@ -294,32 +298,39 @@ def makeRequestVoteRequest (state : NodeState Node TxId) : RequestVoteRequest wh
 /-! ## Handling AppendEntries -/
 
 /-- Check that a request's previous index and term match the follower log. -/
-def logOk (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId) : Prop :=
+def logOk (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
+    : Prop :=
   request.prevLogIndex = 0
   \/ (request.prevLogIndex <= state.log.length
       /\ termAt state.log request.prevLogIndex = request.prevLogTerm)
 
 /-- Check whether a heartbeat or all requested entry terms are already present. -/
-def alreadyDone (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId) : Prop :=
+def alreadyDone (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
+    : Prop :=
   request.entries = []
   \/ (request.prevLogIndex + request.entries.length <= state.log.length
-      /\ ((state.log.drop request.prevLogIndex).take request.entries.length).map Entry.term
+      /\ ((state.log.drop request.prevLogIndex).take request.entries.length).map
+            Entry.term
           = request.entries.map Entry.term)
 
 /-- Number of request entries that overlap the follower's existing suffix. -/
-def overlapLength (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId) : Nat :=
+def overlapLength (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
+    : Nat :=
   min request.entries.length (state.log.length - request.prevLogIndex)
 
 /-- Detect a differing term in the overlapping part of a request. -/
-def hasTermConflict (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
+def hasTermConflict (state : NodeState Node TxId)
+    (request : AppendEntriesRequest Node TxId)
     : Prop :=
   Not (request.entries = [])
   /\ Not
-      (((state.log.drop request.prevLogIndex).take (overlapLength state request)).map Entry.term
+      (((state.log.drop request.prevLogIndex).take (overlapLength state request)).map
+          Entry.term
         = (request.entries.take (overlapLength state request)).map Entry.term)
 
 /-- Check that a request safely extends a matching follower prefix. -/
-def noConflictExtension (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
+def noConflictExtension (state : NodeState Node TxId)
+    (request : AppendEntriesRequest Node TxId)
     : Prop :=
   Not (request.entries = [])
   /\ request.prevLogIndex <= state.log.length
@@ -358,13 +369,15 @@ def committedFromLeader
       (min request.leaderCommit (request.prevLogIndex + request.entries.length)))
 
 /-- Build the ACK for an applied request. -/
-def successResponse (state : NodeState Node TxId) (lastLogIndex : Nat) : AppendEntriesResponse where
+def successResponse (state : NodeState Node TxId) (lastLogIndex : Nat)
+    : AppendEntriesResponse where
   term := state.currentTerm
   success := true
   lastLogIndex
 
 /-- Build the NACK for a stale or mismatched request. -/
-def failureResponse (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
+def failureResponse (state : NodeState Node TxId)
+    (request : AppendEntriesRequest Node TxId)
     : AppendEntriesResponse :=
   if request.term < state.currentTerm then
     {
@@ -416,7 +429,11 @@ def appendEntriesAlreadyDone?
   if alreadyDone state request then
     let commitIndex := committedFromLeader state request state.log
     let nextState := { state with commitIndex }
-    some (nextState, successResponse nextState (request.prevLogIndex + request.entries.length))
+    some
+      (
+        nextState,
+        successResponse nextState (request.prevLogIndex + request.entries.length)
+      )
   else
     none
 
@@ -453,7 +470,8 @@ def noConflictAppendEntriesRequest?
           | none => commitIndex
           | some firstNewSignature => min commitIndex firstNewSignature
     let nextState :=
-      refreshRetirementState self { state with log := newLog, commitIndex := firstRetirementCommit }
+      refreshRetirementState self
+        { state with log := newLog, commitIndex := firstRetirementCommit }
     let nextState := { nextState with commitIndex }
     some (nextState, successResponse nextState newLog.length)
   else
@@ -564,7 +582,8 @@ def handleRequestVoteRequest
 def handleRequestPreVote (state : NodeState Node TxId) (request : RequestVoteRequest)
     : RequestVoteResponse where
   term := state.currentTerm
-  voteGranted := decide (request.term = state.currentTerm /\ voteLogUpToDate state request)
+  voteGranted :=
+    decide (request.term = state.currentTerm /\ voteLogUpToDate state request)
 
 /-- Tally a current-term vote granted to a candidate. -/
 def handleRequestVoteResponse
@@ -572,7 +591,9 @@ def handleRequestVoteResponse
     (source : Node)
     (response : RequestVoteResponse)
     : NodeState Node TxId :=
-  if state.role = .candidate /\ response.term = state.currentTerm /\ response.voteGranted then
+  if state.role = .candidate
+      /\ response.term = state.currentTerm
+      /\ response.voteGranted then
     { state with votesGranted := insert source state.votesGranted }
   else
     state
@@ -726,7 +747,8 @@ def act (host : Host Node TxId) (self : Node) (state : NodeState Node TxId)
       guard
         (state.role = .leader
           /\ Not (self = destination)
-          /\ (destination ∈ activeNodeUnion state \/ destination ∈ state.retirementCompleted)
+          /\ (destination ∈ activeNodeUnion state
+              \/ destination ∈ state.retirementCompleted)
           /\ sent <= batchEnd
           /\ batchEnd <= state.log.length
           /\ ((messageEntries state.log sent batchEnd).all
@@ -738,7 +760,10 @@ def act (host : Host Node TxId) (self : Node) (state : NodeState Node TxId)
         host.send
           (.appendEntriesRequest (makeAppendEntriesRequest state destination batchEnd))
           destination
-        return { state with sentIndex := updateIndex state.sentIndex destination batchEnd }
+        return {
+          state with
+            sentIndex := updateIndex state.sentIndex destination batchEnd
+        }
   | .advanceCommitIndex => do
       guard
         (state.role = .leader
@@ -746,10 +771,13 @@ def act (host : Host Node TxId) (self : Node) (state : NodeState Node TxId)
           /\ Not (terminalRetirementCommit state self))
       pure (pure (demoteRetiredCommitted (advanceCommit state self)))
   | .timeout => do
-      guard (candidateTransitionEnabled state self /\ Not (INITIAL_PRE_VOTE_STATUS self = .enabled))
+      guard
+        (candidateTransitionEnabled state self
+          /\ Not (INITIAL_PRE_VOTE_STATUS self = .enabled))
       pure (pure (becomeCandidateNodeState state self))
   | .becomePreVoteCandidate => do
-      guard (candidateTransitionEnabled state self /\ INITIAL_PRE_VOTE_STATUS self = .enabled)
+      guard
+        (candidateTransitionEnabled state self /\ INITIAL_PRE_VOTE_STATUS self = .enabled)
       pure (pure { state with role := .preVoteCandidate, preVotesGranted := {self} })
   | .becomeCandidate => do
       guard
@@ -760,7 +788,9 @@ def act (host : Host Node TxId) (self : Node) (state : NodeState Node TxId)
       pure (pure (becomeCandidateNodeState state self))
   | .requestVote destination => do
       guard
-        (state.role = .candidate /\ Not (self = destination) /\ destination ∈ activeNodeUnion state)
+        (state.role = .candidate
+          /\ Not (self = destination)
+          /\ destination ∈ activeNodeUnion state)
       pure do
         host.send (.requestVoteRequest (makeRequestVoteRequest state)) destination
         return state
@@ -782,7 +812,9 @@ def act (host : Host Node TxId) (self : Node) (state : NodeState Node TxId)
         (state.role = .candidate
           /\ Not (state.membershipState = .retiredCommitted)
           /\ hasElectionMajority state
-          /\ Not ((refreshRetirementState self truncated).membershipState = .retiredCommitted))
+          /\ Not
+              ((refreshRetirementState self truncated).membershipState
+                = .retiredCommitted))
       pure
         (pure
           (refreshRetirementState self

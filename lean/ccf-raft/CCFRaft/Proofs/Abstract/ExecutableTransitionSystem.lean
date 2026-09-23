@@ -16,40 +16,36 @@ structure ExecutableTransitionSystem where
 
 namespace ExecutableTransitionSystem
 
-instance (system : ExecutableTransitionSystem) :
-    forall state action, Decidable (system.Enabled state action) :=
+instance (system : ExecutableTransitionSystem)
+    : forall state action, Decidable (system.Enabled state action) :=
   system.enabledDecidable
 
 /-- Execute an action only when its canonical guard holds. -/
 def applyAction
     (system : ExecutableTransitionSystem)
     (state : system.State)
-    (action : system.Action) :
-    Option system.State :=
+    (action : system.Action)
+    : Option system.State :=
   if system.Enabled state action then
     some (system.next state action)
   else
     none
 
 /-- An enabled model action relates its input and output states. -/
-def Step
-    (system : ExecutableTransitionSystem)
-    (before after : system.State) : Prop :=
-  Exists fun action =>
-    system.Enabled before action /\
-      after = system.next before action
+def Step (system : ExecutableTransitionSystem) (before after : system.State) : Prop :=
+  Exists
+    fun action =>
+      system.Enabled before action /\ after = system.next before action
 
 /-- States obtainable from the initializer through enabled actions. -/
-inductive Reachable
-    (system : ExecutableTransitionSystem) :
-    system.State -> Prop where
+inductive Reachable (system : ExecutableTransitionSystem) : system.State -> Prop where
   | initial : Reachable system system.initial
   | step
-      {state : system.State}
-      (reachable : Reachable system state)
-      {action : system.Action}
-      (enabled : system.Enabled state action) :
-      Reachable system (system.next state action)
+    {state : system.State}
+    (reachable : Reachable system state)
+    {action : system.Action}
+    (enabled : system.Enabled state action)
+    : Reachable system (system.next state action)
 
 end ExecutableTransitionSystem
 

@@ -89,7 +89,8 @@ def next [BEq Node] [BEq Message]
   pure
     {
       state with
-        nodes := state.nodes.map fun entry => if entry.1 == node then (node, after) else entry
+        nodes :=
+          state.nodes.map fun entry => if entry.1 == node then (node, after) else entry
         network := pending ++ effects.outgoing
     }
 

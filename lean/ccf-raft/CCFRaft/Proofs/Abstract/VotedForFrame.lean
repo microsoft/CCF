@@ -2,11 +2,26 @@
 -- Licensed under the Apache 2.0 License.
 
 import CCFRaft.Proofs.Abstract.Invariant
-
 import CCFRaft.Proofs.Abstract.Support
 
-open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety CCFRaft.Proofs.Abstract.Support CCFRaft.Proofs.Abstract.ModelProofs CCFRaft.Proofs.Abstract.Invariant
-open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
+open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety
+  CCFRaft.Proofs.Abstract.Support CCFRaft.Proofs.Abstract.ModelProofs
+  CCFRaft.Proofs.Abstract.Invariant
+open CCFRaft.Model.Local (
+  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
+    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
+    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
+    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
+    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
+    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
+    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
+    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
+    messageEntries refreshRetirementState retiredCommittedIndexFrom
+    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
+    retirementCommittableIndexInLog retirementCompletedNodes
+    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
+    updateIndex
+  )
 
 set_option autoImplicit false
 
@@ -17,18 +32,17 @@ variable [DecidableEq Node] [DecidableEq TxId]
 
 private def withVotedFor
     (votedFor : Option Node)
-    (result : NodeState Node TxId × AppendEntriesResponse Node) :
-    NodeState Node TxId × AppendEntriesResponse Node :=
+    (result : NodeState Node TxId × AppendEntriesResponse Node)
+    : NodeState Node TxId × AppendEntriesResponse Node :=
   ({ result.1 with votedFor := votedFor }, result.2)
 
 omit [DecidableEq Node] [DecidableEq TxId] in
 lemma rejectAppendEntriesRequest_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
-    (request : AppendEntriesRequest Node TxId) :
-    rejectAppendEntriesRequest? { node with votedFor := votedFor } request =
-      (rejectAppendEntriesRequest? node request).map
-        (withVotedFor votedFor) := by
+    (request : AppendEntriesRequest Node TxId)
+    : rejectAppendEntriesRequest? { node with votedFor := votedFor } request
+      = (rejectAppendEntriesRequest? node request).map (withVotedFor votedFor) := by
   unfold rejectAppendEntriesRequest?
   simp only [logOk]
   split_ifs <;> simp_all [failureResponse, withVotedFor]
@@ -36,10 +50,9 @@ lemma rejectAppendEntriesRequest_votedFor
 lemma appendEntriesAlreadyDone_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
-    (request : AppendEntriesRequest Node TxId) :
-    appendEntriesAlreadyDone? { node with votedFor := votedFor } request =
-      (appendEntriesAlreadyDone? node request).map
-        (withVotedFor votedFor) := by
+    (request : AppendEntriesRequest Node TxId)
+    : appendEntriesAlreadyDone? { node with votedFor := votedFor } request
+      = (appendEntriesAlreadyDone? node request).map (withVotedFor votedFor) := by
   unfold appendEntriesAlreadyDone?
   simp only [alreadyDone]
   split_ifs <;>
@@ -51,10 +64,11 @@ omit [DecidableEq Node] [DecidableEq TxId] in
 lemma conflictAppendEntriesRequest_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
-    (request : AppendEntriesRequest Node TxId) :
-    conflictAppendEntriesRequest? { node with votedFor := votedFor } request =
-      (conflictAppendEntriesRequest? node request).map fun next =>
-        { next with votedFor := votedFor } := by
+    (request : AppendEntriesRequest Node TxId)
+    : conflictAppendEntriesRequest? { node with votedFor := votedFor } request
+      = (conflictAppendEntriesRequest? node request).map
+          fun next =>
+            { next with votedFor := votedFor } := by
   unfold conflictAppendEntriesRequest?
   simp only [hasTermConflict, overlapLength]
   split_ifs <;> simp_all
@@ -64,11 +78,9 @@ variable [Bootstrap Node]
 lemma noConflictAppendEntriesRequest_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
-    (request : AppendEntriesRequest Node TxId) :
-    noConflictAppendEntriesRequest?
-        { node with votedFor := votedFor } request =
-      (noConflictAppendEntriesRequest? node request).map
-        (withVotedFor votedFor) := by
+    (request : AppendEntriesRequest Node TxId)
+    : noConflictAppendEntriesRequest? { node with votedFor := votedFor } request
+      = (noConflictAppendEntriesRequest? node request).map (withVotedFor votedFor) := by
   by_cases enabled : noConflictExtension node request
   · have changed : noConflictExtension { node with votedFor := votedFor } request :=
       enabled
@@ -83,10 +95,9 @@ lemma noConflictAppendEntriesRequest_votedFor
 lemma acceptAppendEntriesRequest_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
-    (request : AppendEntriesRequest Node TxId) :
-    acceptAppendEntriesRequest? { node with votedFor := votedFor } request =
-      (acceptAppendEntriesRequest? node request).map
-        (withVotedFor votedFor) := by
+    (request : AppendEntriesRequest Node TxId)
+    : acceptAppendEntriesRequest? { node with votedFor := votedFor } request
+      = (acceptAppendEntriesRequest? node request).map (withVotedFor votedFor) := by
   unfold acceptAppendEntriesRequest?
   by_cases accepted :
       request.term = node.currentTerm /\
@@ -112,8 +123,7 @@ lemma acceptAppendEntriesRequest_votedFor
     cases appendEntriesAlreadyDone? node request <;>
       simp [withVotedFor]
     cases noConflictAppendEntriesRequest? node request <;> simp
-    cases conflictResult :
-        conflictAppendEntriesRequest? node request with
+    cases conflictResult : conflictAppendEntriesRequest? node request with
     | none => simp
     | some truncated =>
         have nestedAppend :=
@@ -143,10 +153,9 @@ lemma acceptAppendEntriesRequest_votedFor
 lemma handleAppendEntriesRequest_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
-    (request : AppendEntriesRequest Node TxId) :
-    handleAppendEntriesRequest? { node with votedFor := votedFor } request =
-      (handleAppendEntriesRequest? node request).map
-        (withVotedFor votedFor) := by
+    (request : AppendEntriesRequest Node TxId)
+    : handleAppendEntriesRequest? { node with votedFor := votedFor } request
+      = (handleAppendEntriesRequest? node request).map (withVotedFor votedFor) := by
   unfold handleAppendEntriesRequest?
   rw [rejectAppendEntriesRequest_votedFor]
   cases rejectAppendEntriesRequest? node request
@@ -157,10 +166,9 @@ lemma canProduceAppendAckEventuallyAt_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
     (request : AppendEntriesRequest Node TxId)
-    (index : Nat) :
-    canProduceAppendAckEventuallyAt
-        { node with votedFor := votedFor } request index ↔
-      canProduceAppendAckEventuallyAt node request index := by
+    (index : Nat)
+    : canProduceAppendAckEventuallyAt { node with votedFor := votedFor } request index
+      ↔ canProduceAppendAckEventuallyAt node request index := by
   unfold canProduceAppendAckEventuallyAt canProduceAppendAckAt
   rw [protocolNodeState_set_votedFor]
   rw [handleAppendEntriesRequest_votedFor]
@@ -176,8 +184,7 @@ lemma canProduceAppendAckEventuallyAt_votedFor
   · exact Or.inr future
   · left
     rcases direct with ⟨nextNode, response, handled, success, covered⟩
-    refine
-      ⟨{ nextNode with votedFor := votedFor }, response, ?_, success, covered⟩
+    refine ⟨{ nextNode with votedFor := votedFor }, response, ?_, success, covered⟩
     rw [Option.map_eq_some_iff]
     exact ⟨(nextNode, response), handled, rfl⟩
   · exact Or.inr future
