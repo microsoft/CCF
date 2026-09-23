@@ -11,28 +11,34 @@ private def allowedImport (owner dependency : Name) : Bool :=
   else if (`DisasterRecovery.Shared).isPrefixOf owner then
     (`DisasterRecovery.Shared).isPrefixOf dependency
   else if (`DisasterRecovery.Model).isPrefixOf owner then
-    (`DisasterRecovery.Shared).isPrefixOf dependency ||
-      (`DisasterRecovery.Model).isPrefixOf dependency
+    (`DisasterRecovery.Shared).isPrefixOf dependency
+    || (`DisasterRecovery.Model).isPrefixOf dependency
   else if (`DisasterRecovery.Properties).isPrefixOf owner then
-    (`DisasterRecovery.Shared).isPrefixOf dependency ||
-      (`DisasterRecovery.Model).isPrefixOf dependency ||
-      (`DisasterRecovery.Properties).isPrefixOf dependency
+    (`DisasterRecovery.Shared).isPrefixOf dependency
+    || (`DisasterRecovery.Model).isPrefixOf dependency
+    || (`DisasterRecovery.Properties).isPrefixOf dependency
   else
     true
 
 example : allowedImport `DisasterRecovery.Properties `DisasterRecovery.Model = true := rfl
-example :
-    allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Shared.Execution =
-      true := rfl
-example :
-    allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Proofs.Model =
-      false := rfl
+
+example
+    : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Shared.Execution = true :=
+  rfl
+
+example : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Proofs.Model = false :=
+  rfl
+
 example : allowedImport `DisasterRecovery.Properties `DisasterRecovery.Proof = false := rfl
-example :
-    allowedImport `DisasterRecovery.Model.Local `DisasterRecovery.Properties.Utils =
-      false := rfl
-example :
-    allowedImport `DisasterRecovery.Shared.MultiNodeTransitionSystem `DisasterRecovery.Model = false := rfl
+
+example : allowedImport `DisasterRecovery.Model.Local `DisasterRecovery.Properties.Utils = false :=
+  rfl
+
+example
+    : allowedImport `DisasterRecovery.Shared.MultiNodeTransitionSystem `DisasterRecovery.Model
+      = false :=
+  rfl
+
 example : allowedImport `DisasterRecovery.Properties `DisasterRecovery = false := rfl
 
 run_cmd do
@@ -78,6 +84,11 @@ run_cmd do
       `DisasterRecovery.Properties.ContainsRaftCommittable,
       `DisasterRecovery.Properties.RaftCommittable,
       `DisasterRecovery.Properties.TxIDAtOrAfter,
+      `DisasterRecovery.Properties.FullGossipSelectionPreservesCommit,
+      `DisasterRecovery.Shared.Execution.Transition,
+      `DisasterRecovery.Shared.Execution.ValidSteps,
+      `DisasterRecovery.Shared.Execution.Trace.track,
+      `DisasterRecovery.Shared.Execution.Trace.final,
       `DisasterRecovery.Properties.Trace.OutputAt] do
     if env.contains name then
       throwError "Removed model/property API must not be reintroduced: {name}"

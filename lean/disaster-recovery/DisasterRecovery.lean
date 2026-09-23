@@ -15,6 +15,7 @@ import DisasterRecovery.Proofs.Observed
 import DisasterRecovery.Proofs.Predicates
 import DisasterRecovery.Proofs.Quorum
 import DisasterRecovery.Proofs.Trace
+import DisasterRecovery.Proofs.Witnesses
 import DisasterRecovery.Properties
 import DisasterRecovery.Properties.Utils
 import DisasterRecovery.Shared.Capabilities
@@ -26,6 +27,8 @@ import DisasterRecovery.Tests.CanonicalTests
 import DisasterRecovery.Tests.Execution
 import DisasterRecovery.Tests.Initial
 import DisasterRecovery.Tests.Network
+import DisasterRecovery.Tests.ProofCoverage
 import DisasterRecovery.Tests.QuorumCommit
 import DisasterRecovery.Tests.RaftFreshness
 import DisasterRecovery.Tests.Trace
+import DisasterRecovery.Tests.Witnesses

@@ -67,7 +67,10 @@ quorum. The second requires a state in which every node's gossip equals
 `config.recovered`, and it also covers failover openings.
 
 Each property has a `Witness` claim asserting that some valid trace or step
-satisfies its premises. This establishes that the property is not vacuous.
+satisfies its premises. `Proofs/Witnesses.lean` proves all seven witnesses using
+concrete executions. The full-gossip witness includes a failover opening.
+`Tests/Witnesses.lean` applies each witness to its corresponding property,
+and `Tests/ProofCoverage.lean` requires an exported theorem for every claim.
 
 Freshness is a necessary condition for election, not a definition of Raft
 commitment. `update_commit` additionally requires a current-term signature
@@ -97,6 +100,3 @@ module or if a removed name is reintroduced. `lake exe fmt` runs
 [leanfmt](https://github.com/duckki/leanfmt), pinned in `lakefile.toml`.
 To update a tool dependency without changing the toolchain, run
 `lake update --keep-toolchain <package>`.
-
-Proof migration to the current statements is in progress. `Proofs/Local.lean`
-and the modules that depend on it do not currently build.

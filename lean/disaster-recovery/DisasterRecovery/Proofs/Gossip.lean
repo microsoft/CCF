@@ -15,38 +15,42 @@ attribute [local simp] Execution.Local.transitionSystem rejectionReason guard fa
 structure Evolves (before after : NodeState) : Prop where
   gossips : before.gossips ⊆ after.gossips
   votes : before.votes ⊆ after.votes
-  frozen : before.chosen.isSome = true ->
-    after.chosen.isSome = true /\ after.gossips = before.gossips
+  frozen
+    : before.chosen.isSome = true -> after.chosen.isSome = true /\ after.gossips = before.gossips
 
 lemma evolves_refl (state : NodeState) : Evolves state state :=
   ⟨fun _ h => h, fun _ h => h, fun h => ⟨h, rfl⟩⟩
 
 lemma evolves_trans {first second third : NodeState}
-    (left : Evolves first second) (right : Evolves second third) : Evolves first third :=
-  ⟨fun _ h => right.gossips (left.gossips h),
-    fun _ h => right.votes (left.votes h), fun chosen => by
+    (left : Evolves first second) (right : Evolves second third)
+    : Evolves first third :=
+  ⟨
+    fun _ h => right.gossips (left.gossips h),
+    fun _ h => right.votes (left.votes h),
+    fun chosen => by
       obtain ⟨chosen', same⟩ := left.frozen chosen
       obtain ⟨chosen'', same'⟩ := right.frozen chosen'
-      exact ⟨chosen'', same'.trans same⟩⟩
+      exact ⟨chosen'', same'.trans same⟩
+  ⟩
 
-lemma insertGossip_extends (source : Location) (txid : TxID) (gossips : List (Location × TxID)) :
-    gossips ⊆ insertGossip source txid gossips := by
+lemma insertGossip_extends (source : Location) (txid : TxID) (gossips : List (Location × TxID))
+    : gossips ⊆ insertGossip source txid gossips := by
   intro entry member
   unfold insertGossip
   split
   · exact member
   · exact (List.mergeSort_perm _ _).mem_iff.mpr (List.mem_cons_of_mem _ member)
 
-lemma insertVote_extends (source : Location) (votes : List Location) :
-    votes ⊆ insertVote source votes := by
+lemma insertVote_extends (source : Location) (votes : List Location)
+    : votes ⊆ insertVote source votes := by
   intro voter member
   unfold insertVote
   split
   · exact member
   · exact (List.mergeSort_perm _ _).mem_iff.mpr (List.mem_cons_of_mem _ member)
 
-lemma step_evolves (config : Execution.Local.Config) (state : NodeState) (event : Event) :
-    Evolves state (step config state event).state := by
+lemma step_evolves (config : Execution.Local.Config) (state : NodeState) (event : Event)
+    : Evolves state (step config state event).state := by
   cases event <;> try cases_type Model.Local.Validation
   all_goals simp [step, rejected, advance, advanceTimeoutLane]
   all_goals repeat' first | split | apply evolves_refl
@@ -65,8 +69,8 @@ def EventGenuine (config : Config) : Event -> Prop
   | _ => True
 
 lemma insertGossip_genuine {config : Config} {state : NodeState} {source : Location} {txid : TxID}
-    (prior : state.gossips ⊆ config.recovered) (incoming : (source, txid) ∈ config.recovered) :
-    insertGossip source txid state.gossips ⊆ config.recovered := by
+    (prior : state.gossips ⊆ config.recovered) (incoming : (source, txid) ∈ config.recovered)
+    : insertGossip source txid state.gossips ⊆ config.recovered := by
   intro entry member
   unfold insertGossip at member
   split at member
@@ -77,15 +81,16 @@ lemma insertGossip_genuine {config : Config} {state : NodeState} {source : Locat
     · exact prior old
 
 lemma step_genuine (config : Config) (state : NodeState) (event : Event)
-    (prior : state.gossips ⊆ config.recovered) (incoming : EventGenuine config event) :
-    (step config.protocol state event).state.gossips ⊆ config.recovered := by
+    (prior : state.gossips ⊆ config.recovered) (incoming : EventGenuine config event)
+    : (step config.protocol state event).state.gossips ⊆ config.recovered := by
   cases event <;> try cases_type Model.Local.Validation
   all_goals simp [step, rejected, advance, advanceTimeoutLane]
   all_goals repeat' first | split | exact prior
   all_goals exact insertGossip_genuine prior incoming
 
 lemma lookup_member {state : State} {node : Location} {current : NodeState}
-    (found : nodeState state node = some current) : (node, current) ∈ state.system.nodes := by
+    (found : nodeState state node = some current)
+    : (node, current) ∈ state.system.nodes := by
   obtain ⟨entry, found, same⟩ := Option.map_eq_some_iff.mp found
   have key := beq_iff_eq.mp
     (List.find?_some (p := fun entry : Location × NodeState => entry.1 == node) found)
@@ -97,8 +102,8 @@ lemma systemStep_evolves {config : Execution.Local.Config} {before after : Syste
     {target : Location} {event : Event} {output : StepOutput}
     (nodup : (before.nodes.map Prod.fst).Nodup)
     (transition : systemStep config before target event = some (after, output))
-    {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes) :
-    exists next, (node, next) ∈ after.nodes /\ Evolves current next := by
+    {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes)
+    : exists next, (node, next) ∈ after.nodes /\ Evolves current next := by
   simp [systemStep, Option.bind_eq_some_iff] at transition
   obtain ⟨foundState, ⟨key, found⟩, rfl, _⟩ := transition
   have foundMember := List.mem_of_find?_eq_some found
@@ -117,8 +122,8 @@ lemma systemStep_evolves {config : Execution.Local.Config} {before after : Syste
 lemma systemStep_genuine {config : Config} {before after : SystemState}
     {target : Location} {event : Event} {output : StepOutput}
     (prior : Genuine config before.nodes) (incoming : EventGenuine config event)
-    (transition : systemStep config.protocol before target event = some (after, output)) :
-    Genuine config after.nodes := by
+    (transition : systemStep config.protocol before target event = some (after, output))
+    : Genuine config after.nodes := by
   simp [systemStep, Option.bind_eq_some_iff] at transition
   obtain ⟨current, ⟨key, found⟩, rfl, _⟩ := transition
   intro entry member
@@ -131,8 +136,8 @@ lemma systemStep_genuine {config : Config} {before after : SystemState}
 lemma next_evolves {config : Config} {before after : State} {action : Action}
     (wf : Predicates.WellFormed config before)
     (transition : next config before action = some after)
-    {node : Location} {current : NodeState} (member : (node, current) ∈ before.system.nodes) :
-    exists updated, (node, updated) ∈ after.system.nodes /\ Evolves current updated := by
+    {node : Location} {current : NodeState} (member : (node, current) ∈ before.system.nodes)
+    : exists updated, (node, updated) ∈ after.system.nodes /\ Evolves current updated := by
   cases action with
   | retry source =>
       rw [retry_system_eq transition]
@@ -149,7 +154,8 @@ lemma next_evolves {config : Config} {before after : State} {action : Action}
 lemma next_genuine {config : Config} {before after : State} {action : Action}
     (wf : Predicates.WellFormed config before)
     (prior : Genuine config before.system.nodes)
-    (transition : next config before action = some after) : Genuine config after.system.nodes := by
+    (transition : next config before action = some after)
+    : Genuine config after.system.nodes := by
   cases action with
   | retry source =>
       simpa only [retry_system_eq transition] using prior
@@ -174,14 +180,19 @@ lemma next_genuine {config : Config} {before after : State} {action : Action}
       simpa only [recordEffects_system] using systemStep_genuine prior (by trivial) updated
 
 def FrozenVotes (state : State) : Prop :=
-  forall envelope, envelope ∈ state.sent -> envelope.payload = .vote ->
-    exists current, (envelope.source, current) ∈ state.system.nodes /\
-      current.chosen.isSome = true /\ current.gossips = envelope.sourceState.gossips
+  forall envelope,
+    envelope ∈ state.sent
+    -> envelope.payload = .vote
+    -> exists current,
+        (envelope.source, current) ∈ state.system.nodes
+        /\ current.chosen.isSome = true
+        /\ current.gossips = envelope.sourceState.gossips
 
 lemma next_frozen {config : Config} {before after : State} {action : Action}
     (wf : Predicates.WellFormed config before)
     (prior : FrozenVotes before)
-    (transition : next config before action = some after) : FrozenVotes after := by
+    (transition : next config before action = some after)
+    : FrozenVotes after := by
   have carry : forall envelope, envelope ∈ before.sent -> envelope.payload = .vote ->
       exists current, (envelope.source, current) ∈ after.system.nodes /\
         current.chosen.isSome = true /\ current.gossips = envelope.sourceState.gossips := by
@@ -215,8 +226,8 @@ lemma next_frozen {config : Config} {before after : State} {action : Action}
       simpa only [FrozenVotes, recordEffects_sent] using carry
 
 lemma reachable_gossip_invariant {config : Config} {state : State}
-    (reachable : Reachable config state) :
-    Genuine config state.system.nodes /\ FrozenVotes state := by
+    (reachable : Reachable config state)
+    : Genuine config state.system.nodes /\ FrozenVotes state := by
   induction reachable with
   | initial initialized =>
       obtain ⟨active, _, _, _, rfl⟩ := initialized
@@ -227,23 +238,23 @@ lemma reachable_gossip_invariant {config : Config} {state : State}
       have wf := reachable_well_formed reachable
       exact ⟨next_genuine wf ih.1 transition, next_frozen wf ih.2 transition⟩
 
-lemma model_step_evolves {config : Model.Config} {before after : Model.State} {action : Model.Action}
-    (reachable : (Model.transitionSystem config).Reachable before)
-    (transition : (Model.transitionSystem config).step before action = some after)
-    {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes) :
-    exists updated, (node, updated) ∈ after.nodes /\ Evolves current updated := by
+lemma model_step_evolves {config : Model.Config} {before after : Model.State}
+    {action : Model.Action} (reachable : (Model.transitionSystem config).Reachable before)
+    (transition : (Model.transitionSystem config).step before action = some after) {node : Location}
+    {current : NodeState} (member : (node, current) ∈ before.nodes)
+    : exists updated, (node, updated) ∈ after.nodes /\ Evolves current updated := by
   obtain ⟨ghostBefore, ghostAction, ghostAfter, reachable', projected, _, step, projected'⟩ :=
     Lifting.model_step_lifts reachable transition
   have original : (node, current) ∈ ghostBefore.system.nodes := by
     simpa only [← projected, Lifting.erase] using member
-  simpa only [← projected', Lifting.erase] using
-    next_evolves (reachable_well_formed reachable') step original
+  simpa only [← projected', Lifting.erase]
+    using next_evolves (reachable_well_formed reachable') step original
 
 lemma steps_evolve {config : Model.Config} {before after : Model.State} {steps}
     (run : Trace.Path (Model.transitionSystem config) before steps after)
     (reachable : (Model.transitionSystem config).Reachable before)
-    {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes) :
-    exists updated, (node, updated) ∈ after.nodes /\ Evolves current updated := by
+    {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes)
+    : exists updated, (node, updated) ∈ after.nodes /\ Evolves current updated := by
   induction run generalizing current with
   | nil => exact ⟨current, member, evolves_refl current⟩
   | cons transition rest ih =>
@@ -255,20 +266,43 @@ lemma trace_node_final {config : Model.Config} {trace : Properties.GlobalTrace}
     (valid : trace.Valid (Model.transitionSystem config))
     {ghost : State} (linked : History.Correspondence config trace ghost)
     {state : Model.State} (member : state ∈ trace.states)
-    {node : Location} {current : NodeState} (present : (node, current) ∈ state.nodes) :
-    exists final, (node, final) ∈ ghost.system.nodes /\ Evolves current final := by
+    {node : Location} {current : NodeState} (present : (node, current) ∈ state.nodes)
+    : exists final, (node, final) ∈ ghost.system.nodes /\ Evolves current final := by
   obtain ⟨suffix, run⟩ := linked.suffix state member
   exact steps_evolve run (valid.reachable member) present
+
+lemma quorum_notification_final_votes {config : Model.Config} {trace : Properties.GlobalTrace}
+    (valid : trace.Valid (Model.transitionSystem config))
+    {ghost : State} (linked : History.Correspondence config trace ghost)
+    {index : Nat} {node : Location}
+    (notification : Properties.Trace.NotificationAt config trace index node (.opening .quorum))
+    : exists final,
+        (node, final) ∈ ghost.system.nodes /\ voteQuorum config.protocol <= final.votes.length := by
+  obtain ⟨after, current, inTrace, present, opened⟩ :=
+    Observed.notification_opening_state notification
+  obtain ⟨atOpening, openingReachable, projected⟩ :=
+    Lifting.model_reachable_lifts (valid.reachable inTrace)
+  have openingPresent : (node, current) ∈ atOpening.system.nodes := by
+    simpa only [← projected, Lifting.erase] using present
+  have nodup := (reachable_quorum_invariant openingReachable).votesNodup _ openingPresent
+  have threshold := Observed.reachable_quorum_thresholds openingReachable _ openingPresent opened
+  obtain ⟨final, finalMember, evolves⟩ := trace_node_final valid linked inTrace present
+  have subset : current.votes.toFinset ⊆ final.votes.toFinset := by
+    intro voter member
+    exact List.mem_toFinset.mpr (evolves.votes (List.mem_toFinset.mp member))
+  have count := Finset.card_le_card subset
+  rw [List.toFinset_card_of_nodup nodup] at count
+  exact ⟨final, finalMember, threshold.trans (count.trans (List.toFinset_card_le _))⟩
 
 lemma sent_vote_preserves_own {config : Config} {trace : Properties.GlobalTrace} {ghost : State}
     (valid : trace.Valid (Model.transitionSystem config))
     (linked : History.Correspondence config trace ghost)
     {envelope : Envelope} (sent : envelope ∈ ghost.sent) (vote : envelope.payload = .vote)
-    (own : Properties.ReceivedOwnGossip trace envelope.source) :
-    exists sourceTx targetTx,
-      Model.recoveredTxID config envelope.source = some sourceTx /\
-      Model.recoveredTxID config envelope.target = some targetTx /\
-      Predicates.TxID.EarlierThan sourceTx targetTx := by
+    (own : Properties.ReceivedOwnGossip trace envelope.source)
+    : exists sourceTx targetTx,
+        Model.recoveredTxID config envelope.source = some sourceTx
+        /\ Model.recoveredTxID config envelope.target = some targetTx
+        /\ Predicates.TxID.EarlierThan sourceTx targetTx := by
   have wf := reachable_well_formed linked.reachable
   obtain ⟨genuine, frozen⟩ := reachable_gossip_invariant linked.reachable
   obtain ⟨current, present, _, same⟩ := frozen envelope sent vote
@@ -294,11 +328,9 @@ lemma sent_vote_preserves_own {config : Config} {trace : Properties.GlobalTrace}
     Committed.maximumGossip_upper_bound greatest ownSnapshot⟩
 
 lemma quorum_open_preserves_commit : Properties.QuorumOpenPreservesCommit := by
-  intro config trace valid state inTrace opener current present opened own committed committable
+  rintro config trace state opener current ⟨valid, inTrace, present, opened, own⟩
   obtain ⟨_, _, ghost, _, _, _, linked⟩ := History.history_correspondence trace valid
-  have wf := reachable_well_formed linked.reachable
   have invariant := reachable_quorum_invariant linked.reachable
-  have configValid := reachable_config_valid linked.reachable
   have stateReachable := valid.reachable inTrace
   obtain ⟨atOpening, openingReachable, projected⟩ := Lifting.model_reachable_lifts stateReachable
   have openingPresent : (opener, current) ∈ atOpening.system.nodes := by
@@ -308,43 +340,85 @@ lemma quorum_open_preserves_commit : Properties.QuorumOpenPreservesCommit := by
   obtain ⟨final, finalMember, evolves⟩ := trace_node_final valid linked inTrace present
   have votesSent : forall voter, voter ∈ current.votes -> Predicates.SentVote ghost voter opener :=
     fun voter member => invariant.votesSent _ finalMember voter (evolves.votes member)
-  let durable := config.recovered.filter fun entry =>
-    decide (committed.view < entry.2.view \/
-      (committed.view = entry.2.view /\ committed.seqno <= entry.2.seqno))
-  have keysNodup : (config.recovered.map Prod.fst).Nodup := by
-    rw [configValid.2.2]
-    exact configValid.2.1
-  have durableNodup : (durable.map Prod.fst).Nodup :=
-    keysNodup.sublist ((List.filter_sublist : durable.Sublist config.recovered).map Prod.fst)
-  have durableConfigured : forall voter, voter ∈ durable.map Prod.fst ->
-      voter ∈ config.protocol.expectedLocations := by
-    intro voter member
-    rw [← configValid.2.2]
-    exact List.mem_map.mpr (by
-      obtain ⟨entry, member, key⟩ := List.mem_map.mp member
-      exact ⟨entry, (List.mem_filter.mp member).1, key⟩)
-  obtain ⟨voter, voted, durableVote⟩ := quorum_lists_intersect
-    config.protocol.expectedLocations current.votes (durable.map Prod.fst) nodup durableNodup
-    (by
-      intro voter member
-      obtain ⟨envelope, sent, source, _, _⟩ := votesSent voter member
-      exact wf.activeConfigured voter (source ▸ wf.sentSourceActive envelope sent))
-    durableConfigured threshold (by
-      rw [List.length_map]
-      exact committable)
+  have anyVote : exists voter, voter ∈ current.votes := by
+    cases votes : current.votes with
+    | nil => simp [votes, voteQuorum] at threshold
+    | cons voter rest => exact ⟨voter, by simp⟩
+  obtain ⟨voter, voted⟩ := anyVote
   obtain ⟨envelope, sent, source, target, vote⟩ := votesSent voter voted
-  obtain ⟨sourceTx, targetTx, sourceRecovered, targetRecovered, sourceTarget⟩ :=
+  obtain ⟨_, targetTx, _, targetRecovered, _⟩ :=
     sent_vote_preserves_own valid linked sent vote (by simpa only [source] using own voter voted)
-  obtain ⟨entry, durableMember, key⟩ := List.mem_map.mp durableVote
-  obtain ⟨recoveredMember, committedEntry⟩ := List.mem_filter.mp durableMember
-  have entryRecovered := Committed.recoveredTxID_of_mem configValid
-    (show (entry.1, entry.2) ∈ config.recovered from recoveredMember)
-  change Model.recoveredTxID config entry.1 = some entry.2 at entryRecovered
-  rw [key] at entryRecovered
+  rw [target] at targetRecovered
+  refine ⟨targetTx, targetRecovered, ?_⟩
+  apply Committed.up_to_date_with_quorum_of_voters nodup threshold
+  intro voter voted
+  obtain ⟨envelope, sent, source, target, vote⟩ := votesSent voter voted
+  obtain ⟨sourceTx, candidateTx, sourceRecovered, candidateRecovered, earlier⟩ :=
+    sent_vote_preserves_own valid linked sent vote (by simpa only [source] using own voter voted)
   rw [source] at sourceRecovered
-  have sameTx : entry.2 = sourceTx := Option.some.inj (entryRecovered.symm.trans sourceRecovered)
-  refine ⟨targetTx, by simpa only [target] using targetRecovered, ?_⟩
-  apply Committed.prefix_trans (second := sourceTx) _ sourceTarget
-  simpa only [Predicates.TxID.EarlierThan, decide_eq_true_eq, sameTx] using committedEntry
+  rw [target] at candidateRecovered
+  have same := Option.some.inj (candidateRecovered.symm.trans targetRecovered)
+  exact ⟨sourceTx, sourceRecovered, same ▸ earlier⟩
+
+lemma sent_vote_full_gossip {config : Config} {trace : Properties.GlobalTrace} {ghost : State}
+    (valid : trace.Valid (Model.transitionSystem config))
+    (linked : History.Correspondence config trace ghost)
+    {gossiped : Model.State} (inTrace : gossiped ∈ trace.states)
+    (full
+      : forall node nodeState,
+          (node, nodeState) ∈ gossiped.nodes
+          -> forall gossip, gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
+    {envelope : Envelope} (sent : envelope ∈ ghost.sent) (vote : envelope.payload = .vote)
+    : forall gossip, gossip ∈ envelope.sourceState.gossips <-> gossip ∈ config.recovered := by
+  have wf := reachable_well_formed linked.reachable
+  obtain ⟨genuine, frozen⟩ := reachable_gossip_invariant linked.reachable
+  obtain ⟨current, present, _, same⟩ := frozen envelope sent vote
+  obtain ⟨atGossip, gossipReachable, projected⟩ :=
+    Lifting.model_reachable_lifts (valid.reachable inTrace)
+  have configured := wf.activeConfigured _ (wf.sentSourceActive envelope sent)
+  have sourceKey : envelope.source ∈ atGossip.system.nodes.map Prod.fst := by
+    rw [(reachable_well_formed gossipReachable).nodeKeys]
+    exact configured
+  obtain ⟨entry, entryMember, key⟩ := List.mem_map.mp sourceKey
+  have originalPresent : (envelope.source, entry.2) ∈ gossiped.nodes := by
+    simpa only [← projected, Lifting.erase, ← key] using entryMember
+  obtain ⟨final, finalMember, evolves⟩ := trace_node_final valid linked inTrace originalPresent
+  have states : final = current :=
+    congrArg Prod.snd (eq_of_key_eq wf.nodeKeysNodup finalMember present rfl)
+  intro gossip
+  constructor
+  · intro member
+    exact genuine _ present (same.symm ▸ member)
+  · intro member
+    have original := (full envelope.source entry.2 originalPresent gossip).mpr member
+    have finalGossip := evolves.gossips original
+    simpa only [states, same] using finalGossip
+
+lemma full_gossip_preserves_commit : Properties.FullGossipPreservesCommit := by
+  rintro config trace gossiped opened opener current
+    ⟨valid, gossipedMember, full, openedMember, present, opening⟩
+  obtain ⟨_, _, ghost, _, _, _, linked⟩ := History.history_correspondence trace valid
+  obtain ⟨atOpening, openingReachable, projected⟩ :=
+    Lifting.model_reachable_lifts (valid.reachable openedMember)
+  have openingPresent : (opener, current) ∈ atOpening.system.nodes := by
+    simpa only [← projected, Lifting.erase] using present
+  obtain ⟨voter, voted⟩ :=
+    Observed.reachable_opening_has_vote openingReachable _ openingPresent opening
+  obtain ⟨final, finalMember, evolves⟩ := trace_node_final valid linked openedMember present
+  have invariant := reachable_quorum_invariant linked.reachable
+  obtain ⟨envelope, sent, _, target, vote⟩ :=
+    invariant.votesSent _ finalMember voter (evolves.votes voted)
+  have complete := sent_vote_full_gossip valid linked gossipedMember full sent vote
+  obtain ⟨selected, txid, choice, maximum⟩ := invariant.sentVotesSelected envelope sent vote
+  have wf := reachable_well_formed linked.reachable
+  have selectedEq : selected = envelope.target :=
+    Option.some.inj (choice.symm.trans (retry_vote_state (wf.sentValid envelope sent) vote).2)
+  rw [selectedEq, target] at maximum
+  have configValid := reachable_config_valid linked.reachable
+  refine ⟨txid, Committed.recoveredTxID_of_mem configValid
+    ((complete _).mp (Committed.maximumGossip_mem maximum)), ?_⟩
+  apply Committed.up_to_date_with_quorum_of_all configValid
+  intro entry member
+  exact Committed.maximumGossip_upper_bound maximum ((complete entry).mpr member)
 
 end DisasterRecovery.Proofs.Gossip
