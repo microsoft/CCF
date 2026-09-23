@@ -45,7 +45,7 @@ Main continuous integration job. Builds CCF for all target platforms, runs unit,
 The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
 
 Virtual A runs `scripts/ci-checks.sh`, including the check for every tracked
-`.lean` file, and `scripts/lean-format-tests.sh`. Its Lean setup installs the
+`.lean` file. Its Lean setup installs the
 pinned toolchain and restores the Mathlib build cache before the formatting check.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting)
 to apply fixes.
