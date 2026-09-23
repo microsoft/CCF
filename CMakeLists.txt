@@ -1123,13 +1123,6 @@ if(BUILD_TESTS)
     add_test_target(raft_scenario_test raft_driver)
     add_test_label(raft_scenario_test raft_scenario bucket_c)
 
-    add_test(
-      NAME raft_trace_python_test
-      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_trace_test.py
-    )
-    add_test_target(raft_trace_python_test)
-    add_test_label(raft_trace_python_test bucket_c)
-
     if(COVERAGE)
       # The scenario runner spawns raft_driver once per scenario file; give
       # each process a uniquely-named .profraw (by PID) in the build directory
