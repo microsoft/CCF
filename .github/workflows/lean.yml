@@ -52,6 +52,9 @@ jobs:
         working-directory: lean/ccf-raft
         run: python3 -m unittest discover -s replay/tests -v
 
+      - name: Check Lean formatting
+        run: ./scripts/lean-format-checks.sh ccf-raft
+
   disaster-recovery:
     name: Disaster recovery model and proofs
     runs-on: ubuntu-26.04
@@ -86,4 +89,4 @@ jobs:
           lake exe canonical-checks
 
       - name: Check Lean formatting
-        run: ./scripts/lean-format-checks.sh
+        run: ./scripts/lean-format-checks.sh disaster-recovery

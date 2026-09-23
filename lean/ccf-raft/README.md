@@ -133,12 +133,14 @@ lake build --wfail
 lake lint
 lake exe canonical-checks
 python3 -m unittest discover -s replay/tests -p 'test_*.py'
-lake exe fmt --line-width 100 --check CCFRaft/Model.lean CCFRaft/Properties.lean -r CCFRaft/Model CCFRaft/Properties CCFRaft/Shared
+../../scripts/lean-format-checks.sh ccf-raft
 ```
 
 `--wfail` treats `sorry` as an error. `lake lint` runs
 [axiom-audit](https://github.com/leanprover-community/axiom-audit); only
 `propext`, `Classical.choice`, and `Quot.sound` are permitted.
 `Tests/Architecture.lean` fails the build if the model, the properties, or
-the replayer import a proof module. `lake exe fmt` runs
-[leanfmt](https://github.com/duckki/leanfmt), pinned in `lakefile.toml`.
+the replayer import a proof module. The formatting check runs
+[leanfmt](https://github.com/duckki/leanfmt), pinned in `lakefile.toml`, over
+every tracked Lean file in this package. Pass `-f` before the package name to
+apply fixes.
