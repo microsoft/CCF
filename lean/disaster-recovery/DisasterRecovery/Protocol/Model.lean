@@ -33,11 +33,10 @@ structure Config where
 deriving Repr, BEq, Hashable, Inhabited
 
 def Config.isValid (config : Config) : Bool :=
-  !config.instanceId.isEmpty &&
-    !config.expectedLocations.isEmpty &&
-    !config.expectedLocations.any String.isEmpty &&
-    config.expectedLocations.eraseDups.length =
-      config.expectedLocations.length
+  !config.instanceId.isEmpty
+  && !config.expectedLocations.isEmpty
+  && !config.expectedLocations.any String.isEmpty
+  && config.expectedLocations.eraseDups.length = config.expectedLocations.length
 
 structure NodeState where
   location : Location
@@ -93,8 +92,12 @@ def initialNode (location : Location) : NodeState :=
   { location }
 
 def initialSystem (config : Config) : SystemState :=
-  { nodes := config.expectedLocations.map fun location =>
-      (location, initialNode location) }
+  {
+    nodes :=
+      config.expectedLocations.map
+        fun location =>
+          (location, initialNode location)
+  }
 
 def voteQuorum (config : Config) : Nat :=
   config.expectedLocations.length / 2 + 1
@@ -106,15 +109,14 @@ def txScoreGreater
     (leftName : Location)
     (left : TxID)
     (rightName : Location)
-    (right : TxID) : Bool :=
-  right.view < left.view ||
-    (right.view == left.view &&
-      (right.seqno < left.seqno ||
-        (right.seqno == left.seqno && rightName < leftName)))
+    (right : TxID)
+    : Bool :=
+  right.view < left.view
+  || (right.view == left.view
+      && (right.seqno < left.seqno
+          || (right.seqno == left.seqno && rightName < leftName)))
 
-def selectMaximum
-    (current candidate : Prod Location TxID) :
-    Prod Location TxID :=
+def selectMaximum (current candidate : Prod Location TxID) : Prod Location TxID :=
   if txScoreGreater candidate.1 candidate.2 current.1 current.2 then
     candidate
   else
@@ -125,19 +127,18 @@ def maximumGossip : List (Prod Location TxID) -> Option (Prod Location TxID)
   | head :: tail =>
       some (tail.foldl selectMaximum head)
 
-def insertGossip
-    (source : Location)
-    (txid : TxID)
-    (gossips : List (Prod Location TxID)) :
-    List (Prod Location TxID) :=
+def insertGossip (source : Location) (txid : TxID) (gossips : List (Prod Location TxID))
+    : List (Prod Location TxID) :=
   if gossips.any (fun entry => entry.1 == source) then
     gossips
   else
     ((source, txid) :: gossips).mergeSort (fun left right => left.1 <= right.1)
 
 def insertVote (source : Location) (votes : List Location) : List Location :=
-  if votes.contains source then votes
-  else (source :: votes).mergeSort (fun left right => left <= right)
+  if votes.contains source then
+    votes
+  else
+    (source :: votes).mergeSort (fun left right => left <= right)
 
 def advanceTimeoutState : Phase -> Phase
   | .gossiping => .voting
@@ -150,8 +151,7 @@ def advanceTimeoutLane (state : NodeState) (timeout : Bool) : NodeState :=
   else
     state
 
-def advance (config : Config) (state : NodeState) (timeout : Bool) :
-    Option StepOutput :=
+def advance (config : Config) (state : NodeState) (timeout : Bool) : Option StepOutput :=
   let aligned := validTimeout state timeout
   match state.phase with
   | .gossiping =>
@@ -170,32 +170,35 @@ def advance (config : Config) (state : NodeState) (timeout : Bool) :
           some { state }
         else
           let kind := if aligned && !sufficient then .failover else .quorum
-          let next := {
-            state with
-            phase := .opening
-            openKind := some kind
-          }
-          some {
-            state := advanceTimeoutLane next timeout
-            effects := [.opening kind]
-          }
+          let next :=
+            {
+              state with
+                phase := .opening
+                openKind := some kind
+            }
+          some
+            {
+              state := advanceTimeoutLane next timeout
+              effects := [.opening kind]
+            }
       else
         some { state := advanceTimeoutLane state timeout }
   | .joining =>
       match state.chosen with
       | none => none
       | some chosen =>
-          some {
-            state := advanceTimeoutLane
-              { state with restartRequested := true } timeout
-            effects := [.restart chosen]
-          }
+          some
+            {
+              state := advanceTimeoutLane { state with restartRequested := true } timeout
+              effects := [.restart chosen]
+            }
   | .opening =>
       if aligned then
-        some {
-          state := advanceTimeoutLane { state with phase := .open } timeout
-          effects := [.completed]
-        }
+        some
+          {
+            state := advanceTimeoutLane { state with phase := .open } timeout
+            effects := [.completed]
+          }
       else
         some { state := advanceTimeoutLane state timeout }
   | .open =>
@@ -212,17 +215,15 @@ def step (config : Config) (state : NodeState) : Event -> StepOutput
           if state.chosen != none then
             rejected state "gossip-frozen"
           else
-            let received := { state with
-              gossips := insertGossip source txid state.gossips }
-            (advance config received false).getD
-              (rejected state "empty-gossip-advance")
+            let received :=
+              { state with gossips := insertGossip source txid state.gossips }
+            (advance config received false).getD (rejected state "empty-gossip-advance")
   | .receiveVote source validation =>
       match validation with
       | .rejected => rejected state "quote-or-certificate"
       | .accepted =>
           let received := { state with votes := insertVote source state.votes }
-          (advance config received false).getD
-            (rejected state "vote-advance")
+          (advance config received false).getD (rejected state "vote-advance")
   | .receiveIAmOpen source validation =>
       match validation with
       | .rejected => rejected state "quote-or-certificate"
@@ -231,16 +232,15 @@ def step (config : Config) (state : NodeState) : Event -> StepOutput
           | .opening | .open =>
               rejected state "already-opening-or-open"
           | _ =>
-              let received := {
-                state with
-                phase := .joining
-                chosen := some source
-              }
-              (advance config received false).getD
-                (rejected state "join-without-chosen")
+              let received :=
+                {
+                  state with
+                    phase := .joining
+                    chosen := some source
+                }
+              (advance config received false).getD (rejected state "join-without-chosen")
   | .timeout =>
-      (advance config state true).getD
-        (rejected state "empty-gossip-timeout-aborts")
+      (advance config state true).getD (rejected state "empty-gossip-timeout-aborts")
   | .retry =>
       let effects :=
         match state.phase with
@@ -253,35 +253,33 @@ def step (config : Config) (state : NodeState) : Event -> StepOutput
                 .sendVote chosen :: config.expectedLocations.map .sendGossip
         | .opening =>
             (config.expectedLocations.filter
-              (fun location => location != state.location)).map .sendIAmOpen
+              (fun location => location != state.location)).map
+              .sendIAmOpen
         | .joining | .open => []
       { state, effects }
 
 def replaceNode
     (target : Location)
     (next : NodeState)
-    (nodes : List (Prod Location NodeState)) :
-    List (Prod Location NodeState) :=
+    (nodes : List (Prod Location NodeState))
+    : List (Prod Location NodeState) :=
   nodes.map fun entry => if entry.1 == target then (target, next) else entry
 
-def systemStep
-    (config : Config)
-    (state : SystemState)
-    (target : Location)
-    (event : Event) :
-    Option (Prod SystemState StepOutput) := do
+def systemStep (config : Config) (state : SystemState) (target : Location) (event : Event)
+    : Option (Prod SystemState StepOutput) := do
   let node <- (state.nodes.find? fun entry => entry.1 == target).map Prod.snd
   let output := step config node event
-  pure ({
-    nodes := replaceNode target output.state state.nodes
-  }, output)
+  pure ({ nodes := replaceNode target output.state state.nodes }, output)
 
 def expectedSource (config : Config) (source : Location) : Bool :=
   config.expectedLocations.contains source
 
 def stateKey (state : NodeState) : String :=
-  let gossips := String.intercalate "," (state.gossips.map fun entry =>
-    s!"{entry.1}@{entry.2.view}.{entry.2.seqno}")
+  let gossips :=
+    String.intercalate ","
+      (state.gossips.map
+        fun entry =>
+          s!"{entry.1}@{entry.2.view}.{entry.2.seqno}")
   let votes := String.intercalate "," state.votes
   let chosen := state.chosen.getD "-"
   let kind := state.openKind.map openKindName |>.getD "-"
