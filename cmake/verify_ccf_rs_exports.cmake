@@ -39,5 +39,8 @@ foreach(LINE IN LISTS NM_LINES)
 endforeach()
 
 if(NOT HAS_COSE_EXPORT OR NOT HAS_TAV_EXPORT)
-  message(FATAL_ERROR "Expected ccf-rs C ABI exports are missing from ${OBJECT}")
+  message(
+    FATAL_ERROR
+    "Expected ccf-rs C ABI exports are missing from ${OBJECT}"
+  )
 endif()
