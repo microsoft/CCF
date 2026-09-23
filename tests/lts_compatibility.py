@@ -373,7 +373,10 @@ def run_code_upgrade_from(
     fv_skip_verify_chunking = infra.node.CCFVersion(from_version) < ccf621
     tv_skip_verify_chunking = infra.node.CCFVersion(to_version) < ccf621
 
-    with jwt_issuer.start_openid_server():
+    with jwt_issuer.start_openid_server(), infra.jwt_issuer.NodeTrustStore() as trust_store:
+        # Nodes newer than 7.0.16 verify the OpenID server's certificate against
+        # their trust store rather than a governance-managed CA bundle.
+        trust_store.trust(jwt_issuer)
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         with infra.network.network(
             args.nodes,
@@ -386,7 +389,7 @@ def run_code_upgrade_from(
             skip_verify_chunking=fv_skip_verify_chunking or tv_skip_verify_chunking,
         ) as network:
             disable_openapi_validation(network)
-            kwargs = {}
+            kwargs = {"env": trust_store.env}
             if not infra.node.CCFVersion(from_version) > infra.node.CCFVersion(
                 "ccf-4.0.0-rc1"
             ):
@@ -442,7 +445,7 @@ def run_code_upgrade_from(
             new_nodes = []
             fetch_recent_snapshot = True
             for _ in range(len(old_nodes)):
-                kwargs = {}
+                kwargs = {"env": trust_store.env}
                 kwargs["fetch_recent_snapshot"] = fetch_recent_snapshot
                 if not fetch_recent_snapshot:
                     kwargs["copy_ledger"] = True
@@ -695,7 +698,10 @@ def run_ledger_compatibility_since_first(
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
-    with jwt_issuer.start_openid_server():
+    with jwt_issuer.start_openid_server(), infra.jwt_issuer.NodeTrustStore() as trust_store:
+        # Nodes newer than 7.0.16 verify the OpenID server's certificate against
+        # their trust store rather than a governance-managed CA bundle.
+        trust_store.trust(jwt_issuer)
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
             if lts_release:
@@ -724,7 +730,7 @@ def run_ledger_compatibility_since_first(
                     "version": version,
                     "skip_verify_chunking": True,  # Old ledger files will have incorrect chunking
                 }
-                kwargs = {}
+                kwargs = {"env": trust_store.env}
                 if not infra.node.CCFVersion(version) > infra.node.CCFVersion(
                     "ccf-4.0.0-rc1"
                 ):

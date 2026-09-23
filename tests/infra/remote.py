@@ -212,6 +212,11 @@ class LocalRemote(CmdMixin):
             ]
             for key, value in self.env.items():
                 launch_cmd.extend(["--env", f"{key}={value}"])
+            trust_store = self.env.get("SSL_CERT_FILE")
+            if trust_store:
+                # The node trust store lives outside the node directory, and
+                # may be appended to after the container starts.
+                launch_cmd.extend(["--volume", f"{trust_store}:{trust_store}:ro"])
             launch_cmd.extend([self.node_container_image, *self.cmd])
             launch_env = os.environ.copy()
         self.proc = subprocess.Popen(

@@ -662,6 +662,9 @@ class Consortium:
             # lts_compatibility tests.
             "key_filter": "all",
             "issuer": obj["issuer"],
+            # Only required by releases up to and including 7.0.16, and ignored
+            # by later constitutions.
+            "ca_cert_bundle_name": obj.get("ca_cert_bundle_name"),
             "auto_refresh": obj.get("auto_refresh", False),
             "jwks": obj.get("jwks"),
         }
@@ -680,6 +683,20 @@ class Consortium:
         obj = slurp_json(jwks_path)
         proposal_body, careful_vote = self.make_proposal(
             "set_jwt_public_signing_keys", issuer=issuer, jwks=obj
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def set_ca_cert_bundle(self, remote_node, cert_name, cert_bundle_path):
+        """
+        Only supported by releases up to and including 7.0.16, whose
+        constitutions still define the set_ca_cert_bundle action. Used by
+        lts_compatibility tests to let those releases auto-refresh JWT keys.
+        """
+        proposal_body, careful_vote = self.make_proposal(
+            "set_ca_cert_bundle",
+            name=cert_name,
+            cert_bundle=slurp_file(cert_bundle_path),
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

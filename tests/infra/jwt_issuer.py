@@ -2,6 +2,8 @@
 # Licensed under the Apache 2.0 License.
 import base64
 import json
+import os
+import shutil
 import ssl
 import tempfile
 import threading
@@ -159,8 +161,58 @@ def to_b64(number: int, size=None):
     return base64.urlsafe_b64encode(as_bytes).rstrip(b"=").decode("ascii")
 
 
+def system_ca_bundle():
+    paths = ssl.get_default_verify_paths()
+    for candidate in (paths.cafile, paths.openssl_cafile):
+        if candidate and os.path.isfile(candidate):
+            return candidate
+    raise RuntimeError("Could not locate the system CA bundle")
+
+
+class NodeTrustStore(AbstractContextManager):
+    """
+    PEM bundle passed to nodes via SSL_CERT_FILE, so that their outbound TLS
+    connections trust the self-signed certificates of test OpenID servers.
+    It starts from the system roots, since SSL_CERT_FILE replaces the system
+    CA bundle, and issuers are appended as they are created.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._file = tempfile.NamedTemporaryFile(  # noqa: SIM115 - closed in __exit__
+            prefix="ccf_trust_store_", mode="w+"
+        )
+        with open(system_ca_bundle(), encoding="utf-8") as system_roots:
+            shutil.copyfileobj(system_roots, self._file)
+        self._file.write("\n")
+        self._file.flush()
+
+    def __exit__(self, *exc_info):
+        self._file.close()
+
+    @property
+    def path(self):
+        return self._file.name
+
+    @property
+    def env(self):
+        return {"SSL_CERT_FILE": self.path}
+
+    def trust(self, issuer):
+        with self._lock:
+            self._file.write(issuer.tls_cert)
+            self._file.write("\n")
+            self._file.flush()
+
+
 class JwtIssuer:
     TEST_JWT_ISSUER_NAME = "https://example.issuer"
+    TEST_CA_BUNDLE_NAME = "test_ca_bundle_name"
+    # Releases up to and including this one only auto-refresh keys over TLS
+    # connections verified against a governance-managed CA bundle, which their
+    # constitutions require set_jwt_issuer to name. Later versions verify
+    # against the node's trust store instead (see NodeTrustStore).
+    LAST_RELEASE_WITH_GOVERNANCE_CA_BUNDLES = "ccf-7.0.16"
 
     def _generate_auth_data(self, cn=None):
         if self._alg == JwtAlg.RS256:
@@ -275,8 +327,21 @@ class JwtIssuer:
         kid_ = kid or self.default_kid
         primary, _ = network.find_primary()
 
+        issuer = {"issuer": self.issuer_url, "auto_refresh": self.auto_refresh}
+        if self.auto_refresh and not primary.version_after(
+            self.LAST_RELEASE_WITH_GOVERNANCE_CA_BUNDLES
+        ):
+            with tempfile.NamedTemporaryFile(
+                prefix="ccf", mode="w+"
+            ) as ca_cert_bundle_fp:
+                ca_cert_bundle_fp.write(self.tls_cert)
+                ca_cert_bundle_fp.flush()
+                network.consortium.set_ca_cert_bundle(
+                    primary, self.TEST_CA_BUNDLE_NAME, ca_cert_bundle_fp.name
+                )
+            issuer["ca_cert_bundle_name"] = self.TEST_CA_BUNDLE_NAME
+
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-            issuer = {"issuer": self.issuer_url, "auto_refresh": self.auto_refresh}
             json.dump(issuer, metadata_fp)
             metadata_fp.flush()
             network.consortium.set_jwt_issuer(primary, metadata_fp.name)

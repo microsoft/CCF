@@ -2,12 +2,8 @@
 # Licensed under the Apache 2.0 License.
 import base64
 import json
-import os
-import shutil
 import socket
-import ssl
 import tempfile
-import threading
 import time
 from contextlib import contextmanager
 
@@ -23,13 +19,12 @@ import infra.proposal
 import suite.test_requirements as reqs
 from ccf.tx_id import TxID
 from infra.jwt_issuer import (
+    NodeTrustStore,
     OpenIDProviderServer,
     get_jwt_issuers,
     get_jwt_keys,
 )
 from loguru import logger as LOG
-
-TRUST_STORE_LOCK = threading.Lock()
 
 
 def set_issuer_with_keys(network, primary, issuer, kids):
@@ -423,36 +418,8 @@ def reserve_unlistened_local_port():
         yield s
 
 
-def system_ca_bundle():
-    paths = ssl.get_default_verify_paths()
-    for candidate in (paths.cafile, paths.openssl_cafile):
-        if candidate and os.path.isfile(candidate):
-            return candidate
-    raise RuntimeError("Could not locate the system CA bundle")
-
-
-@contextmanager
-def jwt_test_trust_store(args):
-    """
-    Trust store passed to nodes via SSL_CERT_FILE. It starts from the system
-    roots, so that public IdPs remain reachable, and each test issuer's
-    self-signed certificate is appended as it is created.
-    """
-    with tempfile.NamedTemporaryFile(prefix="ccf_jwt_trust_", mode="w+") as f:
-        with open(system_ca_bundle(), encoding="utf-8") as system_roots:
-            shutil.copyfileobj(system_roots, f)
-        f.write("\n")
-        f.flush()
-        args.jwt_test_trust_store = f.name
-        yield {"SSL_CERT_FILE": f.name}
-
-
 def trust_jwt_issuer(args, issuer):
-    trust_store = getattr(args, "jwt_test_trust_store", None)
-    if trust_store:
-        with TRUST_STORE_LOCK, open(trust_store, "a", encoding="utf-8") as f:
-            f.write(issuer.tls_cert)
-            f.write("\n")
+    args.node_trust_store.trust(issuer)
 
 
 def add_auto_refresh_jwt_issuer(network, args, primary, issuer):
@@ -520,7 +487,7 @@ def test_jwt_key_auto_refresh_tls_failure(network, args):
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
     issuer = infra.jwt_issuer.JwtIssuer("https://127.0.0.1", cn="127.0.0.1")
 
-    # Do not add this issuer to args.jwt_test_trust_store. This verifies that
+    # Do not add this issuer to args.node_trust_store. This verifies that
     # nodes use the configured SSL_CERT_FILE trust store for JWT auto-refresh.
     LOG.info("Start OpenID endpoint server with a certificate not in the system store")
     with issuer.start_openid_server(0) as server:
@@ -981,10 +948,11 @@ def with_timeout(fn, timeout):
 
 
 def run_auto(args):
-    with jwt_test_trust_store(args) as node_env, infra.network.network(
+    with NodeTrustStore() as trust_store, infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_open(args, env=node_env)
+        args.node_trust_store = trust_store
+        network.start_and_open(args, env=trust_store.env)
         test_jwt_issuer_and_jwks_validation(network, args)
         test_jwt_mulitple_issuers_same_kids_different_pem(network, args)
         test_jwt_mulitple_issuers_same_kids_same_pem(network, args)
@@ -1007,10 +975,11 @@ def run_auto(args):
 
 
 def run_manual(args):
-    with jwt_test_trust_store(args) as node_env, infra.network.network(
+    with NodeTrustStore() as trust_store, infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_open(args, env=node_env)
+        args.node_trust_store = trust_store
+        network.start_and_open(args, env=trust_store.env)
         test_jwt_key_initial_refresh(network, args)
 
         # Check that initial refresh also works on backups
