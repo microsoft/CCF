@@ -4,6 +4,7 @@
 import CCFRaft.Proofs.Refinement.Concrete
 
 set_option autoImplicit false
+set_option linter.unusedSectionVars false
 
 /-!
 # Invariants of the network model
@@ -59,5 +60,45 @@ theorem NodeInvariant.reachable {P : Node -> NodeState Node TxId -> Prop}
       | deliver envelope =>
           obtain ⟨_, old, execute, found, received, rfl⟩ := step_deliver stepped
           exact preserved (event := .receive envelope.source envelope.payload) found received
+
+theorem keys_nodup {nodes : List Node} {state : Model.State Node TxId}
+    (reachable : (Model.transitionSystem (TxId := TxId) nodes).Reachable state)
+    : (state.nodes.map Prod.fst).Nodup := by
+  induction reachable with
+  | initial initialized => exact initialized.2.1 ▸ initialized.1
+  | @step before after action _ stepped ih =>
+      cases action with
+      | «local» actor input =>
+          obtain ⟨_, _, _, _, rfl⟩ := step_local stepped
+          simpa [replaceNode_keys] using ih
+      | deliver envelope =>
+          obtain ⟨_, _, _, _, _, rfl⟩ := step_deliver stepped
+          simpa [replaceNode_keys] using ih
+
+theorem find_of_mem {entries : List (Node × NodeState Node TxId)} {node : Node}
+    {local_ : NodeState Node TxId} (distinct : (entries.map Prod.fst).Nodup)
+    (member : (node, local_) ∈ entries)
+    : entries.find? (fun entry => entry.1 == node) = some (node, local_) := by
+  induction entries with
+  | nil => simp at member
+  | cons head tail ih =>
+      obtain ⟨key, value⟩ := head
+      simp only [List.map_cons, List.nodup_cons] at distinct
+      by_cases here : key = node
+      · subst here
+        rcases List.mem_cons.mp member with same | later
+        · rw [same]
+          simp
+        · exact absurd (List.mem_map.mpr ⟨_, later, rfl⟩) distinct.1
+      · rcases List.mem_cons.mp member with same | later
+        · simp only [Prod.mk.injEq] at same
+          exact absurd same.1.symm here
+        · simp [here, ih distinct.2 later]
+
+theorem nodeState_of_mem {state : Model.State Node TxId} {node : Node}
+    {local_ : NodeState Node TxId} (distinct : (state.nodes.map Prod.fst).Nodup)
+    (member : (node, local_) ∈ state.nodes)
+    : nodeState state node = some local_ := by
+  simp [nodeState, find_of_mem distinct member]
 
 end CCFRaft.Proofs.Direct

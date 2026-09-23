@@ -2,7 +2,7 @@
 -- Licensed under the Apache 2.0 License.
 
 import CCFRaft.Properties
-import CCFRaft.Proofs.Direct.CommitFrontier
+import CCFRaft.Proofs.Direct.AppendOnly
 import CCFRaft.Proofs.Model
 import CCFRaft.Proofs.Witnesses
 
@@ -18,7 +18,7 @@ theorem committed_frontier_is_signature : Properties.CommittedFrontierIsSignatur
   Proofs.Direct.committed_frontier_is_signature
 
 theorem committed_log_append_only : Properties.CommittedLogAppendOnly :=
-  Proofs.Model.committed_log_append_only
+  Proofs.Direct.committed_log_append_only
 
 theorem election_safety_witness : Properties.ElectionSafetyWitness :=
   Proofs.Witnesses.election_safety_witness
