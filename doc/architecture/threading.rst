@@ -17,7 +17,7 @@ Implementation
 Configuration
 ~~~~~~~~~~~~~
 
-To enable multiple worker threads, the ``worker_threads`` configuration option can be set to the number of desired threads when starting a CCF node.
+The ``worker_threads`` configuration option controls the number of worker threads when starting a CCF node. CCF starts one more worker thread than configured, in addition to the dispatch thread. The extra worker preserves task execution capacity now that the dispatch thread no longer executes tasks. This option defaults to ``1``, which starts two workers; a configured value of ``0`` starts one worker and logs a warning. Positive values are incremented silently.
 
 It is strongly recommended that all CCF nodes run the same number of worker threads.
 

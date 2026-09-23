@@ -1,5 +1,7 @@
 Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
 
+All jobs run on 1ES hosted pools targeted by pool name only, for example `runs-on: [gha-vmss-d16av7-ci]`.
+
 # Shared actions
 
 ## Azure Linux CI dependencies
@@ -17,7 +19,7 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
-Tests are run on two different testbeds for comparison: gha-vmss-d16av6-ci (d16av6 VMs) and gha-c-aci-ci (C-ACI with 16 cores and 32Gb RAM).
+Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP).
 
 File: `bencher.yml`
 3rd party dependencies: None
@@ -40,6 +42,8 @@ File: `copilot-setup-steps.yml`
 
 Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests. Runs on PRs, merge queue runs, manually, and once a week, regardless of commits.
 
+The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
+
 File: `ci.yml`
 3rd party dependencies: None
 
@@ -47,7 +51,18 @@ File: `ci.yml`
 
 Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readiness for the move from Azure Linux 3, which `ci.yml` builds against. Runs daily on `main` on week days, and manually. It deliberately does not run on PRs, to keep PR feedback fast and limit pool usage.
 
+Its Virtual A, B, and C jobs use the same pool distribution as the main continuous integration workflow.
+
 File: `ci-al4.yml`
+3rd party dependencies: None
+
+# Cross-platform LTS
+
+Builds configurable CCF release install trees on Azure Linux 3 and Azure Linux 4 in parallel, then runs the LTS live-upgrade test directly on a VMSS runner. By default, it upgrades from the previous stable CCF release to the latest stable release; both versions can be overridden using the manual inputs in [`cross-platform-lts.yml`](cross-platform-lts.yml). Separate runtime images install only the required shared-library packages and copy in the matching install tree. Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking. Runs weekly and manually, but not on pull requests because both full builds and the compatibility test are expensive.
+
+Shared workflow environment values define the Python version, base images, runner pool labels, install archive filename, and test workspace.
+
+File: `cross-platform-lts.yml`
 3rd party dependencies: None
 
 # Coverage
@@ -63,6 +78,7 @@ Secondary continuous integration job. Runs more expensive, longer tests, such as
 
 - Runs daily on week days.
 - Can be manually run on a PR by setting `run-long-test` label, or via workflow dispatch.
+- VMSS jobs target `gha-vmss-d16av7-ci-c` to use pool C's larger runner capacity.
 
 File: `long-test.yml`
 3rd party dependencies: None
@@ -87,6 +103,7 @@ File: `ci-verification.yml`
 # Long Verification
 
 Runs the longer consensus model checking and simulation jobs each week.
+VMSS jobs target `gha-vmss-d16av7-ci-c` to use pool C's larger runner capacity.
 
 File: `long-verification.yml`
 3rd party dependencies: None

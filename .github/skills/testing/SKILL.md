@@ -58,6 +58,10 @@ Configure with `-DCOVERAGE=ON`, build instrumented targets, and run the selected
 
 These paths assume `build` is immediately under the repository root. For another layout, use the actual path to `scripts/coverage.sh` while retaining the build working directory. The script consumes `.profraw` files and the generated `coverage_binaries.txt`; building alone does not produce coverage.
 
+Text and HTML reports include only framework sources under `src/` and `include/`, excluding test and performance code. First-party C++ static libraries are instrumented, but only linked binaries are report inputs; archives are not counted a second time. Their coverage runtime link requirement also applies to consumers of installed instrumented libraries. Rust is not instrumented by the C++ coverage flags.
+
+For a baseline, use a fresh coverage build/profile directory and record the source revision, build options and exact test selection. Targeted tests do not establish a full-suite baseline. Reports predating library instrumentation have a different denominator and are not directly comparable; including previously invisible code can lower the headline percentage.
+
 ## End-to-end test infrastructure
 
 E2e tests use the infrastructure in `tests/infra/`. The key classes are:

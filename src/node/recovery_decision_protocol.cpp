@@ -68,7 +68,7 @@ namespace ccf
 
   void RecoveryDecisionProtocolSubsystem::restart_after_commit()
   {
-    RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
+    node_state->request_restart();
   }
 
   void RecoveryDecisionProtocolSubsystem::initialise_protocol_instance(

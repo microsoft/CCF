@@ -13,11 +13,54 @@
 
 #include <doctest/doctest.h>
 #undef FAIL
+#include <atomic>
+#include <exception>
+#include <mutex>
 #include <random>
 #include <string>
+#include <thread>
 
 ccf::kv::ConsensusHookPtrs hooks;
 using StringString = ccf::kv::Map<std::string, std::string>;
+
+class CountingKeyAesGcm : public ccf::crypto::KeyAesGcm
+{
+private:
+  std::shared_ptr<ccf::crypto::KeyAesGcm> inner;
+
+public:
+  mutable std::atomic<size_t> encrypt_calls = 0;
+
+  CountingKeyAesGcm(std::shared_ptr<ccf::crypto::KeyAesGcm> inner_) :
+    inner(std::move(inner_))
+  {}
+
+  void encrypt(
+    std::span<const uint8_t> iv,
+    std::span<const uint8_t> plain,
+    std::span<const uint8_t> aad,
+    std::vector<uint8_t>& cipher,
+    uint8_t tag[ccf::crypto::GCM_SIZE_TAG]) const override
+  {
+    ++encrypt_calls;
+    inner->encrypt(iv, plain, aad, cipher, tag);
+  }
+
+  bool decrypt(
+    std::span<const uint8_t> iv,
+    const uint8_t tag[ccf::crypto::GCM_SIZE_TAG],
+    std::span<const uint8_t> cipher,
+    std::span<const uint8_t> aad,
+    std::vector<uint8_t>& plain) const override
+  {
+    return inner->decrypt(iv, tag, cipher, aad, plain);
+  }
+
+  size_t key_size() const override
+  {
+    return inner->key_size();
+  }
+};
 
 void commit_one(ccf::kv::Store& store, StringString& map)
 {
@@ -100,6 +143,85 @@ TEST_CASE("Simple encryption/decryption")
   REQUIRE(encrypt_round_trip(encryptor, plain, 4));
   REQUIRE(encrypt_round_trip(encryptor, plain, 5));
   REQUIRE(encrypt_round_trip(encryptor, plain, 6));
+}
+
+TEST_CASE("Concurrent encryption/decryption")
+{
+  constexpr size_t thread_count = 16;
+  constexpr size_t iteration_count = 64;
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+  ledger_secrets->init();
+  ccf::NodeEncryptor encryptor(ledger_secrets);
+  std::atomic<bool> success = true;
+  std::exception_ptr worker_error;
+  std::mutex worker_error_lock;
+  std::vector<std::thread> threads;
+
+  for (size_t thread_index = 0; thread_index < thread_count; ++thread_index)
+  {
+    threads.emplace_back([&, thread_index]() {
+      try
+      {
+        for (size_t i = 0; i < iteration_count; ++i)
+        {
+          std::vector<uint8_t> plain(64, thread_index);
+          const auto version = (thread_index * iteration_count) + i + 1;
+          if (!encrypt_round_trip(encryptor, plain, version))
+          {
+            success = false;
+          }
+        }
+      }
+      catch (...)
+      {
+        std::lock_guard<std::mutex> guard(worker_error_lock);
+        if (worker_error == nullptr)
+        {
+          worker_error = std::current_exception();
+        }
+      }
+    });
+  }
+
+  for (auto& thread : threads)
+  {
+    thread.join();
+  }
+
+  if (worker_error != nullptr)
+  {
+    std::rethrow_exception(worker_error);
+  }
+  REQUIRE(success);
+}
+
+TEST_CASE("Snapshot encryption uses a fresh context")
+{
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+  ledger_secrets->init();
+  auto secret = ledger_secrets->get_secret_for(1);
+  REQUIRE(secret != nullptr);
+  auto counting_key = std::make_shared<CountingKeyAesGcm>(secret->key);
+  secret->key = counting_key;
+  ccf::NodeEncryptor encryptor(ledger_secrets);
+
+  std::vector<uint8_t> plain(64, 0x42);
+  std::vector<uint8_t> additional_data;
+  std::vector<uint8_t> serialised_header;
+  std::vector<uint8_t> cipher;
+
+  REQUIRE(encryptor.encrypt(
+    plain,
+    additional_data,
+    serialised_header,
+    cipher,
+    {1, 1},
+    ccf::kv::EntryType::Snapshot));
+  REQUIRE(counting_key->encrypt_calls == 1);
+
+  REQUIRE(encryptor.encrypt(
+    plain, additional_data, serialised_header, cipher, {1, 2}));
+  REQUIRE(counting_key->encrypt_calls == 1);
 }
 
 TEST_CASE("Subsequent ciphers from same plaintext are different")
@@ -414,18 +536,22 @@ TEST_CASE("Encryptor rollback")
   ledger_secrets->init();
   auto encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
   store.set_encryptor(encryptor);
+  std::weak_ptr<ccf::crypto::KeyAesGcm> rolled_back_key;
 
   commit_one(store, map);
 
   // Assumes tx at seqno 2 rekeys. Txs from seqno 3 will be encrypted with new
   // secret
   commit_one(store, map);
-  ledger_secrets->set_secret(3, ccf::make_ledger_secret());
+  auto rolled_back_secret = ccf::make_ledger_secret();
+  rolled_back_key = rolled_back_secret->key;
+  ledger_secrets->set_secret(3, std::move(rolled_back_secret));
 
   commit_one(store, map);
 
   // Rollback store at seqno 1, discarding encryption key at 3
   store.rollback({store_term, 1}, store.commit_view());
+  REQUIRE(rolled_back_key.expired());
 
   commit_one(store, map);
 

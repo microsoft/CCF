@@ -1,4 +1,5 @@
 bucket_a:
+  docs
   tls_groups_test
   lts_compatibility
 
@@ -40,6 +41,7 @@ no_bucket:
   merkle_bench
   hash_bench
   http_bench
+  js_interpreter_bench
   task_bench
   recovery_test_suite
   reconfiguration_test_suite

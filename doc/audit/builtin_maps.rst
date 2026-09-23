@@ -253,6 +253,27 @@ Service identity and status.
         WaitingForRecoveryShares -- member shares reassembly--> Open;
         Open-- "start in recovery"-->Recovering;
 
+``service.signing_identities``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Public keys for verifying service COSE signatures.
+
+**Key** Identity type as a little-endian 64-bit unsigned integer.
+
+.. doxygenenum:: ccf::IdentityType
+   :project: CCF
+
+**Value** Represented as JSON.
+
+.. doxygenenum:: ccf::IdentityKind
+   :project: CCF
+
+.. doxygenstruct:: ccf::Identity
+   :project: CCF
+   :members:
+
+For legacy ledgers, an empty table falls back to ``service.info.cert`` for ``CLASSICAL``.
+
 ``service.config``
 ~~~~~~~~~~~~~~~~~~
 
@@ -437,7 +458,9 @@ Governance history of the service, captures all COSE Sign 1 governance requests 
 
 **Key** Member ID: SHA-256 fingerprint of the member certificate, represented as a hex-encoded string.
 
-**Value** COSE Sign1
+**Value** COSE Sign1. For proposal creation requests (``ccf.gov.msg.type`` set to ``proposal`` in the protected header), the payload is detached (``nil``) since the signed proposal body is already stored in the ``proposals`` table, written in the same transaction. Ballots and withdrawals embed their payload.
+
+To verify a detached entry, supply the proposal body from the ``proposals`` table as the detached payload when verifying the COSE Sign1 signature. Entries written by older versions of CCF embed the proposal payload as well, so auditors reading historical ledgers should accept both forms.
 
 ``cose_recent_proposals``
 ~~~~~~~~~~~~~~~~~~~~~~~~~

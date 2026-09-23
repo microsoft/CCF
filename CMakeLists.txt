@@ -132,6 +132,11 @@ option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
+option(
+  TEST_MLDSA
+  "Run ML-DSA key tests, which require OpenSSL 3.5 or newer"
+  OFF
+)
 option(USE_SNMALLOC "Link against snmalloc" ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc.cmake)
 
@@ -363,9 +368,9 @@ target_link_libraries(ccf_tasks PRIVATE ${CMAKE_DL_LIBS})
 # Common test args for Python scripts starting up CCF networks
 set(
   WORKER_THREADS
-  0
+  1
   CACHE STRING
-  "Number of worker threads to start on each CCF node"
+  "Configured worker_threads value; each CCF node starts one additional worker"
 )
 
 set(
@@ -598,6 +603,25 @@ install(TARGETS verify_attestation DESTINATION bin)
 if(BUILD_TESTS)
   enable_testing()
 
+  set(
+    DOCS_PYTHON
+    ""
+    CACHE FILEPATH
+    "Python interpreter for the optional documentation test"
+  )
+  if(DOCS_PYTHON)
+    add_test(
+      NAME docs
+      COMMAND
+        "${DOCS_PYTHON}" -m sphinx --fail-on-warning -b html "${CCF_DIR}/doc"
+        "${CCF_DIR}/doc/html"
+    )
+    set_tests_properties(
+      docs
+      PROPERTIES LABELS "bucket_a;docs" WORKING_DIRECTORY "${CCF_DIR}"
+    )
+  endif()
+
   # Unit tests
   if(BUILD_UNIT_TESTS)
     add_test(
@@ -607,28 +631,22 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/tests/run_verify_uvm_attestation_and_endorsements.sh
         $<TARGET_FILE:verify_uvm_attestation_and_endorsements>
     )
-    set_property(
-      TEST verify_uvm_attestation_and_endorsements
-      APPEND
-      PROPERTY LABELS unit
-    )
+    add_test_label(verify_uvm_attestation_and_endorsements unit)
     add_san_test_properties(verify_uvm_attestation_and_endorsements)
 
     add_unit_test(
       snp_ioctl_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
+      LABELS snp
     )
     target_link_libraries(snp_ioctl_test PRIVATE ccf_pal)
-    set_property(TEST snp_ioctl_test APPEND PROPERTY LABELS snp)
-    set_property(TEST snp_ioctl_test APPEND PROPERTY CONFIGURATIONS snp)
 
     add_unit_test(
       snp_attestation_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_attestation_validation.cpp
+      LABELS snp
     )
     target_link_libraries(snp_attestation_test PRIVATE ccf_pal ccfcrypto)
-    set_property(TEST snp_attestation_test APPEND PROPERTY LABELS snp)
-    set_property(TEST snp_attestation_test APPEND PROPERTY CONFIGURATIONS snp)
 
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
@@ -740,10 +758,16 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      rpc_connections_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/rpc_connections.cpp
+      runtime_control_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/runtime_control.cpp
     )
-    target_link_libraries(rpc_connections_test PRIVATE uv)
+    target_link_libraries(runtime_control_test PRIVATE uv)
+
+    add_unit_test(
+      openssl_server_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/openssl_server_test.cpp
+    )
+    target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
 
     add_unit_test(
       node_connections_test
@@ -756,8 +780,10 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_straddling_rollback.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_straddling_history.cpp
     )
-    target_link_libraries(raft_test PRIVATE ccfcrypto ccf_tasks)
+    target_link_libraries(raft_test PRIVATE ccfcrypto ccf_kv ccf_tasks)
 
     add_unit_test(
       raft_enclave_test
@@ -770,6 +796,12 @@ if(BUILD_TESTS)
       crypto_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
     )
+    if(TEST_MLDSA)
+      target_sources(
+        crypto_test
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/mldsa.cpp
+      )
+    endif()
     target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
     target_link_libraries(crypto_test PRIVATE ccfcrypto)
 
@@ -840,7 +872,11 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_client.cpp
     )
 
-    add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
+    add_unit_test(
+      js_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/uvm_endorsements.cpp
+    )
     target_link_libraries(
       js_test
       PRIVATE ccf_js ccf_kv ccf_endpoints ccfcrypto http_parser
@@ -879,6 +915,12 @@ if(BUILD_TESTS)
       historical_queries_test
       PRIVATE http_parser ccf_kv ccf_endpoints ccf_tasks
     )
+    add_unit_test(
+      open_service_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/open_service.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/local_sealing.cpp
+    )
+    target_link_libraries(open_service_test PRIVATE ccf_kv)
     add_unit_test(
       network_identity_subsystem_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/network_identity_subsystem.cpp
@@ -924,9 +966,6 @@ if(BUILD_TESTS)
       identity_types_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/identity_types.cpp
     )
-
-    add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
-    target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
       base64_test
@@ -1085,8 +1124,8 @@ if(BUILD_TESTS)
         ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
         ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
     )
-    set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
-    set_property(TEST raft_scenario_test APPEND PROPERTY LABELS bucket_c)
+    add_test_target(raft_scenario_test raft_driver)
+    add_test_label(raft_scenario_test raft_scenario bucket_c)
 
     if(COVERAGE)
       # The scenario runner spawns raft_driver once per scenario file; give
@@ -1104,19 +1143,22 @@ if(BUILD_TESTS)
       NAME csr_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/certs.py ./kp_cert_test
     )
-    set_property(TEST csr_test APPEND PROPERTY LABELS unit_test)
+    add_test_target(csr_test kp_cert_test)
+    add_test_label(csr_test unit)
 
     add_test(
       NAME versionifier_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/src/ccf/_versionifier.py
     )
-    set_property(TEST versionifier_test APPEND PROPERTY LABELS bucket_c)
+    add_test_target(versionifier_test)
+    add_test_label(versionifier_test bucket_c)
 
     add_test(
       NAME github_version_lts_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
     )
-    set_property(TEST github_version_lts_test APPEND PROPERTY LABELS bucket_c)
+    add_test_target(github_version_lts_test)
+    add_test_label(github_version_lts_test bucket_c)
   endif()
 
   if(NOT TSAN)
@@ -1143,6 +1185,11 @@ if(BUILD_TESTS)
       SRCS src/http/test/http_bench.cpp
       LINK_LIBS http_parser
     )
+    add_picobench(
+      js_interpreter_bench
+      SRCS src/js/test/interpreter_bench.cpp
+      LINK_LIBS ccf_js ccf_kv ccf_endpoints http_parser
+    )
 
     add_picobench(
       task_bench
@@ -1165,6 +1212,11 @@ if(BUILD_TESTS)
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     BUCKET bucket_b
+    BUILD_DEPENDS
+      logging
+      logging_cose_only
+      logging_cose_only_allow_join_dual
+      js_generic
     ADDITIONAL_ARGS
       ${ADDITIONAL_RECOVERY_ARGS}
       --constitution
@@ -1175,6 +1227,7 @@ if(BUILD_TESTS)
     NAME recovery_stale_snapshot_join_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
     BUCKET bucket_b
+    BUILD_DEPENDS logging
     ADDITIONAL_ARGS --regex ^recovery_stale_snapshot_join$
   )
 
@@ -1182,6 +1235,7 @@ if(BUILD_TESTS)
     NAME recovery_intermediate_snapshot_join_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/identity_recovery_snapshot.py
     BUCKET bucket_b
+    BUILD_DEPENDS logging
     ADDITIONAL_ARGS --regex ^recovery_intermediate_snapshot_join$
   )
 
@@ -1189,12 +1243,14 @@ if(BUILD_TESTS)
     NAME recovery_snapshot_endorsements_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery_snapshot_endorsements.py
     BUCKET bucket_b
+    BUILD_DEPENDS logging
   )
 
   add_e2e_test(
     NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     LABEL suite
+    BUILD_DEPENDS logging
     ADDITIONAL_ARGS
       --test-duration
       300
@@ -1210,6 +1266,7 @@ if(BUILD_TESTS)
     NAME reconfiguration_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     LABEL suite
+    BUILD_DEPENDS logging
     ADDITIONAL_ARGS
       --test-duration
       300
@@ -1224,6 +1281,7 @@ if(BUILD_TESTS)
       NAME regression_test_suite
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
       LABEL suite
+      BUILD_DEPENDS logging
       ADDITIONAL_ARGS --test-duration 300 --test-suite regression_5236
     )
   endif()
@@ -1232,6 +1290,7 @@ if(BUILD_TESTS)
     NAME full_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     LABEL suite
+    BUILD_DEPENDS logging js_generic
     ADDITIONAL_ARGS
       --ledger-recovery-timeout
       20
@@ -1247,6 +1306,7 @@ if(BUILD_TESTS)
     NAME js_batched_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
     BUCKET bucket_c
+    BUILD_DEPENDS js_generic
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/src/apps/batched
@@ -1259,6 +1319,7 @@ if(BUILD_TESTS)
     NAME modules_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     BUCKET bucket_c
+    BUILD_DEPENDS js_generic
     ADDITIONAL_ARGS
       --package
       js_generic
@@ -1273,6 +1334,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
     BUCKET bucket_c
+    BUILD_DEPENDS js_generic
     ADDITIONAL_ARGS
       --package
       js_generic
@@ -1299,6 +1361,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSTITUTION ${CONSTITUTION_ARGS}
     BUCKET bucket_c
+    BUILD_DEPENDS logging js_generic
     DETECT_DEADLOCKS
     ADDITIONAL_ARGS
       --initial-operator-count
@@ -1311,6 +1374,7 @@ if(BUILD_TESTS)
     NAME code_update_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
     BUCKET bucket_c
+    BUILD_DEPENDS logging js_generic
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -1338,6 +1402,7 @@ if(BUILD_TESTS)
     NAME e2e_logging
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     BUCKET bucket_c
+    BUILD_DEPENDS logging logging_cose_only programmability js_generic
     DETECT_DEADLOCKS
     TSAN_SUPPRESSIONS ${CCF_DIR}/tsan_e2e_logging_suppressions
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -1363,6 +1428,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
     LABEL snp
     BUCKET bucket_c
+    BUILD_DEPENDS programmability logging js_generic
   )
 
   # This test uses large requests (so too slow for SAN)
@@ -1371,6 +1437,7 @@ if(BUILD_TESTS)
       NAME e2e_limits
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
       BUCKET bucket_c
+      BUILD_DEPENDS logging
     )
   endif()
 
@@ -1378,6 +1445,7 @@ if(BUILD_TESTS)
     NAME e2e_redirects
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
     BUCKET bucket_c
+    BUILD_DEPENDS logging js_generic
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
@@ -1385,6 +1453,7 @@ if(BUILD_TESTS)
     NAME e2e_logging_http2
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     BUCKET bucket_b
+    BUILD_DEPENDS logging logging_cose_only programmability js_generic
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -1395,6 +1464,7 @@ if(BUILD_TESTS)
     NAME partitions
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     LABEL partitions
+    BUILD_DEPENDS logging
     DETECT_DEADLOCKS
     CONFIGURATIONS partitions
   )
@@ -1409,12 +1479,14 @@ if(BUILD_TESTS)
     NAME tls_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
     BUCKET bucket_c
+    BUILD_DEPENDS logging
   )
 
   add_e2e_test(
     NAME tls_groups_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tls_groups.py
     BUCKET bucket_a
+    BUILD_DEPENDS logging
   )
 
   if(CLIENT_PROTOCOLS_TEST)
@@ -1423,6 +1495,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/client_protocols.py
       LABEL protocolstest
       BUCKET bucket_c
+      BUILD_DEPENDS logging testssl
     )
   endif()
 
@@ -1430,6 +1503,11 @@ if(BUILD_TESTS)
     NAME schema_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
     BUCKET bucket_b
+    BUILD_DEPENDS
+      logging
+      logging_cose_only
+      logging_cose_only_allow_join_dual
+      nobuiltins
     ADDITIONAL_ARGS
       --constitution
       ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
@@ -1448,6 +1526,7 @@ if(BUILD_TESTS)
     NAME snp_platform_tests
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/amd_snp.py
     LABEL snp
+    BUILD_DEPENDS logging
     CONFIGURATIONS snp
   )
 
@@ -1462,6 +1541,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
       LABEL e2e
       BUCKET bucket_a
+      BUILD_DEPENDS js_generic
       ADDITIONAL_ARGS
         ${LTS_TEST_ARGS}
         --constitution
@@ -1472,11 +1552,7 @@ if(BUILD_TESTS)
       APPEND
       PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
     )
-    set_property(
-      TEST lts_compatibility
-      APPEND
-      PROPERTY LABELS lts_compatibility
-    )
+    add_test_label(lts_compatibility lts_compatibility)
     if(LONG_TESTS)
       # Full ledger and snapshot recovery across releases exceeds the default
       # e2e timeout, particularly in coverage builds.
@@ -1493,6 +1569,7 @@ if(BUILD_TESTS)
     NAME nodes_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nodes.py
     BUCKET bucket_b
+    BUILD_DEPENDS logging
     ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS} ${ROTATION_TEST_ARGS}
   )
 
@@ -1503,6 +1580,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_cert_locust.py
     LABEL perf
     CONFIGURATIONS perf
+    BUILD_DEPENDS logging
     ADDITIONAL_ARGS
       --package
       "samples/apps/logging/logging"
@@ -1529,6 +1607,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
     LABEL perf
     CONFIGURATIONS perf
+    BUILD_DEPENDS js_generic
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
@@ -1558,6 +1637,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
     LABEL perf
     CONFIGURATIONS perf
+    BUILD_DEPENDS basic
     ADDITIONAL_ARGS
       --package
       "samples/apps/basic/basic"
@@ -1589,6 +1669,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/logging_jwt_locust.py
     LABEL perf
     CONFIGURATIONS perf
+    BUILD_DEPENDS logging
     ADDITIONAL_ARGS
       --package
       "samples/apps/logging/logging"
@@ -1614,6 +1695,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_locust.py
     LABEL perf
     CONFIGURATIONS perf
+    BUILD_DEPENDS logging
     ADDITIONAL_ARGS
       --package
       "samples/apps/logging/logging"
@@ -1647,18 +1729,21 @@ if(BUILD_TESTS)
       NAME e2e_curl
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_curl.py
       BUCKET bucket_c
+      BUILD_DEPENDS curl_test
     )
 
     add_e2e_test(
       NAME historical_query_cache_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_cache.py
       BUCKET bucket_c
+      BUILD_DEPENDS logging
     )
 
     add_e2e_test(
       NAME consistency_trace_validation
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
       BUCKET bucket_c
+      BUILD_DEPENDS js_generic
     )
   endif()
 
