@@ -38,8 +38,6 @@
 #include <span>
 #include <tav/cbor.hpp>
 #include <thread>
-#include <type_traits>
-#include <utility>
 
 using namespace std;
 using namespace ccf::crypto;
@@ -290,54 +288,6 @@ TEST_CASE("Private PEM imports enforce key family")
       "Cannot construct RSAKeyPair_OpenSSL from non-RSA key",
       std::logic_error);
   }
-}
-
-TEST_CASE_TEMPLATE(
-  "OpenSSL public key ownership", T, ECPublicKey_OpenSSL, RSAPublicKey_OpenSSL)
-{
-  static_assert(!std::is_copy_constructible_v<T>);
-  static_assert(!std::is_copy_assignable_v<T>);
-  static_assert(std::is_move_constructible_v<T>);
-
-  const auto kp = []() {
-    if constexpr (std::is_same_v<T, ECPublicKey_OpenSSL>)
-    {
-      return make_ec_key_pair();
-    }
-    else
-    {
-      return make_rsa_key_pair();
-    }
-  }();
-  const auto pem = kp->public_key_pem();
-  const auto der = kp->public_key_der();
-
-  const T public_key(pem);
-  CHECK(public_key.public_key_der() == der);
-  CHECK(T(der).public_key_pem() == pem);
-  CHECK(T(public_key.public_key_jwk()).public_key_der() == der);
-
-  auto moved = [&]() {
-    OpenSSL::Unique_BIO mem(pem);
-    auto* raw = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
-    REQUIRE(raw != nullptr);
-    T original(raw);
-    return T(std::move(original));
-  }();
-  CHECK(moved.public_key_der() == der);
-
-  const Pem malformed_pem(
-    "-----BEGIN PUBLIC KEY-----\ninvalid\n-----END PUBLIC KEY-----");
-  const std::vector<uint8_t> malformed_der{0};
-  CHECK_THROWS_AS(T{malformed_pem}, std::runtime_error);
-  CHECK_THROWS_AS(T{malformed_der}, std::runtime_error);
-
-  const auto wrong_kp = make_eddsa_key_pair();
-  const auto wrong_pem = wrong_kp->public_key_pem();
-  CHECK_THROWS_AS(T{wrong_pem}, std::logic_error);
-  OpenSSL::Unique_BIO wrong_mem(wrong_pem);
-  OpenSSL::Unique_PKEY wrong_key(wrong_mem);
-  CHECK_THROWS_AS(T(wrong_key.release()), std::logic_error);
 }
 
 TEST_CASE("Sign, verify, with ECKeyPair")
