@@ -114,6 +114,19 @@ namespace ccf
     }
   }
 
+  void validate_and_coerce_worker_threads(host::HostConfig& config)
+  {
+    // Replace the task execution capacity of the dispatch thread, which no
+    // longer executes tasks itself, without requiring configuration changes.
+    if (config.worker_threads == 0)
+    {
+      LOG_FAIL_FMT(
+        "worker_threads is configured as 0; using 1 (the enforced minimum) "
+        "instead");
+    }
+    ++config.worker_threads;
+  }
+
   void validate_and_adjust_recovery_threshold(host::HostConfig& config)
   {
     if (config.command.type != StartType::Start)
@@ -977,6 +990,9 @@ namespace ccf
       LOG_FATAL_FMT("{}. Exiting.", e.what());
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
+
+    // Coerces rather than rejects, so no try/catch is needed here.
+    validate_and_coerce_worker_threads(config);
 
     if (check_config_only)
     {

@@ -20,6 +20,8 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <optional>
+#include <span>
+#include <string_view>
 
 namespace ccf::crypto::OpenSSL
 {
@@ -443,6 +445,26 @@ namespace ccf::crypto::OpenSSL
     using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
   };
 
+  struct Unique_ASN1_OBJECT
+    : public Unique_SSL_OBJECT<ASN1_OBJECT, ASN1_OBJECT_new, ASN1_OBJECT_free>
+  {
+    using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    Unique_ASN1_OBJECT(ASN1_OBJECT* object) :
+      Unique_SSL_OBJECT(object, ASN1_OBJECT_free)
+    {}
+  };
+
+  struct Unique_PKCS8_PRIV_KEY_INFO : public Unique_SSL_OBJECT<
+                                        PKCS8_PRIV_KEY_INFO,
+                                        PKCS8_PRIV_KEY_INFO_new,
+                                        PKCS8_PRIV_KEY_INFO_free>
+  {
+    using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    Unique_PKCS8_PRIV_KEY_INFO(PKCS8_PRIV_KEY_INFO* info) :
+      Unique_SSL_OBJECT(info, PKCS8_PRIV_KEY_INFO_free)
+    {}
+  };
+
   struct Unique_EVP_PKEY
     : public Unique_SSL_OBJECT<EVP_PKEY, EVP_PKEY_new, EVP_PKEY_free>
   {
@@ -458,4 +480,50 @@ namespace ccf::crypto::OpenSSL
         d2i_X509_REQ_bio(mem, nullptr), X509_REQ_free)
     {}
   };
+
+  /// Returns the bytes accumulated in a memory BIO.
+  inline std::span<const uint8_t> bio_contents(BIO* bio)
+  {
+    BUF_MEM* buffer = nullptr;
+    CHECKPOSITIVE(BIO_get_mem_ptr(bio, &buffer));
+    CHECKNULL(buffer);
+    if (buffer->length == 0)
+    {
+      throw std::runtime_error("OpenSSL error: empty memory BIO");
+    }
+    CHECKNULL(buffer->data);
+    return {reinterpret_cast<const uint8_t*>(buffer->data), buffer->length};
+  }
+
+  /// Runs the algorithm's key checks on a decoded or generated key.
+  /// Decoding establishes that the encoding is well formed; these checks ask
+  /// the algorithm whether the key material itself is valid: public_check
+  /// validates the public components, private_check validates the private
+  /// components, and pairwise_check confirms that the two halves belong
+  /// together. Applying them at admission gives every import and generation
+  /// path the same acceptance rule. A rejected key throws
+  /// std::invalid_argument; a provider failure throws std::runtime_error.
+  inline void check_key(EVP_PKEY* key, bool has_private)
+  {
+    const auto check = [](int rc, std::string_view which) {
+      if (rc == 1)
+      {
+        return;
+      }
+      if (rc == 0)
+      {
+        throw std::invalid_argument(std::format("Key failed {} check", which));
+      }
+      throw std::runtime_error(
+        std::format("OpenSSL error in {} key check (rc={})", which, rc));
+    };
+    Unique_EVP_PKEY_CTX ctx(key);
+    check(EVP_PKEY_public_check(ctx), "public");
+    if (!has_private)
+    {
+      return;
+    }
+    check(EVP_PKEY_private_check(ctx), "private");
+    check(EVP_PKEY_pairwise_check(ctx), "pairwise");
+  }
 }

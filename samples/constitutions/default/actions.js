@@ -687,19 +687,7 @@ const actions = new Map([
           ccf.jsonCompatibleToBuf(member_info),
         );
 
-        const rawSignature =
-          ccf.kv["public:ccf.internal.signatures"].get(getSingletonKvKey());
-        if (rawSignature === undefined) {
-          ccf.kv["public:ccf.gov.members.acks"].set(rawMemberId);
-        } else {
-          const signature = ccf.bufToJsonCompatible(rawSignature);
-          const ack = {};
-          ack.state_digest = signature.root;
-          ccf.kv["public:ccf.gov.members.acks"].set(
-            rawMemberId,
-            ccf.jsonCompatibleToBuf(ack),
-          );
-        }
+        ccf.kv["public:ccf.gov.members.acks"].delete(rawMemberId);
       },
     ),
   ],

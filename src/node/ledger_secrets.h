@@ -250,18 +250,6 @@ namespace ccf
       ledger_secrets.merge(restored_ledger_secrets);
     }
 
-    std::shared_ptr<ccf::crypto::KeyAesGcm> get_encryption_key_for(
-      ccf::kv::Version version, bool historical_hint = false)
-    {
-      std::lock_guard<ccf::ds::Mutex> guard(lock);
-      auto ls = get_secret_for_version(version, historical_hint);
-      if (ls == nullptr)
-      {
-        return nullptr;
-      }
-      return ls->key;
-    }
-
     LedgerSecretPtr get_secret_for(
       ccf::kv::Version version, bool historical_hint = false)
     {
