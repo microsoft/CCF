@@ -217,24 +217,4 @@ lemma full_gossip_selection_preserves_commit
       recoveredTxID_of_mem configValid selectedRecovered,
       prefix_trans committedDurable durableMaximum⟩
 
-/--
-Quorum opening scopes the result to an actual decision, while the separate
-`FullGossipSelection` premise carries the completeness requirement. Quorum
-opening alone does not imply complete gossip because voting may follow a
-gossip timeout.
--/
-lemma quorum_open_preserves_commit
-    {config : Config}
-    {state : State}
-    {opener : Location}
-    {committed : TxID}
-    (reachable : Reachable config state)
-    (_opened : QuorumOpened state opener)
-    (full : FullGossipSelection config state opener)
-    (durable : DurableCommit config committed) :
-    exists recovered,
-      recoveredTxID config opener = some recovered /\
-        TxID.EarlierThan committed recovered :=
-  full_gossip_selection_preserves_commit reachable full durable
-
 end DisasterRecovery.Proofs.Committed

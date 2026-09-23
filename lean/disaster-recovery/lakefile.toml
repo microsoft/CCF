@@ -19,6 +19,11 @@ name = "axiomAudit"
 git = "https://github.com/leanprover-community/axiom-audit.git"
 rev = "46024e005996495c65ef609368e11ab39c4222e3" # v0.1.2
 
+[[require]]
+name = "leanfmt"
+git = "https://github.com/duckki/leanfmt.git"
+rev = "v0.4.5"
+
 [[lean_lib]]
 name = "DisasterRecovery"
 

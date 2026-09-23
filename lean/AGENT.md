@@ -1,7 +1,13 @@
-# Lean module boundaries
+# CCF Lean objectives
 
-Separate what the model does, what its properties mean, and how those properties
-are proved. Use the following module boundaries.
+We use agents to generate models and proofs that those models are correct.
+We use trace validation to align the models with the implementation.
+Formally, if B(X) is the set of behaviours permitted by X, then B(implementation) \subseteq B(Model) \subseteq B(Properties).
+
+The aim of this spec is to standardise the models to make human review easier.
+To be clear being able to save 1 line of human readable code at the cost of 1000 machine generated and verified lines is a win.
+
+# CCF lean module specification
 
 ## Module ownership
 
@@ -18,15 +24,11 @@ Within a model's library directory, use this layout:
 | `Proofs/`         | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.            |
 | `Tests/`          | Executable model checks and regression cases.                                                        |
 
-Use PascalCase for Lean module directories and filenames. Match declaration
-namespaces to module paths. For example, disaster recovery's local model is
-`DisasterRecovery/Model/Local.lean`, in `DisasterRecovery.Model.Local`.
-
 ## Dependency direction
 
 - Keep `Shared/`, `Model/`, and `Model.lean` independent of property and proof
   modules. Shared infrastructure must not depend on a particular protocol.
-- Let property definitions depend on the model, shared definitions, and other
+- Property definitions should depend on the model, shared definitions, and other
   property helpers. Neither `Properties.lean` nor `Properties/` may import
   `Proof.lean` or `Proofs/`.
 - Let `Proofs/` depend on model and property definitions, plus other supporting

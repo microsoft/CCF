@@ -1,5 +1,5 @@
-import DisasterRecovery.Shared.Global
-import DisasterRecovery.Model.Local
+import DisasterRecovery.Shared.MultiNodeTransitionSystem
+import DisasterRecovery.Model.GlobalHelper
 
 namespace DisasterRecovery.Model
 
@@ -12,9 +12,9 @@ structure Config where
 deriving Repr, BEq
 
 def Config.Valid (config : Config) : Prop :=
-  config.protocol.isValid = true /\
-    config.protocol.expectedLocations.Nodup /\
-    config.recovered.map Prod.fst = config.protocol.expectedLocations
+  config.protocol.isValid = true
+  /\ config.protocol.expectedLocations.Nodup
+  /\ config.recovered.map Prod.fst = config.protocol.expectedLocations
 
 def recoveredTxID (config : Config) (source : Location) : Option TxID :=
   (config.recovered.find? fun entry => entry.1 == source).map Prod.snd
@@ -24,37 +24,23 @@ inductive Input where
   | timeout
 deriving Repr, BEq
 
-abbrev Envelope := Global.Envelope Location Message
-abbrev State := Global.State Location NodeState Message
-abbrev Action := Global.Action Location Message Input
+abbrev Envelope := Shared.Envelope Location Message
+abbrev State := MultiNodeTransitionSystem.State Location NodeState Message
+abbrev Action := MultiNodeTransitionSystem.Action Location Message Input
 
-def protocol (config : Config) :
-    Global.Protocol Location NodeState Event Message Input where
+def protocol (config : Config)
+    : MultiNodeTransitionSystem.Protocol Location NodeState Event Message Notification Input where
   init node state := state = initialNode node
   step host source state action := do
     let recovered <- recoveredTxID config source
     DisasterRecovery.Model.Local.step host config.protocol recovered state action
-  receive := DisasterRecovery.Model.Local.receive
+  receive := GlobalHelper.receive
   internal
     | .retry => .retry
     | .timeout => .timeout
 
 def transitionSystem (config : Config) : TransitionSystem State Action :=
-  let network := Global.lift config.protocol.expectedLocations (protocol config)
+  let network := MultiNodeTransitionSystem.lift config.protocol.expectedLocations (protocol config)
   { network with init := fun state => config.Valid /\ network.init state }
-
-def initial (config : Config) (active : List Location) : State := {
-  nodes := config.protocol.expectedLocations.map fun node => (node, initialNode node)
-  active
-}
-
-def next (config : Config) : State -> Action -> Option State :=
-  (transitionSystem config).step
-
-abbrev nodeState (state : State) (node : Location) : Option NodeState :=
-  Global.nodeState state node
-
-abbrev Reachable (config : Config) : State -> Prop :=
-  (transitionSystem config).Reachable
 
 end DisasterRecovery.Model

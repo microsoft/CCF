@@ -1,9 +1,8 @@
-import DisasterRecovery.Shared.TransitionSystem
 import DisasterRecovery.Shared.Capabilities
 
 namespace DisasterRecovery.Model.Local
 
-open Shared (TransitionSystem Capabilities)
+open Shared (Capabilities)
 
 abbrev Location := String
 
@@ -36,11 +35,10 @@ structure Config where
 deriving Repr, BEq, Hashable, Inhabited
 
 def Config.isValid (config : Config) : Bool :=
-  !config.instanceId.isEmpty &&
-    !config.expectedLocations.isEmpty &&
-    !config.expectedLocations.any String.isEmpty &&
-    config.expectedLocations.eraseDups.length =
-      config.expectedLocations.length
+  !config.instanceId.isEmpty
+  && !config.expectedLocations.isEmpty
+  && !config.expectedLocations.any String.isEmpty
+  && config.expectedLocations.eraseDups.length = config.expectedLocations.length
 
 structure NodeState where
   location : Location
@@ -67,33 +65,12 @@ inductive Message where
   | iAmOpen
 deriving Repr, BEq, ReflBEq, LawfulBEq
 
-def receive (source : Location) : Message -> Event
-  | .gossip txid => .receiveGossip source txid .accepted
-  | .vote => .receiveVote source .accepted
-  | .iAmOpen => .receiveIAmOpen source .accepted
-
-inductive Effect where
+inductive Notification where
   | opening (kind : OpenKind)
   | restart (chosen : Location)
   | completed
   | rejected (reason : String)
 deriving Repr, BEq, Hashable
-
-structure Result where
-  state : NodeState
-  effects : List Effect := []
-deriving Repr, BEq, Inhabited
-
-def phaseName : Phase -> String
-  | .gossiping => "GOSSIPING"
-  | .voting => "VOTING"
-  | .opening => "OPENING"
-  | .joining => "JOINING"
-  | .open => "OPEN"
-
-def openKindName : OpenKind -> String
-  | .quorum => "QUORUM"
-  | .failover => "FAILOVER"
 
 def initialNode (location : Location) : NodeState :=
   { location }
@@ -104,19 +81,13 @@ def voteQuorum (config : Config) : Nat :=
 def validTimeout (state : NodeState) (timeout : Bool) : Bool :=
   timeout && decide (state.phase = state.timeoutState)
 
-def txScoreGreater
-    (leftName : Location)
-    (left : TxID)
-    (rightName : Location)
-    (right : TxID) : Bool :=
-  right.view < left.view ||
-    (right.view == left.view &&
-      (right.seqno < left.seqno ||
-        (right.seqno == left.seqno && rightName < leftName)))
+def txScoreGreater (leftName : Location) (left : TxID) (rightName : Location) (right : TxID)
+    : Bool :=
+  right.view < left.view
+  || (right.view == left.view
+      && (right.seqno < left.seqno || (right.seqno == left.seqno && rightName < leftName)))
 
-def selectMaximum
-    (current candidate : Prod Location TxID) :
-    Prod Location TxID :=
+def selectMaximum (current candidate : Prod Location TxID) : Prod Location TxID :=
   if txScoreGreater candidate.1 candidate.2 current.1 current.2 then
     candidate
   else
@@ -127,19 +98,18 @@ def maximumGossip : List (Prod Location TxID) -> Option (Prod Location TxID)
   | head :: tail =>
       some (tail.foldl selectMaximum head)
 
-def insertGossip
-    (source : Location)
-    (txid : TxID)
-    (gossips : List (Prod Location TxID)) :
-    List (Prod Location TxID) :=
+def insertGossip (source : Location) (txid : TxID) (gossips : List (Prod Location TxID))
+    : List (Prod Location TxID) :=
   if gossips.any (fun entry => entry.1 == source) then
     gossips
   else
     ((source, txid) :: gossips).mergeSort (fun left right => left.1 <= right.1)
 
 def insertVote (source : Location) (votes : List Location) : List Location :=
-  if votes.contains source then votes
-  else (source :: votes).mergeSort (fun left right => left <= right)
+  if votes.contains source then
+    votes
+  else
+    (source :: votes).mergeSort (fun left right => left <= right)
 
 def advanceTimeoutState : Phase -> Phase
   | .gossiping => .voting
@@ -152,8 +122,9 @@ def advanceTimeoutLane (state : NodeState) (timeout : Bool) : NodeState :=
   else
     state
 
-def advance (config : Config) (state : NodeState) (timeout : Bool) :
-    Option Result :=
+def advance (host : Capabilities Location Message Notification)
+    (config : Config) (state : NodeState) (timeout : Bool)
+    : Option (Shared.Effect Location Message Notification NodeState) :=
   let aligned := validTimeout state timeout
   match state.phase with
   | .gossiping =>
@@ -162,91 +133,89 @@ def advance (config : Config) (state : NodeState) (timeout : Bool) :
         | none => none
         | some (chosen, _) =>
             let next := { state with phase := .voting, chosen := some chosen }
-            some { state := advanceTimeoutLane next timeout }
+            some (pure (advanceTimeoutLane next timeout))
       else
-        some { state := advanceTimeoutLane state timeout }
+        some (pure (advanceTimeoutLane state timeout))
   | .voting =>
       let sufficient := decide (state.votes.length >= voteQuorum config)
       if sufficient || aligned then
         if aligned && state.votes.isEmpty then
-          some { state }
+          some (pure state)
         else
           let kind := if aligned && !sufficient then .failover else .quorum
-          let next := {
-            state with
-            phase := .opening
-            openKind := some kind
-          }
-          some {
-            state := advanceTimeoutLane next timeout
-            effects := [.opening kind]
-          }
+          let next :=
+            {
+              state with
+                phase := .opening
+                openKind := some kind
+            }
+          some do
+            host.notify (.opening kind)
+            return advanceTimeoutLane next timeout
       else
-        some { state := advanceTimeoutLane state timeout }
+        some (pure (advanceTimeoutLane state timeout))
   | .joining =>
       match state.chosen with
       | none => none
       | some chosen =>
-          some {
-            state := advanceTimeoutLane
-              { state with restartRequested := true } timeout
-            effects := [.restart chosen]
-          }
+          some do
+            host.notify (.restart chosen)
+            return advanceTimeoutLane { state with restartRequested := true } timeout
   | .opening =>
       if aligned then
-        some {
-          state := advanceTimeoutLane { state with phase := .open } timeout
-          effects := [.completed]
-        }
+        some do
+          host.notify .completed
+          return advanceTimeoutLane { state with phase := .open } timeout
       else
-        some { state := advanceTimeoutLane state timeout }
+        some (pure (advanceTimeoutLane state timeout))
   | .open =>
-      some { state := advanceTimeoutLane state timeout }
+      some (pure (advanceTimeoutLane state timeout))
 
-def rejected (state : NodeState) (reason : String) : Result :=
-  { state, effects := [.rejected reason] }
+def rejected (host : Capabilities Location Message Notification)
+    (state : NodeState) (reason : String)
+    : Shared.Effect Location Message Notification NodeState := do
+  host.notify (.rejected reason)
+  return state
 
-def transition (config : Config) (state : NodeState) : Event -> Option Result
-    | .receiveGossip source txid validation =>
-        pure <| match validation with
-        | .rejected => rejected state "quote-or-certificate"
-        | .accepted =>
-            if state.chosen != none then
-              rejected state "gossip-frozen"
-            else
-              let received := { state with
-                gossips := insertGossip source txid state.gossips }
-              (advance config received false).getD
-                (rejected state "empty-gossip-advance")
-    | .receiveVote source validation =>
-        pure <| match validation with
-        | .rejected => rejected state "quote-or-certificate"
-        | .accepted =>
-            let received := { state with votes := insertVote source state.votes }
-            (advance config received false).getD (rejected state "vote-advance")
-    | .receiveIAmOpen source validation =>
-        pure <| match validation with
-        | .rejected => rejected state "quote-or-certificate"
-        | .accepted =>
-            match state.phase with
-            | .opening | .open => rejected state "already-opening-or-open"
-            | _ =>
-                let received := {
-                  state with
-                  phase := .joining
-                  chosen := some source
-                }
-                (advance config received false).getD
-                  (rejected state "join-without-chosen")
-    | .timeout =>
-        advance config state true
-    | .retry =>
-        pure { state }
-
-def step (host : Capabilities Location Message) (config : Config)
-    (recovered : TxID) (state : NodeState) (event : Event) :
-    Option (Shared.Effect Location Message NodeState) := do
+def step (host : Capabilities Location Message Notification) (config : Config)
+    (recovered : TxID) (state : NodeState) (event : Event)
+    : Option (Shared.Effect Location Message Notification NodeState) := do
   match event with
+  | .receiveGossip source txid validation =>
+      match validation with
+      | .rejected => pure (rejected host state "quote-or-certificate")
+      | .accepted =>
+          if state.chosen != none then
+            pure (rejected host state "gossip-frozen")
+          else
+            let received := { state with gossips := insertGossip source txid state.gossips }
+            pure
+              ((advance host config received false).getD
+                (rejected host state "empty-gossip-advance"))
+  | .receiveVote source validation =>
+      match validation with
+      | .rejected => pure (rejected host state "quote-or-certificate")
+      | .accepted =>
+          let received := { state with votes := insertVote source state.votes }
+          pure ((advance host config received false).getD (rejected host state "vote-advance"))
+  | .receiveIAmOpen source validation =>
+      match validation with
+      | .rejected => pure (rejected host state "quote-or-certificate")
+      | .accepted =>
+          match state.phase with
+          | .opening | .open => pure (rejected host state "already-opening-or-open")
+          | _ =>
+              let received :=
+                {
+                  state with
+                    phase := .joining
+                    chosen := some source
+                }
+              pure
+                ((advance host config received false).getD
+                  (rejected host state "join-without-chosen"))
+  | .timeout =>
+      advance host config state true
   | .retry =>
       match state.phase with
       | .gossiping | .voting =>
@@ -266,24 +235,5 @@ def step (host : Capabilities Location Message) (config : Config)
               host.send .iAmOpen target
             return state
       | .joining | .open => none
-  | _ =>
-      let output <- transition config state event
-      pure (pure output.state)
-
-def transitionSystem (config : Config) (location : Location) :
-    TransitionSystem NodeState Event where
-  init := fun state => state = initialNode location
-  step := fun state event => (transition config state event).map Result.state
-
-def expectedSource (config : Config) (source : Location) : Bool :=
-  config.expectedLocations.contains source
-
-def stateKey (state : NodeState) : String :=
-  let gossips := String.intercalate "," (state.gossips.map fun entry =>
-    s!"{entry.1}@{entry.2.view}.{entry.2.seqno}")
-  let votes := String.intercalate "," state.votes
-  let chosen := state.chosen.getD "-"
-  let kind := state.openKind.map openKindName |>.getD "-"
-  s!"{state.location}|{phaseName state.phase}|{phaseName state.timeoutState}|g={gossips}|v={votes}|c={chosen}|k={kind}|r={state.restartRequested}"
 
 end DisasterRecovery.Model.Local

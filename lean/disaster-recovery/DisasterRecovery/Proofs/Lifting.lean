@@ -1,4 +1,6 @@
 import DisasterRecovery.Proofs.Quorum
+import DisasterRecovery.Proofs.Local
+import DisasterRecovery.Properties.Utils
 import DisasterRecovery.Shared.Execution
 
 namespace DisasterRecovery.Proofs.Lifting
@@ -6,6 +8,55 @@ namespace DisasterRecovery.Proofs.Lifting
 open Shared
 open DisasterRecovery.Model.Local
 open Execution.Local (messages)
+
+structure Result where
+  state : NodeState
+  effects : List Notification := []
+
+def capture (run : NodeState × Outputs Location Message Notification) : Result :=
+  { state := run.1, effects := run.2.notifications }
+
+private lemma send_messages_run {Node Message Notification : Type}
+    (source : Node) (targets : List Node) (message : Message)
+    (accumulated : Outputs Node Message Notification) :
+    (List.foldlM (m := Shared.Effect Node Message Notification)
+      (fun (_ : PUnit) target => modify fun outputs =>
+        { outputs with outgoing := outputs.outgoing ++ [{ source, target, payload := message }] })
+        PUnit.unit targets).run accumulated =
+      (PUnit.unit, { accumulated with
+        outgoing := accumulated.outgoing ++ targets.map (fun target => { source, target, payload := message }) }) := by
+  induction targets generalizing accumulated with
+  | nil => simp only [List.foldlM_nil, List.map_nil, List.append_nil]; rfl
+  | cons head tail ih =>
+      change (List.foldlM (m := Shared.Effect Node Message Notification)
+        (fun (_ : PUnit) target => modify fun outputs =>
+          { outputs with outgoing := outputs.outgoing ++ [{ source, target, payload := message }] })
+          PUnit.unit tail).run
+          { accumulated with
+            outgoing := accumulated.outgoing ++ [{ source, target := head, payload := message }] } = _
+      rw [ih]
+      simp
+
+lemma step_recording_appends (config : Config) (source : Location) (recovered : TxID)
+    (state : NodeState) (event : Event)
+    (execute : Shared.Effect Location Message Notification NodeState)
+    (pending : Outputs Location Message Notification)
+    (enabled : step (Capabilities.record source) config recovered state event = some execute) :
+    execute.run pending = ((execute.run {}).1, {
+      outgoing := pending.outgoing ++ (execute.run {}).2.outgoing
+      notifications := pending.notifications ++ (execute.run {}).2.notifications
+    }) := by
+  cases event <;> try cases_type Validation
+  all_goals simp [step, advance, rejected, guard, failure] at enabled
+  all_goals
+    repeat' first
+      | split at enabled
+      | contradiction
+      | (simp_all only [Option.some.injEq, Option.bind_some])
+      | subst execute
+  all_goals try simp [Capabilities.record, send_messages_run]
+  all_goals try dsimp [pure, Functor.map]
+  all_goals simp
 
 def eraseEnvelope (envelope : Execution.Global.Envelope) : Model.Envelope :=
   { source := envelope.source, target := envelope.target, payload := envelope.payload }
@@ -22,11 +73,16 @@ def eraseAction : Execution.Global.Action -> Model.Action
 def eraseOutput (output : Execution.Local.StepOutput) : Result :=
   { state := output.state, effects := output.effects.filterMap Execution.Local.Effect.diagnostic }
 
-lemma advance_erases (config : Config) (state : NodeState) (timeout : Bool) :
+lemma advance_erases (config : Config) (source : Location) (state : NodeState) (timeout : Bool) :
     (Execution.Local.advance config state timeout).map eraseOutput =
-      advance config state timeout := by
-  simp [Execution.Local.advance, advance]
-  repeat first | split | simp_all [eraseOutput, Execution.Local.Effect.diagnostic]
+      (advance (Capabilities.record source) config state timeout).map
+        (fun execute => capture (execute.run {})) := by
+  cases phase : state.phase <;> simp [Execution.Local.advance, advance, phase]
+  all_goals repeat first
+    | rfl
+    | exact ⟨rfl, rfl⟩
+    | simp_all [eraseOutput, Execution.Local.Effect.diagnostic, capture, Capabilities.record]
+    | split
 
 lemma advance_accepted (config : Config) (state : NodeState) (timeout : Bool)
     (output : Execution.Local.StepOutput)
@@ -35,33 +91,49 @@ lemma advance_accepted (config : Config) (state : NodeState) (timeout : Bool)
   simp [Execution.Local.advance] at h
   repeat first | split at h | simp_all | subst output
 
-lemma transition_erases (config : Config) (state : NodeState) (event : Event)
+lemma step_erases (config : Config) (recovered : TxID) (state : NodeState) (event : Event)
+    {source : Location}
     (output : Result)
-    (h : transition config state event = some output) :
+    (h : (step (Capabilities.record source) config recovered state event).map
+      (fun execute => capture (execute.run {})) = some output) :
     eraseOutput (Execution.Local.step config state event) = output := by
   cases event <;> try cases_type Validation
   case retry =>
     cases phase : state.phase <;> cases chosen : state.chosen <;>
-      simpa [transition, Execution.Local.step, Execution.Local.transitionSystem,
+      simp [step, phase, chosen, guard] at h
+    all_goals try split at h
+    all_goals try simp_all only [Option.bind_some, Option.bind_none, Option.some.injEq]
+    all_goals try contradiction
+    all_goals
+      simp [send_messages_run, capture, Capabilities.record] at h
+    all_goals change ({ state } : Result) = output at h
+    all_goals
+      simpa [Execution.Local.step, Execution.Local.transitionSystem,
         eraseOutput, phase, chosen, List.filterMap_cons, List.filterMap_map, Function.comp_def,
         Execution.Local.Effect.diagnostic] using h
+  all_goals cases phase : state.phase
   all_goals
-    simp [transition, Execution.Local.step, Execution.Local.transitionSystem,
+    simp [step, Execution.Local.step, Execution.Local.transitionSystem,
       Execution.Local.rejectionReason, Execution.Local.rejected, rejected,
-      guard, failure] at h ⊢
+      advance, Execution.Local.advance, phase, validTimeout, guard, failure] at h ⊢
   all_goals
     repeat first
+      | exact h
+      | (simp_all [eraseOutput, Execution.Local.Effect.diagnostic, capture, Capabilities.record])
       | split at h
       | split
-      | (simp_all [eraseOutput, Execution.Local.Effect.diagnostic])
-      | (rw [← advance_erases] at h; cases ha : Execution.Local.advance _ _ _ <;>
-          simp_all [eraseOutput, Execution.Local.Effect.diagnostic])
+      | (simp [advance, Execution.Local.advance] at h ⊢)
+  all_goals first | omega | aesop (add safe (by omega))
 
-lemma timeout_accepted (config : Config) (state : NodeState) (output : Result)
-    (h : transition config state .timeout = some output) :
+lemma timeout_accepted (config : Config) (recovered : TxID) (state : NodeState) (output : Result)
+    {source : Location}
+    (h : (step (Capabilities.record source) config recovered state .timeout).map
+      (fun execute => capture (execute.run {})) = some output) :
     (Execution.Local.step config state .timeout).accepted = true := by
-  have h' := advance_erases config state true
-  rw [show advance config state true = some output from h] at h'
+  have h' := advance_erases config source state true
+  change (advance (Capabilities.record source) config state true).map
+    (fun execute => capture (execute.run {})) = some output at h
+  rw [h] at h'
   cases ha : Execution.Local.advance config state true with
   | none => simp [ha] at h'
   | some result =>
@@ -76,7 +148,7 @@ lemma first_matching_envelope
       decorated ∈ envelopes /\
       eraseEnvelope decorated = envelope /\
       (Execution.Global.removeOne decorated envelopes).map eraseEnvelope =
-        Global.removeOne envelope (envelopes.map eraseEnvelope) /\
+        MultiNodeTransitionSystem.removeOne envelope (envelopes.map eraseEnvelope) /\
       envelopes.find? (fun candidate => eraseEnvelope candidate == envelope) =
         some decorated := by
   induction envelopes with
@@ -84,7 +156,7 @@ lemma first_matching_envelope
   | cons head tail ih =>
       by_cases first : eraseEnvelope head = envelope
       · refine ⟨head, by simp, first, ?_, ?_⟩
-        · simp [Execution.Global.removeOne, Global.removeOne, first]
+        · simp [Execution.Global.removeOne, MultiNodeTransitionSystem.removeOne, first]
         · simp [first]
       · have member : envelope ∈ tail.map eraseEnvelope := by
           rcases List.mem_cons.mp present with same | member
@@ -95,14 +167,14 @@ lemma first_matching_envelope
           intro same
           exact first (same ▸ projected)
         refine ⟨decorated, by simp [member], projected, ?_, ?_⟩
-        · simp [Execution.Global.removeOne, Global.removeOne, first,
+        · simp [Execution.Global.removeOne, MultiNodeTransitionSystem.removeOne, first,
             different, removed]
         · simp [first, selected]
 
 lemma transition_messages_empty (config : Config) (state : NodeState)
-    (event : Event) (recovered : TxID)
+    (event : Event) (source : Location) (recovered : TxID)
     (notRetry : event ≠ .retry) :
-    messages recovered (Execution.Local.step config state event).effects = [] := by
+    messages source recovered (Execution.Local.step config state event).effects = [] := by
   cases event <;> try cases_type Validation
   all_goals simp [Execution.Local.step, Execution.Local.transitionSystem,
     Execution.Local.rejected, Execution.Local.advance, guard, failure]
@@ -112,9 +184,7 @@ lemma retry_messages_erases (config : Model.Config) (source : Location)
     (state : NodeState) (recovered : TxID)
     (found : Model.recoveredTxID config source = some recovered) :
     (Execution.Global.retryMessages config source state).map eraseEnvelope =
-      (messages recovered (Execution.Local.step config.protocol state .retry).effects).map
-        (fun (target, payload) =>
-          ({ source, target, payload } : Model.Envelope)) := by
+      messages source recovered (Execution.Local.step config.protocol state .retry).effects := by
   unfold Execution.Global.retryMessages
   have found' : Execution.Global.recoveredTxID config source = some recovered := found
   generalize (Execution.Local.step config.protocol state .retry).effects = effects
@@ -125,106 +195,121 @@ lemma retry_messages_erases (config : Model.Config) (source : Location)
         simp [messages, List.filterMap_cons, Execution.Global.messageForEffect,
           found', eraseEnvelope] at ih ⊢ <;> exact ih
 
-private lemma send_messages_run {Node Message : Type}
-    (targets : List Node) (message : Message) (accumulated : List (Node × Message)) :
-    (List.foldlM (m := Shared.Effect Node Message)
-      (fun (_ : PUnit) target => modify (· ++ [(target, message)])) PUnit.unit targets).run accumulated =
-      (PUnit.unit, accumulated ++ targets.map (fun target => (target, message))) := by
-  induction targets generalizing accumulated with
-  | nil => simp only [List.foldlM_nil, List.map_nil, List.append_nil]; rfl
-  | cons head tail ih =>
-      change (List.foldlM (m := Shared.Effect Node Message)
-        (fun (_ : PUnit) target => modify (· ++ [(target, message)])) PUnit.unit tail).run
-          (accumulated ++ [(head, message)]) = _
-      rw [ih]
-      simp
+lemma retry_result (config : Config) (source : Location) (recovered : TxID) (state : NodeState)
+    (host : Capabilities Location Message Notification) (pending : Outputs Location Message Notification) :
+    (step host config recovered state .retry).map (fun execute => (execute.run pending).1) = (do
+      guard (!(messages source recovered (Execution.Local.step config state .retry).effects).isEmpty)
+      pure state) := by
+  cases phase : state.phase <;> cases chosen : state.chosen <;>
+    simp [step, phase, chosen, Execution.Local.step, Execution.Local.transitionSystem,
+      messages, List.filterMap_map, guard, failure]
+  all_goals try split
+  all_goals try simp_all
+  all_goals rfl
 
-lemma local_step_run (config : Config) (recovered : TxID)
+lemma local_step_run (config : Config) (source : Location) (recovered : TxID)
     (state : NodeState) (event : Event) :
-    (step { send := fun message target => modify (· ++ [(target, message)]) }
-      config recovered state event).map (fun execute => execute.run []) = (do
-      let output <- transition config state event
-      let outgoing := messages recovered (Execution.Local.step config state event).effects
+    (step (Capabilities.record source)
+      config recovered state event).map (fun execute => execute.run {}) = (do
+      let output <- (step (Capabilities.record source)
+        config recovered state event).map (fun execute => capture (execute.run {}))
+      let outgoing := messages source recovered (Execution.Local.step config state event).effects
       match event with
       | .retry => guard (!outgoing.isEmpty)
       | _ => pure ()
-      pure (output.state, outgoing)) := by
+      pure (output.state, { outgoing, notifications := output.effects })) := by
   cases event with
   | retry =>
       cases phase : state.phase <;> cases chosen : state.chosen <;>
-        simp [step, phase, transition, Execution.Local.step, Execution.Local.transitionSystem,
+        simp [step, phase, Execution.Local.step, Execution.Local.transitionSystem,
           chosen, messages, List.filterMap_map, guard, failure]
       all_goals try split
-      all_goals simp_all [send_messages_run, pure]
+      all_goals simp_all [send_messages_run, pure, capture, Capabilities.record]
       all_goals rfl
-  | receiveGossip source txid validation =>
-      rw [transition_messages_empty config state _ recovered (by intro h; cases h)]
-      simp [step, bind, pure]; rfl
-  | receiveVote source validation =>
-      rw [transition_messages_empty config state _ recovered (by intro h; cases h)]
-      simp [step, bind, pure]; rfl
-  | receiveIAmOpen source validation =>
-      rw [transition_messages_empty config state _ recovered (by intro h; cases h)]
-      simp [step, bind, pure]; rfl
+  | receiveGossip sender txid validation =>
+      rw [transition_messages_empty config state _ source recovered (by intro h; cases h)]
+      simp [step, advance, rejected, bind, pure]
+      repeat first | split | rfl
+  | receiveVote sender validation =>
+      rw [transition_messages_empty config state _ source recovered (by intro h; cases h)]
+      simp [step, advance, rejected, bind, pure]
+      repeat first | split | rfl
+  | receiveIAmOpen sender validation =>
+      rw [transition_messages_empty config state _ source recovered (by intro h; cases h)]
+      simp [step, advance, rejected, bind, pure]
+      repeat first | split | rfl
   | timeout =>
-      rw [transition_messages_empty config state _ recovered (by intro h; cases h)]
-      simp [step, bind, pure]; rfl
+      rw [transition_messages_empty config state _ source recovered (by intro h; cases h)]
+      simp [step, advance, bind, pure]
+      repeat first | split | rfl
 
-lemma model_step_run (config : Model.Config) (node : Location)
-    (state : NodeState) (event : Event) :
-    Global.runStep (Model.protocol config) node state event = (do
-      let recovered <- Model.recoveredTxID config node
-      let output <- transition config.protocol state event
-      let outgoing := messages recovered (Execution.Local.step config.protocol state event).effects
-      match event with
-      | .retry => guard (!outgoing.isEmpty)
-      | _ => pure ()
-      pure (output.state, outgoing)) := by
-  cases recovered : Model.recoveredTxID config node with
-  | none => simp [Global.runStep, Model.protocol, recovered]
-  | some txid =>
-      simp only [Global.runStep, Model.protocol, recovered, bind, Option.bind_some, pure]
-      calc
-        _ = (step { send := fun message target => modify (· ++ [(target, message)]) }
-            config.protocol txid state event).map (fun execute => execute.run []) := by
-          cases step { send := fun message target => modify (· ++ [(target, message)]) }
-              config.protocol txid state event <;> rfl
-        _ = _ := local_step_run config.protocol txid state event
+lemma retry_recorded (config : Config) (source : Location) (recovered : TxID) (state : NodeState) :
+    (step (Capabilities.record source) config recovered state .retry).map
+      (fun execute => execute.run {}) = (do
+        let outgoing := messages source recovered (Execution.Local.step config state .retry).effects
+        guard (!outgoing.isEmpty)
+        pure (state, { outgoing, notifications := [] })) := by
+  cases phase : state.phase <;> cases chosen : state.chosen <;>
+    simp [step, phase, chosen, Execution.Local.step, Execution.Local.transitionSystem,
+      messages, List.filterMap_map, guard, failure]
+  all_goals try split
+  all_goals simp_all [Capabilities.record, send_messages_run]
+  all_goals rfl
 
-lemma runLocal_some (config : Model.Config) (before after : Model.State)
+lemma scheduled_step_some (config : Model.Config) (before after : Model.State)
     (node : Location) (event : Event)
-    (h : Global.runLocal (Model.protocol config) before node event = some after) :
+    (h : (do
+      guard (before.active.contains node)
+      let current <- MultiNodeTransitionSystem.nodeState before node
+      let execute <- (Model.protocol config).step (Capabilities.record node) node current event
+      let (next, effects) := execute.run {}
+      pure {
+        before with
+        nodes := before.nodes.map fun entry => if entry.1 == node then (node, next) else entry
+        network := before.network ++ effects.outgoing
+      }) = some after) :
     exists state output recovered,
       node ∈ before.active /\
-      Model.nodeState before node = some state /\
-      transition config.protocol state event = some output /\
+      MultiNodeTransitionSystem.nodeState before node = some state /\
+      (step (Capabilities.record node)
+        config.protocol recovered state event).map (fun execute => capture (execute.run {})) = some output /\
       Model.recoveredTxID config node = some recovered /\
-      (event = .retry -> messages recovered (Execution.Local.step config.protocol state event).effects ≠ []) /\
+      (event = .retry -> messages node recovered (Execution.Local.step config.protocol state event).effects ≠ []) /\
       after = {
         before with
-        nodes := Global.replaceNode node output.state before.nodes
-        network := before.network ++ (messages recovered
-          (Execution.Local.step config.protocol state event).effects).map
-          (fun (target, payload) => { source := node, target, payload })
+        nodes := before.nodes.map fun entry => if entry.1 == node then (node, output.state) else entry
+        network := before.network ++ messages node recovered
+          (Execution.Local.step config.protocol state event).effects
       } := by
-  simp [Global.runLocal, model_step_run,
-    Option.bind_eq_some_iff, guard, failure] at h
-  rcases h with ⟨active, state, found, next, sent,
-    ⟨recovered, recoveredFound, output, trans, rest⟩, result⟩
-  refine ⟨state, output, recovered, active, found, trans, recoveredFound, ?_⟩
+  simp [Model.protocol, Option.bind_assoc, Option.bind_eq_some_iff, guard, failure] at h
+  rcases h with ⟨active, state, found, recovered, recoveredFound, execute, enabled, result⟩
+  obtain ⟨next, sent, executed⟩ :
+      exists next sent, execute.run {} = (next, sent) := ⟨_, _, rfl⟩
+  simp only [executed] at result
+  have run : (step (Capabilities.record node)
+      config.protocol recovered state event).map (fun execute => execute.run {}) = some (execute.run {}) := by
+    simp [enabled]
+  simp [local_step_run, executed, Option.bind_eq_some_iff, guard, failure] at run
+  rcases run with ⟨localExecute, localEnabled, rest⟩
+  refine ⟨state, capture (localExecute.run {}), recovered, active, found,
+    by simp [localEnabled], recoveredFound, ?_⟩
   cases event <;> simp_all
-  split at rest <;> simp_all
+  all_goals try split at rest
+  all_goals try simp_all
+  all_goals have values := Prod.mk.inj rest
+  all_goals simp_all [capture]
+  all_goals have outgoing := congrArg Outputs.outgoing values
+  all_goals simp_all
 
 lemma replace_found
     (nodes : List (Location × NodeState)) (node : Location) (state : NodeState)
     (nodup : (nodes.map Prod.fst).Nodup)
     (found : (nodes.find? fun entry => entry.1 == node).map Prod.snd = some state) :
-    Global.replaceNode node state nodes = nodes := by
+    (nodes.map fun entry => if entry.1 == node then (node, state) else entry) = nodes := by
   rcases Option.map_eq_some_iff.mp found with ⟨entry, selected, value⟩
   have member := List.mem_of_find?_eq_some selected
   have key : entry.1 = node := beq_iff_eq.mp
     (List.find?_some (p := fun entry : Location × NodeState => entry.1 == node) selected)
-  unfold Global.replaceNode
   conv_rhs => rw [← List.map_id nodes]
   apply List.map_congr_left
   intro other membership
@@ -243,25 +328,28 @@ lemma erase_recordEffects (node : Location) (state : NodeState)
     erase (Execution.Global.recordEffects node state effects before) = erase before := by
   simp [erase]
 
-lemma systemStep_of_transition (config : Model.Config)
+lemma systemStep_of_result (config : Model.Config)
     (before : Execution.Global.State) (node : Location) (event : Event)
-    (state : NodeState) (output : Result)
+    (recovered : TxID) (state : NodeState) (output : Result)
+    {source : Location}
     (found : Execution.Global.nodeState before node = some state)
-    (trans : transition config.protocol state event = some output) :
+    (trans : (step (Capabilities.record source) config.protocol recovered state event).map
+      (fun execute => capture (execute.run {})) = some output) :
     Execution.Local.systemStep config.protocol before.system node event =
       some (
-        { nodes := Global.replaceNode node output.state before.system.nodes },
+        { nodes := before.system.nodes.map fun entry =>
+          if entry.1 == node then (node, output.state) else entry },
         Execution.Local.step config.protocol state event) := by
-  have states := congrArg Result.state (transition_erases config.protocol state event output trans)
+  have states := congrArg Result.state (step_erases config.protocol recovered state event output trans)
   change (Execution.Local.step config.protocol state event).state = output.state at states
   unfold Execution.Global.nodeState at found
   simp [Execution.Local.systemStep, found, states,
-    Execution.Local.replaceNode, Global.replaceNode]
+    Execution.Local.replaceNode]
 
 lemma step_lifts (config : Model.Config)
     (before : Execution.Global.State) (action : Model.Action) (after : Model.State)
     (nodup : (before.system.nodes.map Prod.fst).Nodup)
-    (h : Model.next config (erase before) action = some after) :
+    (h : (Model.transitionSystem config).step (erase before) action = some after) :
     exists decoratedAction decoratedAfter,
       eraseAction decoratedAction = action /\
       Execution.Global.next config before decoratedAction = some decoratedAfter /\
@@ -270,16 +358,16 @@ lemma step_lifts (config : Model.Config)
   | «local» node input =>
       cases input with
       | retry =>
-          rcases runLocal_some config (erase before) after node .retry h with
+          rcases scheduled_step_some config (erase before) after node .retry h with
             ⟨state, output, recovered, active, found, trans, recoveredFound, nonempty, result⟩
-          have projectedOutput := transition_erases config.protocol state .retry output trans
+          have projectedOutput := step_erases config.protocol recovered state .retry output trans
           have outputState : output.state = state :=
             (congrArg Result.state projectedOutput).symm
           have projectedMessages := retry_messages_erases config node state recovered recoveredFound
           have hasMessages : Execution.Global.retryMessages config node state ≠ [] := by
             intro empty
             rw [empty] at projectedMessages
-            have emptyOutput : messages recovered
+            have emptyOutput : messages node recovered
                 (Execution.Local.step config.protocol state .retry).effects = [] := by
               simpa using projectedMessages.symm
             exact nonempty rfl emptyOutput
@@ -293,59 +381,65 @@ lemma step_lifts (config : Model.Config)
               show node ∈ before.active from active]
           · rw [result, outputState]
             have unchanged := replace_found before.system.nodes node state nodup found
-            simp [erase, unchanged, List.map_append, projectedMessages]
+            simp only [erase, unchanged, List.map_append, projectedMessages]
       | timeout =>
-          rcases runLocal_some config (erase before) after node .timeout h with
+          rcases scheduled_step_some config (erase before) after node .timeout h with
             ⟨state, output, recovered, active, found, trans, _, _, result⟩
-          have system := systemStep_of_transition config before node .timeout state output found trans
-          have accepted := timeout_accepted config.protocol state output trans
-          have noMessages := transition_messages_empty config.protocol state .timeout recovered
+          have system := systemStep_of_result config before node .timeout recovered state output found trans
+          have accepted := timeout_accepted config.protocol recovered state output trans
+          have noMessages := transition_messages_empty config.protocol state .timeout node recovered
             (by intro impossible; cases impossible)
           refine ⟨.timeout node,
             Execution.Global.recordEffects node
               (Execution.Local.step config.protocol state .timeout).state
               (Execution.Local.step config.protocol state .timeout).effects
               { before with system := {
-                nodes := Global.replaceNode node output.state before.system.nodes } },
+                nodes := before.system.nodes.map fun entry =>
+                  if entry.1 == node then (node, output.state) else entry } },
             rfl, ?_, ?_⟩
           · simp [Execution.Global.next, system, accepted, guard, failure,
               show node ∈ before.active from active]
           · rw [erase_recordEffects, result, noMessages]
             simp [erase]
   | deliver envelope =>
-      change (do
-        guard ((erase before).network.contains envelope)
-        Global.runLocal (Model.protocol config)
-          { erase before with network := Global.removeOne envelope (erase before).network }
-          envelope.target (receive envelope.source envelope.payload)) = some after at h
-      simp [guard, failure, Option.bind_eq_some_iff] at h
-      rcases h with ⟨membership, localStep⟩
+      have membership : envelope ∈ (erase before).network := by
+        by_contra absent
+        simp [Model.transitionSystem, MultiNodeTransitionSystem.lift, MultiNodeTransitionSystem.next, guard, failure, absent] at h
       rcases first_matching_envelope before.network envelope membership with
         ⟨decorated, member, projected, removed, _⟩
-      rcases runLocal_some config _ after envelope.target
-          (receive envelope.source envelope.payload) localStep with
+      rcases scheduled_step_some config
+          { erase before with network := MultiNodeTransitionSystem.removeOne envelope (erase before).network }
+          after envelope.target (Model.GlobalHelper.receive envelope.source envelope.payload)
+          (by
+            simp [Model.transitionSystem, MultiNodeTransitionSystem.lift, MultiNodeTransitionSystem.next,
+              membership, guard, failure, MultiNodeTransitionSystem.nodeState] at h ⊢
+            exact h) with
         ⟨state, output, recovered, active, found, trans, _, _, result⟩
       have eventEq : Execution.Global.eventFor decorated =
-          receive envelope.source envelope.payload := by
+          Model.GlobalHelper.receive envelope.source envelope.payload := by
         rw [← projected]
         cases decorated.payload <;> rfl
-      have targetEq : decorated.target = envelope.target := congrArg Global.Envelope.target projected
+      have targetEq : decorated.target = envelope.target := congrArg Shared.Envelope.target projected
       have ghostFound : Execution.Global.nodeState before decorated.target = some state := by
-        simpa [Model.nodeState, Global.nodeState, Execution.Global.nodeState,
+        simpa [MultiNodeTransitionSystem.nodeState, Execution.Global.nodeState,
           erase, targetEq] using found
-      have ghostTrans : transition config.protocol state (Execution.Global.eventFor decorated) =
+      have ghostTrans :
+          (step (Capabilities.record envelope.target)
+            config.protocol recovered state (Execution.Global.eventFor decorated)).map
+              (fun execute => capture (execute.run {})) =
           some output := by simpa [eventEq] using trans
-      have system := systemStep_of_transition config before decorated.target
-        (Execution.Global.eventFor decorated) state output ghostFound ghostTrans
+      have system := systemStep_of_result config before decorated.target
+        (Execution.Global.eventFor decorated) recovered state output ghostFound ghostTrans
       have noMessages := transition_messages_empty config.protocol state
-        (receive envelope.source envelope.payload) recovered
-        (by cases envelope.payload <;> simp [receive])
+        (Model.GlobalHelper.receive envelope.source envelope.payload) envelope.target recovered
+        (by cases envelope.payload <;> simp [Model.GlobalHelper.receive])
       refine ⟨.deliver decorated,
         Execution.Global.recordEffects decorated.target
           (Execution.Local.step config.protocol state (Execution.Global.eventFor decorated)).state
           (Execution.Local.step config.protocol state (Execution.Global.eventFor decorated)).effects
           { before with
-            system := { nodes := Global.replaceNode decorated.target output.state before.system.nodes }
+            system := { nodes := before.system.nodes.map fun entry =>
+              if entry.1 == decorated.target then (decorated.target, output.state) else entry }
             network := Execution.Global.removeOne decorated before.network },
         ?_, ?_, ?_⟩
       · simp [eraseAction, projected]
@@ -359,14 +453,14 @@ lemma empty_retry_disabled (config : Model.Config) (before : Execution.Global.St
     (found : Execution.Global.nodeState before source = some state)
     (empty : Execution.Global.retryMessages config source state = []) :
     Execution.Global.next config before (.retry source) = none /\
-    Model.next config (erase before) (.local source .retry) = none := by
+    (Model.transitionSystem config).step (erase before) (.local source .retry) = none := by
   constructor
   · simp [Execution.Global.next, found, empty, guard, failure]
-  · cases actual : Model.next config (erase before) (.local source .retry) with
+  · cases actual : (Model.transitionSystem config).step (erase before) (.local source .retry) with
     | none => rfl
     | some after =>
         obtain ⟨current, _, recovered, _, selected, _, recoveredFound, nonempty, _⟩ :=
-          runLocal_some config (erase before) after source .retry actual
+          scheduled_step_some config (erase before) after source .retry actual
         change Execution.Global.nodeState before source = some current at selected
         rw [found] at selected
         cases selected
@@ -397,7 +491,7 @@ theorem model_initial_lifts (config : Model.Config) (state : Model.State)
   simp_all [erase, Execution.Global.initial, Execution.Local.initialSystem]
 
 theorem model_reachable_lifts {config : Model.Config} {state : Model.State}
-    (reachable : Model.Reachable config state) :
+    (reachable : (Model.transitionSystem config).Reachable state) :
     exists decorated,
       Execution.Global.Reachable config decorated /\
       erase decorated = state := by
@@ -410,13 +504,13 @@ theorem model_reachable_lifts {config : Model.Config} {state : Model.State}
       obtain ⟨ghostAction, ghostAfter, _, ghostStep, erased⟩ :=
         step_lifts config decorated action after
           (Invariants.reachable_well_formed ghostReachable).nodeKeysNodup
-          (by simpa only [projected, Model.next] using transition)
+          (by simpa only [projected] using transition)
       exact ⟨ghostAfter, .step ghostReachable ghostStep, erased⟩
 
 theorem model_step_lifts {config : Model.Config} {before after : Model.State}
     {action : Model.Action}
-    (reachable : Model.Reachable config before)
-    (transition : Model.next config before action = some after) :
+    (reachable : (Model.transitionSystem config).Reachable before)
+    (transition : (Model.transitionSystem config).step before action = some after) :
     exists decoratedBefore decoratedAction decoratedAfter,
       Execution.Global.Reachable config decoratedBefore /\
       erase decoratedBefore = before /\
@@ -449,7 +543,7 @@ lemma execution_lifts {config : Model.Config}
       obtain ⟨ghostAction, ghostMiddle, erasedAction, ghostStep, erasedMiddle⟩ :=
         step_lifts config decorated action middle
           (Invariants.reachable_well_formed reachable).nodeKeysNodup
-          (by simpa only [linked, Model.next] using step)
+          (by simpa only [linked] using step)
       obtain ⟨ghostActions, ghostAfter, ghostRun, erasedActions, erasedAfter⟩ :=
         ih ghostMiddle (.step reachable ghostStep) erasedMiddle
       exact ⟨ghostAction :: ghostActions, ghostAfter, .cons ghostStep ghostRun,
@@ -457,7 +551,7 @@ lemma execution_lifts {config : Model.Config}
 
 theorem model_execution_lifts {config : Model.Config}
     {before after : Model.State} {actions : List Model.Action}
-    (reachable : Model.Reachable config before)
+    (reachable : (Model.transitionSystem config).Reachable before)
     (run : Run (Model.transitionSystem config) before actions after) :
     exists decoratedBefore decoratedActions decoratedAfter,
       Execution.Global.Reachable config decoratedBefore /\

@@ -1,8 +1,8 @@
 import DisasterRecovery.Model
 
 /-!
-Proof-only local instrumentation. `Lifting.transition_erases` relates these
-outputs to `DisasterRecovery.Model.Local.transition`, including rejected receives.
+Proof-only local instrumentation. `Lifting.step_erases` relates these
+outputs to `DisasterRecovery.Model.Local.step` results, including rejected receives.
 -/
 
 namespace DisasterRecovery.Proofs.Execution.Local
@@ -11,9 +11,9 @@ open Shared (TransitionSystem)
 
 export DisasterRecovery.Model.Local (
   Location TxID Phase OpenKind Validation Config NodeState Event
-  phaseName openKindName initialNode voteQuorum validTimeout txScoreGreater
+  initialNode voteQuorum validTimeout txScoreGreater
   selectMaximum maximumGossip insertGossip insertVote advanceTimeoutState
-  advanceTimeoutLane expectedSource stateKey)
+  advanceTimeoutLane)
 
 inductive Effect where
   | sendGossip (destination : Location)
@@ -25,19 +25,19 @@ inductive Effect where
   | rejected (reason : String)
 deriving Repr, BEq, Hashable
 
-def Effect.diagnostic : Effect -> Option Model.Local.Effect
+def Effect.diagnostic : Effect -> Option Model.Local.Notification
   | .opening kind => some (.opening kind)
   | .restart chosen => some (.restart chosen)
   | .completed => some .completed
   | .rejected reason => some (.rejected reason)
   | _ => none
 
-def messages (recovered : TxID) (effects : List Effect) : List (Location × Model.Local.Message) :=
+def messages (source : Location) (recovered : TxID) (effects : List Effect) : List Model.Envelope :=
   effects.filterMap fun effect =>
     match effect with
-    | .sendGossip target => some (target, .gossip recovered)
-    | .sendVote target => some (target, .vote)
-    | .sendIAmOpen target => some (target, .iAmOpen)
+    | .sendGossip target => some { source, target, payload := .gossip recovered }
+    | .sendVote target => some { source, target, payload := .vote }
+    | .sendIAmOpen target => some { source, target, payload := .iAmOpen }
     | _ => none
 
 structure StepOutput where

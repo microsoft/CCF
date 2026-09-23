@@ -1,69 +1,123 @@
-import DisasterRecovery.Model.Local
-import Mathlib.Tactic.Lemma
+import DisasterRecovery.Properties
+import Mathlib.Tactic
 
 namespace DisasterRecovery.Proofs.Local
 
-open DisasterRecovery.Model.Local
+open Shared
+open Model.Local
+
+lemma advance_result_independent
+    (first second : Capabilities Location Message Notification)
+    (config : Config) (state : NodeState) (timeout : Bool)
+    (firstPending secondPending : Outputs Location Message Notification) :
+    (advance first config state timeout).map (fun execute => (execute.run firstPending).1) =
+      (advance second config state timeout).map (fun execute => (execute.run secondPending).1) := by
+  simp [advance]
+  repeat first | split | rfl
+
+lemma step_result_independent
+    (first second : Capabilities Location Message Notification)
+    (config : Config) (recovered : TxID) (state : NodeState) (event : Event)
+    (firstPending secondPending : Outputs Location Message Notification) :
+    (step first config recovered state event).map (fun execute => (execute.run firstPending).1) =
+      (step second config recovered state event).map (fun execute => (execute.run secondPending).1) := by
+  cases event <;> try cases_type Validation
+  all_goals simp [step, advance, rejected, guard]
+  all_goals repeat first | split | rfl
 
 lemma step_enabled_independent
-    (first : Shared.Capabilities Location Message)
-    (second : Shared.Capabilities Location Message)
+    (first second : Capabilities Location Message Notification)
     (config : Config) (recovered : TxID) (state : NodeState) (event : Event) :
     (step first config recovered state event).isSome =
       (step second config recovered state event).isSome := by
-  cases event <;> try (simp [step]; done)
-  cases phase : state.phase <;> simp [step, phase, guard]
-  all_goals split <;> rfl
+  simpa using congrArg Option.isSome
+    (step_result_independent first second config recovered state event {} {})
 
-lemma step_result_independent (host : Shared.Capabilities Location Message)
-    (config : Config) (recovered : TxID) (state : NodeState) (event : Event)
-    (execute : Shared.Effect Location Message NodeState) (pending : List (Location × Message))
-    (enabled : step host config recovered state event = some execute) :
-    exists output, transition config state event = some output /\
-      (execute.run pending).1 = output.state := by
-  cases event with
-  | retry =>
-      refine ⟨{ state }, rfl, ?_⟩
-      simp [step, guard] at enabled
-      repeat first | split at enabled | contradiction | (cases enabled; rfl)
-  | receiveGossip source txid validation
-  | receiveVote source validation
-  | receiveIAmOpen source validation
-  | timeout =>
-      simp [step, Option.bind_eq_some_iff] at enabled
-      obtain ⟨output, trans, rfl⟩ := enabled
-      exact ⟨output, trans, rfl⟩
+lemma validStep_run {config : Model.Config}
+    {s : MultiNodeTransitionSystem.LocalStep Location NodeState Event Message Notification}
+    (valid : (Model.protocol config).ValidStep s) :
+    exists recovered execute,
+      Model.recoveredTxID config s.node = some recovered /\
+      step (Capabilities.record s.node) config.protocol recovered s.before s.action = some execute /\
+      execute.run {} = (s.after, s.effects) := by
+  obtain ⟨execute, enabled, run⟩ := valid
+  simp [Model.protocol, Option.bind_eq_some_iff] at enabled
+  obtain ⟨recovered, found, enabled⟩ := enabled
+  exact ⟨recovered, execute, found, enabled, run⟩
 
-lemma gossip_freezes_after_choice
-    (config : Config) (state : NodeState) (source : Location) (txid : TxID)
-    (chosen : state.chosen.isSome = true) :
-    transition config state (.receiveGossip source txid .accepted) =
-      some (rejected state "gossip-frozen") := by
-  cases value : state.chosen <;> simp_all [transition]
+lemma gossip_freezes_after_choice : Properties.GossipFreezesAfterChoice := by
+  intro config s source txid valid action chosen
+  obtain ⟨recovered, execute, _, enabled, run⟩ := validStep_run valid
+  have selected : s.before.chosen ≠ none := by
+    cases h : s.before.chosen <;> simp_all
+  simp [step, action, selected] at enabled
+  subst execute
+  change (s.before, { outgoing := [], notifications := [.rejected "gossip-frozen"] }) =
+    (s.after, s.effects) at run
+  obtain ⟨states, effects⟩ := Prod.mk.inj run
+  exact ⟨states.symm, by rw [← effects]; simp⟩
 
-lemma rejected_gossip_stutters
-    (config : Config) (state : NodeState) (source : Location) (txid : TxID) :
-    transition config state (.receiveGossip source txid .rejected) =
-      some (rejected state "quote-or-certificate") := by
-  rfl
+lemma rejected_gossip_stutters : Properties.RejectedGossipStutters := by
+  intro config s source txid valid action
+  obtain ⟨recovered, execute, _, enabled, run⟩ := validStep_run valid
+  simp [step, action] at enabled
+  subst execute
+  change (s.before, { outgoing := [], notifications := [.rejected "quote-or-certificate"] }) =
+    (s.after, s.effects) at run
+  obtain ⟨states, effects⟩ := Prod.mk.inj run
+  exact ⟨states.symm, by rw [← effects]; simp⟩
 
-lemma quorum_advance_opens
-    (config : Config) (state : NodeState)
-    (phase : state.phase = .voting)
+lemma quorum_advance_opens (config : Config) (state : NodeState) (source : Location)
+    (timeout : Bool) (phase : state.phase = .voting)
     (quorum : state.votes.length >= voteQuorum config) :
-    let output := (advance config state false).get!
-    output.state.phase = .opening /\
-      output.state.openKind = some .quorum /\
-      output.effects = [.opening .quorum] := by
-  simp [advance, phase, quorum, validTimeout, advanceTimeoutLane]
+    exists execute,
+      advance (Capabilities.record source) config state timeout = some execute /\
+      (execute.run {}).1.phase = .opening /\
+      (execute.run {}).1.openKind = some .quorum /\
+      .opening .quorum ∈ (execute.run {}).2.notifications := by
+  have nonempty : state.votes ≠ [] := by
+    intro empty
+    simp [empty, voteQuorum] at quorum
+  simp [advance, phase, quorum, nonempty]
+  cases timeout <;>
+    simp [Capabilities.record, advanceTimeoutLane, advanceTimeoutState]
+  all_goals exact ⟨rfl, rfl, List.mem_cons_self⟩
 
-lemma aligned_opening_timeout_completes (config : Config) (state : NodeState) :
-    let opening := { state with phase := .opening, timeoutState := .opening }
-    transition config opening .timeout =
-      some {
-        state := { opening with phase := .open }
-        effects := [.completed]
-      } := by
-  simp [transition, advance, validTimeout, advanceTimeoutLane, advanceTimeoutState]
+lemma quorum_step_opens : Properties.QuorumAdvanceOpens := by
+  intro config s valid action phase quorum
+  obtain ⟨recovered, execute, _, enabled, run⟩ := validStep_run valid
+  rcases action with action | ⟨source, action⟩
+  · obtain ⟨advanced, adv, opening, kind, notification⟩ :=
+      quorum_advance_opens config.protocol s.before s.node true phase quorum
+    simp [step, action, adv] at enabled
+    subst execute
+    simpa [run] using And.intro opening (And.intro kind notification)
+  · have quorum' : (insertVote source s.before.votes).length >= voteQuorum config.protocol := by
+      have length : s.before.votes.length <= (insertVote source s.before.votes).length := by
+        simp [insertVote]
+        split <;> simp
+      omega
+    obtain ⟨advanced, adv, opening, kind, notification⟩ :=
+      quorum_advance_opens config.protocol
+        { s.before with votes := insertVote source s.before.votes } s.node false phase quorum'
+    simp [step, action, adv] at enabled
+    subst execute
+    simpa [run] using And.intro opening (And.intro kind notification)
+
+lemma aligned_opening_timeout_completes : Properties.AlignedOpeningTimeoutCompletes := by
+  intro config s valid action phase timeout
+  obtain ⟨recovered, execute, _, enabled, run⟩ := validStep_run valid
+  simp [step, action, advance, phase, timeout, validTimeout] at enabled
+  subst execute
+  have states := congrArg Prod.fst run
+  have effects := congrArg Prod.snd run
+  constructor
+  · have states' : s.after = { s.before with phase := .open, timeoutState := .opening } := states.symm
+    simpa [timeout] using states'
+  · change ({ outgoing := [], notifications := [.completed] } :
+      Outputs Location Message Notification) = s.effects at effects
+    rw [← effects]
+    change Notification.completed ∈ [Notification.completed]
+    simp
 
 end DisasterRecovery.Proofs.Local
