@@ -14,6 +14,7 @@
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
+#include "node/rpc/claims.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -1692,6 +1693,167 @@ TEST_CASE("foreach_value")
   }
 }
 
+TEST_CASE("MapDiff")
+{
+  // Use a raw-copy-serialised map so that the untyped diff's keys/values
+  // (raw byte SerialisedEntry) match the typed strings byte-for-byte,
+  // letting the test use plain strings throughout (including for range(),
+  // which is only exposed on the untyped diff).
+  using StringStringMap =
+    ccf::kv::RawCopySerialisedMap<std::string, std::string>;
+
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+  StringStringMap map("public:map");
+
+  SUBCASE("Diff of a transaction with no changes on the map")
+  {
+    auto tx = kv_store.create_tx();
+    // Touch a different map, so the transaction has changes but not on `map`
+    StringStringMap other("public:other");
+    tx.rw(other)->put("k", "v");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    auto tx_diff = kv_store.create_tx_diff();
+    auto* diff = tx_diff.diff(map);
+    REQUIRE(diff->size() == 0);
+    REQUIRE(!diff->get("anything").has_value());
+    REQUIRE(!diff->has("anything"));
+    REQUIRE(!diff->is_deleted("anything"));
+  }
+
+  SUBCASE("Write, overwrite and remove")
+  {
+    {
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+      handle->put("written", "value1");
+      handle->put("overwritten", "before");
+      handle->put("removed", "to_be_removed");
+      handle->put("untouched", "unchanged");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("overwritten", "after");
+    handle->remove("removed");
+    // "untouched" is neither read nor written by this transaction
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    auto tx_diff = kv_store.create_tx_diff();
+    auto* diff = tx_diff.diff(map);
+
+    INFO("get()");
+    {
+      // No change made in this diff at all -> nullopt
+      REQUIRE(!diff->get("written").has_value());
+      REQUIRE(!diff->get("untouched").has_value());
+
+      // Overwritten -> optional<optional<V>> engaged, holding the new value
+      const auto overwritten = diff->get("overwritten");
+      REQUIRE(overwritten.has_value());
+      REQUIRE(overwritten.value().has_value());
+      REQUIRE(overwritten.value().value() == "after");
+
+      // Removed -> optional<optional<V>> engaged, holding nullopt
+      const auto removed = diff->get("removed");
+      REQUIRE(removed.has_value());
+      REQUIRE(!removed.value().has_value());
+
+      // Never present -> nullopt
+      REQUIRE(!diff->get("never_present").has_value());
+    }
+
+    INFO("has()");
+    {
+      REQUIRE(diff->has("overwritten"));
+      REQUIRE(!diff->has("removed"));
+      REQUIRE(!diff->has("untouched"));
+      REQUIRE(!diff->has("never_present"));
+    }
+
+    INFO("is_deleted()");
+    {
+      REQUIRE(diff->is_deleted("removed"));
+      REQUIRE(!diff->is_deleted("overwritten"));
+      REQUIRE(!diff->is_deleted("untouched"));
+      REQUIRE(!diff->is_deleted("never_present"));
+    }
+
+    INFO("size()");
+    {
+      // Only overwritten and removed were touched by this transaction
+      REQUIRE(diff->size() == 2);
+    }
+
+    INFO("foreach() with early-out");
+    {
+      size_t visited = 0;
+      diff->foreach([&visited](const auto&, const auto&) {
+        ++visited;
+        return false;
+      });
+      REQUIRE(visited == 1);
+
+      visited = 0;
+      diff->foreach([&visited](const auto&, const auto&) {
+        ++visited;
+        return true;
+      });
+      REQUIRE(visited == 2);
+    }
+
+    INFO("range() via the untyped diff");
+    {
+      // range() is only exposed on the untyped::MapDiff, not the typed
+      // wrapper. Fetch a second diff handle over the same underlying
+      // change set, keyed by raw bytes (which match the plain strings
+      // above, since this map uses raw-copy serialisation).
+      auto* untyped_diff = tx_diff.diff<ccf::kv::untyped::Map>(map.get_name());
+
+      auto to_entry = [](const std::string& s) {
+        return ccf::kv::serialisers::SerialisedEntry(s.begin(), s.end());
+      };
+
+      std::map<std::string, std::optional<std::string>> collected;
+      auto collect =
+        [&collected](
+          const ccf::kv::serialisers::SerialisedEntry& k,
+          const std::optional<ccf::kv::serialisers::SerialisedEntry>& v) {
+          const std::string key(k.begin(), k.end());
+          if (v.has_value())
+          {
+            collected[key] = std::string(v->begin(), v->end());
+          }
+          else
+          {
+            collected[key] = std::nullopt;
+          }
+        };
+
+      untyped_diff->range(collect, std::nullopt, std::nullopt);
+      REQUIRE(collected.size() == 2);
+      REQUIRE(collected.at("overwritten").has_value());
+      REQUIRE(collected.at("overwritten").value() == "after");
+      REQUIRE(!collected.at("removed").has_value());
+
+      // Range over a subset which excludes "overwritten"
+      collected.clear();
+      untyped_diff->range(collect, to_entry("p"), std::nullopt);
+      REQUIRE(collected.size() == 1);
+      REQUIRE(collected.contains("removed"));
+
+      // Empty range - from == to
+      collected.clear();
+      untyped_diff->range(
+        collect, to_entry("overwritten"), to_entry("overwritten"));
+      REQUIRE(collected.empty());
+    }
+  }
+}
+
 TEST_CASE("Modifications during foreach iteration")
 {
   ccf::kv::Store kv_store;
@@ -2506,6 +2668,343 @@ TEST_CASE("Map swap between stores")
   }
 }
 
+namespace
+{
+  // A minimal AbstractMap which is not a ccf::kv::untyped::Map, used only to
+  // exercise Store::add_dynamic_map's type check. None of the other virtuals
+  // are expected to be called in that test.
+  class FakeMap : public ccf::kv::AbstractMap
+  {
+  public:
+    explicit FakeMap(const std::string& name_) : ccf::kv::AbstractMap(name_) {}
+
+    std::unique_ptr<ccf::kv::AbstractCommitter> create_committer(
+      ccf::kv::AbstractChangeSet*) override
+    {
+      throw std::logic_error("FakeMap::create_committer not implemented");
+    }
+
+    ccf::kv::AbstractStore* get_store() override
+    {
+      return nullptr;
+    }
+
+    void serialise_changes(
+      const ccf::kv::AbstractChangeSet*, ccf::kv::KvStoreSerialiser&) override
+    {}
+
+    void compact(ccf::kv::Version) override {}
+
+    std::unique_ptr<Snapshot> snapshot(ccf::kv::Version) override
+    {
+      return nullptr;
+    }
+
+    void post_compact() override {}
+
+    void rollback(ccf::kv::Version) override {}
+
+    void lock() override {}
+
+    void unlock() override {}
+
+    ccf::kv::SecurityDomain get_security_domain() override
+    {
+      return ccf::kv::SecurityDomain::PUBLIC;
+    }
+
+    void clear() override {}
+
+    ccf::kv::AbstractMap* clone(ccf::kv::AbstractStore*) override
+    {
+      return nullptr;
+    }
+
+    void swap(ccf::kv::AbstractMap*) override {}
+  };
+}
+
+TEST_CASE("Store error handling")
+{
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+  MapTypes::StringString map("public:map");
+
+  SUBCASE("Readiness defaults to Ready and can be set/reset")
+  {
+    REQUIRE(kv_store.get_readiness() == ccf::kv::StoreReadiness::Ready);
+    REQUIRE(kv_store.is_ready());
+
+    kv_store.set_readiness(ccf::kv::StoreReadiness::InstallingSnapshot);
+    REQUIRE(
+      kv_store.get_readiness() == ccf::kv::StoreReadiness::InstallingSnapshot);
+    REQUIRE(!kv_store.is_ready());
+
+    kv_store.set_readiness(ccf::kv::StoreReadiness::Ready);
+    REQUIRE(kv_store.is_ready());
+  }
+
+  SUBCASE("add_dynamic_map rejects a map of the wrong type")
+  {
+    auto fake = std::make_shared<FakeMap>("public:fake");
+    REQUIRE_THROWS_AS(kv_store.add_dynamic_map(1, fake), std::logic_error);
+  }
+
+  SUBCASE("add_dynamic_map rejects a duplicate map name")
+  {
+    {
+      auto tx = kv_store.create_tx();
+      tx.rw(map)->put("k", "v");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    auto duplicate = std::make_shared<ccf::kv::untyped::Map>(
+      &kv_store, map.get_name(), ccf::kv::SecurityDomain::PUBLIC);
+    REQUIRE_THROWS_AS(
+      kv_store.add_dynamic_map(kv_store.current_version(), duplicate),
+      std::logic_error);
+  }
+
+  SUBCASE("snapshot version must not be earlier than the compacted version")
+  {
+    {
+      auto tx = kv_store.create_tx();
+      tx.rw(map)->put("k", "v1");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+    const auto v1 = kv_store.current_version();
+
+    {
+      auto tx = kv_store.create_tx();
+      tx.rw(map)->put("k", "v2");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+    kv_store.compact(kv_store.current_version());
+
+    ccf::kv::ScopedStoreMapsLock maps_lock(&kv_store);
+    REQUIRE_THROWS_AS(kv_store.snapshot_unsafe_maps(v1), std::logic_error);
+  }
+
+  SUBCASE("snapshot version must not be later than the current version")
+  {
+    {
+      auto tx = kv_store.create_tx();
+      tx.rw(map)->put("k", "v1");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    ccf::kv::ScopedStoreMapsLock maps_lock(&kv_store);
+    REQUIRE_THROWS_AS(
+      kv_store.snapshot_unsafe_maps(kv_store.current_version() + 100),
+      std::logic_error);
+  }
+
+  SUBCASE("rollback rejects a target earlier than the compacted version")
+  {
+    {
+      auto tx = kv_store.create_tx();
+      tx.rw(map)->put("k", "v1");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+    kv_store.compact(kv_store.current_version());
+
+    REQUIRE_THROWS_AS(
+      kv_store.rollback({kv_store.commit_view(), 0}, kv_store.commit_view()),
+      std::logic_error);
+  }
+
+  SUBCASE("initialise_term cannot be called twice")
+  {
+    kv_store.initialise_term(2);
+    REQUIRE_THROWS_AS(kv_store.initialise_term(3), std::logic_error);
+  }
+
+  SUBCASE("fill_maps enforces strict versions when not ignored")
+  {
+    // Commit two consecutive reserved transactions locally (seqno 1, 2).
+    auto tx1 = kv_store.create_reserved_tx(kv_store.next_txid());
+    tx1.rw(map)->put("k", "v1");
+    auto info1 = tx1.commit_reserved();
+    REQUIRE(info1.success == ccf::kv::CommitResult::SUCCESS);
+
+    auto tx2 = kv_store.create_reserved_tx(kv_store.next_txid());
+    tx2.rw(map)->put("k", "v2");
+    auto info2 = tx2.commit_reserved();
+    REQUIRE(info2.success == ccf::kv::CommitResult::SUCCESS);
+
+    // Store::deserialize() always calls fill_maps() with
+    // ignore_strict_versions=true (see CFTExecutionWrapper::apply()), so
+    // the strict-versions check is only reachable by calling fill_maps()
+    // directly. Deserialising the seqno-2 entry into a fresh store (still
+    // at version 0), without first applying seqno 1, is not
+    // current_version() + 1 and so is rejected.
+    ccf::kv::Store target;
+    target.set_encryptor(encryptor);
+
+    ccf::kv::Version v = 0;
+    ccf::kv::Term view = 0;
+    ccf::kv::EntryFlags entry_flags = static_cast<ccf::kv::EntryFlags>(0);
+    ccf::kv::OrderedChanges changes;
+    ccf::kv::MapCollection new_maps;
+    ccf::ClaimsDigest claims_digest;
+    std::optional<ccf::crypto::Sha256Hash> commit_evidence_digest;
+
+    REQUIRE_FALSE(target.fill_maps(
+      info2.data,
+      false,
+      v,
+      view,
+      entry_flags,
+      changes,
+      new_maps,
+      claims_digest,
+      commit_evidence_digest,
+      /*ignore_strict_versions*/ false));
+  }
+
+  SUBCASE("swap_private_maps rejects a source ahead of the target")
+  {
+    ccf::kv::Store ahead;
+    ahead.set_encryptor(encryptor);
+    MapTypes::StringString ahead_map("public:map");
+
+    {
+      auto tx = kv_store.create_tx();
+      tx.rw(map)->put("k", "v");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    {
+      auto tx = ahead.create_tx();
+      tx.rw(ahead_map)->put("k1", "v1");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+    {
+      auto tx = ahead.create_tx();
+      tx.rw(ahead_map)->put("k2", "v2");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    REQUIRE(ahead.current_version() > kv_store.current_version());
+    REQUIRE_THROWS_AS(kv_store.swap_private_maps(ahead), std::runtime_error);
+  }
+
+  SUBCASE("swap_private_maps rejects mismatched security domains")
+  {
+    ccf::kv::Store source;
+    source.set_encryptor(encryptor);
+    MapTypes::StringString source_map("private_conflict");
+
+    {
+      auto tx = source.create_tx();
+      tx.rw(source_map)->put("k", "v");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    // Target already has a map of the same name, but registered as PUBLIC
+    // via add_dynamic_map (bypassing the private-by-default naming
+    // convention), so the domains conflict when the private map is copied
+    // in from the source.
+    auto target_map = std::make_shared<ccf::kv::untyped::Map>(
+      &kv_store, "private_conflict", ccf::kv::SecurityDomain::PUBLIC);
+    kv_store.add_dynamic_map(kv_store.current_version(), target_map);
+
+    {
+      // Ensure the target's version is at least that of the source
+      auto tx = kv_store.create_tx();
+      tx.rw(map)->put("k", "v");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    REQUIRE_THROWS_WITH_AS(
+      kv_store.swap_private_maps(source),
+      "Swap mismatch - map private_conflict is private in source but not "
+      "in target",
+      std::logic_error);
+  }
+
+  SUBCASE("deserialize rejects a transaction with duplicate map writes")
+  {
+    // Same technique as the "Malformed snapshots are rejected" test in
+    // kv_snapshot.cpp, but for a regular (non-snapshot) transaction entry,
+    // exercising the equivalent duplicate-map-name check in the ordinary
+    // deserialisation path (Store::fill_maps, not deserialise_snapshot).
+    ccf::kv::RawKvStoreSerialiser serialiser(
+      encryptor, ccf::TxID{0, 1}, ccf::kv::EntryType::WriteSet, 0);
+    serialiser.start_map("public:dup", ccf::kv::SecurityDomain::PUBLIC);
+    serialiser.serialise_entry_version(0);
+    serialiser.serialise_count_header(0); // reads
+    serialiser.serialise_count_header(0); // writes
+    serialiser.serialise_count_header(0); // removes
+    serialiser.start_map("public:dup", ccf::kv::SecurityDomain::PUBLIC);
+    serialiser.serialise_entry_version(0);
+    serialiser.serialise_count_header(0); // reads
+    serialiser.serialise_count_header(0); // writes
+    serialiser.serialise_count_header(0); // removes
+    auto data = serialiser.get_raw_data();
+
+    ccf::kv::Store target;
+    target.set_encryptor(encryptor);
+
+    REQUIRE(target.deserialize(data)->apply() == ccf::kv::ApplyResult::FAIL);
+  }
+
+  SUBCASE("start_map rejects a private map without an encryptor")
+  {
+    ccf::kv::RawKvStoreSerialiser serialiser(
+      nullptr, ccf::TxID{0, 1}, ccf::kv::EntryType::WriteSet, 0);
+    REQUIRE_THROWS_WITH_AS(
+      serialiser.start_map("a_private_map", ccf::kv::SecurityDomain::PRIVATE),
+      "Private map a_private_map cannot be serialised without an encryptor",
+      ccf::kv::KvSerialiserException);
+  }
+
+  SUBCASE(
+    "deserialize rejects an entry whose header size does not match its "
+    "actual size")
+  {
+    ccf::kv::RawKvStoreSerialiser serialiser(
+      encryptor, ccf::TxID{0, 1}, ccf::kv::EntryType::WriteSet, 0);
+    serialiser.start_map("public:m", ccf::kv::SecurityDomain::PUBLIC);
+    serialiser.serialise_entry_version(0);
+    serialiser.serialise_count_header(0); // reads
+    serialiser.serialise_count_header(0); // writes
+    serialiser.serialise_count_header(0); // removes
+    auto data = serialiser.get_raw_data();
+
+    ccf::kv::SerialisedEntryHeader header;
+    std::memcpy(&header, data.data(), sizeof(header));
+    header.set_size(header.size + 4); // Understates the true remaining size
+    std::memcpy(data.data(), &header, sizeof(header));
+
+    ccf::kv::Store target;
+    target.set_encryptor(encryptor);
+    REQUIRE_THROWS_AS(target.deserialize(data)->apply(), std::logic_error);
+  }
+
+  SUBCASE("deserialize rejects an entry with an unsupported format version")
+  {
+    ccf::kv::RawKvStoreSerialiser serialiser(
+      encryptor, ccf::TxID{0, 1}, ccf::kv::EntryType::WriteSet, 0);
+    serialiser.start_map("public:m", ccf::kv::SecurityDomain::PUBLIC);
+    serialiser.serialise_entry_version(0);
+    serialiser.serialise_count_header(0); // reads
+    serialiser.serialise_count_header(0); // writes
+    serialiser.serialise_count_header(0); // removes
+    auto data = serialiser.get_raw_data();
+
+    ccf::kv::SerialisedEntryHeader header;
+    std::memcpy(&header, data.data(), sizeof(header));
+    header.version = ccf::kv::entry_format_v1 + 1;
+    std::memcpy(data.data(), &header, sizeof(header));
+
+    ccf::kv::Store target;
+    target.set_encryptor(encryptor);
+    REQUIRE_THROWS_AS(target.deserialize(data)->apply(), std::logic_error);
+  }
+}
+
 TEST_CASE("Private recovery map swap")
 {
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
@@ -3086,6 +3585,243 @@ TEST_CASE("Store clear")
     auto tx_id = kv_store.current_txid();
     REQUIRE(tx_id.view == 0);
     REQUIRE(tx_id.seqno == 0);
+  }
+}
+
+TEST_CASE("CommittableTx guards")
+{
+  MapTypes::StringString map("public:map");
+
+  SUBCASE("Accessors throw before commit")
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+    auto tx = kv_store.create_tx();
+    tx.rw(map)->put("k", "v");
+
+    REQUIRE_THROWS_WITH_AS(
+      auto _ = tx.commit_version(),
+      "Transaction not yet committed",
+      std::logic_error);
+    REQUIRE_THROWS_WITH_AS(
+      auto _ = tx.commit_term(),
+      "Transaction not yet committed",
+      std::logic_error);
+    REQUIRE_THROWS_WITH_AS(
+      auto _ = tx.get_txid(),
+      "Transaction not yet committed",
+      std::logic_error);
+  }
+
+  SUBCASE("Accessors throw after a conflicting commit")
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+    {
+      // Ensure this map already exists, by making a prior write to it
+      auto tx = kv_store.create_tx();
+      tx.rw(map)->put("k", "initial");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    auto tx1 = kv_store.create_tx();
+    auto handle1 = tx1.rw(map);
+    // Read, so that a later conflicting write is detected
+    handle1->get("k");
+    handle1->put("k", "from_tx1");
+
+    {
+      auto tx2 = kv_store.create_tx();
+      tx2.rw(map)->put("k", "from_tx2");
+      REQUIRE(tx2.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    REQUIRE(tx1.commit() == ccf::kv::CommitResult::FAIL_CONFLICT);
+
+    // A conflict leaves the Tx uncommitted (not aborted), so it is the
+    // "not yet committed" message which fires, not "Transaction aborted".
+    REQUIRE_THROWS_WITH_AS(
+      auto _ = tx1.commit_version(),
+      "Transaction not yet committed",
+      std::logic_error);
+    REQUIRE_THROWS_WITH_AS(
+      auto _ = tx1.commit_term(),
+      "Transaction not yet committed",
+      std::logic_error);
+  }
+
+  SUBCASE(
+    "Accessors throw 'Transaction aborted' for a reserved tx that "
+    "loses a rollback race")
+  {
+    // Unlike a regular Tx (which stays uncommitted on failure), a
+    // ReservedTx which loses a race against a concurrent rollback is
+    // marked committed but unsuccessful, so its accessors throw
+    // "Transaction aborted" rather than "Transaction not yet committed".
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+    kv_store.set_consensus(consensus);
+    kv_store.initialise_term(2);
+
+    {
+      auto tx = kv_store.create_tx();
+      tx.rw(map)->put("k", "initial");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    const auto baseline_txid = kv_store.current_txid();
+
+    auto reserved = kv_store.create_reserved_tx(kv_store.next_txid());
+    reserved.rw(map)->put("k", "from_reserved");
+
+    // Roll the store back, invalidating the rollback_count that `reserved`
+    // captured when it was created.
+    kv_store.rollback(baseline_txid, 3);
+
+    const auto info = reserved.commit_reserved();
+    REQUIRE(info.success == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
+
+    REQUIRE_THROWS_WITH_AS(
+      auto _ = reserved.commit_version(),
+      "Transaction aborted",
+      std::logic_error);
+    REQUIRE_THROWS_WITH_AS(
+      auto _ = reserved.commit_term(), "Transaction aborted", std::logic_error);
+  }
+
+  SUBCASE("commit_reserved rejects a reserved transaction with no changes")
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+    auto reserved = kv_store.create_reserved_tx(kv_store.next_txid());
+    REQUIRE_THROWS_WITH_AS(
+      reserved.commit_reserved(),
+      "Reserved transaction cannot be empty",
+      std::logic_error);
+  }
+
+  SUBCASE("commit_reserved rejects being called twice")
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+    auto reserved = kv_store.create_reserved_tx(kv_store.next_txid());
+    reserved.rw(map)->put("k", "v");
+    REQUIRE(
+      reserved.commit_reserved().success == ccf::kv::CommitResult::SUCCESS);
+
+    REQUIRE_THROWS_WITH_AS(
+      reserved.commit_reserved(),
+      "Transaction already committed",
+      std::logic_error);
+  }
+
+  SUBCASE("Commit with missing claims throws")
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+    auto tx = kv_store.create_tx();
+    tx.rw(map)->put("k", "v");
+
+    REQUIRE_THROWS_WITH_AS(
+      tx.commit(ccf::no_claims()), "Missing claims", std::logic_error);
+  }
+
+  SUBCASE("Commit without an encryptor throws KvSerialiserException")
+  {
+    // No call to set_encryptor
+    ccf::kv::Store kv_store;
+
+    auto tx = kv_store.create_tx();
+    tx.rw(map)->put("k", "v");
+
+    REQUIRE_THROWS_WITH_AS(
+      tx.commit(), "No encryptor set", ccf::kv::KvSerialiserException);
+  }
+
+  SUBCASE("A committed transaction with no writes serialises to empty data")
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+    {
+      // Establish the map, so the reserved tx below can read from it without
+      // creating it
+      auto tx = kv_store.create_tx();
+      tx.rw(map)->put("k", "v");
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    auto reserved = kv_store.create_reserved_tx(kv_store.next_txid());
+    // Only reads - no writes
+    reserved.rw(map)->get("k");
+    auto [success, entry, claims_digest, commit_evidence_digest, hooks] =
+      reserved.commit_reserved();
+    REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(entry.empty());
+  }
+
+  SUBCASE("unset_tx_flag clears a previously set flag")
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+    auto tx = kv_store.create_tx();
+    tx.set_tx_flag(ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+    REQUIRE(tx.tx_flag_enabled(
+      ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+
+    tx.unset_tx_flag(
+      ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+    REQUIRE(!tx.tx_flag_enabled(
+      ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+  }
+
+  SUBCASE("Committing with SNAPSHOT_AT_NEXT_SIGNATURE sets the store flag")
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+    REQUIRE(!kv_store.flag_enabled(
+      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+
+    auto tx = kv_store.create_tx();
+    tx.set_tx_flag(ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+    tx.rw(map)->put("k", "v");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    REQUIRE(kv_store.flag_enabled(
+      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+  }
+
+  SUBCASE(
+    "Committing SNAPSHOT_AT_NEXT_SIGNATURE with no writes arms the store "
+    "flag")
+  {
+    ccf::kv::Store kv_store;
+    kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+    REQUIRE(!kv_store.flag_enabled(
+      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+
+    // A read-only transaction (no writes) has no version to attach a ledger
+    // chunk to, but a requested snapshot must still be armed. Registering a
+    // read (rather than leaving the transaction entirely untouched) ensures
+    // it reaches that code path, rather than short-circuiting immediately.
+    auto tx = kv_store.create_tx();
+    tx.set_tx_flag(ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+    tx.ro(map)->get("k");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    REQUIRE(kv_store.flag_enabled(
+      ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+    REQUIRE(!tx.tx_flag_enabled(
+      ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
   }
 }
 

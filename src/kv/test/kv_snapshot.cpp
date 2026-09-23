@@ -5,6 +5,7 @@
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 
+#include <cstring>
 #include <doctest/doctest.h>
 #undef FAIL
 #include <string>
@@ -303,6 +304,81 @@ TEST_CASE("Old snapshots" * doctest::test_suite("snapshot"))
       REQUIRE(ver.has_value());
       REQUIRE_EQ(ver.value(), 2);
     }
+  }
+}
+
+TEST_CASE("Malformed snapshots are rejected" * doctest::test_suite("snapshot"))
+{
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+
+  SUBCASE("Duplicate writes for the same map")
+  {
+    // Build a snapshot with two segments for the same map name, using the
+    // same low-level serialiser Store uses internally. The deserialiser
+    // detects the repeated name as soon as it starts the second segment, so
+    // the payload of the second (duplicate) segment need not be valid.
+    ccf::kv::RawKvStoreSerialiser serialiser(
+      encryptor, ccf::TxID{0, 1}, ccf::kv::EntryType::Snapshot, 0);
+    serialiser.start_map("public:dup", ccf::kv::SecurityDomain::PUBLIC);
+    serialiser.serialise_entry_version(0);
+    serialiser.serialise_raw({});
+    serialiser.start_map("public:dup", ccf::kv::SecurityDomain::PUBLIC);
+    auto data = serialiser.get_raw_data();
+
+    ccf::kv::Store new_store;
+    new_store.set_encryptor(encryptor);
+
+    ccf::kv::ConsensusHookPtrs hooks;
+    REQUIRE_EQ(
+      new_store.deserialise_snapshot(data.data(), data.size(), hooks),
+      ccf::kv::ApplyResult::FAIL);
+  }
+
+  SUBCASE("Trailing content after the last map")
+  {
+    // Corrupt an otherwise-valid single-map snapshot by truncating it, so
+    // that a partial (empty) map name remains to be read after the real map
+    // segment. This is inconsistent, and rejected as malformed - either by
+    // returning ApplyResult::FAIL, or by throwing while attempting to parse
+    // the truncated trailing content.
+    ccf::kv::RawKvStoreSerialiser serialiser(
+      encryptor, ccf::TxID{0, 1}, ccf::kv::EntryType::Snapshot, 0);
+    serialiser.start_map("public:trailing", ccf::kv::SecurityDomain::PUBLIC);
+    serialiser.serialise_entry_version(0);
+    serialiser.serialise_raw({});
+    auto data = serialiser.get_raw_data();
+
+    // Append trailing bytes which do not form another valid map segment.
+    data.push_back(0xAA);
+    data.push_back(0xBB);
+    data.push_back(0xCC);
+    data.push_back(0xDD);
+
+    // The entry header's reported size must match the entry's actual size,
+    // or deserialisation fails before even reaching the map-parsing loop.
+    // Reinterpret and rewrite the fixed-size header to include the appended
+    // bytes, exactly as GenericSerialiseWrapper::serialise_domains would if
+    // it had serialised this same, deliberately-corrupted content.
+    ccf::kv::SerialisedEntryHeader header;
+    std::memcpy(&header, data.data(), sizeof(header));
+    header.set_size(header.size + 4);
+    std::memcpy(data.data(), &header, sizeof(header));
+
+    ccf::kv::Store new_store;
+    new_store.set_encryptor(encryptor);
+
+    ccf::kv::ConsensusHookPtrs hooks;
+    bool failed = false;
+    try
+    {
+      failed = new_store.deserialise_snapshot(
+                 data.data(), data.size(), hooks) == ccf::kv::ApplyResult::FAIL;
+    }
+    catch (const std::exception&)
+    {
+      failed = true;
+    }
+    REQUIRE(failed);
   }
 }
 
