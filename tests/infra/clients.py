@@ -24,8 +24,6 @@ from threading import local
 from typing import Any
 
 import ccf.cose
-import h2.events
-import h2.exceptions
 import urllib3
 import urllib3.connection
 import urllib3.connectionpool
@@ -687,208 +685,43 @@ class _PlaintextConnectionPool(urllib3.connectionpool.HTTPConnectionPool):
     ConnectionCls = _PlaintextConnection
 
 
+class _HTTP2SSLSocket(ssl.SSLSocket):
+    def recv(self, buflen=1024, flags=0):
+        # urllib3's HTTP/2 connection would otherwise spin on EOF
+        if data := super().recv(buflen, flags):
+            return data
+        raise ConnectionResetError("HTTP/2 connection closed by peer")
+
+
 class _HTTP2SSLContext(ssl.SSLContext):
-    """
-    SSL context which only ever offers h2 via ALPN. urllib3 sets its
-    process-wide ALPN list (http/1.1 by default) on every context it wraps a
-    socket with, and only offers h2 globally via urllib3.http2.inject_into_urllib3();
-    this instead selects the protocol per connection pool.
-    """
+    # Offers only h2 via ALPN, for this pool rather than for the whole process
+    # as urllib3.http2.inject_into_urllib3() would
+    sslsocket_class = _HTTP2SSLSocket
 
     def set_alpn_protocols(self, alpn_protocols):
         super().set_alpn_protocols(["h2"])
 
 
-_METHODS_NOT_EXPECTING_BODY = {"GET", "HEAD", "DELETE", "TRACE", "OPTIONS", "CONNECT"}
-_HTTP2_RECV_SIZE = 65535
-
-
 class _HTTP2Connection(urllib3.http2.connection.HTTP2Connection):
-    """
-    urllib3's experimental HTTP/2 connection, completed with what is needed to
-    talk to a CCF node: flow-controlled request bodies, detection of stream
-    resets, GOAWAY and connection closure while waiting for a response (the
-    base class would otherwise spin or hang), and the same content-length
-    behaviour as urllib3's HTTP/1.1 connection.
-    """
-
-    def __init__(self, *args, **kwargs):
-        # Events received while sending a request body (eg an early response),
-        # to be consumed by getresponse()
-        self._pending_events: list = []
-        super().__init__(*args, **kwargs)
-
     def connect(self):
-        _connect_classifying_failures(self, self._connect)
-
-    def _connect(self):
-        super().connect()
-        negotiated = self.sock.selected_alpn_protocol()
-        if negotiated != "h2":
-            raise urllib3.exceptions.ProtocolError(
-                f"Expected h2 to be negotiated via ALPN, got {negotiated}"
-            )
-
-    def close(self):
-        self._pending_events = []
-        super().close()
-
-    @property
-    def is_connected(self):
-        if self.sock is None:
-            return False
-        # Frames received while idle (eg WINDOW_UPDATE or PING) do not mean
-        # that the connection has dropped, unlike unexpected data on an idle
-        # HTTP/1.1 connection: consume them, and only report the connection
-        # as dropped if the peer has closed or terminated it
-        while urllib3.util.wait_for_read(self.sock, timeout=0.0):
-            previous_timeout = self.sock.gettimeout()
-            self.sock.settimeout(1.0)
-            try:
-                with self._h2_conn as conn:
-                    events = self._receive_events(conn)
-            except Exception:
-                return False
-            finally:
-                self.sock.settimeout(previous_timeout)
-            if any(isinstance(e, h2.events.ConnectionTerminated) for e in events):
-                return False
-        return True
-
-    def _flush(self, conn):
-        if data_to_send := conn.data_to_send():
-            self.sock.sendall(data_to_send)
-
-    def _receive_events(self, conn):
-        # Blocks until at least one frame has been received, or the socket
-        # timeout expires (which surfaces as a read timeout, like HTTP/1.1)
-        received = self.sock.recv(_HTTP2_RECV_SIZE)
-        if not received:
-            raise urllib3.exceptions.ProtocolError(
-                "HTTP/2 connection closed by peer", ConnectionResetError()
-            )
-        try:
-            events = conn.receive_data(received)
-        except h2.exceptions.ProtocolError as exc:
-            raise urllib3.exceptions.ProtocolError(
-                f"HTTP/2 protocol error: {exc}"
-            ) from exc
-        # Flush any automatic replies (SETTINGS and PING acknowledgements)
-        self._flush(conn)
-        return events
-
-    def _is_stream_over(self, event):
-        if isinstance(event, h2.events.ConnectionTerminated):
-            return True
-        return (
-            isinstance(event, (h2.events.StreamEnded, h2.events.StreamReset))
-            and event.stream_id == self._h2_stream
-        )
-
-    def request(self, method, url, body=None, headers=None, **kwargs):
-        headers = dict(headers or {})
-        header_names = {name.lower() for name in headers}
-        if isinstance(body, str):
-            body = body.encode()
-        if not header_names & {"content-length", "transfer-encoding"}:
-            if isinstance(body, (bytes, bytearray, memoryview)):
-                headers["content-length"] = str(len(body))
-            elif body is None and method.upper() not in _METHODS_NOT_EXPECTING_BODY:
-                headers["content-length"] = "0"
-        super().request(method, url, body=body, headers=headers, **kwargs)
+        _connect_classifying_failures(self, super().connect)
 
     def send(self, data):
-        if self._h2_stream is None:
-            raise urllib3.exceptions.ProtocolError("Must call `putrequest` first.")
-        if hasattr(data, "read"):
-            data = data.read()
-        if isinstance(data, str):
-            data = data.encode()
-        elif not isinstance(data, (bytes, bytearray, memoryview)):
-            data = b"".join(data)
-        remaining = memoryview(data)
+        # urllib3 sends the body as a single DATA frame, regardless of the
+        # peer's maximum frame size and flow-control window
+        body = memoryview(data)
         with self._h2_conn as conn:
-            while True:
-                try:
-                    window = min(
-                        conn.local_flow_control_window(self._h2_stream),
-                        conn.max_outbound_frame_size,
-                    )
-                    if window > 0:
-                        chunk, remaining = remaining[:window], remaining[window:]
-                        conn.send_data(
-                            self._h2_stream, bytes(chunk), end_stream=not remaining
-                        )
-                        self._flush(conn)
-                        if not remaining:
-                            return
-                        continue
-                except h2.exceptions.ProtocolError:
-                    # The peer reset the stream or closed the connection; the
-                    # outcome is reported by getresponse()
-                    return
-                # Wait for the peer to open its flow control window, keeping
-                # whatever else it sends meanwhile for getresponse()
-                events = self._receive_events(conn)
-                self._pending_events.extend(events)
-                if any(self._is_stream_over(event) for event in events):
-                    # The peer has already responded, or given up on this
-                    # stream: stop sending, and close our side if still open
-                    try:
-                        conn.end_stream(self._h2_stream)
-                        self._flush(conn)
-                    except h2.exceptions.ProtocolError:
-                        pass
-                    return
-
-    def getresponse(self):
-        if self.sock is not None:
-            self.sock.settimeout(self.timeout)
-        status = None
-        headers = urllib3.HTTPHeaderDict()
-        data = bytearray()
-        with self._h2_conn as conn:
-            events, self._pending_events = self._pending_events, []
-            while True:
-                for event in events:
-                    if isinstance(event, h2.events.ConnectionTerminated):
-                        raise urllib3.exceptions.ProtocolError(
-                            f"HTTP/2 connection terminated by peer (error code {event.error_code})"
-                        )
-                    if getattr(event, "stream_id", None) != self._h2_stream:
-                        continue
-                    if isinstance(event, h2.events.ResponseReceived):
-                        for name, value in event.headers:
-                            if name == b":status":
-                                status = int(value)
-                            else:
-                                headers.add(
-                                    name.decode("latin-1"), value.decode("latin-1")
-                                )
-                    elif isinstance(event, h2.events.DataReceived):
-                        data += event.data
-                        conn.acknowledge_received_data(
-                            event.flow_controlled_length, event.stream_id
-                        )
-                    elif isinstance(event, h2.events.StreamReset):
-                        raise urllib3.exceptions.ProtocolError(
-                            f"HTTP/2 stream reset by peer (error code {event.error_code})"
-                        )
-                    elif isinstance(event, h2.events.StreamEnded):
-                        self._flush(conn)
-                        if status is None:
-                            raise urllib3.exceptions.ProtocolError(
-                                "HTTP/2 stream ended without a response"
-                            )
-                        return urllib3.http2.connection.HTTP2Response(
-                            status=status,
-                            headers=headers,
-                            request_url=self._request_url,
-                            data=bytes(data),
-                        )
-                # Send window updates before blocking, or the peer may stall
-                self._flush(conn)
-                events = self._receive_events(conn)
+            while body:
+                window = min(
+                    conn.local_flow_control_window(self._h2_stream),
+                    conn.max_outbound_frame_size,
+                )
+                if window > 0:
+                    chunk, body = body[:window], body[window:]
+                    conn.send_data(self._h2_stream, bytes(chunk), end_stream=not body)
+                else:
+                    conn.receive_data(self.sock.recv(65535))
+                self.sock.sendall(conn.data_to_send())
 
 
 class _HTTP2ConnectionPool(urllib3.connectionpool.HTTPSConnectionPool):
