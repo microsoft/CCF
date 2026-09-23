@@ -32,25 +32,19 @@ Task Shutdown
 ~~~~~~~~~~~~~
 
 Task cancellation prevents future execution but does not release queued actions.
-Terminal shutdown additionally releases their resources, without executing application
-work. The node shuts down the main ``JobBoard`` after RPC transport teardown and
-after all enclave worker threads have joined, while task dependencies are still alive.
-Normal connection closure does not trigger this task shutdown or change the lifetime
-of already queued requests.
+Terminal shutdown additionally releases their resources, without executing application work.
+The node shuts down the main ``JobBoard`` after RPC transport teardown and after all enclave worker threads have joined, while task dependencies are still alive.
+Normal connection closure does not trigger this task shutdown or change the lifetime of already queued requests.
 
-Each ``OrderedTasks`` scheduler registers weakly with its ``JobBoard`` for its
-lifetime. This allows shutdown to discover paused schedulers which are absent from
-the ready queue, without the registry keeping idle schedulers alive. Shutdown
-cancels ready, delayed, periodic and registered tasks, notifies their abandoned
-actions, and discards the action queues. This breaks ownership cycles such as a
-session owning a scheduler whose pending action owns the session.
+Each ``OrderedTasks`` scheduler registers weakly with its ``JobBoard`` for its lifetime.
+This allows shutdown to discover paused schedulers which are absent from the ready queue, without the registry keeping idle schedulers alive.
+Shutdown cancels ready, delayed, periodic and registered tasks, notifies their abandoned actions, and discards the action queues.
+This breaks ownership cycles such as a session owning a scheduler whose pending action owns the session.
 
-``shutdown()`` is terminal and idempotent. Callers must stop task producers and
-join workers before invoking it; it does not interrupt an executing action.
-Cleanup hooks run without queue or registry locks and must not throw. Cleanup
-may submit additional work, which is immediately shut down rather than queued.
-Resuming a shut-down scheduler does not reactivate it. ``on_shutdown()`` overrides
-can release references held by externally retained actions; action hooks must
-tolerate repeated notification if the same action was queued more than once.
-The board destructor also performs shutdown, subject to the same lifetime and
-quiescence requirements.
+``shutdown()`` is terminal and idempotent.
+Callers must stop task producers and join workers before invoking it; it does not interrupt an executing action.
+Cleanup hooks run without queue or registry locks and must not throw.
+Cleanup may submit additional work, which is immediately shut down rather than queued.
+Resuming a shut-down scheduler does not reactivate it.
+``on_shutdown()`` overrides can release references held by externally retained actions; action hooks must tolerate repeated notification if the same action was queued more than once.
+The board destructor also performs shutdown, subject to the same lifetime and quiescence requirements.
