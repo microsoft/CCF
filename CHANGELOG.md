@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Fixed an RPC performance regression on SNP by allowing concurrent event-loop notifications (#8435).
+- Fixed an RPC throughput regression on AMD SEV-SNP nodes (#8435).
 - JS registry tables and their configured namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. The governance-driven registry uses `public:ccf.gov.*` and leaves application namespaces unchanged. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`; platform permissions still apply (#8359).
 - Fixed `set_member` failures on services which have only ever emitted COSE ledger signatures (#8407).
 
