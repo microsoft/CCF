@@ -40,6 +40,13 @@ underscores; set it explicitly when the crate's ``[lib] name`` differs from its
 package name. The application should commit ``Cargo.lock`` and pin a Rust
 toolchain for reproducible builds.
 
+A binary can only link one Rust ``staticlib``, because each contains its own
+copy of the Rust standard library. ``ccf-app`` therefore depends on ``ccf-rs``,
+CCF's own Rust code, so that the application's ``staticlib`` includes it and is
+linked in place of CCF's ``libccf_rs.a``. The application's ``Cargo.lock`` also
+pins the dependencies of ``ccf-rs``. Other Rust code must be added as Cargo
+dependencies of the application crate, not linked as separate static libraries.
+
 The complete records example is in :ccf_repo:`samples/apps/basic_rust`. It
 exports a registration function with ``ccf_app::export_app!`` and registers
 handlers through ``Registry::read_write`` and ``Registry::read_only``.

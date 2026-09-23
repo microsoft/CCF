@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [lib]
-crate-type = ["staticlib"]
+# staticlib: linked into C++ applications (built with cargo rustc --crate-type
+# staticlib, see cmake/ccf_rs.cmake). rlib: linked by ccf-app into the single
+# staticlib of each Rust application.
+crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 tav-ffi = { package = "tee-attestation-verification-ffi", path = "../../3rdparty/internal/tee-attestation-verification/ffi", default-features = false, features = ["crypto_openssl"] }

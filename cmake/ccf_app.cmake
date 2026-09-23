@@ -130,9 +130,11 @@ function(add_ccf_rust_app name)
   add_ccf_app(
     ${name}
     SRCS ${RUST_BRIDGE_SOURCE} ${RUST_APP_MAIN_SOURCE}
-    LINK_LIBS ${RUST_APP_LIB}
     DEPS cargo-build_${name}
   )
+  # The application's staticlib includes ccf-rs, so it is linked in place of
+  # libccf_rs.a (see cmake/ccf_rs.cmake).
+  set_property(TARGET ${name} PROPERTY CCF_RUST_APP_LIB ${RUST_APP_LIB})
 endfunction()
 
 function(add_ccf_static_library name)

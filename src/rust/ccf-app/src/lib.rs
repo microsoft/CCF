@@ -12,6 +12,10 @@ compile_error!(
     "ccf-app requires panic = \"unwind\" because its C ABI catches panics at the boundary"
 );
 
+// Each Rust staticlib contains its own copy of the Rust standard library, so a
+// binary can only link one. A Rust application's staticlib therefore includes
+// CCF's own Rust code, and replaces libccf_rs.a when the application is linked.
+use ccf_rs as _;
 use std::cell::Cell;
 use std::ffi::c_void;
 use std::marker::PhantomData;

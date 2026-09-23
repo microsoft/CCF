@@ -5,3 +5,8 @@ edition = "2024"
 
 [lib]
 crate-type = ["rlib"]
+
+[dependencies]
+# Rust applications link CCF's own Rust code through this crate. See the note on
+# ccf_rs in src/lib.rs.
+ccf-rs = { path = ".." }
