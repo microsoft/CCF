@@ -860,36 +860,21 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
             out.peers(event, "receive-pre")
             out.message(event, "receive-pre", receiving=True)
 
+            # A newer term, or a same-term AppendEntries at a candidate, makes
+            # the receiver a follower. The model does this inside the receive.
+            followers = []
             if peek() == ["become_follower"] and same_context(event, events[0]):
-                (follower,) = take()
+                followers = take()
                 require(
-                    follower.state["current_view"] == event.message["packet"]["term"],
-                    f"{follower.location}: follower term differs from packet",
+                    followers[0].state["current_view"]
+                    == event.message["packet"]["term"],
+                    f"{followers[0].location}: follower term differs from packet",
                 )
-                if follower.state["current_view"] > event.state["current_view"]:
-                    out.action(
-                        event,
-                        "updateTerm",
-                        "receive-term",
-                        [event, follower],
-                        source=sender,
-                        destination=event.node,
-                    )
-                else:
-                    require(
-                        event.function == "recv_append_entries",
-                        f"{event.location}: unexplained same-term fallback",
-                    )
-                    # Same-term fallback does not consume the packet.
-                    out.action(
-                        event,
-                        "receive",
-                        "receive-fallback",
-                        [event, follower],
-                        source=sender,
-                        destination=event.node,
-                    )
-                out.emit_observations(follower, "receive-follower-post")
+                require(
+                    followers[0].state["current_view"] > event.state["current_view"]
+                    or event.function == "recv_append_entries",
+                    f"{event.location}: unexplained same-term fallback",
+                )
 
             # Match the variable-length source callback run, not protocol state.
             # A response ends it; response-less receive paths are also valid.
@@ -926,10 +911,23 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
                 event,
                 "receive",
                 "atomic-receive",
-                [event, *callbacks],
+                [event, *followers, *callbacks],
                 source=sender,
                 destination=event.node,
             )
+            for follower in followers:
+                facts = state_facts(follower)
+                out.emit_observations(
+                    follower,
+                    "receive-follower-post",
+                    facts,
+                    exclusions={
+                        name: "become_follower traces before the rest of the atomic "
+                        "receive, which can change this property."
+                        for name in facts
+                        if name not in {"role", "currentTerm"}
+                    },
+                )
             for position, callback in enumerate(callbacks):
                 if callback.function in {
                     "send_append_entries_response",

@@ -1,11 +1,12 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.ModelProofs
+import CCFRaft.Proofs.Abstract.ModelProofs
 
-import CCFRaft.Proofs.Support
+import CCFRaft.Proofs.Abstract.Support
 
-open CCFRaft.Protocol CCFRaft.Protocol.Model CCFRaft.Protocol.Safety CCFRaft.Proofs.Support CCFRaft.Proofs.ModelProofs
+open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety CCFRaft.Proofs.Abstract.Support CCFRaft.Proofs.Abstract.ModelProofs
+open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
 
 set_option autoImplicit false
 
@@ -15,7 +16,7 @@ set_option autoImplicit false
 Common log lookup and AppendEntries handler facts.
 -/
 
-namespace CCFRaft.Proofs.HandlerProofs
+namespace CCFRaft.Proofs.Abstract.HandlerProofs
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId]
@@ -663,11 +664,11 @@ private lemma foldlSelectConfiguration_mem
   | cons head tail inductionHypothesis =>
       simp only [List.foldl_cons]
       by_cases committed : head.index <= commitIndex
-      · rw [selectConfiguration, if_pos committed]
+      · rw [selectConfiguration, ite_eq_left committed]
         rcases inductionHypothesis (fallback := head) with same | member
         · exact Or.inr (List.mem_cons.mpr (Or.inl same))
         · exact Or.inr (List.mem_cons_of_mem head member)
-      · rw [selectConfiguration, if_neg committed]
+      · rw [selectConfiguration, ite_eq_right committed]
         rcases inductionHypothesis (fallback := fallback) with same | member
         · exact Or.inl same
         · exact Or.inr (List.mem_cons_of_mem head member)
@@ -687,9 +688,9 @@ private lemma foldlSelectConfiguration_index_le
   | cons head tail inductionHypothesis =>
       simp only [List.foldl_cons]
       by_cases committed : head.index <= commitIndex
-      · rw [selectConfiguration, if_pos committed]
+      · rw [selectConfiguration, ite_eq_left committed]
         exact inductionHypothesis head committed
-      · rw [selectConfiguration, if_neg committed]
+      · rw [selectConfiguration, ite_eq_right committed]
         exact inductionHypothesis fallback fallbackBound
 
 omit [DecidableEq Node] [Bootstrap Node] in
@@ -715,7 +716,7 @@ private lemma foldlSelectConfiguration_index_ge
       rw [List.pairwise_cons] at ordered
       simp only [List.foldl_cons]
       by_cases committed : head.index <= commitIndex
-      · rw [selectConfiguration, if_pos committed]
+      · rw [selectConfiguration, ite_eq_left committed]
         have fallbackBeforeHead :
             fallback.index < head.index :=
           afterFallback head (by simp)
@@ -723,7 +724,7 @@ private lemma foldlSelectConfiguration_index_ge
           (Nat.le_of_lt fallbackBeforeHead).trans
             (inductionHypothesis
               head ordered.1 ordered.2)
-      · rw [selectConfiguration, if_neg committed]
+      · rw [selectConfiguration, ite_eq_right committed]
         exact
           inductionHypothesis
             fallback
@@ -763,18 +764,18 @@ private lemma foldlSelectConfiguration_greatest
         simp only [List.foldl_cons]
         rw [
           selectConfiguration,
-          if_pos committed
+          ite_eq_left committed
         ]
         exact
           foldlSelectConfiguration_index_ge
             commitIndex tail head ordered.1 ordered.2
       · simp only [List.foldl_cons]
         by_cases headCommitted : head.index <= commitIndex
-        · rw [selectConfiguration, if_pos headCommitted]
+        · rw [selectConfiguration, ite_eq_left headCommitted]
           exact
             inductionHypothesis
               head ordered.1 ordered.2 tailMember
-        · rw [selectConfiguration, if_neg headCommitted]
+        · rw [selectConfiguration, ite_eq_right headCommitted]
           exact
             inductionHypothesis
               fallback
@@ -808,7 +809,7 @@ private lemma foldlSelectConfiguration_eq_of_all_after
       simp only [
         List.foldl_cons,
         selectConfiguration,
-        if_neg headNotCommitted
+        ite_eq_right headNotCommitted
       ]
       exact
         inductionHypothesis
@@ -1719,7 +1720,7 @@ lemma acceptAppendEntriesRequest_protocolNodeState
           request.prevLogIndex >=
             (protocolNodeState node).commitIndex := by
       simpa [protocolNodeState, logOk] using accepted
-    rw [if_pos acceptedProtocol, if_pos accepted]
+    rw [ite_eq_left acceptedProtocol, ite_eq_left accepted]
     rw [appendEntriesAlreadyDone_protocolNodeState]
     cases already : appendEntriesAlreadyDone? node request with
     | some result => simp [withProtocolNodeState]
@@ -1751,7 +1752,7 @@ lemma acceptAppendEntriesRequest_protocolNodeState
             request.prevLogIndex >=
               (protocolNodeState node).commitIndex) := by
       simpa [protocolNodeState, logOk] using accepted
-    rw [if_neg rejectedProtocol, if_neg accepted]
+    rw [ite_eq_right rejectedProtocol, ite_eq_right accepted]
 
 lemma handleAppendEntriesRequest_protocolNodeState
     (node : NodeState Node TxId)
@@ -2824,4 +2825,4 @@ example :
 
 end RetirementExamples
 
-end CCFRaft.Proofs.HandlerProofs
+end CCFRaft.Proofs.Abstract.HandlerProofs

@@ -3,7 +3,7 @@
 
 set_option autoImplicit false
 
-namespace CCFRaft.Protocol
+namespace CCFRaft.Proofs.Abstract
 
 /-- Guards and state updates shared by the model and its executable replayer. -/
 structure ExecutableTransitionSystem where
@@ -53,4 +53,4 @@ inductive Reachable
 
 end ExecutableTransitionSystem
 
-end CCFRaft.Protocol
+end CCFRaft.Proofs.Abstract

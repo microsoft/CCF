@@ -1,75 +1,120 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.ReconfigurationPreservation
+import CCFRaft.Properties.Utils
 
 set_option autoImplicit false
 
 /-!
-Review these statements with their definitions in `CCFRaft.Protocol`.
-The supporting invariant and preservation proofs are implementation details
-under `CCFRaft.Proofs`, not premises of the public safety statements.
+Each claim quantifies every node and transaction identifier type, every
+`Bootstrap` instance, every node list, and every valid trace of
+`Model.transitionSystem`. Each has a `Witness` claim: some valid trace
+satisfies its premises.
 -/
 
 namespace CCFRaft.Properties
 
-variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId]
-variable [Protocol.Model.Bootstrap Node]
+open Model.Local
 
-theorem reachable_committed_logs_prefix
-    {state : Protocol.Model.State Node TxId}
-    (reachable : Protocol.Model.Reachable state) :
-    Protocol.Safety.CommittedLogsPrefix state :=
-  Proofs.ReconfigurationPreservation.reachableCommittedLogsPrefix reachable
+/-- No two distinct nodes lead in the same term. -/
+def ElectionSafety : Prop :=
+  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node],
+  forall (nodes : List Node) (trace : GlobalTrace Node TxId) (state : Model.State Node TxId),
+  forall (left right : Node) (leftState rightState : NodeState Node TxId),
+    (trace.Valid (Model.transitionSystem nodes)
+      /\ state ∈ trace.states
+      /\ (left, leftState) ∈ state.nodes
+      /\ (right, rightState) ∈ state.nodes
+      /\ leftState.role = .leader
+      /\ rightState.role = .leader
+      /\ leftState.currentTerm = rightState.currentTerm)
+    -> left = right
 
-theorem reachable_committed_frontier_is_signature
-    {state : Protocol.Model.State Node TxId}
-    (reachable : Protocol.Model.Reachable state) :
-    Protocol.Safety.CommittedFrontierIsSignature state :=
-  Proofs.ReconfigurationPreservation.reachableCommittedFrontierIsSignature reachable
+/-- Witness: a valid trace has a state in which two nodes are leaders. -/
+def ElectionSafetyWitness : Prop :=
+  exists (Node TxId : Type) (_ : DecidableEq Node) (_ : DecidableEq TxId) (_ : Bootstrap Node),
+  exists (nodes : List Node) (trace : GlobalTrace Node TxId) (state : Model.State Node TxId),
+  exists (left right : Node) (leftState rightState : NodeState Node TxId),
+    trace.Valid (Model.transitionSystem nodes)
+    /\ state ∈ trace.states
+    /\ (left, leftState) ∈ state.nodes
+    /\ (right, rightState) ∈ state.nodes
+    /\ leftState.role = .leader
+    /\ rightState.role = .leader
+    /\ left ≠ right
 
-/-- No enabled step from a reachable state rolls back or rewrites committed entries. -/
-theorem reachable_committed_log_append_only
-    {state : Protocol.Model.State Node TxId}
-    (reachable : Protocol.Model.Reachable state) :
-    Protocol.Safety.CommittedLogAppendOnly state :=
-  Proofs.ReconfigurationPreservation.reachableCommittedLogAppendOnly reachable
+/-- Any two nodes' committed logs in one state are prefix-comparable. -/
+def CommittedLogsPrefix : Prop :=
+  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node],
+  forall (nodes : List Node) (trace : GlobalTrace Node TxId) (state : Model.State Node TxId),
+  forall (left right : Node) (leftState rightState : NodeState Node TxId),
+    (trace.Valid (Model.transitionSystem nodes)
+      /\ state ∈ trace.states
+      /\ (left, leftState) ∈ state.nodes
+      /\ (right, rightState) ∈ state.nodes)
+    -> leftState.committedLog <+: rightState.committedLog
+        \/ rightState.committedLog <+: leftState.committedLog
 
-/-- The committed prefix survives any finite execution from a reachable state. -/
-theorem run_actions_committed_log_prefix
-    {start final : Protocol.Model.State Node TxId}
-    {actions : List (Protocol.Model.Action Node TxId)}
-    (reachable : Protocol.Model.Reachable start)
-    (ran : Protocol.Model.runActions start actions = some final) :
-    forall node,
-      (start.nodes node).committedLog <+: (final.nodes node).committedLog := by
-  induction actions generalizing start with
-  | nil =>
-      simp only [Protocol.Model.runActions, Option.some.injEq] at ran
-      subst final
-      intro node
-      exact Proofs.HandlerProofs.prefixRefl _
-  | cons action actions inductionHypothesis =>
-      unfold Protocol.Model.runActions Protocol.ExecutableTransitionSystem.applyAction at ran
-      split at ran
-      · rename_i enabled
-        have tail := inductionHypothesis
-          (Proofs.ModelProofs.Reachable.step reachable enabled) ran
-        intro node
-        exact (reachable_committed_log_append_only reachable action enabled node).trans (tail node)
-      · simp at ran
+/-- Witness: a valid trace has a state in which two distinct nodes have
+nonempty committed logs. -/
+def CommittedLogsPrefixWitness : Prop :=
+  exists (Node TxId : Type) (_ : DecidableEq Node) (_ : DecidableEq TxId) (_ : Bootstrap Node),
+  exists (nodes : List Node) (trace : GlobalTrace Node TxId) (state : Model.State Node TxId),
+  exists (left right : Node) (leftState rightState : NodeState Node TxId),
+    trace.Valid (Model.transitionSystem nodes)
+    /\ state ∈ trace.states
+    /\ (left, leftState) ∈ state.nodes
+    /\ (right, rightState) ∈ state.nodes
+    /\ left ≠ right
+    /\ leftState.committedLog ≠ []
+    /\ rightState.committedLog ≠ []
 
-theorem reachable_election_safety
-    {state : Protocol.Model.State Node TxId}
-    (reachable : Protocol.Model.Reachable state) :
-    Protocol.Safety.ElectionSafety state :=
-  Proofs.ReconfigurationPreservation.reachableElectionSafety reachable
+/-- Every positive commit index points to a signature entry. -/
+def CommittedFrontierIsSignature : Prop :=
+  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node],
+  forall (nodes : List Node) (trace : GlobalTrace Node TxId) (state : Model.State Node TxId),
+  forall (node : Node) (nodeState : NodeState Node TxId),
+    (trace.Valid (Model.transitionSystem nodes)
+      /\ state ∈ trace.states
+      /\ (node, nodeState) ∈ state.nodes
+      /\ 0 < nodeState.commitIndex)
+    -> isSignatureAt nodeState.log nodeState.commitIndex = true
 
-theorem reachable_consensus_safety
-    {state : Protocol.Model.State Node TxId}
-    (reachable : Protocol.Model.Reachable state) :
-    Protocol.Safety.ConsensusSafety state :=
-  Proofs.ReconfigurationPreservation.reachableConsensusSafety reachable
+/-- Witness: a valid trace has a state with a positive commit index. -/
+def CommittedFrontierIsSignatureWitness : Prop :=
+  exists (Node TxId : Type) (_ : DecidableEq Node) (_ : DecidableEq TxId) (_ : Bootstrap Node),
+  exists (nodes : List Node) (trace : GlobalTrace Node TxId) (state : Model.State Node TxId),
+  exists (node : Node) (nodeState : NodeState Node TxId),
+    trace.Valid (Model.transitionSystem nodes)
+    /\ state ∈ trace.states
+    /\ (node, nodeState) ∈ state.nodes
+    /\ 0 < nodeState.commitIndex
+
+/-- Each step of a valid trace extends every node's committed log. This is
+`CommittedLogAppendOnlyProp` in `tla/consensus/ccfraft.tla`. -/
+def CommittedLogAppendOnly : Prop :=
+  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node],
+  forall (nodes : List Node) (trace : GlobalTrace Node TxId) (step : Nat),
+  forall (before after : Model.State Node TxId),
+  forall (node : Node) (beforeState afterState : NodeState Node TxId),
+    (trace.Valid (Model.transitionSystem nodes)
+      /\ trace.states[step]? = some before
+      /\ trace.states[step + 1]? = some after
+      /\ (node, beforeState) ∈ before.nodes
+      /\ (node, afterState) ∈ after.nodes)
+    -> beforeState.committedLog <+: afterState.committedLog
+
+/-- Witness: a valid trace has a step that strictly extends a committed log. -/
+def CommittedLogAppendOnlyWitness : Prop :=
+  exists (Node TxId : Type) (_ : DecidableEq Node) (_ : DecidableEq TxId) (_ : Bootstrap Node),
+  exists (nodes : List Node) (trace : GlobalTrace Node TxId) (step : Nat),
+  exists (before after : Model.State Node TxId),
+  exists (node : Node) (beforeState afterState : NodeState Node TxId),
+    trace.Valid (Model.transitionSystem nodes)
+    /\ trace.states[step]? = some before
+    /\ trace.states[step + 1]? = some after
+    /\ (node, beforeState) ∈ before.nodes
+    /\ (node, afterState) ∈ after.nodes
+    /\ beforeState.committedLog.length < afterState.committedLog.length
 
 end CCFRaft.Properties

@@ -330,34 +330,44 @@ class ReductionTests(unittest.TestCase):
             set(properties) - set(observation["fields"]) - {"committableIndices"},
         )
 
-    def test_receive_follower_boundary_is_observed_in_full(self):
+    def test_receive_follower_boundary_is_observed_after_the_receive(self):
         records = read_trace(FIXTURE)
         records += read_trace(FIXTURE.with_name("configuration_callback.ndjson"))
         records += read_trace(FIXTURE.with_name("missing_prefix_response.ndjson"))
         events, _ = associate(records)
         event = next(e for e in events if e.function == "become_follower")
         document = reduce_trace(records)
-        observation = next(
-            i
-            for i in document["instructions"]
+        position, observation = next(
+            (position, i)
+            for position, i in enumerate(document["instructions"])
             if i["origin"][0]["rule"] == "receive-follower-post"
         )
+        facts = state_facts(event)
         self.assertEqual(
             observation["fields"],
-            {k: v for k, v in state_facts(event).items() if k != "committableIndices"},
+            {k: facts[k] for k in ("role", "currentTerm")},
         )
-        self.assertNotIn("omissionReasons", observation["origin"][0])
+        self.assertEqual(
+            set(observation["origin"][0]["omissionReasons"]),
+            set(facts) - {"role", "currentTerm"},
+        )
+        # The term update and the handling are one receive, before the observation.
+        receive = document["instructions"][position - 1]
+        self.assertEqual(receive["action"], "receive")
+        self.assertIn(
+            "become_follower", [o["function"] for o in receive["origin"]]
+        )
         self.assertEqual(
             [
                 i["action"]
                 for i in document["instructions"]
                 if i.get("action") in {"receive", "updateTerm"}
             ],
-            ["updateTerm", "receive", "receive"],
+            ["receive", "receive"],
         )
-        # Same-term fallback still needs a second, consuming receive.
-        receive = next(e for e in events if e.function == "recv_append_entries")
-        receive.state.update(current_view=2, leadership_state="Candidate")
+        # A same-term candidate also steps down inside the one receive.
+        packet = next(e for e in events if e.function == "recv_append_entries")
+        packet.state.update(current_view=2, leadership_state="Candidate")
         same_term = reduce_trace(records)
         self.assertEqual(
             [
@@ -365,7 +375,7 @@ class ReductionTests(unittest.TestCase):
                 for i in same_term["instructions"]
                 if i.get("action") in {"receive", "updateTerm"}
             ],
-            ["receive", "receive", "receive"],
+            ["receive", "receive"],
         )
 
     def test_exact_source_bootstrap(self):

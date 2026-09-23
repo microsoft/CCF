@@ -2,16 +2,17 @@
 -- Licensed under the Apache 2.0 License.
 
 
-import CCFRaft.Protocol.Safety
-import CCFRaft.Proofs.ModelProofs
+import CCFRaft.Proofs.Abstract.Safety
+import CCFRaft.Proofs.Abstract.ModelProofs
 
-import CCFRaft.Proofs.Support
+import CCFRaft.Proofs.Abstract.Support
 
-open CCFRaft.Protocol CCFRaft.Protocol.Model CCFRaft.Protocol.Safety CCFRaft.Proofs.Support CCFRaft.Proofs.ModelProofs
+open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety CCFRaft.Proofs.Abstract.Support CCFRaft.Proofs.Abstract.ModelProofs
+open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
 
 set_option autoImplicit false
 
-namespace CCFRaft.Proofs.Invariant
+namespace CCFRaft.Proofs.Abstract.Invariant
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId]
@@ -38,7 +39,7 @@ def MonoLog (state : State Node TxId) : Prop :=
         entryAt? (state.nodes node).log later = some laterEntry ->
           earlierEntry.term <= laterEntry.term
 
-end CCFRaft.Proofs.Invariant
+end CCFRaft.Proofs.Abstract.Invariant
 
 /-!
 # Arbitrary-term Raft proof properties
@@ -53,7 +54,7 @@ candidate selected by each voter in each term after `votedFor` is cleared by a
 later `UpdateTerm`.
 -/
 
-namespace CCFRaft.Proofs.Invariant
+namespace CCFRaft.Proofs.Abstract.Invariant
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId]
@@ -2258,4 +2259,4 @@ def SystemInductiveInvariant (state : State Node TxId) : Prop :=
                   voteCandidateHistory voteVoterHistory
 
 
-end CCFRaft.Proofs.Invariant
+end CCFRaft.Proofs.Abstract.Invariant

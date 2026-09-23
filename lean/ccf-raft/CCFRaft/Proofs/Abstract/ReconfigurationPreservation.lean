@@ -1,16 +1,17 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant
-import CCFRaft.Proofs.HandlerProofs
-import CCFRaft.Proofs.UpdateTermAuthority
-import CCFRaft.Proofs.VotedForFrame
-import CCFRaft.Proofs.ConfigurationCoverage
-import CCFRaft.Proofs.CommittedLog
+import CCFRaft.Proofs.Abstract.Invariant
+import CCFRaft.Proofs.Abstract.HandlerProofs
+import CCFRaft.Proofs.Abstract.UpdateTermAuthority
+import CCFRaft.Proofs.Abstract.VotedForFrame
+import CCFRaft.Proofs.Abstract.ConfigurationCoverage
+import CCFRaft.Proofs.Abstract.CommittedLog
 
-import CCFRaft.Proofs.Support
+import CCFRaft.Proofs.Abstract.Support
 
-open CCFRaft.Protocol CCFRaft.Protocol.Model CCFRaft.Protocol.Safety CCFRaft.Proofs.Support CCFRaft.Proofs.ModelProofs CCFRaft.Proofs.Invariant CCFRaft.Proofs.HandlerProofs CCFRaft.Proofs.UpdateTermAuthority CCFRaft.Proofs.VotedForFrame
+open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety CCFRaft.Proofs.Abstract.Support CCFRaft.Proofs.Abstract.ModelProofs CCFRaft.Proofs.Abstract.Invariant CCFRaft.Proofs.Abstract.HandlerProofs CCFRaft.Proofs.Abstract.UpdateTermAuthority CCFRaft.Proofs.Abstract.VotedForFrame
+open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
 
 set_option autoImplicit false
 set_option maxHeartbeats 700000
@@ -19,10 +20,10 @@ set_option maxHeartbeats 700000
 # Arbitrary-term Raft inductive proof
 
 The proof keeps arbitrary-term election history in logical witnesses.  Runtime
-state and transition semantics remain exactly `CCFRaft.Protocol.Model.system`.
+state and transition semantics remain exactly `CCFRaft.Proofs.Abstract.Model.system`.
 -/
 
-namespace CCFRaft.Proofs.ReconfigurationPreservation
+namespace CCFRaft.Proofs.Abstract.ReconfigurationPreservation
 
 attribute [local simp] Message.destination ConfigurationCoverageWitness.sharedPrefix
 
@@ -385,7 +386,7 @@ lemma currentConfigurationAt_eq_of_take_eq
   have leftKnownRight :
       currentConfigurationAt left frontier ∈ allConfigurations right := by
     apply
-      CCFRaft.Proofs.HandlerProofs.memOfPrefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
         (allConfigurations_mono_prefix
           (List.take_prefix frontier right))
     rw [← takeEq]
@@ -395,7 +396,7 @@ lemma currentConfigurationAt_eq_of_take_eq
   have rightKnownLeft :
       currentConfigurationAt right frontier ∈ allConfigurations left := by
     apply
-      CCFRaft.Proofs.HandlerProofs.memOfPrefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
         (allConfigurations_mono_prefix
           (List.take_prefix frontier left))
     rw [takeEq]
@@ -2004,7 +2005,7 @@ lemma appendRequestCommitEvidenceFacts
             nodeEvidence requestEvidence)
         requestEvidence := by
   let post :=
-    CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+    CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
   let newNodeEvidence : NodeCommitEvidence Node TxId :=
     appendRequestNodeEvidence
       state destination request nextNode nodeEvidence requestEvidence
@@ -2032,7 +2033,7 @@ lemma appendRequestCommitEvidenceFacts
             nextNode.committedLog =
               (state.nodes destination).committedLog := by
           have prefixEq :=
-            CCFRaft.Proofs.HandlerProofs.prefixEqTake post.previousCommittedPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake post.previousCommittedPrefix
           have oldLength :
               (state.nodes destination).committedLog.length =
                 (state.nodes destination).commitIndex := by
@@ -2362,14 +2363,14 @@ lemma knownEvidenceFrontierCanonical
   have memberFound :
       entryAt? (state.nodes member).log evidence.commitFrontier =
         some frontierEntry :=
-    CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix memberCovered prefixFound
+    CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix memberCovered prefixFound
   have memberAgreed :=
     (ownership.logEntryAgreement
       member evidence.commitFrontier frontierEntry memberFound).2
   calc
     evidence.history.take evidence.commitFrontier =
         (state.nodes member).log.take evidence.commitFrontier := by
-      have covered := CCFRaft.Proofs.HandlerProofs.prefixEqTake memberCovered
+      have covered := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake memberCovered
       rw [prefixLength] at covered
       exact covered.symm
     _ =
@@ -2420,7 +2421,7 @@ lemma effectiveAckerCurrentTermBound
       rw [entryAtTake_of_le le_rfl]
       exact found
     have supporterFound :=
-      CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix retained prefixFound
+      CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix retained prefixFound
     simpa [entryTerm] using
       entriesBounded supporter entry (entryAtSomeMember supporterFound)
   · rcases bad with
@@ -2889,7 +2890,7 @@ lemma knownCommitEvidenceActiveLeaderContainsFrontier
   have memberFound :
       entryAt? (state.nodes member).log evidence.commitFrontier =
         some frontierEntry :=
-    CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix memberCovered prefixFound
+    CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix memberCovered prefixFound
   rcases
       ownership.logEntryAgreement
         member evidence.commitFrontier frontierEntry memberFound with
@@ -2901,7 +2902,7 @@ lemma knownCommitEvidenceActiveLeaderContainsFrontier
     calc
       evidencePrefix =
           (state.nodes member).log.take evidence.commitFrontier := by
-        have covered := CCFRaft.Proofs.HandlerProofs.prefixEqTake memberCovered
+        have covered := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake memberCovered
         rw [prefixLength] at covered
         exact covered.symm
       _ =
@@ -3237,7 +3238,7 @@ lemma handledAppendRequestAdvancedCommittedHistory
     nextNode.committedLog =
       (appendHistory request).take nextNode.commitIndex := by
   let post :=
-    CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+    CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
   have succeeded : response.success = true :=
     post.commitAdvancedSuccessful advanced
   have nextBound : nextNode.commitIndex <= nextNode.log.length :=
@@ -3449,11 +3450,11 @@ lemma appendRequestAlreadyDoneOfSharedPrefix
               (request.prevLogIndex + request.entries.length) =
             sharedPrefix.take
               (request.prevLogIndex + request.entries.length) :=
-          (CCFRaft.Proofs.HandlerProofs.takeEqOfPrefix beforePrefix covers).symm
+          (CCFRaft.Proofs.Abstract.HandlerProofs.takeEqOfPrefix beforePrefix covers).symm
         _ =
             history.take
               (request.prevLogIndex + request.entries.length) :=
-          CCFRaft.Proofs.HandlerProofs.takeEqOfPrefix historyPrefix covers
+          CCFRaft.Proofs.Abstract.HandlerProofs.takeEqOfPrefix historyPrefix covers
     have exactEntries :
         (before.log.drop request.prevLogIndex).take
             request.entries.length =
@@ -3497,7 +3498,7 @@ lemma successfulAppendRequestSharedPrefixLength
       have responseEq := congrArg Prod.snd pairEq
       dsimp at responseEq
       subst response
-      have failed := (CCFRaft.Proofs.HandlerProofs.failureResponseMetadata before request).2.2
+      have failed := (CCFRaft.Proofs.Abstract.HandlerProofs.failureResponseMetadata before request).2.2
       rw [failed] at success
       contradiction
     · simp_all
@@ -3625,7 +3626,7 @@ lemma handledAppendRequestRetainsSharedPrefix
       sharedPrefix <+: appendHistory request) :
     sharedPrefix <+: nextNode.log := by
   let post :=
-    CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+    CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
   have prefixBound :
       sharedPrefix.length <= nextNode.log.length :=
     successfulAppendRequestSharedPrefixLength
@@ -3721,7 +3722,7 @@ lemma handleAppendEntriesRequestActiveUnchanged
       before.role = .candidate \/ before.role = .leader) :
     nextNode = before := by
   rcases active with candidate | leader
-  · let post := CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+  · let post := CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
     by_cases succeeded : response.success = true
     · have sameTerm := post.successfulCurrentTerm succeeded
       unfold returnToFollowerState? at notStepped
@@ -3730,7 +3731,7 @@ lemma handleAppendEntriesRequestActiveUnchanged
         Bool.eq_false_of_not_eq_true succeeded
       exact post.failedStateUnchanged failed
   · exact
-      CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLeaderUnchanged
+      CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLeaderUnchanged
         leader handled
 
 /-- Every successful response acknowledges an index present in the resulting
@@ -3754,7 +3755,7 @@ lemma successfulAppendResponseIndexWithinLog
       have responseEq := congrArg Prod.snd pairEq
       dsimp at responseEq
       subst response
-      have failed := (CCFRaft.Proofs.HandlerProofs.failureResponseMetadata before request).2.2
+      have failed := (CCFRaft.Proofs.Abstract.HandlerProofs.failureResponseMetadata before request).2.2
       rw [failed] at success
       contradiction
     · contradiction
@@ -3873,7 +3874,7 @@ lemma successfulAlreadyDoneAppendLogUnchanged
       have responseEq := congrArg Prod.snd pairEq
       dsimp at responseEq
       subst response
-      have failed := (CCFRaft.Proofs.HandlerProofs.failureResponseMetadata before request).2.2
+      have failed := (CCFRaft.Proofs.Abstract.HandlerProofs.failureResponseMetadata before request).2.2
       rw [failed] at success
       contradiction
     · contradiction
@@ -3922,7 +3923,7 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
     {index : Nat}
     (acknowledged : index <= response.lastLogIndex) :
     (state.nodes request.source).log.take index <+: nextNode.log := by
-  let post := CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+  let post := CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
   have withinEnd :
       index <= request.prevLogIndex + request.entries.length := by
     exact Nat.le_trans acknowledged (post.successfulIndexBound success)
@@ -3934,7 +3935,7 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
   have sourceTake :
       (state.nodes request.source).log.take index =
         (appendHistory request).take index :=
-    (CCFRaft.Proofs.HandlerProofs.takeEqOfPrefix sourceHistory historyBound).symm
+    (CCFRaft.Proofs.Abstract.HandlerProofs.takeEqOfPrefix sourceHistory historyBound).symm
   have nextBound : index <= nextNode.log.length :=
     Nat.le_trans acknowledged
       (successfulAppendResponseIndexWithinLog handled success)
@@ -4133,7 +4134,7 @@ lemma handledAppendRequestCanonicalAgreement
           nextNode.log.take index =
             (canonicalHistory entry.term).take index := by
   let post :=
-    CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+    CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
   intro index entry found
   by_cases succeeded : response.success = true
   · have previousBound :
@@ -4539,12 +4540,12 @@ lemma historyCanonicalOfPrefix
     HistoryCanonical canonicalHistory shorter := by
   intro index entry found
   have historyFound :=
-    CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix isPrefix found
+    CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix isPrefix found
   rcases canonical index entry historyFound with
     ⟨canonicalFound, agreed⟩
   exact
     ⟨canonicalFound,
-      (CCFRaft.Proofs.HandlerProofs.takeEqOfPrefix isPrefix
+      (CCFRaft.Proofs.Abstract.HandlerProofs.takeEqOfPrefix isPrefix
         (entryAtSomeIndexBound found)).trans agreed⟩
 
 omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
@@ -4558,8 +4559,8 @@ lemma monoHistoryOfPrefix
       earlierFound laterFound
   exact
     mono earlier later earlierEntry laterEntry order
-      (CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix isPrefix earlierFound)
-      (CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix isPrefix laterFound)
+      (CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix isPrefix earlierFound)
+      (CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix isPrefix laterFound)
 
 omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Extending a monotone history cannot decrease its final term. -/
@@ -4582,7 +4583,7 @@ lemma termAtLastMonotoneOfPrefix
     ⟨historyLast, historyFound⟩
   have shorterFoundInHistory :
       entryAt? history shorter.length = some shorterLast :=
-    CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix isPrefix shorterFound
+    CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix isPrefix shorterFound
   have termOrder : shorterLast.term <= historyLast.term := by
     by_cases sameLength : shorter.length = history.length
     · rw [sameLength] at shorterFoundInHistory
@@ -4621,7 +4622,7 @@ lemma maxCommittableTermMonotoneOfPrefix
     simpa [shorterIndex] using shorterFound
   have shorterFoundInHistory :
       entryAt? history shorterIndex = some shorterEntry :=
-    CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix isPrefix shorterFound
+    CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix isPrefix shorterFound
   by_cases sameIndex : shorterIndex = historyIndex
   · rw [← sameIndex]
     simp [termAt, shorterFound', shorterFoundInHistory]
@@ -4917,7 +4918,7 @@ lemma receiveAppendRequestKnownEvidenceInherited
           evidence.commitFrontier = oldEvidence.commitFrontier /\
           evidence.ackQuorum = oldEvidence.ackQuorum /\
           evidence.supportedLength <= oldEvidence.supportedLength := by
-  let post := CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+  let post := CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
   have requestMember :
       Message.appendEntriesRequest request ∈ state.network destination :=
     (takeFirstFromSound taken).2.1
@@ -5064,7 +5065,7 @@ lemma handledAppendRequestRetainsEvidenceFrontier
       handleAppendEntriesRequest? (state.nodes destination) request =
         some (nextNode, response)) :
     evidence.history.take evidence.commitFrontier <+: nextNode.log := by
-  let post := CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+  let post := CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
   have currentPrefix :=
     prospectiveFacts.currentMember
       evidence supportedPrefix known destination ackMember
@@ -5103,7 +5104,7 @@ lemma handledAppendRequestRetainsEvidenceFrontier
                 evidence.history.take evidence.commitFrontier =
                     (appendHistory request).take
                       evidence.commitFrontier :=
-                  (CCFRaft.Proofs.HandlerProofs.takeEqOfPrefix
+                  (CCFRaft.Proofs.Abstract.HandlerProofs.takeEqOfPrefix
                     requestBeforeEvidence frontierWithin).symm
                 _ =
                     (appendHistory request).take
@@ -5161,7 +5162,7 @@ lemma handledAppendRequestRetainsEvidenceFrontier
           rw [entryAtTake_of_le le_rfl]
           exact frontierFound
         have destinationFound :=
-          CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix currentPrefix prefixFound
+          CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix currentPrefix prefixFound
         have bounded :=
           entriesBounded destination frontierEntry
             (entryAtSomeMember destinationFound)
@@ -5667,7 +5668,7 @@ lemma queuedAppendReservePeerTerm
   · rcases direct with
       ⟨nextNode, response, handled, success, _⟩
     have localPost :=
-      CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+      CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
     have peerTerm :
         request.term = (state.nodes peer).currentTerm := by
       simpa [requestDestination, protocolNodeState] using
@@ -5914,7 +5915,7 @@ lemma activationSupporterSnapshotContainsPrefix
   have sourceInSupporter :
       entryAt? (activation.supporterHistory supporter) index =
         some sourceEntry :=
-    CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix retained sourceInPrefix
+    CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix retained sourceInPrefix
   have supporterMono :
       MonoHistory (activation.supporterHistory supporter) :=
     canonicalSnapshotMono ownership
@@ -5948,7 +5949,7 @@ lemma activationSupporterSnapshotContainsPrefix
   have supporterTake :
       (activation.supporterHistory supporter).take index =
         (state.nodes source).log.take index := by
-    have exactTake := CCFRaft.Proofs.HandlerProofs.prefixEqTake retained
+    have exactTake := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake retained
     simpa [sourceLength] using exactTake
   rw [List.prefix_iff_eq_take]
   calc
@@ -6218,7 +6219,7 @@ lemma electionPromotionPrefixInActivationCore
       rw [← entryAtTake_of_le
         (log := record.promotionLog) le_rfl]
       rw [
-        CCFRaft.Proofs.HandlerProofs.takeEqOfPrefix promotionCanonical frontierWithin
+        CCFRaft.Proofs.Abstract.HandlerProofs.takeEqOfPrefix promotionCanonical frontierWithin
       ]
       rw [entryAtTake_of_le le_rfl]
       exact activationCanonicalFound
@@ -6474,7 +6475,7 @@ lemma leastBadElectionPromotionContainsPrefixForActivation
     exact covered
   have voterTakeEq :
       (record.voterLog voter).take index = supportedPrefix := by
-    have covered := CCFRaft.Proofs.HandlerProofs.prefixEqTake voterPrefix
+    have covered := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake voterPrefix
     rw [prefixLength] at covered
     exact covered
   have voterFound :
@@ -6565,7 +6566,7 @@ lemma leastBadElectionPromotionContainsPrefixForActivation
       omega
     have candidateEntryInPromotion :
         candidateLastEntry ∈ record.promotionLog :=
-      CCFRaft.Proofs.HandlerProofs.memOfPrefix candidatePrefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix candidatePrefix
         (entryAtSomeMember candidateLastFound)
     have candidateTermBeforeElection :
         candidateLastEntry.term < term :=
@@ -6606,7 +6607,7 @@ lemma leastBadElectionPromotionContainsPrefixForActivation
       have canonicalTakeEq :
           (canonicalHistory candidateLastEntry.term).take index =
             supportedPrefix := by
-        have covered := CCFRaft.Proofs.HandlerProofs.prefixEqTake prefixInCanonical
+        have covered := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake prefixInCanonical
         simpa [prefixLength] using covered
       have canonicalSourceFound :
           entryAt?
@@ -6878,7 +6879,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                     (sourceCoverage.activation.history.take
                       sourceCoverage.activation.activationFrontier) := by
               apply
-                CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                   (allConfigurations_mono_prefix
                     sourceCoverage.sharedPrefix_prefix_activationPrefix)
               simpa [sourceConfiguration] using
@@ -6891,12 +6892,12 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                   allConfigurations record.promotionLog := by
               have configurationsPrefix :=
                 allConfigurations_mono_prefix sourceActivationInPromotion
-              apply CCFRaft.Proofs.HandlerProofs.memOfPrefix configurationsPrefix
+              apply CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix configurationsPrefix
               exact sourceConfigurationKnownActivation
             have sourceConfigurationKnownBallot :
                 sourceConfiguration ∈
                   allConfigurations record.ballotLog :=
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix
                   ((electionFacts.promotionFromBallot
                     term record recorded).symm ▸
@@ -7070,7 +7071,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                           ballotActivationStored
                           (by simpa [sourceConfiguration] using strict)
                       apply
-                        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                           (allConfigurations_mono_prefix
                             (sourcePrefixInBallot.trans
                               (List.take_prefix
@@ -7090,7 +7091,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                         activationNewConfigurationKnown
                           historyFacts ballotActivationStored
                       apply
-                        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                           (allConfigurations_mono_prefix
                             (List.take_prefix
                               ballotActivation.activationFrontier
@@ -7126,7 +7127,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                       (sourceCoverage.activation.history.take
                         sourceCoverage.activation.activationFrontier) := by
                 apply
-                  CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix
                       sourceCoverage.sharedPrefix_prefix_activationPrefix)
                 simpa [sourceConfiguration] using
@@ -7136,7 +7137,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                   sourceConfiguration ∈
                     allConfigurations record.promotionLog := by
                 exact
-                  CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix
                       sourceActivationInPromotion)
                     sourceConfigurationKnownEvent
@@ -7144,7 +7145,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                   sourceConfiguration ∈
                     allConfigurations record.ballotLog := by
                 apply
-                  CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix
                       (List.take_prefix
                         (maxCommittableIndex record.ballotLog)
@@ -7290,7 +7291,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                         _ <+: (state.nodes source).log :=
                           List.take_prefix _ _
                     apply
-                      CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                         (allConfigurations_mono_prefix
                           activationPrefixSource)
                     exact ballotConfigurationKnownActivationPrefix
@@ -7340,7 +7341,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                   have ballotKnownSource :
                       ballotConfiguration ∈
                         allConfigurations (state.nodes source).log :=
-                    CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                    CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                       (allConfigurations_mono_prefix activationInSource)
                       ballotConfigurationKnownActivationPrefix
                   have ballotActiveSource :
@@ -7371,7 +7372,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                             ballotActivationStored).1
                       simpa [termAt, activationFound] using activationTerm
                     have activationFoundSource :=
-                      CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix
+                      CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix
                         activationInSource (by
                           rw [entryAtTake_of_le le_rfl]
                           exact activationFound)
@@ -7564,7 +7565,7 @@ lemma leastBadElectionPromotionContainsPrefix
     exact covered
   have voterTakeEq :
       (record.voterLog voter).take index = supportedPrefix := by
-    have covered := CCFRaft.Proofs.HandlerProofs.prefixEqTake voterPrefix
+    have covered := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake voterPrefix
     rw [prefixLength] at covered
     exact covered
   have voterFound :
@@ -7649,7 +7650,7 @@ lemma leastBadElectionPromotionContainsPrefix
       omega
     have candidateEntryInPromotion :
         candidateLastEntry ∈ record.promotionLog :=
-      CCFRaft.Proofs.HandlerProofs.memOfPrefix candidatePrefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix candidatePrefix
         (entryAtSomeMember candidateLastFound)
     have candidateTermBeforeElection :
         candidateLastEntry.term < term :=
@@ -7691,7 +7692,7 @@ lemma leastBadElectionPromotionContainsPrefix
       have canonicalTakeEq :
           (canonicalHistory candidateLastEntry.term).take index =
             supportedPrefix := by
-        have covered := CCFRaft.Proofs.HandlerProofs.prefixEqTake prefixInCanonical
+        have covered := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake prefixInCanonical
         simpa [prefixLength] using covered
       have canonicalSourceFound :
           entryAt?
@@ -7967,7 +7968,7 @@ lemma candidateSnapshotContainsSupportedPrefix
     rw [prefixLength] at covered
     exact covered
   have voterTakeEq : voterLog.take index = supportedPrefix := by
-    have covered := CCFRaft.Proofs.HandlerProofs.prefixEqTake voterPrefix
+    have covered := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake voterPrefix
     rw [prefixLength] at covered
     exact covered
   have voterFound :
@@ -8080,7 +8081,7 @@ lemma candidateSnapshotContainsSupportedPrefix
       have canonicalTakeEq :
           (canonicalHistory candidateLastEntry.term).take index =
             supportedPrefix := by
-        have covered := CCFRaft.Proofs.HandlerProofs.prefixEqTake prefixInCanonical
+        have covered := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake prefixInCanonical
         rw [prefixLength] at covered
         exact covered
       have canonicalSupportedFound :
@@ -8391,7 +8392,7 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
               intro entry member
               have currentMember :
                   entry ∈ (state.nodes candidate).log :=
-                CCFRaft.Proofs.HandlerProofs.memOfPrefix voteSnapshot.1 member
+                CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix voteSnapshot.1 member
               have bounded := entriesBounded candidate entry currentMember
               by_cases same :
                   entry.term = (state.nodes candidate).currentTerm
@@ -9235,7 +9236,7 @@ lemma futureElectionMemberContainsSignedPrefix
   have memberFound :
       entryAt? (state.nodes member).log evidence.commitFrontier =
         some frontierEntry :=
-    CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix memberCovered prefixFound
+    CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix memberCovered prefixFound
   rcases
       ownership.logEntryAgreement
         member evidence.commitFrontier frontierEntry memberFound with
@@ -9247,7 +9248,7 @@ lemma futureElectionMemberContainsSignedPrefix
     calc
       evidencePrefix =
           (state.nodes member).log.take evidence.commitFrontier := by
-        have covered := CCFRaft.Proofs.HandlerProofs.prefixEqTake memberCovered
+        have covered := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake memberCovered
         rw [prefixLength] at covered
         exact covered.symm
       _ =
@@ -9434,7 +9435,7 @@ lemma futureElectionMemberContainsSignedPrefix
                 (canonicalHistory candidateEntry.term)
                 evidence.commitFrontier =
               some frontierEntry :=
-          CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix prefixInCanonical prefixFound
+          CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix prefixInCanonical prefixFound
         have lengthStrict :
             evidence.commitFrontier <
               maxCommittableIndex (state.nodes candidate).log := by
@@ -9469,7 +9470,7 @@ lemma futureElectionMemberContainsSignedPrefix
               (canonicalHistory candidateEntry.term).take
                 evidence.commitFrontier :=
             by
-              have covered := CCFRaft.Proofs.HandlerProofs.prefixEqTake prefixInCanonical
+              have covered := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake prefixInCanonical
               simpa [prefixLength] using covered.symm
           _ =
               ((canonicalHistory candidateEntry.term).take
@@ -9844,7 +9845,7 @@ lemma activationPrefixInPotentialCandidatePromotionOfGoverningConfiguration
             intro entry member
             have currentMember :
                 entry ∈ (state.nodes candidate).log :=
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix voteSnapshot.1 member
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix voteSnapshot.1 member
             have bounded := entriesBounded candidate entry currentMember
             by_cases same :
                 entry.term = (state.nodes candidate).currentTerm
@@ -10198,12 +10199,12 @@ lemma activationPrefixInHigherActivationCore
     intro reverse
     have higherKnownLowerPrefix :
         higher.newConfiguration ∈ allConfigurations lowerPrefix :=
-      CCFRaft.Proofs.HandlerProofs.memOfPrefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
         (allConfigurations_mono_prefix reverse)
         higherConfigurationKnown
     have higherKnownLowerHistory :
         higher.newConfiguration ∈ allConfigurations lower.history :=
-      CCFRaft.Proofs.HandlerProofs.memOfPrefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
         (allConfigurations_mono_prefix
           (List.take_prefix lower.activationFrontier lower.history))
         (by simpa [lowerPrefix] using higherKnownLowerPrefix)
@@ -10766,7 +10767,7 @@ lemma activationPrefixInTargetByAuthorityChainCore
                 (of_decide_eq_true
                   (List.mem_filter.mp oldCovered).2).2⟩
           exact
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 (priorCovered.trans targetPrefix))
               (allConfigurations_mem_take_of_index_le
@@ -10881,7 +10882,7 @@ lemma activationPrefixInTargetByCoverageAuthorityChain
       witness.sharedPrefix_prefix_higherAuthority stored
         (by simpa [candidateConfiguration] using candidateBefore)
     exact
-      CCFRaft.Proofs.HandlerProofs.memOfPrefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
         (allConfigurations_mono_prefix
           (sharedInActivation.trans
             (List.take_prefix
@@ -11179,7 +11180,7 @@ lemma potentialCandidatesSharedConfigurationCoverage
             (rightWitness.activation.history.take
               rightWitness.activation.activationFrontier) := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (rightWitness.sharedPrefix_prefix_activationPrefix))
       simpa [rightConfiguration] using
@@ -11187,7 +11188,7 @@ lemma potentialCandidatesSharedConfigurationCoverage
     have rightKnownLeft :
         rightConfiguration ∈ allConfigurations (state.nodes left).log := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (eventInLeft.trans
               (List.take_prefix
@@ -11257,7 +11258,7 @@ lemma potentialCandidatesSharedConfigurationCoverage
             (leftWitness.activation.history.take
               leftWitness.activation.activationFrontier) := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (leftWitness.sharedPrefix_prefix_activationPrefix))
       simpa [leftConfiguration] using
@@ -11265,7 +11266,7 @@ lemma potentialCandidatesSharedConfigurationCoverage
     have leftKnownRight :
         leftConfiguration ∈ allConfigurations (state.nodes right).log := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (eventInRight.trans
               (List.take_prefix
@@ -11377,7 +11378,7 @@ lemma potentialCandidateElectionRecordSharedConfigurationCoverage
     have foundInPromotion :
         entryAt? record.promotionLog activation.activationFrontier =
           some entry :=
-      CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix
         (retained.trans ballotCommitPrefixPromotion) foundInTake
     have before :=
       electionFacts.promotionEntriesBeforeTerm
@@ -11406,7 +11407,7 @@ lemma potentialCandidateElectionRecordSharedConfigurationCoverage
     have ballotKnownCandidate :
         ballotConfiguration ∈ allConfigurations (state.nodes candidate).log := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (activationInCandidate.trans
               (List.take_prefix
@@ -11490,7 +11491,7 @@ lemma potentialCandidateElectionRecordSharedConfigurationCoverage
         rcases lt_or_eq_of_le candidateAtOrBeforeActivation with
           strict | equal
         · apply
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 ((witness.sharedPrefix_prefix_higherAuthority
                   ballotStored
@@ -11506,7 +11507,7 @@ lemma potentialCandidateElectionRecordSharedConfigurationCoverage
               ballotStored
               (by simpa [candidateConfiguration] using equal.symm)
           simpa [sameConfiguration] using
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 (List.take_prefix
                   ballotActivation.activationFrontier
@@ -11537,7 +11538,7 @@ lemma potentialCandidateElectionRecordSharedConfigurationCoverage
             (witness.activation.history.take
               witness.activation.activationFrontier) := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             witness.sharedPrefix_prefix_activationPrefix)
       simpa [candidateConfiguration] using
@@ -11545,7 +11546,7 @@ lemma potentialCandidateElectionRecordSharedConfigurationCoverage
     have candidateKnownBallot :
         candidateConfiguration ∈ allConfigurations record.ballotLog := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (eventInPromotion.trans
               (by
@@ -11704,7 +11705,7 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
         sourceWitness.sharedPrefix_prefix_higherAuthority stored
           (by simpa [sourceConfiguration] using order)
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (sharedInActivation.trans
               (List.take_prefix
@@ -11889,10 +11890,10 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
               candidateConfiguration ∈
                 allConfigurations (after.nodes source).log := by
             apply
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix activationInSource)
             apply
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix
                   candidateWitness.sharedPrefix_prefix_activationPrefix)
             simpa [candidateConfiguration] using
@@ -11913,7 +11914,7 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
               (historyFacts.valid
                 candidateWitness.activationIndex candidateWitness.activation
                 candidateWitness.stored).2.1]
-          have exactTake := CCFRaft.Proofs.HandlerProofs.prefixEqTake activationInSource
+          have exactTake := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake activationInSource
           have exactFrontierTake :
               (after.nodes source).log.take
                   candidateWitness.activation.activationFrontier =
@@ -11973,10 +11974,10 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
               candidateConfiguration ∈
                 allConfigurations (after.nodes source).log := by
             apply
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix activationInSource)
             apply
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix
                   candidateWitness.sharedPrefix_prefix_activationPrefix)
             simpa [candidateConfiguration] using
@@ -11997,7 +11998,7 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
               (historyFacts.valid
                 candidateWitness.activationIndex candidateWitness.activation
                 candidateWitness.stored).2.1]
-          have exactTake := CCFRaft.Proofs.HandlerProofs.prefixEqTake activationInSource
+          have exactTake := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake activationInSource
           have exactFrontierTake :
               (after.nodes source).log.take
                   candidateWitness.activation.activationFrontier =
@@ -12111,14 +12112,14 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
             sourceConfiguration ∈
               allConfigurations (after.nodes candidate).log := by
           apply
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 (sourceEventInCandidate.trans
                   (List.take_prefix
                     (maxCommittableIndex (after.nodes candidate).log)
                     (after.nodes candidate).log)))
           apply
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 sourceWitness.sharedPrefix_prefix_activationPrefix)
           simpa [sourceConfiguration] using
@@ -12163,14 +12164,14 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
           sourceConfiguration ∈
             allConfigurations (after.nodes candidate).log := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (sourceEventInCandidate.trans
                 (List.take_prefix
                   (maxCommittableIndex (after.nodes candidate).log)
                   (after.nodes candidate).log)))
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               sourceWitness.sharedPrefix_prefix_activationPrefix)
         simpa [sourceConfiguration] using
@@ -12251,7 +12252,7 @@ lemma futureElectionRecordSharedConfigurationCoverage
             (witness.activation.history.take
               witness.activation.activationFrontier) := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             witness.sharedPrefix_prefix_activationPrefix)
       simpa [candidateConfiguration] using
@@ -12259,7 +12260,7 @@ lemma futureElectionRecordSharedConfigurationCoverage
     have candidateKnownBallot :
         candidateConfiguration ∈ allConfigurations record.ballotLog := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (eventInPromotion.trans
               (by
@@ -12337,7 +12338,7 @@ lemma futureElectionRecordSharedConfigurationCoverage
         rcases lt_or_eq_of_le candidateAtOrBeforeActivation with
           strict | equal
         · apply
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 ((witness.sharedPrefix_prefix_higherAuthority
                   ballotStored
@@ -12353,7 +12354,7 @@ lemma futureElectionRecordSharedConfigurationCoverage
               ballotStored
               (by simpa [candidateConfiguration] using equal.symm)
           simpa [sameConfiguration] using
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 (List.take_prefix
                   ballotActivation.activationFrontier
@@ -12393,7 +12394,7 @@ lemma futureElectionRecordSharedConfigurationCoverage
             historyFacts ballotStored ballotGoverning))
     have ballotKnownCandidate :
         ballotConfiguration ∈ allConfigurations (state.nodes candidate).log :=
-      CCFRaft.Proofs.HandlerProofs.memOfPrefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
         (allConfigurations_mono_prefix ballotActivationInCandidate)
         (by
           have valid :=
@@ -12684,7 +12685,7 @@ lemma effectiveAckerRelaxedCandidateContainsPotentialPrefix
                 (fun entry member =>
                   Or.inl
                     (candidateEntriesBefore entry
-                      (CCFRaft.Proofs.HandlerProofs.memOfPrefix voteSnapshot.1 member)))
+                      (CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix voteSnapshot.1 member)))
           · simpa [
               response, voteLogUpToDate, maxCommittableTerm,
               voteSnapshot.2.1, voteSnapshot.2.2.1
@@ -12825,7 +12826,7 @@ lemma effectiveAckerRelaxedCandidateContainsPrefixOfEarlierSafe
                 (fun entry member =>
                   Or.inl
                     (candidateEntriesBefore entry
-                      (CCFRaft.Proofs.HandlerProofs.memOfPrefix voteSnapshot.1 member)))
+                      (CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix voteSnapshot.1 member)))
           · simpa [
               response, voteLogUpToDate, maxCommittableTerm,
               voteSnapshot.2.1, voteSnapshot.2.2.1
@@ -13181,7 +13182,7 @@ lemma derivePotentialCommitSafe
         termsPositive voteFacts ownership electionFacts
           currentHistory electedHistory activationQuorums
           role current signature potential effective
-    exact CCFRaft.Proofs.HandlerProofs.prefixesComparable sourcePrefix committedPrefix
+    exact CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable sourcePrefix committedPrefix
 
 /-- Temporal quorum evidence derives higher-winner containment. -/
 lemma derivePotentialCommitElectionSafe
@@ -13309,7 +13310,7 @@ lemma derivePotentialCommitsComparable
         termsPositive voteFacts ownership electionFacts
           currentHistory electedHistory activationQuorums
           rightRole rightCurrent rightSignature rightPotential rightMember
-    exact CCFRaft.Proofs.HandlerProofs.prefixesComparable leftPrefix rightPrefix
+    exact CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable leftPrefix rightPrefix
 
 /-- A successful selected request is exactly the reserve its reply materialises. -/
 lemma successfulAppendRequestIsReserve
@@ -13818,7 +13819,7 @@ lemma appendEntriesPotentialAckerDelta
           (state.nodes node).currentTerm := by
     intro node
     by_cases same : node = source <;>
-      simp [next, CCFRaft.Protocol.Model.next, updateNode, same]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same]
   have logEq :
       forall node,
         ((next state
@@ -13826,7 +13827,7 @@ lemma appendEntriesPotentialAckerDelta
           (state.nodes node).log := by
     intro node
     by_cases same : node = source <;>
-      simp [next, CCFRaft.Protocol.Model.next, updateNode, same]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same]
   have matchEq :
       forall node,
         ((next state
@@ -13834,7 +13835,7 @@ lemma appendEntriesPotentialAckerDelta
           (state.nodes node).matchIndex := by
     intro node
     by_cases same : node = source <;>
-      simp [next, CCFRaft.Protocol.Model.next, updateNode, same]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same]
   simp only [
     potentialAckers, Finset.mem_filter] at member ⊢
   rcases member with ⟨joined, effective | reserve⟩
@@ -13857,7 +13858,7 @@ lemma appendEntriesPotentialAckerDelta
             memEnqueue
               state.network (.appendEntriesRequest request)
                 (.appendEntriesResponse response) leader
-                (by simpa [next, CCFRaft.Protocol.Model.next, request] using queued) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using queued) with
           old | new
         · exact old
         · simp at new
@@ -13898,12 +13899,12 @@ lemma appendEntriesPotentialAckerDelta
                 ((next state
                   (.appendEntries source destination batchEnd)).nodes
                   source).role = .leader := by
-              simpa [next, CCFRaft.Protocol.Model.next] using enabled.2.2.1
+              simpa [next, CCFRaft.Proofs.Abstract.Model.next] using enabled.2.2.1
             rw [peerEq, leaderRole] at follower
             contradiction
           · exact Or.inl (by
               simpa [
-                next, CCFRaft.Protocol.Model.next, updateNode,
+                next, CCFRaft.Proofs.Abstract.Model.next, updateNode,
                 Function.update, peerEq
               ] using direct)
         · exact Or.inr (by simpa [currentTermEq] using future)
@@ -13914,7 +13915,7 @@ lemma appendEntriesPotentialAckerDelta
             memEnqueue
               state.network (.appendEntriesRequest request)
                 (.appendEntriesRequest queuedRequest) peer
-                (by simpa [next, CCFRaft.Protocol.Model.next, request] using queued) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using queued) with
           old | new
         · exact old
         · simp at new
@@ -13960,7 +13961,7 @@ lemma appendEntriesPotentialAckersMonotone
           (state.nodes node).currentTerm := by
     intro node
     by_cases same : node = source <;>
-      simp [next, CCFRaft.Protocol.Model.next, updateNode, same]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same]
   have logEq :
       forall node,
         ((next state
@@ -13968,7 +13969,7 @@ lemma appendEntriesPotentialAckersMonotone
           (state.nodes node).log := by
     intro node
     by_cases same : node = source <;>
-      simp [next, CCFRaft.Protocol.Model.next, updateNode, same]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same]
   have matchEq :
       forall node,
         ((next state
@@ -13976,22 +13977,22 @@ lemma appendEntriesPotentialAckersMonotone
           (state.nodes node).matchIndex := by
     intro node
     by_cases same : node = source <;>
-      simp [next, CCFRaft.Protocol.Model.next, updateNode, same]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same]
   intro peer member
   simp only [
     potentialAckers, Finset.mem_filter] at member ⊢
   rcases member with ⟨joined, effective | reserve⟩
-  · refine ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, ?_⟩
+  · refine ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, ?_⟩
     left
     simp only [
       effectiveAckers, Finset.mem_filter] at effective ⊢
     rcases effective with ⟨_effectiveJoined, self | matched | queued⟩
-    · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl self⟩
+    · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl self⟩
     · exact
-        ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+        ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
           Or.inr (Or.inl (by simpa [matchEq] using matched))⟩
     · refine
-        ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+        ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
           Or.inr (Or.inr ?_)⟩
       rcases queued with
         ⟨response, queued, success, term, responseSource,
@@ -13999,7 +14000,7 @@ lemma appendEntriesPotentialAckersMonotone
       exact
         ⟨response,
           by
-            simpa [next, CCFRaft.Protocol.Model.next, request] using
+            simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using
               memEnqueueNoDupOfMem
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesResponse response) leader queued,
@@ -14007,7 +14008,7 @@ lemma appendEntriesPotentialAckersMonotone
           by simpa [currentTermEq] using term,
           responseSource, responseDestination, acknowledged,
           by simpa [logEq] using covered⟩
-  · refine ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, ?_⟩
+  · refine ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, ?_⟩
     right
     rcases reserve with
       ⟨queuedRequest, queued, requestSource, requestDestination,
@@ -14028,14 +14029,14 @@ lemma appendEntriesPotentialAckersMonotone
           contradiction
         · exact Or.inl (by
             simpa [
-              next, CCFRaft.Protocol.Model.next, updateNode,
+              next, CCFRaft.Proofs.Abstract.Model.next, updateNode,
               Function.update, peerEq
             ] using direct)
       · exact Or.inr (by simpa [currentTermEq] using future)
     refine
       ⟨queuedRequest,
         by
-          simpa [next, CCFRaft.Protocol.Model.next, request] using
+          simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using
             memEnqueueNoDupOfMem
               state.network (.appendEntriesRequest request)
                 (.appendEntriesRequest queuedRequest) peer queued,
@@ -15214,7 +15215,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
     apply List.mem_filter.mpr
     constructor
     · exact
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix (logPrefix candidate))
           oldKnown
     · apply decide_eq_true
@@ -15292,7 +15293,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
     · have earlierClassified :=
         entryAtAppendSingleton earlierFound
       rcases earlierClassified with earlierOld | earlierNew
-      · have member := CCFRaft.Proofs.HandlerProofs.entryAt_mem earlierOld.2
+      · have member := CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_mem earlierOld.2
         have bounded :=
           facts.entriesDoNotExceedCurrentTerm node earlierEntry member
         simpa [laterNew.2, entry] using bounded
@@ -15423,9 +15424,9 @@ lemma leaderAppendPreservesSystemInductiveInvariant
             (state.nodes node).log ++ [entry] :=
         List.prefix_append _ _
       have newFound :=
-        CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix oldPrefixNew oldFound
+        CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix oldPrefixNew oldFound
       have takesEqual :=
-        CCFRaft.Proofs.HandlerProofs.takeEqOfPrefix oldPrefixNew
+        CCFRaft.Proofs.Abstract.HandlerProofs.takeEqOfPrefix oldPrefixNew
           (entryAtSomeIndexBound oldFound)
       constructor
       · simpa [
@@ -15651,7 +15652,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
         · subst leader
           rw [logEqNode]
           exact
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 (List.prefix_append _ _))
               known
@@ -16676,7 +16677,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
               (state.nodes node).log index value
                 (ownership.logEntryAgreement node index value old.2)
           have takesEqual :=
-            CCFRaft.Proofs.HandlerProofs.takeEqOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.takeEqOfPrefix
               (List.prefix_append (state.nodes node).log [entry]) old.1
           exact
             ⟨preserved.1,
@@ -17238,7 +17239,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
                   ownershipAfter electionFactsAfter evidenceAfter
                   prospectiveAfter known role termOrder ackMember)
             rcases
-                CCFRaft.Proofs.HandlerProofs.prefixesComparable
+                CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                   (List.take_prefix index
                     ((leaderAppendState
                       state node content submittedTxIds).nodes source).log)
@@ -17334,7 +17335,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
                     rw [canonicalEq]
                     exact List.take_prefix _ _)
               rcases
-                  CCFRaft.Proofs.HandlerProofs.prefixesComparable
+                  CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                     sourceInCanonical committedInCanonical with
                 direct | direct
               · exact Or.inl direct
@@ -17384,7 +17385,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
                     ownershipAfter.activeLeaderHistory right rightRole
                   ]))
             rcases
-                CCFRaft.Proofs.HandlerProofs.prefixesComparable
+                CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                   leftInRight
                   (List.take_prefix rightIndex
                     ((leaderAppendState
@@ -17399,7 +17400,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
             Option.some.inj (leftOwned.symm.trans rightOwned)
           subst right
           rcases
-              CCFRaft.Proofs.HandlerProofs.prefixesComparable
+              CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                 (List.take_prefix leftIndex
                   ((leaderAppendState
                     state node content submittedTxIds).nodes left).log)
@@ -17446,7 +17447,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
                     ownershipAfter.activeLeaderHistory left leftRole
                   ]))
             rcases
-                CCFRaft.Proofs.HandlerProofs.prefixesComparable
+                CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                   rightInLeft
                   (List.take_prefix leftIndex
                     ((leaderAppendState
@@ -17520,7 +17521,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
               (state.nodes node).log index value
                 (ownership.logEntryAgreement node index value old.2)
           have takesEqual :=
-            CCFRaft.Proofs.HandlerProofs.takeEqOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.takeEqOfPrefix
               (List.prefix_append (state.nodes node).log [entry]) old.1
           exact
             ⟨preserved.1,
@@ -18221,7 +18222,7 @@ lemma appendRetiredCommittedPreservesSystemInductiveInvariant
     (enabled : Enabled state (.appendRetiredCommitted node)) :
     SystemInductiveInvariant
       (next state (.appendRetiredCommitted node)) := by
-  simpa [leaderAppendState, next, CCFRaft.Protocol.Model.next] using
+  simpa [leaderAppendState, next, CCFRaft.Proofs.Abstract.Model.next] using
     leaderAppendPreservesSystemInductiveInvariant
       state node
         (.retiredCommitted (pendingRetiredCommittedNodes state node))
@@ -18235,7 +18236,7 @@ lemma clientRequestPreservesSystemInductiveInvariant
     (invariant : SystemInductiveInvariant state)
     (enabled : Enabled state (.clientRequest node txId)) :
     SystemInductiveInvariant (next state (.clientRequest node txId)) := by
-  simpa [leaderAppendState, next, CCFRaft.Protocol.Model.next] using
+  simpa [leaderAppendState, next, CCFRaft.Proofs.Abstract.Model.next] using
     leaderAppendPreservesSystemInductiveInvariant
       state node (.transaction txId)
         (insert txId state.submittedTxIds) invariant enabled.1 enabled.2.1
@@ -18248,7 +18249,7 @@ lemma signCommittableMessagesPreservesSystemInductiveInvariant
     (enabled : Enabled state (.signCommittableMessages node)) :
     SystemInductiveInvariant
       (next state (.signCommittableMessages node)) := by
-  simpa [leaderAppendState, next, CCFRaft.Protocol.Model.next] using
+  simpa [leaderAppendState, next, CCFRaft.Proofs.Abstract.Model.next] using
     leaderAppendPreservesSystemInductiveInvariant
       state node .signature state.submittedTxIds invariant enabled.1 enabled.2.1
 
@@ -18344,13 +18345,13 @@ lemma requestVotePreservesSystemInductiveInvariant
       effectiveAckers, Finset.mem_filter]
     constructor
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl self⟩
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl self⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inl (by
-              simpa [next, CCFRaft.Protocol.Model.next] using matched))⟩
+              simpa [next, CCFRaft.Proofs.Abstract.Model.next] using matched))⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, term, sourceEq,
@@ -18362,33 +18363,33 @@ lemma requestVotePreservesSystemInductiveInvariant
               memEnqueue
                 state.network (.requestVoteRequest request)
                   (.appendEntriesResponse response) leader
-                  (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
             old | new
           · exact old
           · simp at new
         exact
           ⟨response, oldMember, success,
-            by simpa [next, CCFRaft.Protocol.Model.next] using term,
+            by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using term,
             sourceEq, destinationEq, lastIndex,
-            by simpa [next, CCFRaft.Protocol.Model.next] using covered⟩
+            by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using covered⟩
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl self⟩
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl self⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inl (by
-              simpa [next, CCFRaft.Protocol.Model.next] using matched))⟩
+              simpa [next, CCFRaft.Proofs.Abstract.Model.next] using matched))⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, term, sourceEq,
             destinationEq, lastIndex, covered⟩
         refine
           ⟨response, ?_, success,
-            by simpa [next, CCFRaft.Protocol.Model.next] using term,
+            by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using term,
             sourceEq, destinationEq, lastIndex,
-            by simpa [next, CCFRaft.Protocol.Model.next] using covered⟩
-        simpa [next, CCFRaft.Protocol.Model.next, request] using
+            by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using covered⟩
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using
           memEnqueueNoDupOfMem
             state.network (.requestVoteRequest request)
               (.appendEntriesResponse response) leader member
@@ -18414,10 +18415,10 @@ lemma requestVotePreservesSystemInductiveInvariant
     constructor
     · rintro ⟨joined, processed | queued⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
-            Or.inl (by simpa [next, CCFRaft.Protocol.Model.next] using processed)⟩
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
+            Or.inl (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using processed)⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr ?_⟩
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr ?_⟩
         rcases queued with
           ⟨response, member, granted, responseTerm,
             responseSource, responseDestination⟩
@@ -18428,28 +18429,28 @@ lemma requestVotePreservesSystemInductiveInvariant
               memEnqueue
                 state.network (.requestVoteRequest request)
                   (.requestVoteResponse response) candidate
-                  (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
             old | new
           · exact old
           · simp at new
         exact
           ⟨response, oldMember, granted,
-            by simpa [next, CCFRaft.Protocol.Model.next] using responseTerm,
+            by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using responseTerm,
             responseSource, responseDestination⟩
     · rintro ⟨joined, processed | queued⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
-            Or.inl (by simpa [next, CCFRaft.Protocol.Model.next] using processed)⟩
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
+            Or.inl (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using processed)⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr ?_⟩
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr ?_⟩
         rcases queued with
           ⟨response, member, granted, responseTerm,
             responseSource, responseDestination⟩
         refine
           ⟨response, ?_, granted,
-            by simpa [next, CCFRaft.Protocol.Model.next] using responseTerm,
+            by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using responseTerm,
             responseSource, responseDestination⟩
-        simpa [next, CCFRaft.Protocol.Model.next, request] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using
           memEnqueueNoDupOfMem
             state.network (.requestVoteRequest request)
               (.requestVoteResponse response) candidate member
@@ -18473,25 +18474,25 @@ lemma requestVotePreservesSystemInductiveInvariant
       potentialElectionVoters, Finset.mem_filter]
     constructor
     · rintro ⟨joined, effective | eligible⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl (by
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl (by
           rw [effectiveElectionVotersEq] at effective
           exact effective)⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr (by
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr (by
           simpa [
           currentlyEligibleElectionVoter,
           makeRequestVoteRequest,
-          next, CCFRaft.Protocol.Model.next,
+          next, CCFRaft.Proofs.Abstract.Model.next,
           voteLogUpToDate
           ] using eligible)⟩
     · rintro ⟨joined, effective | eligible⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl (by
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl (by
           rw [effectiveElectionVotersEq]
           exact effective)⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr (by
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr (by
           simpa [
           currentlyEligibleElectionVoter,
           makeRequestVoteRequest,
-          next, CCFRaft.Protocol.Model.next,
+          next, CCFRaft.Proofs.Abstract.Model.next,
           voteLogUpToDate
           ] using eligible)⟩
   have potentialElectionMajorityEq :
@@ -18521,29 +18522,29 @@ lemma requestVotePreservesSystemInductiveInvariant
             memEnqueue
               state.network (.requestVoteRequest request)
                 (.appendEntriesRequest queuedRequest) peer
-                (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
           old | new
         · exact old
         · simp at new
       exact
         ⟨queuedRequest, oldMember, requestSource, requestDestination,
-          by simpa [next, CCFRaft.Protocol.Model.next] using requestTerm,
-          by simpa [next, CCFRaft.Protocol.Model.next] using producible,
-          by simpa [next, CCFRaft.Protocol.Model.next] using covered⟩
+          by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using requestTerm,
+          by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using producible,
+          by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using covered⟩
     · rintro
         ⟨queuedRequest, member, requestSource, requestDestination,
           requestTerm, producible, covered⟩
       exact
         ⟨queuedRequest,
           by
-            simpa [next, CCFRaft.Protocol.Model.next, request] using
+            simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using
               memEnqueueNoDupOfMem
                 state.network (.requestVoteRequest request)
                 (.appendEntriesRequest queuedRequest) peer member,
           requestSource, requestDestination,
-          by simpa [next, CCFRaft.Protocol.Model.next] using requestTerm,
-          by simpa [next, CCFRaft.Protocol.Model.next] using producible,
-          by simpa [next, CCFRaft.Protocol.Model.next] using covered⟩
+          by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using requestTerm,
+          by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using producible,
+          by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using covered⟩
   have potentialAckersEq :
       forall leader index,
         potentialAckers
@@ -18557,7 +18558,7 @@ lemma requestVotePreservesSystemInductiveInvariant
       potentialAckers, Finset.mem_filter,
       effectiveAckersEq, queuedAppendReserveEq
     ]
-    simp [next, CCFRaft.Protocol.Model.next]
+    simp [next, CCFRaft.Proofs.Abstract.Model.next]
   have potentialMajorityEq :
       forall leader index,
         hasPotentialMajorityAt
@@ -18575,13 +18576,13 @@ lemma requestVotePreservesSystemInductiveInvariant
         votes votes responseHistory voteVoterHistory elections
         ackerCurrentFacts ackerVoteFacts ackerElectionFacts
         (fun leader role => by
-          simpa [next, CCFRaft.Protocol.Model.next] using role)
-        (fun leader _ => by simp [next, CCFRaft.Protocol.Model.next])
-        (fun leader => by simp [next, CCFRaft.Protocol.Model.next])
+          simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role)
+        (fun leader _ => by simp [next, CCFRaft.Proofs.Abstract.Model.next])
+        (fun leader => by simp [next, CCFRaft.Proofs.Abstract.Model.next])
         (fun leader index voter _ _ member => by
           rw [effectiveAckersEq] at member
           exact member)
-        (fun node => Nat.le_of_eq (by simp [next, CCFRaft.Protocol.Model.next]))
+        (fun node => Nat.le_of_eq (by simp [next, CCFRaft.Proofs.Abstract.Model.next]))
         (fun _ _ _ voted _ => voted)
   have ackerActivationAfter :
       AckerActivationHistory
@@ -18593,11 +18594,11 @@ lemma requestVotePreservesSystemInductiveInvariant
           responseHistory elections elections activations
           ackerActivationFacts
     · intro leader role
-      simpa [next, CCFRaft.Protocol.Model.next] using role
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role
     · intro leader role
-      simp [next, CCFRaft.Protocol.Model.next]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next]
     · intro leader
-      simp [next, CCFRaft.Protocol.Model.next]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next]
     · intro leader index supporter role current member
       rw [effectiveAckersEq] at member
       exact member
@@ -18616,21 +18617,21 @@ lemma requestVotePreservesSystemInductiveInvariant
   · constructor
     · exact facts.voteHistory.bootstrapEmpty
     · intro voter
-      simpa [next, CCFRaft.Protocol.Model.next] using facts.voteHistory.current voter
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using facts.voteHistory.current voter
     · intro voter term future
       apply facts.voteHistory.future voter term
-      simpa [next, CCFRaft.Protocol.Model.next] using future
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using future
     · intro candidate voter active member
       apply facts.voteHistory.counted candidate voter
-      · simpa [next, CCFRaft.Protocol.Model.next] using active
-      · simpa [next, CCFRaft.Protocol.Model.next] using member
+      · simpa [next, CCFRaft.Proofs.Abstract.Model.next] using active
+      · simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member
   · constructor
     · intro queuedDestination message member
       rcases
           memEnqueue
             state.network (.requestVoteRequest request)
               message queuedDestination
-              (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+              (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
         old | new
       · exact facts.networkHistory.addressed queuedDestination message old
       · rcases new with ⟨destinationEq, messageEq⟩
@@ -18644,7 +18645,7 @@ lemma requestVotePreservesSystemInductiveInvariant
             memEnqueue
               state.network (.requestVoteRequest request)
                 (.appendEntriesRequest queuedRequest) queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -18658,7 +18659,7 @@ lemma requestVotePreservesSystemInductiveInvariant
             memEnqueue
               state.network (.requestVoteRequest request)
                 (.appendEntriesResponse response) queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -18670,7 +18671,7 @@ lemma requestVotePreservesSystemInductiveInvariant
           memEnqueue
             state.network (.requestVoteRequest request)
               (.requestVoteRequest queuedRequest) queuedDestination
-              (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+              (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
         old | new
       · have oldFacts :=
           facts.networkHistory.voteRequest
@@ -18692,7 +18693,7 @@ lemma requestVotePreservesSystemInductiveInvariant
                 newVoteRequestHistory, Function.update
               ] using snapshotCommittable,
               candidatesAboveBootstrap source enabled.2.2.1,
-              by simp [request, makeRequestVoteRequest, next, CCFRaft.Protocol.Model.next],
+              by simp [request, makeRequestVoteRequest, next, CCFRaft.Proofs.Abstract.Model.next],
               ?_⟩
           intro _ _
           simpa [
@@ -18722,7 +18723,7 @@ lemma requestVotePreservesSystemInductiveInvariant
               newVoteRequestHistory, Function.update
             ] using snapshotCommittable,
             candidatesAboveBootstrap source enabled.2.2.1,
-            by simp [request, makeRequestVoteRequest, next, CCFRaft.Protocol.Model.next],
+            by simp [request, makeRequestVoteRequest, next, CCFRaft.Proofs.Abstract.Model.next],
             ?_⟩
         intro _ _
         simpa [
@@ -18739,7 +18740,7 @@ lemma requestVotePreservesSystemInductiveInvariant
             memEnqueue
               state.network (.requestVoteRequest request)
                 (.requestVoteResponse response) queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -18748,7 +18749,7 @@ lemma requestVotePreservesSystemInductiveInvariant
             queuedDestination response old granted with
         ⟨termBound, recorded, upToDate⟩
       exact
-        ⟨by simpa [next, CCFRaft.Protocol.Model.next] using termBound,
+        ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using termBound,
           recorded,
           by simpa [voteLogUpToDate] using upToDate⟩
   have evidenceAfter :
@@ -18760,18 +18761,18 @@ lemma requestVotePreservesSystemInductiveInvariant
         state (next state (.requestVote source destination))
           appendHistory nodeEvidence requestEvidence evidenceFacts
       · intro node
-        simp [next, CCFRaft.Protocol.Model.next]
+        simp [next, CCFRaft.Proofs.Abstract.Model.next]
       · intro node
-        simp [next, CCFRaft.Protocol.Model.next, NodeState.committedLog]
+        simp [next, CCFRaft.Proofs.Abstract.Model.next, NodeState.committedLog]
       · intro node
-        simp [next, CCFRaft.Protocol.Model.next]
+        simp [next, CCFRaft.Proofs.Abstract.Model.next]
       · intro queuedDestination queuedRequest member
         rcases
             memEnqueue
               state.network (.requestVoteRequest request)
                 (.appendEntriesRequest queuedRequest)
                 queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
           old | new
         · exact old
         · simp at new
@@ -18791,22 +18792,22 @@ lemma requestVotePreservesSystemInductiveInvariant
           state (next state (.requestVote source destination))
             appendHistory
             nodeEvidence requestEvidence
-            (fun node => by simp [next, CCFRaft.Protocol.Model.next])
+            (fun node => by simp [next, CCFRaft.Proofs.Abstract.Model.next])
             (fun node => by
-              simp [next, CCFRaft.Protocol.Model.next, NodeState.committedLog])
+              simp [next, CCFRaft.Proofs.Abstract.Model.next, NodeState.committedLog])
             (fun queuedDestination queuedRequest member => by
               rcases
                   memEnqueue
                     state.network (.requestVoteRequest request)
                       (.appendEntriesRequest queuedRequest)
                       queuedDestination
-                      (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                      (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
                 old | new
               · exact old
               · simp at new)
             known
     · intro member
-      simp [next, CCFRaft.Protocol.Model.next]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next]
     · intro evidence supportedPrefix queuedDestination queuedRequest
         known queued sameTerm
       rcases
@@ -18814,7 +18815,7 @@ lemma requestVotePreservesSystemInductiveInvariant
             state.network (.requestVoteRequest request)
               (.appendEntriesRequest queuedRequest)
               queuedDestination
-              (by simpa [next, CCFRaft.Protocol.Model.next] using queued) with
+              (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued) with
         old | new
       · exact Or.inl ⟨old, rfl⟩
       · simp at new
@@ -18822,26 +18823,26 @@ lemma requestVotePreservesSystemInductiveInvariant
         entriesBefore ackMember relaxed
       left
       refine
-        ⟨by simpa [next, CCFRaft.Protocol.Model.next] using role,
-          by simpa [next, CCFRaft.Protocol.Model.next] using newer,
+        ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role,
+          by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using newer,
           ?_, ?_,
-          by simp [next, CCFRaft.Protocol.Model.next]⟩
+          by simp [next, CCFRaft.Proofs.Abstract.Model.next]⟩
       · intro entry entryMember
-        simpa [next, CCFRaft.Protocol.Model.next] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           entriesBefore entry
-            (by simpa [next, CCFRaft.Protocol.Model.next] using entryMember)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using entryMember)
       · simp only [
           relaxedElectionVoters, Finset.mem_filter] at relaxed ⊢
         rcases relaxed with ⟨joined, effective | upToDate⟩
         · rw [effectiveElectionVotersEq] at effective
           exact
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
               Or.inl effective⟩
         · exact
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr (by
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr (by
               simpa [
                 makeRequestVoteRequest,
-                next, CCFRaft.Protocol.Model.next,
+                next, CCFRaft.Proofs.Abstract.Model.next,
                 voteLogUpToDate
               ] using upToDate)⟩
   have configurationFactsAfter :
@@ -18860,25 +18861,25 @@ lemma requestVotePreservesSystemInductiveInvariant
           elections elections activations
           configurationFacts.supporterCurrentHistory
       · intro candidate
-        simp [next, CCFRaft.Protocol.Model.next]
+        simp [next, CCFRaft.Proofs.Abstract.Model.next]
       · intro candidate
-        simp [next, CCFRaft.Protocol.Model.next]
+        simp [next, CCFRaft.Proofs.Abstract.Model.next]
       · intro _ _ stored
         exact stored
     · intro candidate role majority
       exact
-        ⟨by simpa [next, CCFRaft.Protocol.Model.next] using role,
-          by simp [next, CCFRaft.Protocol.Model.next],
+        ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role,
+          by simp [next, CCFRaft.Proofs.Abstract.Model.next],
           (effectiveElectionMajorityEq candidate).mp majority⟩
     · intro candidate configuration role active
-      simpa [next, CCFRaft.Protocol.Model.next] using active
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using active
     · intro candidate role entry member
-      simpa [next, CCFRaft.Protocol.Model.next] using
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
         configurationFacts.candidateEntriesBeforeTerm
           candidate
-          (by simpa [next, CCFRaft.Protocol.Model.next] using role)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role)
           entry
-          (by simpa [next, CCFRaft.Protocol.Model.next] using member)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
   have activationQuorumsAfter :
       ActivationQuorumFacts
         (next state (.requestVote source destination))
@@ -18890,52 +18891,52 @@ lemma requestVotePreservesSystemInductiveInvariant
       have old :=
         activationQuorums.recordBridge
           leader index
-          (by simpa [next, CCFRaft.Protocol.Model.next] using role)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using current)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using signature)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using current)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using signature)
           ((potentialMajorityEq leader index).mp potential)
           term record recorded
-          (by simpa [next, CCFRaft.Protocol.Model.next] using newer)
-      simpa [next, CCFRaft.Protocol.Model.next] using old
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using newer)
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using old
     · intro leader index role current signature potential
         candidate candidateRole candidateMajority newer
       have old :=
         activationQuorums.candidateBridge
           leader index
-          (by simpa [next, CCFRaft.Protocol.Model.next] using role)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using current)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using signature)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using current)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using signature)
           ((potentialMajorityEq leader index).mp potential)
           candidate
-          (by simpa [next, CCFRaft.Protocol.Model.next] using candidateRole)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using candidateRole)
           ((potentialElectionMajorityEq candidate).mp candidateMajority)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using newer)
-      simpa [next, CCFRaft.Protocol.Model.next] using old
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using newer)
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using old
     · intro leader index role current signature majority node
       have old :=
         activationQuorums.committedBridge
           leader index
-          (by simpa [next, CCFRaft.Protocol.Model.next] using role)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using current)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using signature)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using current)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using signature)
           ((effectiveMajorityEq leader index).mp majority)
           node
-      simpa [next, CCFRaft.Protocol.Model.next] using old
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using old
     · intro left leftIndex leftRole leftCurrent leftSignature leftMajority
         right rightIndex rightRole rightCurrent rightSignature rightMajority
       have old :=
         activationQuorums.potentialBridge
           left leftIndex
-          (by simpa [next, CCFRaft.Protocol.Model.next] using leftRole)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using leftCurrent)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using leftSignature)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using leftRole)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using leftCurrent)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using leftSignature)
           ((effectiveMajorityEq left leftIndex).mp leftMajority)
           right rightIndex
-          (by simpa [next, CCFRaft.Protocol.Model.next] using rightRole)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using rightCurrent)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using rightSignature)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using rightRole)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using rightCurrent)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using rightSignature)
           ((effectiveMajorityEq right rightIndex).mp rightMajority)
-      simpa [next, CCFRaft.Protocol.Model.next] using old
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using old
     · intro activationIndex activation queuedDestination queuedRequest
         stored queued sameTerm
       have oldQueued :
@@ -18946,7 +18947,7 @@ lemma requestVotePreservesSystemInductiveInvariant
               state.network (.requestVoteRequest request)
                 (.appendEntriesRequest queuedRequest)
                 queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next] using queued) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued) with
           old | new
         · exact old
         · simp at new
@@ -18959,9 +18960,9 @@ lemma requestVotePreservesSystemInductiveInvariant
     · exact
         committedConfigurationCoverageFrame
           activationQuorums.committedCoverage
-          (fun node => by simp [next, CCFRaft.Protocol.Model.next])
-          (fun node => by simp [next, CCFRaft.Protocol.Model.next])
-          (fun node => by simp [next, CCFRaft.Protocol.Model.next])
+          (fun node => by simp [next, CCFRaft.Proofs.Abstract.Model.next])
+          (fun node => by simp [next, CCFRaft.Proofs.Abstract.Model.next])
+          (fun node => by simp [next, CCFRaft.Proofs.Abstract.Model.next])
     · apply
         queuedConfigurationCoverageFrame
           activationQuorums.queuedCoverage
@@ -18972,7 +18973,7 @@ lemma requestVotePreservesSystemInductiveInvariant
               state.network (.requestVoteRequest request)
                 (.appendEntriesRequest queuedRequest)
                 queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next] using queued) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued) with
           old | new
         · exact old
         · simp at new
@@ -18987,7 +18988,7 @@ lemma requestVotePreservesSystemInductiveInvariant
         state (next state (.requestVote source destination))
           activations activationProgress
     intro candidate
-    simp [next, CCFRaft.Protocol.Model.next]
+    simp [next, CCFRaft.Proofs.Abstract.Model.next]
   have activationEvidenceAfter :
       ActivationEvidenceFacts
         (next state (.requestVote source destination))
@@ -19005,30 +19006,30 @@ lemma requestVotePreservesSystemInductiveInvariant
         knownCommitEvidenceFrameBack
           state (next state (.requestVote source destination))
           appendHistory nodeEvidence requestEvidence
-          (fun node => by simp [next, CCFRaft.Protocol.Model.next])
+          (fun node => by simp [next, CCFRaft.Proofs.Abstract.Model.next])
           (fun node => by
-            simp [next, CCFRaft.Protocol.Model.next, NodeState.committedLog])
+            simp [next, CCFRaft.Proofs.Abstract.Model.next, NodeState.committedLog])
           (fun queuedDestination queuedRequest member => by
             rcases
                 memEnqueue
                   state.network (.requestVoteRequest request)
                   (.appendEntriesRequest queuedRequest)
                   queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
               old | new
             · exact old
             · simp at new)
           known
     · intro candidate role majority
       exact
-        ⟨by simpa [next, CCFRaft.Protocol.Model.next] using role,
+        ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role,
           (potentialElectionMajorityEq candidate).mp majority⟩
     · intro candidate role
-      simp [next, CCFRaft.Protocol.Model.next]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next]
     · intro candidate role
-      simp [next, CCFRaft.Protocol.Model.next]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next]
     · intro candidate configuration role active
-      simpa [next, CCFRaft.Protocol.Model.next] using active
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using active
   have configurationActivationsAfter :
       ConfigurationCoverageFacts
         (next state (.requestVote source destination)) activations := by
@@ -19048,11 +19049,11 @@ lemma requestVotePreservesSystemInductiveInvariant
     · intro leader role
       exact
         ownership.activeLeader leader
-          (by simpa [next, CCFRaft.Protocol.Model.next] using role)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role)
     · intro node index entry found
       exact
         ownership.logEntryAgreement node index entry
-          (by simpa [next, CCFRaft.Protocol.Model.next] using found)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using found)
     · intro queuedDestination queuedRequest member index entry found
       have oldMember :
           Message.appendEntriesRequest queuedRequest ∈
@@ -19062,7 +19063,7 @@ lemma requestVotePreservesSystemInductiveInvariant
               state.network (.requestVoteRequest request)
                 (.appendEntriesRequest queuedRequest)
                 queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
           old | new
         · exact old
         · simp at new
@@ -19072,11 +19073,11 @@ lemma requestVotePreservesSystemInductiveInvariant
     · intro leader role
       exact
         ownership.activeLeaderHistory leader
-          (by simpa [next, CCFRaft.Protocol.Model.next] using role)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role)
     · exact ownership.canonicalEntryOwner
     · exact ownership.canonicalMonoLog
     · intro term owner owned
-      simpa [next, CCFRaft.Protocol.Model.next] using
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
         ownership.ownerProgress term owner owned
     · intro queuedDestination queuedRequest member
       have oldMember :
@@ -19087,7 +19088,7 @@ lemma requestVotePreservesSystemInductiveInvariant
               state.network (.requestVoteRequest request)
                 (.appendEntriesRequest queuedRequest)
                 queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
           old | new
         · exact old
         · simp at new
@@ -19103,15 +19104,15 @@ lemma requestVotePreservesSystemInductiveInvariant
               state.network (.requestVoteRequest request)
                 (.appendEntriesRequest queuedRequest)
                 queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
           old | new
         · exact old
         · simp at new
       exact
         ownership.queuedActiveSourceHistory
           queuedDestination queuedRequest oldMember
-            (by simpa [next, CCFRaft.Protocol.Model.next] using sameTerm)
-            (by simpa [next, CCFRaft.Protocol.Model.next] using leaderRole)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using sameTerm)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using leaderRole)
     · apply
         electionHistoryFrame
           state (next state (.requestVote source destination))
@@ -19128,9 +19129,9 @@ lemma requestVotePreservesSystemInductiveInvariant
           state (next state (.requestVote source destination))
             canonicalHistory canonicalHistory
             voteCandidateHistory voteVoterHistory voteCanonicalFacts
-            (fun candidate _ => by simp [next, CCFRaft.Protocol.Model.next])
+            (fun candidate _ => by simp [next, CCFRaft.Proofs.Abstract.Model.next])
       · intro candidate active
-        simpa [next, CCFRaft.Protocol.Model.next] using active
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using active
       · intro candidate voter _ member
         rw [effectiveElectionVotersEq] at member
         exact member
@@ -19148,7 +19149,7 @@ lemma requestVotePreservesSystemInductiveInvariant
               state.network (.requestVoteRequest request)
                 (.appendEntriesRequest queuedRequest)
                 queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next] using queued) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued) with
           old | new
         · exact old
         · simp at new
@@ -19159,12 +19160,12 @@ lemma requestVotePreservesSystemInductiveInvariant
     have oldActive :
         (state.nodes candidate).role = .candidate \/
           (state.nodes candidate).role = .leader := by
-      simpa [next, CCFRaft.Protocol.Model.next] using active
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using active
     have oldMember :
         voter ∈ effectiveElectionVoters state candidate := by
       rw [effectiveElectionVotersEq] at member
       exact member
-    simpa [next, CCFRaft.Protocol.Model.next] using
+    simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
       facts.grantedVoteSnapshots
         candidate voter oldActive oldMember
   · refine ⟨ackHistory, ?_⟩
@@ -19172,39 +19173,39 @@ lemma requestVotePreservesSystemInductiveInvariant
     · intro leader role peer zero
       exact
         ackFacts.zero leader
-          (by simpa [next, CCFRaft.Protocol.Model.next] using role)
-          peer (by simpa [next, CCFRaft.Protocol.Model.next] using zero)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role)
+          peer (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using zero)
     · intro leader role peer positive
       rcases
           ackFacts.positive leader
-            (by simpa [next, CCFRaft.Protocol.Model.next] using role)
-            peer (by simpa [next, CCFRaft.Protocol.Model.next] using positive) with
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using role)
+            peer (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using positive) with
         ⟨snapshot, stored, snapshotTerm, snapshotIndex,
           historyBound, agreed⟩
       exact
         ⟨snapshot, stored,
-          by simpa [next, CCFRaft.Protocol.Model.next] using snapshotTerm,
-          by simpa [next, CCFRaft.Protocol.Model.next] using snapshotIndex,
+          by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using snapshotTerm,
+          by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using snapshotIndex,
           historyBound,
-          by simpa [next, CCFRaft.Protocol.Model.next] using agreed⟩
+          by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using agreed⟩
   · constructor
     · intro node peer member
-      simpa [next, CCFRaft.Protocol.Model.next] using
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
         facts.joinedCarriers.activeNodes node member
     · intro node configuration member peer inNodes
       exact
         facts.joinedCarriers.configurationNodes node configuration
-          (by simpa [next, CCFRaft.Protocol.Model.next] using member)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using inNodes)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using inNodes)
     · intro node peer member
-      simpa [next, CCFRaft.Protocol.Model.next] using
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
         facts.joinedCarriers.grantedVotes node member
     · intro queuedDestination queuedRequest member
       rcases
           memEnqueue
             state.network (.requestVoteRequest request)
               (.requestVoteRequest queuedRequest) queuedDestination
-              (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+              (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
         old | new
       · exact
           facts.joinedCarriers.voteRequestDestinations
@@ -19223,7 +19224,7 @@ lemma requestVotePreservesSystemInductiveInvariant
             memEnqueue
               state.network (.requestVoteRequest request)
                 (.appendEntriesRequest queuedRequest) queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -19239,7 +19240,7 @@ lemma requestVotePreservesSystemInductiveInvariant
             memEnqueue
               state.network (.requestVoteRequest request)
                 (.appendEntriesRequest queuedRequest) queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -19255,22 +19256,22 @@ lemma requestVotePreservesSystemInductiveInvariant
             memEnqueue
               state.network (.requestVoteRequest request)
                 (.requestVoteResponse response) queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
           old | new
         · exact old
         · simp at new
-      simpa [next, CCFRaft.Protocol.Model.next] using
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
         facts.joinedCarriers.voteResponseSources
           queuedDestination response old
     · constructor
       · intro node active
-        simpa [next, CCFRaft.Protocol.Model.next] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.activeRoles node
-            (by simpa [next, CCFRaft.Protocol.Model.next] using active)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using active)
       · intro leader peer positive
-        simpa [next, CCFRaft.Protocol.Model.next] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.positiveMatches leader peer
-            (by simpa [next, CCFRaft.Protocol.Model.next] using positive)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using positive)
       · intro queuedDestination response member
         have old :
             Message.appendEntriesResponse response ∈
@@ -19279,17 +19280,17 @@ lemma requestVotePreservesSystemInductiveInvariant
               memEnqueue
                 state.network (.requestVoteRequest request)
                   (.appendEntriesResponse response) queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
             old | new
           · exact old
           · simp at new
-        simpa [next, CCFRaft.Protocol.Model.next] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.appendResponses
             queuedDestination response old
       · intro node nonempty
-        simpa [next, CCFRaft.Protocol.Model.next] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.nonemptyLogs node
-            (by simpa [next, CCFRaft.Protocol.Model.next] using nonempty)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using nonempty)
   · exact
       AllocatedNodesExactlyJoined.frame
         facts.allocatedNodesExactlyJoined
@@ -19297,7 +19298,7 @@ lemma requestVotePreservesSystemInductiveInvariant
         rfl
 
   · exact facts.currentTermsValid
-  · simpa only [NetworkTermsValid, next, CCFRaft.Protocol.Model.next] using
+  · simpa only [NetworkTermsValid, next, CCFRaft.Proofs.Abstract.Model.next] using
       (networkTermsValidEnqueue
         (message := .requestVoteRequest request)
         facts.networkTermsValid (facts.currentTermsValid source))
@@ -19403,7 +19404,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     intro node
     by_cases nodeEq : node = source <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, nodeEq
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, nodeEq
       ]
   have currentTermEq :
       forall node,
@@ -19412,7 +19413,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     intro node
     by_cases nodeEq : node = source <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, nodeEq
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, nodeEq
       ]
   have logEq :
       forall node,
@@ -19421,7 +19422,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     intro node
     by_cases nodeEq : node = source <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, nodeEq
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, nodeEq
       ]
   have commitIndexEq :
       forall node,
@@ -19430,7 +19431,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     intro node
     by_cases nodeEq : node = source <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, nodeEq
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, nodeEq
       ]
   have lastIndexEq :
       forall node,
@@ -19455,7 +19456,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     intro node
     by_cases nodeEq : node = source <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, nodeEq
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, nodeEq
       ]
   have votesGrantedEq :
       forall node,
@@ -19464,7 +19465,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     intro node
     by_cases nodeEq : node = source <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, nodeEq
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, nodeEq
       ]
   have matchEq :
       forall node,
@@ -19473,7 +19474,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     intro node
     by_cases nodeEq : node = source <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, nodeEq
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, nodeEq
       ]
   have committedEq :
       forall node,
@@ -19511,12 +19512,12 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       effectiveAckers, Finset.mem_filter]
     constructor
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl self⟩
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl self⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inl (by simpa [matchEq] using matched))⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, term, sourceEq,
@@ -19528,7 +19529,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
               memEnqueue
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesResponse response) leader
-                  (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
             old | new
           · exact old
           · simp at new
@@ -19538,12 +19539,12 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             sourceEq, destinationEq, lastIndex,
             by simpa [logEq] using covered⟩
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl self⟩
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl self⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inl (by simpa [matchEq] using matched))⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, term, sourceEq,
@@ -19553,7 +19554,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             by simpa [currentTermEq] using term,
             sourceEq, destinationEq, lastIndex,
             by simpa [logEq] using covered⟩
-        simpa [next, CCFRaft.Protocol.Model.next, request] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using
           memEnqueueNoDupOfMem
             state.network (.appendEntriesRequest request)
               (.appendEntriesResponse response) leader member
@@ -19579,10 +19580,10 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     constructor
     · rintro ⟨joined, processed | queued⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inl (by simpa [votesGrantedEq] using processed)⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr ?_⟩
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr ?_⟩
         rcases queued with
           ⟨response, member, granted, responseTerm,
             responseSource, responseDestination⟩
@@ -19593,7 +19594,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
               memEnqueue
                 state.network (.appendEntriesRequest request)
                   (.requestVoteResponse response) candidate
-                  (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
             old | new
           · exact old
           · simp at new
@@ -19603,10 +19604,10 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             responseSource, responseDestination⟩
     · rintro ⟨joined, processed | queued⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inl (by simpa [votesGrantedEq] using processed)⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr ?_⟩
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr ?_⟩
         rcases queued with
           ⟨response, member, granted, responseTerm,
             responseSource, responseDestination⟩
@@ -19614,7 +19615,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           ⟨response, ?_, granted,
             by simpa [currentTermEq] using responseTerm,
             responseSource, responseDestination⟩
-        simpa [next, CCFRaft.Protocol.Model.next, request] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using
           memEnqueueNoDupOfMem
             state.network (.appendEntriesRequest request)
               (.requestVoteResponse response) candidate member
@@ -19642,10 +19643,10 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       potentialElectionVoters, Finset.mem_filter]
     constructor
     · rintro ⟨joined, effective | eligible⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl (by
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl (by
           rw [effectiveElectionVotersEq] at effective
           exact effective)⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr (by
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr (by
           simpa [
           currentlyEligibleElectionVoter,
           makeRequestVoteRequest,
@@ -19657,10 +19658,10 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           voteLogUpToDate
           ] using eligible)⟩
     · rintro ⟨joined, effective | eligible⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl (by
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl (by
           rw [effectiveElectionVotersEq]
           exact effective)⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr (by
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr (by
           simpa [
           currentlyEligibleElectionVoter,
           makeRequestVoteRequest,
@@ -19759,7 +19760,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
         (state.nodes leader).role = .leader := by
       by_cases leaderEq : leader = source <;>
         simpa [
-          next, CCFRaft.Protocol.Model.next, updateNode,
+          next, CCFRaft.Proofs.Abstract.Model.next, updateNode,
           Function.update, leaderEq
         ] using role
     have oldProgress := facts.leaderProgressBounded leader oldRole peer
@@ -19769,17 +19770,17 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       · by_cases peerEq : peer = destination
         · subst peer
           simp [
-            next, CCFRaft.Protocol.Model.next, updateIndex,
+            next, CCFRaft.Proofs.Abstract.Model.next, updateIndex,
             Function.update
           ]
           exact enabled.2.2.2.2.2.2.1
         · simpa [
-            next, CCFRaft.Protocol.Model.next, updateIndex,
+            next, CCFRaft.Proofs.Abstract.Model.next, updateIndex,
             Function.update, peerEq
           ] using oldProgress.1
-      · simpa [next, CCFRaft.Protocol.Model.next] using oldProgress.2
+      · simpa [next, CCFRaft.Proofs.Abstract.Model.next] using oldProgress.2
     · simpa [
-        next, CCFRaft.Protocol.Model.next, updateNode,
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode,
         Function.update, leaderEq
       ] using oldProgress
   · constructor
@@ -19804,7 +19805,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           memEnqueue
             state.network (.appendEntriesRequest request)
               message queuedDestination
-              (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+              (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
         old | new
       · exact facts.networkHistory.addressed queuedDestination message old
       · rcases new with ⟨destinationEq, messageEq⟩
@@ -19815,7 +19816,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           memEnqueue
             state.network (.appendEntriesRequest request)
               (.appendEntriesRequest queuedRequest) queuedDestination
-              (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+              (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
         old | new
       · by_cases sameRequest : queuedRequest = request
         · subst queuedRequest
@@ -19849,7 +19850,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             memEnqueue
               state.network (.appendEntriesRequest request)
                 (.appendEntriesResponse response) queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -19877,7 +19878,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             memEnqueue
               state.network (.appendEntriesRequest request)
                 (.requestVoteRequest voteRequest) queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -19909,7 +19910,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             memEnqueue
               state.network (.appendEntriesRequest request)
                 (.requestVoteResponse response) queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next, request] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -19968,7 +19969,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesRequest queuedRequest)
                   queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
             old | new
           · exact old
           · simp at new
@@ -20033,7 +20034,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                   state.network (.appendEntriesRequest request)
                     (.appendEntriesRequest queuedRequest)
                     queuedDestination
-                    (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                    (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
               old | new
             · exact old
             · simp at new
@@ -20095,7 +20096,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                       state.network (.appendEntriesRequest request)
                         (.appendEntriesRequest knownRequest)
                         knownDestination
-                        (by simpa [next, CCFRaft.Protocol.Model.next] using
+                        (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
                           queuedMember) with
                   old | new
                 · exact old
@@ -20139,7 +20140,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesRequest queuedRequest)
                   queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using queued) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued) with
             old | new
           · exact old
           · simp at new
@@ -20165,10 +20166,10 @@ lemma appendEntriesPreservesSystemInductiveInvariant
         rcases relaxed with ⟨joined, effective | upToDate⟩
         · rw [effectiveElectionVotersEq] at effective
           exact
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
               Or.inl effective⟩
         · exact
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr (by
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr (by
               simpa [
                 makeRequestVoteRequest,
                 currentTermEq, logEq,
@@ -20256,7 +20257,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesRequest queuedRequest)
                   queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
             old | new
           · exact old
           · simp only [Message.appendEntriesRequest.injEq] at new
@@ -20298,7 +20299,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesRequest queuedRequest)
                   queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
             old | new
           · exact old
           · simp only [Message.appendEntriesRequest.injEq] at new
@@ -20329,7 +20330,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesRequest queuedRequest)
                   queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
             old | new
           · exact old
           · simp only [Message.appendEntriesRequest.injEq] at new
@@ -20608,7 +20609,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             have sourceKnownCandidate :
                 sourceConfiguration ∈
                   allConfigurations (state.nodes candidate).log :=
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix committedInCandidate)
                 sourceKnownCommitted
             right
@@ -20795,10 +20796,10 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                       _ <+: (state.nodes bridgeSource).log :=
                         List.take_prefix _ _
                   apply
-                    CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                    CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                       (allConfigurations_mono_prefix activationPrefixSource)
                   apply
-                    CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                    CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                       (allConfigurations_mono_prefix
                         candidateCoverage.sharedPrefix_prefix_activationPrefix)
                   simpa [candidateConfiguration] using
@@ -20848,11 +20849,11 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 have candidateKnownSource :
                     candidateConfiguration ∈
                       allConfigurations (state.nodes bridgeSource).log :=
-                  CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix activationInSource)
                     (by
                       apply
-                        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                           (allConfigurations_mono_prefix
                             candidateCoverage.sharedPrefix_prefix_activationPrefix)
                       simpa [candidateConfiguration] using
@@ -20868,7 +20869,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                           candidateStored).2.2.2.2.2.1 with
                     ⟨activationEntry, activationFound, _⟩
                   have activationFoundSource :=
-                    CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix activationInSource (by
+                    CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix activationInSource (by
                       rw [entryAtTake_of_le le_rfl]
                       exact activationFound)
                   have sourceEntryTerm :
@@ -21005,7 +21006,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesRequest queuedRequest)
                   queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using queued) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued) with
             old | new
           · exact old
           · simp only [Message.appendEntriesRequest.injEq] at new
@@ -21054,7 +21055,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesRequest queuedRequest)
                   queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using queued) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued) with
             old | new
           · exact old
           · simp only [Message.appendEntriesRequest.injEq] at new
@@ -21124,7 +21125,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                   state.network (.appendEntriesRequest request)
                     (.appendEntriesRequest queuedRequest)
                     queuedDestination
-                    (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                    (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
               old | new
             · exact old
             · simp at new
@@ -21193,7 +21194,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesRequest queuedRequest)
                   queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
             old | new
           · exact old
           · simp only [Message.appendEntriesRequest.injEq] at new
@@ -21254,7 +21255,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesRequest queuedRequest)
                   queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
             old | new
           · exact old
           · simp only [Message.appendEntriesRequest.injEq] at new
@@ -21285,7 +21286,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesRequest queuedRequest)
                   queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
             old | new
           · exact old
           · simp only [Message.appendEntriesRequest.injEq] at new
@@ -21346,7 +21347,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesRequest queuedRequest)
                   queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using queued) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued) with
             old | new
           · exact old
           · simp at new
@@ -21388,17 +21389,17 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           by simpa [logEq] using agreed⟩
   · constructor
     · intro node peer member
-      simpa [next, CCFRaft.Protocol.Model.next] using
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
         facts.joinedCarriers.activeNodes node
           (by
             simpa [activeNodeUnion, activeConfigurationsEq] using member)
     · intro node configuration member peer inNodes
-      simpa [next, CCFRaft.Protocol.Model.next] using
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
         facts.joinedCarriers.configurationNodes node configuration
           (by simpa [logEq] using member)
-          (by simpa [next, CCFRaft.Protocol.Model.next] using inNodes)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using inNodes)
     · intro node peer member
-      simpa [next, CCFRaft.Protocol.Model.next] using
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
         facts.joinedCarriers.grantedVotes node
           (by simpa [votesGrantedEq] using member)
     · intro queuedDestination queuedRequest member
@@ -21409,11 +21410,11 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             memEnqueue
               state.network (.appendEntriesRequest request)
                 (.requestVoteRequest queuedRequest) queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
           old | new
         · exact old
         · simp at new
-      simpa [next, CCFRaft.Protocol.Model.next] using
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
         facts.joinedCarriers.voteRequestDestinations
           queuedDestination queuedRequest old
     · intro queuedDestination queuedRequest member
@@ -21421,7 +21422,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           memEnqueue
             state.network (.appendEntriesRequest request)
               (.appendEntriesRequest queuedRequest) queuedDestination
-              (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+              (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
         old | new
       · exact
           facts.joinedCarriers.appendRequestDestinations
@@ -21438,7 +21439,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           memEnqueue
             state.network (.appendEntriesRequest request)
               (.appendEntriesRequest queuedRequest) queuedDestination
-              (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+              (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
         old | new
       · exact
           facts.joinedCarriers.appendRequestConfigurations
@@ -21460,7 +21461,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 facts.joinedCarriers.configurationNodes source)
             configuration ?_ inNodes
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix
                 (batchEnd -
@@ -21478,20 +21479,20 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             memEnqueue
               state.network (.appendEntriesRequest request)
                 (.requestVoteResponse response) queuedDestination
-                (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
           old | new
         · exact old
         · simp at new
-      simpa [next, CCFRaft.Protocol.Model.next] using
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
         facts.joinedCarriers.voteResponseSources
           queuedDestination response old
     · constructor
       · intro node active
-        simpa [next, CCFRaft.Protocol.Model.next] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.activeRoles node
             (by simpa [roleEq] using active)
       · intro leader peer positive
-        simpa [next, CCFRaft.Protocol.Model.next] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.positiveMatches leader peer
             (by simpa [matchEq] using positive)
       · intro queuedDestination response member
@@ -21502,28 +21503,28 @@ lemma appendEntriesPreservesSystemInductiveInvariant
               memEnqueue
                 state.network (.appendEntriesRequest request)
                   (.appendEntriesResponse response) queuedDestination
-                  (by simpa [next, CCFRaft.Protocol.Model.next] using member) with
+                  (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member) with
             old | new
           · exact old
           · simp at new
-        simpa [next, CCFRaft.Protocol.Model.next] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.appendResponses
             queuedDestination response old
       · intro node nonempty
-        simpa [next, CCFRaft.Protocol.Model.next] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.nonemptyLogs node
             (by simpa [logEq] using nonempty)
   · apply
       AllocatedNodesExactlyJoined.frame
         facts.allocatedNodesExactlyJoined
-        (fun candidate => ?_) (by simp [next, CCFRaft.Protocol.Model.next])
-    simp only [next, CCFRaft.Protocol.Model.next, State.allocated]
+        (fun candidate => ?_) (by simp [next, CCFRaft.Proofs.Abstract.Model.next])
+    simp only [next, CCFRaft.Proofs.Abstract.Model.next, State.allocated]
     exact
       NodeStore.allocated_set_iff_of_allocated
         state.nodes source _ enabled.1 candidate
   · intro candidate
     simpa only [currentTermEq] using facts.currentTermsValid candidate
-  · simpa only [NetworkTermsValid, next, CCFRaft.Protocol.Model.next] using
+  · simpa only [NetworkTermsValid, next, CCFRaft.Proofs.Abstract.Model.next] using
       (networkTermsValidEnqueue
         (message := .appendEntriesRequest request)
         facts.networkTermsValid (facts.currentTermsValid source))
@@ -21592,12 +21593,12 @@ lemma timeoutPotentialElectionVotersSubsetFuture
   simp only [
     futureElectionVoters, Finset.mem_filter]
   rcases member with ⟨joined, effective | eligible⟩
-  · refine ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, ?_⟩
+  · refine ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, ?_⟩
     simp only [
       effectiveElectionVoters, Finset.mem_filter] at effective
     rcases effective with ⟨_joined, processed | queued⟩
     · have voterEq : voter = node := by
-        simpa [next, CCFRaft.Protocol.Model.next] using processed
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using processed
       exact Or.inl voterEq
     · rcases queued with
         ⟨response, queued, granted, responseTerm,
@@ -21605,14 +21606,14 @@ lemma timeoutPotentialElectionVotersSubsetFuture
       have oldQueued :
           Message.requestVoteResponse response ∈
             state.network node := by
-        simpa [next, CCFRaft.Protocol.Model.next] using queued
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued
       have oldBound :=
         (facts.networkHistory.voteResponse
           node response oldQueued granted).1
       rw [responseDestination] at oldBound
-      simp [next, CCFRaft.Protocol.Model.next] at responseTerm
+      simp [next, CCFRaft.Proofs.Abstract.Model.next] at responseTerm
       omega
-  · refine ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, ?_⟩
+  · refine ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, ?_⟩
     by_cases voterEq : voter = node
     · exact Or.inl voterEq
     · right
@@ -21620,12 +21621,12 @@ lemma timeoutPotentialElectionVotersSubsetFuture
       refine ⟨?_, ?_⟩
       · have sameTerm := eligible.1
         simp [
-          next, CCFRaft.Protocol.Model.next, updateNode, voterEq,
+          next, CCFRaft.Proofs.Abstract.Model.next, updateNode, voterEq,
           makeRequestVoteRequest
         ] at sameTerm
         omega
       · simpa [
-          next, CCFRaft.Protocol.Model.next, updateNode,
+          next, CCFRaft.Proofs.Abstract.Model.next, updateNode,
           Function.update, voterEq,
           makeRequestVoteRequest,
           voteLogUpToDate, lastCommittableTerm, lastCommittableIndex
@@ -21690,7 +21691,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     · exact fun leader => Role.noConfusion (candidate.symm.trans leader)
   have roleNode :
       ((next state (.timeout node)).nodes node).role = .candidate := by
-    simp [next, CCFRaft.Protocol.Model.next]
+    simp [next, CCFRaft.Proofs.Abstract.Model.next]
   have roleOther :
       forall candidate,
         Not (candidate = node) ->
@@ -21698,11 +21699,11 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           (state.nodes candidate).role := by
     intro candidate different
     simp [
-      next, CCFRaft.Protocol.Model.next, updateNode, different
+      next, CCFRaft.Proofs.Abstract.Model.next, updateNode, different
     ]
   have termNode :
       ((next state (.timeout node)).nodes node).currentTerm = newTerm := by
-    simp [next, CCFRaft.Protocol.Model.next, newTerm]
+    simp [next, CCFRaft.Proofs.Abstract.Model.next, newTerm]
   have termOther :
       forall candidate,
         Not (candidate = node) ->
@@ -21710,7 +21711,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           (state.nodes candidate).currentTerm := by
     intro candidate different
     simp [
-      next, CCFRaft.Protocol.Model.next, updateNode, different
+      next, CCFRaft.Proofs.Abstract.Model.next, updateNode, different
     ]
   have logEq :
       forall candidate,
@@ -21719,7 +21720,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, same
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have commitEq :
       forall candidate,
@@ -21728,7 +21729,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, same
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have lastIndexEq :
       forall candidate,
@@ -21765,7 +21766,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, same
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have matchEq :
       forall candidate,
@@ -21774,14 +21775,14 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, same
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have votedNode :
       ((next state (.timeout node)).nodes node).votedFor = some node := by
-    simp [next, CCFRaft.Protocol.Model.next]
+    simp [next, CCFRaft.Proofs.Abstract.Model.next]
   have votesNode :
       ((next state (.timeout node)).nodes node).votesGranted = {node} := by
-    simp [next, CCFRaft.Protocol.Model.next]
+    simp [next, CCFRaft.Proofs.Abstract.Model.next]
   have votedOther :
       forall candidate,
         Not (candidate = node) ->
@@ -21789,7 +21790,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           (state.nodes candidate).votedFor := by
     intro candidate different
     simp [
-      next, CCFRaft.Protocol.Model.next, updateNode, different
+      next, CCFRaft.Proofs.Abstract.Model.next, updateNode, different
     ]
   have votesOther :
       forall candidate,
@@ -21798,7 +21799,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           (state.nodes candidate).votesGranted := by
     intro candidate different
     simp [
-      next, CCFRaft.Protocol.Model.next, updateNode, different
+      next, CCFRaft.Proofs.Abstract.Model.next, updateNode, different
     ]
   have effectiveAckersEq :
       forall leader,
@@ -21814,34 +21815,34 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       effectiveAckers, Finset.mem_filter]
     constructor
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl self⟩
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl self⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inl (by simpa [matchEq] using matched))⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, term, sourceEq,
             destinationEq, lastIndex, covered⟩
         exact
-          ⟨response, by simpa [next, CCFRaft.Protocol.Model.next] using member,
+          ⟨response, by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member,
             success, by simpa [termOther leader leaderNe] using term,
             sourceEq, destinationEq, lastIndex,
             by simpa [logEq] using covered⟩
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl self⟩
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl self⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inl (by simpa [matchEq] using matched))⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, term, sourceEq,
             destinationEq, lastIndex, covered⟩
         exact
-          ⟨response, by simpa [next, CCFRaft.Protocol.Model.next] using member,
+          ⟨response, by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member,
             success, by simpa [termOther leader leaderNe] using term,
             sourceEq, destinationEq, lastIndex,
             by simpa [logEq] using covered⟩
@@ -21874,7 +21875,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       have oldMember :
           Message.requestVoteResponse response ∈
             state.network node := by
-        simpa [next, CCFRaft.Protocol.Model.next] using member
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member
       have oldBound :=
         (facts.networkHistory.voteResponse
           node response oldMember granted).1
@@ -21895,29 +21896,29 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     constructor
     · rintro ⟨joined, processed | queued⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inl (by simpa [votesOther candidate candidateNe] using processed)⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr ?_⟩
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr ?_⟩
         rcases queued with
           ⟨response, member, granted, responseTerm,
             responseSource, responseDestination⟩
         exact
-          ⟨response, by simpa [next, CCFRaft.Protocol.Model.next] using member,
+          ⟨response, by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member,
             granted,
             by simpa [termOther candidate candidateNe] using responseTerm,
             responseSource, responseDestination⟩
     · rintro ⟨joined, processed | queued⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inl (by simpa [votesOther candidate candidateNe] using processed)⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr ?_⟩
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr ?_⟩
         rcases queued with
           ⟨response, member, granted, responseTerm,
             responseSource, responseDestination⟩
         exact
-          ⟨response, by simpa [next, CCFRaft.Protocol.Model.next] using member,
+          ⟨response, by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member,
             granted,
             by simpa [termOther candidate candidateNe] using responseTerm,
             responseSource, responseDestination⟩
@@ -21942,16 +21943,16 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     simp only [
       potentialElectionVoters, Finset.mem_filter] at member ⊢
     rcases member with ⟨joined, effective | eligible⟩
-    · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl
+    · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl
         (by
           rw [effectiveElectionVotersOtherEq candidate candidateNe] at effective
           exact effective)⟩
-    · refine ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr ?_⟩
+    · refine ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr ?_⟩
       by_cases voterEq : voter = node
       · subst voter
         simp only [currentlyEligibleElectionVoter] at eligible
         have voteChoice := eligible.2.2
-        simp [next, CCFRaft.Protocol.Model.next] at voteChoice
+        simp [next, CCFRaft.Proofs.Abstract.Model.next] at voteChoice
         exact False.elim (candidateNe voteChoice.symm)
       · simpa [
           currentlyEligibleElectionVoter,
@@ -22228,7 +22229,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       have oldMember :
           Message.appendEntriesResponse response ∈
             state.network destination := by
-        simpa [next, CCFRaft.Protocol.Model.next] using member
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member
       have responseDestination :
           response.destination = destination := by
         simpa using
@@ -22345,7 +22346,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
         simp [newTerm]
       · exact Nat.le_of_eq (termOther candidate candidateEq).symm
     · intro destination request member
-      simpa [next, CCFRaft.Protocol.Model.next] using member
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member
   have prospectiveAfter :
       ProspectiveCommitEvidenceFacts
         (next state (.timeout node))
@@ -22363,14 +22364,14 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             appendHistory nodeEvidence requestEvidence
             commitEq committedEq
             (fun destination request member => by
-              simpa [next, CCFRaft.Protocol.Model.next] using member)
+              simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
             known
     · intro member
       simp [logEq]
     · intro evidence supportedPrefix destination request known queued sameTerm
       left
       exact
-        ⟨by simpa [next, CCFRaft.Protocol.Model.next] using queued, rfl⟩
+        ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued, rfl⟩
     · intro evidence supportedPrefix candidate member known role newer
         entriesBefore ackMember relaxed
       by_cases candidateEq : candidate = node
@@ -22382,7 +22383,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               appendHistory nodeEvidence requestEvidence
               commitEq committedEq
               (fun destination request member => by
-                simpa [next, CCFRaft.Protocol.Model.next] using member)
+                simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
               known
         have futureMember :
             member ∈ futureElectionVoters state node newTerm := by
@@ -22395,14 +22396,14 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
                 effectiveElectionVotersNode effective
               simpa using voterIn
             exact
-              ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+              ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
                 Or.inl voterEq⟩
           · by_cases memberEq : member = node
             · exact
-                ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+                ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
                   Or.inl memberEq⟩
             · exact
-                ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+                ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
                   Or.inr
                     ⟨by simpa [termOther member memberEq, termNode] using
                         supporter.1,
@@ -22435,10 +22436,10 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           rcases relaxed with ⟨joined, effective | supporter⟩
           · rw [effectiveElectionVotersOtherEq candidate candidateEq] at effective
             exact
-              ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+              ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
                 Or.inl effective⟩
           · refine
-              ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+              ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
                 Or.inr ⟨?_, ?_⟩⟩
             · by_cases memberEq : member = node
               · have afterBound := supporter.1
@@ -22512,17 +22513,17 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     simp only [
       potentialAckers, Finset.mem_filter] at member ⊢
     rcases member with ⟨joined, effective | reserve⟩
-    · refine ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl ?_⟩
+    · refine ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl ?_⟩
       rw [effectiveAckersEq source sourceNe index] at effective
       exact effective
-    · refine ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr ?_⟩
+    · refine ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr ?_⟩
       rcases reserve with
         ⟨request, queued, requestSource, requestDestination,
           requestTerm, producible, covered⟩
       have requestDestinationEq := requestDestination
       refine
         ⟨request,
-          by simpa [next, CCFRaft.Protocol.Model.next] using queued,
+          by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued,
           requestSource, requestDestination,
           by simpa [termOther source sourceNe] using requestTerm,
           ?_,
@@ -22544,7 +22545,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               simpa [peerEq] using oldBeforeNew.trans futureTerm,
               future.2⟩
       · simpa [
-          next, CCFRaft.Protocol.Model.next, updateNode,
+          next, CCFRaft.Proofs.Abstract.Model.next, updateNode,
           Function.update, peerEq
         ] using producible
   have timeoutPotentialMajorityBack :
@@ -22654,7 +22655,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       have candidateConfigurationKnownEvidence :
           candidateConfiguration ∈
             allConfigurations candidateEvidence.history :=
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix committedInEvidence)
           candidateConfigurationKnownCommitted
       have candidateConfigurationBeforeEvidenceAuthority :
@@ -22736,7 +22737,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
         have historiesAgree :
             evidence.history.take evidence.commitFrontier =
               candidateEvidence.history.take evidence.commitFrontier := by
-          have agreed := CCFRaft.Proofs.HandlerProofs.prefixEqTake covered
+          have agreed := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake covered
           have evidenceLength :
               (evidence.history.take evidence.commitFrontier).length =
                 evidence.commitFrontier := by
@@ -22750,7 +22751,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             candidateConfiguration ∈
               allConfigurations evidence.history := by
           apply
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 (List.take_prefix evidence.commitFrontier evidence.history))
           rw [historiesAgree]
@@ -22866,7 +22867,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               rcases lt_or_eq_of_le candidateAtOrBeforeActivation with
                 strict | equal
               · apply
-                  CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix
                       ((candidateCoverage.sharedPrefix_prefix_higherAuthority
                         authorityStored
@@ -22882,7 +22883,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
                     authorityStored
                     (by simpa [candidateConfiguration] using equal.symm)
                 simpa [configurationEq] using
-                  CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix
                       (List.take_prefix
                         authorityActivation.activationFrontier
@@ -22934,7 +22935,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               allConfigurations (state.nodes node).log :=
           by
             apply
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix activationInCandidate)
             have valid :=
               activationQuorums.history.valid
@@ -23193,9 +23194,9 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               candidateCoverage.configuration_mem_activationHistoryTake
                 activationQuorums.history
             exact
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix activationPrefixSource)
-                (CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                (CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                   (allConfigurations_mono_prefix
                     candidateCoverage.sharedPrefix_prefix_activationPrefix)
                   (by simpa [candidateConfiguration] using
@@ -23250,7 +23251,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           rcases isSignatureAtTrue candidateValid.2.2.2.2.2.1 with
             ⟨activationEntry, activationFound, _⟩
           have activationFoundSource :=
-            CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix activationInSource (by
+            CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix activationInSource (by
               rw [entryAtTake_of_le le_rfl]
               exact activationFound)
           have sourceEntryTerm :
@@ -23290,9 +23291,9 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               candidateCoverage.configuration_mem_activationHistoryTake
                 activationQuorums.history
             exact
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix activationInSource)
-                (CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                (CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                   (allConfigurations_mono_prefix
                     candidateCoverage.sharedPrefix_prefix_activationPrefix)
                   (by simpa [candidateConfiguration] using
@@ -23402,9 +23403,9 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             sourceCoverage.configuration_mem_activationHistoryTake
               activationQuorums.history
           exact
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix sourceActivationInCandidate)
-              (CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              (CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix
                   sourceCoverage.sharedPrefix_prefix_activationPrefix)
                 (by simpa [sourceConfiguration] using
@@ -23439,7 +23440,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             appendHistory nodeEvidence requestEvidence
             commitEq committedEq
             (fun destination request member => by
-              simpa [next, CCFRaft.Protocol.Model.next] using member)
+              simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
             known)
     · intro left leftPrefix leftKnown right rightPrefix rightKnown same
       exact
@@ -23450,7 +23451,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             appendHistory nodeEvidence requestEvidence
             commitEq committedEq
             (fun destination request member => by
-              simpa [next, CCFRaft.Protocol.Model.next] using member)
+              simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
             leftKnown)
           right rightPrefix
           (knownCommitEvidenceFrameBack
@@ -23458,7 +23459,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             appendHistory nodeEvidence requestEvidence
             commitEq committedEq
             (fun destination request member => by
-              simpa [next, CCFRaft.Protocol.Model.next] using member)
+              simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
             rightKnown)
           same
     · intro earlier earlierPrefix earlierKnown
@@ -23471,7 +23472,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             appendHistory nodeEvidence requestEvidence
             commitEq committedEq
             (fun destination request member => by
-              simpa [next, CCFRaft.Protocol.Model.next] using member)
+              simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
             earlierKnown)
           later laterPrefix
           (knownCommitEvidenceFrameBack
@@ -23479,7 +23480,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             appendHistory nodeEvidence requestEvidence
             commitEq committedEq
             (fun destination request member => by
-              simpa [next, CCFRaft.Protocol.Model.next] using member)
+              simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
             laterKnown)
           order
     · intro left leftPrefix leftKnown right rightPrefix rightKnown
@@ -23491,7 +23492,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             appendHistory nodeEvidence requestEvidence
             commitEq committedEq
             (fun destination request member => by
-              simpa [next, CCFRaft.Protocol.Model.next] using member)
+              simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
             leftKnown)
           right rightPrefix
           (knownCommitEvidenceFrameBack
@@ -23499,7 +23500,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             appendHistory nodeEvidence requestEvidence
             commitEq committedEq
             (fun destination request member => by
-              simpa [next, CCFRaft.Protocol.Model.next] using member)
+              simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
             rightKnown)
     · intro evidence supportedPrefix known candidate role majority newer
       have oldKnown :=
@@ -23508,7 +23509,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           appendHistory nodeEvidence requestEvidence
           commitEq committedEq
           (fun destination request member => by
-            simpa [next, CCFRaft.Protocol.Model.next] using member)
+            simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
           known
       by_cases candidateEq : candidate = node
       · subst candidate
@@ -23650,7 +23651,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       exact
         ownership.queuedHistoryEntryAgreement
           destination request
-            (by simpa [next, CCFRaft.Protocol.Model.next] using member)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
             index entry found
     · intro leader role
       have leaderNe : Not (leader = node) := by
@@ -23687,7 +23688,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     · intro destination request member
       exact
         ownership.queuedAppendMetadata destination request
-          (by simpa [next, CCFRaft.Protocol.Model.next] using member)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
     · intro destination request member sameTerm leaderRole
       by_cases sourceEq : request.source = node
       · have afterLeader :
@@ -23698,7 +23699,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       · exact
           (ownership.queuedActiveSourceHistory
               destination request
-              (by simpa [next, CCFRaft.Protocol.Model.next] using member)
+              (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
               (by simpa [termOther request.source sourceEq] using sameTerm)
               (by simpa [roleOther request.source sourceEq] using leaderRole)).trans
             (by simp [logEq])
@@ -24079,7 +24080,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
         activationQuorums.queuedComparable
           activationIndex activation queuedDestination queuedRequest
           stored
-          (by simpa [next, CCFRaft.Protocol.Model.next] using queued)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued)
           sameTerm
     · exact
         committedConfigurationCoverageFrame
@@ -24095,7 +24096,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           activationQuorums.queuedCoverage
           (afterAppendHistory := appendHistory)
       · intro queuedDestination queuedRequest queued
-        simpa [next, CCFRaft.Protocol.Model.next] using queued
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued
       · intro _
         rfl
   · refine
@@ -24118,7 +24119,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       exact
         electionQueuedFacts
           queuedDestination request
-            (by simpa [next, CCFRaft.Protocol.Model.next] using member)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
             record recorded
   · exact snapshotsAfter
   · refine ⟨ackHistory, ?_⟩
@@ -24163,37 +24164,37 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       by_cases candidateEq : candidate = node
       · subst candidate
         have peerEq : peer = node := by
-          simpa [next, CCFRaft.Protocol.Model.next] using member
+          simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member
         subst peer
         exact
           (facts.allocatedNodesExactlyJoined node).mp enabled.1
       · exact
           facts.joinedCarriers.grantedVotes candidate
             (by simpa [
-              next, CCFRaft.Protocol.Model.next, updateNode,
+              next, CCFRaft.Proofs.Abstract.Model.next, updateNode,
               Function.update, candidateEq
             ] using member)
     · intro destination request member
       exact
         facts.joinedCarriers.voteRequestDestinations
           destination request
-          (by simpa [next, CCFRaft.Protocol.Model.next] using member)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
     · intro destination request member
       exact
         facts.joinedCarriers.appendRequestDestinations
           destination request
-          (by simpa [next, CCFRaft.Protocol.Model.next] using member)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
     · intro destination request member configuration configured peer inNodes
       exact
         facts.joinedCarriers.appendRequestConfigurations
           destination request
-            (by simpa [next, CCFRaft.Protocol.Model.next] using member)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
           configuration configured inNodes
     · intro destination response member
       exact
         facts.joinedCarriers.voteResponseSources
           destination response
-          (by simpa [next, CCFRaft.Protocol.Model.next] using member)
+          (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
     · constructor
       · intro candidate active
         by_cases same : candidate = node
@@ -24210,7 +24211,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
         exact
           facts.joinedCarriers.runtimeNodes.appendResponses
             destination response
-              (by simpa [next, CCFRaft.Protocol.Model.next] using member)
+              (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member)
       · intro candidate nonempty
         exact
           facts.joinedCarriers.runtimeNodes.nonemptyLogs candidate
@@ -24218,8 +24219,8 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
   · apply
       AllocatedNodesExactlyJoined.frame
         facts.allocatedNodesExactlyJoined
-        (fun candidate => ?_) (by simp [next, CCFRaft.Protocol.Model.next])
-    simp only [next, CCFRaft.Protocol.Model.next, State.allocated]
+        (fun candidate => ?_) (by simp [next, CCFRaft.Proofs.Abstract.Model.next])
+    simp only [next, CCFRaft.Proofs.Abstract.Model.next, State.allocated]
     exact
       NodeStore.allocated_set_iff_of_allocated
         state.nodes node _ enabled.1 candidate
@@ -24255,7 +24256,7 @@ lemma becomeCandidatePreservesSystemInductiveInvariant
     candidateTransitionPreservesSystemInductiveInvariant
       state node invariant
         ⟨enabled.1, Or.inr (Or.inl enabled.2.1)⟩
-  simpa [next, CCFRaft.Protocol.Model.next] using preserved
+  simpa [next, CCFRaft.Proofs.Abstract.Model.next] using preserved
 
 
 /-! ## Newer-term observation -/
@@ -24309,15 +24310,15 @@ lemma updateTermPreservesSystemInductiveInvariant
     have roleDestination :
         ((next state (.updateTerm source destination)).nodes destination).role =
           .follower := by
-      simp [next, CCFRaft.Protocol.Model.next, found]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next, found]
     have termDestination :
         ((next state (.updateTerm source destination)).nodes destination).currentTerm =
           selected.term := by
-      simp [next, CCFRaft.Protocol.Model.next, found]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next, found]
     have votedDestination :
         ((next state (.updateTerm source destination)).nodes destination).votedFor =
           none := by
-      simp [next, CCFRaft.Protocol.Model.next, found]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next, found]
     have roleOther :
         forall node,
           Not (node = destination) ->
@@ -24325,7 +24326,7 @@ lemma updateTermPreservesSystemInductiveInvariant
             (state.nodes node).role := by
       intro node different
       simp [
-        next, CCFRaft.Protocol.Model.next, found, updateNode, different
+        next, CCFRaft.Proofs.Abstract.Model.next, found, updateNode, different
       ]
     have termOther :
         forall node,
@@ -24334,7 +24335,7 @@ lemma updateTermPreservesSystemInductiveInvariant
             (state.nodes node).currentTerm := by
       intro node different
       simp [
-        next, CCFRaft.Protocol.Model.next, found, updateNode, different
+        next, CCFRaft.Proofs.Abstract.Model.next, found, updateNode, different
       ]
     have votedOther :
         forall node,
@@ -24343,7 +24344,7 @@ lemma updateTermPreservesSystemInductiveInvariant
             (state.nodes node).votedFor := by
       intro node different
       simp [
-        next, CCFRaft.Protocol.Model.next, found, updateNode, different
+        next, CCFRaft.Proofs.Abstract.Model.next, found, updateNode, different
       ]
     have logEq :
         forall node,
@@ -24352,7 +24353,7 @@ lemma updateTermPreservesSystemInductiveInvariant
       intro node
       by_cases same : node = destination <;>
         simp [
-          next, CCFRaft.Protocol.Model.next, found, updateNode, same
+          next, CCFRaft.Proofs.Abstract.Model.next, found, updateNode, same
         ]
     have commitEq :
         forall node,
@@ -24361,7 +24362,7 @@ lemma updateTermPreservesSystemInductiveInvariant
       intro node
       by_cases same : node = destination <;>
         simp [
-          next, CCFRaft.Protocol.Model.next, found, updateNode, same
+          next, CCFRaft.Proofs.Abstract.Model.next, found, updateNode, same
         ]
     have lastIndexEq :
         forall node,
@@ -24398,7 +24399,7 @@ lemma updateTermPreservesSystemInductiveInvariant
       intro node
       by_cases same : node = destination <;>
         simp [
-          next, CCFRaft.Protocol.Model.next, found, updateNode, same
+          next, CCFRaft.Proofs.Abstract.Model.next, found, updateNode, same
         ]
     have matchEq :
         forall node,
@@ -24407,7 +24408,7 @@ lemma updateTermPreservesSystemInductiveInvariant
       intro node
       by_cases same : node = destination <;>
         simp [
-          next, CCFRaft.Protocol.Model.next, found, updateNode, same
+          next, CCFRaft.Proofs.Abstract.Model.next, found, updateNode, same
         ]
     have votesEq :
         forall node,
@@ -24416,12 +24417,12 @@ lemma updateTermPreservesSystemInductiveInvariant
       intro node
       by_cases same : node = destination <;>
         simp [
-          next, CCFRaft.Protocol.Model.next, found, updateNode, same
+          next, CCFRaft.Proofs.Abstract.Model.next, found, updateNode, same
         ]
     have networkEq :
         (next state (.updateTerm source destination)).network =
           state.network := by
-      simp [next, CCFRaft.Protocol.Model.next, found]
+      simp [next, CCFRaft.Proofs.Abstract.Model.next, found]
     have effectiveAckersEq :
         forall leader,
           Not (leader = destination) ->
@@ -24437,13 +24438,13 @@ lemma updateTermPreservesSystemInductiveInvariant
       constructor
       · rintro ⟨joined, self | matched | queued⟩
         · exact
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined,
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined,
               Or.inl self⟩
         · exact
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined,
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined,
               Or.inr (Or.inl (by simpa [matchEq] using matched))⟩
         · refine
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined,
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined,
               Or.inr (Or.inr ?_)⟩
           rcases queued with
             ⟨response, member, success, term, sourceEq,
@@ -24455,13 +24456,13 @@ lemma updateTermPreservesSystemInductiveInvariant
               by simpa [logEq] using covered⟩
       · rintro ⟨joined, self | matched | queued⟩
         · exact
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined,
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined,
               Or.inl self⟩
         · exact
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined,
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined,
               Or.inr (Or.inl (by simpa [matchEq] using matched))⟩
         · refine
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined,
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined,
               Or.inr (Or.inr ?_)⟩
           rcases queued with
             ⟨response, member, success, term, sourceEq,
@@ -24497,10 +24498,10 @@ lemma updateTermPreservesSystemInductiveInvariant
       constructor
       · rintro ⟨joined, processed | queued⟩
         · exact
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined,
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined,
               Or.inl (by simpa [votesEq] using processed)⟩
         · refine
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined,
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined,
               Or.inr ?_⟩
           rcases queued with
             ⟨response, member, granted, responseTerm,
@@ -24512,10 +24513,10 @@ lemma updateTermPreservesSystemInductiveInvariant
               responseSource, responseDestination⟩
       · rintro ⟨joined, processed | queued⟩
         · exact
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined,
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined,
               Or.inl (by simpa [votesEq] using processed)⟩
         · refine
-            ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined,
+            ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined,
               Or.inr ?_⟩
           rcases queued with
             ⟨response, member, granted, responseTerm,
@@ -24550,11 +24551,11 @@ lemma updateTermPreservesSystemInductiveInvariant
         potentialAckers, Finset.mem_filter] at member ⊢
       rcases member with ⟨joined, effective | reserve⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined, Or.inl (by
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined, Or.inl (by
           rw [effectiveAckersEq leader leaderNe index] at effective
           exact effective)⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined, Or.inr ?_⟩
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined, Or.inr ?_⟩
         rcases reserve with
           ⟨request, queued, requestSource, requestDestination,
             requestTerm, producible, covered⟩
@@ -24571,7 +24572,7 @@ lemma updateTermPreservesSystemInductiveInvariant
           · rcases direct with
               ⟨nextNode, response, handled, success, acknowledged⟩
             have localPost :=
-              CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+              CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
             have requestCurrent :
                 request.term = selected.term := by
               calc
@@ -24594,7 +24595,7 @@ lemma updateTermPreservesSystemInductiveInvariant
                     ] using future.1),
                 future.2⟩
         · simpa [
-            next, CCFRaft.Protocol.Model.next, found, updateNode,
+            next, CCFRaft.Proofs.Abstract.Model.next, found, updateNode,
             Function.update, peerEq
           ] using producible
     have potentialMajorityBack :
@@ -24879,7 +24880,7 @@ lemma updateTermPreservesSystemInductiveInvariant
           exact newer.le
         · exact Nat.le_of_eq (termOther node nodeEq).symm
       · intro queuedDestination request member
-        simpa [next, CCFRaft.Protocol.Model.next, found] using member
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using member
     have prospectiveAfter :
         ProspectiveCommitEvidenceFacts
           (next state (.updateTerm source destination))
@@ -24897,7 +24898,7 @@ lemma updateTermPreservesSystemInductiveInvariant
               appendHistory nodeEvidence requestEvidence
               commitEq committedEq
               (fun queuedDestination request member => by
-                simpa [next, CCFRaft.Protocol.Model.next, found] using member)
+                simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using member)
               known
       · intro member
         simp [logEq]
@@ -24905,7 +24906,7 @@ lemma updateTermPreservesSystemInductiveInvariant
           known queued sameTerm
         left
         exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using queued, rfl⟩
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using queued, rfl⟩
       · intro evidence supportedPrefix candidate member known role
           newerEvidence entriesBefore ackMember relaxed
         have candidateNe : Not (candidate = destination) := by
@@ -24925,10 +24926,10 @@ lemma updateTermPreservesSystemInductiveInvariant
           rcases relaxed with ⟨joined, effective | supporter⟩
           · rw [effectiveElectionVotersEq candidate candidateNe] at effective
             exact
-              ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined,
+              ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined,
                 Or.inl effective⟩
           · refine
-              ⟨by simpa [next, CCFRaft.Protocol.Model.next, found] using joined,
+              ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using joined,
                 Or.inr ⟨?_, ?_⟩⟩
             · by_cases memberEq : member = destination
               · have oldTermLe :
@@ -24975,7 +24976,7 @@ lemma updateTermPreservesSystemInductiveInvariant
         exact
           ownership.queuedHistoryEntryAgreement
             queuedDestination request
-              (by simpa [next, CCFRaft.Protocol.Model.next, found] using member)
+              (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using member)
               index entry foundEntry
       · intro leader role
         have leaderNe : Not (leader = destination) := by
@@ -25010,7 +25011,7 @@ lemma updateTermPreservesSystemInductiveInvariant
       · intro queuedDestination request member
         exact
           ownership.queuedAppendMetadata queuedDestination request
-            (by simpa [next, CCFRaft.Protocol.Model.next, found] using member)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using member)
       · intro queuedDestination request member sameTerm leaderRole
         by_cases sourceEq : request.source = destination
         · have afterLeader :
@@ -25022,7 +25023,7 @@ lemma updateTermPreservesSystemInductiveInvariant
         · have oldMember :
               Message.appendEntriesRequest request ∈
                 state.network queuedDestination := by
-            simpa [next, CCFRaft.Protocol.Model.next, found] using member
+            simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using member
           have oldPrefix :=
             ownership.queuedActiveSourceHistory
               queuedDestination request oldMember
@@ -25282,7 +25283,7 @@ lemma updateTermPreservesSystemInductiveInvariant
             appendHistory nodeEvidence requestEvidence
             commitEq committedEq
             (fun queuedDestination request member => by
-              simpa [next, CCFRaft.Protocol.Model.next, found] using member)
+              simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using member)
             known
     have updateTermEvidenceBridge :
         forall evidence supportedPrefix,
@@ -25318,7 +25319,7 @@ lemma updateTermPreservesSystemInductiveInvariant
           (next state (.updateTerm source destination)).nodes candidate =
             state.nodes candidate := by
         simp [
-          next, CCFRaft.Protocol.Model.next, found, updateNode, candidateNe
+          next, CCFRaft.Proofs.Abstract.Model.next, found, updateNode, candidateNe
         ]
       have oldKnown := knownBack evidence supportedPrefix known
       let candidateConfiguration :=
@@ -25419,7 +25420,7 @@ lemma updateTermPreservesSystemInductiveInvariant
         have candidateConfigurationKnownEvidence :
             candidateConfiguration ∈
               allConfigurations candidateEvidence.history :=
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix committedInEvidence)
             candidateConfigurationKnownCommitted
         have candidateConfigurationBeforeEvidenceAuthority :
@@ -25497,7 +25498,7 @@ lemma updateTermPreservesSystemInductiveInvariant
           have historiesAgree :
               evidence.history.take evidence.commitFrontier =
                 candidateEvidence.history.take evidence.commitFrontier := by
-            have agreed := CCFRaft.Proofs.HandlerProofs.prefixEqTake covered
+            have agreed := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake covered
             have evidenceLength :
                 (evidence.history.take evidence.commitFrontier).length =
                   evidence.commitFrontier := by
@@ -25511,7 +25512,7 @@ lemma updateTermPreservesSystemInductiveInvariant
               candidateConfiguration ∈
                 allConfigurations evidence.history := by
             apply
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix
                   (List.take_prefix evidence.commitFrontier evidence.history))
             rw [historiesAgree]
@@ -25633,7 +25634,7 @@ lemma updateTermPreservesSystemInductiveInvariant
                 rcases lt_or_eq_of_le candidateAtOrBeforeActivation with
                   strict | equal
                 · apply
-                    CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                    CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                       (allConfigurations_mono_prefix
                         ((candidateCoverage.sharedPrefix_prefix_higherAuthority
                           authorityStored
@@ -25649,7 +25650,7 @@ lemma updateTermPreservesSystemInductiveInvariant
                       authorityStored
                       (by simpa [candidateConfiguration] using equal.symm)
                   simpa [configurationEq] using
-                    CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                    CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                       (allConfigurations_mono_prefix
                         (List.take_prefix
                           authorityActivation.activationFrontier
@@ -25703,7 +25704,7 @@ lemma updateTermPreservesSystemInductiveInvariant
                   ((next state
                     (.updateTerm source destination)).nodes candidate).log := by
             apply
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix
                   (activationInCandidate.trans
                     (List.take_prefix
@@ -25822,7 +25823,7 @@ lemma updateTermPreservesSystemInductiveInvariant
             (by
               intro configuration sourceActive governs candidateActive
               exact
-                CCFRaft.Proofs.UpdateTermAuthority.updateTermPotentialPrefixOfRelaxedAuthority
+                CCFRaft.Proofs.Abstract.UpdateTermAuthority.updateTermPotentialPrefixOfRelaxedAuthority
                   (before := state)
                   (after := next state (.updateTerm source destination))
                   (source := leader)
@@ -25831,14 +25832,14 @@ lemma updateTermPreservesSystemInductiveInvariant
                   (configuration := configuration)
                   (by
                     simp [
-                      next, CCFRaft.Protocol.Model.next, found, updateNode, leaderNe
+                      next, CCFRaft.Proofs.Abstract.Model.next, found, updateNode, leaderNe
                     ])
                   (by
                     simp [
-                      next, CCFRaft.Protocol.Model.next, found, updateNode, candidateNe
+                      next, CCFRaft.Proofs.Abstract.Model.next, found, updateNode, candidateNe
                     ])
                   logEq termMonotone
-                  (by simp [next, CCFRaft.Protocol.Model.next, found])
+                  (by simp [next, CCFRaft.Proofs.Abstract.Model.next, found])
                   (by
                     intro voter member
                     rw [effectiveAckersEq leader leaderNe index] at member
@@ -25945,7 +25946,7 @@ lemma updateTermPreservesSystemInductiveInvariant
           activationQuorums.queuedComparable
             activationIndex activation queuedDestination queuedRequest
             stored
-            (by simpa [next, CCFRaft.Protocol.Model.next, found] using queued)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using queued)
             sameTerm
       · exact
           committedConfigurationCoverageFrame
@@ -25955,7 +25956,7 @@ lemma updateTermPreservesSystemInductiveInvariant
             activationQuorums.queuedCoverage
             (afterAppendHistory := appendHistory)
         · intro queuedDestination queuedRequest queued
-          simpa [next, CCFRaft.Protocol.Model.next, found] using queued
+          simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using queued
         · intro _
           rfl
     · refine
@@ -26080,40 +26081,40 @@ lemma updateTermPreservesSystemInductiveInvariant
             by simpa [logEq] using agreed⟩
     · constructor
       · intro node peer member
-        simpa [next, CCFRaft.Protocol.Model.next, found] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using
           facts.joinedCarriers.activeNodes node
             (by
               simpa [activeNodeUnion, activeConfigurationsEq] using member)
       · intro node configuration member peer inNodes
-        simpa [next, CCFRaft.Protocol.Model.next, found] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using
           facts.joinedCarriers.configurationNodes node configuration
             (by simpa [logEq] using member) inNodes
       · intro node peer member
-        simpa [next, CCFRaft.Protocol.Model.next, found] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using
           facts.joinedCarriers.grantedVotes node
             (by rw [← votesEq node]; exact member)
       · intro queuedDestination request member
-        simpa [next, CCFRaft.Protocol.Model.next, found] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using
           facts.joinedCarriers.voteRequestDestinations
             queuedDestination request
-            (by simpa [next, CCFRaft.Protocol.Model.next, found] using member)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using member)
       · intro queuedDestination request member
-        simpa [next, CCFRaft.Protocol.Model.next, found] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using
           facts.joinedCarriers.appendRequestDestinations
             queuedDestination request
-            (by simpa [next, CCFRaft.Protocol.Model.next, found] using member)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using member)
       · intro queuedDestination request member configuration configured
           peer inNodes
-        simpa [next, CCFRaft.Protocol.Model.next, found] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using
           facts.joinedCarriers.appendRequestConfigurations
             queuedDestination request
-              (by simpa [next, CCFRaft.Protocol.Model.next, found] using member)
+              (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using member)
             configuration configured inNodes
       · intro queuedDestination response member
-        simpa [next, CCFRaft.Protocol.Model.next, found] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using
           facts.joinedCarriers.voteResponseSources
             queuedDestination response
-            (by simpa [next, CCFRaft.Protocol.Model.next, found] using member)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using member)
       · constructor
         · intro candidate active
           have different : Not (candidate = destination) := by
@@ -26122,27 +26123,27 @@ lemma updateTermPreservesSystemInductiveInvariant
             rcases active with candidateRole | leaderRole
             · exact Role.noConfusion (candidateRole.symm.trans roleDestination)
             · exact Role.noConfusion (leaderRole.symm.trans roleDestination)
-          simpa [next, CCFRaft.Protocol.Model.next, found] using
+          simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using
             facts.joinedCarriers.runtimeNodes.activeRoles candidate
               (by simpa [roleOther candidate different] using active)
         · intro leader peer positive
-          simpa [next, CCFRaft.Protocol.Model.next, found] using
+          simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using
             facts.joinedCarriers.runtimeNodes.positiveMatches leader peer
               (by simpa [matchEq] using positive)
         · intro queuedDestination response member
-          simpa [next, CCFRaft.Protocol.Model.next, found] using
+          simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using
             facts.joinedCarriers.runtimeNodes.appendResponses
               queuedDestination response
-                (by simpa [next, CCFRaft.Protocol.Model.next, found] using member)
+                (by simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using member)
         · intro candidate nonempty
-          simpa [next, CCFRaft.Protocol.Model.next, found] using
+          simpa [next, CCFRaft.Proofs.Abstract.Model.next, found] using
             facts.joinedCarriers.runtimeNodes.nonemptyLogs candidate
               (by simpa [logEq] using nonempty)
     · apply
         AllocatedNodesExactlyJoined.frame
           facts.allocatedNodesExactlyJoined
-          (fun candidate => ?_) (by simp [next, CCFRaft.Protocol.Model.next, found])
-      simp only [next, CCFRaft.Protocol.Model.next, found, State.allocated]
+          (fun candidate => ?_) (by simp [next, CCFRaft.Proofs.Abstract.Model.next, found])
+      simp only [next, CCFRaft.Proofs.Abstract.Model.next, found, State.allocated]
       exact
         NodeStore.allocated_set_iff_of_allocated
           state.nodes destination _ enabled.1 candidate
@@ -26287,7 +26288,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     Function.update ackHistory node (fun _ => none)
   have roleNode :
       ((next state (.becomeLeader node)).nodes node).role = .leader := by
-    simp [next, CCFRaft.Protocol.Model.next]
+    simp [next, CCFRaft.Proofs.Abstract.Model.next]
   have roleOther :
       forall candidate,
         Not (candidate = node) ->
@@ -26295,12 +26296,12 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           (state.nodes candidate).role := by
     intro candidate different
     simp [
-      next, CCFRaft.Protocol.Model.next, updateNode, different
+      next, CCFRaft.Proofs.Abstract.Model.next, updateNode, different
     ]
   have logNode :
       ((next state (.becomeLeader node)).nodes node).log =
         promotionLog := by
-    simp [next, CCFRaft.Protocol.Model.next, promotionLog]
+    simp [next, CCFRaft.Proofs.Abstract.Model.next, promotionLog]
   have logOther :
       forall candidate,
         Not (candidate = node) ->
@@ -26308,7 +26309,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           (state.nodes candidate).log := by
     intro candidate different
     simp [
-      next, CCFRaft.Protocol.Model.next, updateNode, different
+      next, CCFRaft.Proofs.Abstract.Model.next, updateNode, different
     ]
   have termEq :
       forall candidate,
@@ -26317,7 +26318,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, same
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have commitEq :
       forall candidate,
@@ -26326,7 +26327,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, same
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have committedEq :
       forall candidate,
@@ -26405,7 +26406,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, same
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have votesEq :
       forall candidate,
@@ -26414,16 +26415,16 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        next, CCFRaft.Protocol.Model.next, updateNode, same
+        next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have sentNode :
       ((next state (.becomeLeader node)).nodes node).sentIndex =
         fun _ => promotionLog.length := by
-    simp [next, CCFRaft.Protocol.Model.next, promotionLog]
+    simp [next, CCFRaft.Proofs.Abstract.Model.next, promotionLog]
   have matchNode :
       ((next state (.becomeLeader node)).nodes node).matchIndex =
         fun _ => 0 := by
-    simp [next, CCFRaft.Protocol.Model.next]
+    simp [next, CCFRaft.Proofs.Abstract.Model.next]
   have sentOther :
       forall candidate,
         Not (candidate = node) ->
@@ -26431,7 +26432,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           (state.nodes candidate).sentIndex := by
     intro candidate different
     simp [
-      next, CCFRaft.Protocol.Model.next, updateNode, different
+      next, CCFRaft.Proofs.Abstract.Model.next, updateNode, different
     ]
   have matchOther :
       forall candidate,
@@ -26440,11 +26441,11 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           (state.nodes candidate).matchIndex := by
     intro candidate different
     simp [
-      next, CCFRaft.Protocol.Model.next, updateNode, different
+      next, CCFRaft.Proofs.Abstract.Model.next, updateNode, different
     ]
   have networkEq :
       (next state (.becomeLeader node)).network = state.network := by
-    simp [next, CCFRaft.Protocol.Model.next]
+    simp [next, CCFRaft.Proofs.Abstract.Model.next]
   have currentConfigurationNodeEq :
       currentConfiguration
           ((next state (.becomeLeader node)).nodes node) =
@@ -26471,7 +26472,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
         currentConfiguration afterNode ∈
           allConfigurations (state.nodes node).log := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix promotionPrefix)
       simpa [afterNode, logNode] using
         currentConfiguration_mem_allConfigurations afterNode
@@ -26528,7 +26529,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     have knownOld :
         configuration ∈ allConfigurations (state.nodes node).log := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix promotionPrefix)
       simpa [logNode] using parts.1
     simpa [activeConfigurations, currentConfigurationNodeEq] using
@@ -26554,10 +26555,10 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     constructor
     · rintro ⟨joined, processed | queued⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inl (by simpa [votesEq] using processed)⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr ?_⟩
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr ?_⟩
         rcases queued with
           ⟨response, member, granted, responseTerm,
             responseSource, responseDestination⟩
@@ -26567,10 +26568,10 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
             responseSource, responseDestination⟩
     · rintro ⟨joined, processed | queued⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inl (by simpa [votesEq] using processed)⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr ?_⟩
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr ?_⟩
         rcases queued with
           ⟨response, member, granted, responseTerm,
             responseSource, responseDestination⟩
@@ -26600,20 +26601,20 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     simp only [
       potentialElectionVoters, Finset.mem_filter]
     constructor <;> rintro ⟨joined, effective | eligible⟩
-    · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl (by
+    · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl (by
         rw [effectiveElectionVotersEq] at effective
         exact effective)⟩
-    · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr (by
+    · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr (by
         simpa [
           currentlyEligibleElectionVoter,
           makeRequestVoteRequest,
           termEq, maxCommittableIndexEq, maxCommittableTermEq,
           lastIndexEq, lastTermEq, votedEq, voteLogUpToDate
         ] using eligible)⟩
-    · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl (by
+    · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl (by
         rw [effectiveElectionVotersEq]
         exact effective)⟩
-    · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr (by
+    · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr (by
         simpa [
           currentlyEligibleElectionVoter,
           makeRequestVoteRequest,
@@ -26646,13 +26647,13 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       effectiveAckers, Finset.mem_filter]
     constructor
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl self⟩
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl self⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr
               (Or.inl (by simpa [matchOther leader leaderNe] using matched))⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, responseTerm, sourceEq,
@@ -26663,13 +26664,13 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
             sourceEq, destinationEq, lastIndex,
             by simpa [logOther leader leaderNe] using covered⟩
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl self⟩
+      · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl self⟩
       · exact
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr
               (Or.inl (by simpa [matchOther leader leaderNe] using matched))⟩
       · refine
-          ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, responseTerm, sourceEq,
@@ -26706,10 +26707,10 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     simp only [
       potentialAckers, Finset.mem_filter] at member ⊢
     rcases member with ⟨joined, effective | reserve⟩
-    · exact ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inl (by
+    · exact ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inl (by
         rw [effectiveAckersOtherEq leader leaderNe index] at effective
         exact effective)⟩
-    · refine ⟨by simpa [next, CCFRaft.Protocol.Model.next] using joined, Or.inr ?_⟩
+    · refine ⟨by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using joined, Or.inr ?_⟩
       rcases reserve with
         ⟨request, queued, requestSource, requestDestination,
           requestTerm, producible, covered⟩
@@ -26728,7 +26729,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
                 contradiction
               · exact Or.inr (by simpa [termEq] using future)
             · simpa [
-                next, CCFRaft.Protocol.Model.next, updateNode,
+                next, CCFRaft.Proofs.Abstract.Model.next, updateNode,
                 Function.update, peerEq
               ] using producible,
           by simpa [logOther leader leaderNe] using covered⟩
@@ -26776,7 +26777,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     have oldFound :
         entryAt? (state.nodes node).log index = some foundEntry := by
       rw [logNode] at found
-      exact CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix promotionPrefix found
+      exact CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix promotionPrefix found
     exact
       oldCandidateTermNot
         node oldRole oldEffectiveMajority node index foundEntry
@@ -26834,7 +26835,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       rw [logNode] at member
       exact
         facts.entriesDoNotExceedCurrentTerm node entry
-          (CCFRaft.Proofs.HandlerProofs.memOfPrefix promotionPrefix member)
+          (CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix promotionPrefix member)
     · rw [logOther candidate same] at member
       exact facts.entriesDoNotExceedCurrentTerm candidate entry member
   · intro candidate role
@@ -27153,13 +27154,13 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
         have nodeFound :
             entryAt? (state.nodes node).log evidence.commitFrontier =
               some frontierEntry :=
-          CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix oldCovered prefixFound
+          CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix oldCovered prefixFound
         have frontierTerm :
             frontierEntry.term = evidence.commitTerm := by
           simpa [termAt, historyFound] using valid.2.1
         have termBound :=
           facts.entriesDoNotExceedCurrentTerm node frontierEntry
-            (CCFRaft.Proofs.HandlerProofs.entryAt_mem nodeFound)
+            (CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_mem nodeFound)
         have termNe :
             Not (
               frontierEntry.term =
@@ -27411,7 +27412,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
         by_cases ownerEq : owner = node
         · subst owner
           rw [logNode] at found
-          exact CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix promotionPrefix found
+          exact CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix promotionPrefix found
         · simpa [logOther owner ownerEq] using found
       have termNe :
           Not (entry.term = (state.nodes node).currentTerm) :=
@@ -27434,7 +27435,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
               calc
                 promotionLog.take index =
                     (state.nodes node).log.take index :=
-                  CCFRaft.Proofs.HandlerProofs.takeEqOfPrefix promotionPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.takeEqOfPrefix promotionPrefix
                     (entryAtSomeIndexBound promotionFound)
                 _ =
                     (newCanonicalHistory entry.term).take index := by
@@ -27506,7 +27507,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
             simpa [
               newCanonicalHistory, Function.update
             ] using found
-          exact CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix promotionPrefix promotionFound
+          exact CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix promotionPrefix promotionFound
         have entryTermNe :
             Not (entry.term = (state.nodes node).currentTerm) :=
           oldCandidateTermNot
@@ -27782,7 +27783,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           subst record
           have oldMember :
               entry ∈ (state.nodes node).log :=
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix promotionPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix promotionPrefix
               (by simpa [electionRecord] using member)
           have bounded :=
             facts.entriesDoNotExceedCurrentTerm
@@ -28692,7 +28693,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           activationQuorums.queuedComparable
             activationIndex activation queuedDestination queuedRequest
             stored
-            (by simpa [next, CCFRaft.Protocol.Model.next] using queued)
+            (by simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued)
             sameTerm
       · apply
           committedConfigurationCoverageTakeFrame
@@ -28733,7 +28734,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
             activationQuorums.queuedCoverage
             (afterAppendHistory := appendHistory)
         · intro queuedDestination queuedRequest queued
-          simpa [next, CCFRaft.Protocol.Model.next] using queued
+          simpa [next, CCFRaft.Proofs.Abstract.Model.next] using queued
         · intro _
           rfl
   · intro candidate voter active member
@@ -28806,7 +28807,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       joinedCarrierFactsFrame
         state (next state (.becomeLeader node))
           facts.joinedCarriers
-          (by simp [next, CCFRaft.Protocol.Model.next])
+          (by simp [next, CCFRaft.Proofs.Abstract.Model.next])
     · intro candidate configuration active
       by_cases candidateEq : candidate = node
       · subst candidate
@@ -28817,7 +28818,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       by_cases candidateEq : candidate = node
       · subst candidate
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix promotionPrefix)
         simpa [logNode] using member
       · simpa [logOther candidate candidateEq] using member
@@ -28826,9 +28827,9 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     · intro candidate active
       by_cases same : candidate = node
       · subst candidate
-        simpa [next, CCFRaft.Protocol.Model.next] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.activeRoles node (Or.inl oldRole)
-      · simpa [next, CCFRaft.Protocol.Model.next] using
+      · simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.activeRoles candidate
             (by simpa [roleOther candidate same] using active)
     · intro leader peer positive
@@ -28836,24 +28837,24 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       · subst leader
         rw [matchNode] at positive
         simp at positive
-      · simpa [next, CCFRaft.Protocol.Model.next] using
+      · simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.positiveMatches leader peer
             (by simpa [matchOther leader same] using positive)
     · intro candidate nonempty
       by_cases same : candidate = node
       · subst candidate
-        simpa [next, CCFRaft.Protocol.Model.next] using
+        simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.activeRoles node (Or.inl oldRole)
-      · simpa [next, CCFRaft.Protocol.Model.next] using
+      · simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
           facts.joinedCarriers.runtimeNodes.nonemptyLogs candidate
             (by simpa [logOther candidate same] using nonempty)
     · intro destination message member
-      simpa [next, CCFRaft.Protocol.Model.next] using member
+      simpa [next, CCFRaft.Proofs.Abstract.Model.next] using member
   · apply
       AllocatedNodesExactlyJoined.frame
         facts.allocatedNodesExactlyJoined
-        (fun candidate => ?_) (by simp [next, CCFRaft.Protocol.Model.next])
-    simp only [next, CCFRaft.Protocol.Model.next, State.allocated]
+        (fun candidate => ?_) (by simp [next, CCFRaft.Proofs.Abstract.Model.next])
+    simp only [next, CCFRaft.Proofs.Abstract.Model.next, State.allocated]
     exact
       NodeStore.allocated_set_iff_of_allocated
         state.nodes node _ enabled.1 candidate
@@ -29553,7 +29554,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           have activationFoundLeader :
               entryAt? (state.nodes node).log record.activationFrontier =
                 some activationEntry :=
-            CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix recordInLeader
+            CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix recordInLeader
               (by
                 rw [entryAtTake_of_le le_rfl]
                 exact activationFound)
@@ -29688,7 +29689,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         allConfigurations_index_unique
           (TxId := TxId) (state.nodes node).log
       · apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (recordBefore.trans
                 (List.take_prefix frontier (state.nodes node).log)))
@@ -29700,14 +29701,14 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         allConfigurations_index_unique
           (TxId := TxId) record.history
       · exact
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix
                 record.activationFrontier record.history))
             (activationNewConfigurationKnown
               activationQuorums.history stored)
       · apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (frontierBefore.trans
                 (List.take_prefix record.activationFrontier record.history)))
@@ -29800,7 +29801,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             (count := newConfiguration.index)
             (by simpa [activationLength] using newWithinActivation)
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix
                 newConfiguration.index witness.activation.history))
@@ -29818,7 +29819,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             (count := newConfiguration.index)
             (by simpa [frontierLength] using newConfigurationIndexBound)
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix
                 newConfiguration.index witness.activation.history))
@@ -30133,7 +30134,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   newConfiguration ∈
                     allConfigurations witness.activation.history := by
                 apply
-                  CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix
                       (reversed.trans
                         (List.take_prefix
@@ -30212,9 +30213,9 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   activationLength, List.take_take,
                   Nat.min_eq_left activationFrontierInLeader
                 ] using
-                  CCFRaft.Proofs.HandlerProofs.prefixEqTake witnessPrefixInFrontier
+                  CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake witnessPrefixInFrontier
               apply
-                CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                   (allConfigurations_mono_prefix
                     (List.take_prefix
                       witness.activation.activationFrontier
@@ -30467,7 +30468,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             have sourceFoundLeader :
                 entryAt? (state.nodes node).log index =
                   some sourceEntry := by
-              apply CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix sourceInLeader
+              apply CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix sourceInLeader
               rw [entryAtTake_of_le le_rfl]
               exact sourceFound
             have indexLeFrontier : index <= frontier := by
@@ -30580,7 +30581,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · have newKnownActivation :
           newConfiguration ∈ allConfigurations activation.history := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (reversed.trans
                 (List.take_prefix
@@ -30639,7 +30640,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           activation.newConfiguration ∈
             allConfigurations (state.nodes node).log := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (reversed.trans
                 (List.take_prefix frontier (state.nodes node).log)))
@@ -30769,7 +30770,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             newConfiguration ∈
               allConfigurations witness.activation.history := by
           apply
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 (frontierBefore.trans
                   (List.take_prefix
@@ -30794,7 +30795,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             newConfiguration ∈
               allConfigurations (state.nodes candidate).log := by
           apply
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 (List.take_prefix
                   witness.sharedFrontier (state.nodes candidate).log))
@@ -30887,7 +30888,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             Nat.min_eq_left witness.sharedFrontier_le_activationFrontier
           ] using agreed
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix
                 witness.sharedFrontier
@@ -30899,7 +30900,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       have candidateKnownLeader :
           currentConfiguration (state.nodes candidate) ∈
             allConfigurations (state.nodes node).log :=
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (List.take_prefix frontier (state.nodes node).log))
           candidateKnownNewPrefix
@@ -30962,7 +30963,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           newActivationPrefixInOld
             witness.activationIndex witness.activation witness.stored strict
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (newPrefixInWitness.trans
                 (List.take_prefix
@@ -30977,7 +30978,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             witness.activationIndex witness.activation witness.stored
             equal.symm
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix
                 witness.activation.activationFrontier
@@ -30989,13 +30990,13 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         currentConfiguration (state.nodes candidate) ∈
           allConfigurations witness.activation.history := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (List.take_prefix
               witness.activation.activationFrontier
               witness.activation.history))
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             witness.sharedPrefix_prefix_activationPrefix)
       exact
@@ -31017,12 +31018,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     let configuration := currentConfiguration (state.nodes candidate)
     have configurationKnownActivation :
         configuration ∈ allConfigurations witness.activation.history :=
-      CCFRaft.Proofs.HandlerProofs.memOfPrefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
         (allConfigurations_mono_prefix
           (List.take_prefix
             witness.activation.activationFrontier
             witness.activation.history))
-        (CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        (CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             witness.sharedPrefix_prefix_activationPrefix)
           (by simpa [configuration] using
@@ -31064,7 +31065,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                     witness.stored).2.1]
             simpa [activationLength] using configurationWithinActivation)
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (List.take_prefix
               configuration.index ((state.nodes node).log.take frontier)))
@@ -31094,7 +31095,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               simp [Nat.min_eq_left frontierBound]
             simpa [frontierLength] using configurationWithinFrontier)
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (List.take_prefix
               configuration.index ((state.nodes node).log.take frontier)))
@@ -31180,7 +31181,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             ] using agreed.symm]
         exact newKnownLeaderTake
     apply
-      CCFRaft.Proofs.HandlerProofs.memOfPrefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
         (allConfigurations_mono_prefix
           (List.take_prefix newConfiguration.index witness.sharedPrefix))
     simpa [
@@ -31828,11 +31829,11 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   lowerLength, List.take_take,
                   Nat.min_eq_left lowerWithinFrontier
                 ] using
-                  CCFRaft.Proofs.HandlerProofs.prefixEqTake lowerInFrontier
+                  CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake lowerInFrontier
               have newKnownLower :
                   newConfiguration ∈ allConfigurations lower.history := by
                 apply
-                  CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix
                       (List.take_prefix lower.activationFrontier lower.history))
                 rw [← exactTake]
@@ -32460,7 +32461,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             allConfigurations
               ((advanceCommitState state node).nodes candidate).log := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (by simpa [logEq] using frontierInCandidate))
         exact
@@ -32520,7 +32521,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 (candidateActivation.history.take
                   candidateActivation.activationFrontier) := by
           apply
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 candidateWitness.sharedPrefix_prefix_activationPrefix)
           simpa [candidateConfiguration] using
@@ -32590,7 +32591,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               candidateConfiguration ∈
                 allConfigurations (state.nodes node).log := by
             apply
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix activationInSource)
             exact candidateConfigurationKnown
           by_cases governs : candidateConfiguration.index <= index
@@ -32613,7 +32614,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 (activationHistoryAfter.valid
                   candidateActivationIndex candidateActivation
                   candidateStored).2.1]
-            have exactTake := CCFRaft.Proofs.HandlerProofs.prefixEqTake activationInSource
+            have exactTake := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake activationInSource
             have exactFrontierTake :
                 (state.nodes node).log.take
                     candidateActivation.activationFrontier =
@@ -32692,7 +32693,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 candidateConfiguration ∈
                   allConfigurations (state.nodes node).log := by
               apply
-                CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                   (allConfigurations_mono_prefix activationInSource)
               exact candidateConfigurationKnown
             by_cases governs : candidateConfiguration.index <= index
@@ -32715,7 +32716,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   (activationHistoryAfter.valid
                     candidateActivationIndex candidateActivation
                     candidateStored).2.1]
-              have exactTake := CCFRaft.Proofs.HandlerProofs.prefixEqTake activationInSource
+              have exactTake := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake activationInSource
               have exactFrontierTake :
                   (state.nodes node).log.take
                       candidateActivation.activationFrontier =
@@ -32849,7 +32850,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             ((advanceCommitState state node).nodes member).log
             knownEvidence.commitFrontier =
           some frontierEntry :=
-      CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix memberCovered prefixFound
+      CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix memberCovered prefixFound
     have memberAgreed :=
       (ownershipAfter.logEntryAgreement
         member knownEvidence.commitFrontier frontierEntry memberFound).2
@@ -32857,7 +32858,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       knownEvidence.history.take knownEvidence.commitFrontier =
           ((advanceCommitState state node).nodes member).log.take
               knownEvidence.commitFrontier := by
-        have covered := CCFRaft.Proofs.HandlerProofs.prefixEqTake memberCovered
+        have covered := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake memberCovered
         rw [prefixLength] at covered
         exact covered.symm
       _ =
@@ -32911,7 +32912,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         have newKnownActivation :
             newConfiguration ∈ allConfigurations witness.activation.history := by
           apply
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 (frontierBefore.trans
                   (List.take_prefix
@@ -32945,7 +32946,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           exact newKnownActivationShared
         have newKnownHistory :
             newConfiguration ∈ allConfigurations history :=
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix
                 (min coveredFrontier
@@ -33060,7 +33061,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           currentConfigurationAt history coveredFrontier ∈
             allConfigurations ((state.nodes node).log.take frontier) := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix
                 (min coveredFrontier
@@ -33081,7 +33082,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       have coveredKnownLeader :
           currentConfigurationAt history coveredFrontier ∈
             allConfigurations (state.nodes node).log :=
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (List.take_prefix frontier (state.nodes node).log))
           coveredKnownNewPrefix
@@ -33232,7 +33233,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           newConfiguration ∈
             allConfigurations (state.nodes candidate).log := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (newBefore.trans
                 (List.take_prefix
@@ -33246,7 +33247,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · have configurationKnownLeader :
           configuration ∈ allConfigurations (state.nodes node).log := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (candidateBefore.trans
                 (List.take_prefix frontier (state.nodes node).log)))
@@ -33329,7 +33330,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · have activationKnownLeader :
           activation.newConfiguration ∈
             allConfigurations (state.nodes node).log :=
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (activationBefore.trans
               (List.take_prefix frontier (state.nodes node).log)))
@@ -33355,7 +33356,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 { state.nodes node with commitIndex := coveredFrontier }
           exact withinCovered.trans coveredWithin
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix frontierBefore)
         exact
           allConfigurations_mem_take_of_index_le
@@ -33406,7 +33407,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           higher.newConfiguration ∈
             allConfigurations (state.nodes node).log := by
           apply
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 (higherBefore.trans
                   (List.take_prefix frontier (state.nodes node).log)))
@@ -33527,7 +33528,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           simp [Nat.min_eq_left
             (activationQuorums.history.valid
               lowerIndex lower oldStored).2.1]
-        have exactLower := CCFRaft.Proofs.HandlerProofs.prefixEqTake lowerBefore
+        have exactLower := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake lowerBefore
         have leaderLength :
             ((state.nodes node).log.take frontier).length = frontier := by
           simp [Nat.min_eq_left frontierBound]
@@ -33547,7 +33548,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 (state.nodes node).log coveredFrontier ∈
               allConfigurations lower.history := by
           apply
-            CCFRaft.Proofs.HandlerProofs.memOfPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
               (allConfigurations_mono_prefix
                 (List.take_prefix lower.activationFrontier lower.history))
           rw [lowerTakeEq]
@@ -33627,7 +33628,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               (state.nodes node).log coveredFrontier ∈
             allConfigurations lower.history := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (frontierBefore.trans
                 (List.take_prefix lower.activationFrontier lower.history)))
@@ -33704,7 +33705,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           higher.newConfiguration ∈
             allConfigurations (state.nodes node).log := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (higherBefore.trans
                 (List.take_prefix frontier (state.nodes node).log)))
@@ -33811,7 +33812,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 ownershipAfter electionFactsAfter evidenceAfter
                 prospectiveAfter known role termOrder ackMember)
           rcases
-              CCFRaft.Proofs.HandlerProofs.prefixesComparable
+              CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                 (List.take_prefix index
                   ((advanceCommitState state node).nodes source).log)
                 committedInSource with
@@ -33899,7 +33900,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   rw [canonicalEq]
                   exact List.take_prefix _ _)
             rcases
-                CCFRaft.Proofs.HandlerProofs.prefixesComparable
+                CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                   sourceInCanonical committedInCanonical with
               direct | direct
             · exact Or.inl direct
@@ -33938,7 +33939,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 (by
                   rw [ownershipAfter.activeLeaderHistory right rightRole]))
           rcases
-              CCFRaft.Proofs.HandlerProofs.prefixesComparable
+              CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                 leftInRight
                 (List.take_prefix rightIndex
                   ((advanceCommitState state node).nodes right).log) with
@@ -33952,7 +33953,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           Option.some.inj (leftOwned.symm.trans rightOwned)
         subst right
         rcases
-            CCFRaft.Proofs.HandlerProofs.prefixesComparable
+            CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
               (List.take_prefix leftIndex
                 ((advanceCommitState state node).nodes left).log)
               (List.take_prefix rightIndex
@@ -33988,7 +33989,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 (by
                   rw [ownershipAfter.activeLeaderHistory left leftRole]))
           rcases
-              CCFRaft.Proofs.HandlerProofs.prefixesComparable
+              CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                 rightInLeft
                 (List.take_prefix leftIndex
                   ((advanceCommitState state node).nodes left).log) with
@@ -34028,7 +34029,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             simpa [activationRecord] using
               List.take_prefix frontier (state.nodes node).log
           exact
-            CCFRaft.Proofs.HandlerProofs.prefixesComparable activationPrefix historyPrefix
+            CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable activationPrefix historyPrefix
         · have oldStored :
               activations activationIndex = some activation := by
             simpa [
@@ -34316,7 +34317,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                       coveredConfiguration ∈
                         allConfigurations activation.history := by
                     apply
-                      CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                         (allConfigurations_mono_prefix
                           (List.take_prefix
                             coveredConfiguration.index activation.history))
@@ -34538,7 +34539,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 simp [Nat.min_eq_left
                   (activationQuorums.history.valid
                     lowerIndex lower oldLowerStored).2.1]
-              have exactLower := CCFRaft.Proofs.HandlerProofs.prefixEqTake lowerInCovering
+              have exactLower := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake lowerInCovering
               have valid :=
                 activationQuorums.history.valid
                   coveringIndex covering coveringStored
@@ -34582,7 +34583,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               have coveredKnownLower :
                   coveredConfiguration ∈ allConfigurations lower.history := by
                 apply
-                  CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix
                       (List.take_prefix
                         (min coveredFrontier
@@ -34698,14 +34699,14 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           configuration ∈
             allConfigurations
               (state.nodes queuedRequest.source).committedLog :=
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix requestCommittedPrefix)
           configurationKnownRequestCommit
       have configurationKnownSource :
           configuration ∈
             allConfigurations (state.nodes queuedRequest.source).log := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix
                 (state.nodes queuedRequest.source).commitIndex
@@ -34788,7 +34789,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             prospectiveAfter known roleNode
             (by simpa [termEq] using termOrder) ackMember
       exact
-        CCFRaft.Proofs.HandlerProofs.prefixesComparable
+        CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
           (List.take_prefix frontier (state.nodes node).log)
           knownInNode
     · have nodeBefore :
@@ -34867,7 +34868,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           rw [canonicalEq]
           exact List.take_prefix _ _
         exact
-          CCFRaft.Proofs.HandlerProofs.prefixesComparable
+          CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
             newInCanonical knownInCanonical
   have knownFrontierBeforeNewOfAuthorityBefore :
       forall knownEvidence supportedPrefix,
@@ -34887,13 +34888,13 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           newConfiguration ∈
             allConfigurations
               (knownEvidence.history.take knownEvidence.commitFrontier) :=
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix newBefore)
           newConfigurationKnownAtFrontier
       have newKnownEvidenceHistory :
           newConfiguration ∈
             allConfigurations knownEvidence.history :=
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (List.take_prefix
               knownEvidence.commitFrontier knownEvidence.history))
@@ -34971,13 +34972,13 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       have authorityKnownNewFrontier :
           knownEvidence.authority ∈
             allConfigurations ((state.nodes node).log.take frontier) :=
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix knownBefore)
           authorityKnownFrontier
       have authorityKnownNode :
           knownEvidence.authority ∈
             allConfigurations (state.nodes node).log :=
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (List.take_prefix frontier (state.nodes node).log))
           authorityKnownNewFrontier
@@ -35130,12 +35131,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · have newKnownEvidence :
           newConfiguration ∈ allConfigurations knownEvidence.history := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix
                 knownEvidence.commitFrontier knownEvidence.history))
         exact
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix newBefore)
             newConfigurationKnownAtFrontier
       exact
@@ -35146,11 +35147,11 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           knownEvidence.authority ∈
             allConfigurations (state.nodes node).log := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix frontier (state.nodes node).log))
         exact
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix knownBefore)
             authorityKnownFrontier
       exact
@@ -35247,7 +35248,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 right rightPrefix rightKnown with
             newBefore | rightBefore
           · simpa [evidence] using
-              CCFRaft.Proofs.HandlerProofs.prefixesComparable
+              CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                 newBefore
                 (supportedInCommit right rightPrefix rightKnown)
           · exact Or.inr (by
@@ -35263,7 +35264,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 left leftPrefix leftKnown with
             newBefore | leftBefore
           · rcases
-                CCFRaft.Proofs.HandlerProofs.prefixesComparable
+                CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                   newBefore
                   (supportedInCommit left leftPrefix leftKnown) with
               newInLeft | leftInNew
@@ -36387,7 +36388,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                     rfl sourceWitness.stored
                     (sourceWitness.activationTermBound.trans_lt oldLater)
                 apply
-                  CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix
                       (activationInCandidate.trans
                         (List.take_prefix
@@ -36395,7 +36396,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                             (state.nodes candidate).log)
                           (state.nodes candidate).log)))
                 apply
-                  CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix
                       sourceWitness.sharedPrefix_prefix_activationPrefix)
                 simpa [sourceConfiguration] using
@@ -36433,7 +36434,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                     (candidateActivation.history.take
                       candidateActivation.activationFrontier) := by
               apply
-                CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                   (allConfigurations_mono_prefix
                     candidateWitness.sharedPrefix_prefix_activationPrefix)
               simpa [candidateConfiguration] using
@@ -36513,7 +36514,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                   candidateConfiguration ∈
                     allConfigurations (state.nodes source).log := by
                 apply
-                  CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix activationInSource)
                 exact candidateConfigurationKnown
               by_cases governs : candidateConfiguration.index <= index
@@ -36537,7 +36538,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                     (activationQuorums.history.valid
                       candidateActivationIndex candidateActivation
                       candidateStored).2.1]
-                have exactTake := CCFRaft.Proofs.HandlerProofs.prefixEqTake activationInSource
+                have exactTake := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake activationInSource
                 have exactFrontierTake :
                     (state.nodes source).log.take
                         candidateActivation.activationFrontier =
@@ -36606,7 +36607,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                     candidateConfiguration ∈
                       allConfigurations (state.nodes source).log := by
                   apply
-                    CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                    CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                       (allConfigurations_mono_prefix activationInSource)
                   exact candidateConfigurationKnown
                 by_cases governs :
@@ -36631,7 +36632,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                       (activationQuorums.history.valid
                         candidateActivationIndex candidateActivation
                         candidateStored).2.1]
-                  have exactTake := CCFRaft.Proofs.HandlerProofs.prefixEqTake activationInSource
+                  have exactTake := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake activationInSource
                   have exactFrontierTake :
                       (state.nodes source).log.take
                           candidateActivation.activationFrontier =
@@ -38160,7 +38161,7 @@ lemma requestPreVotePreservesSystemInductiveInvariant
       memEnqueue
         state.network (.requestPreVote request)
           message queuedDestination
-          (by simpa [after, next, CCFRaft.Protocol.Model.next, request] using member) with
+          (by simpa [after, next, CCFRaft.Proofs.Abstract.Model.next, request] using member) with
     old | new
   · exact Or.inl old
   · rcases new with ⟨destinationEq, messageEq⟩
@@ -38209,7 +38210,7 @@ lemma proposeVotePreservesSystemInductiveInvariant
     (_enabled : Enabled state (.proposeVote source destination)) :
     SystemInductiveInvariant
       (next state (.proposeVote source destination)) := by
-  simpa [next, CCFRaft.Protocol.Model.next, makeProposeVoteRequest] using
+  simpa [next, CCFRaft.Proofs.Abstract.Model.next, makeProposeVoteRequest] using
     enqueueProposeVoteRequestPreservesSystemInductiveInvariant
       state (makeProposeVoteRequest state source destination) invariant
       (invariantCurrentTermsValid invariant source)
@@ -38582,11 +38583,11 @@ private lemma noConflictAppendEntriesRequest_sentIndex
   split
   · rename_i extension
     change noConflictExtension node request at extension
-    rw [if_pos extension]
+    rw [ite_eq_left extension]
     rfl
   · rename_i extension
     change ¬ noConflictExtension node request at extension
-    rw [if_neg extension]
+    rw [ite_eq_right extension]
     rfl
 
 omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
@@ -38621,7 +38622,7 @@ private lemma acceptAppendEntriesRequest_sentIndex
           logOk { node with sentIndex } request /\
           request.prevLogIndex >= ({ node with sentIndex }).commitIndex := by
       simpa [logOk] using enabled
-    rw [if_pos updatedEnabled, if_pos enabled]
+    rw [ite_eq_left updatedEnabled, ite_eq_left enabled]
     rw [appendEntriesAlreadyDone_sentIndex]
     cases done : appendEntriesAlreadyDone? node request with
     | some result =>
@@ -38656,7 +38657,7 @@ private lemma acceptAppendEntriesRequest_sentIndex
             request.prevLogIndex >=
               ({ node with sentIndex }).commitIndex) := by
       simpa [logOk] using enabled
-    rw [if_neg updatedDisabled, if_neg enabled]
+    rw [ite_eq_right updatedDisabled, ite_eq_right enabled]
     rfl
 
 private lemma handleAppendEntriesRequest_sentIndex
@@ -41739,7 +41740,7 @@ lemma appendRequestAckerTemporalFacts
       AckerVoteHistory
         after votes newResponseHistory voteVoterHistory elections /\
       AckerElectionHistory after newResponseHistory elections := by
-  let post := CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+  let post := CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
   let after : State Node TxId :=
     { state with
       nodes := updateNode state.nodes destination nextNode
@@ -41877,7 +41878,7 @@ lemma appendRequestAckerTemporalFacts
                 rw [entryAtTake_of_le (le_refl index)]
                 exact found
               have destinationFound :=
-                CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix retained foundInPrefix
+                CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix retained foundInPrefix
               have bounded :=
                 entriesBounded destination entry
                   (entryAtSomeMember destinationFound)
@@ -41928,7 +41929,7 @@ lemma appendRequestAckerTemporalFacts
                       simp [leaderPrefix, prefixLength]
                     _ =
                         (appendHistory request).take leaderPrefix.length :=
-                      (CCFRaft.Proofs.HandlerProofs.takeEqOfPrefix
+                      (CCFRaft.Proofs.Abstract.HandlerProofs.takeEqOfPrefix
                         requestHistory coveredByHistory).symm
                 have retainedNext :=
                   handledAppendRequestRetainsSharedPrefix
@@ -41949,7 +41950,7 @@ lemma appendRequestAckerTemporalFacts
                     appendHistory request =
                         (state.nodes request.source).log.take
                           (appendHistory request).length :=
-                      (CCFRaft.Proofs.HandlerProofs.prefixEqTake requestHistory).symm
+                      (CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake requestHistory).symm
                     _ =
                         leaderPrefix.take (appendHistory request).length := by
                       simp [
@@ -45371,7 +45372,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
       evidenceFacts, prospectiveFacts, activationEvidence,
       activationCanonical, activationElections, configurationActivations⟩
   rcases facts.processedAckHistory with ⟨ackHistory, ackFacts⟩
-  let post := CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+  let post := CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
   let after : State Node TxId :=
     { state with
       nodes := updateNode state.nodes destination nextNode
@@ -45879,7 +45880,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
         · have oldMember :
               entry ∈ (state.nodes destination).log := by
             exact
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (List.take_prefix request.prevLogIndex _)
                 (by simpa [after, updateNode, truncated] using member)
           simpa [termEq] using
@@ -45893,14 +45894,14 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
           rcases List.mem_append.mp nextMember with old | learned
           · have oldMember :
                 entry ∈ (state.nodes destination).log :=
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (List.take_prefix request.prevLogIndex _) old
             simpa [termEq] using
               facts.entriesDoNotExceedCurrentTerm
                 destination entry oldMember
           · have historyMember : entry ∈ appendHistory request := by
               exact
-                CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                   (List.take_prefix
                     (request.prevLogIndex + request.entries.length) _)
                   (by
@@ -46703,7 +46704,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
     have memberFound :
         entryAt? (after.nodes member).log knownEvidence.commitFrontier =
           some frontierEntry :=
-      CCFRaft.Proofs.HandlerProofs.entryAt_of_prefix memberCovered prefixFound
+      CCFRaft.Proofs.Abstract.HandlerProofs.entryAt_of_prefix memberCovered prefixFound
     have memberAgreed :=
       (ownershipAfter.logEntryAgreement
         member knownEvidence.commitFrontier frontierEntry memberFound).2
@@ -46711,7 +46712,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
       knownEvidence.history.take knownEvidence.commitFrontier =
           (after.nodes member).log.take
             knownEvidence.commitFrontier := by
-        have covered := CCFRaft.Proofs.HandlerProofs.prefixEqTake memberCovered
+        have covered := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake memberCovered
         rw [prefixLength] at covered
         exact covered.symm
       _ =
@@ -46761,7 +46762,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                 ownershipAfter electionFactsAfter evidenceAfter
                 prospectiveAfter known role termOrder ackMember)
           rcases
-              CCFRaft.Proofs.HandlerProofs.prefixesComparable
+              CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                 (List.take_prefix index
                   (after.nodes bridgeSource).log)
                 committedInSource with
@@ -46848,7 +46849,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                   rw [canonicalEq]
                   exact List.take_prefix _ _)
             rcases
-                CCFRaft.Proofs.HandlerProofs.prefixesComparable
+                CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                   sourceInCanonical committedInCanonical with
               direct | direct
             · exact Or.inl direct
@@ -46884,7 +46885,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                 (after.nodes right).currentTerm record recordStored).trans
                 (by rw [ownershipAfter.activeLeaderHistory right rightRole]))
           rcases
-              CCFRaft.Proofs.HandlerProofs.prefixesComparable
+              CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                 leftInRight
                 (List.take_prefix rightIndex (after.nodes right).log) with
             direct | direct
@@ -46897,7 +46898,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
           Option.some.inj (leftOwned.symm.trans rightOwned)
         subst right
         rcases
-            CCFRaft.Proofs.HandlerProofs.prefixesComparable
+            CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
               (List.take_prefix leftIndex (after.nodes left).log)
               (List.take_prefix rightIndex (after.nodes left).log) with
           direct | direct
@@ -46928,7 +46929,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                 (after.nodes left).currentTerm record recordStored).trans
                 (by rw [ownershipAfter.activeLeaderHistory left leftRole]))
           rcases
-              CCFRaft.Proofs.HandlerProofs.prefixesComparable
+              CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
                 rightInLeft
                 (List.take_prefix leftIndex (after.nodes left).log) with
             direct | direct
@@ -47090,10 +47091,10 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
             oldRight oldRightPrefix oldRightKnown with
         oldLeftBefore | oldRightBefore
       · exact
-          CCFRaft.Proofs.HandlerProofs.prefixesComparable
+          CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
             (leftRestricted.trans oldLeftBefore) rightRestricted
       · rcases
-            CCFRaft.Proofs.HandlerProofs.prefixesComparable
+            CCFRaft.Proofs.Abstract.HandlerProofs.prefixesComparable
               leftRestricted (rightRestricted.trans oldRightBefore) with
           leftBefore | rightBefore
         · exact Or.inl leftBefore
@@ -47152,7 +47153,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
         have candidateConfigurationKnownEvidence :
             candidateConfiguration ∈
               allConfigurations candidateEvidence.history :=
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix committedInEvidence)
             candidateConfigurationKnownCommitted
         have candidateConfigurationBeforeEvidenceAuthority :
@@ -47235,7 +47236,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
           have historiesAgree :
               evidence.history.take evidence.commitFrontier =
                 candidateEvidence.history.take evidence.commitFrontier := by
-            have agreed := CCFRaft.Proofs.HandlerProofs.prefixEqTake covered
+            have agreed := CCFRaft.Proofs.Abstract.HandlerProofs.prefixEqTake covered
             have evidenceLength :
                 (evidence.history.take evidence.commitFrontier).length =
                   evidence.commitFrontier := by
@@ -47249,7 +47250,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
               candidateConfiguration ∈
                 allConfigurations evidence.history := by
             apply
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix
                   (List.take_prefix evidence.commitFrontier evidence.history))
             rw [historiesAgree]
@@ -47370,7 +47371,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                 rcases lt_or_eq_of_le candidateAtOrBeforeActivation with
                   strict | equal
                 · apply
-                    CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                    CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                       (allConfigurations_mono_prefix
                         ((candidateCoverage.sharedPrefix_prefix_higherAuthority
                             authorityStored
@@ -47387,7 +47388,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                       authorityStored
                       (by simpa [candidateConfiguration] using equal.symm)
                   simpa [configurationEq] using
-                    CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                    CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                       (allConfigurations_mono_prefix
                         (List.take_prefix
                           authorityActivation.activationFrontier
@@ -47436,7 +47437,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
               evidence.authority ∈
                 allConfigurations (after.nodes candidate).log := by
             apply
-              CCFRaft.Proofs.HandlerProofs.memOfPrefix
+              CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                 (allConfigurations_mono_prefix
                   (activationInCandidate.trans
                     (List.take_prefix
@@ -47488,7 +47489,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
         simpa [unchanged] using nextMember
       · apply joinedFromOld
         exact
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix request.prevLogIndex
                 (state.nodes destination).log))
@@ -47501,7 +47502,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
             (fun oldConfiguration oldMember =>
               facts.joinedCarriers.configurationNodes
                 destination oldConfiguration
-                  (CCFRaft.Proofs.HandlerProofs.memOfPrefix
+                  (CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
                     (allConfigurations_mono_prefix
                       (List.take_prefix request.prevLogIndex
                         (state.nodes destination).log))
@@ -48890,7 +48891,7 @@ lemma receiveProposeVoteRequestPreservesSystemInductiveInvariant
     subst nextNode
     let intermediate := becomeCandidateState state destination
     have intermediateInvariant : SystemInductiveInvariant intermediate := by
-      simpa [intermediate, next, CCFRaft.Protocol.Model.next, becomeCandidateState] using
+      simpa [intermediate, next, CCFRaft.Proofs.Abstract.Model.next, becomeCandidateState] using
         candidateTransitionPreservesSystemInductiveInvariant
           state destination invariant
             ⟨candidateEnabled.1, candidateEnabled.2.1⟩
@@ -49081,50 +49082,11 @@ lemma receivePreservesSystemInductiveInvariant
       have nextEq :
           next state (.receive source destination) =
             resultingState := by
-        simp [next, CCFRaft.Protocol.Model.next, received]
+        simp [next, CCFRaft.Proofs.Abstract.Model.next, received]
       rw [nextEq]
       exact
         handleReceivePreservesSystemInductiveInvariant
           state resultingState source destination invariant enabled.1 received
-
-/--
-Every node newly introduced by an enabled reconfiguration is allocated with
-the exact fresh state before the source node is updated.
--/
-lemma changeConfiguration_addedNode_fresh
-    (state : State Node TxId)
-    (source node : Node)
-    (newConfiguration : Finset Node)
-    (allocatedNodesExactlyJoined : AllocatedNodesExactlyJoined state)
-    (enabled :
-      Enabled state (.changeConfiguration source newConfiguration))
-    (member :
-      node ∈
-        newConfiguration \
-          (latestConfiguration (state.nodes source)).nodes) :
-    (next state (.changeConfiguration source newConfiguration)).node? node =
-      some freshNodeState := by
-  unfold Enabled at enabled
-  have nodeNotJoined : node ∉ state.hasJoined :=
-    enabled.2.2.2.2.2.1 node member
-  have nodeNotAllocated : Not (state.allocated node) := by
-    intro allocated
-    exact nodeNotJoined ((allocatedNodesExactlyJoined node).mp allocated)
-  have sourceJoined : source ∈ state.hasJoined :=
-    (allocatedNodesExactlyJoined source).mp enabled.1
-  have nodeNeSource : Not (node = source) := by
-    intro same
-    subst node
-    exact nodeNotJoined sourceJoined
-  simp only [next, CCFRaft.Protocol.Model.next, State.node?, updateNode]
-  rw [
-    NodeStore.node?_set_of_ne _ source node _ nodeNeSource,
-    NodeStore.node?_allocate_of_not_allocated_of_mem
-      state.nodes
-        (newConfiguration \
-          (latestConfiguration (state.nodes source)).nodes)
-        node nodeNotAllocated member
-  ]
 
 /-- Appending a pending configuration preserves the arbitrary-term invariant. -/
 lemma changeConfigurationPreservesSystemInductiveInvariant
@@ -49136,7 +49098,7 @@ lemma changeConfigurationPreservesSystemInductiveInvariant
       Enabled state (.changeConfiguration source newConfiguration)) :
     SystemInductiveInvariant
       (next state (.changeConfiguration source newConfiguration)) := by
-  simpa [leaderAppendState, next, CCFRaft.Protocol.Model.next] using
+  simpa [leaderAppendState, next, CCFRaft.Proofs.Abstract.Model.next] using
     leaderAppendPreservesSystemInductiveInvariant
       state source (.reconfiguration newConfiguration)
         state.submittedTxIds invariant enabled.1 enabled.2.1
@@ -49575,7 +49537,7 @@ lemma checkQuorumPreservesSystemInductiveInvariant
     (invariant : SystemInductiveInvariant state)
     (enabled : Enabled state (.checkQuorum node)) :
     SystemInductiveInvariant (next state (.checkQuorum node)) := by
-  simpa [next, CCFRaft.Protocol.Model.next] using
+  simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
     leaderStepDownPreservesSystemInductiveInvariant
       state node invariant enabled.1 enabled.2.1
 
@@ -49621,7 +49583,7 @@ lemma advanceCommitPreservesSystemInductiveInvariant
     (invariant : SystemInductiveInvariant state)
     (enabled : Enabled state (.advanceCommitIndex node)) :
     SystemInductiveInvariant (next state (.advanceCommitIndex node)) := by
-  simpa [next, CCFRaft.Protocol.Model.next] using
+  simpa [next, CCFRaft.Proofs.Abstract.Model.next] using
     advanceCommitTransitionPreservesSystemInductiveInvariant
       state node invariant
         ⟨enabled.1, enabled.2.1, enabled.2.2.1⟩
@@ -49643,7 +49605,7 @@ lemma advanceCommitAndProposeVotePreservesSystemInductiveInvariant
       advanceCommitTransitionPreservesSystemInductiveInvariant
         state source invariant
           ⟨enabled.1, enabled.2.2.1, enabled.2.2.2.1⟩
-  simpa [next, CCFRaft.Protocol.Model.next, advanced, request] using
+  simpa [next, CCFRaft.Proofs.Abstract.Model.next, advanced, request] using
     enqueueProposeVoteRequestPreservesSystemInductiveInvariant
       advanced request advancedInvariant
       (invariantCurrentTermsValid invariant source)
@@ -49679,7 +49641,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     · exact fun leader => Role.noConfusion (candidate.symm.trans leader)
   have roleNode :
       (after.nodes node).role = .preVoteCandidate := by
-    simp [after, next, CCFRaft.Protocol.Model.next]
+    simp [after, next, CCFRaft.Proofs.Abstract.Model.next]
   have roleOther :
       forall candidate,
         Not (candidate = node) ->
@@ -49687,7 +49649,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
             (state.nodes candidate).role := by
     intro candidate different
     simp [
-      after, next, CCFRaft.Protocol.Model.next, updateNode, different
+      after, next, CCFRaft.Proofs.Abstract.Model.next, updateNode, different
     ]
   have termEq :
       forall candidate,
@@ -49696,7 +49658,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, next, CCFRaft.Protocol.Model.next, updateNode, same
+        after, next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have logEq :
       forall candidate,
@@ -49705,7 +49667,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, next, CCFRaft.Protocol.Model.next, updateNode, same
+        after, next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have commitEq :
       forall candidate,
@@ -49714,7 +49676,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, next, CCFRaft.Protocol.Model.next, updateNode, same
+        after, next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have sentEq :
       forall candidate,
@@ -49723,7 +49685,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, next, CCFRaft.Protocol.Model.next, updateNode, same
+        after, next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have matchEq :
       forall candidate,
@@ -49732,7 +49694,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, next, CCFRaft.Protocol.Model.next, updateNode, same
+        after, next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have votedEq :
       forall candidate,
@@ -49741,7 +49703,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, next, CCFRaft.Protocol.Model.next, updateNode, same
+        after, next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have votesEq :
       forall candidate,
@@ -49750,7 +49712,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, next, CCFRaft.Protocol.Model.next, updateNode, same
+        after, next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
       ]
   have activeConfigurationsEq :
       forall candidate,
@@ -49802,8 +49764,8 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
           effectiveAckers state actualResponseHistory leader index :=
     effectiveAckersFrame
       state after
-        (by simp [after, next, CCFRaft.Protocol.Model.next])
-        (by simp [after, next, CCFRaft.Protocol.Model.next])
+        (by simp [after, next, CCFRaft.Proofs.Abstract.Model.next])
+        (by simp [after, next, CCFRaft.Proofs.Abstract.Model.next])
         termEq logEq
         (fun leader peer => congrFun (matchEq leader) peer)
   have effectiveElectionVotersEq :
@@ -49812,8 +49774,8 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
           effectiveElectionVoters state candidate :=
     effectiveElectionVotersFrame
       state after
-        (by simp [after, next, CCFRaft.Protocol.Model.next])
-        (by simp [after, next, CCFRaft.Protocol.Model.next])
+        (by simp [after, next, CCFRaft.Proofs.Abstract.Model.next])
+        (by simp [after, next, CCFRaft.Proofs.Abstract.Model.next])
         termEq votesEq
   have potentialElectionVotersEq :
       forall candidate,
@@ -49826,12 +49788,12 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     constructor
     · rintro ⟨joined, effective | eligible⟩
       · exact
-          ⟨by simpa [after, next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [after, next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inl (by
               rw [effectiveElectionVotersEq] at effective
               exact effective)⟩
       · exact
-          ⟨by simpa [after, next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [after, next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (by
               simpa [
                 currentlyEligibleElectionVoter,
@@ -49845,12 +49807,12 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
               ] using eligible)⟩
     · rintro ⟨joined, effective | eligible⟩
       · exact
-          ⟨by simpa [after, next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [after, next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inl (by
               rw [effectiveElectionVotersEq]
               exact effective)⟩
       · exact
-          ⟨by simpa [after, next, CCFRaft.Protocol.Model.next] using joined,
+          ⟨by simpa [after, next, CCFRaft.Proofs.Abstract.Model.next] using joined,
             Or.inr (by
               simpa [
                 currentlyEligibleElectionVoter,
@@ -49866,7 +49828,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     apply
       joinedCarrierFactsFrame
         state after facts.joinedCarriers
-          (by simp [after, next, CCFRaft.Protocol.Model.next])
+          (by simp [after, next, CCFRaft.Proofs.Abstract.Model.next])
           (fun candidate configuration active => by
             simpa [activeConfigurationsEq] using active)
           (fun candidate configuration member => by
@@ -49886,7 +49848,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
               facts.joinedCarriers.runtimeNodes.nonemptyLogs candidate
                 (by simpa [logEq] using nonempty))
           (fun destination message member => by
-            simpa [after, next, CCFRaft.Protocol.Model.next] using member)
+            simpa [after, next, CCFRaft.Proofs.Abstract.Model.next] using member)
   have candidatesSelfVoteAfter : CandidatesSelfVote after := by
     intro candidate role
     rcases
@@ -49910,10 +49872,10 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
   apply
     roleAndNetworkFramePreservesSystemInductiveInvariant
       state after packed
-        (by simp [after, next, CCFRaft.Protocol.Model.next])
+        (by simp [after, next, CCFRaft.Proofs.Abstract.Model.next])
         (fun candidate => by
           simp only [
-            after, next, CCFRaft.Protocol.Model.next, State.allocated, updateNode
+            after, next, CCFRaft.Proofs.Abstract.Model.next, State.allocated, updateNode
           ]
           exact
             NodeStore.allocated_set_iff_of_allocated
@@ -49959,7 +49921,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
   · intro destination message member
     exact
       Or.inl
-        (by simpa [after, next, CCFRaft.Protocol.Model.next] using member)
+        (by simpa [after, next, CCFRaft.Proofs.Abstract.Model.next] using member)
   · intro leader role peer
     simpa [sentEq, matchEq, logEq] using
       facts.leaderProgressBounded leader
@@ -49973,7 +49935,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
       potentialAckers, Finset.mem_filter] at member ⊢
     rcases member with ⟨joined, effective | reserve⟩
     · exact
-        ⟨by simpa [after, next, CCFRaft.Protocol.Model.next] using joined,
+        ⟨by simpa [after, next, CCFRaft.Proofs.Abstract.Model.next] using joined,
           Or.inl (by
             rw [effectiveAckersEq actualResponseHistory leader index]
               at effective
@@ -49996,14 +49958,14 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
         · have peerStateEq :
               after.nodes peer = state.nodes peer := by
             simp [
-              after, next, CCFRaft.Protocol.Model.next, updateNode, same
+              after, next, CCFRaft.Proofs.Abstract.Model.next, updateNode, same
             ]
           simpa [peerStateEq] using producible
       exact
-        ⟨by simpa [after, next, CCFRaft.Protocol.Model.next] using joined,
+        ⟨by simpa [after, next, CCFRaft.Proofs.Abstract.Model.next] using joined,
           Or.inr
             ⟨request,
-              by simpa [after, next, CCFRaft.Protocol.Model.next] using queued,
+              by simpa [after, next, CCFRaft.Proofs.Abstract.Model.next] using queued,
               sourceEq, destinationEq,
               by simpa [termEq] using requestTerm,
               oldProducible,
@@ -50023,7 +49985,7 @@ lemma initializeConfigurationPreservesSystemInductiveInvariant
     (invariant : SystemInductiveInvariant state)
     (enabled : Enabled state (.initializeConfiguration node)) :
     SystemInductiveInvariant (next state (.initializeConfiguration node)) := by
-  rcases enabled with ⟨_, allocated, leader, _, emptyLog, _, _, _⟩
+  rcases enabled with ⟨_, allocated, leader, _, emptyLog, _, _⟩
   have latest :
       latestConfiguration (state.nodes node) = implicitConfiguration := by
     simp [latestConfiguration, configurationsInLog, configurationsInLogFrom, emptyLog]
@@ -50166,7 +50128,7 @@ lemma reachableSystemInductiveInvariant
     {state : State Node TxId}
     (reachable : Reachable state) :
     SystemInductiveInvariant state :=
-  CCFRaft.Proofs.Support.reachableInvariant
+  CCFRaft.Proofs.Abstract.Support.reachableInvariant
     (system (TxId := TxId))
     initialSystemInductiveInvariant
     systemInductiveInvariantPreserved
@@ -50236,4 +50198,4 @@ lemma reachableConsensusSafety
   systemInductiveInvariantSafety
     (reachableSystemInductiveInvariant reachable)
 
-end CCFRaft.Proofs.ReconfigurationPreservation
+end CCFRaft.Proofs.Abstract.ReconfigurationPreservation

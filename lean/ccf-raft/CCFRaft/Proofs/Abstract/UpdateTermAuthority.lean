@@ -1,12 +1,13 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant
-import CCFRaft.Proofs.HandlerProofs
+import CCFRaft.Proofs.Abstract.Invariant
+import CCFRaft.Proofs.Abstract.HandlerProofs
 
-import CCFRaft.Proofs.Support
+import CCFRaft.Proofs.Abstract.Support
 
-open CCFRaft.Protocol CCFRaft.Protocol.Model CCFRaft.Protocol.Safety CCFRaft.Proofs.Support CCFRaft.Proofs.ModelProofs CCFRaft.Proofs.Invariant CCFRaft.Proofs.HandlerProofs
+open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety CCFRaft.Proofs.Abstract.Support CCFRaft.Proofs.Abstract.ModelProofs CCFRaft.Proofs.Abstract.Invariant CCFRaft.Proofs.Abstract.HandlerProofs
+open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
 
 set_option autoImplicit false
 
@@ -20,7 +21,7 @@ post-state election supporter maps to the pre-state relaxed supporter used by
 the historical authority proof.
 -/
 
-namespace CCFRaft.Proofs.UpdateTermAuthority
+namespace CCFRaft.Proofs.Abstract.UpdateTermAuthority
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId]
@@ -233,7 +234,7 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
         · rcases direct with
             ⟨nextNode, response, handled, success, _⟩
           have localPost :=
-            CCFRaft.Proofs.HandlerProofs.handleAppendEntriesRequestLocalPost handled
+            CCFRaft.Proofs.Abstract.HandlerProofs.handleAppendEntriesRequestLocalPost handled
           have voterTerm :
               request.term = (after.nodes voter).currentTerm := by
             simpa [requestDestination, protocolNodeState] using
@@ -285,4 +286,4 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
       (effectiveAckersBack effectiveAfter) relaxedBefore
   simpa [sourceNodeEq, candidateNodeEq] using prefixBefore
 
-end CCFRaft.Proofs.UpdateTermAuthority
+end CCFRaft.Proofs.Abstract.UpdateTermAuthority

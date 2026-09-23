@@ -2,13 +2,14 @@
 -- Licensed under the Apache 2.0 License.
 
 
-import CCFRaft.Protocol.Model
+import CCFRaft.Proofs.Abstract.Model
 
 set_option autoImplicit false
 
-namespace CCFRaft.Protocol.Safety
+namespace CCFRaft.Proofs.Abstract.Safety
 
-open Model
+open CCFRaft.Proofs.Abstract.Model
+open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId]
@@ -56,4 +57,4 @@ structure ConsensusSafety [Bootstrap Node] (state : State Node TxId) : Prop wher
   committedFrontierIsSignature : CommittedFrontierIsSignature state
   electionSafety : ElectionSafety state
 
-end CCFRaft.Protocol.Safety
+end CCFRaft.Proofs.Abstract.Safety

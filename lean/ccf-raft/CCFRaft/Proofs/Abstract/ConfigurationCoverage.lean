@@ -1,16 +1,17 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant
-import CCFRaft.Proofs.HandlerProofs
+import CCFRaft.Proofs.Abstract.Invariant
+import CCFRaft.Proofs.Abstract.HandlerProofs
 
-import CCFRaft.Proofs.Support
+import CCFRaft.Proofs.Abstract.Support
 
-open CCFRaft.Protocol CCFRaft.Protocol.Model CCFRaft.Protocol.Safety CCFRaft.Proofs.Support CCFRaft.Proofs.ModelProofs CCFRaft.Proofs.Invariant CCFRaft.Proofs.HandlerProofs
+open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety CCFRaft.Proofs.Abstract.Support CCFRaft.Proofs.Abstract.ModelProofs CCFRaft.Proofs.Abstract.Invariant CCFRaft.Proofs.Abstract.HandlerProofs
+open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
 
 set_option autoImplicit false
 
-namespace CCFRaft.Proofs.Invariant
+namespace CCFRaft.Proofs.Abstract.Invariant
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId]
@@ -513,7 +514,7 @@ lemma configurationCoverageCurrentIndexUnique
       currentConfiguration (state.nodes left) ∈
         allConfigurations leftWitness.activation.history := by
     apply
-      CCFRaft.Proofs.HandlerProofs.memOfPrefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
         (allConfigurations_mono_prefix
           (List.take_prefix
             leftWitness.sharedFrontier
@@ -523,7 +524,7 @@ lemma configurationCoverageCurrentIndexUnique
       currentConfiguration (state.nodes right) ∈
         allConfigurations rightWitness.activation.history := by
     apply
-      CCFRaft.Proofs.HandlerProofs.memOfPrefix
+      CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
         (allConfigurations_mono_prefix
           (List.take_prefix
             rightWitness.sharedFrontier
@@ -545,7 +546,7 @@ lemma configurationCoverageCurrentIndexUnique
         currentConfiguration (state.nodes left) ∈
           allConfigurations rightWitness.activation.history := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (leftPrefixInRight.trans
               (List.take_prefix
@@ -569,7 +570,7 @@ lemma configurationCoverageCurrentIndexUnique
           currentConfiguration (state.nodes left) ∈
             allConfigurations rightWitness.activation.history := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (leftWitness.sharedPrefix_prefix_activationPrefix.trans
                 (leftBeforeRight.trans
@@ -585,7 +586,7 @@ lemma configurationCoverageCurrentIndexUnique
           currentConfiguration (state.nodes right) ∈
             allConfigurations leftWitness.activation.history := by
         apply
-          CCFRaft.Proofs.HandlerProofs.memOfPrefix
+          CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
             (allConfigurations_mono_prefix
               (rightWitness.sharedPrefix_prefix_activationPrefix.trans
                 (rightBeforeLeft.trans
@@ -609,7 +610,7 @@ lemma configurationCoverageCurrentIndexUnique
         currentConfiguration (state.nodes right) ∈
           allConfigurations leftWitness.activation.history := by
       apply
-        CCFRaft.Proofs.HandlerProofs.memOfPrefix
+        CCFRaft.Proofs.Abstract.HandlerProofs.memOfPrefix
           (allConfigurations_mono_prefix
             (rightPrefixInLeft.trans
               (List.take_prefix
@@ -698,4 +699,4 @@ lemma currentConfigurationCoverageAtSharedFrontier
           stored sameConfigurationIndex,
       witness.activationTerm_lt_candidateTerm⟩
 
-end CCFRaft.Proofs.Invariant
+end CCFRaft.Proofs.Abstract.Invariant

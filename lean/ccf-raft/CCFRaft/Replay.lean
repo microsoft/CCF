@@ -1,16 +1,42 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Protocol.Model
+import CCFRaft.Model
 import Lean.Data.Json
 
 set_option autoImplicit false
 
+/-!
+Replays reduced `raft_driver` executions through `Model.transitionSystem`.
+Every declared node is in the network from the start. A `receive` delivers the
+oldest pending envelope from its source to its destination, which is the order
+`raft_driver` delivers in. A `drop` does not step the model: the envelope stays
+in the network and the replay never delivers it.
+-/
+
 namespace CCFRaft.Replay
 
-open Lean Protocol.Model
+open Lean Model.Local
+open Shared (Envelope)
+open Shared.MultiNodeTransitionSystem (nodeState removeOne)
 
-abbrev ReplayState := State String String
+abbrev Envelope := Model.Envelope String String
+
+/-- The model state and the envelopes the recorded run dropped. -/
+structure ReplayState where
+  state : Model.State String String
+  dropped : List Envelope := []
+
+/-- Pending envelopes the recorded run has not dropped, oldest first. Equal
+envelopes are interchangeable, so removing any equal copy suffices. -/
+def ReplayState.live (replay : ReplayState) : List Envelope :=
+  replay.dropped.foldl (fun network envelope => removeOne envelope network)
+    replay.state.network
+
+/-- Live envelopes from `source` to `destination`, oldest first. -/
+def ReplayState.pending (replay : ReplayState) (source destination : String) :
+    List Envelope :=
+  replay.live.filter fun envelope => envelope.source == source && envelope.target == destination
 
 private def objectFields (value : Json) : Except String (List (String × Json)) := do
   return (← value.getObj?).toList
@@ -53,6 +79,12 @@ structure Header where
   bootstrap : Bootstrap String
   declared : List String
 
+/-- Every declared node, in its initial state and able to act. -/
+def Header.initial (header : Header) : Model.State String String :=
+  let _ : Bootstrap String := header.bootstrap
+  { nodes := header.declared.map fun node => (node, initialNodeState node)
+    active := header.declared }
+
 private def parseHeader (value : Json) : Except String Header := do
   keys value ["configuration", "leader", "pre_vote_enabled"]
   let configuredNodes ← nodeList (← field value "configuration")
@@ -88,58 +120,84 @@ private def nodeField (header : Header) (value : Json) (key : String) :
     throw s!"{key}: undeclared node '{node}'"
   return node
 
-private def parseAction (header : Header) (value : Json) :
-    Except String (Action String String) := do
+/-- A decoded instruction: a model step, or a recorded drop. -/
+inductive Step where
+  | local (node : String) (input : Input String String)
+  | receive (source destination : String)
+  | drop (source destination : String) (occurrence : Nat)
+
+private def parseAction (header : Header) (value : Json) : Except String Step := do
   let name ← stringField value "action"
   let base := ["kind", "action", "origin"]
   match name with
   | "clientRequest" =>
       keys value (base ++ ["node", "transaction"])
-      return .clientRequest (← nodeField header value "node")
-        (← stringField value "transaction")
+      return .local (← nodeField header value "node")
+        (.clientRequest (← stringField value "transaction"))
   | "changeConfiguration" =>
       keys value (base ++ ["source", "configuration"])
       let nodes ← nodeList (← field value "configuration")
       for node in nodes do
         unless node ∈ header.declared do
           throw s!"configuration: undeclared node '{node}'"
-      return .changeConfiguration (← nodeField header value "source") nodes.toFinset
+      return .local (← nodeField header value "source") (.changeConfiguration nodes.toFinset)
   | "appendEntries" =>
       keys value (base ++ ["source", "destination", "batchEnd"])
-      return .appendEntries (← nodeField header value "source")
-        (← nodeField header value "destination") (← natField value "batchEnd")
+      return .local (← nodeField header value "source")
+        (.appendEntries (← nodeField header value "destination") (← natField value "batchEnd"))
   | "drop" =>
       keys value (base ++ ["source", "destination", "occurrence"])
       return .drop (← nodeField header value "source")
         (← nodeField header value "destination") (← occurrence value)
-  | "receive" | "updateTerm" | "requestVote" | "requestPreVote" | "proposeVote"
+  | "receive" | "requestVote" | "requestPreVote" | "proposeVote"
       | "advanceCommitIndexAndProposeVote" =>
       keys value (base ++ ["source", "destination"])
       let source ← nodeField header value "source"
       let destination ← nodeField header value "destination"
       match name with
       | "receive" => return .receive source destination
-      | "updateTerm" => return .updateTerm source destination
-      | "requestVote" => return .requestVote source destination
-      | "requestPreVote" => return .requestPreVote source destination
-      | "proposeVote" => return .proposeVote source destination
-      | _ => return .advanceCommitIndexAndProposeVote source destination
+      | "requestVote" => return .local source (.requestVote destination)
+      | "requestPreVote" => return .local source (.requestPreVote destination)
+      | "proposeVote" => return .local source (.proposeVote destination)
+      | _ => return .local source (.advanceCommitIndexAndProposeVote destination)
   | "initializeConfiguration" | "appendRetiredCommitted" | "signCommittableMessages" | "advanceCommitIndex"
       | "timeout" | "becomePreVoteCandidate" | "becomeCandidate" | "checkQuorum"
       | "becomeLeader" =>
       keys value (base ++ ["node"])
       let node ← nodeField header value "node"
       match name with
-      | "initializeConfiguration" => return .initializeConfiguration node
-      | "appendRetiredCommitted" => return .appendRetiredCommitted node
-      | "signCommittableMessages" => return .signCommittableMessages node
-      | "advanceCommitIndex" => return .advanceCommitIndex node
-      | "timeout" => return .timeout node
-      | "becomePreVoteCandidate" => return .becomePreVoteCandidate node
-      | "becomeCandidate" => return .becomeCandidate node
-      | "checkQuorum" => return .checkQuorum node
-      | _ => return .becomeLeader node
+      | "initializeConfiguration" => return .local node .initializeConfiguration
+      | "appendRetiredCommitted" => return .local node .appendRetiredCommitted
+      | "signCommittableMessages" => return .local node .signCommittableMessages
+      | "advanceCommitIndex" => return .local node .advanceCommitIndex
+      | "timeout" => return .local node .timeout
+      | "becomePreVoteCandidate" => return .local node .becomePreVoteCandidate
+      | "becomeCandidate" => return .local node .becomeCandidate
+      | "checkQuorum" => return .local node .checkQuorum
+      | _ => return .local node .becomeLeader
   | _ => throw s!"unsupported action '{name}'"
+
+/-- Run one decoded instruction. A receive delivers the oldest live envelope;
+a drop only records that the replay must never deliver that envelope. -/
+private def runStep (header : Header) (replay : ReplayState) (step : Step) (name : String) :
+    Except String ReplayState := do
+  let _ : Bootstrap String := header.bootstrap
+  let system := Model.transitionSystem (TxId := String) header.declared
+  match step with
+  | .local node input =>
+      match system.step replay.state (.local node input) with
+      | some state => return { replay with state }
+      | none => throw s!"disabled canonical action '{name}'"
+  | .receive source destination =>
+      let some envelope := (replay.pending source destination).head?
+        | throw s!"disabled canonical action '{name}': no pending packet from '{source}' to '{destination}'"
+      match system.step replay.state (.deliver envelope) with
+      | some state => return { replay with state }
+      | none => throw s!"disabled canonical action '{name}'"
+  | .drop source destination index =>
+      let some envelope := (replay.pending source destination)[index]?
+        | throw s!"no pending packet from '{source}' to '{destination}' at occurrence {index}"
+      return { replay with dropped := replay.dropped ++ [envelope] }
 
 private def roleName : Role → String
   | .none => "none"
@@ -164,12 +222,18 @@ private def checkFields (expected actual : Json) : Except String Unit := do
     unless expectedValue == actualValue do
       throw s!"{key}: observed {expectedValue.compress}, canonical {actualValue.compress}"
 
-private def observeState (header : Header) (state : ReplayState) (value : Json) :
+private def lookup (replay : ReplayState) (node : String) :
+    Except String (NodeState String String) :=
+  match nodeState replay.state node with
+  | some state => pure state
+  | none => throw s!"node '{node}' is not in the network"
+
+private def observeState (header : Header) (replay : ReplayState) (value : Json) :
     Except String Unit := do
   keys value ["kind", "observation", "origin", "node", "peer", "fields"]
   let node ← nodeField header value "node"
   let _ : Bootstrap String := header.bootstrap
-  let nodeState := state.nodes node
+  let nodeState ← lookup replay node
   let committableIndices := (List.range' 1 nodeState.log.length).filter fun index =>
     index > nodeState.commitIndex && isSignatureAt nodeState.log index
   let configurations := (activeConfigurations nodeState).filterMap fun configuration =>
@@ -183,12 +247,11 @@ private def observeState (header : Header) (state : ReplayState) (value : Json) 
     ("commitIndex", toJson nodeState.commitIndex),
     ("committableIndices", toJson committableIndices),
     ("configurations", toJson configurations),
-    ("allocated", toJson (decide (state.allocated node))),
     ("membershipState", toJson (membershipName nodeState.membershipState)),
     ("retirementIndex", toJson nodeState.retirementIndex),
     ("retirementCommittableIndex", toJson nodeState.retirementCommittableIndex),
     ("retiredCommittedIndex", toJson nodeState.retiredCommittedIndex),
-    ("preVoteEnabled", toJson (decide (state.preVoteStatus node = .enabled)))]
+    ("preVoteEnabled", toJson (decide (INITIAL_PRE_VOTE_STATUS node = .enabled)))]
   if (← optionalField value "peer").isSome then
     let peer ← nodeField header value "peer"
     fields := fields ++ [
@@ -196,13 +259,13 @@ private def observeState (header : Header) (state : ReplayState) (value : Json) 
       ("matchIndex", toJson (nodeState.matchIndex peer))]
   checkFields (← field value "fields") (Json.mkObj fields)
 
-private def observeEntry (header : Header) (state : ReplayState) (value : Json) :
+private def observeEntry (header : Header) (replay : ReplayState) (value : Json) :
     Except String Unit := do
   keys value ["kind", "observation", "origin", "node", "index", "fields"]
   let node ← nodeField header value "node"
   let index ← natField value "index"
   if index == 0 then throw "log entry index must be positive"
-  let nodeState := state.nodes node
+  let nodeState ← lookup replay node
   let some entry := entryAt? nodeState.log index
     | throw s!"node '{node}' has no log entry at index {index}"
   let contentFields := match entry.content with
@@ -255,11 +318,12 @@ def messageJson (message : Message String String) : Json :=
         [("msg", toJson "raft_propose_request_vote")]
   Json.mkObj (("term", toJson message.term) :: fields)
 
-private def observeMessage (header : Header) (state : ReplayState) (value : Json) :
+private def observeMessage (header : Header) (replay : ReplayState) (value : Json) :
     Except String Unit := do
   keys value ["kind", "observation", "origin", "source", "destination", "packet", "occurrence", "selection"]
   let source ← nodeField header value "source"
   let destination ← nodeField header value "destination"
+  let pending := replay.pending source destination
   let index ← match ← optionalField value "selection" with
     | none => occurrence value
     | some selection => do
@@ -267,13 +331,11 @@ private def observeMessage (header : Header) (state : ReplayState) (value : Json
           throw "message observation cannot specify both selection and occurrence"
         match ← text selection with
         | "first" => pure 0
-        | "last" => pure ((state.network destination).filter
-            (fun message => message.source == source)).length.pred
+        | "last" => pure pending.length.pred
         | name => throw s!"unsupported message selection '{name}'"
-  let some (message, _) := takeOccurrenceFrom source index (state.network destination)
+  let some envelope := pending[index]?
     | throw s!"no pending packet from '{source}' to '{destination}' at occurrence {index}"
-  unless message.destination == destination do
-    throw "pending packet has an inconsistent destination"
+  let message := envelope.payload
   let packet ← field value "packet"
   let _ ← stringField packet "msg"
   checkFields packet (messageJson message)
@@ -309,8 +371,7 @@ def replay (document : Json) : Except String Result := do
   let instructions ← (← field document "instructions").getArr?
   if instructions.isEmpty then
     throw "replay instructions must not be empty"
-  let _ : Bootstrap String := header.bootstrap
-  let mut state : ReplayState := initialState
+  let mut state : ReplayState := { state := header.initial }
   let mut actions := 0
   let mut observations := 0
   for index in [:instructions.size] do
@@ -320,10 +381,8 @@ def replay (document : Json) : Except String Result := do
     let step : Except String (ReplayState × Bool) := do
       match ← stringField instruction "kind" with
       | "action" =>
-          let action ← parseAction header instruction
-          match system.applyAction state action with
-          | some nextState => return (nextState, true)
-          | none => throw s!"disabled canonical action '{← stringField instruction "action"}'"
+          let step ← parseAction header instruction
+          return (← runStep header state step (← stringField instruction "action"), true)
       | "observation" =>
           match ← stringField instruction "observation" with
           | "state" => observeState header state instruction

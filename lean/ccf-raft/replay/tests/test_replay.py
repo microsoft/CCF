@@ -176,8 +176,7 @@ class CanonicalReplayTests(unittest.TestCase):
         positive = self.replay(document)
         self.assertEqual(positive.returncode, 0, positive.stderr)
         cases = [
-            ("become_follower", "last_idx", 999, "logLength"),
-            ("become_follower", "commit_idx", 999, "commitIndex"),
+            ("become_follower", "leadership_state", "Candidate", "role"),
             ("execute_append_entries_sync", "current_view", 999, "currentTerm"),
             ("execute_append_entries_sync", "commit_idx", 999, "commitIndex"),
             ("add_configuration", "current_view", 999, "currentTerm"),

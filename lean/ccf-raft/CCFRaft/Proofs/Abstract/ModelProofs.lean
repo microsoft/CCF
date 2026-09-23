@@ -1,11 +1,12 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Protocol.Model
+import CCFRaft.Proofs.Abstract.Model
 
-import CCFRaft.Proofs.Support
+import CCFRaft.Proofs.Abstract.Support
 
-open CCFRaft.Protocol CCFRaft.Protocol.Model CCFRaft.Protocol.Safety CCFRaft.Proofs.Support
+open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety CCFRaft.Proofs.Abstract.Support
+open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
 
 set_option autoImplicit false
 
@@ -16,7 +17,7 @@ Bootstrap, state-update, retirement, and reachability lemmas kept outside the
 manual model-review boundary.
 -/
 
-namespace CCFRaft.Proofs.ModelProofs
+namespace CCFRaft.Proofs.Abstract.ModelProofs
 
 /-- Every valid bootstrap configuration contains its selected leader. -/
 lemma initialLeader_mem_initialConfiguration
@@ -43,7 +44,7 @@ variable {Node TxId : Type}
 
 namespace NodeStore
 
-open CCFRaft.Protocol.Model.NodeStore
+open CCFRaft.Proofs.Abstract.Model.NodeStore
 
 variable [DecidableEq Node]
 
@@ -53,7 +54,7 @@ lemma node?_set_same
     (node : Node)
     (value : NodeState Node TxId) :
     (nodes.set node value).node? node = some value := by
-  simp [node?, CCFRaft.Protocol.Model.NodeStore.set]
+  simp [node?, CCFRaft.Proofs.Abstract.Model.NodeStore.set]
 
 @[simp]
 lemma node?_set_of_ne
@@ -62,7 +63,7 @@ lemma node?_set_of_ne
     (value : NodeState Node TxId)
     (different : Not (candidate = node)) :
     (nodes.set node value).node? candidate = nodes.node? candidate := by
-  simp [node?, CCFRaft.Protocol.Model.NodeStore.set, Finmap.lookup_insert_of_ne, different]
+  simp [node?, CCFRaft.Proofs.Abstract.Model.NodeStore.set, Finmap.lookup_insert_of_ne, different]
 
 @[simp]
 lemma get_set_same
@@ -70,7 +71,7 @@ lemma get_set_same
     (node : Node)
     (value : NodeState Node TxId) :
     nodes.set node value node = value := by
-  simp [CCFRaft.Protocol.Model.NodeStore.get]
+  simp [CCFRaft.Proofs.Abstract.Model.NodeStore.get]
 
 @[simp]
 lemma get_set_of_ne
@@ -79,7 +80,7 @@ lemma get_set_of_ne
     (value : NodeState Node TxId)
     (different : Not (candidate = node)) :
     nodes.set node value candidate = nodes candidate := by
-  simp [CCFRaft.Protocol.Model.NodeStore.get, node?_set_of_ne, different]
+  simp [CCFRaft.Proofs.Abstract.Model.NodeStore.get, node?_set_of_ne, different]
 
 @[simp]
 lemma node?_ofFinset_of_mem
@@ -108,7 +109,7 @@ lemma get_ofFinset
     (node : Node) :
     ofFinset keys value node =
       if node ∈ keys then value node else freshNodeState := by
-  simp only [CCFRaft.Protocol.Model.NodeStore.get]
+  simp only [CCFRaft.Proofs.Abstract.Model.NodeStore.get]
   split <;> simp_all
 
 @[simp]
@@ -226,7 +227,7 @@ lemma takeOccurrenceFrom_sublist
       by_cases same : head.source = source
       · cases occurrence with
         | zero =>
-            simp only [takeOccurrenceFrom, if_pos same, Option.some.injEq,
+            simp only [takeOccurrenceFrom, ite_eq_left same, Option.some.injEq,
               Prod.mk.injEq] at removed
             rcases removed with ⟨_, rfl⟩
             exact List.Sublist.cons _ (List.Sublist.refl _)
@@ -412,4 +413,4 @@ lemma runActionsReachable
 
 end Reachable
 
-end CCFRaft.Proofs.ModelProofs
+end CCFRaft.Proofs.Abstract.ModelProofs

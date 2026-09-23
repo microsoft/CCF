@@ -1,14 +1,15 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.HandlerProofs
-import CCFRaft.Proofs.Invariant
+import CCFRaft.Proofs.Abstract.HandlerProofs
+import CCFRaft.Proofs.Abstract.Invariant
 
 set_option autoImplicit false
 
-namespace CCFRaft.Proofs.CommittedLog
+namespace CCFRaft.Proofs.Abstract.CommittedLog
 
-open Protocol Model Safety ModelProofs HandlerProofs Invariant
+open CCFRaft.Proofs.Abstract CCFRaft.Proofs.Abstract.Model CCFRaft.Proofs.Abstract.Safety CCFRaft.Proofs.Abstract.ModelProofs CCFRaft.Proofs.Abstract.HandlerProofs CCFRaft.Proofs.Abstract.Invariant
+open CCFRaft.Model.Local (BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm messageEntries refreshRetirementState retiredCommittedIndexFrom retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom retirementCommittableIndexInLog retirementCompletedNodes retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt updateIndex)
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
@@ -263,4 +264,4 @@ lemma next_committedLog_prefix
         advanceCommitState_committedLog_prefix state source node
           (Nat.le_of_lt enabled.2.2.2.1)
 
-end CCFRaft.Proofs.CommittedLog
+end CCFRaft.Proofs.Abstract.CommittedLog
