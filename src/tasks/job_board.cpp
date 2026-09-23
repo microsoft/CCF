@@ -110,6 +110,7 @@ namespace ccf::tasks
     void add_task(Task&& task)
     {
       ccf::ds::WorkBeaconPtr beacon;
+      Task abandoned;
       {
         // Under lock
         ccf::ds::MutexGuard lock(mutex);
@@ -140,11 +141,15 @@ namespace ccf::tasks
           }
           pending_tasks.emplace(std::move(task));
         }
+        else
+        {
+          abandoned = std::move(task);
+        }
       }
 
-      if (task != nullptr)
+      if (abandoned != nullptr)
       {
-        task->shutdown();
+        abandoned->shutdown();
       }
       if (beacon != nullptr)
       {
