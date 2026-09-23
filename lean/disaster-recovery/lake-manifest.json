@@ -10,7 +10,7 @@
       "rev": "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef",
       "name": "leanfmt",
       "manifestFile": "lake-manifest.json",
-      "inputRev": "v0.4.5",
+      "inputRev": "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef",
       "inherited": false,
       "configFile": "lakefile.toml"
     },

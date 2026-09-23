@@ -360,10 +360,9 @@ def test_large_snapshot(network, args):
 def test_snapshot_access(network, args):
     primary, backups = network.find_nodes()
 
-    target = network.txs.issue(network, number_txs=1)
-    primary.trigger_snapshot()
-    primary.wait_for_snapshot(target.seqno)
-    snapshot_path = primary.get_snapshots()[-1]
+    network.txs.issue(network, number_txs=1)
+    trigger_txid = primary.trigger_snapshot()
+    snapshot_path = primary.wait_for_snapshot(trigger_txid.seqno)
     snapshot_name = os.path.basename(snapshot_path)
     snapshot_index, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
 
@@ -534,10 +533,9 @@ def test_snapshot_repr_digest(network, args):
     """
     primary, _ = network.find_nodes()
 
-    target = network.txs.issue(network, number_txs=1)
-    primary.trigger_snapshot()
-    primary.wait_for_snapshot(target.seqno)
-    snapshot_path = primary.get_snapshots()[-1]
+    network.txs.issue(network, number_txs=1)
+    trigger_txid = primary.trigger_snapshot()
+    snapshot_path = primary.wait_for_snapshot(trigger_txid.seqno)
     snapshot_name = os.path.basename(snapshot_path)
     with open(snapshot_path, "rb") as f:
         snapshot_data = f.read()
@@ -628,6 +626,7 @@ def run_manual_snapshot_tests(const_args):
     args.snapshot_tx_interval = (
         10000  # Large interval to avoid interference from regular snapshots
     )
+    args.snapshot_time_interval = "0s"
 
     with infra.network.network(
         args.nodes,
@@ -638,6 +637,10 @@ def run_manual_snapshot_tests(const_args):
     ) as network:
         network.start_and_open(args)
 
+        # These bounded, read-only checks must keep the explicitly requested
+        # snapshot latest. Run before tests which issue further snapshot requests.
+        test_snapshot_access(network, args)
+        test_snapshot_repr_digest(network, args)
         test_snapshot_selection(network, args)
         test_forced_snapshot(network, args)
         test_snapshot_create_endpoint(network, args)
@@ -1657,8 +1660,6 @@ def run_file_operations(args):
                 test_parse_snapshot_file(network, args)
                 test_forced_ledger_chunk(network, args)
                 test_large_snapshot(network, args)
-                test_snapshot_access(network, args)
-                test_snapshot_repr_digest(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
                 test_corrupt_snapshot_handling(network, args)

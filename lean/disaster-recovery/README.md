@@ -100,3 +100,24 @@ module or if a removed name is reintroduced. `lake exe fmt` runs
 [leanfmt](https://github.com/duckki/leanfmt), pinned in `lakefile.toml`.
 To update a tool dependency without changing the toolchain, run
 `lake update --keep-toolchain <package>`.
+
+## Formatting
+
+Install Lean via [elan](https://lean-lang.org/install/) and run
+`lake exe cache get` from this directory before the first formatting check.
+From the repository root, check every tracked `.lean` file:
+
+```console
+scripts/lean-format-checks.sh
+```
+
+To apply formatting fixes, run:
+
+```console
+scripts/lean-format-checks.sh -f
+```
+
+The script builds the model's imported modules and runs the pinned leanfmt
+dependency. The Lean CI workflow runs the same check after the proof checks.
+Files outside `lean/` are included; untracked files and downloaded dependencies
+are excluded. Add new Lean files to Git before running the check.

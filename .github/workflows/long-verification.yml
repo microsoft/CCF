@@ -13,7 +13,7 @@ permissions: read-all
 jobs:
   model-checking-with-atomic-reconfig-consensus:
     name: Model Checking With Atomic Reconfig - Consensus
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -45,7 +45,7 @@ jobs:
 
   model-checking-with-reconfig-consensus:
     name: Model Checking With Reconfig - Consensus
-    runs-on: [gha-vmss-d16av7-ci]
+    runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE

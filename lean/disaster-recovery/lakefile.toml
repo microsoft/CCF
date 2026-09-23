@@ -22,7 +22,7 @@ rev = "46024e005996495c65ef609368e11ab39c4222e3" # v0.1.2
 [[require]]
 name = "leanfmt"
 git = "https://github.com/duckki/leanfmt.git"
-rev = "v0.4.5"
+rev = "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef" # v0.4.5
 
 [[lean_lib]]
 name = "DisasterRecovery"
