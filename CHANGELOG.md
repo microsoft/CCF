@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - RPC event-loop notifications can run concurrently while retaining exclusive protection for transport shutdown (#8435).
 - The `worker_threads` configuration option now defaults to `1`. CCF starts one more worker thread than configured, in addition to the dispatch thread, preserving task execution capacity now that the dispatch thread no longer executes tasks. A configured value of `0` starts one worker and logs a warning; positive values are incremented silently (#8404, #8411).
 - Adding or resetting a member no longer eagerly records a state digest for them to acknowledge. Members must call the state digest `:update` endpoint before acknowledging the current service state; until then, the state digest `GET` endpoint returns HTTP 404 (#8407).
+- Proposal creation requests are now recorded in `public:ccf.gov.cose_history` as COSE Sign1 envelopes with a detached (`nil`) payload, since the signed proposal body is already stored in `public:ccf.gov.proposals` in the same transaction. Auditors verifying these entries must supply that proposal body as the detached payload. Ballots and withdrawals continue to embed their payload. A new `ccf::cose::edit::detach_payload` API is available to detach the payload of a COSE Sign1 message (#8424).
 
 ### Fixed
 
