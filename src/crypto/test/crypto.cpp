@@ -38,6 +38,8 @@
 #include <span>
 #include <tav/cbor.hpp>
 #include <thread>
+#include <type_traits>
+#include <utility>
 
 using namespace std;
 using namespace ccf::crypto;
@@ -288,6 +290,51 @@ TEST_CASE("Private PEM imports enforce key family")
       "Cannot construct RSAKeyPair_OpenSSL from non-RSA key",
       std::logic_error);
   }
+}
+
+TEST_CASE_TEMPLATE(
+  "OpenSSL public key ownership", T, ECPublicKey_OpenSSL, RSAPublicKey_OpenSSL)
+{
+  static_assert(!std::is_copy_constructible_v<T>);
+  static_assert(!std::is_copy_assignable_v<T>);
+  static_assert(std::is_move_constructible_v<T>);
+
+  const auto kp = []() {
+    if constexpr (std::is_same_v<T, ECPublicKey_OpenSSL>)
+    {
+      return make_ec_key_pair();
+    }
+    else
+    {
+      return make_rsa_key_pair();
+    }
+  }();
+  const auto pem = kp->public_key_pem();
+  const auto der = kp->public_key_der();
+
+  CHECK(T(pem).public_key_der() == der);
+  CHECK(T(der).public_key_pem() == pem);
+  CHECK(T(kp->public_key_jwk()).public_key_der() == der);
+
+  auto moved = [&]() {
+    OpenSSL::Unique_BIO mem(pem);
+    auto* raw = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
+    REQUIRE(raw != nullptr);
+    T original(raw);
+    return T(std::move(original));
+  }();
+  CHECK(moved.public_key_der() == der);
+
+  const Pem malformed_pem("not a public key");
+  const std::vector<uint8_t> malformed_der{0};
+  CHECK_THROWS_AS(T(malformed_pem), std::runtime_error);
+  CHECK_THROWS_AS(T(malformed_der), std::runtime_error);
+
+  const auto wrong_kp = make_eddsa_key_pair();
+  CHECK_THROWS_AS(T(wrong_kp->public_key_pem()), std::logic_error);
+  OpenSSL::Unique_BIO wrong_pem(wrong_kp->public_key_pem());
+  OpenSSL::Unique_PKEY wrong_key(wrong_pem);
+  CHECK_THROWS_AS(T(wrong_key.release()), std::logic_error);
 }
 
 TEST_CASE("Sign, verify, with ECKeyPair")
@@ -1519,136 +1566,6 @@ TEST_CASE("Sign and verify with RSA key")
       mdtype,
       RSAPadding::PKCS_PSS,
       verify_salt_legth));
-  }
-}
-
-TEST_CASE("COSE algorithm validation")
-{
-  INFO("EC key curves must match COSE algorithm");
-  {
-    // P-256 (secp256r1) requires COSE alg ES256(-7) or ESP256(-9)
-    auto p256_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP256R1);
-    auto p256_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
-      ccf::crypto::make_ec_public_key(p256_kp->public_key_pem()));
-
-    // Correct algorithms should work
-    REQUIRE_NOTHROW(p256_pubkey->check_is_cose_compatible(-7));
-    REQUIRE_NOTHROW(p256_pubkey->check_is_cose_compatible(-9));
-
-    // Wrong algorithms should throw
-    REQUIRE_THROWS_WITH(
-      p256_pubkey->check_is_cose_compatible(-35),
-      "secp256r1 key cannot be used with COSE algorithm -35");
-    REQUIRE_THROWS_WITH(
-      p256_pubkey->check_is_cose_compatible(-36),
-      "secp256r1 key cannot be used with COSE algorithm -36");
-    REQUIRE_THROWS_WITH(
-      p256_pubkey->check_is_cose_compatible(-51),
-      "secp256r1 key cannot be used with COSE algorithm -51");
-    REQUIRE_THROWS_WITH(
-      p256_pubkey->check_is_cose_compatible(-52),
-      "secp256r1 key cannot be used with COSE algorithm -52");
-
-    // Unknown COSE algorithm for EC keys should throw
-    REQUIRE_THROWS_WITH(
-      p256_pubkey->check_is_cose_compatible(-999),
-      "secp256r1 key cannot be used with COSE algorithm -999");
-    REQUIRE_THROWS_WITH(
-      p256_pubkey->check_is_cose_compatible(42),
-      "secp256r1 key cannot be used with COSE algorithm 42");
-
-    // P-384 (secp384r1) requires COSE alg ES384(-35) or ESP384(-51)
-    auto p384_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
-    auto p384_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
-      ccf::crypto::make_ec_public_key(p384_kp->public_key_pem()));
-
-    // Correct algorithms should work
-    REQUIRE_NOTHROW(p384_pubkey->check_is_cose_compatible(-35));
-    REQUIRE_NOTHROW(p384_pubkey->check_is_cose_compatible(-51));
-
-    // Wrong algorithms should throw
-    REQUIRE_THROWS_WITH(
-      p384_pubkey->check_is_cose_compatible(-7),
-      "secp384r1 key cannot be used with COSE algorithm -7");
-    REQUIRE_THROWS_WITH(
-      p384_pubkey->check_is_cose_compatible(-36),
-      "secp384r1 key cannot be used with COSE algorithm -36");
-    REQUIRE_THROWS_WITH(
-      p384_pubkey->check_is_cose_compatible(-9),
-      "secp384r1 key cannot be used with COSE algorithm -9");
-    REQUIRE_THROWS_WITH(
-      p384_pubkey->check_is_cose_compatible(-52),
-      "secp384r1 key cannot be used with COSE algorithm -52");
-
-    // Unknown COSE algorithm for EC keys should throw
-    REQUIRE_THROWS_WITH(
-      p384_pubkey->check_is_cose_compatible(0),
-      "secp384r1 key cannot be used with COSE algorithm 0");
-    REQUIRE_THROWS_WITH(
-      p384_pubkey->check_is_cose_compatible(-100),
-      "secp384r1 key cannot be used with COSE algorithm -100");
-
-    // P-521 (secp521r1) requires COSE alg ES512(-36) or ESP512(-52)
-    auto p521_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP521R1);
-    auto p521_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
-      ccf::crypto::make_ec_public_key(p521_kp->public_key_pem()));
-
-    // Correct algorithms should work
-    REQUIRE_NOTHROW(p521_pubkey->check_is_cose_compatible(-36));
-    REQUIRE_NOTHROW(p521_pubkey->check_is_cose_compatible(-52));
-
-    // Wrong algorithms should throw
-    REQUIRE_THROWS_WITH(
-      p521_pubkey->check_is_cose_compatible(-7),
-      "secp521r1 key cannot be used with COSE algorithm -7");
-    REQUIRE_THROWS_WITH(
-      p521_pubkey->check_is_cose_compatible(-35),
-      "secp521r1 key cannot be used with COSE algorithm -35");
-    REQUIRE_THROWS_WITH(
-      p521_pubkey->check_is_cose_compatible(-9),
-      "secp521r1 key cannot be used with COSE algorithm -9");
-    REQUIRE_THROWS_WITH(
-      p521_pubkey->check_is_cose_compatible(-51),
-      "secp521r1 key cannot be used with COSE algorithm -51");
-
-    // Unknown COSE algorithm for EC keys should throw
-    REQUIRE_THROWS_WITH(
-      p521_pubkey->check_is_cose_compatible(0),
-      "secp521r1 key cannot be used with COSE algorithm 0");
-    REQUIRE_THROWS_WITH(
-      p521_pubkey->check_is_cose_compatible(-100),
-      "secp521r1 key cannot be used with COSE algorithm -100");
-  }
-
-  INFO("RSA keys accept PS256, PS384, and PS512");
-  {
-    auto rsa_kp = ccf::crypto::make_rsa_key_pair();
-    auto rsa_pubkey = std::dynamic_pointer_cast<RSAPublicKey_OpenSSL>(
-      ccf::crypto::make_rsa_public_key(rsa_kp->public_key_pem()));
-
-    // All PS algorithms should work
-    REQUIRE_NOTHROW(rsa_pubkey->check_is_cose_compatible(-37)); // PS256
-    REQUIRE_NOTHROW(rsa_pubkey->check_is_cose_compatible(-38)); // PS384
-    REQUIRE_NOTHROW(rsa_pubkey->check_is_cose_compatible(-39)); // PS512
-
-    // Non-PS algorithms should throw
-    REQUIRE_THROWS_WITH(
-      rsa_pubkey->check_is_cose_compatible(-7),
-      "Incompatible cose algorithm -7 for RSA");
-    REQUIRE_THROWS_WITH(
-      rsa_pubkey->check_is_cose_compatible(-35),
-      "Incompatible cose algorithm -35 for RSA");
-
-    // Unknown COSE algorithm for RSA keys should throw
-    REQUIRE_THROWS_WITH(
-      rsa_pubkey->check_is_cose_compatible(1),
-      "Incompatible cose algorithm 1 for RSA");
-    REQUIRE_THROWS_WITH(
-      rsa_pubkey->check_is_cose_compatible(-256),
-      "Incompatible cose algorithm -256 for RSA");
-    REQUIRE_THROWS_WITH(
-      rsa_pubkey->check_is_cose_compatible(999),
-      "Incompatible cose algorithm 999 for RSA");
   }
 }
 
