@@ -4,13 +4,16 @@
 import CCFRaft.Properties
 import CCFRaft.Proofs.CommittedLogs
 import CCFRaft.Proofs.Direct.CommitFrontier
-import CCFRaft.Proofs.Model
 import CCFRaft.Proofs.Witnesses
 
 namespace CCFRaft.Proof
 
-theorem election_safety : Properties.ElectionSafety :=
-  Proofs.Model.election_safety
+theorem election_safety : Properties.ElectionSafety := by
+  intro Node TxId _ _ _ nodes trace state left right leftState rightState
+    ⟨valid, member, leftMember, rightMember, leftLeader, rightLeader, sameTerm⟩
+  have reachable := valid.reachable member
+  exact Proofs.Invariant.inv_electionSafety (Proofs.Invariant.reachable_inv reachable)
+    (Proofs.Direct.keys_nodup reachable) leftMember rightMember leftLeader rightLeader sameTerm
 
 theorem committed_logs_prefix : Properties.CommittedLogsPrefix :=
   Proofs.CommittedLogs.committed_logs_prefix

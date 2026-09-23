@@ -2,7 +2,7 @@
 -- Licensed under the Apache 2.0 License.
 
 import CCFRaft.Proofs.Direct.AppendOnly
-import CCFRaft.Proofs.Model
+import CCFRaft.Proofs.Invariant.Reachable
 
 set_option autoImplicit false
 
@@ -35,7 +35,8 @@ theorem committed_logs_prefix : Properties.CommittedLogsPrefix := by
       Direct.committed_log_later valid atEarlier earlierMember (laterIndex - earlierIndex) later
         (by rwa [Nat.add_sub_cancel' ordered])
     have reachable := valid.reachable (List.mem_of_getElem? atLater)
-    rcases Model.committed_logs_prefix_here reachable carriedMember laterMember with
+    rcases Invariant.inv_committedLogsPrefix (Invariant.reachable_inv reachable)
+        (Direct.keys_nodup reachable) carriedMember laterMember with
       carriedFirst | laterFirst
     · exact Or.inl (grown.trans carriedFirst)
     · exact List.prefix_or_prefix_of_prefix grown laterFirst
