@@ -10,26 +10,19 @@ open Global
 namespace TxID
 
 def EarlierThan (left right : TxID) : Prop :=
-  left.view < right.view \/
-    (left.view = right.view /\ left.seqno <= right.seqno)
+  left.view < right.view \/ (left.view = right.view /\ left.seqno <= right.seqno)
 
 end TxID
 
-def FullGossipSelection
-    (config : Config)
-    (state : State)
-    (opener : Location) : Prop :=
+def FullGossipSelection (config : Config) (state : State) (opener : Location) : Prop :=
   exists vote,
-    vote ∈ state.sent /\
-      vote.payload = .vote /\
-      vote.target = opener /\
-      forall gossip,
-        gossip ∈ vote.sourceState.gossips <->
-          gossip ∈ config.recovered
+    vote ∈ state.sent
+    /\ vote.payload = .vote
+    /\ vote.target = opener
+    /\ forall gossip, gossip ∈ vote.sourceState.gossips <-> gossip ∈ config.recovered
 
 def DurableCommit (config : Config) (committed : TxID) : Prop :=
   exists location txid,
-    (location, txid) ∈ config.recovered /\
-      TxID.EarlierThan committed txid
+    (location, txid) ∈ config.recovered /\ TxID.EarlierThan committed txid
 
 end DisasterRecovery.Protocol.Committed
