@@ -2759,8 +2759,8 @@ TEST_CASE("Store error handling")
       REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
-    auto duplicate = std::make_shared<ccf::kv::untyped::Map>(
-      &kv_store, map.get_name(), ccf::kv::SecurityDomain::PUBLIC);
+    auto duplicate =
+      std::make_shared<ccf::kv::untyped::Map>(&kv_store, map.get_name());
     REQUIRE_THROWS_AS(
       kv_store.add_dynamic_map(kv_store.current_version(), duplicate),
       std::logic_error);

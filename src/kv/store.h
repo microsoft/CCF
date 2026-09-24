@@ -499,8 +499,7 @@ namespace ccf::kv
           auto search = maps.find(map_name);
           if (search == maps.end())
           {
-            map = std::make_shared<ccf::kv::untyped::Map>(
-              this, map_name, get_security_domain(map_name));
+            map = std::make_shared<ccf::kv::untyped::Map>(this, map_name);
             new_maps[map_name] = map;
             LOG_DEBUG_FMT(
               "Creating map {} while deserialising snapshot at version {}",
@@ -847,8 +846,8 @@ namespace ccf::kv
         auto map = get_map_internal(v, map_name);
         if (map == nullptr)
         {
-          auto new_map = std::make_shared<ccf::kv::untyped::Map>(
-            this, map_name, get_security_domain(map_name));
+          auto new_map =
+            std::make_shared<ccf::kv::untyped::Map>(this, map_name);
           map = new_map;
           new_maps[map_name] = new_map;
           LOG_DEBUG_FMT(
@@ -1270,15 +1269,17 @@ namespace ccf::kv
      * make sure that the private state being swapped in is fully compacted
      * before the swap.
      *
-     * This is not exception-safe: if it throws (for instance because
-     * source and target disagree on a map's security domain), some of
-     * source's maps may be left locked, with no way to unlock them again.
-     * Both source and *this must be treated as unusable and discarded after
-     * any exception from this call - do not catch and continue using
-     * either store. Callers should ensure the pre-conditions checked here
-     * cannot be violated in practice (eg - by relying only on the
-     * naming-derived security domain of maps, and never overriding it),
-     * rather than relying on this to fail safely.
+     * This locks each of source's private maps before confirming the
+     * equivalent maps in the target agree on security domain. It is not
+     * exception-safe against a domain mismatch: since ccf::kv::untyped::Map
+     * always derives its security domain from its name (rather than
+     * accepting it as a constructor argument), and add_dynamic_map() only
+     * accepts maps of that concrete type, no public API can construct a
+     * mismatched pair of maps, so this failure should be unreachable in
+     * practice. If it is nonetheless ever hit, some of source's maps may be
+     * left locked, with no way to unlock them again; both source and *this
+     * must then be treated as unusable and discarded - do not catch and
+     * continue using either store.
      **/
     void swap_private_maps(Store& store)
     {
@@ -1327,9 +1328,7 @@ namespace ccf::kv
           // it is irrelevant - its creation should no longer be at risk of
           // rollback
           auto new_map = std::make_pair(
-            NoVersion,
-            std::make_shared<ccf::kv::untyped::Map>(
-              this, name, SecurityDomain::PRIVATE));
+            NoVersion, std::make_shared<ccf::kv::untyped::Map>(this, name));
           maps[name] = new_map;
           map = new_map.second;
         }

@@ -302,14 +302,11 @@ namespace ccf::kv::untyped
     using Handle = ccf::kv::untyped::MapHandle;
     using Diff = ccf::kv::untyped::MapDiff;
 
-    Map(
-      AbstractStore* store_,
-      const std::string& name_,
-      SecurityDomain security_domain_) :
+    Map(AbstractStore* store_, const std::string& name_) :
       AbstractMap(name_),
       store(store_),
       roll{std::make_unique<LocalCommits>(), 0, {}},
-      security_domain(security_domain_)
+      security_domain(ccf::kv::get_security_domain(name_))
     {
       roll.reset_commits();
     }
@@ -318,7 +315,7 @@ namespace ccf::kv::untyped
 
     AbstractMap* clone(AbstractStore* other) override
     {
-      return static_cast<AbstractMap*>(new Map(other, name, security_domain));
+      return static_cast<AbstractMap*>(new Map(other, name));
     }
 
     void serialise_changes(
