@@ -1,27 +1,19 @@
-import DisasterRecovery.Protocol.Model
+import DisasterRecovery.Proofs.ExecutionLocal
 
-namespace DisasterRecovery.Protocol.Global
+/-! Proof-only execution with send snapshots and terminal-effect histories. -/
 
-open Model
+namespace DisasterRecovery.Proofs.Execution.Global
 
-structure Config where
-  protocol : Model.Config
-  recovered : List (Prod Location TxID)
-deriving Repr, BEq
+open Shared (TransitionSystem)
+open Local
 
-def Config.Valid (config : Config) : Prop :=
-  config.protocol.isValid = true /\
-    config.protocol.expectedLocations.Nodup /\
-    config.recovered.map Prod.fst = config.protocol.expectedLocations
+abbrev Config := Model.Config
+abbrev Config.Valid (config : Config) := Model.Config.Valid config
 
 def recoveredTxID (config : Config) (source : Location) : Option TxID :=
   (config.recovered.find? fun entry => entry.1 == source).map Prod.snd
 
-inductive Payload where
-  | gossip (txid : TxID)
-  | vote
-  | iAmOpen
-deriving Repr, BEq, ReflBEq, LawfulBEq
+abbrev Payload := DisasterRecovery.Model.Local.Message
 
 structure Envelope where
   source : Location
@@ -55,10 +47,8 @@ deriving Repr, BEq
 def nodeState (state : State) (node : Location) : Option NodeState :=
   (state.system.nodes.find? fun entry => entry.1 == node).map Prod.snd
 
-def messageForEffect
-    (config : Config)
-    (source : Location)
-    (sourceState : NodeState) : Effect -> Option Envelope
+def messageForEffect (config : Config) (source : Location) (sourceState : NodeState)
+    : Effect -> Option Envelope
   | .sendGossip target => do
       let txid <- recoveredTxID config source
       pure { source, target, payload := .gossip txid, sourceState }
@@ -68,16 +58,14 @@ def messageForEffect
       some { source, target, payload := .iAmOpen, sourceState }
   | _ => none
 
-def retryMessages
-    (config : Config)
-    (source : Location)
-    (sourceState : NodeState) : List Envelope :=
+def retryMessages (config : Config) (source : Location) (sourceState : NodeState)
+    : List Envelope :=
   (step config.protocol sourceState .retry).effects.filterMap
     (messageForEffect config source sourceState)
 
 def Envelope.Valid (config : Config) (envelope : Envelope) : Prop :=
-  envelope.sourceState.location = envelope.source /\
-    envelope ∈ retryMessages config envelope.source envelope.sourceState
+  envelope.sourceState.location = envelope.source
+  /\ envelope ∈ retryMessages config envelope.source envelope.sourceState
 
 def eventFor (envelope : Envelope) : Event :=
   match envelope.payload with
@@ -90,15 +78,10 @@ def removeOne [BEq α] (value : α) : List α -> List α
   | head :: tail =>
       if head == value then tail else head :: removeOne value tail
 
-def recordEffect
-    (node : Location)
-    (nodeState : NodeState)
-    (state : State) : Effect -> State
+def recordEffect (node : Location) (nodeState : NodeState) (state : State)
+    : Effect -> State
   | .opening kind =>
-      {
-        state with
-        openings := { node, kind, state := nodeState } :: state.openings
-      }
+      { state with openings := { node, kind, state := nodeState } :: state.openings }
   | .restart _ =>
       { state with restarts := node :: state.restarts }
   | .completed =>
@@ -109,13 +92,15 @@ def recordEffects
     (node : Location)
     (nodeState : NodeState)
     (effects : List Effect)
-    (state : State) : State :=
+    (state : State)
+    : State :=
   effects.foldl (recordEffect node nodeState) state
 
-def initial (config : Config) (active : List Location) : State := {
-  system := initialSystem config.protocol
-  active
-}
+def initial (config : Config) (active : List Location) : State :=
+  {
+    system := initialSystem config.protocol
+    active
+  }
 
 def next (config : Config) (state : State) : Action -> Option State
   | .retry source => do
@@ -123,46 +108,41 @@ def next (config : Config) (state : State) : Action -> Option State
       let sourceState <- nodeState state source
       let messages := retryMessages config source sourceState
       guard (!messages.isEmpty)
-      pure {
-        state with
-        network := state.network ++ messages
-        sent := state.sent ++ messages
-      }
+      pure
+        {
+          state with
+            network := state.network ++ messages
+            sent := state.sent ++ messages
+        }
   | .deliver envelope => do
       guard (state.network.contains envelope)
       guard (state.active.contains envelope.target)
-      let (system, output) <-
-        systemStep config.protocol state.system envelope.target
-          (eventFor envelope)
-      let delivered := {
-        state with
-        system
-        network := removeOne envelope state.network
-      }
-      pure
-        (recordEffects envelope.target output.state output.effects delivered)
+      let (system, output) <- systemStep config.protocol state.system envelope.target
+                                (eventFor envelope)
+      let delivered :=
+        {
+          state with
+            system
+            network := removeOne envelope state.network
+        }
+      pure (recordEffects envelope.target output.state output.effects delivered)
   | .timeout target => do
       guard (state.active.contains target)
-      let (system, output) <-
-        systemStep config.protocol state.system target .timeout
+      let (system, output) <- systemStep config.protocol state.system target .timeout
       guard output.accepted
-      pure
-        (recordEffects target output.state output.effects { state with system })
+      pure (recordEffects target output.state output.effects { state with system })
 
-inductive Reachable (config : Config) : State -> Prop where
-  | initial
-      (active : List Location)
-      (valid : config.Valid)
-      (nodup : active.Nodup)
-      (configured :
-        forall node, node ∈ active ->
-          node ∈ config.protocol.expectedLocations) :
-      Reachable config (Global.initial config active)
-  | step
-      {state nextState : State}
-      {action : Action}
-      (reachable : Reachable config state)
-      (transition : next config state action = some nextState) :
-      Reachable config nextState
+def transitionSystem (config : Config) : TransitionSystem State Action where
+  init :=
+    fun state =>
+      exists active : List Location,
+        config.Valid
+        /\ active.Nodup
+        /\ (forall node, node ∈ active -> node ∈ config.protocol.expectedLocations)
+        /\ state = initial config active
+  step := next config
 
-end DisasterRecovery.Protocol.Global
+abbrev Reachable (config : Config) : State -> Prop :=
+  (transitionSystem config).Reachable
+
+end DisasterRecovery.Proofs.Execution.Global

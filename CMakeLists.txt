@@ -185,6 +185,29 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
+install(
+  DIRECTORY ${CCF_DIR}/src/rust/ccf-app/
+  DESTINATION share/ccf/src/rust/ccf-app
+  PATTERN target EXCLUDE
+)
+install(
+  FILES ${CCF_DIR}/samples/apps/main.cpp
+  DESTINATION share/ccf/rust
+  RENAME app_main.cpp
+)
+
+add_library(ccf_rust_app_bridge OBJECT ${CCF_DIR}/src/rust/app_bridge.cpp)
+set_property(TARGET ccf_rust_app_bridge PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_san(ccf_rust_app_bridge)
+add_hardening(ccf_rust_app_bridge)
+add_tidy(ccf_rust_app_bridge)
+add_warning_checks(ccf_rust_app_bridge)
+enable_coverage(ccf_rust_app_bridge)
+install(
+  TARGETS ccf_rust_app_bridge
+  EXPORT ccf
+  OBJECTS DESTINATION lib/ccf/objects
+)
 
 # Copy and install CCF utilities
 set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh)
@@ -616,6 +639,18 @@ if(BUILD_TESTS)
   # Unit tests
   if(BUILD_UNIT_TESTS)
     add_test(
+      NAME ccf_app_rust_test
+      COMMAND
+        ${CMAKE_COMMAND} -E env --unset=CARGO_BUILD_TARGET "CARGO_NET_RETRY=10"
+        "CARGO_HTTP_TIMEOUT=60" "CARGO_BUILD_RUSTC=${RUSTC}" ${CARGO} test
+        --manifest-path ${CCF_DIR}/src/rust/ccf-app/Cargo.toml --target-dir
+        ${CMAKE_BINARY_DIR}/cargo/ccf-app-test --locked
+      WORKING_DIRECTORY ${CCF_DIR}/src/rust/ccf-app
+    )
+    add_test_target(ccf_app_rust_test)
+    add_test_label(ccf_app_rust_test unit)
+
+    add_test(
       NAME verify_uvm_attestation_and_endorsements
       COMMAND
         bash
@@ -768,6 +803,12 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/node_connections.cpp
     )
     target_link_libraries(node_connections_test PRIVATE uv)
+
+    add_unit_test(
+      tcp_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/tcp_test.cpp
+    )
+    target_link_libraries(tcp_test PRIVATE uv)
 
     add_unit_test(
       raft_test
@@ -1399,6 +1440,14 @@ if(BUILD_TESTS)
     DETECT_DEADLOCKS
     TSAN_SUPPRESSIONS ${CCF_DIR}/tsan_e2e_logging_suppressions
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+  )
+
+  add_e2e_test(
+    NAME e2e_basic_rust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basic_rust.py
+    BUCKET bucket_c
+    BUILD_DEPENDS basic_rust
+    ADDITIONAL_ARGS --package samples/apps/basic_rust/basic_rust
   )
 
   set(

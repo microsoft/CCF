@@ -5,7 +5,6 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_public_key.h"
 #include "crypto/openssl/hash.h"
-#include "crypto/openssl/public_key.h"
 
 #include <optional>
 #include <string>
@@ -13,9 +12,11 @@
 
 namespace ccf::crypto
 {
-  class RSAPublicKey_OpenSSL : public RSAPublicKey, public PublicKey_OpenSSL
+  class RSAPublicKey_OpenSSL : public RSAPublicKey
   {
   protected:
+    OpenSSL::Unique_PKEY key{nullptr, EVP_PKEY_free, false};
+
     RSAPublicKey_OpenSSL();
 
   public:
