@@ -105,7 +105,7 @@ private theorem valid : trace.Valid (Model.transitionSystem config) := by
     subst before <;> subst after
   all_goals
     simp [actions, Model.transitionSystem, MultiNodeTransitionSystem.lift, MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne,
-      Model.protocol, Model.recoveredTxID, Model.GlobalHelper.receive, step,
+      Model.protocol, Model.recoveredTxID, Model.receive, step,
       guard, config, snapshot, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11,
       aGossips, bGossips, gossip, vote, high, low]
   all_goals cbv

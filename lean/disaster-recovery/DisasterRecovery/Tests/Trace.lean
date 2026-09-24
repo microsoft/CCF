@@ -60,7 +60,7 @@ private theorem valid : trace.Valid (Model.transitionSystem config) := by
     simp [actions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
       MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState,
       MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.GlobalHelper.receive, step, guard, initial, Tests.initial, config,
+      Model.receive, step, guard, initial, Tests.initial, config,
       gossipSent, ready, voteSent, opened, gossip, vote, recovered]
     cbv
 

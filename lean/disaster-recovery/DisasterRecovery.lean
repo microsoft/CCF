@@ -1,5 +1,4 @@
 import DisasterRecovery.Model
-import DisasterRecovery.Model.GlobalHelper
 import DisasterRecovery.Model.Local
 import DisasterRecovery.Proof
 import DisasterRecovery.Proofs.Committed

@@ -100,7 +100,7 @@ private theorem quorum_valid
       MultiNodeTransitionSystem.next, quorumConfig, initial, quorumReady, quorumVoteSent,
       quorumOpened, gossip, vote, high, MultiNodeTransitionSystem.nodeState,
       MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.GlobalHelper.receive, step, guard] <;> cbv
+      Model.receive, step, guard] <;> cbv
 
 private theorem quorum_notified
     : Properties.Trace.NotificationAt quorumConfig quorumTrace 3 "A"
@@ -282,7 +282,7 @@ private theorem full_valid : fullTrace.Valid (Model.transitionSystem fullConfig)
       fullPending, fullSelected, fullGossiped, fullVoteSent, fullVoted, fullTimeout,
       failoverOpened, failoverOpener, gossip, vote, high, MultiNodeTransitionSystem.nodeState,
       MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.GlobalHelper.receive, step, guard] <;> cbv
+      Model.receive, step, guard] <;> cbv
 
 theorem full_gossip_preserves_commit_witness
     : Properties.FullGossipPreservesCommitWitness := by

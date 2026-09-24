@@ -484,14 +484,14 @@ lemma step_lifts (config : Model.Config)
         ⟨decorated, member, projected, removed, _⟩
       rcases scheduled_step_some config
           { erase before with network := MultiNodeTransitionSystem.removeOne envelope (erase before).network }
-          after envelope.target (Model.GlobalHelper.receive envelope.source envelope.payload)
+          after envelope.target (Model.receive envelope.source envelope.payload)
           (by
             simp [Model.transitionSystem, MultiNodeTransitionSystem.lift, MultiNodeTransitionSystem.next,
               membership, guard, failure, MultiNodeTransitionSystem.nodeState] at h ⊢
             exact h) with
         ⟨state, output, recovered, active, found, trans, _, _, result⟩
       have eventEq : Execution.Global.eventFor decorated =
-          Model.GlobalHelper.receive envelope.source envelope.payload := by
+          Model.receive envelope.source envelope.payload := by
         rw [← projected]
         cases decorated.payload <;> rfl
       have targetEq : decorated.target = envelope.target := congrArg Shared.Envelope.target projected
@@ -507,8 +507,8 @@ lemma step_lifts (config : Model.Config)
       have system := systemStep_of_result config before decorated.target
         (Execution.Global.eventFor decorated) recovered state output ghostFound ghostTrans
       have noMessages := transition_messages_empty config.protocol state
-        (Model.GlobalHelper.receive envelope.source envelope.payload) envelope.target recovered
-        (by cases envelope.payload <;> simp [Model.GlobalHelper.receive])
+        (Model.receive envelope.source envelope.payload) envelope.target recovered
+        (by cases envelope.payload <;> simp [Model.receive])
       refine ⟨
         .deliver decorated,
         Execution.Global.recordEffects decorated.target

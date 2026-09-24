@@ -1,5 +1,5 @@
 import DisasterRecovery.Shared.MultiNodeTransitionSystem
-import DisasterRecovery.Model.GlobalHelper
+import DisasterRecovery.Model.Local
 
 namespace DisasterRecovery.Model
 
@@ -28,6 +28,11 @@ abbrev Envelope := Shared.Envelope Location Message
 abbrev State := MultiNodeTransitionSystem.State Location NodeState Message
 abbrev Action := MultiNodeTransitionSystem.Action Location Message Input
 
+def receive (source : Location) : Message -> Event
+  | .gossip txid => .receiveGossip source txid .accepted
+  | .vote => .receiveVote source .accepted
+  | .iAmOpen => .receiveIAmOpen source .accepted
+
 def protocol (config : Config)
     : MultiNodeTransitionSystem.Protocol Location NodeState Event Message Notification
         Input where
@@ -35,7 +40,7 @@ def protocol (config : Config)
   step host source state action := do
     let recovered <- recoveredTxID config source
     DisasterRecovery.Model.Local.step host config.protocol recovered state action
-  receive := GlobalHelper.receive
+  receive := receive
   internal
     | .retry => .retry
     | .timeout => .timeout

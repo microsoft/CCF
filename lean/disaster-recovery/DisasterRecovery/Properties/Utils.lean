@@ -42,7 +42,7 @@ def actor : Model.Action -> Location
 def event : Model.Action -> Event
   | .local _ .retry => .retry
   | .local _ .timeout => .timeout
-  | .deliver envelope => Model.GlobalHelper.receive envelope.source envelope.payload
+  | .deliver envelope => Model.receive envelope.source envelope.payload
 
 /-- Step `step` of the trace, from state `step` to state `step + 1`, is taken by
 `node`, and that node's local execution in the step emits `notification`. -/
