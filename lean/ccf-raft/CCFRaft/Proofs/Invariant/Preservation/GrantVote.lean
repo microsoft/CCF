@@ -1915,7 +1915,6 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
         exact
           facts.joinedCarriers.runtimeNodes.nonemptyLogs node
             (by simpa [logEq] using nonempty)
-  · exact fun _ => Iff.rfl
   · intro node
     simpa only [termEq] using facts.currentTermsValid node
   · have responseValid : TermNumberValid response.2.2.term := by

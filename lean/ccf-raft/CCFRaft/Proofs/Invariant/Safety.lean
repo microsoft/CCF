@@ -169,7 +169,7 @@ theorem systemInductiveInvariant_committedLogsPrefix {state : Model.State Node T
 
 /-- Two leaders of one term in a network state satisfying `Inv` are the same node. -/
 theorem inv_electionSafety {state : Model.State Node TxId} (inv : Inv state)
-    (distinct : (state.nodes.map Prod.fst).Nodup) {left right : Node}
+    {left right : Node}
     {leftState rightState : NodeState Node TxId}
     (leftMember : (left, leftState) ∈ state.nodes)
     (rightMember : (right, rightState) ∈ state.nodes)
@@ -177,8 +177,8 @@ theorem inv_electionSafety {state : Model.State Node TxId} (inv : Inv state)
     (sameTerm : leftState.currentTerm = rightState.currentTerm)
     : left = right := by
   obtain ⟨joined, invariant⟩ := inv
-  have leftEq := nodeOf_of_mem distinct leftMember
-  have rightEq := nodeOf_of_mem distinct rightMember
+  have leftEq := nodeOf_of_mem invariant.distinct leftMember
+  have rightEq := nodeOf_of_mem invariant.distinct rightMember
   exact systemInductiveInvariant_electionSafety invariant.safety left right
     (by rw [leftEq]; exact leftLeader)
     (by rw [rightEq]; exact rightLeader)
@@ -186,7 +186,7 @@ theorem inv_electionSafety {state : Model.State Node TxId} (inv : Inv state)
 
 /-- Committed logs of two nodes in a network state satisfying `Inv` are comparable. -/
 theorem inv_committedLogsPrefix {state : Model.State Node TxId} (inv : Inv state)
-    (distinct : (state.nodes.map Prod.fst).Nodup) {left right : Node}
+    {left right : Node}
     {leftState rightState : NodeState Node TxId}
     (leftMember : (left, leftState) ∈ state.nodes)
     (rightMember : (right, rightState) ∈ state.nodes)
@@ -194,6 +194,6 @@ theorem inv_committedLogsPrefix {state : Model.State Node TxId} (inv : Inv state
       \/ rightState.committedLog <+: leftState.committedLog := by
   obtain ⟨joined, invariant⟩ := inv
   have := systemInductiveInvariant_committedLogsPrefix invariant.safety left right
-  rwa [nodeOf_of_mem distinct leftMember, nodeOf_of_mem distinct rightMember] at this
+  rwa [nodeOf_of_mem invariant.distinct leftMember, nodeOf_of_mem invariant.distinct rightMember] at this
 
 end CCFRaft.Proofs.Invariant

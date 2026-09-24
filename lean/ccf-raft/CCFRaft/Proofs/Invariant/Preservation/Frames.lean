@@ -70,14 +70,6 @@ lemma Finset.subset_of_eq {left right : Finset Node} (same : left = right)
     : left ⊆ right := by
   rw [same]
 
-lemma AllocatedNodesExactlyJoined.frame
-    {state after : Model.State Node TxId}
-    (facts : AllocatedNodesExactlyJoined (joined := joined) state)
-    (_allocatedEq : forall node, node ∈ joinedNext <-> node ∈ joined)
-    (hasJoinedEq : joinedNext = joined)
-    : AllocatedNodesExactlyJoined (joined := joinedNext) after := by
-  simpa only [AllocatedNodesExactlyJoined, hasJoinedEq] using facts
-
 lemma committedConfigurationCoverageFrame
     {state after : Model.State Node TxId}
     {activations : ActivationHistory Node TxId}

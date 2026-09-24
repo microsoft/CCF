@@ -351,9 +351,7 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
         ⟨bootstrap.1, by simpa [termEq] using bootstrap.2⟩
     · exact Or.inr (by simpa [logEq, votesEq] using majority)
   change SystemInductiveInvariant (joined := joinedNodes) after
-  apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed
-    (by simp [after, present])
-    (fun _ => Iff.rfl)
+  apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed (by simp [after, present])
     joinedCarriersAfter participatingBack candidateBack
     leaderBack ownerRoleForward passiveRoleForward
     termEq logEq commitEq
@@ -843,9 +841,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
         ⟨bootstrap.1, by simpa [termEq] using bootstrap.2⟩
     · exact Or.inr (by simpa [logEq, votesEq] using majority)
   change SystemInductiveInvariant (joined := joinedNodes) after
-  apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed
-    (by simp [after, present, concrete_effects, present])
-    (fun _ => Iff.rfl)
+  apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed (by simp [after, present, concrete_effects, present])
     joinedCarriersAfter participatingBack candidateBack leaderBack
     (fun owner role => by
       by_cases same : owner = node
@@ -975,8 +971,6 @@ lemma initializeConfigurationPreservesSystemInductiveInvariant
   apply retirementMetadataFramePreservesSystemInductiveInvariant
     appended _ appendedInvariant
   · simp [appended, leaderAppendState, present, latest, implicitConfiguration, concrete_effects, present]
-  · intro candidate
-    simp [concrete_effects, present, appended, leaderAppendState, present, latest, implicitConfiguration]
   · rfl
   all_goals
     intro candidate

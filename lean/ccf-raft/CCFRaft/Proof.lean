@@ -13,7 +13,7 @@ theorem election_safety : Properties.ElectionSafety := by
     ⟨valid, member, leftMember, rightMember, leftLeader, rightLeader, sameTerm⟩
   have reachable := valid.reachable member
   exact Proofs.Invariant.inv_electionSafety (Proofs.Invariant.reachable_inv reachable)
-    (Proofs.Direct.keys_nodup reachable) leftMember rightMember leftLeader rightLeader sameTerm
+    leftMember rightMember leftLeader rightLeader sameTerm
 
 theorem committed_logs_prefix : Properties.CommittedLogsPrefix :=
   Proofs.CommittedLogs.committed_logs_prefix

@@ -437,7 +437,6 @@ lemma initialSystemInductiveInvariant
       · intro node nonempty
         by_cases same : node = INITIAL_LEADER <;>
           simp [initialNodes, networkEmpty, initialNodeState, same] at nonempty
-  · exact fun _ => Iff.rfl
   · intro node
     by_cases member : node ∈ INITIAL_CONFIGURATION <;>
       simp [initialNodes, networkEmpty, TermNumberValid, initialNodeState, member]

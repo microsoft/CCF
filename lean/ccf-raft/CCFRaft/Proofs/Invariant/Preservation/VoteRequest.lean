@@ -287,9 +287,7 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
           covered
         ⟩
   change SystemInductiveInvariant (joined := joinedNodes) after
-  apply networkFramePreservesSystemInductiveInvariant
-    enqueued after enqueuedInvariant
-    (by simp [after, enqueued]) (fun _ => Iff.rfl)
+  apply networkFramePreservesSystemInductiveInvariant enqueued after enqueuedInvariant (by simp [after, enqueued])
     (fun _ => rfl)
     (fun destination message member =>
       Or.inl (networkSubset destination message member))

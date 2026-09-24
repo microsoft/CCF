@@ -2624,7 +2624,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       · subst candidate
         have peerEq : peer = node := by simpa [concrete_effects, becomeCandidateState, present] using member
         subst peer
-        exact (facts.allocatedNodesExactlyJoined node).mp enabled.1
+        exact enabled.1
       · exact
           facts.joinedCarriers.grantedVotes candidate
             (by simpa [
@@ -2656,7 +2656,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       · intro candidate active
         by_cases same : candidate = node
         · subst candidate
-          exact (facts.allocatedNodesExactlyJoined node).mp enabled.1
+          exact enabled.1
         · exact
             facts.joinedCarriers.runtimeNodes.activeRoles candidate
               (by simpa [roleOther candidate same] using active)
@@ -2673,7 +2673,6 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
         exact
           facts.joinedCarriers.runtimeNodes.nonemptyLogs candidate
             (by simpa [logEq] using nonempty)
-  · exact fun _ => Iff.rfl
   · intro candidate
     by_cases same : candidate = node
     · subst candidate

@@ -113,7 +113,6 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
     (state after : Model.State Node TxId)
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (hasJoinedEq : joinedNext = joinedNodes)
-    (allocatedEq : forall node, node ∈ joinedNext <-> node ∈ joinedNodes)
     (joinedCarriersAfter : JoinedCarrierFacts (joined := joinedNext) after)
     (participatingBack
       : forall node,
@@ -824,9 +823,6 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
         votes appendHistory responseHistory voteRequestHistory
           voteCandidateHistory voteVoterHistory facts
   · exact joinedCarriersAfter
-  · exact
-      AllocatedNodesExactlyJoined.frame
-        facts.allocatedNodesExactlyJoined allocatedEq hasJoinedEq
   · intro node
     simpa only [termEq] using facts.currentTermsValid node
   · intro destination message member
@@ -842,7 +838,6 @@ lemma networkFramePreservesSystemInductiveInvariant
     (state after : Model.State Node TxId)
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (hasJoinedEq : joinedNext = joinedNodes)
-    (allocatedEq : forall node, node ∈ joinedNext <-> node ∈ joinedNodes)
     (nodeStateEq : forall node, (nodeOf after) node = (nodeOf state) node)
     (networkFrame
       : forall destination message,
@@ -917,8 +912,7 @@ lemma networkFramePreservesSystemInductiveInvariant
     rcases networkFrame destination _ member with old | inert
     · exact old
     · simp [IsSafetyInert] at inert
-  apply roleAndNetworkFramePreservesSystemInductiveInvariant
-    state after packed hasJoinedEq allocatedEq
+  apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed hasJoinedEq
     (by
       constructor
       · intro node peer member
@@ -1097,7 +1091,6 @@ lemma safetyInertNetworkChangePreservesSystemInductiveInvariant
     (state after : Model.State Node TxId)
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (hasJoinedEq : joinedNext = joinedNodes)
-    (allocatedEq : forall node, node ∈ joinedNext <-> node ∈ joinedNodes)
     (nodeStateEq : forall node, (nodeOf after) node = (nodeOf state) node)
     (networkFrame
       : forall destination message,
@@ -1151,8 +1144,7 @@ lemma safetyInertNetworkChangePreservesSystemInductiveInvariant
           ⟩
       ⟩
   apply
-    networkFramePreservesSystemInductiveInvariant
-      state after invariant hasJoinedEq allocatedEq nodeStateEq networkFrame
+    networkFramePreservesSystemInductiveInvariant state after invariant hasJoinedEq nodeStateEq networkFrame
   · intro _ _ responseHistory _ _ _ _ leader index peer member
     simp only [
       effectiveAckers, Finset.mem_filter] at member ⊢
@@ -1209,8 +1201,7 @@ lemma requestPreVotePreservesSystemInductiveInvariant
   let after := requestPreVoteEffect state source destination
   change SystemInductiveInvariant (joined := joinedNodes) after
   apply
-    safetyInertNetworkChangePreservesSystemInductiveInvariant
-      state after invariant rfl (fun _ => Iff.rfl) (fun _ => rfl)
+    safetyInertNetworkChangePreservesSystemInductiveInvariant state after invariant rfl (fun _ => rfl)
   intro queuedDestination message member
   rcases
       memEnqueue
@@ -1244,8 +1235,7 @@ lemma enqueueProposeVoteRequestPreservesSystemInductiveInvariant
         enqueue state.network (proposeVoteEnvelope request) }
   change SystemInductiveInvariant (joined := joinedNodes) after
   apply
-    safetyInertNetworkChangePreservesSystemInductiveInvariant
-      state after invariant rfl (fun _ => Iff.rfl) (fun _ => rfl)
+    safetyInertNetworkChangePreservesSystemInductiveInvariant state after invariant rfl (fun _ => rfl)
   intro queuedDestination message member
   rcases
       memEnqueue
@@ -1383,7 +1373,6 @@ lemma retirementMetadataFramePreservesSystemInductiveInvariant
     (state after : Model.State Node TxId)
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (hasJoinedEq : joinedNext = joinedNodes)
-    (allocatedEq : forall node, node ∈ joinedNext <-> node ∈ joinedNodes)
     (networkEq : after.network = state.network)
     (roleEq : forall node, ((nodeOf after) node).role = ((nodeOf state) node).role)
     (termEq
@@ -1515,11 +1504,8 @@ lemma retirementMetadataFramePreservesSystemInductiveInvariant
         ⟨bootstrap.1, by simpa [termEq] using bootstrap.2⟩
     · exact Or.inr (by simpa [logEq, votesEq] using majority)
   apply
-    roleAndNetworkFramePreservesSystemInductiveInvariant
-      state after
-        ⟨votes, appendHistory, responseHistory,
-          voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
-        hasJoinedEq allocatedEq joinedCarriersAfter
+    roleAndNetworkFramePreservesSystemInductiveInvariant state after ⟨votes, appendHistory, responseHistory,
+          voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩ hasJoinedEq joinedCarriersAfter
         (fun node active => by simpa [roleEq] using active)
         (fun node role => by simpa [roleEq] using role)
         (fun node role => by simpa [roleEq] using role)

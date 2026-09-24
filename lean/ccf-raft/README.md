@@ -90,22 +90,28 @@ proves node-local commit bounds, signature frontiers, and committed-log
 growth. `NodeInvariant` lifts a predicate preserved by every local step to
 every node of every reachable state.
 
-The cross-node proofs use `Proofs/Invariant/View.lean`. `view c J` reads the
-node table of concrete state `c`, using `initialNodeState` for absent nodes.
-It groups the concrete envelopes by destination and attaches their endpoints
-to the messages. `J` is a proof-only joined set, extended when a configuration
-names new nodes. `Inv c` holds when some `J` makes `ViewInvariant (view c J)`
-hold. Its core is `SystemInductiveInvariant`, with vote, log, election, and
-configuration-activation histories. The side conditions require bootstrap
-members and message endpoints to belong to `J`, and nodes outside `J` to
-remain in `initialNodeState`.
+The cross-node invariant is stated over `Model.State` in
+`Proofs/Invariant/Facts.lean`. `Inv c` means that some proof-only joined set
+`J` satisfies `StateInvariant c J`. This includes
+`SystemInductiveInvariant c`, with vote, log, election, and
+configuration-activation histories, parameterized by `J`. It also requires
+distinct node-table keys, bootstrap members and envelope endpoints in `J`,
+and nodes outside `J` to remain in `initialNodeState`.
 
-`Proofs/Invariant/Preservation/` proves preservation under node and queue
-updates, split into modules for incremental builds. `Internal.lean` applies
-these lemmas to all 16 inputs of `Local.act`. `Receive.lean` composes term
-observation, same-term step-down, and the message handler. A delivery erases
-one occurrence of its message and appends any reply. There is no separate
-transition system over `View`.
+`Proofs/Invariant/State.lean` defines the only total node accessor,
+`nodeOf c n := (nodeState c n).getD (initialNodeState n)`, and proves lookup
+laws for the concrete node list. Messages in flight are the model's own
+envelopes in `c.network`. Message histories use `(source, target, payload)`
+keys whose payloads are the types in `Model.Local`. The joined set stays
+separate from the concrete state and grows when a configuration names new
+nodes.
+
+`Proofs/Invariant/Preservation/` proves preservation under concrete node-list
+replacements and envelope-list updates, split into modules for incremental
+builds. `Internal.lean` applies these lemmas to all 16 inputs of `Local.act`.
+`Receive.lean` composes `observeTerm`, same-term step-down, and the model's
+message handlers. A delivery removes one envelope with `removeOne` and
+appends the handler's replies.
 
 `Proofs/Invariant/Reachable.lean` proves `reachable_inv` by induction over
 the concrete local and delivery steps. `Safety.lean` derives leader

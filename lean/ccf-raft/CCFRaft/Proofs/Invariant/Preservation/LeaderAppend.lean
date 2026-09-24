@@ -3370,7 +3370,6 @@ lemma leaderAppendPreservesSystemInductiveInvariant
                   intro empty
                   apply nonempty
                   simpa [logEqOther candidate same] using empty))
-  · exact fun _ => Iff.rfl
   · intro candidate
     simpa only [currentTermEq] using facts.currentTermsValid candidate
   · exact facts.networkTermsValid

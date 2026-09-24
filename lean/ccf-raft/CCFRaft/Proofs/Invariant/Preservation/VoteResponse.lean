@@ -616,9 +616,7 @@ lemma receiveRequestVoteResponsePreservesSystemInductiveInvariant
   have intermediateInvariant :
       SystemInductiveInvariant (joined := joinedNodes) intermediate := by
     apply
-      roleAndNetworkFramePreservesSystemInductiveInvariant
-        state intermediate packed rfl
-          (fun _ => Iff.rfl)
+      roleAndNetworkFramePreservesSystemInductiveInvariant state intermediate packed rfl
           joinedCarriersIntermediate
           (fun node active => by simpa [roleEq] using active)
           (fun node role => by simpa [roleEq] using role)
@@ -775,9 +773,7 @@ lemma receiveRequestVoteResponsePreservesSystemInductiveInvariant
         (Or.inl (by rfl))
         (fun candidate _ => by rw [nodeStateEq candidate])
   change SystemInductiveInvariant (joined := joinedNodes) after
-  apply networkFramePreservesSystemInductiveInvariant
-    intermediate after intermediateInvariant
-    (by simp [after, present, intermediate, present]) (fun _ => Iff.rfl) nodeStateEq
+  apply networkFramePreservesSystemInductiveInvariant intermediate after intermediateInvariant (by simp [after, present, intermediate, present]) nodeStateEq
     (fun destination message member =>
       Or.inl (networkSubsetAfter destination message member))
   · intro _ _ actualResponseHistory _ _ _ _ leader index

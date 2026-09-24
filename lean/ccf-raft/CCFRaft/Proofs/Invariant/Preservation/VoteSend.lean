@@ -1102,12 +1102,6 @@ lemma requestVotePreservesSystemInductiveInvariant
         simpa [concrete_effects, concrete_effects]
           using facts.joinedCarriers.runtimeNodes.nonemptyLogs node
             (by simpa [concrete_effects, concrete_effects] using nonempty)
-  · exact
-      AllocatedNodesExactlyJoined.frame
-        facts.allocatedNodesExactlyJoined
-        (fun _ => Iff.rfl)
-        rfl
-
   · exact facts.currentTermsValid
   · simpa only [NetworkTermsValid, concrete_effects, concrete_effects]
       using (networkTermsValidEnqueue

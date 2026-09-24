@@ -1918,13 +1918,6 @@ structure JoinedCarrierFacts (state : Model.State Node TxId) : Prop where
         -> response.1 ∈ joined
   runtimeNodes : RuntimeNodeCarrierFacts (joined := joined) state
 
-/--
-Allocated identities are exactly the identities that have joined. Allocation,
-join history, and configuration membership remain distinct state concepts.
--/
-def AllocatedNodesExactlyJoined (_state : Model.State Node TxId) : Prop :=
-  forall node, node ∈ joined <-> node ∈ joined
-
 /-- The invariant preserved by the reconfiguring transition system. -/
 structure InvariantFacts
     (state : Model.State Node TxId)
@@ -1967,7 +1960,6 @@ structure InvariantFacts
     : GrantedVoteSnapshots (joined := joined) state votes voteCandidateHistory voteVoterHistory
   processedAckHistory : Exists fun history => ProcessedAckHistoryFacts state history
   joinedCarriers : JoinedCarrierFacts (joined := joined) state
-  allocatedNodesExactlyJoined : AllocatedNodesExactlyJoined (joined := joined) state
   currentTermsValid : CurrentTermsValid state
   networkTermsValid : NetworkTermsValid state
 

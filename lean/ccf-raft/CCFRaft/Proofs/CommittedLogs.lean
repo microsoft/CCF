@@ -36,7 +36,7 @@ theorem committed_logs_prefix : Properties.CommittedLogsPrefix := by
         (by rwa [Nat.add_sub_cancel' ordered])
     have reachable := valid.reachable (List.mem_of_getElem? atLater)
     rcases Invariant.inv_committedLogsPrefix (Invariant.reachable_inv reachable)
-        (Direct.keys_nodup reachable) carriedMember laterMember with
+        carriedMember laterMember with
       carriedFirst | laterFirst
     · exact Or.inl (grown.trans carriedFirst)
     · exact List.prefix_or_prefix_of_prefix grown laterFirst

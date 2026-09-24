@@ -56,8 +56,7 @@ lemma pureNetworkDequeuePreservesSystemInductiveInvariant
       ⟩
   change SystemInductiveInvariant (joined := joinedNodes) after
   apply
-    networkFramePreservesSystemInductiveInvariant
-      state after invariant rfl (fun _ => Iff.rfl)
+    networkFramePreservesSystemInductiveInvariant state after invariant rfl
         (fun _ => rfl)
         (fun destination message member =>
           Or.inl (networkSubset destination message member))
@@ -104,10 +103,8 @@ lemma receiveRequestPreVotePreservesSystemInductiveInvariant
     : SystemInductiveInvariant (joined := joinedNodes)
         { state with network := remaining ++ [preVoteResponseEnvelope
             (destination, source, handleRequestPreVote (nodeOf state destination) request)] } := by
-  apply safetyInertNetworkChangePreservesSystemInductiveInvariant
-    state { state with network := remaining ++ [preVoteResponseEnvelope
-      (destination, source, handleRequestPreVote (nodeOf state destination) request)] }
-    invariant rfl (fun _ => Iff.rfl) (fun _ => rfl)
+  apply safetyInertNetworkChangePreservesSystemInductiveInvariant state { state with network := remaining ++ [preVoteResponseEnvelope
+      (destination, source, handleRequestPreVote (nodeOf state destination) request)] } invariant rfl (fun _ => rfl)
   intro target envelope member
   rcases List.mem_append.mp member.1 with old | reply_
   · exact Or.inl ⟨(selectedSound taken).2.2 _ old, member.2⟩
@@ -130,8 +127,7 @@ lemma receiveRequestPreVoteResponsePreservesSystemInductiveInvariant
     { state with nodes := replaceNode state.nodes destination nextNode }
   have post := handleRequestPreVoteResponsePreserves handled
   have preserved : SystemInductiveInvariant (joined := joinedNodes) middle := by
-    apply retirementMetadataFramePreservesSystemInductiveInvariant state middle invariant
-      rfl (fun _ => Iff.rfl) rfl
+    apply retirementMetadataFramePreservesSystemInductiveInvariant state middle invariant rfl rfl
     all_goals
       intro node
       by_cases same : node = destination

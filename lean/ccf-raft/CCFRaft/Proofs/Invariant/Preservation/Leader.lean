@@ -2711,7 +2711,6 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
             (by simpa [logOther candidate same] using nonempty)
     · intro destination message member
       simpa [concrete_effects, present] using member
-  · exact fun _ => Iff.rfl
   · intro candidate
     simpa only [termEq] using facts.currentTermsValid candidate
   · simpa only [NetworkTermsValid, networkEq] using facts.networkTermsValid

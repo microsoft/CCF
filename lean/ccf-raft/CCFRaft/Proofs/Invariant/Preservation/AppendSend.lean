@@ -2197,7 +2197,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
         simp only [appendRequestEnvelope.injEq] at requestEq
         subst queuedRequest
         rw [destinationEq]
-        exact (facts.allocatedNodesExactlyJoined destination).mp enabled.2.1
+        exact enabled.2.1
     · intro queuedDestination queuedRequest member configuration configured
         peer inNodes
       rcases
@@ -2276,7 +2276,6 @@ lemma appendEntriesPreservesSystemInductiveInvariant
         simpa [concrete_effects, present]
           using facts.joinedCarriers.runtimeNodes.nonemptyLogs node
             (by simpa [logEq] using nonempty)
-  · exact fun _ => Iff.rfl
   · intro candidate
     simpa only [currentTermEq] using facts.currentTermsValid candidate
   · simpa only [NetworkTermsValid, concrete_effects, present]

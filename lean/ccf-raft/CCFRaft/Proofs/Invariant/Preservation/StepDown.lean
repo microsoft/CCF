@@ -1457,7 +1457,6 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
         exact
           facts.joinedCarriers.runtimeNodes.nonemptyLogs candidate
             (by simpa [logEq] using nonempty)
-  · exact fun _ => Iff.rfl
   · intro candidate
     simpa only [termEq] using facts.currentTermsValid candidate
   · simpa only [NetworkTermsValid, networkEq] using facts.networkTermsValid

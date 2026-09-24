@@ -2592,7 +2592,6 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
               intro empty
               apply nonempty
               simpa [after, present, nodeOf_replaceNode, Function.update, same] using empty)
-  · exact fun _ => Iff.rfl
   · intro node
     change TermNumberValid ((nodeOf after) node).currentTerm
     simpa only [termEq] using facts.currentTermsValid node
@@ -2662,7 +2661,6 @@ lemma receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
   apply
     retirementMetadataFramePreservesSystemInductiveInvariant
       beforeRefresh after beforeInvariant rfl
-  · exact fun _ => Iff.rfl
   · rfl
   · intro candidate
     by_cases same : candidate = destination <;>

@@ -6534,7 +6534,6 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           (by simpa [logEq] using nonempty)
     · intro destination message member
       simpa [advanceCommitState, Model.Local.advanceCommit, present] using member
-  · exact fun _ => Iff.rfl
   · intro candidate
     simpa only [termEq] using facts.currentTermsValid candidate
   · simpa only [NetworkTermsValid, networkEq] using facts.networkTermsValid

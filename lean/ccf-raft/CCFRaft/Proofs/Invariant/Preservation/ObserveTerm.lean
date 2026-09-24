@@ -1913,7 +1913,6 @@ lemma updateTermPreservesSystemInductiveInvariant
         simpa [concrete_effects, updateTerm, newer, present]
           using facts.joinedCarriers.runtimeNodes.nonemptyLogs candidate
             (by simpa [logEq] using nonempty)
-  · exact fun _ => Iff.rfl
   · intro candidate
     by_cases same : candidate = destination
     · subst candidate

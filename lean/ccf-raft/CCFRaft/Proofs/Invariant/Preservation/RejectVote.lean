@@ -737,9 +737,6 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
               destination queuedResponse old
         · simp at new
       · exact facts.joinedCarriers.runtimeNodes.nonemptyLogs
-  · exact
-      AllocatedNodesExactlyJoined.frame
-        facts.allocatedNodesExactlyJoined (fun _ => Iff.rfl) rfl
   · exact facts.currentTermsValid
   · exact networkTermsValidEnqueue facts.networkTermsValid responseTermValid
 

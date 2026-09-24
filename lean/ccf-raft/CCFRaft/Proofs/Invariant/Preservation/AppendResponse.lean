@@ -509,8 +509,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
       ((nodeOf state) destination) response.1 response.2.2 isLeader] at handled
     subst nextNode
     rw [replaceNode_nodeOf state destination distinct]
-    exact safetyInertNetworkChangePreservesSystemInductiveInvariant
-      state _ packed rfl (fun _ => Iff.rfl) (fun _ => rfl)
+    exact safetyInertNetworkChangePreservesSystemInductiveInvariant state _ packed rfl (fun _ => rfl)
       (fun queuedDestination message member =>
         Or.inl (updateQueueSubset queuedDestination message member))
   unfold handleAppendEntriesResponse at handled
@@ -666,9 +665,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         state intermediate (by rfl) (by rfl) termEq votesEq
     have intermediateInvariant :
         SystemInductiveInvariant (joined := joinedNodes) intermediate := by
-      apply roleAndNetworkFramePreservesSystemInductiveInvariant state intermediate packed
-        (by rfl)
-        (fun _ => Iff.rfl)
+      apply roleAndNetworkFramePreservesSystemInductiveInvariant state intermediate packed (by rfl)
         (joinedCarrierFactsFrame state intermediate facts.joinedCarriers
           (by rfl)
           (by
@@ -938,9 +935,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           (fun node => by rw [nodeStateEq node])
     rw [← successful.2.2]
     change SystemInductiveInvariant (joined := joinedNodes) after
-    apply networkFramePreservesSystemInductiveInvariant
-      intermediate after intermediateInvariant
-      (by simp [after, present, intermediate, present]) (fun _ => Iff.rfl) nodeStateEq
+    apply networkFramePreservesSystemInductiveInvariant intermediate after intermediateInvariant (by simp [after, present, intermediate, present]) nodeStateEq
       (fun destination message member =>
         Or.inl (networkSubsetAfter destination message member))
     · intro _ _ actualResponseHistory _ _ _ actualFacts leader index
@@ -1112,9 +1107,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           state intermediate rfl rfl termEq votesEq
       have intermediateInvariant :
           SystemInductiveInvariant (joined := joinedNodes) intermediate := by
-        apply roleAndNetworkFramePreservesSystemInductiveInvariant
-          state intermediate packed rfl
-          (fun _ => Iff.rfl)
+        apply roleAndNetworkFramePreservesSystemInductiveInvariant state intermediate packed rfl
           (joinedCarrierFactsFrame state intermediate facts.joinedCarriers rfl
             (by
               intro node configuration active
@@ -1298,9 +1291,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
             (fun node => by rw [nodeStateEq node])
             (fun node => by rw [nodeStateEq node])
       change SystemInductiveInvariant (joined := joinedNodes) after
-      apply networkFramePreservesSystemInductiveInvariant
-        intermediate after intermediateInvariant
-        (by simp [after, present, intermediate, present]) (fun _ => Iff.rfl) nodeStateEq
+      apply networkFramePreservesSystemInductiveInvariant intermediate after intermediateInvariant (by simp [after, present, intermediate, present]) nodeStateEq
         (fun destination message member =>
           Or.inl (networkSubsetAfter destination message member))
       · intro _ _ actualResponseHistory _ _ _ _ leader index
@@ -1338,8 +1329,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         intro node
         rfl
       change SystemInductiveInvariant (joined := joinedNodes) after
-      apply networkFramePreservesSystemInductiveInvariant
-        state after packed rfl (fun _ => Iff.rfl) fieldEq
+      apply networkFramePreservesSystemInductiveInvariant state after packed rfl fieldEq
         (fun queuedDestination message member =>
           Or.inl
             (updateQueueSubset queuedDestination message
