@@ -11,79 +11,72 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
+open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
+variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-attribute [local simp] Message.destination ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /-- Receiving a RequestVote request preserves the full arbitrary-term invariant. -/
 lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (source destination : Node)
-    (request : RequestVoteRequest Node)
-    (remaining : List (Message Node TxId))
+    {present : destination ∈ state.nodes.map Prod.fst}
+    (distinct : (state.nodes.map Prod.fst).Nodup)
+    (request : VoteRequestKey Node)
+    (remaining : List (Model.Envelope Node TxId))
     (nextNode : NodeState Node TxId)
-    (response : RequestVoteResponse Node)
-    (invariant : SystemInductiveInvariant state)
-    (_destinationAllocated : state.allocated destination)
+    (response : VoteResponseKey Node)
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
+    (_destinationAllocated : destination ∈ joinedNodes)
+    (addressed : request.2.1 = destination)
     (taken
-      : Selected source (state.network destination) (.requestVoteRequest request)
+      : Selected source state.network (voteRequestEnvelope request)
           remaining)
+    (responseSource : response.1 = request.2.1)
+    (responseDestination : response.2.1 = request.1)
     (handled
-      : handleRequestVoteRequest? (state.nodes destination) request
-        = some (nextNode, response))
-    : SystemInductiveInvariant
+      : handleRequestVoteRequest ((nodeOf state) destination) request.1 request.2.2
+        = (nextNode, response.2.2))
+    : SystemInductiveInvariant (joined := joinedNodes)
         {
           state with
-            nodes := updateNode state.nodes destination nextNode
+            nodes := replaceNode state.nodes destination nextNode
             network :=
               enqueue
-                (updateQueue state.network destination remaining)
-                (.requestVoteResponse response)
+                (remaining)
+                (voteResponseEnvelope response)
         } := by
-  let post := handleRequestVoteRequestLocalPost handled
-  let enqueued : View Node TxId :=
+  let post := handleRequestVoteRequestLocalPost responseSource responseDestination handled
+  let enqueued : Model.State Node TxId :=
     { state with
-      nodes := updateNode state.nodes destination nextNode
+      nodes := replaceNode state.nodes destination nextNode
       network :=
-        enqueue state.network (.requestVoteResponse response) }
-  let after : View Node TxId :=
+        enqueue state.network (voteResponseEnvelope response) }
+  let after : Model.State Node TxId :=
     { state with
-      nodes := updateNode state.nodes destination nextNode
+      nodes := replaceNode state.nodes destination nextNode
       network :=
         enqueue
-          (updateQueue state.network destination remaining)
-          (.requestVoteResponse response) }
-  have enqueuedInvariant : SystemInductiveInvariant enqueued := by
-    by_cases granted : response.voteGranted = true
+          (remaining)
+          (voteResponseEnvelope response) }
+  have enqueuedInvariant : SystemInductiveInvariant (joined := joinedNodes) enqueued := by
+    by_cases granted : response.2.2.voteGranted = true
     · simpa [enqueued]
-        using enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
+        using enqueueGrantedVoteResponsePreservesSystemInductiveInvariant (present := present)
           state source destination request nextNode response remaining
-          invariant taken handled granted
-    · have rejected : response.voteGranted = false := by
+          invariant addressed taken responseSource responseDestination handled granted
+    · have rejected : response.2.2.voteGranted = false := by
         exact Bool.eq_false_of_not_eq_true granted
       have nextEq := post.rejectedState rejected
       have nodesEq :
-          updateNode state.nodes destination nextNode = state.nodes := by
+          replaceNode state.nodes destination nextNode = state.nodes := by
         rw [nextEq]
-        exact (by simp [updateNode])
+        exact replaceNode_nodeOf state destination distinct
       simpa [enqueued, nodesEq]
         using enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
           state response invariant rejected
@@ -92,66 +85,59 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
             exact
               systemVoteRequestDestinationJoined
                 state invariant destination request
-                  (selectedSound taken).2.1)
+                  ⟨(selectedSound taken).2.1, addressed⟩)
           (by
             rw [post.responseTerm]
             exact invariantCurrentTermsValid invariant destination)
   have roleEq :
       forall node,
-        (after.nodes node).role = (enqueued.nodes node).role := by
+        ((nodeOf after) node).role = ((nodeOf enqueued) node).role := by
     intro node
     rfl
   have termEq :
       forall node,
-        (after.nodes node).currentTerm =
-          (enqueued.nodes node).currentTerm := by
+        ((nodeOf after) node).currentTerm =
+          ((nodeOf enqueued) node).currentTerm := by
     intro node
     rfl
   have logEq :
       forall node,
-        (after.nodes node).log = (enqueued.nodes node).log := by
+        ((nodeOf after) node).log = ((nodeOf enqueued) node).log := by
     intro node
     rfl
   have commitEq :
       forall node,
-        (after.nodes node).commitIndex =
-          (enqueued.nodes node).commitIndex := by
+        ((nodeOf after) node).commitIndex =
+          ((nodeOf enqueued) node).commitIndex := by
     intro node
     rfl
   have networkSubset :
       forall queuedDestination message,
-        message ∈ after.network queuedDestination ->
-          message ∈ enqueued.network queuedDestination := by
+        (message ∈ after.network /\ message.target = queuedDestination) ->
+          (message ∈ enqueued.network /\ message.target = queuedDestination) := by
     intro queuedDestination message member
     rcases
         memEnqueue
-          (updateQueue state.network destination remaining)
-          (.requestVoteResponse response)
+          (remaining)
+          (voteResponseEnvelope response)
           message queuedDestination
           (by simpa [after] using member) with
       old | new
     · have oldMember :
-          message ∈ state.network queuedDestination := by
-        by_cases same : queuedDestination = destination
-        · subst queuedDestination
-          have retained : message ∈ remaining := by simpa [updateQueue] using old
-          exact (selectedSound taken).2.2 message retained
-        · simpa [updateQueue, Function.update, same] using old
+          (message ∈ state.network /\ message.target = queuedDestination) := by
+        exact ⟨(selectedSound taken).2.2 _ old.1, old.2⟩
       simpa [enqueued]
         using memEnqueueNoDupOfMem
-          state.network (.requestVoteResponse response)
+          state.network (voteResponseEnvelope response)
           message queuedDestination oldMember
     · rcases new with ⟨destinationEq, messageEq⟩
       subst queuedDestination
       subst message
-      simpa [enqueued]
-        using memEnqueueNoDupSelf state.network (.requestVoteResponse response)
+      simp [enqueued, enqueue]
   have voteResponseEq :
       forall queuedDestination queuedResponse,
-        Message.requestVoteResponse queuedResponse ∈
-            after.network queuedDestination ↔
-          Message.requestVoteResponse queuedResponse ∈
-            enqueued.network queuedDestination := by
+        (voteResponseEnvelope queuedResponse ∈ after.network /\ queuedResponse.2.1 = queuedDestination) ↔
+          (voteResponseEnvelope queuedResponse ∈ enqueued.network /\ queuedResponse.2.1 = queuedDestination) := by
     intro queuedDestination queuedResponse
     constructor
     · intro member
@@ -163,19 +149,18 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
         old | new
       · simpa [enqueued]
           using memEnqueueNoDupOfMem
-            state.network (.requestVoteResponse response)
-            (.requestVoteResponse queuedResponse)
+            state.network (voteResponseEnvelope response)
+            (voteResponseEnvelope queuedResponse)
             queuedDestination old
       · rcases new with ⟨destinationEq, responseEq⟩
         subst queuedDestination
         subst queuedResponse
-        simpa [enqueued]
-          using memEnqueueNoDupSelf state.network (.requestVoteResponse response)
+        simp [enqueued, enqueue]
     · intro member
       rcases
           memEnqueue
-            state.network (.requestVoteResponse response)
-              (.requestVoteResponse queuedResponse)
+            state.network (voteResponseEnvelope response)
+              (voteResponseEnvelope queuedResponse)
               queuedDestination
               (by simpa [enqueued] using member) with
         old | new
@@ -183,18 +168,15 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
           using oldVoteResponseMemAfterVoteRequestReceive
             state.network source destination request response
             queuedResponse remaining taken queuedDestination old
-      · simp only [Message.requestVoteResponse.injEq] at new
+      · simp only [voteResponseEnvelope.injEq] at new
         rcases new with ⟨destinationEq, responseEq⟩
         subst queuedDestination
         subst queuedResponse
-        simpa [after]
-          using memEnqueueNoDupSelf
-            (updateQueue state.network destination remaining)
-            (.requestVoteResponse response)
+        simp [after, enqueue]
   have effectiveElectionVotersEq :
       forall candidate,
-        effectiveElectionVoters after candidate =
-          effectiveElectionVoters enqueued candidate := by
+        effectiveElectionVoters (joined := joinedNodes) after candidate =
+          effectiveElectionVoters (joined := joinedNodes) enqueued candidate := by
     intro candidate
     ext voter
     simp only [
@@ -234,10 +216,10 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
         ⟩
   have effectiveAckersEq :
       forall
-        (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+        (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
         leader index,
-        effectiveAckers after responseHistory leader index =
-          effectiveAckers enqueued responseHistory leader index := by
+        effectiveAckers (joined := joinedNodes) after responseHistory leader index =
+          effectiveAckers (joined := joinedNodes) enqueued responseHistory leader index := by
     intro responseHistory leader index
     ext peer
     simp only [
@@ -255,7 +237,7 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
             responseSource, responseDestination, lastIndex, covered⟩
         exact ⟨
           queuedResponse,
-          networkSubset leader (.appendEntriesResponse queuedResponse) member,
+          networkSubset leader (appendResponseEnvelope queuedResponse) member,
           success,
           responseTerm,
           responseSource,
@@ -274,24 +256,22 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
           ⟨queuedResponse, member, success, responseTerm,
             responseSource, responseDestination, lastIndex, covered⟩
         have oldMember :
-            Message.appendEntriesResponse queuedResponse ∈
-              state.network leader := by
+            (appendResponseEnvelope queuedResponse ∈ state.network /\ queuedResponse.2.1 = leader) := by
           rcases
               memEnqueue
-                state.network (.requestVoteResponse response)
-                  (.appendEntriesResponse queuedResponse)
+                state.network (voteResponseEnvelope response)
+                  (appendResponseEnvelope queuedResponse)
                   leader (by simpa [enqueued] using member) with
             old | new
           · exact old
           · simp at new
         have afterMember :
-            Message.appendEntriesResponse queuedResponse ∈
-              after.network leader := by
+            (appendResponseEnvelope queuedResponse ∈ after.network /\ queuedResponse.2.1 = leader) := by
           rw [show
             after.network =
               enqueue
-                (updateQueue state.network destination remaining)
-                (.requestVoteResponse response) by rfl]
+                (remaining)
+                (voteResponseEnvelope response) by rfl]
           exact (appendResponseMemAfterVoteRequestReceive
                   state.network source destination request response remaining
                   taken leader queuedResponse).mpr
@@ -306,7 +286,7 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
           lastIndex,
           covered
         ⟩
-  change SystemInductiveInvariant after
+  change SystemInductiveInvariant (joined := joinedNodes) after
   apply networkFramePreservesSystemInductiveInvariant
     enqueued after enqueuedInvariant
     (by simp [after, enqueued]) (fun _ => Iff.rfl)
