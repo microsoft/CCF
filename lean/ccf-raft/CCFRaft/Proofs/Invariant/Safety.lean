@@ -27,8 +27,8 @@ set_option linter.unusedSectionVars false
 # Safety from the invariant
 
 The invariant's commit evidence makes committed logs comparable, and its term
-ownership makes leaders unique per term. Both carry over from the view to the
-node states of a network state.
+ownership makes leaders unique per term. Both apply directly to the
+node table of the concrete state.
 -/
 
 namespace CCFRaft.Proofs.Invariant
@@ -36,48 +36,48 @@ namespace CCFRaft.Proofs.Invariant
 open Shared Shared.MultiNodeTransitionSystem
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId]
+variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable {joined : Finset Node}
 
 /-- No two distinct nodes lead in the same term. -/
-def ElectionSafety (state : View Node TxId) : Prop :=
+def ElectionSafety (state : Model.State Node TxId) : Prop :=
   forall left right,
-    (state.nodes left).role = .leader
-    -> (state.nodes right).role = .leader
-    -> (state.nodes left).currentTerm = (state.nodes right).currentTerm
+    ((nodeOf state) left).role = .leader
+    -> ((nodeOf state) right).role = .leader
+    -> ((nodeOf state) left).currentTerm = ((nodeOf state) right).currentTerm
     -> left = right
 
 /-- Any two node-local committed logs are prefix-comparable. -/
-def CommittedLogsPrefix (state : View Node TxId) : Prop :=
+def CommittedLogsPrefix (state : Model.State Node TxId) : Prop :=
   forall left right,
-    (state.nodes left).committedLog <+: (state.nodes right).committedLog
-    \/ (state.nodes right).committedLog <+: (state.nodes left).committedLog
+    ((nodeOf state) left).committedLog <+: ((nodeOf state) right).committedLog
+    \/ ((nodeOf state) right).committedLog <+: ((nodeOf state) left).committedLog
 
-variable [Bootstrap Node]
 
 lemma commitEvidenceCommittedLogsPrefix
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {nodeEvidence : NodeCommitEvidence Node TxId}
     {requestEvidence : RequestCommitEvidence Node TxId}
     {elections : ElectionHistory Node TxId}
     {activations : ActivationHistory Node TxId}
     (evidenceFacts : CommitEvidenceFacts state appendHistory nodeEvidence requestEvidence)
     (activationEvidence
-      : ActivationEvidenceFacts
+      : ActivationEvidenceFacts (joined := joined)
           state appendHistory responseHistory nodeEvidence requestEvidence
           elections activations)
     : CommittedLogsPrefix state := by
   intro left right
-  by_cases leftZero : (state.nodes left).commitIndex = 0
+  by_cases leftZero : ((nodeOf state) left).commitIndex = 0
   · left
     simp [NodeState.committedLog, leftZero]
-  by_cases rightZero : (state.nodes right).commitIndex = 0
+  by_cases rightZero : ((nodeOf state) right).commitIndex = 0
   · right
     simp [NodeState.committedLog, rightZero]
-  have leftPositive : 0 < (state.nodes left).commitIndex :=
+  have leftPositive : 0 < ((nodeOf state) left).commitIndex :=
     Nat.pos_of_ne_zero leftZero
-  have rightPositive : 0 < (state.nodes right).commitIndex :=
+  have rightPositive : 0 < ((nodeOf state) right).commitIndex :=
     Nat.pos_of_ne_zero rightZero
   rcases evidenceFacts.nodePositive left leftPositive with
     ⟨leftEvidence, leftStored, leftValid, _, _⟩
@@ -86,17 +86,17 @@ lemma commitEvidenceCommittedLogsPrefix
   have leftKnown :
       KnownCommitEvidence
         state appendHistory nodeEvidence requestEvidence
-          leftEvidence (state.nodes left).committedLog :=
+          leftEvidence ((nodeOf state) left).committedLog :=
     Or.inl ⟨left, leftPositive, leftStored, rfl⟩
   have rightKnown :
       KnownCommitEvidence
         state appendHistory nodeEvidence requestEvidence
-          rightEvidence (state.nodes right).committedLog :=
+          rightEvidence ((nodeOf state) right).committedLog :=
     Or.inl ⟨right, rightPositive, rightStored, rfl⟩
   rcases
       activationEvidence.supportedPrefixesComparable
-        leftEvidence (state.nodes left).committedLog leftKnown
-        rightEvidence (state.nodes right).committedLog rightKnown with
+        leftEvidence ((nodeOf state) left).committedLog leftKnown
+        rightEvidence ((nodeOf state) right).committedLog rightKnown with
     leftBefore | rightBefore
   · exact Or.inl (by
       rw [← leftValid.2.2.2.1, ← rightValid.2.2.2.1]
@@ -106,15 +106,15 @@ lemma commitEvidenceCommittedLogsPrefix
       exact rightBefore)
 
 lemma invariantFactsCommittedLogsPrefixFromActivation
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
-    {voteRequestHistory : RequestVoteRequest Node -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
+    {voteRequestHistory : VoteRequestKey Node -> List (Entry Node TxId)}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
     (facts
-      : InvariantFacts
+      : InvariantFacts (joined := joined)
           state votes appendHistory responseHistory voteRequestHistory
           voteCandidateHistory voteVoterHistory)
     : CommittedLogsPrefix state := by
@@ -134,15 +134,15 @@ lemma invariantFactsCommittedLogsPrefixFromActivation
       evidenceFacts activationEvidence
 
 lemma invariantFactsElectionSafetyFromOwnership
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
-    {voteRequestHistory : RequestVoteRequest Node -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
+    {voteRequestHistory : VoteRequestKey Node -> List (Entry Node TxId)}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
     (facts
-      : InvariantFacts
+      : InvariantFacts (joined := joined)
           state votes appendHistory responseHistory voteRequestHistory
           voteCandidateHistory voteVoterHistory)
     : ElectionSafety state := by
@@ -155,23 +155,17 @@ lemma invariantFactsElectionSafetyFromOwnership
   rw [sameTerm] at leftOwned
   exact Option.some.inj (leftOwned.symm.trans rightOwned)
 
-theorem systemInductiveInvariant_electionSafety {state : View Node TxId}
-    (invariant : SystemInductiveInvariant state)
+theorem systemInductiveInvariant_electionSafety {state : Model.State Node TxId}
+    (invariant : SystemInductiveInvariant (joined := joined) state)
     : ElectionSafety state := by
   obtain ⟨_, _, _, _, _, _, facts⟩ := invariant
   exact invariantFactsElectionSafetyFromOwnership facts
 
-theorem systemInductiveInvariant_committedLogsPrefix {state : View Node TxId}
-    (invariant : SystemInductiveInvariant state)
+theorem systemInductiveInvariant_committedLogsPrefix {state : Model.State Node TxId}
+    (invariant : SystemInductiveInvariant (joined := joined) state)
     : CommittedLogsPrefix state := by
   obtain ⟨_, _, _, _, _, _, facts⟩ := invariant
   exact invariantFactsCommittedLogsPrefixFromActivation facts
-
-theorem view_nodes_of_mem {state : Model.State Node TxId} {joined : Finset Node}
-    {node : Node} {local_ : NodeState Node TxId}
-    (distinct : (state.nodes.map Prod.fst).Nodup) (member : (node, local_) ∈ state.nodes)
-    : (view state joined).nodes node = local_ := by
-  simp [view, Direct.nodeState_of_mem distinct member]
 
 /-- Two leaders of one term in a network state satisfying `Inv` are the same node. -/
 theorem inv_electionSafety {state : Model.State Node TxId} (inv : Inv state)
@@ -183,8 +177,8 @@ theorem inv_electionSafety {state : Model.State Node TxId} (inv : Inv state)
     (sameTerm : leftState.currentTerm = rightState.currentTerm)
     : left = right := by
   obtain ⟨joined, invariant⟩ := inv
-  have leftEq := view_nodes_of_mem (joined := joined) distinct leftMember
-  have rightEq := view_nodes_of_mem (joined := joined) distinct rightMember
+  have leftEq := nodeOf_of_mem distinct leftMember
+  have rightEq := nodeOf_of_mem distinct rightMember
   exact systemInductiveInvariant_electionSafety invariant.safety left right
     (by rw [leftEq]; exact leftLeader)
     (by rw [rightEq]; exact rightLeader)
@@ -200,6 +194,6 @@ theorem inv_committedLogsPrefix {state : Model.State Node TxId} (inv : Inv state
       \/ rightState.committedLog <+: leftState.committedLog := by
   obtain ⟨joined, invariant⟩ := inv
   have := systemInductiveInvariant_committedLogsPrefix invariant.safety left right
-  rwa [view_nodes_of_mem distinct leftMember, view_nodes_of_mem distinct rightMember] at this
+  rwa [nodeOf_of_mem distinct leftMember, nodeOf_of_mem distinct rightMember] at this
 
 end CCFRaft.Proofs.Invariant
