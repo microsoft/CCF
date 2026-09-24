@@ -160,9 +160,10 @@ def recover_with_primary_dying(args, recovered_network):
     # that write had not replicated, the new leader rolls it back and opens the
     # service itself. In every case the service ends up open and every survivor
     # healthy. A second committed opening would be fatal to the node attempting
-    # it, since opening requires the service to still be waiting for shares.
-    # (That guard, and that a node which is not primary refuses to open, are
-    # unit-tested in open_recovered_service_test.)
+    # it, since opening requires the service to still be waiting for shares
+    # (that guard is unit-tested in open_service_test; the check
+    # that only the primary attempts to open lives in NodeState and is
+    # exercised here).
     recovered_network.consortium.activate(recovered_network.find_random_node())
     recovered_network.consortium.check_for_service(
         recovered_network.find_random_node(),

@@ -370,7 +370,7 @@ set(
   WORKER_THREADS
   1
   CACHE STRING
-  "Number of worker threads to start on each CCF node"
+  "Configured worker_threads value; each CCF node starts one additional worker"
 )
 
 set(
@@ -907,11 +907,11 @@ if(BUILD_TESTS)
       PRIVATE http_parser ccf_kv ccf_endpoints ccf_tasks
     )
     add_unit_test(
-      open_recovered_service_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/open_recovered_service.cpp
+      open_service_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/open_service.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/local_sealing.cpp
     )
-    target_link_libraries(open_recovered_service_test PRIVATE ccf_kv)
+    target_link_libraries(open_service_test PRIVATE ccf_kv)
     add_unit_test(
       network_identity_subsystem_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/network_identity_subsystem.cpp

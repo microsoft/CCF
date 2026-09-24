@@ -43,7 +43,7 @@
 #include "node/local_sealing.h"
 #include "node/node_inbound_message.h"
 #include "node/node_to_node_channel_manager.h"
-#include "node/open_recovered_service.h"
+#include "node/open_service.h"
 #include "node/pending_node_cleanup.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
@@ -80,6 +80,7 @@
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
+#include <tuple>
 #include <unordered_set>
 #include <vector>
 
@@ -2449,13 +2450,7 @@ namespace ccf
 
     void trigger_snapshot(ccf::kv::Tx& tx) override
     {
-      auto* committable_tx = dynamic_cast<ccf::kv::CommittableTx*>(&tx);
-      if (committable_tx == nullptr)
-      {
-        throw std::logic_error("Could not cast tx to CommittableTx");
-      }
-      committable_tx->set_tx_flag(
-        ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      ccf::trigger_snapshot(tx);
     }
 
     void transition_service_to_open(
@@ -2581,18 +2576,16 @@ namespace ccf
         // member.
         try
         {
-          share_manager.issue_recovery_shares(tx);
+          // Failure to open or endorse has already been logged, and is not
+          // treated as fatal to the governance action which requested it.
+          std::ignore = ccf::open_service(
+            tx, share_manager, *network.identity->get_key_pair());
         }
         catch (const std::logic_error& e)
         {
           throw std::logic_error(
             fmt::format("Failed to issue recovery shares: {}", e.what()));
         }
-
-        InternalTablesAccess::open_service(tx);
-        InternalTablesAccess::endorse_previous_identity(
-          tx, *network.identity->get_key_pair());
-        trigger_snapshot(tx);
         return;
       }
 

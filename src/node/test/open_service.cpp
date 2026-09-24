@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "node/open_recovered_service.h"
+#include "node/open_service.h"
 
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/service/tables/members.h"
@@ -86,6 +86,42 @@ namespace
   }
 }
 
+TEST_CASE("Opening a service on creation")
+{
+  // The path taken when a freshly created service is transitioned to open:
+  // no submitted shares to clear, and no at-most-once guard beyond the
+  // status check in InternalTablesAccess::open_service.
+  auto ts = make_recovering_state(ccf::ServiceStatus::OPENING);
+  ccf::ShareManager share_manager(ts.ledger_secrets);
+
+  auto tx = ts.store->create_tx();
+  REQUIRE(ccf::open_service(tx, share_manager, *ts.service_key));
+  REQUIRE(tx.tx_flag_enabled(
+    ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+  auto ro = ts.store->create_read_only_tx();
+  const auto service = ro.ro<ccf::Service>(ccf::Tables::SERVICE)->get();
+  REQUIRE(service.has_value());
+  REQUIRE(service->status == ccf::ServiceStatus::OPEN);
+  REQUIRE(ro.ro<ccf::RecoveryShares>(ccf::Tables::SHARES)->has());
+  REQUIRE(ro.ro<ccf::PreviousServiceIdentityEndorsement>(
+              ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+            ->has(ccf::IdentityType::CLASSICAL));
+}
+
+TEST_CASE("Opening a service reports an unopenable status")
+{
+  // A status which InternalTablesAccess::open_service rejects is reported as
+  // failure rather than thrown, so that service creation can decide how to
+  // treat it. It is already logged.
+  auto ts = make_recovering_state(ccf::ServiceStatus::RECOVERING);
+  ccf::ShareManager share_manager(ts.ledger_secrets);
+
+  auto tx = ts.store->create_tx();
+  REQUIRE_FALSE(ccf::open_service(tx, share_manager, *ts.service_key));
+}
+
 TEST_CASE("Opening a recovered service")
 {
   auto ts =
@@ -94,6 +130,11 @@ TEST_CASE("Opening a recovered service")
 
   auto tx = ts.store->create_tx();
   ccf::open_recovered_service(tx, share_manager, *ts.service_key);
+
+  INFO("A snapshot is requested at the next signature");
+  REQUIRE(tx.tx_flag_enabled(
+    ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+
   REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
   auto ro = ts.store->create_read_only_tx();
