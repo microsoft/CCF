@@ -1,17 +1,18 @@
-import DisasterRecovery.Protocol.Committed
+import DisasterRecovery.Proofs.Predicates
 import DisasterRecovery.Proofs.Quorum
+import DisasterRecovery.Properties.Utils
 import Mathlib.Tactic
 
 /-!
 Machine-checked proof implementations. Review the system-level statements in
-`DisasterRecovery.Properties` and assumptions in `DisasterRecovery.Protocol.Committed`.
+`DisasterRecovery.Properties` and ghost predicates in `DisasterRecovery.Proofs.Predicates`.
 -/
 
 namespace DisasterRecovery.Proofs.Committed
 
-open Protocol
-open Model hiding Config
-open Global Protocol.Invariants Protocol.Quorum Protocol.Committed
+open Execution
+open Execution.Local hiding Config
+open Execution.Global Predicates
 open DisasterRecovery.Proofs.Invariants DisasterRecovery.Proofs.Quorum
 
 lemma prefix_refl (txid : TxID) : TxID.EarlierThan txid txid := by
@@ -104,8 +105,7 @@ lemma maximumGossip_upper_bound
       apply foldl_selectMaximum_upper_bound head member tail
       simpa using membership
 
-lemma foldl_selectMaximum_mem
-    (current : Prod Location TxID)
+lemma foldl_selectMaximum_mem (current : Prod Location TxID)
     (tail : List (Prod Location TxID))
     : tail.foldl selectMaximum current ∈ current :: tail := by
   induction tail generalizing current with
@@ -167,6 +167,61 @@ lemma recoveredTxID_of_mem
         eq_of_key_eq keysNodup foundMember membership foundLocation
       simp [same]
 
+lemma mem_of_recoveredTxID
+    {config : Config} {location : Location} {txid : TxID}
+    (recovered : recoveredTxID config location = some txid)
+    : (location, txid) ∈ config.recovered := by
+  obtain ⟨entry, found, value⟩ := Option.map_eq_some_iff.mp recovered
+  have key := beq_iff_eq.mp
+    (List.find?_some (p := fun entry : Location × TxID => entry.1 == location) found)
+  have same : entry = (location, txid) := Prod.ext key value
+  rw [← same]
+  exact List.mem_of_find?_eq_some found
+
+lemma up_to_date_with_quorum_of_voters
+    {config : Config} {candidate : TxID} {voters : List Location}
+    (nodup : voters.Nodup)
+    (threshold : voteQuorum config.protocol <= voters.length)
+    (fresh
+      : forall voter,
+          voter ∈ voters
+          -> exists txid,
+              recoveredTxID config voter = some txid /\ TxID.EarlierThan txid candidate)
+    : Properties.UpToDateWithQuorum config candidate := by
+  let eligible := config.recovered.filter fun (_, voter) =>
+    decide (Properties.LogUpToDate candidate voter)
+  have subset : voters.toFinset ⊆ (eligible.map Prod.fst).toFinset := by
+    intro voter member
+    obtain ⟨txid, recovered, earlier⟩ := fresh voter (List.mem_toFinset.mp member)
+    apply List.mem_toFinset.mpr
+    apply List.mem_map.mpr
+    refine ⟨(voter, txid), List.mem_filter.mpr ⟨mem_of_recoveredTxID recovered, ?_⟩, rfl⟩
+    exact decide_eq_true earlier
+  have count := Finset.card_le_card subset
+  rw [List.toFinset_card_of_nodup nodup] at count
+  have bound := List.toFinset_card_le (eligible.map Prod.fst)
+  rw [List.length_map] at bound
+  exact threshold.trans (count.trans bound)
+
+lemma up_to_date_with_quorum_of_all
+    {config : Config} {candidate : TxID}
+    (valid : config.Valid)
+    (fresh : forall entry, entry ∈ config.recovered -> TxID.EarlierThan entry.2 candidate)
+    : Properties.UpToDateWithQuorum config candidate := by
+  apply up_to_date_with_quorum_of_voters valid.2.1
+  · have nonempty : config.protocol.expectedLocations ≠ [] := by
+      intro empty
+      have configured := valid.1
+      simp [Model.Local.Config.isValid, empty] at configured
+    have positive := List.length_pos_iff.mpr nonempty
+    unfold voteQuorum
+    omega
+  · intro voter member
+    rw [← valid.2.2] at member
+    obtain ⟨entry, present, key⟩ := List.mem_map.mp member
+    subst voter
+    exact ⟨entry.2, recoveredTxID_of_mem valid present, fresh entry present⟩
+
 lemma full_gossip_selection_preserves_commit
     {config : Config}
     {state : State}
@@ -208,25 +263,5 @@ lemma full_gossip_selection_preserves_commit
     recoveredTxID_of_mem configValid selectedRecovered,
     prefix_trans committedDurable durableMaximum
   ⟩
-
-/--
-Quorum opening scopes the result to an actual decision, while the separate
-`FullGossipSelection` premise carries the completeness requirement. Quorum
-opening alone does not imply complete gossip because voting may follow a
-gossip timeout.
--/
-lemma quorum_open_preserves_commit
-    {config : Config}
-    {state : State}
-    {opener : Location}
-    {committed : TxID}
-    (reachable : Reachable config state)
-    (_opened : QuorumOpened state opener)
-    (full : FullGossipSelection config state opener)
-    (durable : DurableCommit config committed)
-    : exists recovered,
-        recoveredTxID config opener = some recovered
-        /\ TxID.EarlierThan committed recovered :=
-  full_gossip_selection_preserves_commit reachable full durable
 
 end DisasterRecovery.Proofs.Committed
