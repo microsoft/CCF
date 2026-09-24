@@ -5,12 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.18]
+
+[7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
+
+### Removed
+
+- Nodes no longer accept forwarded RPC requests and responses in the legacy v1 and v2 wire formats. All supported releases have emitted the v3 format since 4.0, so mixed-version networks are unaffected (#8426).
+
 ## [7.0.17]
 
 [7.0.17]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.17
 
 ### Added
 
+- Native CCF applications can now be written in Rust through a minimal, experimental API for registering endpoints and accessing raw-byte KV maps. Unsupported endpoint error status codes are emitted as HTTP 500 responses, panic messages from application callbacks are not written to node output, and applications link against CCF's prebuilt Rust components without rebuilding their dependencies (#8200).
 - ML-DSA-44/65/87 key-pair and public-key APIs for key generation, PKCS#8/SPKI PEM and DER import/export, and pure ML-DSA signing and verification with optional context strings. These APIs are compiled only with OpenSSL 3.5 or newer (#8378).
 
 ### Changed

@@ -152,38 +152,6 @@ namespace asynchost
       return port;
     }
 
-    [[nodiscard]] std::string get_peer_name() const
-    {
-      sockaddr_storage sa = {};
-      int name_len = sizeof(sa);
-      if (
-        uv_tcp_getpeername(
-          &uv_handle, reinterpret_cast<sockaddr*>(&sa), &name_len) < 0)
-      {
-        LOG_FAIL_FMT("uv_tcp_getpeername failed");
-        return "";
-      }
-      switch (sa.ss_family)
-      {
-        case AF_INET:
-        {
-          char tmp[INET_ADDRSTRLEN];
-          auto* sa4 = reinterpret_cast<sockaddr_in*>(&sa);
-          uv_ip4_name(sa4, tmp, sizeof(tmp));
-          return tmp;
-        }
-        case AF_INET6:
-        {
-          char tmp[INET6_ADDRSTRLEN];
-          auto* sa6 = reinterpret_cast<sockaddr_in6*>(&sa);
-          uv_ip6_name(sa6, tmp, sizeof(tmp));
-          return tmp;
-        }
-        default:
-          return fmt::format("unknown family: {}", sa.ss_family);
-      }
-    }
-
     [[nodiscard]] std::optional<std::string> get_listen_name() const
     {
       return listen_name;
@@ -287,65 +255,6 @@ namespace asynchost
       return true;
     }
 
-    bool reconnect()
-    {
-      switch (status)
-      {
-        case FRESH:
-        case BINDING:
-        case LISTENING_RESOLVING:
-        case LISTENING:
-        case CONNECTING_RESOLVING:
-        case CONNECTING:
-        case CONNECTED:
-        case LISTENING_FAILED:
-        case RECONNECTING:
-        {
-          LOG_DEBUG_FMT(
-            "Unexpected status during reconnect, ignoring: {}", status);
-          break;
-        }
-        case BINDING_FAILED:
-        {
-          // Try again, from the start.
-          LOG_DEBUG_FMT("Reconnect from initial state");
-          assert_status(BINDING_FAILED, BINDING);
-          return connect(host, port, client_host);
-        }
-        case RESOLVING_FAILED:
-        case CONNECTING_FAILED:
-        {
-          // Try again, starting with DNS.
-          LOG_DEBUG_FMT("Reconnect from DNS");
-          status = CONNECTING_RESOLVING;
-          return resolve(host, port, true);
-        }
-
-        case DISCONNECTED:
-        {
-          // It's possible there was a request to close the uv_handle in the
-          // meanwhile; in that case we abort the reconnection attempt.
-          if (uv_is_closing(reinterpret_cast<uv_handle_t*>(&uv_handle)) == 0)
-          {
-            // Close and reset the uv_handle before trying again with the same
-            // addr_current that succeeded previously.
-            LOG_DEBUG_FMT("Reconnect from resolved address");
-            status = RECONNECTING;
-            uv_close(reinterpret_cast<uv_handle_t*>(&uv_handle), on_reconnect);
-          }
-          return true;
-        }
-
-        default:
-        {
-          throw std::logic_error(
-            fmt::format("Unexpected status during reconnect: {}", status));
-        }
-      }
-
-      return false;
-    }
-
     bool listen(
       const std::string& host_,
       const std::string& port_,
@@ -370,13 +279,12 @@ namespace asynchost
       switch (status)
       {
         case BINDING:
-        case BINDING_FAILED:
         case CONNECTING_RESOLVING:
         case CONNECTING:
-        case RESOLVING_FAILED:
-        case CONNECTING_FAILED:
         case RECONNECTING:
         {
+          // The connection attempt is still in progress: queue the write and
+          // deliver it if/when the connection succeeds.
           pending_writes.emplace_back(req, len, sockaddr{}, free_write);
           break;
         }
@@ -386,11 +294,19 @@ namespace asynchost
           return send_write(req, len);
         }
 
+        case BINDING_FAILED:
+        case RESOLVING_FAILED:
+        case CONNECTING_FAILED:
         case DISCONNECTED:
         {
-          LOG_DEBUG_FMT("Disconnected: Ignoring write of size {}", len);
+          // These are terminal states: with reconnect() removed (dead code,
+          // no callers since #2801), nothing will ever flush a write queued
+          // here, so queuing it would just leak it. Discard it and report
+          // failure instead.
+          LOG_DEBUG_FMT(
+            "Ignoring write of size {} in terminal status {}", len, status);
           free_write(req);
-          break;
+          return false;
         }
 
         case FRESH:
@@ -1064,34 +980,6 @@ namespace asynchost
       auto* copy = static_cast<char*>(req->data);
       delete[] copy; // NOLINT(cppcoreguidelines-owning-memory)
       delete req; // NOLINT(cppcoreguidelines-owning-memory)
-    }
-
-    static void on_reconnect(uv_handle_t* handle)
-    {
-      static_cast<TCPImpl*>(handle->data)->on_reconnect();
-    }
-
-    void on_reconnect()
-    {
-      assert_status(RECONNECTING, FRESH);
-
-      if (!init())
-      {
-        assert_status(FRESH, CONNECTING_FAILED);
-        behaviour->on_connect_failed();
-        return;
-      }
-
-      if (client_addr_base != nullptr)
-      {
-        assert_status(FRESH, BINDING);
-        client_bind();
-      }
-      else
-      {
-        assert_status(FRESH, CONNECTING_RESOLVING);
-        connect_resolved();
-      }
     }
   };
 
