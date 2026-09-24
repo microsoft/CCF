@@ -11,41 +11,29 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
+open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
+variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-attribute [local simp] Message.destination ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /-- Enqueuing a rejected vote response is inert for all safety evidence. -/
 lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
-    (state : View Node TxId)
-    (response : RequestVoteResponse Node)
-    (invariant : SystemInductiveInvariant state)
-    (rejected : response.voteGranted = false)
-    (responseSourceJoined : response.source ∈ state.hasJoined)
-    (responseTermValid : TermNumberValid response.term)
-    : SystemInductiveInvariant
+    (state : Model.State Node TxId)
+    (response : VoteResponseKey Node)
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
+    (rejected : response.2.2.voteGranted = false)
+    (responseSourceJoined : response.1 ∈ joinedNodes)
+    (responseTermValid : TermNumberValid response.2.2.term)
+    : SystemInductiveInvariant (joined := joinedNodes)
         {
           state with
             network :=
-              enqueue state.network (.requestVoteResponse response)
+              enqueue state.network (voteResponseEnvelope response)
         } := by
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
@@ -61,22 +49,21 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
       evidenceFacts, prospectiveFacts, activationEvidence,
       activationCanonical, activationElections, configurationActivations⟩
   rcases facts.processedAckHistory with ⟨ackHistory, ackFacts⟩
-  let after : View Node TxId :=
+  let after : Model.State Node TxId :=
     { state with
       network :=
-        enqueue state.network (.requestVoteResponse response) }
+        enqueue state.network (voteResponseEnvelope response) }
   have appendRequestEq :
       forall destination request,
-        Message.appendEntriesRequest request ∈ after.network destination ↔
-          Message.appendEntriesRequest request ∈
-            state.network destination := by
+        (appendRequestEnvelope request ∈ after.network /\ request.2.1 = destination) ↔
+          (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination) := by
     intro destination request
     constructor
     · intro member
       rcases
           memEnqueue
-            state.network (.requestVoteResponse response)
-              (.appendEntriesRequest request) destination
+            state.network (voteResponseEnvelope response)
+              (appendRequestEnvelope request) destination
               (by simpa [after] using member) with
         old | new
       · exact old
@@ -84,21 +71,19 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
     · intro member
       simpa [after]
         using memEnqueueNoDupOfMem
-          state.network (.requestVoteResponse response)
-          (.appendEntriesRequest request) destination member
+          state.network (voteResponseEnvelope response)
+          (appendRequestEnvelope request) destination member
   have appendResponseEq :
       forall destination queuedResponse,
-        Message.appendEntriesResponse queuedResponse ∈
-            after.network destination ↔
-          Message.appendEntriesResponse queuedResponse ∈
-            state.network destination := by
+        (appendResponseEnvelope queuedResponse ∈ after.network /\ queuedResponse.2.1 = destination) ↔
+          (appendResponseEnvelope queuedResponse ∈ state.network /\ queuedResponse.2.1 = destination) := by
     intro destination queuedResponse
     constructor
     · intro member
       rcases
           memEnqueue
-            state.network (.requestVoteResponse response)
-              (.appendEntriesResponse queuedResponse) destination
+            state.network (voteResponseEnvelope response)
+              (appendResponseEnvelope queuedResponse) destination
               (by simpa [after] using member) with
         old | new
       · exact old
@@ -106,12 +91,12 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
     · intro member
       simpa [after]
         using memEnqueueNoDupOfMem
-          state.network (.requestVoteResponse response)
-          (.appendEntriesResponse queuedResponse) destination member
+          state.network (voteResponseEnvelope response)
+          (appendResponseEnvelope queuedResponse) destination member
   have effectiveAckersEq :
       forall leader index,
-        effectiveAckers after responseHistory leader index =
-          effectiveAckers state responseHistory leader index := by
+        effectiveAckers (joined := joinedNodes) after responseHistory leader index =
+          effectiveAckers (joined := joinedNodes) state responseHistory leader index := by
     intro leader index
     ext peer
     simp only [
@@ -154,8 +139,8 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
       ⟩
   have effectiveElectionVotersEq :
       forall candidate,
-        effectiveElectionVoters after candidate =
-          effectiveElectionVoters state candidate := by
+        effectiveElectionVoters (joined := joinedNodes) after candidate =
+          effectiveElectionVoters (joined := joinedNodes) state candidate := by
     intro candidate
     ext voter
     simp only [
@@ -170,8 +155,8 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
             responseSource, responseDestination⟩
         rcases
             memEnqueue
-              state.network (.requestVoteResponse response)
-                (.requestVoteResponse queuedResponse) candidate
+              state.network (voteResponseEnvelope response)
+                (voteResponseEnvelope queuedResponse) candidate
                 (by simpa [after] using member) with
           old | new
         · exact ⟨
@@ -182,7 +167,7 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
             responseSource,
             responseDestination
           ⟩
-        · simp only [Message.requestVoteResponse.injEq] at new
+        · simp only [voteResponseEnvelope.injEq] at new
           have same : queuedResponse = response := new.2
           subst queuedResponse
           rw [rejected] at granted
@@ -198,8 +183,8 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
           by
             simpa [after]
               using memEnqueueNoDupOfMem
-                state.network (.requestVoteResponse response)
-                (.requestVoteResponse queuedResponse)
+                state.network (voteResponseEnvelope response)
+                (voteResponseEnvelope queuedResponse)
                 candidate member,
           granted,
           responseTerm,
@@ -208,22 +193,24 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
         ⟩
   have effectiveMajorityEq :
       forall leader index,
-        hasEffectiveMajorityAt after responseHistory leader index ↔
-          hasEffectiveMajorityAt state responseHistory leader index := by
+        hasEffectiveMajorityAt (joined := joinedNodes) after responseHistory leader index ↔
+          hasEffectiveMajorityAt (joined := joinedNodes) state responseHistory leader index := by
     intro leader index
     unfold hasEffectiveMajorityAt
     rw [effectiveAckersEq]
+    rfl
   have effectiveElectionMajorityEq :
       forall candidate,
-        hasEffectiveElectionMajority after candidate ↔
-          hasEffectiveElectionMajority state candidate := by
+        hasEffectiveElectionMajority (joined := joinedNodes) after candidate ↔
+          hasEffectiveElectionMajority (joined := joinedNodes) state candidate := by
     intro candidate
     unfold hasEffectiveElectionMajority
     rw [effectiveElectionVotersEq]
+    rfl
   have potentialElectionVotersEq :
       forall candidate,
-        potentialElectionVoters after candidate =
-          potentialElectionVoters state candidate := by
+        potentialElectionVoters (joined := joinedNodes) after candidate =
+          potentialElectionVoters (joined := joinedNodes) state candidate := by
     intro candidate
     ext voter
     simp only [
@@ -231,18 +218,19 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
       effectiveElectionVotersEq
     ]
     apply and_congr (by simp [after])
-    change (voter ∈ effectiveElectionVoters state candidate
+    change (voter ∈ effectiveElectionVoters (joined := joinedNodes) state candidate
             \/ currentlyEligibleElectionVoter state candidate voter)
-    ↔ (voter ∈ effectiveElectionVoters state candidate
+    ↔ (voter ∈ effectiveElectionVoters (joined := joinedNodes) state candidate
         \/ currentlyEligibleElectionVoter state candidate voter)
     rfl
   have potentialElectionMajorityEq :
       forall candidate,
-        hasPotentialElectionMajority after candidate ↔
-          hasPotentialElectionMajority state candidate := by
+        hasPotentialElectionMajority (joined := joinedNodes) after candidate ↔
+          hasPotentialElectionMajority (joined := joinedNodes) state candidate := by
     intro candidate
     unfold hasPotentialElectionMajority
     rw [potentialElectionVotersEq]
+    rfl
   have queuedAppendReserveEq :
       forall leader peer index,
         queuedAppendReserve after appendHistory leader peer index ↔
@@ -273,8 +261,8 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
       ⟩
   have potentialAckersEq :
       forall leader index,
-        potentialAckers after appendHistory responseHistory leader index =
-          potentialAckers
+        potentialAckers (joined := joinedNodes) after appendHistory responseHistory leader index =
+          potentialAckers (joined := joinedNodes)
             state appendHistory responseHistory leader index := by
     intro leader index
     ext peer
@@ -282,16 +270,16 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
       potentialAckers, Finset.mem_filter,
       effectiveAckersEq, queuedAppendReserveEq
     ]
-    simp [after]
   have potentialMajorityEq :
       forall leader index,
-        hasPotentialMajorityAt
+        hasPotentialMajorityAt (joined := joinedNodes)
             after appendHistory responseHistory leader index ↔
-          hasPotentialMajorityAt
+          hasPotentialMajorityAt (joined := joinedNodes)
             state appendHistory responseHistory leader index := by
     intro leader index
     unfold hasPotentialMajorityAt
     rw [potentialAckersEq]
+    rfl
   have temporalFacts :=
     ackerTemporalFrameSameLogs
       state after votes votes responseHistory voteVoterHistory elections
@@ -305,7 +293,7 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
         (fun node => Nat.le_of_eq (by simp [after]))
         (fun _ _ _ voted _ => voted)
   have ackerActivationAfter :
-      AckerActivationHistory
+      AckerActivationHistory (joined := joinedNodes)
         after responseHistory elections activations := by
     apply
       ackerActivationFrameSameLogs
@@ -355,12 +343,12 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
     · intro destination message member
       rcases
           memEnqueue
-            state.network (.requestVoteResponse response)
+            state.network (voteResponseEnvelope response)
               message destination
               (by simpa [after] using member) with
         old | new
       · exact facts.networkHistory.addressed destination message old
-      · exact (congrArg Message.destination new.2).trans new.1.symm
+      · exact (congrArg Shared.Envelope.target new.2).trans new.1.symm
     · intro destination request member
       exact
         facts.networkHistory.appendRequest
@@ -373,8 +361,8 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
     · intro destination request member
       rcases
           memEnqueue
-            state.network (.requestVoteResponse response)
-              (.requestVoteRequest request) destination
+            state.network (voteResponseEnvelope response)
+              (voteRequestEnvelope request) destination
               (by simpa [after] using member) with
         old | new
       · exact facts.networkHistory.voteRequest destination request old
@@ -382,14 +370,14 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
     · intro destination queuedResponse member granted
       rcases
           memEnqueue
-            state.network (.requestVoteResponse response)
-              (.requestVoteResponse queuedResponse) destination
+            state.network (voteResponseEnvelope response)
+              (voteResponseEnvelope queuedResponse) destination
               (by simpa [after] using member) with
         old | new
       · exact
           facts.networkHistory.voteResponse
             destination queuedResponse old granted
-      · simp only [Message.requestVoteResponse.injEq] at new
+      · simp only [voteResponseEnvelope.injEq] at new
         have same : queuedResponse = response := new.2
         rw [same, rejected] at granted
         contradiction
@@ -406,7 +394,7 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
     · intro destination request member
       exact (appendRequestEq destination request).mp member
   have prospectiveAfter :
-      ProspectiveCommitEvidenceFacts
+      ProspectiveCommitEvidenceFacts (joined := joinedNodes)
         after appendHistory nodeEvidence requestEvidence elections := by
     apply
       prospectiveCommitEvidenceFrame
@@ -422,7 +410,7 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
               (appendRequestEq destination request).mp member)
             known
     · intro member
-      exact prefixRefl (state.nodes member).log
+      exact prefixRefl ((nodeOf state) member).log
     · intro evidence supportedPrefix destination request known
         queued sameTerm
       exact Or.inl
@@ -430,7 +418,7 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
     · intro evidence supportedPrefix candidate member known role newer
         entriesBefore ackMember relaxed
       have oldRelaxed :
-          member ∈ relaxedElectionVoters state candidate := by
+          member ∈ relaxedElectionVoters (joined := joinedNodes) state candidate := by
         simp only [
           relaxedElectionVoters, Finset.mem_filter] at relaxed ⊢
         rcases relaxed with ⟨joined, effective | eligible⟩
@@ -445,9 +433,9 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
       exact Or.inl
         ⟨role, newer, entriesBefore,
           oldRelaxed,
-          prefixRefl (state.nodes candidate).log⟩
+          prefixRefl ((nodeOf state) candidate).log⟩
   have configurationFactsAfter :
-      ElectionConfigurationFacts after elections activations := by
+      ElectionConfigurationFacts (joined := joinedNodes) after elections activations := by
     apply
       electionConfigurationFrame
         state after elections activations activations configurationFacts
@@ -479,7 +467,7 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
           entry
           (by simpa [after] using member)
   have activationQuorumsAfter :
-      ActivationQuorumFacts
+      ActivationQuorumFacts (joined := joinedNodes)
         after appendHistory responseHistory elections activations := by
     constructor
     · exact activationQuorums.history
@@ -562,7 +550,7 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
     intro node
     simp [after]
   have activationEvidenceAfter :
-      ActivationEvidenceFacts
+      ActivationEvidenceFacts (joined := joinedNodes)
         after appendHistory responseHistory nodeEvidence requestEvidence
           elections activations := by
     apply
@@ -689,8 +677,8 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
     · intro destination request member
       rcases
           memEnqueue
-            state.network (.requestVoteResponse response)
-              (.requestVoteRequest request) destination
+            state.network (voteResponseEnvelope response)
+              (voteRequestEnvelope request) destination
               (by simpa [after] using member) with
         old | new
       · exact
@@ -700,8 +688,8 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
     · intro destination request member
       rcases
           memEnqueue
-            state.network (.requestVoteResponse response)
-              (.appendEntriesRequest request) destination
+            state.network (voteResponseEnvelope response)
+              (appendRequestEnvelope request) destination
               (by simpa [after] using member) with
         old | new
       · exact
@@ -710,12 +698,11 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
       · simp at new
     · intro destination request member configuration configured peer inNodes
       have old :
-          Message.appendEntriesRequest request ∈
-            state.network destination := by
+          (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination) := by
         rcases
             memEnqueue
-              state.network (.requestVoteResponse response)
-                (.appendEntriesRequest request) destination
+              state.network (voteResponseEnvelope response)
+                (appendRequestEnvelope request) destination
                 (by simpa [after] using member) with
           old | new
         · exact old
@@ -726,14 +713,14 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
     · intro destination queuedResponse member
       rcases
           memEnqueue
-            state.network (.requestVoteResponse response)
-              (.requestVoteResponse queuedResponse) destination
+            state.network (voteResponseEnvelope response)
+              (voteResponseEnvelope queuedResponse) destination
               (by simpa [after] using member) with
         old | new
       · exact
           facts.joinedCarriers.voteResponseSources
             destination queuedResponse old
-      · simp only [Message.requestVoteResponse.injEq] at new
+      · simp only [voteResponseEnvelope.injEq] at new
         simpa [new.2] using responseSourceJoined
     · constructor
       · exact facts.joinedCarriers.runtimeNodes.activeRoles
@@ -741,8 +728,8 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
       · intro destination queuedResponse member
         rcases
             memEnqueue
-              state.network (.requestVoteResponse response)
-                (.appendEntriesResponse queuedResponse) destination
+              state.network (voteResponseEnvelope response)
+                (appendResponseEnvelope queuedResponse) destination
                 (by simpa [after] using member) with
           old | new
         · exact
