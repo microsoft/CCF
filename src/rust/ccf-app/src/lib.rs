@@ -7,7 +7,7 @@
 //! `Sync`. Request, response, transaction, and map objects are borrowed for one
 //! callback invocation and cannot be retained.
 
-#[cfg(panic = "abort")]
+#[cfg(not(panic = "unwind"))]
 compile_error!(
     "ccf-app requires panic = \"unwind\" because its C ABI catches panics at the boundary"
 );

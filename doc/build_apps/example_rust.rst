@@ -40,6 +40,11 @@ underscores; set it explicitly when the crate's ``[lib] name`` differs from its
 package name. The application should commit ``Cargo.lock`` and pin a Rust
 toolchain for reproducible builds.
 
+The bridge is framework-owned scaffolding, built by CCF against its internal
+APIs and distributed as a precompiled object. Applications extend it only
+through the C ABI in ``ccf/rust_ffi.h`` and do not compile the bridge or depend
+on CCF's private C++ headers.
+
 CCF's existing Rust components remain in its prebuilt ``libccf_rs.a``; their
 Rust implementation symbols are internal and do not collide with the
 application's Rust runtime. Building an application therefore compiles only the

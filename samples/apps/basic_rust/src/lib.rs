@@ -2,8 +2,15 @@
 // Licensed under the Apache 2.0 License.
 
 use ccf_app::{Auth, BridgeError, EndpointError, EndpointResult, Registry};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use std::time::Duration;
 
+const COMPACTION_DELAY_MS: u64 = 2_000;
+const COMPACTION_MARKER: &str = "compaction_marker";
+const COMPACTION_RECORDS: &str = "compaction_records";
 const RECORDS: &str = "records";
+static COMPACTION_READY: AtomicBool = AtomicBool::new(false);
 
 fn required_key(value: Result<Option<String>, BridgeError>) -> Result<String, EndpointError> {
     value?.ok_or_else(|| EndpointError::new(400, "InvalidResourceName", "Missing key"))
@@ -38,6 +45,58 @@ fn register(registry: &mut Registry) -> Result<(), BridgeError> {
                 }
                 None => Err(EndpointError::new(404, "ResourceNotFound", "No such key")),
             }
+        },
+    )?;
+
+    registry.read_write("/compaction/marker", "POST", Auth::None, |context| {
+        COMPACTION_READY.store(false, Ordering::Release);
+        context.map(COMPACTION_MARKER).put(b"init", b"init")?;
+        context.set_status(204)?;
+        Ok(())
+    })?;
+
+    registry.read_only("/compaction/ready", "GET", Auth::None, |context| {
+        context.set_status(if COMPACTION_READY.load(Ordering::Acquire) {
+            200
+        } else {
+            404
+        })?;
+        Ok(())
+    })?;
+
+    registry.read_write(
+        "/compaction/fast/{key}",
+        "POST",
+        Auth::None,
+        |context| -> EndpointResult {
+            let key = required_key(context.path_param("key"))?;
+            context
+                .map(COMPACTION_RECORDS)
+                .put(key.as_bytes(), b"fast")?;
+            context.set_status(204)?;
+            Ok(())
+        },
+    )?;
+
+    registry.read_write(
+        "/compaction/slow",
+        "POST",
+        Auth::None,
+        |context| -> EndpointResult {
+            if !context.map(COMPACTION_MARKER).has(b"init")? {
+                return Err(EndpointError::internal("Compaction marker is missing"));
+            }
+
+            // This idempotent signal lets the e2e test advance the other map
+            // only after this transaction's read version is fixed.
+            COMPACTION_READY.store(true, Ordering::Release);
+            thread::sleep(Duration::from_millis(COMPACTION_DELAY_MS));
+
+            let retried = context.map(COMPACTION_RECORDS).has(b"retry")?;
+            context.map(COMPACTION_RECORDS).put(b"slow", b"slow")?;
+            context.set_status(200)?;
+            context.set_body(if retried { b"retried" } else { b"first" })?;
+            Ok(())
         },
     )?;
 

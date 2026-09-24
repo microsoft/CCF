@@ -4,10 +4,10 @@
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/http_status.h"
-#include "ccf/kv/compacted_version_conflict.h"
 #include "ccf/kv/map.h"
 #include "ccf/odata_error.h"
 #include "ccf/rust_ffi.h"
+#include "kv/compacted_version_conflict.h"
 
 #include <memory>
 #include <optional>

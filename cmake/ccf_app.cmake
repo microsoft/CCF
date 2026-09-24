@@ -119,18 +119,16 @@ function(add_ccf_rust_app name)
     VERBATIM
   )
 
-  if(EXISTS "${CCF_DIR}/src/rust/app_bridge.cpp")
-    set(RUST_BRIDGE_SOURCE "${CCF_DIR}/src/rust/app_bridge.cpp")
+  if(EXISTS "${CCF_DIR}/samples/apps/main.cpp")
     set(RUST_APP_MAIN_SOURCE "${CCF_DIR}/samples/apps/main.cpp")
   else()
-    set(RUST_BRIDGE_SOURCE "${CCF_DIR}/share/ccf/rust/app_bridge.cpp")
     set(RUST_APP_MAIN_SOURCE "${CCF_DIR}/share/ccf/rust/app_main.cpp")
   endif()
 
   add_ccf_app(
     ${name}
-    SRCS ${RUST_BRIDGE_SOURCE} ${RUST_APP_MAIN_SOURCE}
-    LINK_LIBS ${RUST_APP_LIB}
+    SRCS ${RUST_APP_MAIN_SOURCE}
+    LINK_LIBS ccf_rust_app_bridge ${RUST_APP_LIB}
     DEPS cargo-build_${name}
   )
 endfunction()

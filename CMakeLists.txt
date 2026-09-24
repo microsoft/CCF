@@ -190,11 +190,23 @@ install(
   DESTINATION share/ccf/src/rust/ccf-app
   PATTERN target EXCLUDE
 )
-install(FILES ${CCF_DIR}/src/rust/app_bridge.cpp DESTINATION share/ccf/rust)
 install(
   FILES ${CCF_DIR}/samples/apps/main.cpp
   DESTINATION share/ccf/rust
   RENAME app_main.cpp
+)
+
+add_library(ccf_rust_app_bridge OBJECT ${CCF_DIR}/src/rust/app_bridge.cpp)
+set_property(TARGET ccf_rust_app_bridge PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_san(ccf_rust_app_bridge)
+add_hardening(ccf_rust_app_bridge)
+add_tidy(ccf_rust_app_bridge)
+add_warning_checks(ccf_rust_app_bridge)
+enable_coverage(ccf_rust_app_bridge)
+install(
+  TARGETS ccf_rust_app_bridge
+  EXPORT ccf
+  OBJECTS DESTINATION lib/ccf/objects
 )
 
 # Copy and install CCF utilities
