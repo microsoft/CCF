@@ -37,10 +37,31 @@ abbrev voteResponseEnvelope (key : VoteResponseKey Node)
     : Model.Envelope Node TxId :=
   ⟨key.1, key.2.1, .requestVoteResponse key.2.2⟩
 
+abbrev preVoteRequestEnvelope (key : VoteRequestKey Node)
+    : Model.Envelope Node TxId :=
+  ⟨key.1, key.2.1, .requestPreVote key.2.2⟩
+
+abbrev preVoteResponseEnvelope (key : VoteResponseKey Node)
+    : Model.Envelope Node TxId :=
+  ⟨key.1, key.2.1, .requestPreVoteResponse key.2.2⟩
+
+abbrev proposeVoteEnvelope (key : Node × Node × Nat)
+    : Model.Envelope Node TxId :=
+  ⟨key.1, key.2.1, .proposeVoteRequest key.2.2⟩
+
+/-- These messages carry no log, vote, or acknowledgement evidence. -/
+def IsSafetyInert : Message Node TxId -> Prop
+  | .requestPreVote _ | .requestPreVoteResponse _ | .proposeVoteRequest _ => True
+  | _ => False
+
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
 def voteRequestKey (state : Model.State Node TxId) (source target : Node)
     : VoteRequestKey Node :=
   ⟨source, target, makeRequestVoteRequest (nodeOf state source)⟩
+
+def appendRequestKey (state : Model.State Node TxId) (source target : Node)
+    (batchEnd : Nat) : AppendRequestKey Node TxId :=
+  ⟨source, target, makeAppendEntriesRequest (nodeOf state source) target batchEnd⟩
 
 end CCFRaft.Proofs.Invariant

@@ -61,6 +61,35 @@ theorem nodeOf_replaceNode_same {state : Model.State Node TxId}
   · simpa [replaceNode_keys] using distinct
   · exact List.mem_map.mpr ⟨(node, old), mem_of_nodeState found, by simp⟩
 
+theorem lookup_replaceNode_present (state : Model.State Node TxId)
+    (node : Node) (value : NodeState Node TxId)
+    (present : node ∈ state.nodes.map Prod.fst)
+    : nodeState { state with nodes := replaceNode state.nodes node value } node
+      = some value := by
+  simp only [nodeState, replaceNode]
+  generalize state.nodes = entries at present ⊢
+  induction entries with
+  | nil => simp at present
+  | cons head tail ih =>
+      rcases head with ⟨key, old⟩
+      by_cases here : key = node
+      · simp [here]
+      · have later : node ∈ tail.map Prod.fst := by
+          simpa [here, Ne.symm here] using present
+        simpa [here] using ih later
+
+/-- Concrete replacement has the usual lookup law when the key is present. -/
+@[simp]
+theorem nodeOf_replaceNode (state : Model.State Node TxId)
+    (node member : Node) (value : NodeState Node TxId)
+    (present : node ∈ state.nodes.map Prod.fst)
+    : nodeOf { state with nodes := replaceNode state.nodes node value } member
+      = if member = node then value else nodeOf state member := by
+  by_cases here : member = node
+  · subst member
+    simp [nodeOf, lookup_replaceNode_present state node value present]
+  · simp [nodeOf_replaceNode_other state node member value here, here]
+
 @[simp]
 theorem nodeOf_network (state : Model.State Node TxId)
     (network : List (Model.Envelope Node TxId)) (node : Node)

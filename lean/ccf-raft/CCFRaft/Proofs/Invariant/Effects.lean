@@ -11,34 +11,21 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
+open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-@[view_effects]
-def initializeConfigurationEffect (state : View Node TxId) (node : Node)
-    : View Node TxId :=
-  let nodeState := state.nodes node
+@[concrete_effects]
+def initializeConfigurationEffect (state : Model.State Node TxId) (node : Node)
+    : Model.State Node TxId :=
+  let nodeState := (nodeOf state) node
   {
     state with
       nodes :=
-        updateNode state.nodes node
+        replaceNode state.nodes node
           {
             nodeState with
               log :=
@@ -49,10 +36,10 @@ def initializeConfigurationEffect (state : View Node TxId) (node : Node)
           }
   }
 
-@[view_effects]
-def clientRequestEffect (state : View Node TxId) (node : Node) (txId : TxId)
-    : View Node TxId :=
-  let nodeState := state.nodes node
+@[concrete_effects]
+def clientRequestEffect (state : Model.State Node TxId) (node : Node) (txId : TxId)
+    : Model.State Node TxId :=
+  let nodeState := (nodeOf state) node
   let entry : Entry Node TxId :=
     {
       term := nodeState.currentTerm
@@ -60,13 +47,13 @@ def clientRequestEffect (state : View Node TxId) (node : Node) (txId : TxId)
     }
   let refreshed :=
     refreshRetirementState node { nodeState with log := nodeState.log ++ [entry] }
-  { state with nodes := updateNode state.nodes node refreshed }
+  { state with nodes := replaceNode state.nodes node refreshed }
 
-@[view_effects]
-def changeConfigurationEffect (state : View Node TxId) (source : Node)
+@[concrete_effects]
+def changeConfigurationEffect (state : Model.State Node TxId) (source : Node)
     (newConfiguration : Finset Node)
-    : View Node TxId :=
-  let sourceState := state.nodes source
+    : Model.State Node TxId :=
+  let sourceState := (nodeOf state) source
   let previousConfiguration := (latestConfiguration sourceState).nodes
   let addedNodes := newConfiguration \ previousConfiguration
   let entry : Entry Node TxId :=
@@ -88,15 +75,14 @@ def changeConfigurationEffect (state : View Node TxId) (source : Node)
       }
   {
     state with
-      nodes := updateNode state.nodes source nextSourceState
-      hasJoined := state.hasJoined ∪ addedNodes
+      nodes := replaceNode state.nodes source nextSourceState
   }
 
-@[view_effects]
-def appendRetiredCommittedEffect (state : View Node TxId) (node : Node)
-    : View Node TxId :=
-  let nodeState := state.nodes node
-  let pending := pendingRetiredCommittedNodes state node
+@[concrete_effects]
+def appendRetiredCommittedEffect (state : Model.State Node TxId) (node : Node)
+    : Model.State Node TxId :=
+  let nodeState := (nodeOf state) node
+  let pending := (nodeOf state node).retirementCompleted \ allRetiredCommittedNodes (nodeOf state node).log
   let entry : Entry Node TxId :=
     {
       term := nodeState.currentTerm
@@ -104,12 +90,12 @@ def appendRetiredCommittedEffect (state : View Node TxId) (node : Node)
     }
   let refreshed :=
     refreshRetirementState node { nodeState with log := nodeState.log ++ [entry] }
-  { state with nodes := updateNode state.nodes node refreshed }
+  { state with nodes := replaceNode state.nodes node refreshed }
 
-@[view_effects]
-def signCommittableMessagesEffect (state : View Node TxId) (node : Node)
-    : View Node TxId :=
-  let nodeState := state.nodes node
+@[concrete_effects]
+def signCommittableMessagesEffect (state : Model.State Node TxId) (node : Node)
+    : Model.State Node TxId :=
+  let nodeState := (nodeOf state) node
   let entry : Entry Node TxId :=
     {
       term := nodeState.currentTerm
@@ -117,42 +103,42 @@ def signCommittableMessagesEffect (state : View Node TxId) (node : Node)
     }
   let refreshed :=
     refreshRetirementState node { nodeState with log := nodeState.log ++ [entry] }
-  { state with nodes := updateNode state.nodes node refreshed }
+  { state with nodes := replaceNode state.nodes node refreshed }
 
-@[view_effects]
-def appendEntriesEffect (state : View Node TxId) (source : Node) (destination : Node)
+@[concrete_effects]
+def appendEntriesEffect (state : Model.State Node TxId) (source : Node) (destination : Node)
     (batchEnd : Nat)
-    : View Node TxId :=
-  let sourceState := state.nodes source
-  let request := makeAppendEntriesRequest state source destination batchEnd
+    : Model.State Node TxId :=
+  let sourceState := (nodeOf state) source
+  let request := appendRequestKey state source destination batchEnd
   {
     state with
       nodes :=
-        updateNode state.nodes source
+        replaceNode state.nodes source
           {
             sourceState with
               sentIndex :=
                 updateIndex sourceState.sentIndex destination batchEnd
           }
-      network := enqueue state.network (.appendEntriesRequest request)
+      network := state.network ++ [appendRequestEnvelope request]
   }
 
-@[view_effects]
-def advanceCommitIndexEffect (state : View Node TxId) (node : Node) : View Node TxId :=
+@[concrete_effects]
+def advanceCommitIndexEffect (state : Model.State Node TxId) (node : Node) : Model.State Node TxId :=
   demoteRetiredCommitted (advanceCommitState state node) node
 
-@[view_effects]
-def timeoutEffect (state : View Node TxId) (node : Node) : View Node TxId :=
+@[concrete_effects]
+def timeoutEffect (state : Model.State Node TxId) (node : Node) : Model.State Node TxId :=
   becomeCandidateState state node
 
-@[view_effects]
-def becomePreVoteCandidateEffect (state : View Node TxId) (node : Node)
-    : View Node TxId :=
-  let nodeState := state.nodes node
+@[concrete_effects]
+def becomePreVoteCandidateEffect (state : Model.State Node TxId) (node : Node)
+    : Model.State Node TxId :=
+  let nodeState := (nodeOf state) node
   {
     state with
       nodes :=
-        updateNode state.nodes node
+        replaceNode state.nodes node
           {
             nodeState with
               role := .preVoteCandidate
@@ -160,29 +146,29 @@ def becomePreVoteCandidateEffect (state : View Node TxId) (node : Node)
           }
   }
 
-@[view_effects]
-def becomeCandidateEffect (state : View Node TxId) (node : Node) : View Node TxId :=
+@[concrete_effects]
+def becomeCandidateEffect (state : Model.State Node TxId) (node : Node) : Model.State Node TxId :=
   becomeCandidateState state node
 
-@[view_effects]
-def requestVoteEffect (state : View Node TxId) (source : Node) (destination : Node)
-    : View Node TxId :=
-  let request := makeRequestVoteRequest state source destination
-  { state with network := enqueue state.network (.requestVoteRequest request) }
+@[concrete_effects]
+def requestVoteEffect (state : Model.State Node TxId) (source : Node) (destination : Node)
+    : Model.State Node TxId :=
+  let request := voteRequestKey state source destination
+  { state with network := state.network ++ [voteRequestEnvelope request] }
 
-@[view_effects]
-def requestPreVoteEffect (state : View Node TxId) (source : Node) (destination : Node)
-    : View Node TxId :=
-  let request := makeRequestPreVote state source destination
-  { state with network := enqueue state.network (.requestPreVote request) }
+@[concrete_effects]
+def requestPreVoteEffect (state : Model.State Node TxId) (source : Node) (destination : Node)
+    : Model.State Node TxId :=
+  let request := voteRequestKey state source destination
+  { state with network := state.network ++ [preVoteRequestEnvelope request] }
 
-@[view_effects]
-def checkQuorumEffect (state : View Node TxId) (node : Node) : View Node TxId :=
+@[concrete_effects]
+def checkQuorumEffect (state : Model.State Node TxId) (node : Node) : Model.State Node TxId :=
   stepDownState state node
 
-@[view_effects]
-def becomeLeaderEffect (state : View Node TxId) (node : Node) : View Node TxId :=
-  let nodeState := state.nodes node
+@[concrete_effects]
+def becomeLeaderEffect (state : Model.State Node TxId) (node : Node) : Model.State Node TxId :=
+  let nodeState := (nodeOf state) node
   let log := nodeState.log.take (maxCommittableIndex nodeState.log)
   let truncated := { nodeState with log }
   let nextNode :=
@@ -193,37 +179,26 @@ def becomeLeaderEffect (state : View Node TxId) (node : Node) : View Node TxId :
           sentIndex := fun _ => log.length
           matchIndex := fun _ => 0
       }
-  { state with nodes := updateNode state.nodes node nextNode }
+  { state with nodes := replaceNode state.nodes node nextNode }
 
-@[view_effects]
-def proposeVoteEffect (state : View Node TxId) (source : Node) (destination : Node)
-    : View Node TxId :=
-  let request := makeProposeVoteRequest state source destination
-  { state with network := enqueue state.network (.proposeVoteRequest request) }
+@[concrete_effects]
+def proposeVoteEffect (state : Model.State Node TxId) (source : Node) (destination : Node)
+    : Model.State Node TxId :=
+  let request := (source, destination, (nodeOf state source).currentTerm)
+  { state with network := state.network ++ [proposeVoteEnvelope request] }
 
-@[view_effects]
-def advanceCommitIndexAndProposeVoteEffect (state : View Node TxId) (source : Node)
+@[concrete_effects]
+def advanceCommitIndexAndProposeVoteEffect (state : Model.State Node TxId) (source : Node)
     (destination : Node)
-    : View Node TxId :=
+    : Model.State Node TxId :=
   let advanced := demoteRetiredCommitted (advanceCommitState state source) source
-  let request := makeProposeVoteRequest state source destination
-  { advanced with network := enqueue advanced.network (.proposeVoteRequest request) }
+  let request := (source, destination, (nodeOf state source).currentTerm)
+  { advanced with network := advanced.network ++ [proposeVoteEnvelope request] }
 
-@[view_effects]
-def observeTermEffect (state : View Node TxId) (destination : Node) (term : Nat)
-    : View Node TxId :=
-  {
-    state with
-      nodes :=
-        updateNode state.nodes destination
-          {
-            state.nodes destination with
-              role := .follower
-              currentTerm := term
-              votedFor := none
-              isNewFollower := true
-              preVotesGranted := ∅
-          }
-  }
+@[concrete_effects]
+def observeTermEffect (state : Model.State Node TxId) (destination : Node) (term : Nat)
+    : Model.State Node TxId :=
+  { state with
+    nodes := replaceNode state.nodes destination (updateTerm (nodeOf state destination) term) }
 
 end CCFRaft.Proofs.Invariant
