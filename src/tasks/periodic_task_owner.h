@@ -39,7 +39,7 @@ namespace ccf::tasks
       struct Timing
       {
         std::mutex lock;
-        std::chrono::milliseconds last_run;
+        std::chrono::milliseconds last_run = {};
       };
       auto timing = std::make_shared<Timing>();
       timing->last_run = job_board.get_current_time();
