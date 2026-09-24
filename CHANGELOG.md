@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.18]
+
+[7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
+
+### Removed
+
+- Nodes no longer accept forwarded RPC requests and responses in the legacy v1 and v2 wire formats. All supported releases have emitted the v3 format since 4.0, so mixed-version networks are unaffected (#8426).
+
 ## [7.0.17]
 
 [7.0.17]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.17
@@ -17,9 +25,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The `worker_threads` configuration option now defaults to `1`. CCF starts one more worker thread than configured, in addition to the dispatch thread, preserving task execution capacity now that the dispatch thread no longer executes tasks. A configured value of `0` starts one worker and logs a warning; positive values are incremented silently (#8404, #8411).
 - Adding or resetting a member no longer eagerly records a state digest for them to acknowledge. Members must call the state digest `:update` endpoint before acknowledging the current service state; until then, the state digest `GET` endpoint returns HTTP 404 (#8407).
+- Proposal creation requests are now recorded in `public:ccf.gov.cose_history` as COSE Sign1 envelopes with a detached (`nil`) payload, since the signed proposal body is already stored in `public:ccf.gov.proposals` in the same transaction. Auditors verifying these entries must supply that proposal body as the detached payload. Ballots and withdrawals continue to embed their payload. A new `ccf::cose::edit::detach_payload` API is available to detach the payload of a COSE Sign1 message (#8424).
 
 ### Fixed
 
+- Release queued task ownership cycles during node shutdown, including paused session queues which are no longer on the task board (#8420).
 - JS registry tables and their configured namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. The governance-driven registry uses `public:ccf.gov.*` and leaves application namespaces unchanged. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`; platform permissions still apply (#8359).
 - Fixed `set_member` failures on services which have only ever emitted COSE ledger signatures (#8407).
 

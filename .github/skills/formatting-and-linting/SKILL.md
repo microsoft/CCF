@@ -27,6 +27,7 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | Script                      | Relevant changes                                             | Tool/check                                         | Supports auto-fix |
 | --------------------------- | ------------------------------------------------------------ | -------------------------------------------------- | ----------------- |
 | `cpp-format-checks.sh`      | C/C++ in `include/`, `src/`, `samples/`                      | clang-format                                       | `-f`              |
+| `lean-format-checks.sh`     | All tracked Lean files                                       | leanfmt                                            | `-f`              |
 | `python-format-checks.sh`   | Python in `tests/`, `python/`, `scripts/`, `tla/`            | black                                              | `-f`              |
 | `python-lint-checks.sh`     | Python in `python/`, `tests/`                                | ruff                                               | `-f`              |
 | `python-types-checks.sh`    | Python SDK                                                   | mypy                                               | No                |
@@ -44,5 +45,9 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | `test-buckets-checks.sh`    | CMake test registration, defaults, or `tests/ci-buckets.txt` | Fresh configure and CI bucket inventory comparison | No                |
 
 Some report-only scripts accept `-f` for interface compatibility without changing files. For Rust or other file types not covered by a formatter above, consult their existing build/CI configuration rather than introducing a new tool.
+
+The Lean formatting check runs in `.github/workflows/lean.yml`, not
+`scripts/ci-checks.sh`. It requires elan and the package's Lean toolchain.
+See [Lean formatting setup](../../../lean/disaster-recovery/README.md#formatting).
 
 The ASCII check includes Rust and TLA+, but exempts Lean source files (`*.lean`). Existing Unicode is grandfathered by exact line hashes, not file-wide exemptions. Do not extend the grandfathered hashes to accept new Unicode.
