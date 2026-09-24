@@ -11,6 +11,7 @@
 
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -372,9 +373,15 @@ namespace
       const std::shared_ptr<CallbackState>& state)
     {
       ccf::AuthnPolicies policies;
-      if (auth == CCF_RUST_AUTH_USER_CERT)
+      switch (auth)
       {
-        policies = {ccf::user_cert_auth_policy};
+        case CCF_RUST_AUTH_NONE:
+          break;
+        case CCF_RUST_AUTH_USER_CERT:
+          policies = {ccf::user_cert_auth_policy};
+          break;
+        default:
+          throw std::logic_error("Unsupported Rust authentication policy");
       }
 
       if (read_only)
