@@ -1628,5 +1628,32 @@ lemma handleAppendEntriesRequest_successfulCurrentTerm
   · exact stepping.1
   · exact (handleAppendEntriesRequestLocalPost stepping handled).successfulCurrentTerm success
 
-end CCFRaft.Proofs.Invariant
+lemma acceptAppendEntriesRequest_conditions
+    {self : Node} {before after : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
+    (accepted : acceptAppendEntriesRequest? self before request = some (after, response))
+    : request.term = before.currentTerm ∧ before.role = .follower
+      ∧ logOk before request ∧ before.commitIndex ≤ request.prevLogIndex := by
+  unfold acceptAppendEntriesRequest? at accepted
+  split at accepted
+  · assumption
+  · contradiction
 
+lemma acceptAppendEntriesRequest_handled
+    {self : Node} {before after : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
+    (accepted : acceptAppendEntriesRequest? self before request = some (after, response))
+    : handleAppendEntriesRequest? self before request = some (after, response) := by
+  obtain ⟨term, role, matching, _⟩ := acceptAppendEntriesRequest_conditions accepted
+  simpa [handleAppendEntriesRequest?, rejectAppendEntriesRequest?, term, role, matching] using accepted
+
+lemma acceptAppendEntriesRequestLocalPost
+    {self : Node} {before after : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
+    (accepted : acceptAppendEntriesRequest? self before request = some (after, response))
+    : AppendRequestLocalPost before after request response := by
+  have follower := (acceptAppendEntriesRequest_conditions accepted).2.1
+  exact handleAppendEntriesRequestLocalPost (by simp [follower])
+    (acceptAppendEntriesRequest_handled accepted)
+
+end CCFRaft.Proofs.Invariant

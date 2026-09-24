@@ -204,7 +204,7 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
         · rcases direct with
             ⟨nextNode, response, handled, success, _⟩
           have localPost :=
-            CCFRaft.Proofs.Invariant.handleAppendEntriesRequest_successfulCurrentTerm handled success
+            (CCFRaft.Proofs.Invariant.acceptAppendEntriesRequest_conditions handled).1
           have voterTerm :
               request.2.2.term = ((nodeOf after) voter).currentTerm := by
             simpa [requestDestination]

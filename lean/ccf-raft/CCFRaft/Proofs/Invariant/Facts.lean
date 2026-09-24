@@ -1242,7 +1242,7 @@ noncomputable instance
     : Decidable (hasEffectiveMajorityAt (joined := joined) state responseHistory leader index) := by
   exact Classical.propDecidable _
 
-/-- A request can produce a successful ACK directly in the current node state. -/
+/-- A follower can accept a request without first changing its term or role. -/
 def canProduceAppendAckAt
     (node : NodeState Node TxId)
     (request : AppendRequestKey Node TxId)
@@ -1252,7 +1252,7 @@ def canProduceAppendAckAt
     fun nextNode =>
       Exists
         fun response =>
-          Model.Local.handleAppendEntriesRequest? request.2.1 node request.2.2
+          Model.Local.acceptAppendEntriesRequest? request.2.1 node request.2.2
             = some (nextNode, response)
           /\ response.success = true
           /\ index <= response.lastLogIndex

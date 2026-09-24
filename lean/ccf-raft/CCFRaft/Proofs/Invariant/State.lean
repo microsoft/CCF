@@ -80,6 +80,19 @@ theorem lookup_replaceNode_present (state : Model.State Node TxId)
           simpa [here, Ne.symm here] using present
         simpa [here] using ih later
 
+@[simp]
+theorem replaceNode_absent (nodes : List (Node × NodeState Node TxId))
+    (node : Node) (value : NodeState Node TxId) (absent : node ∉ nodes.map Prod.fst)
+    : replaceNode nodes node value = nodes := by
+  unfold replaceNode
+  conv_rhs => rw [← List.map_id nodes]
+  apply List.map_congr_left
+  intro entry listed
+  have different : entry.1 ≠ node := by
+    intro same
+    exact absent (same ▸ List.mem_map_of_mem listed)
+  simp [different]
+
 /-- Concrete replacement has the usual lookup law when the key is present. -/
 @[simp]
 theorem nodeOf_replaceNode (state : Model.State Node TxId)

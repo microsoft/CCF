@@ -169,7 +169,7 @@ lemma canProduceAppendAckEventuallyAt_votedFor
     : canProduceAppendAckEventuallyAt { node with votedFor := votedFor } request index
       ↔ canProduceAppendAckEventuallyAt node request index := by
   unfold canProduceAppendAckEventuallyAt canProduceAppendAckAt
-  rw [handleAppendEntriesRequest_votedFor]
+  rw [acceptAppendEntriesRequest_votedFor]
   constructor <;> rintro (direct | future)
   · left
     rcases direct with ⟨nextNode, response, handled, success, covered⟩

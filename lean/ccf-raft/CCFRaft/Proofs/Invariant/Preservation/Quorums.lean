@@ -11,55 +11,43 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
+open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
+variable {joined joinedNext : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-attribute [local simp] Message.destination ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /-- A winning candidate cannot share a term with an active leader. -/
 lemma winningCandidateTermDiffersFromLeader
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
     {activations : ActivationHistory Node TxId}
     (candidatesAbove : CandidatesAboveBootstrap state)
     (_voteFacts : VoteHistoryFacts state votes)
-    (snapshots : GrantedVoteSnapshots state votes voteCandidateHistory voteVoterHistory)
+    (snapshots : GrantedVoteSnapshots (joined := joined) state votes voteCandidateHistory voteVoterHistory)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (configurationFacts : ElectionConfigurationFacts state elections activations)
+    (configurationFacts : ElectionConfigurationFacts (joined := joined) state elections activations)
     {candidate leader : Node}
-    (candidateRole : (state.nodes candidate).role = .candidate)
-    (candidateMajority : hasEffectiveElectionMajority state candidate)
-    (leaderRole : (state.nodes leader).role = .leader)
-    : Not ((state.nodes candidate).currentTerm = (state.nodes leader).currentTerm) := by
+    (candidateRole : ((nodeOf state) candidate).role = .candidate)
+    (candidateMajority : hasEffectiveElectionMajority (joined := joined) state candidate)
+    (leaderRole : ((nodeOf state) leader).role = .leader)
+    : Not (((nodeOf state) candidate).currentTerm = ((nodeOf state) leader).currentTerm) := by
   intro sameTerm
   have owned := ownership.activeLeader leader leaderRole
   rcases
       electionFacts.ownerRecorded
-        (state.nodes leader).currentTerm leader owned with
+        ((nodeOf state) leader).currentTerm leader owned with
     bootstrap | recorded
   · have candidateAbove := candidatesAbove candidate candidateRole
     rw [sameTerm, bootstrap.1] at candidateAbove
@@ -68,13 +56,13 @@ lemma winningCandidateTermDiffersFromLeader
       ⟨record, recordStored, recordLeader⟩
     rcases
         configurationFacts.potentialShared
-          (state.nodes candidate).currentTerm record candidate
+          ((nodeOf state) candidate).currentTerm record candidate
           (by simpa [sameTerm] using recordStored)
           candidateRole rfl candidateMajority with
       ⟨configuration, ballotActive, candidateActive⟩
     have recordMajority :=
       electionFacts.majority
-        (state.nodes candidate).currentTerm record
+        ((nodeOf state) candidate).currentTerm record
         (by simpa [sameTerm] using recordStored)
         configuration ballotActive
     have candidateConfigurationMajority :=
@@ -89,7 +77,7 @@ lemma winningCandidateTermDiffersFromLeader
         candidateMember).1
     have leaderVote :=
       electionFacts.voted
-        (state.nodes candidate).currentTerm record voter
+        ((nodeOf state) candidate).currentTerm record voter
         (by simpa [sameTerm] using recordStored) recordMember
     rw [recordLeader] at leaderVote
     rw [sameTerm] at candidateVote leaderVote
@@ -97,32 +85,32 @@ lemma winningCandidateTermDiffersFromLeader
         candidate = leader :=
       Option.some.inj (candidateVote.symm.trans leaderVote)
     have candidateLeaderRole :
-        (state.nodes candidate).role = .leader := by
+        ((nodeOf state) candidate).role = .leader := by
       rw [sameCandidate]
       exact leaderRole
     exact Role.noConfusion (candidateRole.symm.trans candidateLeaderRole)
 
 /-- An effective winning candidate's current term has not been claimed before. -/
 lemma effectiveCandidateTermUnowned
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
     {activations : ActivationHistory Node TxId}
     (candidatesAbove : CandidatesAboveBootstrap state)
-    (snapshots : GrantedVoteSnapshots state votes voteCandidateHistory voteVoterHistory)
+    (snapshots : GrantedVoteSnapshots (joined := joined) state votes voteCandidateHistory voteVoterHistory)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (configurationFacts : ElectionConfigurationFacts state elections activations)
+    (configurationFacts : ElectionConfigurationFacts (joined := joined) state elections activations)
     {candidate : Node}
-    (role : (state.nodes candidate).role = .candidate)
-    (majority : hasEffectiveElectionMajority state candidate)
-    : owners (state.nodes candidate).currentTerm = none := by
-  cases ownerAtTerm : owners (state.nodes candidate).currentTerm with
+    (role : ((nodeOf state) candidate).role = .candidate)
+    (majority : hasEffectiveElectionMajority (joined := joined) state candidate)
+    : owners ((nodeOf state) candidate).currentTerm = none := by
+  cases ownerAtTerm : owners ((nodeOf state) candidate).currentTerm with
   | none => rfl
   | some owner =>
       rcases
@@ -136,12 +124,12 @@ lemma effectiveCandidateTermUnowned
           ⟨record, recordStored, recordLeader⟩
         rcases
             configurationFacts.potentialShared
-              (state.nodes candidate).currentTerm record candidate
+              ((nodeOf state) candidate).currentTerm record candidate
               recordStored role rfl majority with
           ⟨configuration, ballotActive, candidateActive⟩
         have recordMajority :=
           electionFacts.majority
-            (state.nodes candidate).currentTerm record recordStored
+            ((nodeOf state) candidate).currentTerm record recordStored
             configuration ballotActive
         have candidateConfigurationMajority :=
           effectiveElectionMajorityAtConfiguration
@@ -154,21 +142,21 @@ lemma effectiveCandidateTermUnowned
           (snapshots candidate voter (Or.inl role)
             candidateMember).1
         have ownerVote :
-            votes voter (state.nodes candidate).currentTerm = some owner := by
+            votes voter ((nodeOf state) candidate).currentTerm = some owner := by
           rw [← recordLeader]
           exact
             electionFacts.voted
-              (state.nodes candidate).currentTerm record voter
+              ((nodeOf state) candidate).currentTerm record voter
               recordStored recordMember
         have candidateOwner : candidate = owner :=
           Option.some.inj (candidateVote.symm.trans ownerVote)
         have candidateOwned :
-            owners (state.nodes candidate).currentTerm =
+            owners ((nodeOf state) candidate).currentTerm =
               some candidate := by
           simpa [candidateOwner] using ownerAtTerm
         have progress :=
           ownership.ownerProgress
-            (state.nodes candidate).currentTerm candidate candidateOwned
+            ((nodeOf state) candidate).currentTerm candidate candidateOwned
         rcases progress.2 rfl with leader | follower | preVoteCandidate | inactive
         · exact False.elim
             (Role.noConfusion (leader.symm.trans role))
@@ -181,23 +169,23 @@ lemma effectiveCandidateTermUnowned
 
 /-- Term ownership derives the previous candidate-term absence support fact. -/
 lemma termOwnershipCandidateTermNotInLogs
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
     {activations : ActivationHistory Node TxId}
     (candidatesAbove : CandidatesAboveBootstrap state)
-    (snapshots : GrantedVoteSnapshots state votes voteCandidateHistory voteVoterHistory)
+    (snapshots : GrantedVoteSnapshots (joined := joined) state votes voteCandidateHistory voteVoterHistory)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (configurationFacts : ElectionConfigurationFacts state elections activations)
-    : CandidateTermNotInLogs state := by
+    (configurationFacts : ElectionConfigurationFacts (joined := joined) state elections activations)
+    : CandidateTermNotInLogs (joined := joined) state := by
   intro candidate role majority node index entry found sameTerm
-  have member : entry ∈ (state.nodes node).log :=
+  have member : entry ∈ ((nodeOf state) node).log :=
     entryAtSomeMember found
   rcases termOwnershipLogEntryOwner ownership member with
     ⟨owner, owned⟩
@@ -209,19 +197,18 @@ lemma termOwnershipCandidateTermNotInLogs
   rw [unowned] at owned
   contradiction
 
-omit [DecidableEq TxId] in
 /-- Every processed acknowledgement quorum is also an effective quorum. -/
 lemma majorityImpliesEffectiveMajority
-    (state : View Node TxId)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
-    (activeNodesJoined : activeNodeUnion (state.nodes leader) ⊆ state.hasJoined)
-    (majority : hasMajorityAt state leader index)
-    : hasEffectiveMajorityAt state responseHistory leader index := by
+    (activeNodesJoined : activeNodeUnion ((nodeOf state) leader) ⊆ joined)
+    (majority : hasMajorityAt (nodeOf state leader) leader index)
+    : hasEffectiveMajorityAt (joined := joined) state responseHistory leader index := by
   have subset :
-      acknowledgingNodes state leader index ⊆
-        effectiveAckers state responseHistory leader index := by
+      acknowledgingNodes (nodeOf state leader) leader index ⊆
+        effectiveAckers (joined := joined) state responseHistory leader index := by
     intro node member
     simp only [
       acknowledgingNodes, effectiveAckers,
@@ -239,17 +226,16 @@ lemma majorityImpliesEffectiveMajority
       ((of_decide_eq_true
         (majority configuration active)) governs)
 
-omit [DecidableEq TxId] in
 /-- Every processed election quorum is also an effective election quorum. -/
 lemma electionMajorityImpliesEffective
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (candidate : Node)
-    (votersJoined : (state.nodes candidate).votesGranted ⊆ state.hasJoined)
-    (majority : hasElectionMajority state candidate)
-    : hasEffectiveElectionMajority state candidate := by
+    (votersJoined : ((nodeOf state) candidate).votesGranted ⊆ joined)
+    (majority : hasElectionMajority (nodeOf state candidate))
+    : hasEffectiveElectionMajority (joined := joined) state candidate := by
   have subset :
-      (state.nodes candidate).votesGranted ⊆
-        effectiveElectionVoters state candidate := by
+      ((nodeOf state) candidate).votesGranted ⊆
+        effectiveElectionVoters (joined := joined) state candidate := by
     intro voter member
     simp only [
       effectiveElectionVoters, Finset.mem_filter]
@@ -262,16 +248,15 @@ lemma electionMajorityImpliesEffective
     hasConfigurationMajority_mono subset
       (of_decide_eq_true (majority configuration active))
 
-omit [Bootstrap Node] in
 /-- Materialised election evidence is also prospective election evidence. -/
-lemma effectiveElectionVotersSubsetPotential (state : View Node TxId) (candidate : Node)
-    : effectiveElectionVoters state candidate
-      ⊆ potentialElectionVoters state candidate := by
+lemma effectiveElectionVotersSubsetPotential (state : Model.State Node TxId) (candidate : Node)
+    : effectiveElectionVoters (joined := joined) state candidate
+      ⊆ potentialElectionVoters (joined := joined) state candidate := by
   intro voter member
-  have joined : voter ∈ state.hasJoined := by
+  have joined : voter ∈ joined := by
     have unpacked :
-        voter ∈ state.hasJoined /\
-          (voter ∈ (state.nodes candidate).votesGranted \/
+        voter ∈ joined /\
+          (voter ∈ ((nodeOf state) candidate).votesGranted \/
             queuedGrantedVote state candidate voter) := by
       simpa [effectiveElectionVoters] using member
     exact unpacked.1
@@ -279,29 +264,29 @@ lemma effectiveElectionVotersSubsetPotential (state : View Node TxId) (candidate
 
 /-- An effective election quorum is also a prospective election quorum. -/
 lemma effectiveElectionMajorityImpliesPotential
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (candidate : Node)
-    (majority : hasEffectiveElectionMajority state candidate)
-    : hasPotentialElectionMajority state candidate := by
+    (majority : hasEffectiveElectionMajority (joined := joined) state candidate)
+    : hasPotentialElectionMajority (joined := joined) state candidate := by
   exact effectiveElectionMajorityIsPotential state candidate majority
 
 /-- A prospective quorum remains a quorum in any finite superset. -/
 lemma potentialElectionMajorityOfSubset
-    {state after : View Node TxId}
+    {state after : Model.State Node TxId}
     {candidate : Node}
     (subset
-      : potentialElectionVoters after candidate ⊆ potentialElectionVoters state candidate)
+      : potentialElectionVoters (joined := joinedNext) after candidate ⊆ potentialElectionVoters (joined := joined) state candidate)
     (activeEq
-      : activeConfigurations (after.nodes candidate)
-        = activeConfigurations (state.nodes candidate))
-    (majority : hasPotentialElectionMajority after candidate)
-    : hasPotentialElectionMajority state candidate := by
+      : activeConfigurations ((nodeOf after) candidate)
+        = activeConfigurations ((nodeOf state) candidate))
+    (majority : hasPotentialElectionMajority (joined := joinedNext) after candidate)
+    : hasPotentialElectionMajority (joined := joined) state candidate := by
   rw [hasPotentialElectionMajority, List.all_eq_true] at majority
   rw [hasPotentialElectionMajority, List.all_eq_true]
   intro configuration active
   apply decide_eq_true
   have afterActive :
-      configuration ∈ activeConfigurations (after.nodes candidate) := by
+      configuration ∈ activeConfigurations ((nodeOf after) candidate) := by
     simpa [activeEq] using active
   exact
     hasConfigurationMajority_mono subset
@@ -309,19 +294,19 @@ lemma potentialElectionMajorityOfSubset
 
 /-- Every materialised acknowledgement is also a potential supporter. -/
 lemma effectiveAckersSubsetPotential
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
-    : effectiveAckers state responseHistory leader index
-      ⊆ potentialAckers state appendHistory responseHistory leader index := by
+    : effectiveAckers (joined := joined) state responseHistory leader index
+      ⊆ potentialAckers (joined := joined) state appendHistory responseHistory leader index := by
   intro voter member
-  have joined : voter ∈ state.hasJoined := by
+  have joined : voter ∈ joined := by
     have unpacked :
-        voter ∈ state.hasJoined /\
+        voter ∈ joined /\
           (voter = leader \/
-            index <= (state.nodes leader).matchIndex voter \/
+            index <= ((nodeOf state) leader).matchIndex voter \/
               queuedSuccessfulAck
                 state responseHistory leader voter index) := by
       simpa [effectiveAckers] using member
@@ -330,15 +315,15 @@ lemma effectiveAckersSubsetPotential
 
 /-- A materialised acknowledgement quorum is also a potential quorum. -/
 lemma effectiveMajorityImpliesPotential
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
-    (majority : hasEffectiveMajorityAt state responseHistory leader index)
-    : hasPotentialMajorityAt state appendHistory responseHistory leader index := by
+    (majority : hasEffectiveMajorityAt (joined := joined) state responseHistory leader index)
+    : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory leader index := by
   let subset :=
-    effectiveAckersSubsetPotential
+    effectiveAckersSubsetPotential (joined := joined)
       state appendHistory responseHistory leader index
   rw [hasEffectiveMajorityAt, List.all_eq_true] at majority
   rw [hasPotentialMajorityAt, List.all_eq_true]
@@ -350,57 +335,55 @@ lemma effectiveMajorityImpliesPotential
       ((of_decide_eq_true
         (majority configuration active)) governs)
 
-omit [Bootstrap Node] in
 /-- Effective election evidence places every voter at or above the term voted. -/
 lemma effectiveElectionVoterTermBound
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
-    (snapshots : GrantedVoteSnapshots state votes voteCandidateHistory voteVoterHistory)
+      : VoteResponseKey Node -> List (Entry Node TxId)}
+    (snapshots : GrantedVoteSnapshots (joined := joined) state votes voteCandidateHistory voteVoterHistory)
     {candidate voter : Node}
     (active
-      : (state.nodes candidate).role = .candidate
-        \/ (state.nodes candidate).role = .leader)
-    (member : voter ∈ effectiveElectionVoters state candidate)
-    : (state.nodes candidate).currentTerm <= (state.nodes voter).currentTerm := by
+      : ((nodeOf state) candidate).role = .candidate
+        \/ ((nodeOf state) candidate).role = .leader)
+    (member : voter ∈ effectiveElectionVoters (joined := joined) state candidate)
+    : ((nodeOf state) candidate).currentTerm <= ((nodeOf state) voter).currentTerm := by
   rcases snapshots candidate voter active member with
     ⟨_, self | recorded⟩
   · subst voter
     exact le_rfl
   · exact recorded.2.2.2.1
 
-omit [Bootstrap Node] in
 /-- Every prospective election voter is at the candidate's current term. -/
 lemma potentialElectionVoterTermBound
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
-    (snapshots : GrantedVoteSnapshots state votes voteCandidateHistory voteVoterHistory)
+      : VoteResponseKey Node -> List (Entry Node TxId)}
+    (snapshots : GrantedVoteSnapshots (joined := joined) state votes voteCandidateHistory voteVoterHistory)
     {candidate voter : Node}
     (active
-      : (state.nodes candidate).role = .candidate
-        \/ (state.nodes candidate).role = .leader)
-    (member : voter ∈ potentialElectionVoters state candidate)
-    : (state.nodes candidate).currentTerm <= (state.nodes voter).currentTerm := by
+      : ((nodeOf state) candidate).role = .candidate
+        \/ ((nodeOf state) candidate).role = .leader)
+    (member : voter ∈ potentialElectionVoters (joined := joined) state candidate)
+    : ((nodeOf state) candidate).currentTerm <= ((nodeOf state) voter).currentTerm := by
   simp only [
     potentialElectionVoters, Finset.mem_filter] at member
   rcases member with ⟨_joined, effective | eligible⟩
   · exact effectiveElectionVoterTermBound snapshots active effective
   · simpa [
       currentlyEligibleElectionVoter,
-      makeRequestVoteRequest
+      voteRequestKey, Model.Local.makeRequestVoteRequest
     ] using eligible.1.le
 
 /-- A reserved peer has not advanced beyond the request source term. -/
 lemma queuedAppendReservePeerTerm
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {leader peer : Node}
     {index : Nat}
     (reserve : queuedAppendReserve state appendHistory leader peer index)
-    : (state.nodes peer).currentTerm <= (state.nodes leader).currentTerm := by
+    : ((nodeOf state) peer).currentTerm <= ((nodeOf state) leader).currentTerm := by
   rcases reserve with
     ⟨request, _, _, requestDestination, requestTerm,
       producible, _⟩
@@ -408,10 +391,10 @@ lemma queuedAppendReservePeerTerm
   · rcases direct with
       ⟨nextNode, response, handled, success, _⟩
     have localPost :=
-      handleAppendEntriesRequestLocalPost handled
+      acceptAppendEntriesRequestLocalPost handled
     have peerTerm :
-        request.term = (state.nodes peer).currentTerm := by
-      simpa [requestDestination, protocolNodeState]
+        request.2.2.term = ((nodeOf state) peer).currentTerm := by
+      simpa [requestDestination]
         using localPost.successfulCurrentTerm success
     exact (peerTerm.symm.trans requestTerm).le
   · simpa [requestDestination, requestTerm] using prepared.1.le
@@ -421,30 +404,30 @@ A prospective replication quorum and a higher prospective election quorum
 still intersect in a materialised acknowledgement.
 -/
 lemma potentialElectionMajorityIntersectionEffective
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
-    (snapshots : GrantedVoteSnapshots state votes voteCandidateHistory voteVoterHistory)
+      : VoteResponseKey Node -> List (Entry Node TxId)}
+    (snapshots : GrantedVoteSnapshots (joined := joined) state votes voteCandidateHistory voteVoterHistory)
     {leader candidate : Node}
     {index : Nat}
     {configuration : Configuration Node}
-    (potential : hasPotentialMajorityAt state appendHistory responseHistory leader index)
-    (leaderActive : configuration ∈ activeConfigurations (state.nodes leader))
+    (potential : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory leader index)
+    (leaderActive : configuration ∈ activeConfigurations ((nodeOf state) leader))
     (configurationGoverns : configuration.index <= index)
     (candidateActive
-      : (state.nodes candidate).role = .candidate
-        \/ (state.nodes candidate).role = .leader)
-    (elected : hasPotentialElectionMajority state candidate)
+      : ((nodeOf state) candidate).role = .candidate
+        \/ ((nodeOf state) candidate).role = .leader)
+    (elected : hasPotentialElectionMajority (joined := joined) state candidate)
     (candidateConfigurationActive
-      : configuration ∈ activeConfigurations (state.nodes candidate))
-    (newer : (state.nodes leader).currentTerm < (state.nodes candidate).currentTerm)
+      : configuration ∈ activeConfigurations ((nodeOf state) candidate))
+    (newer : ((nodeOf state) leader).currentTerm < ((nodeOf state) candidate).currentTerm)
     : Exists
         fun voter =>
-          voter ∈ effectiveAckers state responseHistory leader index
-          /\ voter ∈ potentialElectionVoters state candidate := by
+          voter ∈ effectiveAckers (joined := joined) state responseHistory leader index
+          /\ voter ∈ potentialElectionVoters (joined := joined) state candidate := by
   have replicationMajority :=
     potentialMajorityAtConfiguration
       potential leaderActive configurationGoverns
@@ -468,9 +451,9 @@ lemma potentialElectionMajorityIntersectionEffective
 
 /-- A prospective support quorum intersects a frozen higher-term election in an ACK. -/
 lemma potentialElectionRecordIntersectionEffective
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -481,15 +464,15 @@ lemma potentialElectionRecordIntersectionEffective
     {index term : Nat}
     {record : ElectionRecord Node TxId}
     {configuration : Configuration Node}
-    (potential : hasPotentialMajorityAt state appendHistory responseHistory leader index)
-    (leaderActive : configuration ∈ activeConfigurations (state.nodes leader))
+    (potential : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory leader index)
+    (leaderActive : configuration ∈ activeConfigurations ((nodeOf state) leader))
     (configurationGoverns : configuration.index <= index)
     (recorded : elections term = some record)
     (ballotActive : configuration ∈ record.ballotActive)
-    (newer : (state.nodes leader).currentTerm < term)
+    (newer : ((nodeOf state) leader).currentTerm < term)
     : Exists
         fun voter =>
-          voter ∈ effectiveAckers state responseHistory leader index
+          voter ∈ effectiveAckers (joined := joined) state responseHistory leader index
           /\ voter ∈ record.supporters := by
   have replicationMajority :=
     potentialMajorityAtConfiguration
@@ -514,9 +497,9 @@ lemma potentialElectionRecordIntersectionEffective
 
 /-- A retained activation ACK snapshot transfers its lower signed prefix. -/
 lemma activationSupporterSnapshotContainsPrefix
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {activations : ActivationHistory Node TxId}
@@ -528,19 +511,19 @@ lemma activationSupporterSnapshotContainsPrefix
     {activationIndex : ActivationKey Node}
     {activation : ActivationRecord Node TxId}
     (currentEntry
-      : termAt (state.nodes source).log index = (state.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (state.nodes source).log index = true)
+      : termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf state) source).log index = true)
     (activationStored : activations activationIndex = some activation)
     (activationSupporter : supporter ∈ activation.jointSupporters)
-    (later : (state.nodes source).currentTerm < activation.activationTerm)
+    (later : ((nodeOf state) source).currentTerm < activation.activationTerm)
     (retained
-      : (state.nodes source).log.take index <+: activation.supporterHistory supporter)
-    : (state.nodes source).log.take index
+      : ((nodeOf state) source).log.take index <+: activation.supporterHistory supporter)
+    : ((nodeOf state) source).log.take index
       <+: activation.history.take activation.activationFrontier := by
   rcases isSignatureAtTrue currentSignature with
     ⟨sourceEntry, sourceFound, _⟩
   have sourceEntryTerm :
-      sourceEntry.term = (state.nodes source).currentTerm := by
+      sourceEntry.term = ((nodeOf state) source).currentTerm := by
     simpa [termAt, sourceFound] using currentEntry
   have activationValid :=
     historyFacts.valid activationIndex activation activationStored
@@ -571,7 +554,7 @@ lemma activationSupporterSnapshotContainsPrefix
     rw [entryAtTake_of_le le_rfl]
     exact activationFound
   have sourceInPrefix :
-      entryAt? ((state.nodes source).log.take index) index =
+      entryAt? (((nodeOf state) source).log.take index) index =
         some sourceEntry := by
     rw [entryAtTake_of_le le_rfl]
     exact sourceFound
@@ -604,19 +587,19 @@ lemma activationSupporterSnapshotContainsPrefix
       rw [activationEntryTerm, sourceEntryTerm] at monotone
       omega
   have sourceBound :
-      index <= (state.nodes source).log.length :=
+      index <= ((nodeOf state) source).log.length :=
     entryAtSomeIndexBound sourceFound
   have sourceLength :
-      ((state.nodes source).log.take index).length = index := by
+      (((nodeOf state) source).log.take index).length = index := by
     simp [Nat.min_eq_left sourceBound]
   have supporterTake :
       (activation.supporterHistory supporter).take index =
-        (state.nodes source).log.take index := by
+        ((nodeOf state) source).log.take index := by
     have exactTake := prefixEqTake retained
     simpa [sourceLength] using exactTake
   rw [List.prefix_iff_eq_take]
   calc
-    (state.nodes source).log.take index
+    ((nodeOf state) source).log.take index
         = (activation.supporterHistory supporter).take index :=
       supporterTake.symm
     _ = ((activation.supporterHistory supporter).take activation.activationFrontier).take
@@ -628,7 +611,7 @@ lemma activationSupporterSnapshotContainsPrefix
     _ = (activation.history.take activation.activationFrontier).take index := by
       rw [agreement]
     _ = (activation.history.take activation.activationFrontier).take
-          ((state.nodes source).log.take index).length := by
+          (((nodeOf state) source).log.take index).length := by
       rw [sourceLength]
 
 /--
@@ -637,9 +620,9 @@ supporter whose activation snapshot carries the lower signed prefix, unless a
 strictly intermediate election is already bad.
 -/
 lemma potentialPrefixInActivation
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -650,29 +633,29 @@ lemma potentialPrefixInActivation
     (canonicalFacts : ActivationCanonicalFacts canonicalHistory owners activations)
     (progress : ActivationSupporterProgress state activations)
     (activationHistory
-      : AckerActivationHistory state responseHistory elections activations)
+      : AckerActivationHistory (joined := joined) state responseHistory elections activations)
     {source : Node}
     {index : Nat}
     {activationIndex : ActivationKey Node}
     {activation : ActivationRecord Node TxId}
     {configuration : Configuration Node}
-    (sourceRole : (state.nodes source).role = .leader)
+    (sourceRole : ((nodeOf state) source).role = .leader)
     (currentEntry
-      : termAt (state.nodes source).log index = (state.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (state.nodes source).log index = true)
-    (potential : hasPotentialMajorityAt state appendHistory responseHistory source index)
-    (sourceActive : configuration ∈ activeConfigurations (state.nodes source))
+      : termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf state) source).log index = true)
+    (potential : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory source index)
+    (sourceActive : configuration ∈ activeConfigurations ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (activationStored : activations activationIndex = some activation)
     (activationGoverning : configuration ∈ activation.governingActive)
-    (later : (state.nodes source).currentTerm < activation.activationTerm)
+    (later : ((nodeOf state) source).currentTerm < activation.activationTerm)
     (earlierSafe
       : forall earlierTerm earlierRecord,
-          (state.nodes source).currentTerm < earlierTerm
+          ((nodeOf state) source).currentTerm < earlierTerm
           -> earlierTerm <= activation.activationTerm
           -> elections earlierTerm = some earlierRecord
-          -> (state.nodes source).log.take index <+: earlierRecord.promotionLog)
-    : (state.nodes source).log.take index
+          -> ((nodeOf state) source).log.take index <+: earlierRecord.promotionLog)
+    : ((nodeOf state) source).log.take index
       <+: activation.history.take activation.activationFrontier := by
   have sourceMajority :=
     potentialMajorityAtConfiguration
@@ -687,7 +670,7 @@ lemma potentialPrefixInActivation
     ⟨supporter, _configurationMember, sourceSupporter,
       activationSupporter⟩
   have effective :
-      supporter ∈ effectiveAckers state responseHistory source index := by
+      supporter ∈ effectiveAckers (joined := joined) state responseHistory source index := by
     simp only [
       potentialAckers, Finset.mem_filter] at sourceSupporter
     rcases sourceSupporter with ⟨_joined, materialised | reserve⟩
@@ -716,7 +699,7 @@ lemma potentialPrefixInActivation
 
 /-- Any prefix of an election promotion precedes that term's activation. -/
 lemma electionPromotionPrefixInActivationCore
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -797,7 +780,7 @@ lemma electionPromotionPrefixInActivationCore
 
 /-- An election promotion from the activation term precedes its activation. -/
 lemma electionPromotionPrefixInActivation
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -813,8 +796,8 @@ lemma electionPromotionPrefixInActivation
     {record : ElectionRecord Node TxId}
     (activationStored : activations activationIndex = some activation)
     (recorded : elections activation.activationTerm = some record)
-    (sourcePrefix : (state.nodes source).log.take index <+: record.promotionLog)
-    : (state.nodes source).log.take index
+    (sourcePrefix : ((nodeOf state) source).log.take index <+: record.promotionLog)
+    : ((nodeOf state) source).log.take index
       <+: activation.history.take activation.activationFrontier :=
   electionPromotionPrefixInActivationCore
     electionFacts historyFacts canonicalFacts
@@ -851,7 +834,7 @@ lemma activationNewConfigurationKnown
 
 /-- A configuration known beyond a frozen ballot frontier is ballot-active. -/
 lemma electionConfigurationActiveOfKnown
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -874,41 +857,41 @@ lemma electionConfigurationActiveOfKnown
 
 /-- Early form used by the activation/election closure induction. -/
 lemma leastBadElectionHasPrefixVoterForActivation
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
     (voteFacts : VoteHistoryFacts state votes)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (ackerHistory : AckerElectionHistory state responseHistory elections)
+    (ackerHistory : AckerElectionHistory (joined := joined) state responseHistory elections)
     {source : Node}
     {index term : Nat}
     {record : ElectionRecord Node TxId}
     {configuration : Configuration Node}
-    (sourceRole : (state.nodes source).role = .leader)
+    (sourceRole : ((nodeOf state) source).role = .leader)
     (currentEntry
-      : termAt (state.nodes source).log index = (state.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (state.nodes source).log index = true)
-    (potential : hasPotentialMajorityAt state appendHistory responseHistory source index)
+      : termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf state) source).log index = true)
+    (potential : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory source index)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations (state.nodes source))
+      : configuration ∈ activeConfigurations ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (recorded : elections term = some record)
     (ballotActive : configuration ∈ record.ballotActive)
-    (newer : (state.nodes source).currentTerm < term)
+    (newer : ((nodeOf state) source).currentTerm < term)
     (earlierSafe
       : forall earlierTerm earlierRecord,
-          (state.nodes source).currentTerm < earlierTerm
+          ((nodeOf state) source).currentTerm < earlierTerm
           -> earlierTerm < term
           -> elections earlierTerm = some earlierRecord
-          -> (state.nodes source).log.take index <+: earlierRecord.promotionLog)
+          -> ((nodeOf state) source).log.take index <+: earlierRecord.promotionLog)
     : Exists
         fun voter =>
           voter ∈ record.supporters
-          /\ (state.nodes source).log.take index <+: record.voterLog voter := by
+          /\ ((nodeOf state) source).log.take index <+: record.voterLog voter := by
   rcases
       potentialElectionRecordIntersectionEffective
         voteFacts electionFacts potential sourceConfigurationActive
@@ -928,9 +911,9 @@ lemma leastBadElectionHasPrefixVoterForActivation
 
 /-- Early promotion form used by the activation/election closure induction. -/
 lemma leastBadElectionPromotionContainsPrefixForActivation
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -939,51 +922,51 @@ lemma leastBadElectionPromotionContainsPrefixForActivation
     (voteFacts : VoteHistoryFacts state votes)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (ackerHistory : AckerElectionHistory state responseHistory elections)
+    (ackerHistory : AckerElectionHistory (joined := joined) state responseHistory elections)
     {source : Node}
     {index term : Nat}
     {record : ElectionRecord Node TxId}
     {configuration : Configuration Node}
-    (sourceRole : (state.nodes source).role = .leader)
+    (sourceRole : ((nodeOf state) source).role = .leader)
     (currentEntry
-      : termAt (state.nodes source).log index = (state.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (state.nodes source).log index = true)
-    (potential : hasPotentialMajorityAt state appendHistory responseHistory source index)
+      : termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf state) source).log index = true)
+    (potential : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory source index)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations (state.nodes source))
+      : configuration ∈ activeConfigurations ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (recorded : elections term = some record)
     (ballotActive : configuration ∈ record.ballotActive)
-    (newer : (state.nodes source).currentTerm < term)
+    (newer : ((nodeOf state) source).currentTerm < term)
     (earlierSafe
       : forall earlierTerm earlierRecord,
-          (state.nodes source).currentTerm < earlierTerm
+          ((nodeOf state) source).currentTerm < earlierTerm
           -> earlierTerm < term
           -> elections earlierTerm = some earlierRecord
-          -> (state.nodes source).log.take index <+: earlierRecord.promotionLog)
-    : (state.nodes source).log.take index <+: record.promotionLog := by
+          -> ((nodeOf state) source).log.take index <+: earlierRecord.promotionLog)
+    : ((nodeOf state) source).log.take index <+: record.promotionLog := by
   rcases
       leastBadElectionHasPrefixVoterForActivation
         voteFacts electionFacts ackerHistory sourceRole currentEntry
           currentSignature potential sourceConfigurationActive
           configurationGoverns recorded ballotActive newer earlierSafe with
     ⟨voter, electionMember, voterPrefix⟩
-  let supportedPrefix := (state.nodes source).log.take index
+  let supportedPrefix := ((nodeOf state) source).log.take index
   have sourceTermPositive :
-      0 < (state.nodes source).currentTerm := by
+      0 < ((nodeOf state) source).currentTerm := by
     exact positiveOfBootstrapTermLe
       (termsPositive source (by rw [sourceRole]; decide))
   have lookupPositive :
-      0 < termAt (state.nodes source).log index := by
+      0 < termAt ((nodeOf state) source).log index := by
     rw [currentEntry]
     exact sourceTermPositive
   rcases termAtPositiveEntry lookupPositive with
     ⟨sourceEntry, sourceFound, sourceEntryTerm⟩
   have sourceEntryCurrent :
-      sourceEntry.term = (state.nodes source).currentTerm :=
+      sourceEntry.term = ((nodeOf state) source).currentTerm :=
     sourceEntryTerm.trans currentEntry
   have sourceBound :
-      index <= (state.nodes source).log.length :=
+      index <= ((nodeOf state) source).log.length :=
     entryAtSomeIndexBound sourceFound
   have prefixLength : supportedPrefix.length = index := by
     simp [
@@ -1022,7 +1005,7 @@ lemma leastBadElectionPromotionContainsPrefixForActivation
       entryAtSomeOfPositiveBound voterLastPositive le_rfl with
     ⟨voterLastEntry, voterLastFound⟩
   have sourceTermLeVoterLast :
-      (state.nodes source).currentTerm <= voterLastEntry.term := by
+      ((nodeOf state) source).currentTerm <= voterLastEntry.term := by
     by_cases atEnd : index = (record.voterLog voter).length
     · rw [atEnd] at voterFound
       have sameEntry : sourceEntry = voterLastEntry :=
@@ -1074,7 +1057,7 @@ lemma leastBadElectionPromotionContainsPrefixForActivation
           candidateLastEntry.term := by
       simp [termAt, candidateLastFound]
     have sourceTermLtCandidateLast :
-        (state.nodes source).currentTerm <
+        ((nodeOf state) source).currentTerm <
           candidateLastEntry.term := by
       have candidateNewer' :
           voterLastEntry.term < candidateLastEntry.term := by
@@ -1194,9 +1177,9 @@ Activation/election chronology closes every higher frozen election without
 assuming that a newly queued AppendEntries reserve existed in the prior state.
 -/
 lemma potentialPrefixInElectionRecordsFromActivationHistory
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -1209,34 +1192,34 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
     (voteFacts : VoteHistoryFacts state votes)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (configurationFacts : ElectionConfigurationFacts state elections activations)
+    (configurationFacts : ElectionConfigurationFacts (joined := joined) state elections activations)
     (historyFacts : ActivationHistoryFacts activations)
     (activationProgress : ActivationSupporterProgress state activations)
-    (ackerActivation : AckerActivationHistory state responseHistory elections activations)
-    (ackerElection : AckerElectionHistory state responseHistory elections)
+    (ackerActivation : AckerActivationHistory (joined := joined) state responseHistory elections activations)
+    (ackerElection : AckerElectionHistory (joined := joined) state responseHistory elections)
     (activationCanonical : ActivationCanonicalFacts canonicalHistory owners activations)
     (activationElections : ActivationElectionFacts votes elections activations)
     (configurationActivations : ConfigurationCoverageFacts state activations)
     (evidenceFacts : CommitEvidenceFacts state appendHistory nodeEvidence requestEvidence)
     (prospectiveFacts
-      : ProspectiveCommitEvidenceFacts
+      : ProspectiveCommitEvidenceFacts (joined := joined)
           state appendHistory nodeEvidence requestEvidence elections)
     {source : Node}
     {index : Nat}
-    (sourceRole : (state.nodes source).role = .leader)
+    (sourceRole : ((nodeOf state) source).role = .leader)
     (currentEntry
-      : termAt (state.nodes source).log index = (state.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (state.nodes source).log index = true)
-    (potential : hasPotentialMajorityAt state appendHistory responseHistory source index)
+      : termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf state) source).log index = true)
+    (potential : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory source index)
     : forall term record,
         elections term = some record
-        -> (state.nodes source).currentTerm < term
-        -> (state.nodes source).log.take index <+: record.promotionLog := by
+        -> ((nodeOf state) source).currentTerm < term
+        -> ((nodeOf state) source).log.take index <+: record.promotionLog := by
   intro term
   induction term using Nat.strong_induction_on with
   | h term inductionHypothesis =>
       intro record recorded later
-      by_cases committed : index <= (state.nodes source).commitIndex
+      by_cases committed : index <= ((nodeOf state) source).commitIndex
       · have indexPositive : 0 < index := by
           rcases isSignatureAtTrue currentSignature with
             ⟨entry, found, _⟩
@@ -1244,27 +1227,27 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
           have indexZero : index = 0 := Nat.eq_zero_of_not_pos notPositive
           subst index
           simp [entryAt?] at found
-        have commitPositive : 0 < (state.nodes source).commitIndex := by
+        have commitPositive : 0 < ((nodeOf state) source).commitIndex := by
           omega
         rcases evidenceFacts.nodePositive source commitPositive with
           ⟨evidence, stored, valid, _supportedLength, termBound⟩
         have known :
             KnownCommitEvidence
               state appendHistory nodeEvidence requestEvidence
-                evidence (state.nodes source).committedLog :=
+                evidence ((nodeOf state) source).committedLog :=
           Or.inl ⟨source, commitPositive, stored, rfl⟩
         have sourceBound :
-            index <= (state.nodes source).log.length := by
+            index <= ((nodeOf state) source).log.length := by
           rcases isSignatureAtTrue currentSignature with
             ⟨entry, found, _⟩
           exact entryAtSomeIndexBound found
         have sourceInCommitted :
-            (state.nodes source).log.take index <+:
-              (state.nodes source).committedLog := by
+            ((nodeOf state) source).log.take index <+:
+              ((nodeOf state) source).committedLog := by
           unfold NodeState.committedLog
           rw [List.prefix_take_iff]
           exact ⟨
-            List.take_prefix index (state.nodes source).log,
+            List.take_prefix index ((nodeOf state) source).log,
             by
               simp [
                 List.length_take,
@@ -1274,26 +1257,26 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
           ⟩
         have evidenceInElection :=
           prospectiveFacts.electionClosure
-            evidence (state.nodes source).committedLog known
+            evidence ((nodeOf state) source).committedLog known
             term record recorded (termBound.trans_lt later)
         exact
           sourceInCommitted.trans
             ((validEvidenceSupportedPrefixFrontier valid).trans
               evidenceInElection)
       · let sourceConfiguration :=
-          currentConfiguration (state.nodes source)
+          currentConfiguration ((nodeOf state) source)
         let ballotConfiguration :=
           currentConfigurationAt
             record.ballotLog record.ballotCommitIndex
         have sourceConfigurationActive :
             sourceConfiguration ∈
-              activeConfigurations (state.nodes source) := by
+              activeConfigurations ((nodeOf state) source) := by
           exact currentConfiguration_mem_activeConfigurations _
         have sourceConfigurationGoverns :
             sourceConfiguration.index <= index := by
           have currentBound :=
             currentConfiguration_index_le_commitIndex
-              (state.nodes source)
+              ((nodeOf state) source)
           dsimp [sourceConfiguration]
           omega
         have ballotConfigurationActive :
@@ -1319,10 +1302,10 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
         have directOfShared :
             forall configuration,
               configuration ∈
-                  activeConfigurations (state.nodes source) ->
+                  activeConfigurations ((nodeOf state) source) ->
               configuration.index <= index ->
               configuration ∈ record.ballotActive ->
-                (state.nodes source).log.take index <+:
+                ((nodeOf state) source).log.take index <+:
                   record.promotionLog := by
           intro configuration sourceActive governs ballotActive
           apply
@@ -1357,7 +1340,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                   apply
                     allConfigurations_index_unique
                       (TxId := TxId)
-                      (state.nodes source).log
+                      ((nodeOf state) source).log
                   · exact currentConfiguration_mem_allConfigurations _
                   · simp [allConfigurations, implicitConfiguration]
                   · simpa [implicitConfiguration] using zero
@@ -1421,7 +1404,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
               simpa [ballotConfiguration, currentConfiguration]
                 using currentConfiguration_mem_allConfigurations
                   {
-                    (state.nodes record.leader) with
+                    ((nodeOf state) record.leader) with
                       log := record.ballotLog
                       commitIndex := record.ballotCommitIndex
                   }
@@ -1506,7 +1489,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                     apply
                       allConfigurations_index_unique
                         (TxId := TxId)
-                        (state.nodes source).log
+                        ((nodeOf state) source).log
                     · exact currentConfiguration_mem_allConfigurations _
                     · simp [allConfigurations, implicitConfiguration]
                     · simpa [implicitConfiguration] using sourceZero
@@ -1518,7 +1501,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                     · simpa [ballotConfiguration, currentConfiguration]
                         using currentConfiguration_mem_allConfigurations
                           {
-                            (state.nodes record.leader) with
+                            ((nodeOf state) record.leader) with
                               log := record.ballotLog
                               commitIndex := record.ballotCommitIndex
                           }
@@ -1536,7 +1519,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                       ballotActivationIndex ballotActivation
                       ballotActivationStored
                   let ballotEventState : NodeState Node TxId :=
-                    { state.nodes source with
+                    { (nodeOf state) source with
                       log := ballotActivation.history
                       commitIndex := ballotActivation.activationFrontier }
                   have ballotBeforeEvent :
@@ -1660,10 +1643,10 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                   ballotConfiguration.index := by
               omega
             by_cases sourceBeforeActivation :
-                (state.nodes source).currentTerm <
+                ((nodeOf state) source).currentTerm <
                   ballotActivation.activationTerm
             · have sourceInActivation :
-                  (state.nodes source).log.take index <+:
+                  ((nodeOf state) source).log.take index <+:
                     ballotActivation.history.take
                       ballotActivation.activationFrontier := by
                 by_cases governing :
@@ -1712,15 +1695,15 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
               exact sourceInActivation.trans ballotActivationInPromotion
             · have activationBeforeSource :
                   ballotActivation.activationTerm <=
-                    (state.nodes source).currentTerm := by
+                    ((nodeOf state) source).currentTerm := by
                 omega
               by_cases sameTerm :
                   ballotActivation.activationTerm =
-                    (state.nodes source).currentTerm
+                    ((nodeOf state) source).currentTerm
               · have activationCanonicalEq :
                     ballotActivation.history.take
                         ballotActivation.activationFrontier =
-                      (state.nodes source).log.take
+                      ((nodeOf state) source).log.take
                         ballotActivation.activationFrontier := by
                   calc
                     ballotActivation.history.take ballotActivation.activationFrontier
@@ -1729,24 +1712,24 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                       activationCanonical.activationFrontierCanonical
                         ballotActivationIndex ballotActivation
                         ballotActivationStored
-                    _ = (state.nodes source).log.take
+                    _ = ((nodeOf state) source).log.take
                           ballotActivation.activationFrontier := by
                       rw [sameTerm, ownership.activeLeaderHistory
                         source sourceRole]
                 by_cases indexBefore :
                     index <= ballotActivation.activationFrontier
                 · have sourceInActivation :
-                      (state.nodes source).log.take index <+:
+                      ((nodeOf state) source).log.take index <+:
                         ballotActivation.history.take
                           ballotActivation.activationFrontier := by
                     rw [List.prefix_iff_eq_take]
                     calc
-                      (state.nodes source).log.take index
-                          = ((state.nodes source).log.take
+                      ((nodeOf state) source).log.take index
+                          = (((nodeOf state) source).log.take
                               ballotActivation.activationFrontier).take
-                              ((state.nodes source).log.take index).length := by
+                              (((nodeOf state) source).log.take index).length := by
                         have indexBound :
-                            index <= (state.nodes source).log.length := by
+                            index <= ((nodeOf state) source).log.length := by
                           rcases isSignatureAtTrue currentSignature with
                             ⟨entry, found, _⟩
                           exact entryAtSomeIndexBound found
@@ -1758,7 +1741,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                         ]
                       _ = (ballotActivation.history.take
                             ballotActivation.activationFrontier).take
-                            ((state.nodes source).log.take index).length := by
+                            (((nodeOf state) source).log.take index).length := by
                         rw [activationCanonicalEq]
                   exact sourceInActivation.trans ballotActivationInPromotion
                 · have ballotGoverns :
@@ -1768,17 +1751,17 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                         (Nat.lt_of_not_ge indexBefore).le
                   have ballotKnownSource :
                       ballotConfiguration ∈
-                        allConfigurations (state.nodes source).log := by
+                        allConfigurations ((nodeOf state) source).log := by
                     have activationPrefixSource :
                         ballotActivation.history.take
                             ballotActivation.activationFrontier <+:
-                          (state.nodes source).log := by
+                          ((nodeOf state) source).log := by
                       calc
                         ballotActivation.history.take ballotActivation.activationFrontier
-                            = (state.nodes source).log.take
+                            = ((nodeOf state) source).log.take
                                 ballotActivation.activationFrontier :=
                           activationCanonicalEq
-                        _ <+: (state.nodes source).log :=
+                        _ <+: ((nodeOf state) source).log :=
                           List.take_prefix _ _
                     apply
                       memOfPrefix
@@ -1787,7 +1770,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                     exact ballotConfigurationKnownActivationPrefix
                   have ballotActiveSource :
                       ballotConfiguration ∈
-                        activeConfigurations (state.nodes source) := by
+                        activeConfigurations ((nodeOf state) source) := by
                     simpa [activeConfigurations, sourceConfiguration]
                       using And.intro ballotKnownSource sourceBeforeBallot.le
                   exact
@@ -1796,11 +1779,11 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                       ballotGoverns ballotConfigurationActive
               · have strict :
                     ballotActivation.activationTerm <
-                      (state.nodes source).currentTerm := by
+                      ((nodeOf state) source).currentTerm := by
                   omega
                 rcases
                     electionFacts.ownerRecorded
-                      (state.nodes source).currentTerm source
+                      ((nodeOf state) source).currentTerm source
                       (ownership.activeLeader source sourceRole) with
                   bootstrap | sourceElection
                 · rw [bootstrap.1] at strict
@@ -1818,24 +1801,24 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                   have activationInSource :
                       ballotActivation.history.take
                           ballotActivation.activationFrontier <+:
-                        (state.nodes source).log := by
+                        ((nodeOf state) source).log := by
                     exact
                       activationInSourceElection.trans
                         ((electionFacts.promotionCanonical
-                          (state.nodes source).currentTerm
+                          ((nodeOf state) source).currentTerm
                           sourceRecord sourceRecorded).trans (by
                             rw [
                               ownership.activeLeaderHistory source sourceRole
                             ]))
                   have ballotKnownSource :
                       ballotConfiguration ∈
-                        allConfigurations (state.nodes source).log :=
+                        allConfigurations ((nodeOf state) source).log :=
                     memOfPrefix
                       (allConfigurations_mono_prefix activationInSource)
                       ballotConfigurationKnownActivationPrefix
                   have ballotActiveSource :
                       ballotConfiguration ∈
-                        activeConfigurations (state.nodes source) := by
+                        activeConfigurations ((nodeOf state) source) := by
                     simpa [activeConfigurations, sourceConfiguration]
                       using And.intro ballotKnownSource sourceBeforeBallot.le
                   have frontierBeforeIndex :
@@ -1844,7 +1827,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                       ⟨sourceEntry, sourceFound, _⟩
                     have sourceEntryTerm :
                         sourceEntry.term =
-                          (state.nodes source).currentTerm := by
+                          ((nodeOf state) source).currentTerm := by
                       simpa [termAt, sourceFound] using currentEntry
                     rcases isSignatureAtTrue
                         (historyFacts.valid
@@ -1903,41 +1886,41 @@ signature frontier, quorum intersection yields a voter whose frozen voter log
 contains that frontier.
 -/
 lemma leastBadElectionHasPrefixVoter
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
     (voteFacts : VoteHistoryFacts state votes)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (ackerHistory : AckerElectionHistory state responseHistory elections)
+    (ackerHistory : AckerElectionHistory (joined := joined) state responseHistory elections)
     {source : Node}
     {index term : Nat}
     {record : ElectionRecord Node TxId}
     {configuration : Configuration Node}
-    (sourceRole : (state.nodes source).role = .leader)
+    (sourceRole : ((nodeOf state) source).role = .leader)
     (currentEntry
-      : termAt (state.nodes source).log index = (state.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (state.nodes source).log index = true)
-    (potential : hasPotentialMajorityAt state appendHistory responseHistory source index)
+      : termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf state) source).log index = true)
+    (potential : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory source index)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations (state.nodes source))
+      : configuration ∈ activeConfigurations ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (recorded : elections term = some record)
     (ballotActive : configuration ∈ record.ballotActive)
-    (newer : (state.nodes source).currentTerm < term)
+    (newer : ((nodeOf state) source).currentTerm < term)
     (earlierSafe
       : forall earlierTerm earlierRecord,
-          (state.nodes source).currentTerm < earlierTerm
+          ((nodeOf state) source).currentTerm < earlierTerm
           -> earlierTerm < term
           -> elections earlierTerm = some earlierRecord
-          -> (state.nodes source).log.take index <+: earlierRecord.promotionLog)
+          -> ((nodeOf state) source).log.take index <+: earlierRecord.promotionLog)
     : Exists
         fun voter =>
           voter ∈ record.supporters
-          /\ (state.nodes source).log.take index <+: record.voterLog voter := by
+          /\ ((nodeOf state) source).log.take index <+: record.voterLog voter := by
   rcases
       potentialElectionRecordIntersectionEffective
         voteFacts electionFacts potential sourceConfigurationActive
@@ -1960,9 +1943,9 @@ The least higher-term election cannot omit a prospectively quorum-supported
 current-term signature frontier.
 -/
 lemma leastBadElectionPromotionContainsPrefix
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -1971,29 +1954,29 @@ lemma leastBadElectionPromotionContainsPrefix
     (voteFacts : VoteHistoryFacts state votes)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (ackerHistory : AckerElectionHistory state responseHistory elections)
+    (ackerHistory : AckerElectionHistory (joined := joined) state responseHistory elections)
     {source : Node}
     {index term : Nat}
     {record : ElectionRecord Node TxId}
     {configuration : Configuration Node}
-    (sourceRole : (state.nodes source).role = .leader)
+    (sourceRole : ((nodeOf state) source).role = .leader)
     (currentEntry
-      : termAt (state.nodes source).log index = (state.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (state.nodes source).log index = true)
-    (potential : hasPotentialMajorityAt state appendHistory responseHistory source index)
+      : termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf state) source).log index = true)
+    (potential : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory source index)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations (state.nodes source))
+      : configuration ∈ activeConfigurations ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (recorded : elections term = some record)
     (ballotActive : configuration ∈ record.ballotActive)
-    (newer : (state.nodes source).currentTerm < term)
+    (newer : ((nodeOf state) source).currentTerm < term)
     (earlierSafe
       : forall earlierTerm earlierRecord,
-          (state.nodes source).currentTerm < earlierTerm
+          ((nodeOf state) source).currentTerm < earlierTerm
           -> earlierTerm < term
           -> elections earlierTerm = some earlierRecord
-          -> (state.nodes source).log.take index <+: earlierRecord.promotionLog)
-    : (state.nodes source).log.take index <+: record.promotionLog := by
+          -> ((nodeOf state) source).log.take index <+: earlierRecord.promotionLog)
+    : ((nodeOf state) source).log.take index <+: record.promotionLog := by
   rcases
       leastBadElectionHasPrefixVoter
         voteFacts electionFacts ackerHistory sourceRole currentEntry
@@ -2001,22 +1984,22 @@ lemma leastBadElectionPromotionContainsPrefix
           potential sourceConfigurationActive configurationGoverns
           recorded ballotActive newer earlierSafe with
     ⟨voter, electionMember, voterPrefix⟩
-  let supportedPrefix := (state.nodes source).log.take index
+  let supportedPrefix := ((nodeOf state) source).log.take index
   have sourceTermPositive :
-      0 < (state.nodes source).currentTerm := by
+      0 < ((nodeOf state) source).currentTerm := by
     exact positiveOfBootstrapTermLe
       (termsPositive source (by rw [sourceRole]; decide))
   have lookupPositive :
-      0 < termAt (state.nodes source).log index := by
+      0 < termAt ((nodeOf state) source).log index := by
     rw [currentEntry]
     exact sourceTermPositive
   rcases termAtPositiveEntry lookupPositive with
     ⟨sourceEntry, sourceFound, sourceEntryTerm⟩
   have sourceEntryCurrent :
-      sourceEntry.term = (state.nodes source).currentTerm :=
+      sourceEntry.term = ((nodeOf state) source).currentTerm :=
     sourceEntryTerm.trans currentEntry
   have sourceBound :
-      index <= (state.nodes source).log.length :=
+      index <= ((nodeOf state) source).log.length :=
     entryAtSomeIndexBound sourceFound
   have prefixLength : supportedPrefix.length = index := by
     simp [
@@ -2055,7 +2038,7 @@ lemma leastBadElectionPromotionContainsPrefix
       entryAtSomeOfPositiveBound voterLastPositive le_rfl with
     ⟨voterLastEntry, voterLastFound⟩
   have sourceTermLeVoterLast :
-      (state.nodes source).currentTerm <= voterLastEntry.term := by
+      ((nodeOf state) source).currentTerm <= voterLastEntry.term := by
     by_cases atEnd : index = (record.voterLog voter).length
     · rw [atEnd] at voterFound
       have sameEntry : sourceEntry = voterLastEntry :=
@@ -2107,7 +2090,7 @@ lemma leastBadElectionPromotionContainsPrefix
           candidateLastEntry.term := by
       simp [termAt, candidateLastFound]
     have sourceTermLtCandidateLast :
-        (state.nodes source).currentTerm <
+        ((nodeOf state) source).currentTerm <
           candidateLastEntry.term := by
       have candidateNewer' :
           voterLastEntry.term < candidateLastEntry.term := by
@@ -2225,9 +2208,9 @@ lemma leastBadElectionPromotionContainsPrefix
 
 /-- Every higher frozen election record contains a prospective signature frontier. -/
 lemma potentialPrefixInElectionRecords
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -2237,20 +2220,20 @@ lemma potentialPrefixInElectionRecords
     (voteFacts : VoteHistoryFacts state votes)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (ackerHistory : AckerElectionHistory state responseHistory elections)
+    (ackerHistory : AckerElectionHistory (joined := joined) state responseHistory elections)
     (activationQuorums
-      : ActivationQuorumFacts state appendHistory responseHistory elections activations)
+      : ActivationQuorumFacts (joined := joined) state appendHistory responseHistory elections activations)
     {source : Node}
     {index : Nat}
-    (sourceRole : (state.nodes source).role = .leader)
+    (sourceRole : ((nodeOf state) source).role = .leader)
     (currentEntry
-      : termAt (state.nodes source).log index = (state.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (state.nodes source).log index = true)
-    (potential : hasPotentialMajorityAt state appendHistory responseHistory source index)
+      : termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf state) source).log index = true)
+    (potential : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory source index)
     : forall term record,
         elections term = some record
-        -> (state.nodes source).currentTerm < term
-        -> (state.nodes source).log.take index <+: record.promotionLog := by
+        -> ((nodeOf state) source).currentTerm < term
+        -> ((nodeOf state) source).log.take index <+: record.promotionLog := by
   intro term
   induction term using Nat.strong_induction_on with
   | h term inductionHypothesis =>
@@ -2275,9 +2258,9 @@ lemma potentialPrefixInElectionRecords
 
 /-- Every higher active leader contains a prospective current-term signature frontier. -/
 lemma potentialPrefixInHigherLeader
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -2287,24 +2270,24 @@ lemma potentialPrefixInHigherLeader
     (voteFacts : VoteHistoryFacts state votes)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (ackerHistory : AckerElectionHistory state responseHistory elections)
+    (ackerHistory : AckerElectionHistory (joined := joined) state responseHistory elections)
     (activationQuorums
-      : ActivationQuorumFacts state appendHistory responseHistory elections activations)
+      : ActivationQuorumFacts (joined := joined) state appendHistory responseHistory elections activations)
     {source leader : Node}
     {index : Nat}
-    (sourceRole : (state.nodes source).role = .leader)
+    (sourceRole : ((nodeOf state) source).role = .leader)
     (currentEntry
-      : termAt (state.nodes source).log index = (state.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (state.nodes source).log index = true)
-    (potential : hasPotentialMajorityAt state appendHistory responseHistory source index)
-    (leaderRole : (state.nodes leader).role = .leader)
-    (newer : (state.nodes source).currentTerm < (state.nodes leader).currentTerm)
-    : (state.nodes source).log.take index <+: (state.nodes leader).log := by
+      : termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf state) source).log index = true)
+    (potential : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory source index)
+    (leaderRole : ((nodeOf state) leader).role = .leader)
+    (newer : ((nodeOf state) source).currentTerm < ((nodeOf state) leader).currentTerm)
+    : ((nodeOf state) source).log.take index <+: ((nodeOf state) leader).log := by
   have owned :=
     ownership.activeLeader leader leaderRole
   rcases
       electionFacts.ownerRecorded
-        (state.nodes leader).currentTerm leader owned with
+        ((nodeOf state) leader).currentTerm leader owned with
     bootstrap | recorded
   · rw [bootstrap.1] at newer
     have positive :=
@@ -2317,12 +2300,12 @@ lemma potentialPrefixInHigherLeader
         termsPositive voteFacts ownership electionFacts ackerHistory
           activationQuorums
           sourceRole currentEntry currentSignature potential
-          (state.nodes leader).currentTerm record
+          ((nodeOf state) leader).currentTerm record
           recordStored newer
     have canonicalPrefix :=
       promotionPrefix.trans
         (electionFacts.promotionCanonical
-          (state.nodes leader).currentTerm record recordStored)
+          ((nodeOf state) leader).currentTerm record recordStored)
     rw [ownership.activeLeaderHistory leader leaderRole] at canonicalPrefix
     exact canonicalPrefix
 
@@ -2331,8 +2314,8 @@ An up-to-date candidate snapshot contains a supported history prefix once
 every strictly intermediate elected term is known to contain it.
 -/
 lemma candidateSnapshotContainsSupportedPrefix
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -2605,22 +2588,22 @@ An up-to-date candidate snapshot contains a prospective prefix once every
 strictly intermediate elected term is known to contain it.
 -/
 lemma candidateSnapshotContainsProspectivePrefix
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
     {source : Node}
-    (sourceTermPositive : BOOTSTRAP_TERM <= (state.nodes source).currentTerm)
+    (sourceTermPositive : BOOTSTRAP_TERM <= ((nodeOf state) source).currentTerm)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
     {index targetTerm : Nat}
     {candidateLog voterLog promotionLog : List (Entry Node TxId)}
     (currentEntry
-      : termAt (state.nodes source).log index = (state.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (state.nodes source).log index = true)
-    (voterPrefix : (state.nodes source).log.take index <+: voterLog)
+      : termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf state) source).log index = true)
+    (voterPrefix : ((nodeOf state) source).log.take index <+: voterLog)
     (candidatePrefix : candidateLog <+: promotionLog)
     (candidateCanonical : HistoryCanonical canonicalHistory candidateLog)
     (voterCanonical : HistoryCanonical canonicalHistory voterLog)
@@ -2632,24 +2615,23 @@ lemma candidateSnapshotContainsProspectivePrefix
               \/ (entry.term = targetTerm
                   /\ forall record,
                       elections targetTerm = some record
-                      -> (state.nodes source).log.take index <+: record.promotionLog))
+                      -> ((nodeOf state) source).log.take index <+: record.promotionLog))
     (upToDate
       : voteLogUpToDate
-          { (state.nodes source) with log := voterLog }
+          { ((nodeOf state) source) with log := voterLog }
           {
             term := targetTerm
             lastCommittableTerm := maxCommittableTerm candidateLog
             lastCommittableIndex := maxCommittableIndex candidateLog
-            source
-            destination := source
+
           })
     (earlierSafe
       : forall earlierTerm earlierRecord,
-          (state.nodes source).currentTerm < earlierTerm
+          ((nodeOf state) source).currentTerm < earlierTerm
           -> earlierTerm < targetTerm
           -> elections earlierTerm = some earlierRecord
-          -> (state.nodes source).log.take index <+: earlierRecord.promotionLog)
-    : (state.nodes source).log.take index <+: promotionLog := by
+          -> ((nodeOf state) source).log.take index <+: earlierRecord.promotionLog)
+    : ((nodeOf state) source).log.take index <+: promotionLog := by
   apply
     candidateSnapshotContainsSupportedPrefix
       (targetTerm := targetTerm)
@@ -2662,12 +2644,12 @@ lemma candidateSnapshotContainsProspectivePrefix
 
 /-- Every higher prospective winning candidate contains a prospective prefix. -/
 lemma potentialPrefixInHigherCandidateOfSharedConfiguration
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
@@ -2677,36 +2659,36 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
     (_candidatesAbove : CandidatesAboveBootstrap state)
     (entriesBounded : EntriesDoNotExceedCurrentTerm state)
     (voteFacts : VoteHistoryFacts state votes)
-    (snapshots : GrantedVoteSnapshots state votes voteCandidateHistory voteVoterHistory)
+    (snapshots : GrantedVoteSnapshots (joined := joined) state votes voteCandidateHistory voteVoterHistory)
     (canonicalSnapshots
-      : GrantedVoteCanonicalSnapshots
+      : GrantedVoteCanonicalSnapshots (joined := joined)
           state canonicalHistory voteCandidateHistory voteVoterHistory)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (_configurationFacts : ElectionConfigurationFacts state elections activations)
-    (currentHistory : AckerCurrentHistory state responseHistory elections)
+    (_configurationFacts : ElectionConfigurationFacts (joined := joined) state elections activations)
+    (currentHistory : AckerCurrentHistory (joined := joined) state responseHistory elections)
     (voteHistory
-      : AckerVoteHistory state votes responseHistory voteVoterHistory elections)
-    (electedHistory : AckerElectionHistory state responseHistory elections)
+      : AckerVoteHistory (joined := joined) state votes responseHistory voteVoterHistory elections)
+    (electedHistory : AckerElectionHistory (joined := joined) state responseHistory elections)
     (activationQuorums
-      : ActivationQuorumFacts state appendHistory responseHistory elections activations)
+      : ActivationQuorumFacts (joined := joined) state appendHistory responseHistory elections activations)
     {source candidate : Node}
     {index : Nat}
     {configuration : Configuration Node}
-    (sourceRole : (state.nodes source).role = .leader)
+    (sourceRole : ((nodeOf state) source).role = .leader)
     (currentEntry
-      : termAt (state.nodes source).log index = (state.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (state.nodes source).log index = true)
-    (potential : hasPotentialMajorityAt state appendHistory responseHistory source index)
-    (candidateRole : (state.nodes candidate).role = .candidate)
-    (candidateMajority : hasPotentialElectionMajority state candidate)
+      : termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf state) source).log index = true)
+    (potential : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory source index)
+    (candidateRole : ((nodeOf state) candidate).role = .candidate)
+    (candidateMajority : hasPotentialElectionMajority (joined := joined) state candidate)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations (state.nodes source))
+      : configuration ∈ activeConfigurations ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (candidateConfigurationActive
-      : configuration ∈ activeConfigurations (state.nodes candidate))
-    (newer : (state.nodes source).currentTerm < (state.nodes candidate).currentTerm)
-    : (state.nodes source).log.take index <+: (state.nodes candidate).log := by
+      : configuration ∈ activeConfigurations ((nodeOf state) candidate))
+    (newer : ((nodeOf state) source).currentTerm < ((nodeOf state) candidate).currentTerm)
+    : ((nodeOf state) source).log.take index <+: ((nodeOf state) candidate).log := by
   rcases
       potentialElectionMajorityIntersectionEffective
         snapshots potential sourceConfigurationActive
@@ -2715,10 +2697,10 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
     ⟨voter, effective, electionMember⟩
   have earlierSafe :
       forall earlierTerm earlierRecord,
-        (state.nodes source).currentTerm < earlierTerm ->
-        earlierTerm < (state.nodes candidate).currentTerm ->
+        ((nodeOf state) source).currentTerm < earlierTerm ->
+        earlierTerm < ((nodeOf state) candidate).currentTerm ->
         elections earlierTerm = some earlierRecord ->
-          (state.nodes source).log.take index <+:
+          ((nodeOf state) source).log.take index <+:
             earlierRecord.promotionLog := by
     intro earlierTerm earlierRecord above _ recorded
     exact
@@ -2729,7 +2711,7 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
           earlierTerm earlierRecord recorded above
   have badImpossible :
       forall bound,
-        bound <= (state.nodes candidate).currentTerm ->
+        bound <= ((nodeOf state) candidate).currentTerm ->
         EarlierBadElection state elections source index bound ->
           False := by
     intro bound bounded bad
@@ -2751,7 +2733,7 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
     · exact retained
     · exact False.elim
         (badImpossible
-          (state.nodes candidate).currentTerm le_rfl bad)
+          ((nodeOf state) candidate).currentTerm le_rfl bad)
   · simp only [
       potentialElectionVoters, Finset.mem_filter] at electionMember
     rcases electionMember with ⟨_joined, materialised | eligible⟩
@@ -2761,7 +2743,7 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
       have recordedVote := snapshot.1
       rcases
           voteHistory source index sourceRole currentEntry currentSignature
-            voter (state.nodes candidate).currentTerm candidate
+            voter ((nodeOf state) candidate).currentTerm candidate
             effective recordedVote voterEq newer with
         voterPrefix | bad
       · rcases snapshot.2 with self | voteSnapshot
@@ -2773,36 +2755,36 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
           · exact False.elim (voterEq self)
           · let response :=
               grantedVoteKey
-                voter (state.nodes candidate).currentTerm candidate
+                voter ((nodeOf state) candidate).currentTerm candidate
             have candidateEntrySafe :
                 forall entry,
                   entry ∈ voteCandidateHistory response ->
-                    entry.term < (state.nodes candidate).currentTerm \/
-                      (entry.term = (state.nodes candidate).currentTerm /\
+                    entry.term < ((nodeOf state) candidate).currentTerm \/
+                      (entry.term = ((nodeOf state) candidate).currentTerm /\
                         forall record,
-                          elections (state.nodes candidate).currentTerm =
+                          elections ((nodeOf state) candidate).currentTerm =
                               some record ->
-                            (state.nodes source).log.take index <+:
+                            ((nodeOf state) source).log.take index <+:
                               record.promotionLog) := by
               intro entry member
               have currentMember :
-                  entry ∈ (state.nodes candidate).log :=
+                  entry ∈ ((nodeOf state) candidate).log :=
                 memOfPrefix voteSnapshot.1 member
               have bounded := entriesBounded candidate entry currentMember
               by_cases same :
-                  entry.term = (state.nodes candidate).currentTerm
+                  entry.term = ((nodeOf state) candidate).currentTerm
               · exact Or.inr
                   ⟨same, fun record recorded =>
                     potentialPrefixInElectionRecords
                       termsPositive voteFacts ownership electionFacts
                         electedHistory activationQuorums
                         sourceRole currentEntry currentSignature potential
-                        (state.nodes candidate).currentTerm record
+                        ((nodeOf state) candidate).currentTerm record
                         recorded newer⟩
               · exact Or.inl (by omega)
             apply
               candidateSnapshotContainsProspectivePrefix
-                (targetTerm := (state.nodes candidate).currentTerm)
+                (targetTerm := ((nodeOf state) candidate).currentTerm)
                 (termsPositive source (by rw [sourceRole]; decide))
                 ownership electionFacts
                   currentEntry currentSignature voterPrefix voteSnapshot.1
@@ -2817,10 +2799,10 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
             · exact earlierSafe
       · exact False.elim
           (badImpossible
-            (state.nodes candidate).currentTerm le_rfl bad)
+            ((nodeOf state) candidate).currentTerm le_rfl bad)
     · have voterPrefix :
-          (state.nodes source).log.take index <+:
-            (state.nodes voter).log := by
+          ((nodeOf state) source).log.take index <+:
+            ((nodeOf state) voter).log := by
         rcases
             currentHistory source index sourceRole currentEntry
               currentSignature
@@ -2829,38 +2811,38 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
         · exact retained
         · exact False.elim
             (badImpossible
-              (state.nodes candidate).currentTerm
+              ((nodeOf state) candidate).currentTerm
                 le_rfl
                 (by
                   have voterTerm :
-                      (state.nodes voter).currentTerm =
-                        (state.nodes candidate).currentTerm := by
+                      ((nodeOf state) voter).currentTerm =
+                        ((nodeOf state) candidate).currentTerm := by
                     simpa [
                       currentlyEligibleElectionVoter,
-                      makeRequestVoteRequest
+                      voteRequestKey, Model.Local.makeRequestVoteRequest
                     ] using eligible.1.symm
                   simpa [voterTerm] using bad))
       have candidateEntrySafe :
           forall entry,
-            entry ∈ (state.nodes candidate).log ->
-              entry.term < (state.nodes candidate).currentTerm \/
-                (entry.term = (state.nodes candidate).currentTerm /\
+            entry ∈ ((nodeOf state) candidate).log ->
+              entry.term < ((nodeOf state) candidate).currentTerm \/
+                (entry.term = ((nodeOf state) candidate).currentTerm /\
                   forall record,
-                    elections (state.nodes candidate).currentTerm =
+                    elections ((nodeOf state) candidate).currentTerm =
                         some record ->
-                      (state.nodes source).log.take index <+:
+                      ((nodeOf state) source).log.take index <+:
                         record.promotionLog) := by
         intro entry member
         have bounded := entriesBounded candidate entry member
         by_cases same :
-            entry.term = (state.nodes candidate).currentTerm
+            entry.term = ((nodeOf state) candidate).currentTerm
         · exact Or.inr
             ⟨same, fun record recorded =>
               potentialPrefixInElectionRecords
                 termsPositive voteFacts ownership electionFacts
                   electedHistory activationQuorums
                   sourceRole currentEntry currentSignature potential
-                  (state.nodes candidate).currentTerm record
+                  ((nodeOf state) candidate).currentTerm record
                   recorded newer⟩
         · exact Or.inl (by omega)
       apply
@@ -2868,7 +2850,7 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
           (termsPositive source (by rw [sourceRole]; decide))
           ownership electionFacts
             currentEntry currentSignature voterPrefix
-            (prefixRefl (state.nodes candidate).log)
+            (prefixRefl ((nodeOf state) candidate).log)
             (fun entryIndex entry found =>
               ownership.logEntryAgreement
                 candidate entryIndex entry found)
@@ -2879,11 +2861,11 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
             candidateEntrySafe
       · simpa [
           currentlyEligibleElectionVoter,
-          makeRequestVoteRequest,
+          voteRequestKey, Model.Local.makeRequestVoteRequest,
           lastCommittableIndex_eq_maxCommittableIndex
-            (state.nodes candidate) (committedSignature candidate),
+            ((nodeOf state) candidate) (committedSignature candidate),
           lastCommittableTerm_eq_maxCommittableTerm
-            (state.nodes candidate) (committedSignature candidate),
+            ((nodeOf state) candidate) (committedSignature candidate),
           voteLogUpToDate
         ] using eligible.2.1
       · exact earlierSafe
@@ -2893,12 +2875,12 @@ Activation history discharges the cross-configuration case before the ordinary
 same-configuration election argument is applied.
 -/
 lemma potentialPrefixInHigherCandidate
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
@@ -2908,30 +2890,30 @@ lemma potentialPrefixInHigherCandidate
     (candidatesAbove : CandidatesAboveBootstrap state)
     (entriesBounded : EntriesDoNotExceedCurrentTerm state)
     (voteFacts : VoteHistoryFacts state votes)
-    (snapshots : GrantedVoteSnapshots state votes voteCandidateHistory voteVoterHistory)
+    (snapshots : GrantedVoteSnapshots (joined := joined) state votes voteCandidateHistory voteVoterHistory)
     (canonicalSnapshots
-      : GrantedVoteCanonicalSnapshots
+      : GrantedVoteCanonicalSnapshots (joined := joined)
           state canonicalHistory voteCandidateHistory voteVoterHistory)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (configurationFacts : ElectionConfigurationFacts state elections activations)
-    (currentHistory : AckerCurrentHistory state responseHistory elections)
+    (configurationFacts : ElectionConfigurationFacts (joined := joined) state elections activations)
+    (currentHistory : AckerCurrentHistory (joined := joined) state responseHistory elections)
     (voteHistory
-      : AckerVoteHistory state votes responseHistory voteVoterHistory elections)
-    (electedHistory : AckerElectionHistory state responseHistory elections)
+      : AckerVoteHistory (joined := joined) state votes responseHistory voteVoterHistory elections)
+    (electedHistory : AckerElectionHistory (joined := joined) state responseHistory elections)
     (activationQuorums
-      : ActivationQuorumFacts state appendHistory responseHistory elections activations)
+      : ActivationQuorumFacts (joined := joined) state appendHistory responseHistory elections activations)
     {source candidate : Node}
     {index : Nat}
-    (sourceRole : (state.nodes source).role = .leader)
+    (sourceRole : ((nodeOf state) source).role = .leader)
     (currentEntry
-      : termAt (state.nodes source).log index = (state.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (state.nodes source).log index = true)
-    (potential : hasPotentialMajorityAt state appendHistory responseHistory source index)
-    (candidateRole : (state.nodes candidate).role = .candidate)
-    (candidateMajority : hasPotentialElectionMajority state candidate)
-    (newer : (state.nodes source).currentTerm < (state.nodes candidate).currentTerm)
-    : (state.nodes source).log.take index <+: (state.nodes candidate).log := by
+      : termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf state) source).log index = true)
+    (potential : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory source index)
+    (candidateRole : ((nodeOf state) candidate).role = .candidate)
+    (candidateMajority : hasPotentialElectionMajority (joined := joined) state candidate)
+    (newer : ((nodeOf state) source).currentTerm < ((nodeOf state) candidate).currentTerm)
+    : ((nodeOf state) source).log.take index <+: ((nodeOf state) candidate).log := by
   rcases
       activationQuorums.candidateBridge
         source index sourceRole currentEntry currentSignature potential
@@ -2955,11 +2937,11 @@ Prospective per-ACK evidence covers a candidate with materialised election
 support.
 -/
 lemma prospectiveKnownEffectiveWinnerCompletenessOfSharedAuthority
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
@@ -2969,13 +2951,13 @@ lemma prospectiveKnownEffectiveWinnerCompletenessOfSharedAuthority
     (_entriesBounded : EntriesDoNotExceedCurrentTerm state)
     (_candidatesAbove : CandidatesAboveBootstrap state)
     (_voteFacts : VoteHistoryFacts state votes)
-    (_snapshots : GrantedVoteSnapshots state votes voteCandidateHistory voteVoterHistory)
+    (_snapshots : GrantedVoteSnapshots (joined := joined) state votes voteCandidateHistory voteVoterHistory)
     (_ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (_electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (configurationFacts : ElectionConfigurationFacts state elections activations)
+    (configurationFacts : ElectionConfigurationFacts (joined := joined) state elections activations)
     (evidenceFacts : CommitEvidenceFacts state appendHistory nodeEvidence requestEvidence)
     (prospectiveFacts
-      : ProspectiveCommitEvidenceFacts
+      : ProspectiveCommitEvidenceFacts (joined := joined)
           state appendHistory nodeEvidence requestEvidence elections)
     {evidence : CommitEvidence Node TxId}
     {supportedPrefix : List (Entry Node TxId)}
@@ -2984,15 +2966,15 @@ lemma prospectiveKnownEffectiveWinnerCompletenessOfSharedAuthority
           state appendHistory nodeEvidence requestEvidence
           evidence supportedPrefix)
     {candidate : Node}
-    (candidateRole : (state.nodes candidate).role = .candidate)
-    (candidateMajority : hasPotentialElectionMajority state candidate)
-    (authorityActive : evidence.authority ∈ activeConfigurations (state.nodes candidate))
-    (newer : evidence.commitTerm < (state.nodes candidate).currentTerm)
-    : supportedPrefix <+: (state.nodes candidate).log := by
+    (candidateRole : ((nodeOf state) candidate).role = .candidate)
+    (candidateMajority : hasPotentialElectionMajority (joined := joined) state candidate)
+    (authorityActive : evidence.authority ∈ activeConfigurations ((nodeOf state) candidate))
+    (newer : evidence.commitTerm < ((nodeOf state) candidate).currentTerm)
+    : supportedPrefix <+: ((nodeOf state) candidate).log := by
   have candidateEntriesBefore :
       forall entry,
-        entry ∈ (state.nodes candidate).log ->
-          entry.term < (state.nodes candidate).currentTerm := by
+        entry ∈ ((nodeOf state) candidate).log ->
+          entry.term < ((nodeOf state) candidate).currentTerm := by
     exact configurationFacts.candidateEntriesBeforeTerm candidate candidateRole
   have valid := knownCommitEvidenceValid evidenceFacts known
   have candidateAuthorityMajority :=
@@ -3004,10 +2986,10 @@ lemma prospectiveKnownEffectiveWinnerCompletenessOfSharedAuthority
     ⟨member, _authorityMember, ackMember, candidateMember⟩
   have parts :
       member ∈ evidence.ackQuorum /\
-        member ∈ potentialElectionVoters state candidate :=
+        member ∈ potentialElectionVoters (joined := joined) state candidate :=
     ⟨ackMember, candidateMember⟩
   have relaxed :
-      member ∈ relaxedElectionVoters state candidate := by
+      member ∈ relaxedElectionVoters (joined := joined) state candidate := by
     simp only [
       potentialElectionVoters, Finset.mem_filter] at parts
     simp only [
@@ -3017,9 +2999,9 @@ lemma prospectiveKnownEffectiveWinnerCompletenessOfSharedAuthority
     · refine ⟨joined, Or.inr ?_⟩
       unfold currentlyEligibleElectionVoter at eligible
       exact ⟨
-        by simpa [makeRequestVoteRequest] using eligible.1.symm.le,
+        by simpa [voteRequestKey, Model.Local.makeRequestVoteRequest] using eligible.1.symm.le,
         by
-          simpa [makeRequestVoteRequest, voteLogUpToDate] using eligible.2.1
+          simpa [voteRequestKey, Model.Local.makeRequestVoteRequest, voteLogUpToDate] using eligible.2.1
       ⟩
   exact (validEvidenceSupportedPrefixFrontier valid).trans
     (prospectiveFacts.relaxedSupporterCarriesFrontier
@@ -3029,12 +3011,12 @@ lemma prospectiveKnownEffectiveWinnerCompletenessOfSharedAuthority
 
 /-- Activation bridges the evidence prefix or supplies a shared authority. -/
 lemma prospectiveKnownEffectiveWinnerCompleteness
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
@@ -3044,16 +3026,16 @@ lemma prospectiveKnownEffectiveWinnerCompleteness
     (entriesBounded : EntriesDoNotExceedCurrentTerm state)
     (candidatesAbove : CandidatesAboveBootstrap state)
     (voteFacts : VoteHistoryFacts state votes)
-    (snapshots : GrantedVoteSnapshots state votes voteCandidateHistory voteVoterHistory)
+    (snapshots : GrantedVoteSnapshots (joined := joined) state votes voteCandidateHistory voteVoterHistory)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
-    (configurationFacts : ElectionConfigurationFacts state elections activations)
+    (configurationFacts : ElectionConfigurationFacts (joined := joined) state elections activations)
     (evidenceFacts : CommitEvidenceFacts state appendHistory nodeEvidence requestEvidence)
     (prospectiveFacts
-      : ProspectiveCommitEvidenceFacts
+      : ProspectiveCommitEvidenceFacts (joined := joined)
           state appendHistory nodeEvidence requestEvidence elections)
     (activationEvidence
-      : ActivationEvidenceFacts
+      : ActivationEvidenceFacts (joined := joined)
           state appendHistory responseHistory nodeEvidence requestEvidence
           elections activations)
     {evidence : CommitEvidence Node TxId}
@@ -3063,10 +3045,10 @@ lemma prospectiveKnownEffectiveWinnerCompleteness
           state appendHistory nodeEvidence requestEvidence
           evidence supportedPrefix)
     {candidate : Node}
-    (candidateRole : (state.nodes candidate).role = .candidate)
-    (candidateMajority : hasPotentialElectionMajority state candidate)
-    (newer : evidence.commitTerm < (state.nodes candidate).currentTerm)
-    : supportedPrefix <+: (state.nodes candidate).log := by
+    (candidateRole : ((nodeOf state) candidate).role = .candidate)
+    (candidateMajority : hasPotentialElectionMajority (joined := joined) state candidate)
+    (newer : evidence.commitTerm < ((nodeOf state) candidate).currentTerm)
+    : supportedPrefix <+: ((nodeOf state) candidate).log := by
   rcases
       activationEvidence.candidateBridge
         evidence supportedPrefix known candidate candidateRole
@@ -3083,15 +3065,15 @@ lemma prospectiveKnownEffectiveWinnerCompleteness
 
 /-- The retained canonical histories derive state-local log monotonicity. -/
 lemma invariantFactsMonoLogFromCanonicalHistories
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
-    {voteRequestHistory : RequestVoteRequest Node -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
+    {voteRequestHistory : VoteRequestKey Node -> List (Entry Node TxId)}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
     (facts
-      : InvariantFacts
+      : InvariantFacts (joined := joined)
           state votes appendHistory responseHistory voteRequestHistory
           voteCandidateHistory voteVoterHistory)
     : MonoLog state := by
@@ -3102,15 +3084,15 @@ lemma invariantFactsMonoLogFromCanonicalHistories
 
 /-- Persistent self-votes derive the post-bootstrap candidate-term bound. -/
 lemma invariantFactsCandidatesAboveBootstrap
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
-    {voteRequestHistory : RequestVoteRequest Node -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
+    {voteRequestHistory : VoteRequestKey Node -> List (Entry Node TxId)}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
     (facts
-      : InvariantFacts
+      : InvariantFacts (joined := joined)
           state votes appendHistory responseHistory voteRequestHistory
           voteCandidateHistory voteVoterHistory)
     : CandidatesAboveBootstrap state :=
@@ -3122,15 +3104,15 @@ Live node commit evidence derives the signature-only committed frontier.
 The supported-prefix equality transfers the evidence signature to the node log.
 -/
 lemma invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
-    {voteRequestHistory : RequestVoteRequest Node -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
+    {voteRequestHistory : VoteRequestKey Node -> List (Entry Node TxId)}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
     (facts
-      : InvariantFacts
+      : InvariantFacts (joined := joined)
           state votes appendHistory responseHistory voteRequestHistory
           voteCandidateHistory voteVoterHistory)
     : CommittedFrontierIsSignature state := by
@@ -3155,13 +3137,13 @@ lemma invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
     supportedSignature (by simpa [supportedLength] using positive)
   have committedSignature :
       isSignatureAt
-          (state.nodes node).committedLog
-          (state.nodes node).commitIndex =
+          ((nodeOf state) node).committedLog
+          ((nodeOf state) node).commitIndex =
         true := by
     rw [← supportedLength, ← supportedPrefix]
     exact isSignatureAt_take_of_le le_rfl evidenceSignature
   exact isSignatureAt_of_prefix
-    (List.take_prefix (state.nodes node).commitIndex (state.nodes node).log)
+    (List.take_prefix ((nodeOf state) node).commitIndex ((nodeOf state) node).log)
     (by simpa [NodeState.committedLog] using committedSignature)
 
 end CCFRaft.Proofs.Invariant
