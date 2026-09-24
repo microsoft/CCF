@@ -11,75 +11,65 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
+open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
+variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-attribute [local simp] Message.destination ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /-- Appending a pending configuration preserves the arbitrary-term invariant. -/
 lemma changeConfigurationPreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (source : Node)
+    {present : source ∈ state.nodes.map Prod.fst}
     (newConfiguration : Finset Node)
-    (invariant : SystemInductiveInvariant state)
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (enabled
-      : (state.allocated source
-          /\ (state.nodes source).role = .leader
-          /\ Not ((state.nodes source).membershipState = .retiredCommitted)
+      : (source ∈ joinedNodes
+          /\ ((nodeOf state) source).role = .leader
+          /\ Not (((nodeOf state) source).membershipState = .retiredCommitted)
           /\ newConfiguration.Nonempty
-          /\ Not (newConfiguration = ((latestConfiguration (state.nodes source)).nodes))
+          /\ Not (newConfiguration = ((latestConfiguration ((nodeOf state) source)).nodes))
           /\ Not
               ((refreshRetirementState source
                   ({
-                    (state.nodes source) with
+                    ((nodeOf state) source) with
                       log :=
-                        (state.nodes source).log
+                        ((nodeOf state) source).log
                         ++ [({
-                              term := (state.nodes source).currentTerm,
+                              term := ((nodeOf state) source).currentTerm,
                               content := .reconfiguration newConfiguration
                             })]
                   })).membershipState
                 = .retiredCommitted)))
-    : SystemInductiveInvariant
+    : SystemInductiveInvariant (joined := leaderAppendJoined joinedNodes state source (.reconfiguration newConfiguration))
         (changeConfigurationEffect state source newConfiguration) := by
-  simpa [leaderAppendState, view_effects]
-    using leaderAppendPreservesSystemInductiveInvariant
+  simpa [leaderAppendState, present, concrete_effects, present]
+    using leaderAppendPreservesSystemInductiveInvariant (present := present)
       state source (.reconfiguration newConfiguration)
       invariant enabled.1 enabled.2.1
 
 /-- Demotion to a passive role preserves a leader's history and term ownership. -/
 lemma leaderDemotionPreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (node : Node)
+    {present : node ∈ state.nodes.map Prod.fst}
     (newRole : Role)
     (passive : newRole = .follower \/ newRole = .none)
     (newFollower : Bool)
-    (invariant : SystemInductiveInvariant state)
-    (_nodeAllocated : state.allocated node)
-    (oldRole : (state.nodes node).role = .leader)
-    : SystemInductiveInvariant
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
+    (_nodeAllocated : node ∈ joinedNodes)
+    (oldRole : ((nodeOf state) node).role = .leader)
+    : SystemInductiveInvariant (joined := joinedNodes)
         {
           state with
             nodes :=
-              updateNode state.nodes node
-                { state.nodes node with role := newRole, isNewFollower := newFollower }
+              replaceNode state.nodes node
+                { (nodeOf state) node with role := newRole, isNewFollower := newFollower }
         } := by
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
@@ -88,100 +78,100 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
     ⟨owners, canonicalHistory, elections, activations,
       nodeEvidence, requestEvidence, historical⟩
   have ownership := historical.termOwnership
-  let after : View Node TxId :=
+  let after : Model.State Node TxId :=
     { state with
       nodes :=
-        updateNode state.nodes node
-          { state.nodes node with role := newRole, isNewFollower := newFollower } }
-  have packed : SystemInductiveInvariant state :=
+        replaceNode state.nodes node
+          { (nodeOf state) node with role := newRole, isNewFollower := newFollower } }
+  have packed : SystemInductiveInvariant (joined := joinedNodes) state :=
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
-  have oldRole : (state.nodes node).role = .leader := oldRole
-  have roleNode : (after.nodes node).role = newRole := by
-    simp [after]
+  have oldRole : ((nodeOf state) node).role = .leader := oldRole
+  have roleNode : ((nodeOf after) node).role = newRole := by
+    simp [after, present]
   have roleOther :
       forall candidate,
         Not (candidate = node) ->
-          (after.nodes candidate).role =
-            (state.nodes candidate).role := by
+          ((nodeOf after) candidate).role =
+            ((nodeOf state) candidate).role := by
     intro candidate different
     simp [
-      after, updateNode, different
+      after, present, nodeOf_replaceNode, different
     ]
   have termEq :
       forall candidate,
-        (after.nodes candidate).currentTerm =
-          (state.nodes candidate).currentTerm := by
+        ((nodeOf after) candidate).currentTerm =
+          ((nodeOf state) candidate).currentTerm := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, updateNode, same
+        after, present, nodeOf_replaceNode, same
       ]
   have logEq :
       forall candidate,
-        (after.nodes candidate).log =
-          (state.nodes candidate).log := by
+        ((nodeOf after) candidate).log =
+          ((nodeOf state) candidate).log := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, updateNode, same
+        after, present, nodeOf_replaceNode, same
       ]
   have commitEq :
       forall candidate,
-        (after.nodes candidate).commitIndex =
-          (state.nodes candidate).commitIndex := by
+        ((nodeOf after) candidate).commitIndex =
+          ((nodeOf state) candidate).commitIndex := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, updateNode, same
+        after, present, nodeOf_replaceNode, same
       ]
   have sentEq :
       forall candidate,
-        (after.nodes candidate).sentIndex =
-          (state.nodes candidate).sentIndex := by
+        ((nodeOf after) candidate).sentIndex =
+          ((nodeOf state) candidate).sentIndex := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, updateNode, same
+        after, present, nodeOf_replaceNode, same
       ]
   have matchEq :
       forall candidate,
-        (after.nodes candidate).matchIndex =
-          (state.nodes candidate).matchIndex := by
+        ((nodeOf after) candidate).matchIndex =
+          ((nodeOf state) candidate).matchIndex := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, updateNode, same
+        after, present, nodeOf_replaceNode, same
       ]
   have votedEq :
       forall candidate,
-        (after.nodes candidate).votedFor =
-          (state.nodes candidate).votedFor := by
+        ((nodeOf after) candidate).votedFor =
+          ((nodeOf state) candidate).votedFor := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, updateNode, same
+        after, present, nodeOf_replaceNode, same
       ]
   have votesEq :
       forall candidate,
-        (after.nodes candidate).votesGranted =
-          (state.nodes candidate).votesGranted := by
+        ((nodeOf after) candidate).votesGranted =
+          ((nodeOf state) candidate).votesGranted := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, updateNode, same
+        after, present, nodeOf_replaceNode, same
       ]
   have activeConfigurationsEq :
       forall candidate,
-        activeConfigurations (after.nodes candidate) =
-          activeConfigurations (state.nodes candidate) := by
+        activeConfigurations ((nodeOf after) candidate) =
+          activeConfigurations ((nodeOf state) candidate) := by
     intro candidate
     unfold activeConfigurations currentConfiguration
     rw [logEq, commitEq]
   have participatingBack :
       forall candidate,
-        Not ((after.nodes candidate).role = .none) ->
-          Not ((state.nodes candidate).role = .none) := by
+        Not (((nodeOf after) candidate).role = .none) ->
+          Not (((nodeOf state) candidate).role = .none) := by
     intro candidate participating
     by_cases same : candidate = node
     · subst candidate
@@ -190,8 +180,8 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
     · simpa [roleOther candidate same] using participating
   have candidateBack :
       forall candidate,
-        (after.nodes candidate).role = .candidate ->
-          (state.nodes candidate).role = .candidate := by
+        ((nodeOf after) candidate).role = .candidate ->
+          ((nodeOf state) candidate).role = .candidate := by
     intro candidate role
     by_cases same : candidate = node
     · subst candidate
@@ -200,8 +190,8 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
     · simpa [roleOther candidate same] using role
   have leaderBack :
       forall leader,
-        (after.nodes leader).role = .leader ->
-          (state.nodes leader).role = .leader := by
+        ((nodeOf after) leader).role = .leader ->
+          ((nodeOf state) leader).role = .leader := by
     intro leader role
     by_cases same : leader = node
     · subst leader
@@ -210,14 +200,14 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
     · simpa [roleOther leader same] using role
   have ownerRoleForward :
       forall owner,
-        ((state.nodes owner).role = .leader \/
-          (state.nodes owner).role = .follower \/
-          (state.nodes owner).role = .preVoteCandidate \/
-          (state.nodes owner).role = .none) ->
-        ((after.nodes owner).role = .leader \/
-          (after.nodes owner).role = .follower \/
-          (after.nodes owner).role = .preVoteCandidate \/
-          (after.nodes owner).role = .none) := by
+        (((nodeOf state) owner).role = .leader \/
+          ((nodeOf state) owner).role = .follower \/
+          ((nodeOf state) owner).role = .preVoteCandidate \/
+          ((nodeOf state) owner).role = .none) ->
+        (((nodeOf after) owner).role = .leader \/
+          ((nodeOf after) owner).role = .follower \/
+          ((nodeOf after) owner).role = .preVoteCandidate \/
+          ((nodeOf after) owner).role = .none) := by
     intro owner ownerRole
     by_cases same : owner = node
     · subst owner
@@ -227,12 +217,12 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
     · simpa [roleOther owner same] using ownerRole
   have passiveRoleForward :
       forall owner,
-        ((state.nodes owner).role = .follower \/
-          (state.nodes owner).role = .preVoteCandidate \/
-          (state.nodes owner).role = .none) ->
-        ((after.nodes owner).role = .follower \/
-          (after.nodes owner).role = .preVoteCandidate \/
-          (after.nodes owner).role = .none) := by
+        (((nodeOf state) owner).role = .follower \/
+          ((nodeOf state) owner).role = .preVoteCandidate \/
+          ((nodeOf state) owner).role = .none) ->
+        (((nodeOf after) owner).role = .follower \/
+          ((nodeOf after) owner).role = .preVoteCandidate \/
+          ((nodeOf after) owner).role = .none) := by
     intro owner ownerRole
     by_cases same : owner = node
     · subst owner
@@ -242,37 +232,37 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
     · simpa [roleOther owner same] using ownerRole
   have activeRoleBack :
       forall candidate,
-        ((after.nodes candidate).role = .candidate \/
-          (after.nodes candidate).role = .leader) ->
-        ((state.nodes candidate).role = .candidate \/
-          (state.nodes candidate).role = .leader) := by
+        (((nodeOf after) candidate).role = .candidate \/
+          ((nodeOf after) candidate).role = .leader) ->
+        (((nodeOf state) candidate).role = .candidate \/
+          ((nodeOf state) candidate).role = .leader) := by
     intro candidate active
     rcases active with candidateRole | leaderRole
     · exact Or.inl (candidateBack candidate candidateRole)
     · exact Or.inr (leaderBack candidate leaderRole)
   have effectiveAckersEq :
       forall actualResponseHistory leader index,
-        effectiveAckers after actualResponseHistory leader index =
-          effectiveAckers state actualResponseHistory leader index :=
+        effectiveAckers (joined := joinedNodes) after actualResponseHistory leader index =
+          effectiveAckers (joined := joinedNodes) state actualResponseHistory leader index :=
     effectiveAckersFrame
       state after
-        (by simp [after])
-        (by simp [after])
+        (by simp [after, present])
+        (by simp [after, present])
         termEq logEq
         (fun leader peer => congrFun (matchEq leader) peer)
   have effectiveElectionVotersEq :
       forall candidate,
-        effectiveElectionVoters after candidate =
-          effectiveElectionVoters state candidate :=
+        effectiveElectionVoters (joined := joinedNodes) after candidate =
+          effectiveElectionVoters (joined := joinedNodes) state candidate :=
     effectiveElectionVotersFrame
       state after
-        (by simp [after])
-        (by simp [after])
+        (by simp [after, present])
+        (by simp [after, present])
         termEq votesEq
   have potentialElectionVotersEq :
       forall candidate,
-        potentialElectionVoters after candidate =
-          potentialElectionVoters state candidate := by
+        potentialElectionVoters (joined := joinedNodes) after candidate =
+          potentialElectionVoters (joined := joinedNodes) state candidate := by
     intro candidate
     ext voter
     simp only [
@@ -280,17 +270,17 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
     constructor
     · rintro ⟨joined, effective | eligible⟩
       · exact ⟨
-          by simpa [after] using joined,
+          by simpa [after, present] using joined,
           Or.inl
             (by
               rw [effectiveElectionVotersEq] at effective
               exact effective)
         ⟩
       · exact ⟨
-          by simpa [after] using joined,
+          by simpa [after, present] using joined,
           Or.inr
             (by
-              simpa [currentlyEligibleElectionVoter, makeRequestVoteRequest, termEq,
+              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq,
                 logEq, commitEq, votedEq,
                 lastCommittableIndexFrame
                   (logEq candidate) (commitEq candidate),
@@ -300,17 +290,17 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
         ⟩
     · rintro ⟨joined, effective | eligible⟩
       · exact ⟨
-          by simpa [after] using joined,
+          by simpa [after, present] using joined,
           Or.inl
             (by
               rw [effectiveElectionVotersEq]
               exact effective)
         ⟩
       · exact ⟨
-          by simpa [after] using joined,
+          by simpa [after, present] using joined,
           Or.inr
             (by
-              simpa [currentlyEligibleElectionVoter, makeRequestVoteRequest, termEq,
+              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq,
                 logEq, commitEq, votedEq,
                 lastCommittableIndexFrame
                   (logEq candidate) (commitEq candidate),
@@ -318,11 +308,11 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
                   (logEq candidate) (commitEq candidate), voteLogUpToDate]
                 using eligible)
         ⟩
-  have joinedCarriersAfter : JoinedCarrierFacts after := by
+  have joinedCarriersAfter : JoinedCarrierFacts (joined := joinedNodes) after := by
     apply
       joinedCarrierFactsFrame
         state after facts.joinedCarriers
-          (by simp [after])
+          (by simp [after, present])
           (fun candidate configuration active => by
             simpa [activeConfigurationsEq] using active)
           (fun candidate configuration member => by
@@ -342,7 +332,7 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
               facts.joinedCarriers.runtimeNodes.nonemptyLogs candidate
                 (by simpa [logEq] using nonempty))
           (fun destination message member => by
-            simpa [after] using member)
+            simpa [after, present] using member)
   have candidatesSelfVoteAfter : CandidatesSelfVote after := by
     intro candidate role
     rcases
@@ -360,9 +350,9 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
     · exact Or.inl
         ⟨bootstrap.1, by simpa [termEq] using bootstrap.2⟩
     · exact Or.inr (by simpa [logEq, votesEq] using majority)
-  change SystemInductiveInvariant after
+  change SystemInductiveInvariant (joined := joinedNodes) after
   apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed
-    (by simp [after])
+    (by simp [after, present])
     (fun _ => Iff.rfl)
     joinedCarriersAfter participatingBack candidateBack
     leaderBack ownerRoleForward passiveRoleForward
@@ -395,7 +385,7 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
   · intro destination message member
     exact
       Or.inl
-        (by simpa [after] using member)
+        (by simpa [after, present] using member)
   · intro leader role peer
     simpa [sentEq, matchEq, logEq]
       using facts.leaderProgressBounded leader (leaderBack leader role) peer
@@ -408,7 +398,7 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
       potentialAckers, Finset.mem_filter] at member ⊢
     rcases member with ⟨joined, effective | reserve⟩
     · exact ⟨
-        by simpa [after] using joined,
+        by simpa [after, present] using joined,
         Or.inl
           (by
             rw [effectiveAckersEq actualResponseHistory leader index]
@@ -420,29 +410,29 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
           requestTerm, producible, covered⟩
       have oldProducible :
           canProduceAppendAckEventuallyAt
-            (state.nodes peer) request index := by
+            ((nodeOf state) peer) request index := by
         by_cases peerEq : peer = node
         · rcases producible with direct | future
           · rcases direct with
               ⟨nextNode, response, handled, success, acknowledged⟩
-            have localPost := handleAppendEntriesRequestLocalPost handled
+            have localPost := acceptAppendEntriesRequestLocalPost handled
             have requestAtNode :
-                request.term = (state.nodes node).currentTerm := by
+                request.2.2.term = ((nodeOf state) node).currentTerm := by
               calc
-                request.term = (after.nodes peer).currentTerm :=
+                request.2.2.term = ((nodeOf after) peer).currentTerm :=
                   localPost.successfulCurrentTerm success
-                _ = (state.nodes peer).currentTerm := termEq peer
-                _ = (state.nodes node).currentTerm := by rw [peerEq]
+                _ = ((nodeOf state) peer).currentTerm := termEq peer
+                _ = ((nodeOf state) node).currentTerm := by rw [peerEq]
             have nodeOwned :
-                owners request.term = some node := by
+                owners request.2.2.term = some node := by
               simpa [requestAtNode] using ownership.activeLeader node oldRole
             have sourceOwned :
-                owners request.term = some request.source :=
+                owners request.2.2.term = some request.1 :=
               (ownership.queuedAppendMetadata
                 peer request queued).2.1
-            have sourceEqNode : request.source = node :=
+            have sourceEqNode : request.1 = node :=
               Option.some.inj (sourceOwned.symm.trans nodeOwned)
-            have destinationEqNode : request.destination = node :=
+            have destinationEqNode : request.2.1 = node :=
               requestDestination.trans peerEq
             exact False.elim
               ((ownership.queuedAppendMetadata peer request queued).1
@@ -450,17 +440,17 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
           · exact Or.inr
               ⟨by simpa [termEq] using future.1, future.2⟩
         · have peerStateEq :
-              after.nodes peer = state.nodes peer := by
+              (nodeOf after) peer = (nodeOf state) peer := by
             simp [
-              after, updateNode, peerEq
+              after, present, nodeOf_replaceNode, peerEq
             ]
           simpa [peerStateEq] using producible
       exact ⟨
-        by simpa [after] using joined,
+        by simpa [after, present] using joined,
         Or.inr
           ⟨
             request,
-            by simpa [after] using queued,
+            by simpa [after, present] using queued,
             requestSource,
             requestDestination,
             by simpa [termEq] using requestTerm,
@@ -479,132 +469,144 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
 
 /-- A failed quorum check demotes a leader without changing its term or log. -/
 lemma leaderStepDownPreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (node : Node)
-    (invariant : SystemInductiveInvariant state)
-    (nodeAllocated : state.allocated node)
-    (oldRole : (state.nodes node).role = .leader)
-    : SystemInductiveInvariant (stepDownState state node) :=
-  leaderDemotionPreservesSystemInductiveInvariant
+    {present : node ∈ state.nodes.map Prod.fst}
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
+    (nodeAllocated : node ∈ joinedNodes)
+    (oldRole : ((nodeOf state) node).role = .leader)
+    : SystemInductiveInvariant (joined := joinedNodes) (stepDownState state node) :=
+  leaderDemotionPreservesSystemInductiveInvariant (present := present)
     state node .follower (Or.inl rfl) true invariant nodeAllocated oldRole
 
 /-- The guarded CheckQuorum action uses the generic same-term demotion proof. -/
 lemma checkQuorumPreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (node : Node)
-    (invariant : SystemInductiveInvariant state)
+    {present : node ∈ state.nodes.map Prod.fst}
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (enabled
-      : (state.allocated node
-          /\ (state.nodes node).role = .leader
-          /\ hasOtherActiveReplica state node))
-    : SystemInductiveInvariant (checkQuorumEffect state node) := by
-  simpa [view_effects]
-    using leaderStepDownPreservesSystemInductiveInvariant
+      : (node ∈ joinedNodes
+          /\ ((nodeOf state) node).role = .leader
+          /\ hasOtherActiveReplica (nodeOf state node) node))
+    : SystemInductiveInvariant (joined := joinedNodes) (checkQuorumEffect state node) := by
+  simpa [concrete_effects, present]
+    using leaderStepDownPreservesSystemInductiveInvariant (present := present)
       state node invariant enabled.1 enabled.2.1
 
 /-- Commit advancement and terminal demotion preserve the safety invariant. -/
 lemma advanceCommitTransitionPreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (node : Node)
-    (invariant : SystemInductiveInvariant state)
+    {present : node ∈ state.nodes.map Prod.fst}
+    (distinct : (state.nodes.map Prod.fst).Nodup)
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (enabled
-      : state.allocated node
-        /\ (state.nodes node).role = .leader
-        /\ (state.nodes node).commitIndex < highestCommittableIndex state node)
-    : SystemInductiveInvariant
+      : node ∈ joinedNodes
+        /\ ((nodeOf state) node).role = .leader
+        /\ ((nodeOf state) node).commitIndex < highestCommittableIndex (nodeOf state node) node)
+    : SystemInductiveInvariant (joined := joinedNodes)
         (demoteRetiredCommitted (advanceCommitState state node) node) := by
   have committed :=
-    advanceCommitStatePreservesSystemInductiveInvariant
+    advanceCommitStatePreservesSystemInductiveInvariant (present := present)
       state node invariant enabled
   by_cases terminal :
-      ((advanceCommitState state node).nodes node).membershipState =
+      ((nodeOf (advanceCommitState state node)) node).membershipState =
         .retiredCommitted
   · have nodeAllocated :
-        (advanceCommitState state node).allocated node := enabled.1
+        node ∈ joinedNodes := enabled.1
     have leader :
-        ((advanceCommitState state node).nodes node).role = .leader := by
-      simp [advanceCommitState, enabled.2.1]
-    simpa [demoteRetiredCommitted, terminal]
+        ((nodeOf (advanceCommitState state node)) node).role = .leader := by
+      simp [advanceCommitState, Model.Local.advanceCommit, present, enabled.2.1]
+    simpa [demoteRetiredCommitted, Model.Local.demoteRetiredCommitted, terminal]
       using leaderDemotionPreservesSystemInductiveInvariant
-        (advanceCommitState state node) node .none (Or.inr rfl)
-        ((advanceCommitState state node).nodes node).isNewFollower
+        (advanceCommitState state node) node (present := by simpa [advanceCommitState, replaceNode_keys] using present) .none (Or.inr rfl)
+        ((nodeOf (advanceCommitState state node)) node).isNewFollower
         committed nodeAllocated leader
-  · simpa [demoteRetiredCommitted, terminal] using committed
+  · have keys : ((advanceCommitState state node).nodes.map Prod.fst).Nodup := by
+      simpa [advanceCommitState, replaceNode_keys] using distinct
+    simpa [demoteRetiredCommitted, Model.Local.demoteRetiredCommitted, terminal,
+      replaceNode_nodeOf _ _ keys] using committed
 
 /-- A nonterminal commit uses the ordinary commit action. -/
 lemma advanceCommitPreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (node : Node)
-    (invariant : SystemInductiveInvariant state)
+    {present : node ∈ state.nodes.map Prod.fst}
+    (distinct : (state.nodes.map Prod.fst).Nodup)
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (enabled
-      : (state.allocated node
-          /\ (state.nodes node).role = .leader
-          /\ (state.nodes node).commitIndex < highestCommittableIndex state node
-          /\ Not (terminalRetirementCommit state node)))
-    : SystemInductiveInvariant (advanceCommitIndexEffect state node) := by
-  simpa [view_effects]
-    using advanceCommitTransitionPreservesSystemInductiveInvariant
-      state node invariant
+      : (node ∈ joinedNodes
+          /\ ((nodeOf state) node).role = .leader
+          /\ ((nodeOf state) node).commitIndex < highestCommittableIndex (nodeOf state node) node
+          /\ Not (terminalRetirementCommit (nodeOf state node) node)))
+    : SystemInductiveInvariant (joined := joinedNodes) (advanceCommitIndexEffect state node) := by
+  simpa [concrete_effects, present]
+    using advanceCommitTransitionPreservesSystemInductiveInvariant (present := present)
+      state node distinct invariant
       ⟨enabled.1, enabled.2.1, enabled.2.2.1⟩
 
 /-- A terminal commit atomically enqueues its explicitly selected successor. -/
 lemma advanceCommitAndProposeVotePreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (source destination : Node)
-    (invariant : SystemInductiveInvariant state)
+    {present : source ∈ state.nodes.map Prod.fst}
+    (distinct : (state.nodes.map Prod.fst).Nodup)
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (enabled
-      : (state.allocated source
-          /\ state.allocated destination
-          /\ (state.nodes source).role = .leader
-          /\ (state.nodes source).commitIndex < highestCommittableIndex state source
-          /\ terminalRetirementCommit state source
-          /\ plausibleSuccessor state source destination))
-    : SystemInductiveInvariant
+      : (source ∈ joinedNodes
+          /\ destination ∈ joinedNodes
+          /\ ((nodeOf state) source).role = .leader
+          /\ ((nodeOf state) source).commitIndex < highestCommittableIndex (nodeOf state source) source
+          /\ terminalRetirementCommit (nodeOf state source) source
+          /\ plausibleSuccessor (nodeOf state source) source destination))
+    : SystemInductiveInvariant (joined := joinedNodes)
         (advanceCommitIndexAndProposeVoteEffect state source destination) := by
   let advanced :=
     demoteRetiredCommitted (advanceCommitState state source) source
-  let request := makeProposeVoteRequest state source destination
-  have advancedInvariant : SystemInductiveInvariant advanced := by
+  let request := (source, destination, (nodeOf state source).currentTerm)
+  have advancedInvariant : SystemInductiveInvariant (joined := joinedNodes) advanced := by
     exact
-      advanceCommitTransitionPreservesSystemInductiveInvariant
-        state source invariant
+      advanceCommitTransitionPreservesSystemInductiveInvariant (present := present)
+        state source distinct invariant
           ⟨enabled.1, enabled.2.2.1, enabled.2.2.2.1⟩
-  simpa [view_effects, advanced, request]
+  simpa [concrete_effects, present, advanced, request]
     using enqueueProposeVoteRequestPreservesSystemInductiveInvariant
       advanced request advancedInvariant
       (invariantCurrentTermsValid invariant source)
 
 /-- Entering a speculative election changes no consensus-safety evidence. -/
 lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (node : Node)
-    (invariant : SystemInductiveInvariant state)
+    {present : node ∈ state.nodes.map Prod.fst}
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (enabled
-      : (state.allocated node
-          /\ ((state.nodes node).role = .follower
-              \/ (state.nodes node).role = .preVoteCandidate
-              \/ (state.nodes node).role = .candidate)
-          /\ ((node ∈ activeNodeUnion (state.nodes node)
-                /\ campaignEligible node (state.nodes node))
-              \/ node ∈ (state.nodes node).retirementCompleted)
-          /\ Not ((state.nodes node).membershipState = .retiredCommitted)
+      : (node ∈ joinedNodes
+          /\ (((nodeOf state) node).role = .follower
+              \/ ((nodeOf state) node).role = .preVoteCandidate
+              \/ ((nodeOf state) node).role = .candidate)
+          /\ ((node ∈ activeNodeUnion ((nodeOf state) node)
+                /\ campaignEligible node ((nodeOf state) node))
+              \/ node ∈ ((nodeOf state) node).retirementCompleted)
+          /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
           /\ INITIAL_PRE_VOTE_STATUS node = .enabled))
-    : SystemInductiveInvariant (becomePreVoteCandidateEffect state node) := by
+    : SystemInductiveInvariant (joined := joinedNodes) (becomePreVoteCandidateEffect state node) := by
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
   let after := becomePreVoteCandidateEffect state node
-  have packed : SystemInductiveInvariant state :=
+  have packed : SystemInductiveInvariant (joined := joinedNodes) state :=
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
   have oldParticipating :
-      Not ((state.nodes node).role = .none) := by
+      Not (((nodeOf state) node).role = .none) := by
     rcases enabled.2.1 with follower | preVoteCandidate | candidate
     · simp [follower]
     · simp [preVoteCandidate]
     · simp [candidate]
   have oldNotLeader :
-      Not ((state.nodes node).role = .leader) := by
+      Not (((nodeOf state) node).role = .leader) := by
     rcases enabled.2.1 with follower | preVoteCandidate | candidate
     · exact fun leader => Role.noConfusion (follower.symm.trans leader)
     · exact
@@ -612,91 +614,91 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
           Role.noConfusion (preVoteCandidate.symm.trans leader)
     · exact fun leader => Role.noConfusion (candidate.symm.trans leader)
   have roleNode :
-      (after.nodes node).role = .preVoteCandidate := by
-    simp [after, view_effects]
+      ((nodeOf after) node).role = .preVoteCandidate := by
+    simp [after, present, concrete_effects, present]
   have roleOther :
       forall candidate,
         Not (candidate = node) ->
-          (after.nodes candidate).role =
-            (state.nodes candidate).role := by
+          ((nodeOf after) candidate).role =
+            ((nodeOf state) candidate).role := by
     intro candidate different
     simp [
-      after, view_effects, updateNode, different
+      after, present, concrete_effects, present, nodeOf_replaceNode, different
     ]
   have termEq :
       forall candidate,
-        (after.nodes candidate).currentTerm =
-          (state.nodes candidate).currentTerm := by
+        ((nodeOf after) candidate).currentTerm =
+          ((nodeOf state) candidate).currentTerm := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, view_effects, updateNode, same
+        after, present, concrete_effects, present, nodeOf_replaceNode, same
       ]
   have logEq :
       forall candidate,
-        (after.nodes candidate).log =
-          (state.nodes candidate).log := by
+        ((nodeOf after) candidate).log =
+          ((nodeOf state) candidate).log := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, view_effects, updateNode, same
+        after, present, concrete_effects, present, nodeOf_replaceNode, same
       ]
   have commitEq :
       forall candidate,
-        (after.nodes candidate).commitIndex =
-          (state.nodes candidate).commitIndex := by
+        ((nodeOf after) candidate).commitIndex =
+          ((nodeOf state) candidate).commitIndex := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, view_effects, updateNode, same
+        after, present, concrete_effects, present, nodeOf_replaceNode, same
       ]
   have sentEq :
       forall candidate,
-        (after.nodes candidate).sentIndex =
-          (state.nodes candidate).sentIndex := by
+        ((nodeOf after) candidate).sentIndex =
+          ((nodeOf state) candidate).sentIndex := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, view_effects, updateNode, same
+        after, present, concrete_effects, present, nodeOf_replaceNode, same
       ]
   have matchEq :
       forall candidate,
-        (after.nodes candidate).matchIndex =
-          (state.nodes candidate).matchIndex := by
+        ((nodeOf after) candidate).matchIndex =
+          ((nodeOf state) candidate).matchIndex := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, view_effects, updateNode, same
+        after, present, concrete_effects, present, nodeOf_replaceNode, same
       ]
   have votedEq :
       forall candidate,
-        (after.nodes candidate).votedFor =
-          (state.nodes candidate).votedFor := by
+        ((nodeOf after) candidate).votedFor =
+          ((nodeOf state) candidate).votedFor := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, view_effects, updateNode, same
+        after, present, concrete_effects, present, nodeOf_replaceNode, same
       ]
   have votesEq :
       forall candidate,
-        (after.nodes candidate).votesGranted =
-          (state.nodes candidate).votesGranted := by
+        ((nodeOf after) candidate).votesGranted =
+          ((nodeOf state) candidate).votesGranted := by
     intro candidate
     by_cases same : candidate = node <;>
       simp [
-        after, view_effects, updateNode, same
+        after, present, concrete_effects, present, nodeOf_replaceNode, same
       ]
   have activeConfigurationsEq :
       forall candidate,
-        activeConfigurations (after.nodes candidate) =
-          activeConfigurations (state.nodes candidate) := by
+        activeConfigurations ((nodeOf after) candidate) =
+          activeConfigurations ((nodeOf state) candidate) := by
     intro candidate
     unfold activeConfigurations currentConfiguration
     rw [logEq, commitEq]
   have participatingBack :
       forall candidate,
-        Not ((after.nodes candidate).role = .none) ->
-          Not ((state.nodes candidate).role = .none) := by
+        Not (((nodeOf after) candidate).role = .none) ->
+          Not (((nodeOf state) candidate).role = .none) := by
     intro candidate participating
     by_cases same : candidate = node
     · subst candidate
@@ -704,8 +706,8 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     · simpa [roleOther candidate same] using participating
   have candidateBack :
       forall candidate,
-        (after.nodes candidate).role = .candidate ->
-          (state.nodes candidate).role = .candidate := by
+        ((nodeOf after) candidate).role = .candidate ->
+          ((nodeOf state) candidate).role = .candidate := by
     intro candidate role
     by_cases same : candidate = node
     · subst candidate
@@ -713,8 +715,8 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     · simpa [roleOther candidate same] using role
   have leaderBack :
       forall leader,
-        (after.nodes leader).role = .leader ->
-          (state.nodes leader).role = .leader := by
+        ((nodeOf after) leader).role = .leader ->
+          ((nodeOf state) leader).role = .leader := by
     intro leader role
     by_cases same : leader = node
     · subst leader
@@ -722,37 +724,37 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     · simpa [roleOther leader same] using role
   have activeRoleBack :
       forall candidate,
-        ((after.nodes candidate).role = .candidate \/
-          (after.nodes candidate).role = .leader) ->
-        ((state.nodes candidate).role = .candidate \/
-          (state.nodes candidate).role = .leader) := by
+        (((nodeOf after) candidate).role = .candidate \/
+          ((nodeOf after) candidate).role = .leader) ->
+        (((nodeOf state) candidate).role = .candidate \/
+          ((nodeOf state) candidate).role = .leader) := by
     intro candidate active
     rcases active with candidateRole | leaderRole
     · exact Or.inl (candidateBack candidate candidateRole)
     · exact Or.inr (leaderBack candidate leaderRole)
   have effectiveAckersEq :
       forall actualResponseHistory leader index,
-        effectiveAckers after actualResponseHistory leader index =
-          effectiveAckers state actualResponseHistory leader index :=
+        effectiveAckers (joined := joinedNodes) after actualResponseHistory leader index =
+          effectiveAckers (joined := joinedNodes) state actualResponseHistory leader index :=
     effectiveAckersFrame
       state after
-        (by simp [after, view_effects])
-        (by simp [after, view_effects])
+        (by simp [after, present, concrete_effects, present])
+        (by simp [after, present, concrete_effects, present])
         termEq logEq
         (fun leader peer => congrFun (matchEq leader) peer)
   have effectiveElectionVotersEq :
       forall candidate,
-        effectiveElectionVoters after candidate =
-          effectiveElectionVoters state candidate :=
+        effectiveElectionVoters (joined := joinedNodes) after candidate =
+          effectiveElectionVoters (joined := joinedNodes) state candidate :=
     effectiveElectionVotersFrame
       state after
-        (by simp [after, view_effects])
-        (by simp [after, view_effects])
+        (by simp [after, present, concrete_effects, present])
+        (by simp [after, present, concrete_effects, present])
         termEq votesEq
   have potentialElectionVotersEq :
       forall candidate,
-        potentialElectionVoters after candidate =
-          potentialElectionVoters state candidate := by
+        potentialElectionVoters (joined := joinedNodes) after candidate =
+          potentialElectionVoters (joined := joinedNodes) state candidate := by
     intro candidate
     ext voter
     simp only [
@@ -760,17 +762,17 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     constructor
     · rintro ⟨joined, effective | eligible⟩
       · exact ⟨
-          by simpa [after, view_effects] using joined,
+          by simpa [after, present, concrete_effects, present] using joined,
           Or.inl
             (by
               rw [effectiveElectionVotersEq] at effective
               exact effective)
         ⟩
       · exact ⟨
-          by simpa [after, view_effects] using joined,
+          by simpa [after, present, concrete_effects, present] using joined,
           Or.inr
             (by
-              simpa [currentlyEligibleElectionVoter, makeRequestVoteRequest, termEq,
+              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq,
                 logEq, commitEq, votedEq,
                 lastCommittableIndexFrame
                   (logEq candidate) (commitEq candidate),
@@ -780,17 +782,17 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
         ⟩
     · rintro ⟨joined, effective | eligible⟩
       · exact ⟨
-          by simpa [after, view_effects] using joined,
+          by simpa [after, present, concrete_effects, present] using joined,
           Or.inl
             (by
               rw [effectiveElectionVotersEq]
               exact effective)
         ⟩
       · exact ⟨
-          by simpa [after, view_effects] using joined,
+          by simpa [after, present, concrete_effects, present] using joined,
           Or.inr
             (by
-              simpa [currentlyEligibleElectionVoter, makeRequestVoteRequest, termEq,
+              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq,
                 logEq, commitEq, votedEq,
                 lastCommittableIndexFrame
                   (logEq candidate) (commitEq candidate),
@@ -798,11 +800,11 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
                   (logEq candidate) (commitEq candidate), voteLogUpToDate]
                 using eligible)
         ⟩
-  have joinedCarriersAfter : JoinedCarrierFacts after := by
+  have joinedCarriersAfter : JoinedCarrierFacts (joined := joinedNodes) after := by
     apply
       joinedCarrierFactsFrame
         state after facts.joinedCarriers
-          (by simp [after, view_effects])
+          (by simp [after, present, concrete_effects, present])
           (fun candidate configuration active => by
             simpa [activeConfigurationsEq] using active)
           (fun candidate configuration member => by
@@ -822,7 +824,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
               facts.joinedCarriers.runtimeNodes.nonemptyLogs candidate
                 (by simpa [logEq] using nonempty))
           (fun destination message member => by
-            simpa [after, view_effects] using member)
+            simpa [after, present, concrete_effects, present] using member)
   have candidatesSelfVoteAfter : CandidatesSelfVote after := by
     intro candidate role
     rcases
@@ -840,9 +842,9 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     · exact Or.inl
         ⟨bootstrap.1, by simpa [termEq] using bootstrap.2⟩
     · exact Or.inr (by simpa [logEq, votesEq] using majority)
-  change SystemInductiveInvariant after
+  change SystemInductiveInvariant (joined := joinedNodes) after
   apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed
-    (by simp [after, view_effects])
+    (by simp [after, present, concrete_effects, present])
     (fun _ => Iff.rfl)
     joinedCarriersAfter participatingBack candidateBack leaderBack
     (fun owner role => by
@@ -883,7 +885,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
   · intro destination message member
     exact
       Or.inl
-        (by simpa [after, view_effects] using member)
+        (by simpa [after, present, concrete_effects, present] using member)
   · intro leader role peer
     simpa [sentEq, matchEq, logEq]
       using facts.leaderProgressBounded leader (leaderBack leader role) peer
@@ -896,7 +898,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
       potentialAckers, Finset.mem_filter] at member ⊢
     rcases member with ⟨joined, effective | reserve⟩
     · exact ⟨
-        by simpa [after, view_effects] using joined,
+        by simpa [after, present, concrete_effects, present] using joined,
         Or.inl
           (by
             rw [effectiveAckersEq actualResponseHistory leader index]
@@ -908,7 +910,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
           requestTerm, producible, covered⟩
       have oldProducible :
           canProduceAppendAckEventuallyAt
-            (state.nodes peer) request index := by
+            ((nodeOf state) peer) request index := by
         by_cases same : peer = node
         · subst peer
           rw [same] at producible ⊢
@@ -919,17 +921,17 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
           · exact Or.inr
               ⟨by simpa [termEq] using future.1, future.2⟩
         · have peerStateEq :
-              after.nodes peer = state.nodes peer := by
+              (nodeOf after) peer = (nodeOf state) peer := by
             simp [
-              after, view_effects, updateNode, same
+              after, present, concrete_effects, present, nodeOf_replaceNode, same
             ]
           simpa [peerStateEq] using producible
       exact ⟨
-        by simpa [after, view_effects] using joined,
+        by simpa [after, present, concrete_effects, present] using joined,
         Or.inr
           ⟨
             request,
-            by simpa [after, view_effects] using queued,
+            by simpa [after, present, concrete_effects, present] using queued,
             sourceEq,
             destinationEq,
             by simpa [termEq] using requestTerm,
@@ -947,38 +949,39 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
     simpa [effectiveElectionVotersEq] using member
 
 lemma initializeConfigurationPreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (node : Node)
-    (invariant : SystemInductiveInvariant state)
+    {present : node ∈ state.nodes.map Prod.fst}
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (enabled
       : (node = INITIAL_LEADER
-          /\ state.allocated node
-          /\ (state.nodes node).role = .leader
-          /\ (state.nodes node).currentTerm = BOOTSTRAP_TERM
-          /\ (state.nodes node).log = []
-          /\ (state.nodes node).commitIndex = 0
-          /\ (state.nodes node).membershipState = .active))
-    : SystemInductiveInvariant (initializeConfigurationEffect state node) := by
+          /\ node ∈ joinedNodes
+          /\ ((nodeOf state) node).role = .leader
+          /\ ((nodeOf state) node).currentTerm = BOOTSTRAP_TERM
+          /\ ((nodeOf state) node).log = []
+          /\ ((nodeOf state) node).commitIndex = 0
+          /\ ((nodeOf state) node).membershipState = .active))
+    : SystemInductiveInvariant (joined := joinedNodes) (initializeConfigurationEffect state node) := by
   rcases enabled with ⟨_, allocated, leader, _, emptyLog, _, _⟩
   have latest :
-      latestConfiguration (state.nodes node) = implicitConfiguration := by
+      latestConfiguration ((nodeOf state) node) = implicitConfiguration := by
     simp [latestConfiguration, configurationsInLog, configurationsInLogFrom, emptyLog]
   let appended := leaderAppendState state node
     (.reconfiguration INITIAL_CONFIGURATION)
-  have appendedInvariant : SystemInductiveInvariant appended :=
-    leaderAppendPreservesSystemInductiveInvariant state node
-      (.reconfiguration INITIAL_CONFIGURATION)
-      invariant allocated leader
+  have appendedInvariant : SystemInductiveInvariant (joined := joinedNodes) appended := by
+    simpa only [leaderAppendJoined, latest, implicitConfiguration, Finset.sdiff_self, Finset.union_empty]
+      using leaderAppendPreservesSystemInductiveInvariant state node (present := present)
+        (.reconfiguration INITIAL_CONFIGURATION) invariant allocated leader
   apply retirementMetadataFramePreservesSystemInductiveInvariant
     appended _ appendedInvariant
-  · simp [appended, leaderAppendState, latest, implicitConfiguration, view_effects]
+  · simp [appended, leaderAppendState, present, latest, implicitConfiguration, concrete_effects, present]
   · intro candidate
-    simp [View.allocated, view_effects, appended, leaderAppendState, latest, implicitConfiguration]
+    simp [concrete_effects, present, appended, leaderAppendState, present, latest, implicitConfiguration]
   · rfl
   all_goals
     intro candidate
     by_cases same : candidate = node <;>
-      simp [appended, leaderAppendState, latest, implicitConfiguration, view_effects,
-        updateNode, same, emptyLog, protocolNodeState]
+      simp [appended, leaderAppendState, present, latest, implicitConfiguration, concrete_effects, present,
+        nodeOf_replaceNode, same, emptyLog]
 
 end CCFRaft.Proofs.Invariant
