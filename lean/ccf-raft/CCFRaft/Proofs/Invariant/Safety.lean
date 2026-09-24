@@ -156,43 +156,50 @@ lemma invariantFactsElectionSafetyFromOwnership
   exact Option.some.inj (leftOwned.symm.trans rightOwned)
 
 theorem systemInductiveInvariant_electionSafety {state : View Node TxId}
-    (invariant : SystemInductiveInvariant state) : ElectionSafety state := by
+    (invariant : SystemInductiveInvariant state)
+    : ElectionSafety state := by
   obtain ⟨_, _, _, _, _, _, facts⟩ := invariant
   exact invariantFactsElectionSafetyFromOwnership facts
 
 theorem systemInductiveInvariant_committedLogsPrefix {state : View Node TxId}
-    (invariant : SystemInductiveInvariant state) : CommittedLogsPrefix state := by
+    (invariant : SystemInductiveInvariant state)
+    : CommittedLogsPrefix state := by
   obtain ⟨_, _, _, _, _, _, facts⟩ := invariant
   exact invariantFactsCommittedLogsPrefixFromActivation facts
 
-theorem view_nodes_of_mem {state : Model.State Node TxId} {joined : Finset Node} {node : Node}
-    {local_ : NodeState Node TxId} (distinct : (state.nodes.map Prod.fst).Nodup)
-    (member : (node, local_) ∈ state.nodes) : (view state joined).nodes node = local_ := by
+theorem view_nodes_of_mem {state : Model.State Node TxId} {joined : Finset Node}
+    {node : Node} {local_ : NodeState Node TxId}
+    (distinct : (state.nodes.map Prod.fst).Nodup) (member : (node, local_) ∈ state.nodes)
+    : (view state joined).nodes node = local_ := by
   simp [view, Direct.nodeState_of_mem distinct member]
 
 /-- Two leaders of one term in a network state satisfying `Inv` are the same node. -/
 theorem inv_electionSafety {state : Model.State Node TxId} (inv : Inv state)
     (distinct : (state.nodes.map Prod.fst).Nodup) {left right : Node}
-    {leftState rightState : NodeState Node TxId} (leftMember : (left, leftState) ∈ state.nodes)
-    (rightMember : (right, rightState) ∈ state.nodes) (leftLeader : leftState.role = .leader)
-    (rightLeader : rightState.role = .leader)
-    (sameTerm : leftState.currentTerm = rightState.currentTerm) : left = right := by
+    {leftState rightState : NodeState Node TxId}
+    (leftMember : (left, leftState) ∈ state.nodes)
+    (rightMember : (right, rightState) ∈ state.nodes)
+    (leftLeader : leftState.role = .leader) (rightLeader : rightState.role = .leader)
+    (sameTerm : leftState.currentTerm = rightState.currentTerm)
+    : left = right := by
   obtain ⟨joined, invariant⟩ := inv
   have leftEq := view_nodes_of_mem (joined := joined) distinct leftMember
   have rightEq := view_nodes_of_mem (joined := joined) distinct rightMember
-  exact systemInductiveInvariant_electionSafety invariant left right
-    (by rw [leftEq]; exact leftLeader) (by rw [rightEq]; exact rightLeader)
+  exact systemInductiveInvariant_electionSafety invariant.safety left right
+    (by rw [leftEq]; exact leftLeader)
+    (by rw [rightEq]; exact rightLeader)
     (by rw [leftEq, rightEq]; exact sameTerm)
 
 /-- Committed logs of two nodes in a network state satisfying `Inv` are comparable. -/
 theorem inv_committedLogsPrefix {state : Model.State Node TxId} (inv : Inv state)
     (distinct : (state.nodes.map Prod.fst).Nodup) {left right : Node}
-    {leftState rightState : NodeState Node TxId} (leftMember : (left, leftState) ∈ state.nodes)
+    {leftState rightState : NodeState Node TxId}
+    (leftMember : (left, leftState) ∈ state.nodes)
     (rightMember : (right, rightState) ∈ state.nodes)
     : leftState.committedLog <+: rightState.committedLog
       \/ rightState.committedLog <+: leftState.committedLog := by
   obtain ⟨joined, invariant⟩ := inv
-  have := systemInductiveInvariant_committedLogsPrefix invariant left right
+  have := systemInductiveInvariant_committedLogsPrefix invariant.safety left right
   rwa [view_nodes_of_mem distinct leftMember, view_nodes_of_mem distinct rightMember] at this
 
 end CCFRaft.Proofs.Invariant

@@ -2134,11 +2134,19 @@ def SystemInductiveInvariant (state : View Node TxId) : Prop :=
                             state votes appendHistory responseHistory voteRequestHistory
                             voteCandidateHistory voteVoterHistory
 
-/--
-The inductive invariant over the network model: some proof-only joined set
-makes the old system invariant hold on the computed global view.
--/
+/-- Concrete-step side conditions for the safety invariant. -/
+structure ViewInvariant (state : View Node TxId) : Prop where
+  safety : SystemInductiveInvariant state
+  initialJoined : INITIAL_CONFIGURATION ⊆ state.hasJoined
+  unjoined
+    : forall node, node ∉ state.hasJoined -> state.nodes node = initialNodeState node
+  endpoints
+    : forall destination message,
+        message ∈ state.network destination
+        -> message.source ∈ state.hasJoined /\ message.destination ∈ state.hasJoined
+
+/-- Some joined set makes the safety invariant and its side conditions hold on `view`. -/
 def Inv (state : Model.State Node TxId) : Prop :=
-  Exists fun joined : Finset Node => SystemInductiveInvariant (view state joined)
+  Exists fun joined : Finset Node => ViewInvariant (view state joined)
 
 end CCFRaft.Proofs.Invariant
