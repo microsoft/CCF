@@ -9,7 +9,7 @@ set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
 set_option linter.unusedSimpArgs false
 
-register_simp_attr view_effects
+register_simp_attr concrete_effects
 
 namespace CCFRaft.Proofs.Invariant
 
@@ -43,25 +43,6 @@ lemma initialLeader_mem_initialConfiguration
 variable {Node TxId : Type}
 variable [DecidableEq Node]
 
-/-- Reading the node just updated returns the new value. -/
-@[simp]
-lemma updateNode_same
-    (nodes : (Node -> NodeState Node TxId))
-    (node : Node)
-    (value : NodeState Node TxId)
-    : updateNode nodes node value node = value := by
-  simp [updateNode]
-
-/-- Reading another node after an update returns its old value. -/
-@[simp]
-lemma updateNode_of_ne
-    (nodes : (Node -> NodeState Node TxId))
-    (node candidate : Node)
-    (value : NodeState Node TxId)
-    (different : Not (candidate = node))
-    : updateNode nodes node value candidate = nodes candidate := by
-  simp [updateNode, different]
-
 /-- Reading the updated peer index returns the new value. -/
 @[simp]
 lemma updateIndex_same (indices : Node -> Nat) (node : Node) (value : Nat)
@@ -77,54 +58,6 @@ lemma updateIndex_of_ne
     (different : Not (candidate = node))
     : updateIndex indices node value candidate = indices candidate := by
   simp [updateIndex, different]
-
-/-- Reading the replaced destination queue returns the new queue. -/
-@[simp]
-lemma updateQueue_same
-    (network : Node -> List (Message Node TxId))
-    (destination : Node)
-    (queue : List (Message Node TxId))
-    : updateQueue network destination queue destination = queue := by
-  simp [updateQueue]
-
-/-- Replacing one destination queue leaves other queues unchanged. -/
-@[simp]
-lemma updateQueue_of_ne
-    (network : Node -> List (Message Node TxId))
-    (destination candidate : Node)
-    (queue : List (Message Node TxId))
-    (different : Not (candidate = destination))
-    : updateQueue network destination queue candidate = network candidate := by
-  simp [updateQueue, different]
-
-@[simp]
-lemma protocolNodeState_idempotent (state : NodeState Node TxId)
-    : protocolNodeState (protocolNodeState state) = protocolNodeState state := by
-  simp [protocolNodeState]
-
-@[simp]
-lemma protocolNodeState_set_votedFor
-    (state : NodeState Node TxId)
-    (votedFor : Option Node)
-    : protocolNodeState { state with votedFor }
-      = { protocolNodeState state with votedFor } := by
-  simp [protocolNodeState]
-
-@[simp]
-lemma protocolNodeState_set_sentIndex
-    (state : NodeState Node TxId)
-    (sentIndex : Node -> Nat)
-    : protocolNodeState { state with sentIndex }
-      = { protocolNodeState state with sentIndex } := by
-  simp [protocolNodeState]
-
-@[simp]
-lemma protocolNodeState_idempotent_set_votedFor
-    (state : NodeState Node TxId)
-    (votedFor : Option Node)
-    : protocolNodeState { protocolNodeState state with votedFor }
-      = { protocolNodeState state with votedFor } := by
-  simp [protocolNodeState]
 
 variable [Bootstrap Node] [DecidableEq TxId]
 
@@ -177,22 +110,20 @@ lemma refreshRetirementState_idempotent (node : Node) (state : NodeState Node Tx
     cases left <;> cases right <;> rfl
   simp [refreshRetirementState, repeatOr]
 
-@[simp]
-lemma protocolNodeState_refreshRetirementState (node : Node) (state : NodeState Node TxId)
-    : protocolNodeState (refreshRetirementState node state)
-      = protocolNodeState state := by
-  simp [protocolNodeState]
-
 omit [Bootstrap Node] in
 /-- Erasing a selected occurrence preserves membership of every remaining message. -/
 lemma selectedSound
-    {source : Node} {queue remaining : List (Message Node TxId)}
-    {selected : Message Node TxId}
+    {source : Node} {queue remaining : List (Model.Envelope Node TxId)}
+    {selected : Model.Envelope Node TxId}
     (taken : Selected source queue selected remaining)
     : selected.source = source
       /\ selected ∈ queue
       /\ (forall message, message ∈ remaining -> message ∈ queue) := by
   obtain ⟨sourceEq, member, rfl⟩ := taken
-  exact ⟨sourceEq, member, fun _ present => List.mem_of_mem_erase present⟩
+  refine ⟨sourceEq, member, ?_⟩
+  intro message present
+  have remaining : message ∈ queue.erase selected := by
+    simpa only [removeOne_eq_list_erase] using present
+  exact List.mem_of_mem_erase remaining
 
 end CCFRaft.Proofs.Invariant

@@ -30,8 +30,8 @@ open CCFRaft.Model.Local (
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId]
-variable [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable {joined : Finset Node}
 
 /--
 Transfer a shared-configuration authority conclusion across a term-only state
@@ -40,12 +40,12 @@ the preserved pre-state facts, while this theorem proves the UpdateTerm-specific
 quorum intersection, reserve elimination, and voter-state transport.
 -/
 lemma updateTermPotentialPrefixOfRelaxedAuthority
-    {before after : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {before after : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId)}
+      : VoteResponseKey Node -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
@@ -53,99 +53,98 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
     {source candidate : Node}
     {index : Nat}
     {configuration : Configuration Node}
-    (sourceNodeEq : after.nodes source = before.nodes source)
-    (candidateNodeEq : after.nodes candidate = before.nodes candidate)
-    (logEq : forall node, (after.nodes node).log = (before.nodes node).log)
+    (sourceNodeEq : (nodeOf after) source = (nodeOf before) source)
+    (candidateNodeEq : (nodeOf after) candidate = (nodeOf before) candidate)
+    (logEq : forall node, ((nodeOf after) node).log = ((nodeOf before) node).log)
     (termMonotone
-      : forall node, (before.nodes node).currentTerm <= (after.nodes node).currentTerm)
-    (hasJoinedEq : after.hasJoined = before.hasJoined)
+      : forall node, ((nodeOf before) node).currentTerm <= ((nodeOf after) node).currentTerm)
     (effectiveAckersBack
-      : effectiveAckers after responseHistory source index
-        ⊆ effectiveAckers before responseHistory source index)
+      : effectiveAckers (joined := joined) after responseHistory source index
+        ⊆ effectiveAckers (joined := joined) before responseHistory source index)
     (effectiveElectionVotersBack
-      : effectiveElectionVoters after candidate
-        ⊆ effectiveElectionVoters before candidate)
-    (snapshots : GrantedVoteSnapshots before votes voteCandidateHistory voteVoterHistory)
+      : effectiveElectionVoters (joined := joined) after candidate
+        ⊆ effectiveElectionVoters (joined := joined) before candidate)
+    (snapshots : GrantedVoteSnapshots (joined := joined) before votes voteCandidateHistory voteVoterHistory)
     (termsPositive : CurrentTermsPositive before)
     (committedSignature : CommittedFrontierIsSignature before)
     (entriesBounded : EntriesDoNotExceedCurrentTerm before)
     (voteFacts : VoteHistoryFacts before votes)
     (canonicalSnapshots
-      : GrantedVoteCanonicalSnapshots
+      : GrantedVoteCanonicalSnapshots (joined := joined)
           before canonicalHistory voteCandidateHistory voteVoterHistory)
     (ownership : TermOwnershipFacts before votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts before votes canonicalHistory owners elections)
-    (configurationFacts : ElectionConfigurationFacts before elections activations)
-    (currentHistory : AckerCurrentHistory before responseHistory elections)
+    (configurationFacts : ElectionConfigurationFacts (joined := joined) before elections activations)
+    (currentHistory : AckerCurrentHistory (joined := joined) before responseHistory elections)
     (voteHistory
-      : AckerVoteHistory before votes responseHistory voteVoterHistory elections)
-    (electedHistory : AckerElectionHistory before responseHistory elections)
+      : AckerVoteHistory (joined := joined) before votes responseHistory voteVoterHistory elections)
+    (electedHistory : AckerElectionHistory (joined := joined) before responseHistory elections)
     (activationQuorums
-      : ActivationQuorumFacts before appendHistory responseHistory elections activations)
-    (sourceRole : (after.nodes source).role = .leader)
+      : ActivationQuorumFacts (joined := joined) before appendHistory responseHistory elections activations)
+    (sourceRole : ((nodeOf after) source).role = .leader)
     (currentEntry
-      : termAt (after.nodes source).log index = (after.nodes source).currentTerm)
-    (currentSignature : isSignatureAt (after.nodes source).log index = true)
-    (potential : hasPotentialMajorityAt after appendHistory responseHistory source index)
-    (candidateRole : (after.nodes candidate).role = .candidate)
-    (candidateMajority : hasPotentialElectionMajority after candidate)
+      : termAt ((nodeOf after) source).log index = ((nodeOf after) source).currentTerm)
+    (currentSignature : isSignatureAt ((nodeOf after) source).log index = true)
+    (potential : hasPotentialMajorityAt (joined := joined) after appendHistory responseHistory source index)
+    (candidateRole : ((nodeOf after) candidate).role = .candidate)
+    (candidateMajority : hasPotentialElectionMajority (joined := joined) after candidate)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations (after.nodes source))
+      : configuration ∈ activeConfigurations ((nodeOf after) source))
     (configurationGoverns : configuration.index <= index)
     (candidateConfigurationActive
-      : configuration ∈ activeConfigurations (after.nodes candidate))
-    (newer : (after.nodes source).currentTerm < (after.nodes candidate).currentTerm)
+      : configuration ∈ activeConfigurations ((nodeOf after) candidate))
+    (newer : ((nodeOf after) source).currentTerm < ((nodeOf after) candidate).currentTerm)
     (preGhostAuthority
       : CurrentTermsPositive before -> CommittedFrontierIsSignature before
         -> EntriesDoNotExceedCurrentTerm before -> VoteHistoryFacts before votes
-        -> GrantedVoteSnapshots before votes voteCandidateHistory voteVoterHistory
-        -> GrantedVoteCanonicalSnapshots
+        -> GrantedVoteSnapshots (joined := joined) before votes voteCandidateHistory voteVoterHistory
+        -> GrantedVoteCanonicalSnapshots (joined := joined)
             before canonicalHistory voteCandidateHistory voteVoterHistory
         -> TermOwnershipFacts before votes appendHistory canonicalHistory owners
         -> ElectionHistoryFacts before votes canonicalHistory owners elections
-        -> ElectionConfigurationFacts before elections activations
-        -> AckerCurrentHistory before responseHistory elections
-        -> AckerVoteHistory before votes responseHistory voteVoterHistory elections
-        -> AckerElectionHistory before responseHistory elections
-        -> ActivationQuorumFacts
+        -> ElectionConfigurationFacts (joined := joined) before elections activations
+        -> AckerCurrentHistory (joined := joined) before responseHistory elections
+        -> AckerVoteHistory (joined := joined) before votes responseHistory voteVoterHistory elections
+        -> AckerElectionHistory (joined := joined) before responseHistory elections
+        -> ActivationQuorumFacts (joined := joined)
             before appendHistory responseHistory elections activations
-        -> (before.nodes source).role = .leader
-        -> termAt (before.nodes source).log index = (before.nodes source).currentTerm
-        -> isSignatureAt (before.nodes source).log index = true
-        -> hasPotentialMajorityAt after appendHistory responseHistory source index
-        -> (before.nodes candidate).role = .candidate
-        -> (before.nodes source).currentTerm < (before.nodes candidate).currentTerm
+        -> ((nodeOf before) source).role = .leader
+        -> termAt ((nodeOf before) source).log index = ((nodeOf before) source).currentTerm
+        -> isSignatureAt ((nodeOf before) source).log index = true
+        -> hasPotentialMajorityAt (joined := joined) after appendHistory responseHistory source index
+        -> ((nodeOf before) candidate).role = .candidate
+        -> ((nodeOf before) source).currentTerm < ((nodeOf before) candidate).currentTerm
         -> forall voter,
-            voter ∈ effectiveAckers before responseHistory source index
-            -> voter ∈ relaxedElectionVoters before candidate
-            -> (before.nodes source).log.take index <+: (before.nodes candidate).log)
-    : (after.nodes source).log.take index <+: (after.nodes candidate).log := by
+            voter ∈ effectiveAckers (joined := joined) before responseHistory source index
+            -> voter ∈ relaxedElectionVoters (joined := joined) before candidate
+            -> ((nodeOf before) source).log.take index <+: ((nodeOf before) candidate).log)
+    : ((nodeOf after) source).log.take index <+: ((nodeOf after) candidate).log := by
   have sourceRoleBefore :
-      (before.nodes source).role = .leader := by
+      ((nodeOf before) source).role = .leader := by
     simpa [sourceNodeEq] using sourceRole
   have currentEntryBefore :
-      termAt (before.nodes source).log index =
-        (before.nodes source).currentTerm := by
+      termAt ((nodeOf before) source).log index =
+        ((nodeOf before) source).currentTerm := by
     simpa [sourceNodeEq] using currentEntry
   have currentSignatureBefore :
-      isSignatureAt (before.nodes source).log index = true := by
+      isSignatureAt ((nodeOf before) source).log index = true := by
     simpa [sourceNodeEq] using currentSignature
   have candidateRoleBefore :
-      (before.nodes candidate).role = .candidate := by
+      ((nodeOf before) candidate).role = .candidate := by
     simpa [candidateNodeEq] using candidateRole
   have newerBefore :
-      (before.nodes source).currentTerm <
-        (before.nodes candidate).currentTerm := by
+      ((nodeOf before) source).currentTerm <
+        ((nodeOf before) candidate).currentTerm := by
     simpa [sourceNodeEq, candidateNodeEq] using newer
   have candidateActiveBefore :
-      (before.nodes candidate).role = .candidate \/
-        (before.nodes candidate).role = .leader :=
+      ((nodeOf before) candidate).role = .candidate \/
+        ((nodeOf before) candidate).role = .leader :=
     Or.inl candidateRoleBefore
   have prospectiveVoterTermBound :
       forall voter,
-        voter ∈ potentialElectionVoters after candidate ->
-          (after.nodes candidate).currentTerm <=
-            (after.nodes voter).currentTerm := by
+        voter ∈ potentialElectionVoters (joined := joined) after candidate ->
+          ((nodeOf after) candidate).currentTerm <=
+            ((nodeOf after) voter).currentTerm := by
     intro voter member
     simp only [
       potentialElectionVoters, Finset.mem_filter
@@ -159,18 +158,18 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
       · subst voter
         exact le_rfl
       · calc
-          (after.nodes candidate).currentTerm =
-              (before.nodes candidate).currentTerm := by
+          ((nodeOf after) candidate).currentTerm =
+              ((nodeOf before) candidate).currentTerm := by
                 rw [candidateNodeEq]
-          _ <= (before.nodes voter).currentTerm := recorded.2.2.2.1
-          _ <= (after.nodes voter).currentTerm := termMonotone voter
+          _ <= ((nodeOf before) voter).currentTerm := recorded.2.2.2.1
+          _ <= ((nodeOf after) voter).currentTerm := termMonotone voter
     · simpa [
         currentlyEligibleElectionVoter,
-        makeRequestVoteRequest
+        voteRequestKey, Model.Local.makeRequestVoteRequest
       ] using eligible.1.le
   have replicationMajority :
       hasConfigurationMajority
-        (potentialAckers
+        (potentialAckers (joined := joined)
           after appendHistory responseHistory source index)
         configuration := by
     rw [hasPotentialMajorityAt, List.all_eq_true] at potential
@@ -178,7 +177,7 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
       configurationGoverns
   have electionMajority :
       hasConfigurationMajority
-        (potentialElectionVoters after candidate)
+        (potentialElectionVoters (joined := joined) after candidate)
         configuration := by
     rw [hasPotentialElectionMajority, List.all_eq_true] at candidateMajority
     exact
@@ -189,15 +188,15 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
         replicationMajority electionMajority with
     ⟨voter, _, replicationMember, electionMember⟩
   have effectiveAfter :
-      voter ∈ effectiveAckers after responseHistory source index := by
+      voter ∈ effectiveAckers (joined := joined) after responseHistory source index := by
     simp only [
       potentialAckers, Finset.mem_filter
     ] at replicationMember
     rcases replicationMember with ⟨_, effective | reserve⟩
     · exact effective
     · have reserveTerm :
-          (after.nodes voter).currentTerm <=
-            (after.nodes source).currentTerm := by
+          ((nodeOf after) voter).currentTerm <=
+            ((nodeOf after) source).currentTerm := by
         rcases reserve with
           ⟨request, _, _, requestDestination, requestTerm,
             producible, _⟩
@@ -205,18 +204,18 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
         · rcases direct with
             ⟨nextNode, response, handled, success, _⟩
           have localPost :=
-            CCFRaft.Proofs.Invariant.handleAppendEntriesRequestLocalPost handled
+            CCFRaft.Proofs.Invariant.handleAppendEntriesRequest_successfulCurrentTerm handled success
           have voterTerm :
-              request.term = (after.nodes voter).currentTerm := by
-            simpa [requestDestination, protocolNodeState]
-              using localPost.successfulCurrentTerm success
+              request.2.2.term = ((nodeOf after) voter).currentTerm := by
+            simpa [requestDestination]
+              using localPost
           exact (voterTerm.symm.trans requestTerm).le
         · exact (by simpa [requestDestination, requestTerm] using prepared.1.le)
       have voterTermBound :=
         prospectiveVoterTermBound voter electionMember
       omega
   have relaxedBefore :
-      voter ∈ relaxedElectionVoters before candidate := by
+      voter ∈ relaxedElectionVoters (joined := joined) before candidate := by
     simp only [
       potentialElectionVoters, Finset.mem_filter
     ] at electionMember
@@ -225,24 +224,24 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
     ]
     rcases electionMember with ⟨joinedAfter, effective | eligible⟩
     · refine ⟨
-        by simpa [hasJoinedEq] using joinedAfter,
+        by simpa only [] using joinedAfter,
         Or.inl (effectiveElectionVotersBack effective)
       ⟩
-    · refine ⟨by simpa [hasJoinedEq] using joinedAfter, Or.inr ?_⟩
+    · refine ⟨by simpa only [] using joinedAfter, Or.inr ?_⟩
       refine ⟨?_, ?_⟩
       · calc
-          (before.nodes voter).currentTerm <= (after.nodes voter).currentTerm :=
+          ((nodeOf before) voter).currentTerm <= ((nodeOf after) voter).currentTerm :=
             termMonotone voter
-          _ = (after.nodes candidate).currentTerm := by
-            simpa [currentlyEligibleElectionVoter, makeRequestVoteRequest]
+          _ = ((nodeOf after) candidate).currentTerm := by
+            simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Local.makeRequestVoteRequest]
               using eligible.1.symm
-          _ = (before.nodes candidate).currentTerm := by
+          _ = ((nodeOf before) candidate).currentTerm := by
             rw [candidateNodeEq]
       · simpa [
           currentlyEligibleElectionVoter,
-          makeRequestVoteRequest,
+          voteRequestKey, Model.Local.makeRequestVoteRequest,
           candidateNodeEq, logEq,
-          voteLogUpToDate
+          Model.Local.voteLogUpToDate
         ] using eligible.2.1
   have prefixBefore :=
     preGhostAuthority

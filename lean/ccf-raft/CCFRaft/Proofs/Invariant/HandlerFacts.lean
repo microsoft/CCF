@@ -11,21 +11,7 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
@@ -703,27 +689,6 @@ lemma messageEntriesLength
   ]
   omega
 
-omit [DecidableEq TxId] in
-/-- A message after enqueue was either already present or is the new message. -/
-lemma memEnqueue
-    (network : Node -> List (Message Node TxId))
-    (newMessage message : Message Node TxId)
-    (destination : Node)
-    (member : message ∈ enqueue network newMessage destination)
-    : message ∈ network destination
-      \/ (destination = newMessage.destination /\ message = newMessage) := by
-  unfold enqueue at member
-  by_cases destinationEq : destination = newMessage.destination
-  · subst destination
-    rw [updateQueue_same] at member
-    rcases List.mem_append.mp member with oldMember | newMember
-    · exact Or.inl oldMember
-    · exact Or.inr ⟨rfl, List.mem_singleton.mp newMember⟩
-  · have oldMember :
-        message ∈ network destination := by
-      simpa [updateQueue, Function.update, destinationEq] using member
-    exact Or.inl oldMember
-
 /-- Every member of a prefix is also a member of the larger list. -/
 lemma memOfPrefix
     {Alpha : Type}
@@ -743,34 +708,34 @@ section BootstrapCommit
 variable [Bootstrap Node]
 
 /-- The computed commit frontier never exceeds the leader log length. -/
-lemma highestCommittableIndexBounded (state : View Node TxId) (leader : Node)
-    : highestCommittableIndex state leader <= (state.nodes leader).log.length := by
+lemma highestCommittableIndexBounded (state : Model.State Node TxId) (leader : Node)
+    : highestCommittableIndex (nodeOf state leader) leader <= ((nodeOf state) leader).log.length := by
   unfold highestCommittableIndex
-  let candidates := List.range ((state.nodes leader).log.length + 1)
+  let candidates := List.range (((nodeOf state) leader).log.length + 1)
   let choose :=
     fun best index =>
-      if index > (state.nodes leader).commitIndex /\
-          isSignatureAt (state.nodes leader).log index = true /\
-          termAt (state.nodes leader).log index =
-            (state.nodes leader).currentTerm /\
-          hasMajorityAt state leader index then
+      if index > ((nodeOf state) leader).commitIndex /\
+          isSignatureAt ((nodeOf state) leader).log index = true /\
+          termAt ((nodeOf state) leader).log index =
+            ((nodeOf state) leader).currentTerm /\
+          hasMajorityAt (nodeOf state leader) leader index then
         max best index
       else
         best
   have allBounded :
       forall index,
         index ∈ candidates ->
-          index <= (state.nodes leader).log.length := by
+          index <= ((nodeOf state) leader).log.length := by
     intro index member
     simp [candidates] at member
     omega
   have foldBounded :
       forall (values : List Nat) (best : Nat),
         (forall index, index ∈ values ->
-          index <= (state.nodes leader).log.length) ->
-        best <= (state.nodes leader).log.length ->
+          index <= ((nodeOf state) leader).log.length) ->
+        best <= ((nodeOf state) leader).log.length ->
         values.foldl choose best <=
-          (state.nodes leader).log.length := by
+          ((nodeOf state) leader).log.length := by
     intro values
     induction values with
     | nil =>
@@ -784,26 +749,26 @@ lemma highestCommittableIndexBounded (state : View Node TxId) (leader : Node)
         · have headBound := valuesBound head (by simp)
           simp only [choose]
           split <;> omega
-  change candidates.foldl choose 0 <= (state.nodes leader).log.length
+  change candidates.foldl choose 0 <= ((nodeOf state) leader).log.length
   exact foldBounded candidates 0 allBounded (by omega)
 
 /-- A newly selected commit frontier satisfies every commit-selection guard. -/
 lemma highestCommittableIndexFacts
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (leader : Node)
-    (advances : (state.nodes leader).commitIndex < highestCommittableIndex state leader)
-    : isSignatureAt (state.nodes leader).log (highestCommittableIndex state leader) = true
-      /\ termAt (state.nodes leader).log (highestCommittableIndex state leader)
-          = (state.nodes leader).currentTerm
-      /\ hasMajorityAt state leader (highestCommittableIndex state leader) := by
+    (advances : ((nodeOf state) leader).commitIndex < highestCommittableIndex (nodeOf state leader) leader)
+    : isSignatureAt ((nodeOf state) leader).log (highestCommittableIndex (nodeOf state leader) leader) = true
+      /\ termAt ((nodeOf state) leader).log (highestCommittableIndex (nodeOf state leader) leader)
+          = ((nodeOf state) leader).currentTerm
+      /\ hasMajorityAt (nodeOf state leader) leader (highestCommittableIndex (nodeOf state leader) leader) := by
   unfold highestCommittableIndex at advances ⊢
-  let leaderState := state.nodes leader
+  let leaderState := (nodeOf state) leader
   let valid :=
     fun index =>
       index > leaderState.commitIndex /\
         isSignatureAt leaderState.log index = true /\
         termAt leaderState.log index = leaderState.currentTerm /\
-        hasMajorityAt state leader index
+        hasMajorityAt (nodeOf state leader) leader index
   let choose :=
     fun best index =>
       if valid index then max best index else best
@@ -842,20 +807,20 @@ lemma highestCommittableIndexFacts
 
 /-- A newly selected commit frontier satisfies the term and majority guards. -/
 lemma highestCommittableIndexValid
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (leader : Node)
-    (advances : (state.nodes leader).commitIndex < highestCommittableIndex state leader)
-    : termAt (state.nodes leader).log (highestCommittableIndex state leader)
-        = (state.nodes leader).currentTerm
-      /\ hasMajorityAt state leader (highestCommittableIndex state leader) :=
+    (advances : ((nodeOf state) leader).commitIndex < highestCommittableIndex (nodeOf state leader) leader)
+    : termAt ((nodeOf state) leader).log (highestCommittableIndex (nodeOf state leader) leader)
+        = ((nodeOf state) leader).currentTerm
+      /\ hasMajorityAt (nodeOf state leader) leader (highestCommittableIndex (nodeOf state leader) leader) :=
   (highestCommittableIndexFacts state leader advances).2
 
 /-- A newly selected positive commit frontier points to a signature. -/
 lemma highestCommittableIndexIsSignature
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (leader : Node)
-    (advances : (state.nodes leader).commitIndex < highestCommittableIndex state leader)
-    : isSignatureAt (state.nodes leader).log (highestCommittableIndex state leader)
+    (advances : ((nodeOf state) leader).commitIndex < highestCommittableIndex (nodeOf state leader) leader)
+    : isSignatureAt ((nodeOf state) leader).log (highestCommittableIndex (nodeOf state leader) leader)
       = true :=
   (highestCommittableIndexFacts state leader advances).1
 
@@ -865,162 +830,17 @@ end BootstrapCommit
 
 variable [Bootstrap Node]
 
-private def withProtocolNodeState
-    (result : NodeState Node TxId × AppendEntriesResponse Node)
-    : NodeState Node TxId × AppendEntriesResponse Node :=
-  (protocolNodeState result.1, result.2)
-
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
-lemma rejectAppendEntriesRequest_protocolNodeState
-    (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
-    : rejectAppendEntriesRequest? (protocolNodeState node) request
-      = (rejectAppendEntriesRequest? node request).map withProtocolNodeState := by
-  unfold rejectAppendEntriesRequest?
-  simp only [protocolNodeState, logOk]
-  split_ifs <;>
-    simp_all [
-      failureResponse, withProtocolNodeState, protocolNodeState
-    ]
-
-omit [Bootstrap Node] in
-lemma appendEntriesAlreadyDone_protocolNodeState
-    (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
-    : appendEntriesAlreadyDone? (protocolNodeState node) request
-      = (appendEntriesAlreadyDone? node request).map withProtocolNodeState := by
-  unfold appendEntriesAlreadyDone?
-  simp only [alreadyDone, protocolNodeState]
-  split_ifs <;>
-    simp_all [
-      committedFromLeader, successResponse, withProtocolNodeState,
-      protocolNodeState
-    ]
-
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
-lemma conflictAppendEntriesRequest_protocolNodeState
-    (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
-    : conflictAppendEntriesRequest? (protocolNodeState node) request
-      = (conflictAppendEntriesRequest? node request).map protocolNodeState := by
-  unfold conflictAppendEntriesRequest?
-  simp only [hasTermConflict, overlapLength, protocolNodeState]
-  split_ifs <;> simp_all [protocolNodeState]
-
-/-- Retirement refresh preserves protocol observations, not erased result metadata. -/
-lemma noConflictAppendEntriesRequest_protocolNodeState
-    (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
-    : (noConflictAppendEntriesRequest? (protocolNodeState node) request).map
-        withProtocolNodeState
-      = (noConflictAppendEntriesRequest? node request).map withProtocolNodeState := by
-  unfold noConflictAppendEntriesRequest?
-  simp only [noConflictExtension, protocolNodeState]
-  split_ifs <;>
-    simp_all [
-      committedFromLeader, successResponse, withProtocolNodeState,
-      protocolNodeState
-    ]
-
-lemma acceptAppendEntriesRequest_protocolNodeState
-    (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
-    : (acceptAppendEntriesRequest? (protocolNodeState node) request).map
-        withProtocolNodeState
-      = (acceptAppendEntriesRequest? node request).map withProtocolNodeState := by
-  unfold acceptAppendEntriesRequest?
-  by_cases accepted :
-      request.term = node.currentTerm /\
-        node.role = .follower /\
-        logOk node request /\
-        request.prevLogIndex >= node.commitIndex
-  · have acceptedProtocol :
-        request.term = (protocolNodeState node).currentTerm /\
-          (protocolNodeState node).role = .follower /\
-          logOk (protocolNodeState node) request /\
-          request.prevLogIndex >=
-            (protocolNodeState node).commitIndex := by
-      simpa [protocolNodeState, logOk] using accepted
-    rw [ite_eq_left acceptedProtocol, ite_eq_left accepted]
-    rw [appendEntriesAlreadyDone_protocolNodeState]
-    cases already : appendEntriesAlreadyDone? node request with
-    | some result => simp [withProtocolNodeState]
-    | none =>
-        simp only [Option.map_none]
-        have extension := noConflictAppendEntriesRequest_protocolNodeState node request
-        cases extended : noConflictAppendEntriesRequest? node request <;>
-          cases projected : noConflictAppendEntriesRequest? (protocolNodeState node) request <;>
-          simp only [extended, projected, Option.map_none, Option.map_some,
-            Option.some.injEq] at extension ⊢
-        · rw [conflictAppendEntriesRequest_protocolNodeState]
-          cases conflictResult : conflictAppendEntriesRequest? node request with
-          | none => rfl
-          | some truncated =>
-              simp only [Option.map_some]
-              rw [appendEntriesAlreadyDone_protocolNodeState]
-              cases appendEntriesAlreadyDone? truncated request with
-              | some result => simp [withProtocolNodeState]
-              | none =>
-                  exact noConflictAppendEntriesRequest_protocolNodeState truncated request
-        · contradiction
-        · contradiction
-        · exact extension
-  · have rejectedProtocol :
-        Not (
-          request.term = (protocolNodeState node).currentTerm /\
-            (protocolNodeState node).role = .follower /\
-            logOk (protocolNodeState node) request /\
-            request.prevLogIndex >=
-              (protocolNodeState node).commitIndex) := by
-      simpa [protocolNodeState, logOk] using accepted
-    rw [ite_eq_right rejectedProtocol, ite_eq_right accepted]
-
-lemma handleAppendEntriesRequest_protocolNodeState
-    (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
-    : (handleAppendEntriesRequest? (protocolNodeState node) request).map
-        withProtocolNodeState
-      = (handleAppendEntriesRequest? node request).map withProtocolNodeState := by
-  unfold handleAppendEntriesRequest?
-  rw [rejectAppendEntriesRequest_protocolNodeState]
-  cases rejectAppendEntriesRequest? node request
-  · exact acceptAppendEntriesRequest_protocolNodeState node request
-  · simp [withProtocolNodeState]
-
-/-- Erasing input metadata preserves the reply and every protocol state field. -/
-lemma handleAppendEntriesRequest_protocolNodeState_some
-    {before after : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId}
-    {response : AppendEntriesResponse Node}
-    (handled : handleAppendEntriesRequest? before request = some (after, response))
-    : Exists
-        fun projectedAfter =>
-          handleAppendEntriesRequest? (protocolNodeState before) request
-            = some (projectedAfter, response)
-          /\ protocolNodeState projectedAfter = protocolNodeState after := by
-  have observations := handleAppendEntriesRequest_protocolNodeState before request
-  rw [handled] at observations
-  cases projected : handleAppendEntriesRequest? (protocolNodeState before) request with
-  | none => simp [projected] at observations
-  | some result =>
-      rcases result with ⟨projectedAfter, projectedResponse⟩
-      simp only [projected, Option.map_some, Option.some.injEq,
-        withProtocolNodeState, Prod.mk.injEq] at observations
-      exact ⟨projectedAfter, by rw [observations.2], observations.1⟩
-
 omit [DecidableEq TxId] [Bootstrap Node] in
-/-- Replies received after stepping down are consumed without changing state. -/
 lemma handleAppendEntriesResponseNonLeaderUnchanged
-    (before : NodeState Node TxId)
-    (response : AppendEntriesResponse Node)
-    (notLeader : before.role ≠ .leader)
-    : handleAppendEntriesResponse? before response = some before := by
-  simp [handleAppendEntriesResponse?, notLeader]
+    (before : NodeState Node TxId) (source : Node)
+    (response : AppendEntriesResponse) (notLeader : before.role ≠ .leader)
+    : handleAppendEntriesResponse before source response = before := by
+  simp [handleAppendEntriesResponse, notLeader]
 
 /-- Facts guaranteed after tallying a RequestVote response. -/
 structure VoteResponseHandlerPost
     (before after : NodeState Node TxId)
-    (response : RequestVoteResponse Node)
+    (source : Node) (response : RequestVoteResponse)
     : Prop where
   roleUnchanged : after.role = before.role
   currentTermUnchanged : after.currentTerm = before.currentTerm
@@ -1040,69 +860,25 @@ structure VoteResponseHandlerPost
     : after.votesGranted = before.votesGranted
       \/ (response.voteGranted = true
           /\ before.role = .candidate
-          /\ after.votesGranted = insert response.source before.votesGranted)
+          /\ after.votesGranted = insert source before.votesGranted)
 
 omit [DecidableEq TxId] [Bootstrap Node] in
-/-- Tallying a response changes only the candidate's recorded vote set. -/
 lemma handleRequestVoteResponsePreserves
-    {before after : NodeState Node TxId}
-    {response : RequestVoteResponse Node}
-    (handled : handleRequestVoteResponse? before response = some after)
-    : VoteResponseHandlerPost before after response := by
-  unfold handleRequestVoteResponse? at handled
-  split at handled
-  · simp at handled
-    subst after
-    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
-  · split at handled
-    · simp at handled
-      subst after
-      exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
-    · rename_i candidateRole
-      split at handled
-      · rename_i currentTerm
-        split at handled
-        · rename_i granted
-          simp at handled
-          subst after
-          exact ⟨
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            Or.inr ⟨granted, by simpa using candidateRole, rfl⟩
-          ⟩
-        · simp at handled
-          subst after
-          exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
-      · contradiction
-
-omit [Bootstrap Node] in
-/-- RequestPreVote changes no local persistent or replication state. -/
-lemma handleRequestPreVoteStateUnchanged
-    {before after : NodeState Node TxId}
-    {request : RequestPreVote Node}
-    {response : RequestPreVoteResponse Node}
-    (handled : handleRequestPreVote? before request = some (after, response))
-    : after = before := by
-  unfold handleRequestPreVote? at handled
-  split at handled
-  · simp at handled
-    exact handled.1.symm
-  · contradiction
+    {before after : NodeState Node TxId} {source : Node}
+    {response : RequestVoteResponse}
+    (handled : handleRequestVoteResponse before source response = after)
+    : VoteResponseHandlerPost before after source response := by
+  subst after
+  unfold handleRequestVoteResponse
+  split_ifs with granted
+  · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+      Or.inr ⟨granted.2.2, granted.1, rfl⟩⟩
+  · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
 
 /-- Tallying a pre-vote response changes only the speculative vote set. -/
 structure PreVoteResponseHandlerPost
     (before after : NodeState Node TxId)
-    (response : RequestPreVoteResponse Node)
+    (source : Node) (response : RequestVoteResponse)
     : Prop where
   roleUnchanged : after.role = before.role
   currentTermUnchanged : after.currentTerm = before.currentTerm
@@ -1124,106 +900,46 @@ structure PreVoteResponseHandlerPost
       \/ (response.voteGranted = true
           /\ response.term = before.currentTerm
           /\ before.role = .preVoteCandidate
-          /\ after.preVotesGranted = insert response.source before.preVotesGranted)
+          /\ after.preVotesGranted = insert source before.preVotesGranted)
 
 omit [DecidableEq TxId] [Bootstrap Node] in
 lemma handleRequestPreVoteResponsePreserves
-    {before after : NodeState Node TxId}
-    {response : RequestPreVoteResponse Node}
-    (handled : handleRequestPreVoteResponse? before response = some after)
-    : PreVoteResponseHandlerPost before after response := by
-  unfold handleRequestPreVoteResponse? at handled
-  split at handled
-  · simp at handled
-    subst after
-    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
-  · split at handled
-    · simp at handled
-      subst after
-      exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
-    · rename_i preVoteCandidate
-      split at handled
-      · rename_i currentTerm
-        split at handled
-        · rename_i granted
-          simp at handled
-          subst after
-          exact ⟨
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            Or.inr ⟨granted, currentTerm, by simpa using preVoteCandidate, rfl⟩
-          ⟩
-        · simp at handled
-          subst after
-          exact ⟨
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            Or.inl rfl
-          ⟩
-      · contradiction
+    {before after : NodeState Node TxId} {source : Node}
+    {response : RequestVoteResponse}
+    (handled : handleRequestPreVoteResponse before source response = after)
+    : PreVoteResponseHandlerPost before after source response := by
+  subst after
+  unfold handleRequestPreVoteResponse
+  split_ifs with granted
+  · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+      Or.inr ⟨granted.2.2, granted.2.1, granted.1, rfl⟩⟩
+  · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
 
-/--
-A processed proposal either leaves the node unchanged, including when newer,
-or performs the exact current-term ordinary-candidate transition.
--/
 lemma handleProposeVoteRequestCases
-    {state : View Node TxId}
-    {destination : Node}
-    {request : ProposeVoteRequest Node}
-    {after : NodeState Node TxId}
-    (handled : handleProposeVoteRequest? state destination request = some after)
-    : after = state.nodes destination
-      \/ (request.term = (state.nodes destination).currentTerm
-          /\ candidateTransitionEnabled state destination
-          /\ after = becomeCandidateNodeState (state.nodes destination) destination) := by
-  simp only [handleProposeVoteRequest?] at handled
-  split at handled
-  · rename_i eligible
-    simp only [Option.some.injEq] at handled
-    subst after
-    exact Or.inr ⟨eligible.1, eligible.2, rfl⟩
-  · simp only [Option.some.injEq] at handled
-    exact Or.inl handled.symm
+    (state : NodeState Node TxId) (destination : Node) (term : Nat)
+    : handleProposeVoteRequest state destination term = state
+      ∨ (term = state.currentTerm
+        ∧ candidateTransitionEnabled state destination
+        ∧ handleProposeVoteRequest state destination term
+            = becomeCandidateNodeState state destination) := by
+  unfold handleProposeVoteRequest
+  split_ifs with eligible
+  · exact Or.inr ⟨eligible.1, eligible.2, rfl⟩
+  · exact Or.inl rfl
 
 omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
-/-- Failure-response routing and the failure bit do not depend on its NACK index. -/
-lemma failureResponseMetadata
-    (before : NodeState Node TxId)
+lemma failureResponseMetadata (before : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
-    : (failureResponse before request).source = request.destination
-      /\ (failureResponse before request).destination = request.source
-      /\ (failureResponse before request).success = false := by
+    : (failureResponse before request).success = false := by
   unfold failureResponse
   split
-  · exact ⟨rfl, rfl, rfl⟩
+  · rfl
   · dsimp
     split
-    · exact ⟨rfl, rfl, rfl⟩
+    · rfl
     · split
-      · exact ⟨rfl, rfl, rfl⟩
-      · split <;> exact ⟨rfl, rfl, rfl⟩
+      · rfl
+      · split <;> rfl
 
 omit [Bootstrap Node] in
 /-- A follower commit learned from a request stays below the advertised
@@ -1339,7 +1055,7 @@ lemma committedFromLeader_isSignature
 structure AppendRequestLocalPost
     (before after : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
-    (response : AppendEntriesResponse Node)
+    (response : AppendEntriesResponse)
     : Prop where
   roleUnchanged : after.role = before.role
   currentTermUnchanged : after.currentTerm = before.currentTerm
@@ -1371,8 +1087,6 @@ structure AppendRequestLocalPost
   commitIndexSignature
     : (0 < before.commitIndex -> isSignatureAt before.log before.commitIndex = true)
       -> 0 < after.commitIndex -> isSignatureAt after.log after.commitIndex = true
-  responseSource : response.source = request.destination
-  responseDestination : response.destination = request.source
   successfulIndexBound
     : response.success = true
       -> response.lastLogIndex <= request.prevLogIndex + request.entries.length
@@ -1398,12 +1112,14 @@ structure AppendRequestLocalPost
 
 /-- Every successful AppendEntries handler branch has the common local shape. -/
 lemma handleAppendEntriesRequestLocalPost
-    {before after : NodeState Node TxId}
+    {self : Node} {before after : NodeState Node TxId}
     {request : AppendEntriesRequest Node TxId}
-    {response : AppendEntriesResponse Node}
-    (handled : handleAppendEntriesRequest? before request = some (after, response))
+    {response : AppendEntriesResponse}
+    (notStepped : ¬ (request.term = before.currentTerm
+      ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
+    (handled : handleAppendEntriesRequest? self before request = some (after, response))
     : AppendRequestLocalPost before after request response := by
-  unfold handleAppendEntriesRequest? at handled
+  simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
   split at handled
   · rename_i rejectedState rejectedResponse rejected
     unfold rejectAppendEntriesRequest? at rejected
@@ -1434,15 +1150,13 @@ lemma handleAppendEntriesRequestLocalPost
         le_max_left _ _,
         le_max_left _ _,
         (by intro oldSignature positive; exact oldSignature positive),
-        metadata.1,
-        metadata.2.1,
-        (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
-        (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
+        (by intro succeeded; rw [metadata] at succeeded; contradiction),
+        (by intro succeeded; rw [metadata] at succeeded; contradiction),
         (by intro advanced; omega),
-        (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
-        (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
-        (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
-        (by intro succeeded; rw [metadata.2.2] at succeeded; contradiction),
+        (by intro succeeded; rw [metadata] at succeeded; contradiction),
+        (by intro succeeded; rw [metadata] at succeeded; contradiction),
+        (by intro succeeded; rw [metadata] at succeeded; contradiction),
+        (by intro succeeded; rw [metadata] at succeeded; contradiction),
         (by intro _; rfl),
         (by intro _; rfl),
         (by
@@ -1505,8 +1219,6 @@ lemma handleAppendEntriesRequestLocalPost
               exact
                 committedFromLeader_isSignature
                   before request before.log oldSignature positive),
-            by simp [successResponse],
-            by simp [successResponse],
             by simp [successResponse],
             by intro; exact accepted.1,
             by simp [successResponse],
@@ -1607,8 +1319,6 @@ lemma handleAppendEntriesRequestLocalPost
                         request.entries)
                   · exact oldSignature oldPositive
                 · exact positive),
-              by simp [successResponse],
-              by simp [successResponse],
               by
                 intro
                 simp only [successResponse]
@@ -1719,8 +1429,6 @@ lemma handleAppendEntriesRequestLocalPost
                             omega
                         · exact oldSignature oldPositive
                       · exact positive),
-                    by simp [successResponse],
-                    by simp [successResponse],
                     by simp [successResponse],
                     by intro; exact accepted.1,
                     by simp [successResponse],
@@ -1836,8 +1544,6 @@ lemma handleAppendEntriesRequestLocalPost
                               request.entries)
                         · exact oldSignature oldPositive
                       · exact positive),
-                    by simp [successResponse],
-                    by simp [successResponse],
                     by
                       intro
                       simp only [successResponse]
@@ -1885,13 +1591,15 @@ lemma handleAppendEntriesRequestLocalPost
 
 /-- A node which is already a leader can only take a rejecting request branch. -/
 lemma handleAppendEntriesRequestLeaderUnchanged
-    {before after : NodeState Node TxId}
+    {self : Node} {before after : NodeState Node TxId}
     {request : AppendEntriesRequest Node TxId}
-    {response : AppendEntriesResponse Node}
+    {response : AppendEntriesResponse}
     (leader : before.role = .leader)
-    (handled : handleAppendEntriesRequest? before request = some (after, response))
+    (notStepped : ¬ (request.term = before.currentTerm
+      ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
+    (handled : handleAppendEntriesRequest? self before request = some (after, response))
     : after = before := by
-  unfold handleAppendEntriesRequest? at handled
+  simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
   split at handled
   · rename_i rejectedState rejectedResponse rejected
     unfold rejectAppendEntriesRequest? at rejected
@@ -1908,4 +1616,17 @@ lemma handleAppendEntriesRequestLeaderUnchanged
       exact Role.noConfusion (accepted.2.1.symm.trans leader)
     · contradiction
 
+
+lemma handleAppendEntriesRequest_successfulCurrentTerm
+    {self : Node} {before after : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
+    (handled : handleAppendEntriesRequest? self before request = some (after, response))
+    (success : response.success = true)
+    : request.term = before.currentTerm := by
+  by_cases stepping : request.term = before.currentTerm
+      ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)
+  · exact stepping.1
+  · exact (handleAppendEntriesRequestLocalPost stepping handled).successfulCurrentTerm success
+
 end CCFRaft.Proofs.Invariant
+

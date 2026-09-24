@@ -12,21 +12,7 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
@@ -34,8 +20,8 @@ variable [DecidableEq Node] [DecidableEq TxId]
 
 private def withVotedFor
     (votedFor : Option Node)
-    (result : NodeState Node TxId × AppendEntriesResponse Node)
-    : NodeState Node TxId × AppendEntriesResponse Node :=
+    (result : NodeState Node TxId × AppendEntriesResponse)
+    : NodeState Node TxId × AppendEntriesResponse :=
   ({ result.1 with votedFor := votedFor }, result.2)
 
 omit [DecidableEq Node] [DecidableEq TxId] in
@@ -76,13 +62,14 @@ lemma conflictAppendEntriesRequest_votedFor
   split_ifs <;> simp_all
 
 variable [Bootstrap Node]
+variable (self : Node)
 
 lemma noConflictAppendEntriesRequest_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
     (request : AppendEntriesRequest Node TxId)
-    : noConflictAppendEntriesRequest? { node with votedFor := votedFor } request
-      = (noConflictAppendEntriesRequest? node request).map (withVotedFor votedFor) := by
+    : noConflictAppendEntriesRequest? self { node with votedFor := votedFor } request
+      = (noConflictAppendEntriesRequest? self node request).map (withVotedFor votedFor) := by
   by_cases enabled : noConflictExtension node request
   · have changed : noConflictExtension { node with votedFor := votedFor } request :=
       enabled
@@ -98,8 +85,8 @@ lemma acceptAppendEntriesRequest_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
     (request : AppendEntriesRequest Node TxId)
-    : acceptAppendEntriesRequest? { node with votedFor := votedFor } request
-      = (acceptAppendEntriesRequest? node request).map (withVotedFor votedFor) := by
+    : acceptAppendEntriesRequest? self { node with votedFor := votedFor } request
+      = (acceptAppendEntriesRequest? self node request).map (withVotedFor votedFor) := by
   unfold acceptAppendEntriesRequest?
   by_cases accepted :
       request.term = node.currentTerm /\
@@ -124,7 +111,7 @@ lemma acceptAppendEntriesRequest_votedFor
     ]
     cases appendEntriesAlreadyDone? node request <;>
       simp [withVotedFor]
-    cases noConflictAppendEntriesRequest? node request <;> simp
+    cases noConflictAppendEntriesRequest? self node request <;> simp
     cases conflictResult : conflictAppendEntriesRequest? node request with
     | none => simp
     | some truncated =>
@@ -132,7 +119,7 @@ lemma acceptAppendEntriesRequest_votedFor
           appendEntriesAlreadyDone_votedFor
             truncated votedFor request
         have nestedNoConflict :=
-          noConflictAppendEntriesRequest_votedFor
+          noConflictAppendEntriesRequest_votedFor self
             truncated votedFor request
         simp only [Option.map_some]
         rw [nestedAppend, nestedNoConflict]
@@ -153,26 +140,35 @@ lemma acceptAppendEntriesRequest_votedFor
     rfl
 
 lemma handleAppendEntriesRequest_votedFor
-    (node : NodeState Node TxId)
-    (votedFor : Option Node)
+    (node : NodeState Node TxId) (votedFor : Option Node)
     (request : AppendEntriesRequest Node TxId)
-    : handleAppendEntriesRequest? { node with votedFor := votedFor } request
-      = (handleAppendEntriesRequest? node request).map (withVotedFor votedFor) := by
+    : handleAppendEntriesRequest? self { node with votedFor } request
+      = (handleAppendEntriesRequest? self node request).map (withVotedFor votedFor) := by
+  have core (input : NodeState Node TxId) :
+      (match rejectAppendEntriesRequest? { input with votedFor } request with
+      | some result => some result
+      | none => acceptAppendEntriesRequest? self { input with votedFor } request)
+      = (match rejectAppendEntriesRequest? input request with
+        | some result => some result
+        | none => acceptAppendEntriesRequest? self input request).map (withVotedFor votedFor) := by
+    rw [rejectAppendEntriesRequest_votedFor]
+    cases rejectAppendEntriesRequest? input request <;>
+      simp [acceptAppendEntriesRequest_votedFor]
   unfold handleAppendEntriesRequest?
-  rw [rejectAppendEntriesRequest_votedFor]
-  cases rejectAppendEntriesRequest? node request
-  · simp [acceptAppendEntriesRequest_votedFor]
-  · simp
+  by_cases stepping : request.term = node.currentTerm
+      ∧ (node.role = .candidate ∨ node.role = .preVoteCandidate)
+  · convert core { node with role := .follower, isNewFollower := true } using 1 <;>
+      simp [stepping] <;> split <;> simp_all
+  · convert core node using 1 <;> simp [stepping] <;> split <;> simp_all
 
 lemma canProduceAppendAckEventuallyAt_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
-    (request : AppendEntriesRequest Node TxId)
+    (request : AppendRequestKey Node TxId)
     (index : Nat)
     : canProduceAppendAckEventuallyAt { node with votedFor := votedFor } request index
       ↔ canProduceAppendAckEventuallyAt node request index := by
   unfold canProduceAppendAckEventuallyAt canProduceAppendAckAt
-  rw [protocolNodeState_set_votedFor]
   rw [handleAppendEntriesRequest_votedFor]
   constructor <;> rintro (direct | future)
   · left

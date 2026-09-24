@@ -76,6 +76,7 @@ theorem nodeOf_initial {nodes : List Node} {state : Model.State Node TxId}
       rw [nodeOf_of_lookup found]
       exact initialized.2.2.2.2.2 (node, value) (mem_of_nodeState found)
 
+omit [Bootstrap Node] in
 theorem removeOne_eq_list_erase (envelope : Model.Envelope Node TxId)
     (network : List (Model.Envelope Node TxId))
     : removeOne envelope network = network.erase envelope := by
