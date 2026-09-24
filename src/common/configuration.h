@@ -7,8 +7,11 @@
 #include "common/enclave_interface_types.h"
 #include "ds/oversized.h"
 
+#include <chrono>
+
 struct EnclaveConfig
 {
+  std::chrono::milliseconds tick_interval = {};
   uint8_t* to_enclave_buffer_start = nullptr;
   size_t to_enclave_buffer_size = 0;
   ringbuffer::Offsets* to_enclave_buffer_offsets = nullptr;
