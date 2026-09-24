@@ -60,4 +60,9 @@ def Selected (source : Node) (network : List (Model.Envelope Node TxId))
   envelope.source = source /\ envelope ∈ network
     /\ remaining = Shared.MultiNodeTransitionSystem.removeOne envelope network
 
+/-- Append the handler's reply to the remaining concrete network. -/
+def reply (remaining : List (Model.Envelope Node TxId)) (response : AppendResponseKey Node)
+    : List (Model.Envelope Node TxId) :=
+  remaining ++ [appendResponseEnvelope response]
+
 end CCFRaft.Proofs.Invariant

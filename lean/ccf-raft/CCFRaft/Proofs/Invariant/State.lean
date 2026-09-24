@@ -47,8 +47,10 @@ theorem lookup_replaceNode_other (state : Model.State Node TxId)
 @[simp]
 theorem nodeOf_replaceNode_other (state : Model.State Node TxId)
     (node member : Node) (value : NodeState Node TxId) (different : member ≠ node)
-    : nodeOf { state with nodes := replaceNode state.nodes node value } member
+    {network : List (Model.Envelope Node TxId)}
+    : nodeOf { state with nodes := replaceNode state.nodes node value, network } member
       = nodeOf state member := by
+  change nodeOf { state with nodes := replaceNode state.nodes node value } member = _
   simp [nodeOf, lookup_replaceNode_other state node member value different]
 
 theorem nodeOf_replaceNode_same {state : Model.State Node TxId}
@@ -83,8 +85,10 @@ theorem lookup_replaceNode_present (state : Model.State Node TxId)
 theorem nodeOf_replaceNode (state : Model.State Node TxId)
     (node member : Node) (value : NodeState Node TxId)
     (present : node ∈ state.nodes.map Prod.fst)
-    : nodeOf { state with nodes := replaceNode state.nodes node value } member
+    {network : List (Model.Envelope Node TxId)}
+    : nodeOf { state with nodes := replaceNode state.nodes node value, network } member
       = if member = node then value else nodeOf state member := by
+  change nodeOf { state with nodes := replaceNode state.nodes node value } member = _
   by_cases here : member = node
   · subst member
     simp [nodeOf, lookup_replaceNode_present state node value present]

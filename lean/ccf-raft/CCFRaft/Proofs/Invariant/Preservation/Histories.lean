@@ -11,29 +11,16 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
+open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
+variable {joined : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-attribute [local simp] Message.destination ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- A successful one-based lookup identifies an entry in the underlying log. -/
 lemma entryAtSomeMember
     {log : List (Entry Node TxId)}
@@ -51,7 +38,6 @@ lemma entryAtSomeMember
     rw [valueEq] at member
     exact member
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Membership exposes a positive one-based lookup. -/
 lemma memberEntryAt
     {log : List (Entry Node TxId)}
@@ -65,7 +51,6 @@ lemma memberEntryAt
   rw [List.getElem?_eq_some_iff]
   exact ⟨by omega, by simpa using found⟩
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Every positive in-bounds one-based index has a concrete entry. -/
 lemma entryAtSomeOfPositiveBound
     {log : List (Entry Node TxId)}
@@ -79,7 +64,6 @@ lemma entryAtSomeOfPositiveBound
   rw [List.getElem?_eq_some_iff]
   exact ⟨by omega, rfl⟩
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Taking beyond a one-based lookup leaves that lookup unchanged. -/
 lemma entryAtTake_of_le
     {log : List (Entry Node TxId)}
@@ -96,8 +80,8 @@ lemma entryAtTake_of_le
     · omega
 
 lemma knownEvidenceFrontierCanonical
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -107,7 +91,7 @@ lemma knownEvidenceFrontierCanonical
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (evidenceFacts : CommitEvidenceFacts state appendHistory nodeEvidence requestEvidence)
     (prospectiveFacts
-      : ProspectiveCommitEvidenceFacts
+      : ProspectiveCommitEvidenceFacts (joined := joined)
           state appendHistory nodeEvidence requestEvidence elections)
     {evidence : CommitEvidence Node TxId}
     {supportedPrefix : List (Entry Node TxId)}
@@ -146,7 +130,7 @@ lemma knownEvidenceFrontierCanonical
     rw [entryAtTake_of_le le_rfl]
     exact historyFound
   have memberFound :
-      entryAt? (state.nodes member).log evidence.commitFrontier =
+      entryAt? ((nodeOf state) member).log evidence.commitFrontier =
         some frontierEntry :=
     entryAt_of_prefix memberCovered prefixFound
   have memberAgreed :=
@@ -154,7 +138,7 @@ lemma knownEvidenceFrontierCanonical
       member evidence.commitFrontier frontierEntry memberFound).2
   calc
     evidence.history.take evidence.commitFrontier
-        = (state.nodes member).log.take evidence.commitFrontier := by
+        = ((nodeOf state) member).log.take evidence.commitFrontier := by
       have covered := prefixEqTake memberCovered
       rw [prefixLength] at covered
       exact covered.symm
@@ -163,22 +147,21 @@ lemma knownEvidenceFrontierCanonical
     _ = (canonicalHistory evidence.commitTerm).take evidence.commitFrontier := by
       rw [frontierEntryTerm]
 
-omit [Bootstrap Node] in
 /-- Every effective ACK supporter has advanced to at least the ACKed term. -/
 lemma effectiveAckerCurrentTermBound
-    {state : View Node TxId}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {elections : ElectionHistory Node TxId}
     (entriesBounded : EntriesDoNotExceedCurrentTerm state)
-    (currentHistory : AckerCurrentHistory state responseHistory elections)
+    (currentHistory : AckerCurrentHistory (joined := joined) state responseHistory elections)
     {leader supporter : Node}
     {frontier : Nat}
-    (leaderRole : (state.nodes leader).role = .leader)
+    (leaderRole : ((nodeOf state) leader).role = .leader)
     (frontierTerm
-      : termAt (state.nodes leader).log frontier = (state.nodes leader).currentTerm)
-    (frontierSignature : isSignatureAt (state.nodes leader).log frontier = true)
-    (member : supporter ∈ effectiveAckers state responseHistory leader frontier)
-    : (state.nodes leader).currentTerm <= (state.nodes supporter).currentTerm := by
+      : termAt ((nodeOf state) leader).log frontier = ((nodeOf state) leader).currentTerm)
+    (frontierSignature : isSignatureAt ((nodeOf state) leader).log frontier = true)
+    (member : supporter ∈ effectiveAckers (joined := joined) state responseHistory leader frontier)
+    : ((nodeOf state) leader).currentTerm <= ((nodeOf state) supporter).currentTerm := by
   rcases
       currentHistory leader frontier leaderRole frontierTerm
         frontierSignature supporter member with
@@ -186,11 +169,11 @@ lemma effectiveAckerCurrentTermBound
   · rcases isSignatureAtTrue frontierSignature with
       ⟨entry, found, _signature⟩
     have entryTerm :
-        entry.term = (state.nodes leader).currentTerm := by
+        entry.term = ((nodeOf state) leader).currentTerm := by
       simpa [termAt, found] using frontierTerm
     have prefixFound :
         entryAt?
-            ((state.nodes leader).log.take frontier)
+            (((nodeOf state) leader).log.take frontier)
             frontier =
           some entry := by
       rw [entryAtTake_of_le le_rfl]
@@ -203,7 +186,6 @@ lemma effectiveAckerCurrentTermBound
       ⟨badTerm, _record, above, bounded, _recorded, _missing⟩
     exact (Nat.le_of_lt above).trans bounded
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Taking beyond an index leaves its term lookup unchanged. -/
 lemma termAtTakeOfLe
     {log : List (Entry Node TxId)}
@@ -213,7 +195,6 @@ lemma termAtTakeOfLe
   unfold termAt
   rw [entryAtTake_of_le within]
 
-omit [Bootstrap Node] in
 /-- Taking through the latest signature retains exactly that committable index. -/
 lemma maxCommittableIndexTakeMax (log : List (Entry Node TxId))
     : maxCommittableIndex (log.take (maxCommittableIndex log))
@@ -230,7 +211,6 @@ lemma maxCommittableIndexTakeMax (log : List (Entry Node TxId))
           (maxCommittableIndexPositiveIsSignature
             (Nat.pos_of_ne_zero zero)))
 
-omit [Bootstrap Node] in
 /-- Taking through the latest signature retains its committable term. -/
 lemma maxCommittableTermTakeMax (log : List (Entry Node TxId))
     : maxCommittableTerm (log.take (maxCommittableIndex log))
@@ -239,7 +219,6 @@ lemma maxCommittableTermTakeMax (log : List (Entry Node TxId))
   rw [maxCommittableIndexTakeMax]
   exact termAtTakeOfLe le_rfl
 
-omit [Bootstrap Node] in
 /-- An exact committable snapshot lies inside the larger log's signature prefix. -/
 lemma committablePrefixOfMaxTake
     {snapshot log : List (Entry Node TxId)}
@@ -256,7 +235,6 @@ lemma committablePrefixOfMaxTake
     _ = (log.take (maxCommittableIndex log)).take snapshot.length := by
       simp [List.take_take, Nat.min_eq_left lengthBound]
 
-omit [Bootstrap Node] in
 /-- A prefix ending in a signature lies inside the larger log's signature prefix. -/
 lemma signatureEndedPrefixOfMaxTake
     {snapshot log : List (Entry Node TxId)}
@@ -268,7 +246,6 @@ lemma signatureEndedPrefixOfMaxTake
   · exact maxCommittableIndexBounded snapshot
   · exact signatureIndex_le_maxCommittableIndex signature
 
-omit [Bootstrap Node] in
 /-- Taking through a known signature produces a prefix ending at that signature. -/
 lemma signatureAtTakeLength
     {log : List (Entry Node TxId)}
@@ -281,99 +258,95 @@ lemma signatureAtTakeLength
   simpa [List.length_take, Nat.min_eq_left indexBound]
     using isSignatureAt_take_of_le le_rfl signature
 
-omit [DecidableEq TxId] in
 /-- Extract one governing configuration's processed replication majority. -/
 lemma majorityAtConfiguration
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {leader : Node}
     {index : Nat}
-    (majority : hasMajorityAt state leader index)
+    (majority : hasMajorityAt (nodeOf state leader) leader index)
     {configuration : Configuration Node}
-    (active : configuration ∈ activeConfigurations (state.nodes leader))
+    (active : configuration ∈ activeConfigurations ((nodeOf state) leader))
     (governs : configuration.index <= index)
-    : hasConfigurationMajority (acknowledgingNodes state leader index) configuration := by
+    : hasConfigurationMajority (acknowledgingNodes (nodeOf state leader) leader index) configuration := by
   rw [hasMajorityAt, List.all_eq_true] at majority
   exact (of_decide_eq_true (majority configuration active)) governs
 
-omit [DecidableEq TxId] in
 /-- Extract one governing configuration's effective replication majority. -/
 lemma effectiveMajorityAtConfiguration
-    {state : View Node TxId}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {leader : Node}
     {index : Nat}
-    (majority : hasEffectiveMajorityAt state responseHistory leader index)
+    (majority : hasEffectiveMajorityAt (joined := joined) state responseHistory leader index)
     {configuration : Configuration Node}
-    (active : configuration ∈ activeConfigurations (state.nodes leader))
+    (active : configuration ∈ activeConfigurations ((nodeOf state) leader))
     (governs : configuration.index <= index)
     : hasConfigurationMajority
-        (effectiveAckers state responseHistory leader index)
+        (effectiveAckers (joined := joined) state responseHistory leader index)
         configuration := by
   rw [hasEffectiveMajorityAt, List.all_eq_true] at majority
   exact (of_decide_eq_true (majority configuration active)) governs
 
 /-- Extract one active configuration's potential replication majority. -/
 lemma potentialMajorityAtConfiguration
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {leader : Node}
     {index : Nat}
-    (majority : hasPotentialMajorityAt state appendHistory responseHistory leader index)
+    (majority : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory leader index)
     {configuration : Configuration Node}
-    (active : configuration ∈ activeConfigurations (state.nodes leader))
+    (active : configuration ∈ activeConfigurations ((nodeOf state) leader))
     (governs : configuration.index <= index)
     : hasConfigurationMajority
-        (potentialAckers state appendHistory responseHistory leader index)
+        (potentialAckers (joined := joined) state appendHistory responseHistory leader index)
         configuration := by
   rw [hasPotentialMajorityAt, List.all_eq_true] at majority
   exact (of_decide_eq_true (majority configuration active)) governs
 
-omit [DecidableEq TxId] in
 /-- Extract one active configuration's processed election majority. -/
 lemma electionMajorityAtConfiguration
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {candidate : Node}
-    (majority : hasElectionMajority state candidate)
+    (majority : hasElectionMajority (nodeOf state candidate))
     {configuration : Configuration Node}
-    (active : configuration ∈ activeConfigurations (state.nodes candidate))
-    : hasConfigurationMajority (state.nodes candidate).votesGranted configuration := by
+    (active : configuration ∈ activeConfigurations ((nodeOf state) candidate))
+    : hasConfigurationMajority ((nodeOf state) candidate).votesGranted configuration := by
   rw [hasElectionMajority, List.all_eq_true] at majority
   exact of_decide_eq_true (majority configuration active)
 
-omit [DecidableEq TxId] in
 /-- Extract one active configuration's effective election majority. -/
 lemma effectiveElectionMajorityAtConfiguration
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {candidate : Node}
-    (majority : hasEffectiveElectionMajority state candidate)
+    (majority : hasEffectiveElectionMajority (joined := joined) state candidate)
     {configuration : Configuration Node}
-    (active : configuration ∈ activeConfigurations (state.nodes candidate))
+    (active : configuration ∈ activeConfigurations ((nodeOf state) candidate))
     : hasConfigurationMajority
-        (effectiveElectionVoters state candidate)
+        (effectiveElectionVoters (joined := joined) state candidate)
         configuration := by
   rw [hasEffectiveElectionMajority, List.all_eq_true] at majority
   exact of_decide_eq_true (majority configuration active)
 
 /-- Extract one active configuration's potential election majority. -/
 lemma potentialElectionMajorityAtConfiguration
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {candidate : Node}
-    (majority : hasPotentialElectionMajority state candidate)
+    (majority : hasPotentialElectionMajority (joined := joined) state candidate)
     {configuration : Configuration Node}
-    (active : configuration ∈ activeConfigurations (state.nodes candidate))
+    (active : configuration ∈ activeConfigurations ((nodeOf state) candidate))
     : hasConfigurationMajority
-        (potentialElectionVoters state candidate)
+        (potentialElectionVoters (joined := joined) state candidate)
         configuration := by
   rw [hasPotentialElectionMajority, List.all_eq_true] at majority
   exact of_decide_eq_true (majority configuration active)
 
 /-- Materialised election support is included in potential election support. -/
 lemma effectiveElectionMajorityIsPotential
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (candidate : Node)
-    (majority : hasEffectiveElectionMajority state candidate)
-    : hasPotentialElectionMajority state candidate := by
+    (majority : hasEffectiveElectionMajority (joined := joined) state candidate)
+    : hasPotentialElectionMajority (joined := joined) state candidate := by
   rw [
     hasEffectiveElectionMajority, List.all_eq_true
   ] at majority
@@ -382,20 +355,20 @@ lemma effectiveElectionMajorityIsPotential
   apply decide_eq_true
   have effectiveMajority :
       hasConfigurationMajority
-        (effectiveElectionVoters state candidate)
+        (effectiveElectionVoters (joined := joined) state candidate)
         configuration :=
     of_decide_eq_true (majority configuration active)
   apply
     hasConfigurationMajority_mono
       (configuration := configuration)
-      (smaller := effectiveElectionVoters state candidate)
-      (larger := potentialElectionVoters state candidate)
+      (smaller := effectiveElectionVoters (joined := joined) state candidate)
+      (larger := potentialElectionVoters (joined := joined) state candidate)
       _ effectiveMajority
   intro voter member
-  have joined : voter ∈ state.hasJoined := by
+  have joined : voter ∈ joined := by
     have unpacked :
-        voter ∈ state.hasJoined /\
-          (voter ∈ (state.nodes candidate).votesGranted \/
+        voter ∈ joined /\
+          (voter ∈ ((nodeOf state) candidate).votesGranted \/
             queuedGrantedVote state candidate voter) := by
       simpa [effectiveElectionVoters] using member
     exact unpacked.1
@@ -406,40 +379,39 @@ A potential election majority lifts to a frozen future ballot whenever every
 potential voter is a future voter and the ballot configurations are unchanged.
 -/
 lemma potentialElectionMajorityImpliesFuture
-    {state after : View Node TxId}
+    {state after : Model.State Node TxId}
     {candidate : Node}
     {targetTerm : Nat}
     {ballotActive : List (Configuration Node)}
     (subset
-      : potentialElectionVoters after candidate
-        ⊆ futureElectionVoters state candidate targetTerm)
-    (active : ballotActive = activeConfigurations (after.nodes candidate))
-    (majority : hasPotentialElectionMajority after candidate)
-    : hasFutureElectionMajority state candidate targetTerm ballotActive := by
+      : potentialElectionVoters (joined := joined) after candidate
+        ⊆ futureElectionVoters (joined := joined) state candidate targetTerm)
+    (active : ballotActive = activeConfigurations ((nodeOf after) candidate))
+    (majority : hasPotentialElectionMajority (joined := joined) after candidate)
+    : hasFutureElectionMajority (joined := joined) state candidate targetTerm ballotActive := by
   rw [hasPotentialElectionMajority, List.all_eq_true] at majority
   rw [hasFutureElectionMajority, List.all_eq_true]
   intro configuration ballotMember
   apply decide_eq_true
   have afterMember :
       configuration ∈
-        activeConfigurations (after.nodes candidate) := by
+        activeConfigurations ((nodeOf after) candidate) := by
     simpa [active] using ballotMember
   exact
     hasConfigurationMajority_mono subset
       (of_decide_eq_true (majority configuration afterMember))
 
-omit [Bootstrap Node] in
 /-- Extract one frozen ballot configuration's future election majority. -/
 lemma futureElectionMajorityAtConfiguration
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {candidate : Node}
     {targetTerm : Nat}
     {ballotActive : List (Configuration Node)}
-    (majority : hasFutureElectionMajority state candidate targetTerm ballotActive)
+    (majority : hasFutureElectionMajority (joined := joined) state candidate targetTerm ballotActive)
     {configuration : Configuration Node}
     (active : configuration ∈ ballotActive)
     : hasConfigurationMajority
-        (futureElectionVoters state candidate targetTerm)
+        (futureElectionVoters (joined := joined) state candidate targetTerm)
         configuration := by
   rw [hasFutureElectionMajority, List.all_eq_true] at majority
   exact of_decide_eq_true (majority configuration active)
@@ -468,8 +440,8 @@ the leader's election record, whose promotion log contains the frontier by
 `electionClosure` and is the ancestor of the active leader history.
 -/
 lemma knownCommitEvidenceActiveLeaderContainsFrontier
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -480,7 +452,7 @@ lemma knownCommitEvidenceActiveLeaderContainsFrontier
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
     (evidenceFacts : CommitEvidenceFacts state appendHistory nodeEvidence requestEvidence)
     (prospectiveFacts
-      : ProspectiveCommitEvidenceFacts
+      : ProspectiveCommitEvidenceFacts (joined := joined)
           state appendHistory nodeEvidence requestEvidence elections)
     {evidence : CommitEvidence Node TxId}
     {supportedPrefix : List (Entry Node TxId)}
@@ -489,10 +461,10 @@ lemma knownCommitEvidenceActiveLeaderContainsFrontier
           state appendHistory nodeEvidence requestEvidence
           evidence supportedPrefix)
     {leader member : Node}
-    (leaderRole : (state.nodes leader).role = .leader)
-    (termRelation : evidence.commitTerm <= (state.nodes leader).currentTerm)
+    (leaderRole : ((nodeOf state) leader).role = .leader)
+    (termRelation : evidence.commitTerm <= ((nodeOf state) leader).currentTerm)
     (ackMember : member ∈ evidence.ackQuorum)
-    : evidence.history.take evidence.commitFrontier <+: (state.nodes leader).log := by
+    : evidence.history.take evidence.commitFrontier <+: ((nodeOf state) leader).log := by
   let evidencePrefix :=
     evidence.history.take evidence.commitFrontier
   have valid := knownCommitEvidenceValid evidenceFacts known
@@ -520,7 +492,7 @@ lemma knownCommitEvidenceActiveLeaderContainsFrontier
     prospectiveFacts.currentMember
       evidence supportedPrefix known member ackMember
   have memberFound :
-      entryAt? (state.nodes member).log evidence.commitFrontier =
+      entryAt? ((nodeOf state) member).log evidence.commitFrontier =
         some frontierEntry :=
     entryAt_of_prefix memberCovered prefixFound
   rcases
@@ -532,7 +504,7 @@ lemma knownCommitEvidenceActiveLeaderContainsFrontier
         (canonicalHistory evidence.commitTerm).take
           evidence.commitFrontier := by
     calc
-      evidencePrefix = (state.nodes member).log.take evidence.commitFrontier := by
+      evidencePrefix = ((nodeOf state) member).log.take evidence.commitFrontier := by
         have covered := prefixEqTake memberCovered
         rw [prefixLength] at covered
         exact covered.symm
@@ -541,12 +513,12 @@ lemma knownCommitEvidenceActiveLeaderContainsFrontier
       _ = (canonicalHistory evidence.commitTerm).take evidence.commitFrontier := by
         rw [frontierEntryTerm]
   by_cases newer :
-      evidence.commitTerm < (state.nodes leader).currentTerm
+      evidence.commitTerm < ((nodeOf state) leader).currentTerm
   · have owned :=
       ownership.activeLeader leader leaderRole
     rcases
         electionFacts.ownerRecorded
-          (state.nodes leader).currentTerm leader owned with
+          ((nodeOf state) leader).currentTerm leader owned with
       bootstrap | recorded
     · rw [bootstrap.1] at newer
       have positive :=
@@ -558,26 +530,26 @@ lemma knownCommitEvidenceActiveLeaderContainsFrontier
       have promotionPrefix :=
         prospectiveFacts.electionClosure
           evidence supportedPrefix known
-            (state.nodes leader).currentTerm record
+            ((nodeOf state) leader).currentTerm record
             recordStored newer
       have canonicalPrefix :=
         promotionPrefix.trans
           (electionFacts.promotionCanonical
-            (state.nodes leader).currentTerm record recordStored)
+            ((nodeOf state) leader).currentTerm record recordStored)
       rw [ownership.activeLeaderHistory leader leaderRole] at canonicalPrefix
       exact canonicalPrefix
   · have sameTerm :
         evidence.commitTerm =
-          (state.nodes leader).currentTerm := by
+          ((nodeOf state) leader).currentTerm := by
       omega
     rw [List.prefix_iff_eq_take]
     calc
       evidencePrefix
           = (canonicalHistory evidence.commitTerm).take evidence.commitFrontier :=
         prefixCanonical
-      _ = (state.nodes leader).log.take evidence.commitFrontier := by
+      _ = ((nodeOf state) leader).log.take evidence.commitFrontier := by
         rw [sameTerm, ownership.activeLeaderHistory leader leaderRole]
-      _ = (state.nodes leader).log.take evidencePrefix.length := by
+      _ = ((nodeOf state) leader).log.take evidencePrefix.length := by
         rw [prefixLength]
 
 /--
@@ -588,8 +560,8 @@ election record inherits the evidence frontier through `electionClosure`, and
 history.  Equal terms remain governed by `sameTermQueuedComparable`.
 -/
 lemma knownCommitEvidenceQueuedAppendContainsFrontier
-    {state : View Node TxId}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {state : Model.State Node TxId}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -600,7 +572,7 @@ lemma knownCommitEvidenceQueuedAppendContainsFrontier
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
     (electionQueuedFacts : ElectionQueuedHistoryFacts state appendHistory elections)
     (prospectiveFacts
-      : ProspectiveCommitEvidenceFacts
+      : ProspectiveCommitEvidenceFacts (joined := joined)
           state appendHistory nodeEvidence requestEvidence elections)
     {evidence : CommitEvidence Node TxId}
     {supportedPrefix : List (Entry Node TxId)}
@@ -609,14 +581,14 @@ lemma knownCommitEvidenceQueuedAppendContainsFrontier
           state appendHistory nodeEvidence requestEvidence
           evidence supportedPrefix)
     {destination : Node}
-    {request : AppendEntriesRequest Node TxId}
-    (queued : Message.appendEntriesRequest request ∈ state.network destination)
-    (newer : evidence.commitTerm < request.term)
+    {request : AppendRequestKey Node TxId}
+    (queued : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
+    (newer : evidence.commitTerm < request.2.2.term)
     : evidence.history.take evidence.commitFrontier <+: appendHistory request := by
   rcases ownership.queuedAppendMetadata destination request queued with
     ⟨_distinct, owned, _entriesBounded⟩
   rcases
-      electionFacts.ownerRecorded request.term request.source owned with
+      electionFacts.ownerRecorded request.2.2.term request.1 owned with
     bootstrap | recorded
   · rw [bootstrap.1] at newer
     have positive :=
@@ -626,11 +598,10 @@ lemma knownCommitEvidenceQueuedAppendContainsFrontier
   · rcases recorded with
       ⟨record, recordStored, _recordLeader⟩
     exact (prospectiveFacts.electionClosure
-            evidence supportedPrefix known request.term record
+            evidence supportedPrefix known request.2.2.term record
             recordStored newer).trans
       (electionQueuedFacts destination request queued record recordStored)
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Classify a successful lookup after appending one entry. -/
 lemma entryAtAppendSingleton
     {log : List (Entry Node TxId)}
@@ -667,7 +638,6 @@ lemma entryAtAppendSingleton
       simp [appendedIndex] at found
       exact found.symm
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Appending a suffix does not change a one-based lookup inside the base. -/
 lemma entryAtAppend_of_le_length
     {base suffix : List (Entry Node TxId)}
@@ -680,7 +650,6 @@ lemma entryAtAppend_of_le_length
   · rw [List.getElem?_append_left]
     omega
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- A lookup after an appended base is the corresponding suffix lookup. -/
 lemma entryAtAppend_right
     {base suffix : List (Entry Node TxId)}
@@ -697,7 +666,6 @@ lemma entryAtAppend_right
   congr 1
   omega
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Dropping and bounding a slice preserves lookups represented in it. -/
 lemma entryAtDropTake
     {log : List (Entry Node TxId)}
@@ -720,7 +688,6 @@ lemma entryAtDropTake
   · rename_i outside
     exact False.elim (outside (by omega))
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Equal term projections give equal terms at matching successful lookups. -/
 lemma entryTermsEqualOfMappedTerms
     {left right : List (Entry Node TxId)}
@@ -741,7 +708,6 @@ lemma entryTermsEqualOfMappedTerms
   simp only [positive.ne', ↓reduceIte] at leftFound rightFound
   simpa [List.getElem?_map, leftFound, rightFound] using pointwise
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Appending a suffix does not change the term inside the base. -/
 lemma termAtAppend_of_le_length
     {base suffix : List (Entry Node TxId)}
@@ -751,7 +717,6 @@ lemma termAtAppend_of_le_length
   unfold termAt
   rw [entryAtAppend_of_le_length within]
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- A positive term lookup exposes the underlying entry. -/
 lemma termAtPositiveEntry
     {log : List (Entry Node TxId)}
@@ -767,7 +732,6 @@ lemma termAtPositiveEntry
   | some entry =>
       exact ⟨entry, by simp [], by simp []⟩
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Canonical snapshots with the same final term are ordered by final index. -/
 lemma canonicalHistoriesPrefixOfSameLastTerm
     (canonicalHistory : Nat -> List (Entry Node TxId))
@@ -820,52 +784,53 @@ request-end bound and canonical history agreement identify the exact learned
 committed prefix.
 -/
 lemma handledAppendRequestAdvancedCommittedHistory
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (votes : VoteHistory Node)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (owners : TermOwners Node)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (destination : Node)
-    (request : AppendEntriesRequest Node TxId)
+    (request : AppendRequestKey Node TxId)
     (nextNode : NodeState Node TxId)
-    (response : AppendEntriesResponse Node)
-    (requestMember : Message.appendEntriesRequest request ∈ state.network destination)
+    (response : AppendEntriesResponse)
+    (requestMember : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
     (oldCommitBound
-      : (state.nodes destination).commitIndex <= (state.nodes destination).log.length)
+      : ((nodeOf state) destination).commitIndex <= ((nodeOf state) destination).log.length)
+    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? (state.nodes destination) request
+      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
-    (advanced : (state.nodes destination).commitIndex < nextNode.commitIndex)
+    (advanced : ((nodeOf state) destination).commitIndex < nextNode.commitIndex)
     : nextNode.committedLog = (appendHistory request).take nextNode.commitIndex := by
   let post :=
-    handleAppendEntriesRequestLocalPost handled
+    handleAppendEntriesRequestLocalPost notStepped handled
   have succeeded : response.success = true :=
     post.commitAdvancedSuccessful advanced
   have nextBound : nextNode.commitIndex <= nextNode.log.length :=
     post.commitIndexBounded oldCommitBound
   have withinEnd :
       nextNode.commitIndex <=
-        request.prevLogIndex + request.entries.length := by
+        request.2.2.prevLogIndex + request.2.2.entries.length := by
     rcases le_max_iff.mp post.commitRequestEndBound with old | learned
     · omega
     · exact learned
   have nextPositive : 0 < nextNode.commitIndex := by omega
   have previousBound :
-      request.prevLogIndex <= (state.nodes destination).log.length := by
+      request.2.2.prevLogIndex <= ((nodeOf state) destination).log.length := by
     rcases post.successfulLogOk succeeded with zero | present
     · omega
     · exact present.1
   have historyPreviousBound :
-      request.prevLogIndex <= (appendHistory request).length := by
+      request.2.2.prevLogIndex <= (appendHistory request).length := by
     exact Nat.le_trans (Nat.le_add_right _ _) snapshot.1
   have previousAgreement :
-      (state.nodes destination).log.take request.prevLogIndex =
-        (appendHistory request).take request.prevLogIndex := by
-    by_cases zero : request.prevLogIndex = 0
+      ((nodeOf state) destination).log.take request.2.2.prevLogIndex =
+        (appendHistory request).take request.2.2.prevLogIndex := by
+    by_cases zero : request.2.2.prevLogIndex = 0
     · simp [zero]
-    · have previousPositive : 0 < request.prevLogIndex := by omega
+    · have previousPositive : 0 < request.2.2.prevLogIndex := by omega
       rcases
           entryAtSomeOfPositiveBound previousPositive previousBound with
         ⟨nodeEntry, nodeFound⟩
@@ -874,36 +839,36 @@ lemma handledAppendRequestAdvancedCommittedHistory
             previousPositive historyPreviousBound with
         ⟨historyEntry, historyFound⟩
       have nodeTerm :
-          nodeEntry.term = request.prevLogTerm := by
+          nodeEntry.term = request.2.2.prevLogTerm := by
         rcases post.successfulLogOk succeeded with impossible | present
         · exact False.elim (zero impossible)
         · simpa [termAt, nodeFound] using present.2
       have historyTerm :
-          historyEntry.term = request.prevLogTerm := by
+          historyEntry.term = request.2.2.prevLogTerm := by
         simpa [termAt, historyFound] using snapshot.2.1.symm
       rcases
           ownership.logEntryAgreement
-            destination request.prevLogIndex nodeEntry nodeFound with
+            destination request.2.2.prevLogIndex nodeEntry nodeFound with
         ⟨_, nodeAgreed⟩
       rcases
           ownership.queuedHistoryEntryAgreement
             destination request requestMember
-              request.prevLogIndex historyEntry historyFound with
+              request.2.2.prevLogIndex historyEntry historyFound with
         ⟨_, historyAgreed⟩
       calc
-        (state.nodes destination).log.take request.prevLogIndex
-            = (canonicalHistory nodeEntry.term).take request.prevLogIndex :=
+        ((nodeOf state) destination).log.take request.2.2.prevLogIndex
+            = (canonicalHistory nodeEntry.term).take request.2.2.prevLogIndex :=
           nodeAgreed
-        _ = (canonicalHistory historyEntry.term).take request.prevLogIndex := by
+        _ = (canonicalHistory historyEntry.term).take request.2.2.prevLogIndex := by
           rw [nodeTerm, historyTerm]
-        _ = (appendHistory request).take request.prevLogIndex :=
+        _ = (appendHistory request).take request.2.2.prevLogIndex :=
           historyAgreed.symm
   have nextPreviousAgreement :
-      nextNode.log.take request.prevLogIndex =
-        (appendHistory request).take request.prevLogIndex := by
+      nextNode.log.take request.2.2.prevLogIndex =
+        (appendHistory request).take request.2.2.prevLogIndex := by
     have nextOldPrevious :
-        nextNode.log.take request.prevLogIndex =
-          (state.nodes destination).log.take request.prevLogIndex := by
+        nextNode.log.take request.2.2.prevLogIndex =
+          ((nodeOf state) destination).log.take request.2.2.prevLogIndex := by
       rcases post.logShape with same | truncated | extended
       · rw [same]
       · rw [truncated]
@@ -915,24 +880,24 @@ lemma handledAppendRequestAdvancedCommittedHistory
       nextNode.log.take nextNode.commitIndex =
         (appendHistory request).take nextNode.commitIndex := by
     by_cases withinPrevious :
-        nextNode.commitIndex <= request.prevLogIndex
+        nextNode.commitIndex <= request.2.2.prevLogIndex
     · calc
         nextNode.log.take nextNode.commitIndex =
-            (nextNode.log.take request.prevLogIndex).take
+            (nextNode.log.take request.2.2.prevLogIndex).take
               nextNode.commitIndex := by
                 simp [List.take_take, Nat.min_eq_left withinPrevious]
         _ =
-            ((appendHistory request).take request.prevLogIndex).take
+            ((appendHistory request).take request.2.2.prevLogIndex).take
               nextNode.commitIndex := by
                 rw [nextPreviousAgreement]
         _ = (appendHistory request).take nextNode.commitIndex := by
               simp [List.take_take, Nat.min_eq_left withinPrevious]
     · have afterPrevious :
-          request.prevLogIndex < nextNode.commitIndex := by omega
+          request.2.2.prevLogIndex < nextNode.commitIndex := by omega
       rcases post.logShape with same | truncated | extended
       · have nodeFound :
             Exists fun entry =>
-              entryAt? (state.nodes destination).log
+              entryAt? ((nodeOf state) destination).log
                 nextNode.commitIndex = some entry := by
           rw [same] at nextBound
           exact
@@ -944,37 +909,37 @@ lemma handledAppendRequestAdvancedCommittedHistory
               (Nat.le_trans withinEnd snapshot.1) with
           ⟨historyEntry, historyFound⟩
         have offsetPositive :
-            0 < nextNode.commitIndex - request.prevLogIndex := by omega
+            0 < nextNode.commitIndex - request.2.2.prevLogIndex := by omega
         have requestFound :
-            entryAt? request.entries
-                (nextNode.commitIndex - request.prevLogIndex) =
+            entryAt? request.2.2.entries
+                (nextNode.commitIndex - request.2.2.prevLogIndex) =
               some historyEntry := by
           have inTaken :
               entryAt?
                   ((appendHistory request).take
-                    (request.prevLogIndex + request.entries.length))
+                    (request.2.2.prevLogIndex + request.2.2.entries.length))
                   nextNode.commitIndex =
                 some historyEntry := by
             rw [entryAtTake_of_le withinEnd]
             exact historyFound
           rw [snapshot.2.2] at inTaken
           have previousLength :
-              ((appendHistory request).take request.prevLogIndex).length =
-                request.prevLogIndex := by
+              ((appendHistory request).take request.2.2.prevLogIndex).length =
+                request.2.2.prevLogIndex := by
             simp [List.length_take, historyPreviousBound]
           rw [
             entryAtAppend_right
-              (base := (appendHistory request).take request.prevLogIndex)
-              (suffix := request.entries)
+              (base := (appendHistory request).take request.2.2.prevLogIndex)
+              (suffix := request.2.2.entries)
               (by simpa [previousLength] using afterPrevious),
             previousLength
           ] at inTaken
           exact inTaken
         have localSliceFound :
             entryAt?
-                (((state.nodes destination).log.drop request.prevLogIndex).take
-                  request.entries.length)
-                (nextNode.commitIndex - request.prevLogIndex) =
+                ((((nodeOf state) destination).log.drop request.2.2.prevLogIndex).take
+                  request.2.2.entries.length)
+                (nextNode.commitIndex - request.2.2.prevLogIndex) =
               some nodeEntry := by
           rw [entryAtDropTake afterPrevious withinEnd]
           exact nodeFound
@@ -994,7 +959,7 @@ lemma handledAppendRequestAdvancedCommittedHistory
           ⟨_, historyAgreed⟩
         rw [same]
         calc
-          (state.nodes destination).log.take nextNode.commitIndex
+          ((nodeOf state) destination).log.take nextNode.commitIndex
               = (canonicalHistory nodeEntry.term).take nextNode.commitIndex :=
             nodeAgreed
           _ = (canonicalHistory historyEntry.term).take nextNode.commitIndex := by
@@ -1002,62 +967,61 @@ lemma handledAppendRequestAdvancedCommittedHistory
           _ = (appendHistory request).take nextNode.commitIndex :=
             historyAgreed.symm
       · have truncatedLength :
-            nextNode.log.length <= request.prevLogIndex := by
+            nextNode.log.length <= request.2.2.prevLogIndex := by
           rw [truncated]
           simp
         omega
       · rw [extended]
         calc
-          ((state.nodes destination).log.take request.prevLogIndex
-                ++ request.entries).take
+          (((nodeOf state) destination).log.take request.2.2.prevLogIndex
+                ++ request.2.2.entries).take
                 nextNode.commitIndex
-              = ((appendHistory request).take request.prevLogIndex
-                  ++ request.entries).take
+              = ((appendHistory request).take request.2.2.prevLogIndex
+                  ++ request.2.2.entries).take
                   nextNode.commitIndex := by
             rw [previousAgreement]
           _ = ((appendHistory request).take
-                (request.prevLogIndex + request.entries.length)).take
+                (request.2.2.prevLogIndex + request.2.2.entries.length)).take
                 nextNode.commitIndex := by
             rw [snapshot.2.2]
           _ = (appendHistory request).take nextNode.commitIndex := by
             simp [List.take_take, Nat.min_eq_left withinEnd]
   simpa [NodeState.committedLog] using takeAgreement
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- A shared prefix covering the complete request makes the request already
 present in the destination log. -/
 lemma appendRequestAlreadyDoneOfSharedPrefix
     {before : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId}
+    {request : AppendRequestKey Node TxId}
     {history sharedPrefix : List (Entry Node TxId)}
     (snapshot : RequestSnapshots history request)
     (beforePrefix : sharedPrefix <+: before.log)
     (historyPrefix : sharedPrefix <+: history)
-    (covers : request.prevLogIndex + request.entries.length <= sharedPrefix.length)
-    : alreadyDone before request := by
+    (covers : request.2.2.prevLogIndex + request.2.2.entries.length <= sharedPrefix.length)
+    : alreadyDone before request.2.2 := by
   right
   constructor
   · exact Nat.le_trans covers beforePrefix.length_le
   · have beforeTake :
         before.log.take
-            (request.prevLogIndex + request.entries.length) =
+            (request.2.2.prevLogIndex + request.2.2.entries.length) =
           history.take
-            (request.prevLogIndex + request.entries.length) := by
+            (request.2.2.prevLogIndex + request.2.2.entries.length) := by
       calc
-        before.log.take (request.prevLogIndex + request.entries.length)
-            = sharedPrefix.take (request.prevLogIndex + request.entries.length) :=
+        before.log.take (request.2.2.prevLogIndex + request.2.2.entries.length)
+            = sharedPrefix.take (request.2.2.prevLogIndex + request.2.2.entries.length) :=
           (takeEqOfPrefix beforePrefix covers).symm
-        _ = history.take (request.prevLogIndex + request.entries.length) :=
+        _ = history.take (request.2.2.prevLogIndex + request.2.2.entries.length) :=
           takeEqOfPrefix historyPrefix covers
     have exactEntries :
-        (before.log.drop request.prevLogIndex).take
-            request.entries.length =
-          request.entries := by
+        (before.log.drop request.2.2.prevLogIndex).take
+            request.2.2.entries.length =
+          request.2.2.entries := by
       have dropped :=
-        congrArg (List.drop request.prevLogIndex) beforeTake
+        congrArg (List.drop request.2.2.prevLogIndex) beforeTake
       rw [snapshot.2.2] at dropped
       have previousBound :
-          request.prevLogIndex <= history.length := by
+          request.2.2.prevLogIndex <= history.length := by
         exact Nat.le_trans
           (Nat.le_add_right _ _) snapshot.1
       simpa [
@@ -1071,16 +1035,17 @@ lemma appendRequestAlreadyDoneOfSharedPrefix
 and the immutable request history. -/
 lemma successfulAppendRequestSharedPrefixLength
     {before nextNode : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId}
-    {response : AppendEntriesResponse Node}
+    {request : AppendRequestKey Node TxId}
+    {response : AppendEntriesResponse}
     {history sharedPrefix : List (Entry Node TxId)}
     (snapshot : RequestSnapshots history request)
     (beforePrefix : sharedPrefix <+: before.log)
     (historyPrefix : sharedPrefix <+: history)
-    (handled : handleAppendEntriesRequest? before request = some (nextNode, response))
+    (notStepped : ¬ (request.2.2.term = (before).currentTerm ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
+    (handled : handleAppendEntriesRequest? request.2.1 before request.2.2 = some (nextNode, response))
     (success : response.success = true)
     : sharedPrefix.length <= nextNode.log.length := by
-  unfold handleAppendEntriesRequest? at handled
+  simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
   split at handled
   · rename_i rejectedState rejectedResponse rejected
     unfold rejectAppendEntriesRequest? at rejected
@@ -1090,7 +1055,7 @@ lemma successfulAppendRequestSharedPrefixLength
       have responseEq := congrArg Prod.snd pairEq
       dsimp at responseEq
       subst response
-      have failed := (failureResponseMetadata before request).2.2
+      have failed := failureResponseMetadata before request.2.2
       rw [failed] at success
       contradiction
     · simp_all
@@ -1121,7 +1086,7 @@ lemma successfulAppendRequestSharedPrefixLength
             subst nextNode
             rcases extension with ⟨_, _, shorter, _⟩
             have prefixBound : sharedPrefix.length <
-                request.prevLogIndex + request.entries.length :=
+                request.2.2.prevLogIndex + request.2.2.entries.length :=
               lt_of_le_of_lt beforePrefix.length_le shorter
             simp only [refreshRetirementState_log, List.length_append, List.length_take]
             omega
@@ -1143,12 +1108,12 @@ lemma successfulAppendRequestSharedPrefixLength
                   rcases already with empty | bounded
                   · exact False.elim (nonempty empty)
                   · have entriesPositive :
-                        0 < request.entries.length :=
+                        0 < request.2.2.entries.length :=
                       List.length_pos_iff_ne_nil.mpr nonempty
                     have endBeforePrevious :
-                        request.prevLogIndex +
-                            request.entries.length <=
-                          request.prevLogIndex := by
+                        request.2.2.prevLogIndex +
+                            request.2.2.entries.length <=
+                          request.2.2.prevLogIndex := by
                       exact Nat.le_trans bounded.1 (List.length_take_le _ _)
                     omega
                 · contradiction
@@ -1161,22 +1126,22 @@ lemma successfulAppendRequestSharedPrefixLength
                   subst nextNode
                   have prefixBound :
                       sharedPrefix.length <=
-                        request.prevLogIndex + request.entries.length := by
+                        request.2.2.prevLogIndex + request.2.2.entries.length := by
                     by_contra notBounded
                     have already :=
                       appendRequestAlreadyDoneOfSharedPrefix
                         snapshot beforePrefix historyPrefix
                           (by omega)
                     have impossible :=
-                      ‹appendEntriesAlreadyDone? before request = none›
+                      ‹appendEntriesAlreadyDone? before request.2.2 = none›
                     simp [appendEntriesAlreadyDone?, already] at impossible
                   have previousBound :
-                      request.prevLogIndex <= before.log.length := by
+                      request.2.2.prevLogIndex <= before.log.length := by
                     rcases
-                        ‹request.term = before.currentTerm /\
+                        ‹request.2.2.term = before.currentTerm /\
                           before.role = .follower /\
-                          logOk before request /\
-                          request.prevLogIndex >= before.commitIndex›.2.2.1 with
+                          logOk before request.2.2 /\
+                          request.2.2.prevLogIndex >= before.commitIndex›.2.2.1 with
                       zero | present
                     · omega
                     · exact present.1
@@ -1192,46 +1157,47 @@ lemma successfulAppendRequestSharedPrefixLength
 /-- Successful handling retains every prefix shared by the old destination log
 and the immutable queued request history. -/
 lemma handledAppendRequestRetainsSharedPrefix
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (votes : VoteHistory Node)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (owners : TermOwners Node)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (destination : Node)
-    (request : AppendEntriesRequest Node TxId)
+    (request : AppendRequestKey Node TxId)
     (nextNode : NodeState Node TxId)
-    (response : AppendEntriesResponse Node)
-    (requestMember : Message.appendEntriesRequest request ∈ state.network destination)
+    (response : AppendEntriesResponse)
+    (requestMember : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
+    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? (state.nodes destination) request
+      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     (success : response.success = true)
     {sharedPrefix : List (Entry Node TxId)}
-    (beforePrefix : sharedPrefix <+: (state.nodes destination).log)
+    (beforePrefix : sharedPrefix <+: ((nodeOf state) destination).log)
     (historyPrefix : sharedPrefix <+: appendHistory request)
     : sharedPrefix <+: nextNode.log := by
   let post :=
-    handleAppendEntriesRequestLocalPost handled
+    handleAppendEntriesRequestLocalPost notStepped handled
   have prefixBound :
       sharedPrefix.length <= nextNode.log.length :=
     successfulAppendRequestSharedPrefixLength
-      snapshot beforePrefix historyPrefix handled success
+      snapshot beforePrefix historyPrefix notStepped handled success
   have previousBound :
-      request.prevLogIndex <= (state.nodes destination).log.length := by
+      request.2.2.prevLogIndex <= ((nodeOf state) destination).log.length := by
     rcases post.successfulLogOk success with zero | present
     · omega
     · exact present.1
   have historyPreviousBound :
-      request.prevLogIndex <= (appendHistory request).length := by
+      request.2.2.prevLogIndex <= (appendHistory request).length := by
     exact Nat.le_trans (Nat.le_add_right _ _) snapshot.1
   have previousAgreement :
-      (state.nodes destination).log.take request.prevLogIndex =
-        (appendHistory request).take request.prevLogIndex := by
-    by_cases zero : request.prevLogIndex = 0
+      ((nodeOf state) destination).log.take request.2.2.prevLogIndex =
+        (appendHistory request).take request.2.2.prevLogIndex := by
+    by_cases zero : request.2.2.prevLogIndex = 0
     · simp [zero]
-    · have previousPositive : 0 < request.prevLogIndex := by omega
+    · have previousPositive : 0 < request.2.2.prevLogIndex := by omega
       rcases
           entryAtSomeOfPositiveBound previousPositive previousBound with
         ⟨nodeEntry, nodeFound⟩
@@ -1240,34 +1206,34 @@ lemma handledAppendRequestRetainsSharedPrefix
             previousPositive historyPreviousBound with
         ⟨historyEntry, historyFound⟩
       have nodeTerm :
-          nodeEntry.term = request.prevLogTerm := by
+          nodeEntry.term = request.2.2.prevLogTerm := by
         rcases post.successfulLogOk success with impossible | present
         · exact False.elim (zero impossible)
         · simpa [termAt, nodeFound] using present.2
       have historyTerm :
-          historyEntry.term = request.prevLogTerm := by
+          historyEntry.term = request.2.2.prevLogTerm := by
         simpa [termAt, historyFound] using snapshot.2.1.symm
       rcases
           ownership.logEntryAgreement
-            destination request.prevLogIndex nodeEntry nodeFound with
+            destination request.2.2.prevLogIndex nodeEntry nodeFound with
         ⟨_, nodeAgreed⟩
       rcases
           ownership.queuedHistoryEntryAgreement
             destination request requestMember
-              request.prevLogIndex historyEntry historyFound with
+              request.2.2.prevLogIndex historyEntry historyFound with
         ⟨_, historyAgreed⟩
       calc
-        (state.nodes destination).log.take request.prevLogIndex
-            = (canonicalHistory nodeEntry.term).take request.prevLogIndex :=
+        ((nodeOf state) destination).log.take request.2.2.prevLogIndex
+            = (canonicalHistory nodeEntry.term).take request.2.2.prevLogIndex :=
           nodeAgreed
-        _ = (canonicalHistory historyEntry.term).take request.prevLogIndex := by
+        _ = (canonicalHistory historyEntry.term).take request.2.2.prevLogIndex := by
           rw [nodeTerm, historyTerm]
-        _ = (appendHistory request).take request.prevLogIndex :=
+        _ = (appendHistory request).take request.2.2.prevLogIndex :=
           historyAgreed.symm
   rcases post.logShape with same | truncated | extended
   · simpa [same] using beforePrefix
   · rw [truncated]
-    have withinPrevious : sharedPrefix.length <= request.prevLogIndex := by
+    have withinPrevious : sharedPrefix.length <= request.2.2.prevLogIndex := by
       rw [truncated] at prefixBound
       simpa [List.length_take, previousBound] using prefixBound
     rw [List.prefix_take_iff]
@@ -1275,16 +1241,16 @@ lemma handledAppendRequestRetainsSharedPrefix
   · have fullAgreement :
         nextNode.log =
           (appendHistory request).take
-            (request.prevLogIndex + request.entries.length) := by
+            (request.2.2.prevLogIndex + request.2.2.entries.length) := by
       calc
         nextNode.log
-            = (state.nodes destination).log.take request.prevLogIndex
-              ++ request.entries :=
+            = ((nodeOf state) destination).log.take request.2.2.prevLogIndex
+              ++ request.2.2.entries :=
           extended
-        _ = (appendHistory request).take request.prevLogIndex ++ request.entries := by
+        _ = (appendHistory request).take request.2.2.prevLogIndex ++ request.2.2.entries := by
           rw [previousAgreement]
         _ = (appendHistory request).take
-              (request.prevLogIndex + request.entries.length) :=
+              (request.2.2.prevLogIndex + request.2.2.entries.length) :=
           snapshot.2.2.symm
     rw [fullAgreement, List.prefix_take_iff]
     constructor
@@ -1295,35 +1261,35 @@ lemma handledAppendRequestRetainsSharedPrefix
 AppendEntries request leaves every active node unchanged. -/
 lemma handleAppendEntriesRequestActiveUnchanged
     {before nextNode : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId}
-    {response : AppendEntriesResponse Node}
-    (notStepped : returnToFollowerState? before request = none)
-    (handled : handleAppendEntriesRequest? before request = some (nextNode, response))
+    {request : AppendRequestKey Node TxId}
+    {response : AppendEntriesResponse}
+    (notStepped : ¬ (request.2.2.term = before.currentTerm ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
+    (handled : handleAppendEntriesRequest? request.2.1 before request.2.2 = some (nextNode, response))
     (active : before.role = .candidate \/ before.role = .leader)
     : nextNode = before := by
   rcases active with candidate | leader
-  · let post := handleAppendEntriesRequestLocalPost handled
+  · let post := handleAppendEntriesRequestLocalPost notStepped handled
     by_cases succeeded : response.success = true
     · have sameTerm := post.successfulCurrentTerm succeeded
-      unfold returnToFollowerState? at notStepped
       simp [sameTerm, candidate] at notStepped
     · have failed : response.success = false :=
         Bool.eq_false_of_not_eq_true succeeded
       exact post.failedStateUnchanged failed
   · exact
       handleAppendEntriesRequestLeaderUnchanged
-        leader handled
+        leader notStepped handled
 
 /-- Every successful response acknowledges an index present in the resulting
 destination log. -/
 lemma successfulAppendResponseIndexWithinLog
     {before nextNode : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId}
-    {response : AppendEntriesResponse Node}
-    (handled : handleAppendEntriesRequest? before request = some (nextNode, response))
+    {request : AppendRequestKey Node TxId}
+    {response : AppendEntriesResponse}
+    (notStepped : ¬ (request.2.2.term = (before).currentTerm ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
+    (handled : handleAppendEntriesRequest? request.2.1 before request.2.2 = some (nextNode, response))
     (success : response.success = true)
     : response.lastLogIndex <= nextNode.log.length := by
-  unfold handleAppendEntriesRequest? at handled
+  simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
   split at handled
   · rename_i rejectedState rejectedResponse rejected
     unfold rejectAppendEntriesRequest? at rejected
@@ -1333,7 +1299,7 @@ lemma successfulAppendResponseIndexWithinLog
       have responseEq := congrArg Prod.snd pairEq
       dsimp at responseEq
       subst response
-      have failed := (failureResponseMetadata before request).2.2
+      have failed := failureResponseMetadata before request.2.2
       rw [failed] at success
       contradiction
     · contradiction
@@ -1355,12 +1321,12 @@ lemma successfulAppendResponseIndexWithinLog
           simp only [successResponse]
           rcases already with empty | represented
           · have previousBound :
-                request.prevLogIndex <= before.log.length := by
+                request.2.2.prevLogIndex <= before.log.length := by
               rcases
-                  ‹request.term = before.currentTerm /\
+                  ‹request.2.2.term = before.currentTerm /\
                     before.role = .follower /\
-                    logOk before request /\
-                    request.prevLogIndex >= before.commitIndex›.2.2.1 with
+                    logOk before request.2.2 /\
+                    request.2.2.prevLogIndex >= before.commitIndex›.2.2.1 with
                 zero | present
               · omega
               · exact present.1
@@ -1410,7 +1376,7 @@ lemma successfulAppendResponseIndexWithinLog
                   simp only [successResponse]
                   rcases already with empty | represented
                   · exact False.elim
-                      (‹hasTermConflict before request /\
+                      (‹hasTermConflict before request.2.2 /\
                         before.isNewFollower = true›.1.1 empty)
                   · exact represented.1
                 · contradiction
@@ -1434,13 +1400,14 @@ lemma successfulAppendResponseIndexWithinLog
 that log unchanged. -/
 lemma successfulAlreadyDoneAppendLogUnchanged
     {before nextNode : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId}
-    {response : AppendEntriesResponse Node}
-    (already : alreadyDone before request)
-    (handled : handleAppendEntriesRequest? before request = some (nextNode, response))
+    {request : AppendRequestKey Node TxId}
+    {response : AppendEntriesResponse}
+    (already : alreadyDone before request.2.2)
+    (notStepped : ¬ (request.2.2.term = (before).currentTerm ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
+    (handled : handleAppendEntriesRequest? request.2.1 before request.2.2 = some (nextNode, response))
     (success : response.success = true)
     : nextNode.log = before.log := by
-  unfold handleAppendEntriesRequest? at handled
+  simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
   split at handled
   · rename_i rejectedState rejectedResponse rejected
     unfold rejectAppendEntriesRequest? at rejected
@@ -1450,7 +1417,7 @@ lemma successfulAlreadyDoneAppendLogUnchanged
       have responseEq := congrArg Prod.snd pairEq
       dsimp at responseEq
       subst response
-      have failed := (failureResponseMetadata before request).2.2
+      have failed := failureResponseMetadata before request.2.2
       rw [failed] at success
       contradiction
     · contradiction
@@ -1472,30 +1439,31 @@ lemma successfulAlreadyDoneAppendLogUnchanged
 /-- A successful selected request materialises the corresponding source-log
 prefix in the destination log. -/
 lemma handledAppendRequestAcknowledgesSourcePrefix
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (votes : VoteHistory Node)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (owners : TermOwners Node)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (destination : Node)
-    (request : AppendEntriesRequest Node TxId)
+    (request : AppendRequestKey Node TxId)
     (nextNode : NodeState Node TxId)
-    (response : AppendEntriesResponse Node)
-    (requestMember : Message.appendEntriesRequest request ∈ state.network destination)
+    (response : AppendEntriesResponse)
+    (requestMember : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
+    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? (state.nodes destination) request
+      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     (success : response.success = true)
-    (sourceRole : (state.nodes request.source).role = .leader)
-    (requestTerm : request.term = (state.nodes request.source).currentTerm)
+    (sourceRole : ((nodeOf state) request.1).role = .leader)
+    (requestTerm : request.2.2.term = ((nodeOf state) request.1).currentTerm)
     {index : Nat}
     (acknowledged : index <= response.lastLogIndex)
-    : (state.nodes request.source).log.take index <+: nextNode.log := by
-  let post := handleAppendEntriesRequestLocalPost handled
+    : ((nodeOf state) request.1).log.take index <+: nextNode.log := by
+  let post := handleAppendEntriesRequestLocalPost notStepped handled
   have withinEnd :
-      index <= request.prevLogIndex + request.entries.length := by
+      index <= request.2.2.prevLogIndex + request.2.2.entries.length := by
     exact Nat.le_trans acknowledged (post.successfulIndexBound success)
   have historyBound : index <= (appendHistory request).length :=
     Nat.le_trans withinEnd snapshot.1
@@ -1503,26 +1471,26 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
     ownership.queuedActiveSourceHistory
       destination request requestMember requestTerm sourceRole
   have sourceTake :
-      (state.nodes request.source).log.take index =
+      ((nodeOf state) request.1).log.take index =
         (appendHistory request).take index :=
     (takeEqOfPrefix sourceHistory historyBound).symm
   have nextBound : index <= nextNode.log.length :=
     Nat.le_trans acknowledged
-      (successfulAppendResponseIndexWithinLog handled success)
+      (successfulAppendResponseIndexWithinLog notStepped handled success)
   have previousBound :
-      request.prevLogIndex <= (state.nodes destination).log.length := by
+      request.2.2.prevLogIndex <= ((nodeOf state) destination).log.length := by
     rcases post.successfulLogOk success with zero | present
     · omega
     · exact present.1
   have historyPreviousBound :
-      request.prevLogIndex <= (appendHistory request).length := by
+      request.2.2.prevLogIndex <= (appendHistory request).length := by
     exact Nat.le_trans (Nat.le_add_right _ _) snapshot.1
   have previousAgreement :
-      (state.nodes destination).log.take request.prevLogIndex =
-        (appendHistory request).take request.prevLogIndex := by
-    by_cases zero : request.prevLogIndex = 0
+      ((nodeOf state) destination).log.take request.2.2.prevLogIndex =
+        (appendHistory request).take request.2.2.prevLogIndex := by
+    by_cases zero : request.2.2.prevLogIndex = 0
     · simp [zero]
-    · have previousPositive : 0 < request.prevLogIndex := by omega
+    · have previousPositive : 0 < request.2.2.prevLogIndex := by omega
       rcases
           entryAtSomeOfPositiveBound previousPositive previousBound with
         ⟨nodeEntry, nodeFound⟩
@@ -1531,36 +1499,36 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
             previousPositive historyPreviousBound with
         ⟨historyEntry, historyFound⟩
       have nodeTerm :
-          nodeEntry.term = request.prevLogTerm := by
+          nodeEntry.term = request.2.2.prevLogTerm := by
         rcases post.successfulLogOk success with impossible | present
         · exact False.elim (zero impossible)
         · simpa [termAt, nodeFound] using present.2
       have historyTerm :
-          historyEntry.term = request.prevLogTerm := by
+          historyEntry.term = request.2.2.prevLogTerm := by
         simpa [termAt, historyFound] using snapshot.2.1.symm
       rcases
           ownership.logEntryAgreement
-            destination request.prevLogIndex nodeEntry nodeFound with
+            destination request.2.2.prevLogIndex nodeEntry nodeFound with
         ⟨_, nodeAgreed⟩
       rcases
           ownership.queuedHistoryEntryAgreement
             destination request requestMember
-              request.prevLogIndex historyEntry historyFound with
+              request.2.2.prevLogIndex historyEntry historyFound with
         ⟨_, historyAgreed⟩
       calc
-        (state.nodes destination).log.take request.prevLogIndex
-            = (canonicalHistory nodeEntry.term).take request.prevLogIndex :=
+        ((nodeOf state) destination).log.take request.2.2.prevLogIndex
+            = (canonicalHistory nodeEntry.term).take request.2.2.prevLogIndex :=
           nodeAgreed
-        _ = (canonicalHistory historyEntry.term).take request.prevLogIndex := by
+        _ = (canonicalHistory historyEntry.term).take request.2.2.prevLogIndex := by
           rw [nodeTerm, historyTerm]
-        _ = (appendHistory request).take request.prevLogIndex :=
+        _ = (appendHistory request).take request.2.2.prevLogIndex :=
           historyAgreed.symm
   have nextPreviousAgreement :
-      nextNode.log.take request.prevLogIndex =
-        (appendHistory request).take request.prevLogIndex := by
+      nextNode.log.take request.2.2.prevLogIndex =
+        (appendHistory request).take request.2.2.prevLogIndex := by
     have nextOldPrevious :
-        nextNode.log.take request.prevLogIndex =
-          (state.nodes destination).log.take request.prevLogIndex := by
+        nextNode.log.take request.2.2.prevLogIndex =
+          ((nodeOf state) destination).log.take request.2.2.prevLogIndex := by
       rcases post.logShape with same | truncated | extended
       · rw [same]
       · rw [truncated]
@@ -1571,22 +1539,22 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
   have takeAgreement :
       nextNode.log.take index =
         (appendHistory request).take index := by
-    by_cases withinPrevious : index <= request.prevLogIndex
+    by_cases withinPrevious : index <= request.2.2.prevLogIndex
     · calc
         nextNode.log.take index =
-            (nextNode.log.take request.prevLogIndex).take index := by
+            (nextNode.log.take request.2.2.prevLogIndex).take index := by
           simp [List.take_take, Nat.min_eq_left withinPrevious]
         _ =
-            ((appendHistory request).take request.prevLogIndex).take
+            ((appendHistory request).take request.2.2.prevLogIndex).take
               index := by rw [nextPreviousAgreement]
         _ = (appendHistory request).take index := by
           simp [List.take_take, Nat.min_eq_left withinPrevious]
-    · have afterPrevious : request.prevLogIndex < index := by omega
+    · have afterPrevious : request.2.2.prevLogIndex < index := by omega
       have indexPositive : 0 < index := by omega
       rcases post.logShape with same | truncated | extended
       · have nodeFound :
             Exists fun entry =>
-              entryAt? (state.nodes destination).log index = some entry := by
+              entryAt? ((nodeOf state) destination).log index = some entry := by
           rw [same] at nextBound
           exact entryAtSomeOfPositiveBound indexPositive nextBound
         rcases nodeFound with ⟨nodeEntry, nodeFound⟩
@@ -1594,35 +1562,35 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
             entryAtSomeOfPositiveBound indexPositive historyBound with
           ⟨historyEntry, historyFound⟩
         have requestFound :
-            entryAt? request.entries
-                (index - request.prevLogIndex) =
+            entryAt? request.2.2.entries
+                (index - request.2.2.prevLogIndex) =
               some historyEntry := by
           have inTaken :
               entryAt?
                   ((appendHistory request).take
-                    (request.prevLogIndex + request.entries.length))
+                    (request.2.2.prevLogIndex + request.2.2.entries.length))
                   index =
                 some historyEntry := by
             rw [entryAtTake_of_le withinEnd]
             exact historyFound
           rw [snapshot.2.2] at inTaken
           have previousLength :
-              ((appendHistory request).take request.prevLogIndex).length =
-                request.prevLogIndex := by
+              ((appendHistory request).take request.2.2.prevLogIndex).length =
+                request.2.2.prevLogIndex := by
             simp [List.length_take, historyPreviousBound]
           rw [
             entryAtAppend_right
-              (base := (appendHistory request).take request.prevLogIndex)
-              (suffix := request.entries)
+              (base := (appendHistory request).take request.2.2.prevLogIndex)
+              (suffix := request.2.2.entries)
               (by simpa [previousLength] using afterPrevious),
             previousLength
           ] at inTaken
           exact inTaken
         have localSliceFound :
             entryAt?
-                (((state.nodes destination).log.drop
-                    request.prevLogIndex).take request.entries.length)
-                (index - request.prevLogIndex) =
+                ((((nodeOf state) destination).log.drop
+                    request.2.2.prevLogIndex).take request.2.2.entries.length)
+                (index - request.2.2.prevLogIndex) =
               some nodeEntry := by
           rw [entryAtDropTake afterPrevious withinEnd]
           exact nodeFound
@@ -1642,7 +1610,7 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
           ⟨_, historyAgreed⟩
         rw [same]
         calc
-          (state.nodes destination).log.take index
+          ((nodeOf state) destination).log.take index
               = (canonicalHistory nodeEntry.term).take index :=
             nodeAgreed
           _ = (canonicalHistory historyEntry.term).take index := by
@@ -1650,28 +1618,28 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
           _ = (appendHistory request).take index :=
             historyAgreed.symm
       · have truncatedLength :
-            nextNode.log.length <= request.prevLogIndex := by
+            nextNode.log.length <= request.2.2.prevLogIndex := by
           rw [truncated]
           exact List.length_take_le _ _
         omega
       · rw [extended]
         calc
-          ((state.nodes destination).log.take request.prevLogIndex
-                ++ request.entries).take
+          (((nodeOf state) destination).log.take request.2.2.prevLogIndex
+                ++ request.2.2.entries).take
                 index
-              = ((appendHistory request).take request.prevLogIndex
-                  ++ request.entries).take
+              = ((appendHistory request).take request.2.2.prevLogIndex
+                  ++ request.2.2.entries).take
                   index := by
             rw [previousAgreement]
           _ = ((appendHistory request).take
-                (request.prevLogIndex + request.entries.length)).take
+                (request.2.2.prevLogIndex + request.2.2.entries.length)).take
                 index := by
             rw [snapshot.2.2]
           _ = (appendHistory request).take index := by
             simp [List.take_take, Nat.min_eq_left withinEnd]
   rw [List.prefix_iff_eq_take]
   have sourceBound :
-      index <= (state.nodes request.source).log.length :=
+      index <= ((nodeOf state) request.1).log.length :=
     Nat.le_trans historyBound sourceHistory.length_le
   simp only [List.length_take, Nat.min_eq_left sourceBound]
   exact sourceTake.trans takeAgreement.symm
@@ -1679,43 +1647,44 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
 /-- A handled request leaves every destination entry on its owned canonical
 history, including entries copied from an immutable queued snapshot. -/
 lemma handledAppendRequestCanonicalAgreement
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (votes : VoteHistory Node)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (owners : TermOwners Node)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (destination : Node)
-    (request : AppendEntriesRequest Node TxId)
+    (request : AppendRequestKey Node TxId)
     (nextNode : NodeState Node TxId)
-    (response : AppendEntriesResponse Node)
-    (requestMember : Message.appendEntriesRequest request ∈ state.network destination)
+    (response : AppendEntriesResponse)
+    (requestMember : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
+    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? (state.nodes destination) request
+      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     : forall index entry,
         entryAt? nextNode.log index = some entry
         -> entryAt? (canonicalHistory entry.term) index = some entry
             /\ nextNode.log.take index = (canonicalHistory entry.term).take index := by
   let post :=
-    handleAppendEntriesRequestLocalPost handled
+    handleAppendEntriesRequestLocalPost notStepped handled
   intro index entry found
   by_cases succeeded : response.success = true
   · have previousBound :
-        request.prevLogIndex <= (state.nodes destination).log.length := by
+        request.2.2.prevLogIndex <= ((nodeOf state) destination).log.length := by
       rcases post.successfulLogOk succeeded with zero | present
       · omega
       · exact present.1
     have historyPreviousBound :
-        request.prevLogIndex <= (appendHistory request).length := by
+        request.2.2.prevLogIndex <= (appendHistory request).length := by
       exact Nat.le_trans (Nat.le_add_right _ _) snapshot.1
     have previousAgreement :
-        (state.nodes destination).log.take request.prevLogIndex =
-          (appendHistory request).take request.prevLogIndex := by
-      by_cases zero : request.prevLogIndex = 0
+        ((nodeOf state) destination).log.take request.2.2.prevLogIndex =
+          (appendHistory request).take request.2.2.prevLogIndex := by
+      by_cases zero : request.2.2.prevLogIndex = 0
       · simp [zero]
-      · have previousPositive : 0 < request.prevLogIndex := by omega
+      · have previousPositive : 0 < request.2.2.prevLogIndex := by omega
         rcases
             entryAtSomeOfPositiveBound previousPositive previousBound with
           ⟨nodeEntry, nodeFound⟩
@@ -1724,41 +1693,41 @@ lemma handledAppendRequestCanonicalAgreement
               previousPositive historyPreviousBound with
           ⟨historyEntry, historyFound⟩
         have nodeTerm :
-            nodeEntry.term = request.prevLogTerm := by
+            nodeEntry.term = request.2.2.prevLogTerm := by
           rcases post.successfulLogOk succeeded with impossible | present
           · exact False.elim (zero impossible)
           · simpa [termAt, nodeFound] using present.2
         have historyTerm :
-            historyEntry.term = request.prevLogTerm := by
+            historyEntry.term = request.2.2.prevLogTerm := by
           simpa [termAt, historyFound] using snapshot.2.1.symm
         rcases
             ownership.logEntryAgreement
-              destination request.prevLogIndex nodeEntry nodeFound with
+              destination request.2.2.prevLogIndex nodeEntry nodeFound with
           ⟨_, nodeAgreed⟩
         rcases
             ownership.queuedHistoryEntryAgreement
               destination request requestMember
-                request.prevLogIndex historyEntry historyFound with
+                request.2.2.prevLogIndex historyEntry historyFound with
           ⟨_, historyAgreed⟩
         calc
-          (state.nodes destination).log.take request.prevLogIndex
-              = (canonicalHistory nodeEntry.term).take request.prevLogIndex :=
+          ((nodeOf state) destination).log.take request.2.2.prevLogIndex
+              = (canonicalHistory nodeEntry.term).take request.2.2.prevLogIndex :=
             nodeAgreed
-          _ = (canonicalHistory historyEntry.term).take request.prevLogIndex := by
+          _ = (canonicalHistory historyEntry.term).take request.2.2.prevLogIndex := by
             rw [nodeTerm, historyTerm]
-          _ = (appendHistory request).take request.prevLogIndex :=
+          _ = (appendHistory request).take request.2.2.prevLogIndex :=
             historyAgreed.symm
     rcases post.logShape with same | truncated | extended
     · rw [same] at found ⊢
       exact
         ownership.logEntryAgreement destination index entry found
-    · have indexBound : index <= request.prevLogIndex := by
+    · have indexBound : index <= request.2.2.prevLogIndex := by
         have within := entryAtSomeIndexBound found
         rw [truncated] at within
         simp at within
         exact within.1
       have oldFound :
-          entryAt? (state.nodes destination).log index = some entry := by
+          entryAt? ((nodeOf state) destination).log index = some entry := by
         rw [← entryAtTake_of_le indexBound]
         simpa [truncated] using found
       rcases
@@ -1776,19 +1745,19 @@ lemma handledAppendRequestCanonicalAgreement
     · have fullAgreement :
           nextNode.log =
             (appendHistory request).take
-              (request.prevLogIndex + request.entries.length) := by
+              (request.2.2.prevLogIndex + request.2.2.entries.length) := by
         calc
           nextNode.log
-              = (state.nodes destination).log.take request.prevLogIndex
-                ++ request.entries :=
+              = ((nodeOf state) destination).log.take request.2.2.prevLogIndex
+                ++ request.2.2.entries :=
             extended
-          _ = (appendHistory request).take request.prevLogIndex ++ request.entries := by
+          _ = (appendHistory request).take request.2.2.prevLogIndex ++ request.2.2.entries := by
             rw [previousAgreement]
           _ = (appendHistory request).take
-                (request.prevLogIndex + request.entries.length) :=
+                (request.2.2.prevLogIndex + request.2.2.entries.length) :=
             snapshot.2.2.symm
       have indexBound :
-          index <= request.prevLogIndex + request.entries.length := by
+          index <= request.2.2.prevLogIndex + request.2.2.entries.length := by
         have within := entryAtSomeIndexBound found
         rw [fullAgreement] at within
         simpa [List.length_take, snapshot.1] using within
@@ -1816,12 +1785,11 @@ lemma handledAppendRequestCanonicalAgreement
     subst nextNode
     exact ownership.logEntryAgreement destination index entry found
 
-omit [DecidableEq TxId] in
 /-- Canonical history monotonicity transfers to every represented node log. -/
 lemma canonicalHistoriesMonoLog
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
@@ -1832,7 +1800,7 @@ lemma canonicalHistoriesMonoLog
       ownership.logEntryAgreement node later laterEntry laterFound with
     ⟨canonicalLater, agreed⟩
   have earlierInNodeTake :
-      entryAt? ((state.nodes node).log.take later) earlier =
+      entryAt? (((nodeOf state) node).log.take later) earlier =
         some earlierEntry := by
     rw [entryAtTake_of_le order.le]
     exact earlierFound
@@ -1851,21 +1819,20 @@ lemma canonicalHistoriesMonoLog
       earlier later earlierEntry laterEntry order
         earlierInCanonical canonicalLater
 
-omit [DecidableEq TxId] in
 /--
 Canonical agreement locates a local log entry in its canonical history, whose
 entry-owner fact then supplies the term owner.
 -/
 lemma termOwnershipLogEntryOwner
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     {node : Node}
     {entry : Entry Node TxId}
-    (member : entry ∈ (state.nodes node).log)
+    (member : entry ∈ ((nodeOf state) node).log)
     : Exists fun owner => owners entry.term = some owner := by
   rcases memberEntryAt member with ⟨index, found⟩
   rcases ownership.logEntryAgreement node index entry found with
@@ -1879,7 +1846,7 @@ An owned term is either the bootstrap term or has the strict majority recorded
 by its immutable election record.
 -/
 lemma electionHistoryOwnerProvenance
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -1895,9 +1862,9 @@ lemma electionHistoryOwnerProvenance
   electionFacts.ownerRecorded term owner owned
 
 lemma nodeLogTermNumberValid
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
@@ -1905,8 +1872,8 @@ lemma nodeLogTermNumberValid
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
     (node : Node)
     (index : Nat)
-    : TermNumberValid (termAt (state.nodes node).log index) := by
-  by_cases zero : termAt (state.nodes node).log index = 0
+    : TermNumberValid (termAt ((nodeOf state) node).log index) := by
+  by_cases zero : termAt ((nodeOf state) node).log index = 0
   · exact Or.inl zero
   · rcases termAtPositiveEntry (Nat.pos_of_ne_zero zero) with
       ⟨entry, found, entryTerm⟩
@@ -1925,9 +1892,9 @@ Canonical agreement for a frozen voter log transfers canonical monotonicity
 to that exact election-record snapshot.
 -/
 lemma electionHistoryVoterMono
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     {elections : ElectionHistory Node TxId}
@@ -1965,12 +1932,11 @@ lemma electionHistoryVoterMono
       earlier later earlierEntry laterEntry order
         earlierInCanonical canonicalLater
 
-omit [DecidableEq TxId] in
 /-- Canonical agreement transfers canonical monotonicity to any snapshot. -/
 lemma canonicalSnapshotMono
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
@@ -2006,7 +1972,7 @@ A recorded voter cannot remain below the recorded term: its retained vote
 would otherwise contradict the vote history's empty-future property.
 -/
 lemma electionHistoryVoterTerm
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
     {canonicalHistory : Nat -> List (Entry Node TxId)}
     {owners : TermOwners Node}
@@ -2018,20 +1984,19 @@ lemma electionHistoryVoterTerm
     {voter : Node}
     (recorded : elections term = some record)
     (member : voter ∈ record.supporters)
-    : term <= (state.nodes voter).currentTerm := by
+    : term <= ((nodeOf state) voter).currentTerm := by
   by_contra notBounded
   have future :=
     voteFacts.future voter term (Nat.lt_of_not_ge notBounded)
   rw [electionFacts.voted term record voter recorded member] at future
   contradiction
 
-omit [DecidableEq TxId] [Bootstrap Node] in
 /--
 A candidate's persistent self-vote cannot belong to the empty bootstrap vote
 history, so every candidate term is strictly above the bootstrap term.
 -/
 lemma candidatesSelfVoteAboveBootstrap
-    {state : View Node TxId}
+    {state : Model.State Node TxId}
     {votes : VoteHistory Node}
     (termsPositive : CurrentTermsPositive state)
     (selfVotes : CandidatesSelfVote state)
@@ -2044,13 +2009,12 @@ lemma candidatesSelfVoteAboveBootstrap
   have currentVote := voteFacts.current candidate
   rw [selfVote] at currentVote
   have termNe :
-      Not ((state.nodes candidate).currentTerm = BOOTSTRAP_TERM) := by
+      Not (((nodeOf state) candidate).currentTerm = BOOTSTRAP_TERM) := by
     intro termEq
     rw [termEq, voteFacts.bootstrapEmpty candidate] at currentVote
     contradiction
   omega
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Canonical agreement restricts to every prefix. -/
 lemma historyCanonicalOfPrefix
     {canonicalHistory : Nat -> List (Entry Node TxId)}
@@ -2070,7 +2034,6 @@ lemma historyCanonicalOfPrefix
       agreed
   ⟩
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Log-term monotonicity restricts to every prefix. -/
 lemma monoHistoryOfPrefix
     {shorter history : List (Entry Node TxId)}
@@ -2084,7 +2047,6 @@ lemma monoHistoryOfPrefix
       (entryAt_of_prefix isPrefix earlierFound)
       (entryAt_of_prefix isPrefix laterFound)
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Extending a monotone history cannot decrease its final term. -/
 lemma termAtLastMonotoneOfPrefix
     {shorter history : List (Entry Node TxId)}
@@ -2117,7 +2079,6 @@ lemma termAtLastMonotoneOfPrefix
           shorterFoundInHistory historyFound
   simpa [termAt, shorterFound, historyFound] using termOrder
 
-omit [Bootstrap Node] in
 /-- Extending a monotone history cannot decrease its latest signature term. -/
 lemma maxCommittableTermMonotoneOfPrefix
     {shorter history : List (Entry Node TxId)}
@@ -2161,7 +2122,6 @@ lemma maxCommittableTermMonotoneOfPrefix
       shorterFoundInHistory historyFound'
   simpa [termAt, shorterFound', historyFound'] using termOrder
 
-omit [Bootstrap Node] in
 /-- A signature-only commit frontier is no later than the latest signature. -/
 lemma lastCommittableIndex_eq_maxCommittableIndex
     (state : NodeState Node TxId)
@@ -2176,7 +2136,6 @@ lemma lastCommittableIndex_eq_maxCommittableIndex
     signatureIndex_le_maxCommittableIndex
       (committedSignature (Nat.pos_of_ne_zero zero))
 
-omit [Bootstrap Node] in
 /-- A signature-only commit does not alter the latest-signature election term. -/
 lemma lastCommittableTerm_eq_maxCommittableTerm
     (state : NodeState Node TxId)
@@ -2189,7 +2148,6 @@ lemma lastCommittableTerm_eq_maxCommittableTerm
       state committedSignature
   ]
 
-omit [Bootstrap Node] in
 /-- Election frontier fields depend only on the log and commit index. -/
 lemma lastCommittableIndexFrame
     {before after : NodeState Node TxId}
@@ -2198,7 +2156,6 @@ lemma lastCommittableIndexFrame
     : lastCommittableIndex after = lastCommittableIndex before := by
   simp [lastCommittableIndex, logEq, commitEq]
 
-omit [Bootstrap Node] in
 /-- Election frontier terms frame with the log and commit index. -/
 lemma lastCommittableTermFrame
     {before after : NodeState Node TxId}
@@ -2210,7 +2167,6 @@ lemma lastCommittableTermFrame
     lastCommittableIndexFrame logEq commitEq
   ]
 
-omit [Bootstrap Node] in
 /-- A signature-only committed frontier lies within the latest signature. -/
 lemma commitIndex_le_maxCommittableIndex
     (state : NodeState Node TxId)
@@ -2223,11 +2179,10 @@ lemma commitIndex_le_maxCommittableIndex
     signatureIndex_le_maxCommittableIndex
       (committedSignature (Nat.pos_of_ne_zero zero))
 
-omit [Bootstrap Node] in
 /-- A voter accepting one committable prefix also accepts any monotone extension. -/
 lemma voteLogUpToDateOfCandidatePrefix
     (voter : NodeState Node TxId)
-    (source destination : Node)
+    (_source _destination : Node)
     {candidatePrefix candidateHistory : List (Entry Node TxId)}
     (isPrefix : candidatePrefix <+: candidateHistory)
     (mono : MonoHistory candidateHistory)
@@ -2237,16 +2192,14 @@ lemma voteLogUpToDateOfCandidatePrefix
             term := voter.currentTerm
             lastCommittableTerm := maxCommittableTerm candidatePrefix
             lastCommittableIndex := maxCommittableIndex candidatePrefix
-            source
-            destination
+
           })
     : voteLogUpToDate voter
         {
           term := voter.currentTerm
           lastCommittableTerm := maxCommittableTerm candidateHistory
           lastCommittableIndex := maxCommittableIndex candidateHistory
-          source
-          destination
+
         } := by
   have termMonotone :=
     maxCommittableTermMonotoneOfPrefix isPrefix mono
@@ -2265,18 +2218,17 @@ lemma voteLogUpToDateOfCandidatePrefix
     · right
       omega
 
-omit [Bootstrap Node] in
 /-- A candidate accepted against a longer voter log also passes its prefix. -/
 lemma voteLogUpToDateOfVoterPrefix
     {beforeLog afterLog : List (Entry Node TxId)}
     (isPrefix : beforeLog <+: afterLog)
     (mono : MonoHistory afterLog)
     (before after : NodeState Node TxId)
-    (request : RequestVoteRequest Node)
+    (request : VoteRequestKey Node)
     (beforeLogEq : before.log = beforeLog)
     (afterLogEq : after.log = afterLog)
-    (upToDate : voteLogUpToDate after request)
-    : voteLogUpToDate before request := by
+    (upToDate : voteLogUpToDate after request.2.2)
+    : voteLogUpToDate before request.2.2 := by
   have termMonotone :=
     maxCommittableTermMonotoneOfPrefix isPrefix mono
   have indexMonotone :=
@@ -2295,42 +2247,21 @@ lemma voteLogUpToDateOfVoterPrefix
     · right
       omega
 
-omit [Bootstrap Node] in
 /-- Replying to one AppendEntries request cannot introduce another request. -/
 lemma appendRequestMemberBeforeReply
-    (state : View Node TxId)
-    (source destination : Node)
-    (request : AppendEntriesRequest Node TxId)
-    (response : AppendEntriesResponse Node)
-    (remaining : List (Message Node TxId))
-    (taken
-      : Selected source (state.network destination) (.appendEntriesRequest request)
-          remaining)
+    (state : Model.State Node TxId) (source : Node)
+    (request : AppendRequestKey Node TxId) (response : AppendResponseKey Node)
+    (remaining : List (Model.Envelope Node TxId))
+    (taken : Selected source state.network (appendRequestEnvelope request) remaining)
     : forall queuedDestination queuedRequest,
-        Message.appendEntriesRequest queuedRequest
-          ∈ reply state.network destination remaining response queuedDestination
-        -> Message.appendEntriesRequest queuedRequest
-            ∈ state.network queuedDestination := by
+        (appendRequestEnvelope queuedRequest ∈ reply remaining response
+          ∧ queuedRequest.2.1 = queuedDestination)
+        -> (appendRequestEnvelope queuedRequest ∈ state.network
+          ∧ queuedRequest.2.1 = queuedDestination) := by
   intro queuedDestination queuedRequest member
-  rcases
-      memEnqueue
-        (updateQueue state.network destination remaining)
-        (.appendEntriesResponse response)
-        (.appendEntriesRequest queuedRequest)
-        queuedDestination
-        (by simpa [reply] using member) with
-    old | new
-  · by_cases destinationEq : queuedDestination = destination
-    · subst queuedDestination
-      have remainingMember :
-          Message.appendEntriesRequest queuedRequest ∈ remaining := by
-        simpa [updateQueue] using old
-      exact (selectedSound taken).2.2
-        (.appendEntriesRequest queuedRequest) remainingMember
-    · simpa [
-        updateQueue, Function.update, destinationEq
-      ] using old
-  · simp at new
+  rcases List.mem_append.mp member.1 with old | added
+  · exact ⟨(selectedSound taken).2.2 _ old, member.2⟩
+  · simp [appendRequestEnvelope, appendResponseEnvelope] at added
 
 /--
 The evidence component of AppendEntries receive is fully preserved:
@@ -2338,14 +2269,15 @@ unchanged commits retain their node evidence, while advances inherit a
 request evidence restricted to the request-end-bounded learned prefix.
 -/
 lemma receiveAppendRequestCommitEvidenceFacts
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (source destination : Node)
-    (request : AppendEntriesRequest Node TxId)
+    (present : destination ∈ state.nodes.map Prod.fst)
+    (request : AppendRequestKey Node TxId)
     (nextNode : NodeState Node TxId)
-    (response : AppendEntriesResponse Node)
-    (remaining : List (Message Node TxId))
+    (response : AppendEntriesResponse)
+    (remaining : List (Model.Envelope Node TxId))
     (votes : VoteHistory Node)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (owners : TermOwners Node)
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
@@ -2355,17 +2287,19 @@ lemma receiveAppendRequestCommitEvidenceFacts
     (snapshot : RequestSnapshots (appendHistory request) request)
     (commitBounded : CommitIndicesBounded state)
     (committedSignature : CommittedFrontierIsSignature state)
+    (addressed : request.2.1 = destination)
     (taken
-      : Selected source (state.network destination) (.appendEntriesRequest request)
+      : Selected source state.network (appendRequestEnvelope request)
           remaining)
+    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? (state.nodes destination) request
+      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     : CommitEvidenceFacts
         {
           state with
-            nodes := updateNode state.nodes destination nextNode
-            network := reply state.network destination remaining response
+            nodes := replaceNode state.nodes destination nextNode
+            network := (reply remaining (request.2.1, request.1, response))
         }
         appendHistory
         (appendRequestNodeEvidence
@@ -2373,44 +2307,47 @@ lemma receiveAppendRequestCommitEvidenceFacts
           nodeEvidence requestEvidence)
         requestEvidence := by
   have requestMember :
-      Message.appendEntriesRequest request ∈ state.network destination :=
-    (selectedSound taken).2.1
+      (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination) :=
+    ⟨(selectedSound taken).2.1, addressed⟩
   apply
     appendRequestCommitEvidenceFacts
-      state destination request nextNode response
-        (reply state.network destination remaining response)
+      state destination present request nextNode response
+        ((reply remaining (request.2.1, request.1, response)))
         appendHistory nodeEvidence requestEvidence evidenceFacts
-        (commitBounded destination) handled requestMember
+        (commitBounded destination) notStepped handled requestMember
   · intro advanced
     exact
       handledAppendRequestAdvancedCommittedHistory
         state votes appendHistory canonicalHistory owners ownership
           destination request nextNode response requestMember snapshot
-          (commitBounded destination) handled advanced
+          (commitBounded destination) notStepped handled advanced
   · exact committedSignature destination
   · exact
       appendRequestMemberBeforeReply
-        state source destination request response remaining taken
+        state source request (request.2.1, request.1, response) remaining taken
 
 /-- Live evidence after AppendEntries receive is either unchanged or a
 restriction of the selected request's pre-state evidence. -/
 lemma receiveAppendRequestKnownEvidenceInherited
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (source destination : Node)
-    (request : AppendEntriesRequest Node TxId)
+    (present : destination ∈ state.nodes.map Prod.fst)
+    (request : AppendRequestKey Node TxId)
     (nextNode : NodeState Node TxId)
-    (response : AppendEntriesResponse Node)
-    (remaining : List (Message Node TxId))
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (response : AppendEntriesResponse)
+    (remaining : List (Model.Envelope Node TxId))
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (nodeEvidence : NodeCommitEvidence Node TxId)
     (requestEvidence : RequestCommitEvidence Node TxId)
     (evidenceFacts : CommitEvidenceFacts state appendHistory nodeEvidence requestEvidence)
     (_commitBounded : CommitIndicesBounded state)
+    (addressed : request.2.1 = destination)
     (taken
-      : Selected source (state.network destination) (.appendEntriesRequest request)
+      : Selected source state.network (appendRequestEnvelope request)
           remaining)
+    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? (state.nodes destination) request
+      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     {evidence : CommitEvidence Node TxId}
     {supportedPrefix : List (Entry Node TxId)}
@@ -2418,8 +2355,8 @@ lemma receiveAppendRequestKnownEvidenceInherited
       : KnownCommitEvidence
           {
             state with
-              nodes := updateNode state.nodes destination nextNode
-              network := reply state.network destination remaining response
+              nodes := replaceNode state.nodes destination nextNode
+              network := (reply remaining (request.2.1, request.1, response))
           }
           appendHistory
           (appendRequestNodeEvidence
@@ -2438,28 +2375,28 @@ lemma receiveAppendRequestKnownEvidenceInherited
               /\ evidence.commitFrontier = oldEvidence.commitFrontier
               /\ evidence.ackQuorum = oldEvidence.ackQuorum
               /\ evidence.supportedLength <= oldEvidence.supportedLength := by
-  let post := handleAppendEntriesRequestLocalPost handled
+  let post := handleAppendEntriesRequestLocalPost notStepped handled
   have requestMember :
-      Message.appendEntriesRequest request ∈ state.network destination :=
-    (selectedSound taken).2.1
+      (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination) :=
+    ⟨(selectedSound taken).2.1, addressed⟩
   rcases known with nodeKnown | requestKnown
   · rcases nodeKnown with
       ⟨node, positive, stored, prefixEq⟩
     by_cases same : node = destination
     · subst node
-      have nextPositive : 0 < nextNode.commitIndex := by simpa [updateNode] using positive
+      have nextPositive : 0 < nextNode.commitIndex := by simpa [nodeOf_replaceNode, present] using positive
       by_cases unchanged :
           nextNode.commitIndex =
-            (state.nodes destination).commitIndex
+            ((nodeOf state) destination).commitIndex
       · have oldPositive :
-            0 < (state.nodes destination).commitIndex := by
+            0 < ((nodeOf state) destination).commitIndex := by
           omega
         have oldStored :
             nodeEvidence destination = some evidence := by
           simpa [appendRequestNodeEvidence, unchanged] using stored
         exact ⟨
           evidence,
-          (state.nodes destination).committedLog,
+          ((nodeOf state) destination).committedLog,
           Or.inl ⟨destination, oldPositive, oldStored, rfl⟩,
           rfl,
           rfl,
@@ -2468,18 +2405,18 @@ lemma receiveAppendRequestKnownEvidenceInherited
           le_rfl
         ⟩
       · have advanced :
-            (state.nodes destination).commitIndex <
+            ((nodeOf state) destination).commitIndex <
               nextNode.commitIndex := by
           have monotone := post.commitIndexMonotone
           omega
         have succeeded : response.success = true :=
           post.commitAdvancedSuccessful advanced
         have withinLeaderCommit :
-            nextNode.commitIndex <= request.leaderCommit := by
+            nextNode.commitIndex <= request.2.2.leaderCommit := by
           rcases le_max_iff.mp post.commitUpperBound with old | learned
           · omega
           · exact learned
-        have leaderCommitPositive : 0 < request.leaderCommit := by
+        have leaderCommitPositive : 0 < request.2.2.leaderCommit := by
           omega
         cases oldStored : requestEvidence request with
         | none =>
@@ -2504,7 +2441,7 @@ lemma receiveAppendRequestKnownEvidenceInherited
             subst storedEvidence
             exact ⟨
               oldEvidence,
-              (appendHistory request).take request.leaderCommit,
+              (appendHistory request).take request.2.2.leaderCommit,
               Or.inr
                 ⟨
                   destination,
@@ -2521,14 +2458,14 @@ lemma receiveAppendRequestKnownEvidenceInherited
               by simpa [CommitEvidence.restrict, supportedLength] using withinLeaderCommit
             ⟩
     · have oldPositive :
-          0 < (state.nodes node).commitIndex := by
-        simpa [updateNode, Function.update, same] using positive
+          0 < ((nodeOf state) node).commitIndex := by
+        simpa [nodeOf_replaceNode, present, Function.update, same] using positive
       have oldStored :
           nodeEvidence node = some evidence := by
         simpa [appendRequestNodeEvidence, Function.update, same] using stored
       exact ⟨
         evidence,
-        (state.nodes node).committedLog,
+        ((nodeOf state) node).committedLog,
         Or.inl ⟨node, oldPositive, oldStored, rfl⟩,
         rfl,
         rfl,
@@ -2541,13 +2478,13 @@ lemma receiveAppendRequestKnownEvidenceInherited
         positive, stored, prefixEq⟩
     exact ⟨
       evidence,
-      (appendHistory queuedRequest).take queuedRequest.leaderCommit,
+      (appendHistory queuedRequest).take queuedRequest.2.2.leaderCommit,
       Or.inr
         ⟨
           queuedDestination,
           queuedRequest,
           appendRequestMemberBeforeReply
-            state source destination request response remaining taken
+            state source request (request.2.1, request.1, response) remaining taken
             queuedDestination queuedRequest member,
           positive,
           stored,
@@ -2566,13 +2503,13 @@ ACK-quorum member.  A same-term stale request is either compatible through its
 queued history or was already fully represented before handling.
 -/
 lemma handledAppendRequestRetainsEvidenceFrontier
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (destination : Node)
-    (request : AppendEntriesRequest Node TxId)
+    (request : AppendRequestKey Node TxId)
     (nextNode : NodeState Node TxId)
-    (response : AppendEntriesResponse Node)
+    (response : AppendEntriesResponse)
     (votes : VoteHistory Node)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (owners : TermOwners Node)
     {elections : ElectionHistory Node TxId}
@@ -2584,7 +2521,7 @@ lemma handledAppendRequestRetainsEvidenceFrontier
     (requestEvidence : RequestCommitEvidence Node TxId)
     (evidenceFacts : CommitEvidenceFacts state appendHistory nodeEvidence requestEvidence)
     (prospectiveFacts
-      : ProspectiveCommitEvidenceFacts
+      : ProspectiveCommitEvidenceFacts (joined := joined)
           state appendHistory nodeEvidence requestEvidence elections)
     {evidence : CommitEvidence Node TxId}
     {supportedPrefix : List (Entry Node TxId)}
@@ -2593,30 +2530,31 @@ lemma handledAppendRequestRetainsEvidenceFrontier
           state appendHistory nodeEvidence requestEvidence
           evidence supportedPrefix)
     (ackMember : destination ∈ evidence.ackQuorum)
-    (requestMember : Message.appendEntriesRequest request ∈ state.network destination)
+    (requestMember : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
+    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? (state.nodes destination) request
+      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     : evidence.history.take evidence.commitFrontier <+: nextNode.log := by
-  let post := handleAppendEntriesRequestLocalPost handled
+  let post := handleAppendEntriesRequestLocalPost notStepped handled
   have currentPrefix :=
     prospectiveFacts.currentMember
       evidence supportedPrefix known destination ackMember
   by_cases succeeded : response.success = true
   · have requestCurrent :
-        request.term = (state.nodes destination).currentTerm :=
+        request.2.2.term = ((nodeOf state) destination).currentTerm :=
       post.successfulCurrentTerm succeeded
-    by_cases older : evidence.commitTerm < request.term
+    by_cases older : evidence.commitTerm < request.2.2.term
     · exact
         handledAppendRequestRetainsSharedPrefix
           state votes appendHistory canonicalHistory owners ownership
             destination request nextNode response requestMember snapshot
-            handled succeeded currentPrefix
+            notStepped handled succeeded currentPrefix
             (knownCommitEvidenceQueuedAppendContainsFrontier
               ownership electionFacts electionQueuedFacts prospectiveFacts
                 known requestMember older)
-    · by_cases same : evidence.commitTerm = request.term
+    · by_cases same : evidence.commitTerm = request.2.2.term
       · rcases
             prospectiveFacts.sameTermQueuedComparable
               evidence supportedPrefix known destination request
@@ -2645,7 +2583,7 @@ lemma handledAppendRequestRetainsEvidenceFrontier
               handledAppendRequestRetainsSharedPrefix
                 state votes appendHistory canonicalHistory owners ownership
                   destination request nextNode response requestMember snapshot
-                  handled succeeded currentPrefix frontierBeforeRequest
+                  notStepped handled succeeded currentPrefix frontierBeforeRequest
           · have requestBeforeFrontier :
                 appendHistory request <+:
                   evidence.history.take evidence.commitFrontier := by
@@ -2654,20 +2592,20 @@ lemma handledAppendRequestRetainsEvidenceFrontier
             have requestBeforeNode :=
               requestBeforeFrontier.trans currentPrefix
             have already :
-                alreadyDone (state.nodes destination) request :=
+                alreadyDone ((nodeOf state) destination) request.2.2 :=
               appendRequestAlreadyDoneOfSharedPrefix
                 snapshot requestBeforeNode (prefixRefl _)
                   snapshot.1
             have unchanged :=
               successfulAlreadyDoneAppendLogUnchanged
-                already handled succeeded
+                already notStepped handled succeeded
             simpa [unchanged] using currentPrefix
         · exact
             handledAppendRequestRetainsSharedPrefix
               state votes appendHistory canonicalHistory owners ownership
                 destination request nextNode response requestMember snapshot
-                handled succeeded currentPrefix frontierBeforeRequest
-      · have greater : request.term < evidence.commitTerm := by omega
+                notStepped handled succeeded currentPrefix frontierBeforeRequest
+      · have greater : request.2.2.term < evidence.commitTerm := by omega
         have valid := knownCommitEvidenceValid evidenceFacts known
         have supportedPositive :=
           knownCommitEvidenceSupportedLengthPositive evidenceFacts known
