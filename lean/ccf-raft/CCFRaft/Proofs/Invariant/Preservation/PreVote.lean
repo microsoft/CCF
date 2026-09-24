@@ -27,7 +27,8 @@ lemma pureNetworkDequeuePreservesSystemInductiveInvariant
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (networkSubset
       : forall destination message,
-          (message ∈ network /\ message.target = destination) -> (message ∈ state.network /\ message.target = destination))
+          (message ∈ network /\ message.target = destination)
+          -> (message ∈ state.network /\ message.target = destination))
     : SystemInductiveInvariant (joined := joinedNodes) { state with network } := by
   let after : Model.State Node TxId := { state with network }
   have effectiveElectionSubset :
@@ -94,17 +95,38 @@ lemma pureNetworkDequeuePreservesSystemInductiveInvariant
   · intro candidate voter _ member
     exact effectiveElectionSubset candidate member
 
-
 lemma receiveRequestPreVotePreservesSystemInductiveInvariant
     (state : Model.State Node TxId) (source destination : Node)
     (request : RequestVoteRequest) (remaining : List (Model.Envelope Node TxId))
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
-    (taken : Selected source state.network (preVoteRequestEnvelope (source, destination, request)) remaining)
+    (taken
+      : Selected source state.network
+          (preVoteRequestEnvelope (source, destination, request)) remaining)
     : SystemInductiveInvariant (joined := joinedNodes)
-        { state with network := remaining ++ [preVoteResponseEnvelope
-            (destination, source, handleRequestPreVote (nodeOf state destination) request)] } := by
-  apply safetyInertNetworkChangePreservesSystemInductiveInvariant state { state with network := remaining ++ [preVoteResponseEnvelope
-      (destination, source, handleRequestPreVote (nodeOf state destination) request)] } invariant rfl (fun _ => rfl)
+        {
+          state with
+            network :=
+              remaining
+              ++ [preVoteResponseEnvelope
+                    (
+                      destination,
+                      source,
+                      handleRequestPreVote (nodeOf state destination) request
+                    )]
+        } := by
+  apply safetyInertNetworkChangePreservesSystemInductiveInvariant state
+    {
+      state with
+        network :=
+          remaining
+          ++ [preVoteResponseEnvelope
+                (
+                  destination,
+                  source,
+                  handleRequestPreVote (nodeOf state destination) request
+                )]
+    }
+    invariant rfl (fun _ => rfl)
   intro target envelope member
   rcases List.mem_append.mp member.1 with old | reply_
   · exact Or.inl ⟨(selectedSound taken).2.2 _ old, member.2⟩
@@ -118,11 +140,17 @@ lemma receiveRequestPreVoteResponsePreservesSystemInductiveInvariant
     (response : RequestVoteResponse) (remaining : List (Model.Envelope Node TxId))
     (nextNode : NodeState Node TxId)
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
-    (taken : Selected source state.network
-      (preVoteResponseEnvelope (source, destination, response)) remaining)
-    (handled : handleRequestPreVoteResponse (nodeOf state destination) source response = nextNode)
+    (taken
+      : Selected source state.network
+          (preVoteResponseEnvelope (source, destination, response)) remaining)
+    (handled
+      : handleRequestPreVoteResponse (nodeOf state destination) source response
+        = nextNode)
     : SystemInductiveInvariant (joined := joinedNodes)
-        { state with nodes := replaceNode state.nodes destination nextNode, network := remaining } := by
+        {
+          state with
+            nodes := replaceNode state.nodes destination nextNode, network := remaining
+        } := by
   let middle : Model.State Node TxId :=
     { state with nodes := replaceNode state.nodes destination nextNode }
   have post := handleRequestPreVoteResponsePreserves handled
@@ -149,12 +177,17 @@ lemma receiveProposeVoteRequestPreservesSystemInductiveInvariant
     (term : Nat) (remaining : List (Model.Envelope Node TxId))
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (joined : destination ∈ joinedNodes)
-    (taken : Selected source state.network (proposeVoteEnvelope (source, destination, term)) remaining)
+    (taken
+      : Selected source state.network (proposeVoteEnvelope (source, destination, term))
+          remaining)
     : SystemInductiveInvariant (joined := joinedNodes)
-        { state with
-          nodes := replaceNode state.nodes destination
-            (handleProposeVoteRequest (nodeOf state destination) destination term)
-          network := remaining } := by
+        {
+          state with
+            nodes :=
+              replaceNode state.nodes destination
+                (handleProposeVoteRequest (nodeOf state destination) destination term)
+            network := remaining
+        } := by
   rcases handleProposeVoteRequestCases (nodeOf state destination) destination term with same | changed
   · rw [same, replaceNode_nodeOf state destination distinct]
     exact pureNetworkDequeuePreservesSystemInductiveInvariant state remaining invariant

@@ -48,7 +48,6 @@ private lemma entryAtTake_of_le
     · rfl
     · omega
 
-
 omit [DecidableEq TxId] in
 /--
 A covered candidate node covers an equivalent frozen election ballot.
@@ -87,13 +86,16 @@ lemma configurationCoverageFrame
           currentConfiguration ((nodeOf after) node)
           = currentConfiguration ((nodeOf state) node))
     (termMonotone
-      : forall node, ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
+      : forall node,
+          ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
     (commitEq
-      : forall node, ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
+      : forall node,
+          ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
     (logTakeEq
       : forall node frontier,
           frontier <= ((nodeOf state) node).commitIndex
-          -> ((nodeOf after) node).log.take frontier = ((nodeOf state) node).log.take frontier)
+          -> ((nodeOf after) node).log.take frontier
+              = ((nodeOf state) node).log.take frontier)
     (candidateTermStrictAfter
       : forall node (witness : ConfigurationCoverageWitness state activations node),
           ((nodeOf after) node).role = .candidate
@@ -135,7 +137,8 @@ lemma configurationCoverageFrame
     _ = ((nodeOf after) node).log.take shared :=
       (logTakeEq node shared sharedBound).symm
     _ = ((nodeOf after) node).log.take
-          (min ((nodeOf after) node).commitIndex witness.activation.activationFrontier) := by
+          (min ((nodeOf after) node).commitIndex
+            witness.activation.activationFrontier) := by
       simp [shared, commitEq node]
   · intro higherIndex higher stored order
     have oldOrder :
@@ -323,7 +326,8 @@ lemma sharedPrefix_prefix_higherAuthority
     {higher : ActivationRecord Node TxId}
     (stored : activations higherIndex = some higher)
     (order
-      : (currentConfiguration ((nodeOf state) node)).index < higher.newConfiguration.index)
+      : (currentConfiguration ((nodeOf state) node)).index
+        < higher.newConfiguration.index)
     : witness.sharedPrefix <+: higher.history.take higher.activationFrontier := by
   simpa [sharedPrefix, sharedFrontier]
     using witness.higherAuthority higherIndex higher stored order

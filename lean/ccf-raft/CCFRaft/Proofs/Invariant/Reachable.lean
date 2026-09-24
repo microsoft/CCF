@@ -26,7 +26,9 @@ theorem initial_inv {nodes : List Node} {state : Model.State Node TxId}
     : Inv state := by
   refine ⟨INITIAL_CONFIGURATION, ?_⟩
   exact {
-    safety := initialSystemInductiveInvariant state (nodeOf_initial initialized) initialized.2.2.2.2.1
+    safety :=
+      initialSystemInductiveInvariant state (nodeOf_initial initialized)
+        initialized.2.2.2.2.1
     distinct := initialized.2.1 ▸ initialized.1
     initialJoined := Finset.Subset.refl _
     unjoined := fun node _ => nodeOf_initial initialized node
@@ -48,7 +50,10 @@ theorem step_inv {nodes : List Node} {before after : Model.State Node TxId}
       obtain ⟨queued, local_, execute, found, received, rfl⟩ := step_deliver stepped
       have present : envelope.target ∈ before.nodes.map Prod.fst :=
         List.mem_map.mpr ⟨(envelope.target, local_), mem_of_nodeState found, rfl⟩
-      exact ⟨joined, receive_preserves invariant present queued (by rwa [nodeOf_of_lookup found])⟩
+      exact ⟨
+        joined,
+        receive_preserves invariant present queued (by rwa [nodeOf_of_lookup found])
+      ⟩
 
 theorem reachable_inv {nodes : List Node} {c : Model.State Node TxId}
     (reachable : (Model.transitionSystem (TxId := TxId) nodes).Reachable c)

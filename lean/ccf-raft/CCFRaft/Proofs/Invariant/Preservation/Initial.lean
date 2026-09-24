@@ -31,9 +31,7 @@ lemma initialCommitEvidenceFacts
           Exists
             fun requestEvidence : RequestCommitEvidence Node TxId =>
               CommitEvidenceFacts
-                ((state
-                    : Model.State Node TxId)
-                  : Model.State Node TxId)
+                ((state : Model.State Node TxId) : Model.State Node TxId)
                 appendHistory nodeEvidence requestEvidence := by
   let nodeEvidence : NodeCommitEvidence Node TxId :=
     fun _ => none
@@ -52,9 +50,7 @@ lemma initialSystemInductiveInvariant
     (initialNodes : forall node, nodeOf state node = initialNodeState node)
     (networkEmpty : state.network = [])
     : SystemInductiveInvariant (joined := INITIAL_CONFIGURATION)
-        ((state
-            : Model.State Node TxId)
-          : Model.State Node TxId) := by
+        ((state : Model.State Node TxId) : Model.State Node TxId) := by
   let votes : VoteHistory (Node : Type) := fun _ _ => none
   let appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId) :=
     fun _ => []
@@ -89,10 +85,10 @@ lemma initialSystemInductiveInvariant
         intro leader
         subst node
         exact member initialLeaderMember
-      simp [initialNodes, networkEmpty, 
+      simp [initialNodes, networkEmpty,
         initialNodeState, member, notLeader
       ] at participating
-  · simp [initialNodes, networkEmpty, 
+  · simp [initialNodes, networkEmpty,
       EntriesDoNotExceedCurrentTerm,
       initialNodeState
     ]
@@ -109,15 +105,15 @@ lemma initialSystemInductiveInvariant
       exact ⟨
         rfl,
         by
-          simp [initialNodes, networkEmpty, 
+          simp [initialNodes, networkEmpty,
             initialNodeState, initialLeaderMember
           ]
       ⟩
     · by_cases member : leader ∈ INITIAL_CONFIGURATION
-      · simp [initialNodes, networkEmpty, 
+      · simp [initialNodes, networkEmpty,
           initialNodeState, leaderInitial, member
         ] at role
-      · simp [initialNodes, networkEmpty, 
+      · simp [initialNodes, networkEmpty,
           initialNodeState, leaderInitial, member
         ] at role
   · intro leader role peer
@@ -211,7 +207,7 @@ lemma initialSystemInductiveInvariant
     have configurationActivationFacts :
         ConfigurationCoverageFacts (state : Model.State Node TxId) activations := by
       intro node positive
-      simp [initialNodes, networkEmpty, 
+      simp [initialNodes, networkEmpty,
         initialNodeState,
         currentConfiguration, currentConfigurationAt,
         configurationsInLog, configurationsInLogFrom,
@@ -248,10 +244,10 @@ lemma initialSystemInductiveInvariant
     · intro leader role
       by_cases leaderInitial : leader = INITIAL_LEADER
       · subst leader
-        simp [initialNodes, networkEmpty, 
+        simp [initialNodes, networkEmpty,
           owners, initialNodeState, initialLeaderMember
         ]
-      · simp [initialNodes, networkEmpty, 
+      · simp [initialNodes, networkEmpty,
           initialNodeState, leaderInitial
         ] at role
         split at role <;> contradiction
@@ -260,7 +256,7 @@ lemma initialSystemInductiveInvariant
     · intro destination request member
       simp [initialNodes, networkEmpty] at member
     · intro leader role
-      simp [initialNodes, networkEmpty, 
+      simp [initialNodes, networkEmpty,
         canonicalHistory, initialNodeState
       ]
     · intro term index entry found
@@ -273,7 +269,7 @@ lemma initialSystemInductiveInvariant
       rcases owned with ⟨termEq, ownerEq⟩
       subst term
       subst owner
-      simp [initialNodes, networkEmpty, 
+      simp [initialNodes, networkEmpty,
         initialNodeState, initialLeaderMember
       ]
     · intro destination request member
@@ -290,7 +286,7 @@ lemma initialSystemInductiveInvariant
       · simp [initialNodes, networkEmpty, elections]
       · simp [initialNodes, networkEmpty, elections]
       · simp [initialNodes, networkEmpty, elections]
-      · simp [initialNodes, networkEmpty, 
+      · simp [initialNodes, networkEmpty,
           elections, activations,
           ActivationSupporterCurrentHistory
         ]
@@ -307,38 +303,38 @@ lemma initialSystemInductiveInvariant
         · subst candidate
           simp [initialNodes, networkEmpty, initialNodeState] at role
         · by_cases member : candidate ∈ INITIAL_CONFIGURATION
-          · simp [initialNodes, networkEmpty, 
+          · simp [initialNodes, networkEmpty,
               initialNodeState, candidateEq, member
             ] at role
-          · simp [initialNodes, networkEmpty, 
+          · simp [initialNodes, networkEmpty,
               initialNodeState, candidateEq, member
             ] at role
     · intro candidate voter active member
-      simp [initialNodes, networkEmpty, 
+      simp [initialNodes, networkEmpty,
         effectiveElectionVoters, queuedGrantedVote,
         initialNodeState
       ] at member
     · intro source index role current signature
       have impossible : False := by
-        simp [initialNodes, networkEmpty, 
+        simp [initialNodes, networkEmpty,
           initialNodeState, isSignatureAt, entryAt?
         ] at signature
       exact impossible.elim
     · intro source index role current signature
       have impossible : False := by
-        simp [initialNodes, networkEmpty, 
+        simp [initialNodes, networkEmpty,
           initialNodeState, isSignatureAt, entryAt?
         ] at signature
       exact impossible.elim
     · intro source index role current signature
       have impossible : False := by
-        simp [initialNodes, networkEmpty, 
+        simp [initialNodes, networkEmpty,
           initialNodeState, isSignatureAt, entryAt?
         ] at signature
       exact impossible.elim
     · intro source index role current signature
       have impossible : False := by
-        simp [initialNodes, networkEmpty, 
+        simp [initialNodes, networkEmpty,
           initialNodeState, isSignatureAt, entryAt?
         ] at signature
       exact impossible.elim
@@ -371,7 +367,7 @@ lemma initialSystemInductiveInvariant
       · intro _ _ destination request _ queued _
         simp [initialNodes, networkEmpty] at queued
       · intro node frontier within positive signature
-        simp [initialNodes, networkEmpty, 
+        simp [initialNodes, networkEmpty,
           initialNodeState,
           currentConfigurationAt, implicitConfiguration,
           configurationsInLog, configurationsInLogFrom
@@ -382,7 +378,7 @@ lemma initialSystemInductiveInvariant
     · exact prospectiveFacts
     · exact activationEvidenceFacts
   · intro candidate voter active member
-    simp [initialNodes, networkEmpty, 
+    simp [initialNodes, networkEmpty,
       effectiveElectionVoters, queuedGrantedVote,
       initialNodeState
     ] at member
@@ -395,7 +391,7 @@ lemma initialSystemInductiveInvariant
       simp [initialNodes, networkEmpty, initialNodeState] at positive
   · constructor
     · intro node peer member
-      simpa [initialNodes, networkEmpty, 
+      simpa [initialNodes, networkEmpty,
         initialNodeState, activeNodeUnion,
         activeConfigurations, currentConfiguration,
         currentConfigurationAt, allConfigurations,
@@ -403,7 +399,7 @@ lemma initialSystemInductiveInvariant
         implicitConfiguration
       ] using member
     · intro node configuration member peer inNodes
-      simp [initialNodes, networkEmpty, 
+      simp [initialNodes, networkEmpty,
         initialNodeState, allConfigurations,
         configurationsInLog, configurationsInLogFrom
       ] at member

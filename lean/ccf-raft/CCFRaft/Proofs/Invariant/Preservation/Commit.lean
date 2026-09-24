@@ -30,8 +30,10 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     (enabled
       : node ∈ joinedNodes
         /\ ((nodeOf state) node).role = .leader
-        /\ ((nodeOf state) node).commitIndex < highestCommittableIndex (nodeOf state node) node)
-    : SystemInductiveInvariant (joined := joinedNodes) (advanceCommitState state node) := by
+        /\ ((nodeOf state) node).commitIndex
+            < highestCommittableIndex (nodeOf state node) node)
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (advanceCommitState state node) := by
   classical
   rcases invariant with
       ⟨votes, appendHistory, responseHistory,
@@ -2945,7 +2947,8 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   ((nodeOf state) node).log.take shared := by
               rw [List.prefix_take_iff]
               refine ⟨
-                lowerInFrontier.trans (List.take_prefix frontier ((nodeOf state) node).log),
+                lowerInFrontier.trans
+                  (List.take_prefix frontier ((nodeOf state) node).log),
                 ?_
               ⟩
               have lowerLength :
@@ -3232,9 +3235,9 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           simpa [termEq] using entriesBefore entry (by simpa [logEq] using member)
         have oldRelaxed :
             member ∈ relaxedElectionVoters (joined := joinedNodes) state candidate := by
-          simpa [relaxedElectionVoters, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq, logEq,
-            lastIndexEq, lastTermEq, effectiveElectionVotersEq,
-            show joinedNodes = joinedNodes from rfl,
+          simpa [relaxedElectionVoters, voteRequestKey,
+            Model.Local.makeRequestVoteRequest, termEq, logEq, lastIndexEq, lastTermEq,
+            effectiveElectionVotersEq, show joinedNodes = joinedNodes from rfl,
             voteLogUpToDate]
             using relaxed
         simpa [evidence, logEq]
@@ -3265,9 +3268,9 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           simpa [termEq] using entriesBefore entry (by simpa [logEq] using member)
         have oldRelaxed :
             member ∈ relaxedElectionVoters (joined := joinedNodes) state candidate := by
-          simpa [relaxedElectionVoters, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq, logEq,
-            lastIndexEq, lastTermEq, effectiveElectionVotersEq,
-            show joinedNodes = joinedNodes from rfl,
+          simpa [relaxedElectionVoters, voteRequestKey,
+            Model.Local.makeRequestVoteRequest, termEq, logEq, lastIndexEq, lastTermEq,
+            effectiveElectionVotersEq, show joinedNodes = joinedNodes from rfl,
             voteLogUpToDate]
             using relaxed
         simpa [logEq]

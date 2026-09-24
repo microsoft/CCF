@@ -32,9 +32,7 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
     (remaining : List (Model.Envelope Node TxId))
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (addressed : request.2.1 = destination)
-    (taken
-      : Selected source state.network (voteRequestEnvelope request)
-          remaining)
+    (taken : Selected source state.network (voteRequestEnvelope request) remaining)
     (responseSource : response.1 = request.2.1)
     (responseDestination : response.2.1 = request.1)
     (handled
@@ -87,7 +85,8 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
       · exact post.responseDestination
       · have term := post.responseTerm.trans grantFacts.1.symm
         cases payload : response.2.2 with
-        | mk term_ granted_ => simpa only [payload, grantedVoteKey] using congrArg₂ RequestVoteResponse.mk term granted
+        | mk term_ granted_ =>
+            simpa only [payload, grantedVoteKey] using congrArg₂ RequestVoteResponse.mk term granted
   let newVotes : VoteHistory (Node : Type) :=
     Function.update votes destination
       (Function.update
@@ -538,7 +537,9 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
                       requestFacts.2.2.1
                     ] using grantFacts.2.1))
       exact ⟨
-        by simpa [voteRequestKey, Model.Local.makeRequestVoteRequest] using sourceCurrent.symm.trans grantFacts.1,
+        by
+          simpa [voteRequestKey, Model.Local.makeRequestVoteRequest]
+            using sourceCurrent.symm.trans grantFacts.1,
         canonicalUpToDate,
         grantFacts.2.2.1
       ⟩

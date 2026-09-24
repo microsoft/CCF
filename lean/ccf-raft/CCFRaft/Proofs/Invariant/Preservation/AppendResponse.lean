@@ -40,16 +40,17 @@ lemma effectiveAckersAfterInactiveResponse
     (responseDestination : response.2.1 = destination)
     (remaining : List (Model.Envelope Node TxId))
     (taken
-      : Selected response.1 state.network
-          (appendResponseEnvelope response) remaining)
+      : Selected response.1 state.network (appendResponseEnvelope response) remaining)
     (networkEq : after.network = remaining)
     (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (matchEq
       : forall leader peer,
-          ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
+          ((nodeOf after) leader).matchIndex peer
+          = ((nodeOf state) leader).matchIndex peer)
     (inactive
       : Not
           (response.2.2.success = true
@@ -95,8 +96,7 @@ lemma effectiveAckersAfterSuccessfulResponse
     (response : AppendResponseKey Node)
     (remaining : List (Model.Envelope Node TxId))
     (taken
-      : Selected response.1 state.network
-          (appendResponseEnvelope response) remaining)
+      : Selected response.1 state.network (appendResponseEnvelope response) remaining)
     (responseDestination : response.2.1 = destination)
     (success : response.2.2.success = true)
     (sameTerm : response.2.2.term = ((nodeOf state) destination).currentTerm)
@@ -105,7 +105,8 @@ lemma effectiveAckersAfterSuccessfulResponse
     (networkEq : after.network = remaining)
     (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (matchDestination
       : forall peer,
@@ -121,7 +122,8 @@ lemma effectiveAckersAfterSuccessfulResponse
       : forall leader,
           Not (leader = destination)
           -> forall peer,
-              ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
+              ((nodeOf after) leader).matchIndex peer
+              = ((nodeOf state) leader).matchIndex peer)
     : forall leader index,
         effectiveAckers (joined := joinedNext) after responseHistory leader index
         = effectiveAckers (joined := joinedNodes) state responseHistory leader index := by
@@ -185,13 +187,15 @@ lemma effectiveAckersAfterSuccessfulResponseHandler
     (responseDestination : response.2.1 = destination)
     (success : response.2.2.success = true)
     (sameTerm : response.2.2.term = ((nodeOf state) destination).currentTerm)
-    (selectedMember : (appendResponseEnvelope response ∈ state.network /\ response.2.1 = destination))
+    (selectedMember
+      : (appendResponseEnvelope response ∈ state.network /\ response.2.1 = destination))
     (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (covered : responseHistory response <+: ((nodeOf state) destination).log)
     (networkEq : after.network = state.network)
     (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (matchDestination
       : forall peer,
@@ -207,7 +211,8 @@ lemma effectiveAckersAfterSuccessfulResponseHandler
       : forall leader,
           Not (leader = destination)
           -> forall peer,
-              ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
+              ((nodeOf after) leader).matchIndex peer
+              = ((nodeOf state) leader).matchIndex peer)
     : forall leader index,
         effectiveAckers (joined := joinedNext) after responseHistory leader index
         = effectiveAckers (joined := joinedNodes) state responseHistory leader index := by
@@ -309,7 +314,8 @@ lemma processedAckHistoryAfterSuccessfulResponse
         /\ ((nodeOf state) destination).role = .leader)
     (roleEq : forall node, ((nodeOf after) node).role = ((nodeOf state) node).role)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (matchDestination
       : forall peer,
@@ -325,7 +331,8 @@ lemma processedAckHistoryAfterSuccessfulResponse
       : forall leader,
           Not (leader = destination)
           -> forall peer,
-              ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
+              ((nodeOf after) leader).matchIndex peer
+              = ((nodeOf state) leader).matchIndex peer)
     : Exists
         fun nextHistory =>
           ProcessedAckHistoryFacts after nextHistory := by
@@ -469,12 +476,11 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
     (nextNode : NodeState Node TxId)
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (_destinationAllocated : destination ∈ joinedNodes)
-    (taken
-      : Selected source state.network (appendResponseEnvelope response)
-          remaining)
+    (taken : Selected source state.network (appendResponseEnvelope response) remaining)
     (responseDestination : response.2.1 = destination)
     (handled
-      : handleAppendEntriesResponse ((nodeOf state) destination) response.1 response.2.2 = nextNode)
+      : handleAppendEntriesResponse ((nodeOf state) destination) response.1 response.2.2
+        = nextNode)
     : SystemInductiveInvariant (joined := joinedNodes)
         {
           state with
@@ -665,7 +671,8 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         state intermediate (by rfl) (by rfl) termEq votesEq
     have intermediateInvariant :
         SystemInductiveInvariant (joined := joinedNodes) intermediate := by
-      apply roleAndNetworkFramePreservesSystemInductiveInvariant state intermediate packed (by rfl)
+      apply roleAndNetworkFramePreservesSystemInductiveInvariant state intermediate packed
+        (by rfl)
         (joinedCarrierFactsFrame state intermediate facts.joinedCarriers
           (by rfl)
           (by
@@ -935,7 +942,8 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           (fun node => by rw [nodeStateEq node])
     rw [← successful.2.2]
     change SystemInductiveInvariant (joined := joinedNodes) after
-    apply networkFramePreservesSystemInductiveInvariant intermediate after intermediateInvariant (by simp [after, present, intermediate, present]) nodeStateEq
+    apply networkFramePreservesSystemInductiveInvariant intermediate after
+      intermediateInvariant (by simp [after, present, intermediate, present]) nodeStateEq
       (fun destination message member =>
         Or.inl (networkSubsetAfter destination message member))
     · intro _ _ actualResponseHistory _ _ _ actualFacts leader index
@@ -1107,7 +1115,8 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           state intermediate rfl rfl termEq votesEq
       have intermediateInvariant :
           SystemInductiveInvariant (joined := joinedNodes) intermediate := by
-        apply roleAndNetworkFramePreservesSystemInductiveInvariant state intermediate packed rfl
+        apply roleAndNetworkFramePreservesSystemInductiveInvariant state intermediate
+          packed rfl
           (joinedCarrierFactsFrame state intermediate facts.joinedCarriers rfl
             (by
               intro node configuration active
@@ -1291,7 +1300,9 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
             (fun node => by rw [nodeStateEq node])
             (fun node => by rw [nodeStateEq node])
       change SystemInductiveInvariant (joined := joinedNodes) after
-      apply networkFramePreservesSystemInductiveInvariant intermediate after intermediateInvariant (by simp [after, present, intermediate, present]) nodeStateEq
+      apply networkFramePreservesSystemInductiveInvariant intermediate after
+        intermediateInvariant (by simp [after, present, intermediate, present])
+        nodeStateEq
         (fun destination message member =>
           Or.inl (networkSubsetAfter destination message member))
       · intro _ _ actualResponseHistory _ _ _ _ leader index

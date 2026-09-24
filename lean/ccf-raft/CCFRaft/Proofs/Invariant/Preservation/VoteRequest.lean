@@ -34,9 +34,7 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (_destinationAllocated : destination ∈ joinedNodes)
     (addressed : request.2.1 = destination)
-    (taken
-      : Selected source state.network (voteRequestEnvelope request)
-          remaining)
+    (taken : Selected source state.network (voteRequestEnvelope request) remaining)
     (responseSource : response.1 = request.2.1)
     (responseDestination : response.2.1 = request.1)
     (handled
@@ -47,9 +45,7 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
           state with
             nodes := replaceNode state.nodes destination nextNode
             network :=
-              enqueue
-                (remaining)
-                (voteResponseEnvelope response)
+              enqueue (remaining) (voteResponseEnvelope response)
         } := by
   let post := handleRequestVoteRequestLocalPost responseSource responseDestination handled
   let enqueued : Model.State Node TxId :=
@@ -67,9 +63,10 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
   have enqueuedInvariant : SystemInductiveInvariant (joined := joinedNodes) enqueued := by
     by_cases granted : response.2.2.voteGranted = true
     · simpa [enqueued]
-        using enqueueGrantedVoteResponsePreservesSystemInductiveInvariant (present := present)
-          state source destination request nextNode response remaining
-          invariant addressed taken responseSource responseDestination handled granted
+        using enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
+          (present := present) state source destination request nextNode response
+          remaining invariant addressed taken responseSource responseDestination handled
+          granted
     · have rejected : response.2.2.voteGranted = false := by
         exact Bool.eq_false_of_not_eq_true granted
       have nextEq := post.rejectedState rejected
@@ -287,8 +284,8 @@ lemma receiveRequestVoteRequestPreservesSystemInductiveInvariant
           covered
         ⟩
   change SystemInductiveInvariant (joined := joinedNodes) after
-  apply networkFramePreservesSystemInductiveInvariant enqueued after enqueuedInvariant (by simp [after, enqueued])
-    (fun _ => rfl)
+  apply networkFramePreservesSystemInductiveInvariant enqueued after enqueuedInvariant
+    (by simp [after, enqueued]) (fun _ => rfl)
     (fun destination message member =>
       Or.inl (networkSubset destination message member))
   · intro _ _ actualResponseHistory _ _ _ _ leader index

@@ -708,7 +708,8 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       · subst queuedRequest
         have sourcePositive :
             0 < ((nodeOf state) source).commitIndex := by
-          simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest] using positive
+          simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+            using positive
         rcases
             evidenceFacts.nodePositive source sourcePositive with
           ⟨evidence, stored, valid, lengthEq, termBound⟩
@@ -781,7 +782,8 @@ lemma appendEntriesPreservesSystemInductiveInvariant
         · subst queuedRequest
           have sourcePositive :
               0 < ((nodeOf state) source).commitIndex := by
-            simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest] using positive
+            simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+              using positive
           have sourceStored :
               nodeEvidence source = some evidence := by
             simpa [newRequestEvidence, Function.update] using stored
@@ -844,7 +846,8 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             · subst knownRequest
               have sourcePositive :
                   0 < ((nodeOf state) source).commitIndex := by
-                simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest] using positive
+                simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+                  using positive
               have sourceStored :
                   nodeEvidence source = some evidence := by
                 simpa [newRequestEvidence, Function.update] using stored
@@ -894,7 +897,8 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             oldKnown enabled.2.2.1
             (by simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest] using Nat.le_of_eq sameTerm)
             ackMember
-        simpa [newAppendHistory, Function.update, request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+        simpa [newAppendHistory, Function.update, request, appendRequestKey,
+          Model.Local.makeAppendEntriesRequest]
           using leaderCovered
       · left
         have oldMember :
@@ -1803,7 +1807,8 @@ lemma appendEntriesPreservesSystemInductiveInvariant
               newAppendHistory, Function.update,
               request, appendRequestKey, Model.Local.makeAppendEntriesRequest
             ] using signature
-        simpa [newAppendHistory, Function.update, request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+        simpa [newAppendHistory, Function.update, request, appendRequestKey,
+          Model.Local.makeAppendEntriesRequest]
           using sourceCoverage
       · have oldQueued :
             (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
@@ -1863,7 +1868,8 @@ lemma appendEntriesPreservesSystemInductiveInvariant
         · subst queuedRequest
           have sourcePositive :
               0 < ((nodeOf state) source).commitIndex := by
-            simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest] using positive
+            simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+              using positive
           have sourceStored :
               nodeEvidence source = some evidence := by
             simpa [newRequestEvidence, Function.update] using stored

@@ -30,7 +30,8 @@ lemma updateTermPreservesSystemInductiveInvariant
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (selectedMember : selected ∈ state.network ∧ selected.target = destination)
     (newer : ((nodeOf state) destination).currentTerm < selected.payload.term)
-    : SystemInductiveInvariant (joined := joinedNodes) (observeTermEffect state destination selected.payload.term) := by
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (observeTermEffect state destination selected.payload.term) := by
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
@@ -337,7 +338,10 @@ lemma updateTermPreservesSystemInductiveInvariant
             rw [effectiveAckersEq leader leaderNe index] at effective
             exact effective)
       ⟩
-    · refine ⟨by simpa [concrete_effects, updateTerm, newer, present] using joined, Or.inr ?_⟩
+    · refine ⟨
+        by simpa [concrete_effects, updateTerm, newer, present] using joined,
+        Or.inr ?_
+      ⟩
       rcases reserve with
         ⟨request, queued, requestSource, requestDestination,
           requestTerm, producible, covered⟩
@@ -1363,7 +1367,8 @@ lemma updateTermPreservesSystemInductiveInvariant
               allConfigurations_index_unique
                 (TxId := TxId) ((nodeOf state) candidate).log
             · simpa [candidateConfiguration]
-                using currentConfiguration_mem_allConfigurations ((nodeOf state) candidate)
+                using currentConfiguration_mem_allConfigurations
+                  ((nodeOf state) candidate)
             · simp [allConfigurations, implicitConfiguration]
             · simpa [implicitConfiguration] using candidateZero
           exact evidenceImplicit.trans candidateImplicit.symm

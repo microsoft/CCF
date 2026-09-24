@@ -25,28 +25,22 @@ abbrev appendRequestEnvelope (key : AppendRequestKey Node TxId)
     : Model.Envelope Node TxId :=
   ⟨key.1, key.2.1, .appendEntriesRequest key.2.2⟩
 
-abbrev appendResponseEnvelope (key : AppendResponseKey Node)
-    : Model.Envelope Node TxId :=
+abbrev appendResponseEnvelope (key : AppendResponseKey Node) : Model.Envelope Node TxId :=
   ⟨key.1, key.2.1, .appendEntriesResponse key.2.2⟩
 
-abbrev voteRequestEnvelope (key : VoteRequestKey Node)
-    : Model.Envelope Node TxId :=
+abbrev voteRequestEnvelope (key : VoteRequestKey Node) : Model.Envelope Node TxId :=
   ⟨key.1, key.2.1, .requestVoteRequest key.2.2⟩
 
-abbrev voteResponseEnvelope (key : VoteResponseKey Node)
-    : Model.Envelope Node TxId :=
+abbrev voteResponseEnvelope (key : VoteResponseKey Node) : Model.Envelope Node TxId :=
   ⟨key.1, key.2.1, .requestVoteResponse key.2.2⟩
 
-abbrev preVoteRequestEnvelope (key : VoteRequestKey Node)
-    : Model.Envelope Node TxId :=
+abbrev preVoteRequestEnvelope (key : VoteRequestKey Node) : Model.Envelope Node TxId :=
   ⟨key.1, key.2.1, .requestPreVote key.2.2⟩
 
-abbrev preVoteResponseEnvelope (key : VoteResponseKey Node)
-    : Model.Envelope Node TxId :=
+abbrev preVoteResponseEnvelope (key : VoteResponseKey Node) : Model.Envelope Node TxId :=
   ⟨key.1, key.2.1, .requestPreVoteResponse key.2.2⟩
 
-abbrev proposeVoteEnvelope (key : Node × Node × Nat)
-    : Model.Envelope Node TxId :=
+abbrev proposeVoteEnvelope (key : Node × Node × Nat) : Model.Envelope Node TxId :=
   ⟨key.1, key.2.1, .proposeVoteRequest key.2.2⟩
 
 @[simp]
@@ -58,7 +52,8 @@ theorem appendRequestEnvelope.injEq {left right : AppendRequestKey Node TxId}
 
 @[simp]
 theorem appendResponseEnvelope.injEq {left right : AppendResponseKey Node}
-    : (appendResponseEnvelope left : Model.Envelope Node TxId) = appendResponseEnvelope right
+    : (appendResponseEnvelope left : Model.Envelope Node TxId)
+        = appendResponseEnvelope right
       ↔ left = right := by
   rcases left with ⟨_, _, _⟩
   rcases right with ⟨_, _, _⟩
@@ -92,7 +87,8 @@ def voteRequestKey (state : Model.State Node TxId) (source target : Node)
   ⟨source, target, makeRequestVoteRequest (nodeOf state source)⟩
 
 def appendRequestKey (state : Model.State Node TxId) (source target : Node)
-    (batchEnd : Nat) : AppendRequestKey Node TxId :=
+    (batchEnd : Nat)
+    : AppendRequestKey Node TxId :=
   ⟨source, target, makeAppendEntriesRequest (nodeOf state source) target batchEnd⟩
 
 end CCFRaft.Proofs.Invariant

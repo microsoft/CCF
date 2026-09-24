@@ -27,17 +27,17 @@ lemma effectiveAckersAfterVoteResponse
     (_destination : Node)
     (response : VoteResponseKey Node)
     (remaining : List (Model.Envelope Node TxId))
-    (taken
-      : Selected response.1 state.network
-          (voteResponseEnvelope response) remaining)
+    (taken : Selected response.1 state.network (voteResponseEnvelope response) remaining)
     (networkEq : after.network = remaining)
     (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (matchEq
       : forall leader peer,
-          ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
+          ((nodeOf after) leader).matchIndex peer
+          = ((nodeOf state) leader).matchIndex peer)
     : forall (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
               leader index,
         effectiveAckers (joined := joinedNext) after responseHistory leader index
@@ -66,16 +66,16 @@ lemma effectiveElectionVotersAfterVoteResponseSubset
     (destination : Node)
     (response : VoteResponseKey Node)
     (remaining : List (Model.Envelope Node TxId))
-    (taken
-      : Selected response.1 state.network
-          (voteResponseEnvelope response) remaining)
+    (taken : Selected response.1 state.network (voteResponseEnvelope response) remaining)
     (responseDestination : response.2.1 = destination)
     (networkEq : after.network = remaining)
     (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (votesDestination
-      : ((nodeOf after) destination).votesGranted = ((nodeOf state) destination).votesGranted
+      : ((nodeOf after) destination).votesGranted
+          = ((nodeOf state) destination).votesGranted
         \/ (response.2.2.voteGranted = true
             /\ response.2.2.term = ((nodeOf state) destination).currentTerm
             /\ ((nodeOf after) destination).votesGranted
@@ -83,7 +83,8 @@ lemma effectiveElectionVotersAfterVoteResponseSubset
     (votesOther
       : forall candidate,
           Not (candidate = destination)
-          -> ((nodeOf after) candidate).votesGranted = ((nodeOf state) candidate).votesGranted)
+          -> ((nodeOf after) candidate).votesGranted
+              = ((nodeOf state) candidate).votesGranted)
     : forall candidate,
         effectiveElectionVoters (joined := joinedNext) after candidate
         ⊆ effectiveElectionVoters (joined := joinedNodes) state candidate := by
@@ -136,14 +137,17 @@ lemma effectiveElectionVotersAfterVoteResponseHandler
     (state after : Model.State Node TxId)
     (destination : Node)
     (response : VoteResponseKey Node)
-    (selectedMember : (voteResponseEnvelope response ∈ state.network /\ response.2.1 = destination))
+    (selectedMember
+      : (voteResponseEnvelope response ∈ state.network /\ response.2.1 = destination))
     (responseDestination : response.2.1 = destination)
     (networkEq : after.network = state.network)
     (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (votesDestination
-      : ((nodeOf after) destination).votesGranted = ((nodeOf state) destination).votesGranted
+      : ((nodeOf after) destination).votesGranted
+          = ((nodeOf state) destination).votesGranted
         \/ (response.2.2.voteGranted = true
             /\ response.2.2.term = ((nodeOf state) destination).currentTerm
             /\ ((nodeOf after) destination).votesGranted
@@ -151,7 +155,8 @@ lemma effectiveElectionVotersAfterVoteResponseHandler
     (votesOther
       : forall candidate,
           Not (candidate = destination)
-          -> ((nodeOf after) candidate).votesGranted = ((nodeOf state) candidate).votesGranted)
+          -> ((nodeOf after) candidate).votesGranted
+              = ((nodeOf state) candidate).votesGranted)
     : forall candidate,
         effectiveElectionVoters (joined := joinedNext) after candidate
         = effectiveElectionVoters (joined := joinedNodes) state candidate := by
@@ -238,12 +243,11 @@ lemma receiveRequestVoteResponsePreservesSystemInductiveInvariant
     (nextNode : NodeState Node TxId)
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (_destinationAllocated : destination ∈ joinedNodes)
-    (taken
-      : Selected source state.network (voteResponseEnvelope response)
-          remaining)
+    (taken : Selected source state.network (voteResponseEnvelope response) remaining)
     (responseDestination : response.2.1 = destination)
     (handled
-      : handleRequestVoteResponse ((nodeOf state) destination) response.1 response.2.2 = nextNode)
+      : handleRequestVoteResponse ((nodeOf state) destination) response.1 response.2.2
+        = nextNode)
     : SystemInductiveInvariant (joined := joinedNodes)
         {
           state with
@@ -773,7 +777,8 @@ lemma receiveRequestVoteResponsePreservesSystemInductiveInvariant
         (Or.inl (by rfl))
         (fun candidate _ => by rw [nodeStateEq candidate])
   change SystemInductiveInvariant (joined := joinedNodes) after
-  apply networkFramePreservesSystemInductiveInvariant intermediate after intermediateInvariant (by simp [after, present, intermediate, present]) nodeStateEq
+  apply networkFramePreservesSystemInductiveInvariant intermediate after
+    intermediateInvariant (by simp [after, present, intermediate, present]) nodeStateEq
     (fun destination message member =>
       Or.inl (networkSubsetAfter destination message member))
   · intro _ _ actualResponseHistory _ _ _ _ leader index

@@ -32,7 +32,8 @@ lemma requestVotePreservesSystemInductiveInvariant
           /\ ((nodeOf state) source).role = .candidate
           /\ Not (source = destination)
           /\ destination ∈ activeNodeUnion ((nodeOf state) source)))
-    : SystemInductiveInvariant (joined := joinedNodes) (requestVoteEffect state source destination) := by
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (requestVoteEffect state source destination) := by
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
@@ -155,7 +156,10 @@ lemma requestVotePreservesSystemInductiveInvariant
           Or.inr
             (Or.inl (by simpa [concrete_effects, concrete_effects] using matched))
         ⟩
-      · refine ⟨by simpa [concrete_effects, concrete_effects] using joined, Or.inr (Or.inr ?_)⟩
+      · refine ⟨
+          by simpa [concrete_effects, concrete_effects] using joined,
+          Or.inr (Or.inr ?_)
+        ⟩
         rcases queued with
           ⟨response, member, success, term, sourceEq,
             destinationEq, lastIndex, covered⟩

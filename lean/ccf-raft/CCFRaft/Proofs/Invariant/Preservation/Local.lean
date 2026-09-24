@@ -33,7 +33,8 @@ lemma changeConfigurationPreservesSystemInductiveInvariant
           /\ ((nodeOf state) source).role = .leader
           /\ Not (((nodeOf state) source).membershipState = .retiredCommitted)
           /\ newConfiguration.Nonempty
-          /\ Not (newConfiguration = ((latestConfiguration ((nodeOf state) source)).nodes))
+          /\ Not
+              (newConfiguration = ((latestConfiguration ((nodeOf state) source)).nodes))
           /\ Not
               ((refreshRetirementState source
                   ({
@@ -46,7 +47,9 @@ lemma changeConfigurationPreservesSystemInductiveInvariant
                             })]
                   })).membershipState
                 = .retiredCommitted)))
-    : SystemInductiveInvariant (joined := leaderAppendJoined joinedNodes state source (.reconfiguration newConfiguration))
+    : SystemInductiveInvariant
+        (joined :=
+          leaderAppendJoined joinedNodes state source (.reconfiguration newConfiguration))
         (changeConfigurationEffect state source newConfiguration) := by
   simpa [leaderAppendState, present, concrete_effects, present]
     using leaderAppendPreservesSystemInductiveInvariant (present := present)
@@ -351,10 +354,9 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
         ⟨bootstrap.1, by simpa [termEq] using bootstrap.2⟩
     · exact Or.inr (by simpa [logEq, votesEq] using majority)
   change SystemInductiveInvariant (joined := joinedNodes) after
-  apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed (by simp [after, present])
-    joinedCarriersAfter participatingBack candidateBack
-    leaderBack ownerRoleForward passiveRoleForward
-    termEq logEq commitEq
+  apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed
+    (by simp [after, present]) joinedCarriersAfter participatingBack candidateBack
+    leaderBack ownerRoleForward passiveRoleForward termEq logEq commitEq
     candidatesSelfVoteAfter leadersHaveElectionWitnessAfter
   · intro _ _ _ _ _ _ actualFacts
     constructor
@@ -487,7 +489,8 @@ lemma checkQuorumPreservesSystemInductiveInvariant
       : (node ∈ joinedNodes
           /\ ((nodeOf state) node).role = .leader
           /\ hasOtherActiveReplica (nodeOf state node) node))
-    : SystemInductiveInvariant (joined := joinedNodes) (checkQuorumEffect state node) := by
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (checkQuorumEffect state node) := by
   simpa [concrete_effects, present]
     using leaderStepDownPreservesSystemInductiveInvariant (present := present)
       state node invariant enabled.1 enabled.2.1
@@ -502,7 +505,8 @@ lemma advanceCommitTransitionPreservesSystemInductiveInvariant
     (enabled
       : node ∈ joinedNodes
         /\ ((nodeOf state) node).role = .leader
-        /\ ((nodeOf state) node).commitIndex < highestCommittableIndex (nodeOf state node) node)
+        /\ ((nodeOf state) node).commitIndex
+            < highestCommittableIndex (nodeOf state node) node)
     : SystemInductiveInvariant (joined := joinedNodes)
         (demoteRetiredCommitted (advanceCommitState state node) node) := by
   have committed :=
@@ -518,13 +522,15 @@ lemma advanceCommitTransitionPreservesSystemInductiveInvariant
       simp [advanceCommitState, Model.Local.advanceCommit, present, enabled.2.1]
     simpa [demoteRetiredCommitted, Model.Local.demoteRetiredCommitted, terminal]
       using leaderDemotionPreservesSystemInductiveInvariant
-        (advanceCommitState state node) node (present := by simpa [advanceCommitState, replaceNode_keys] using present) .none (Or.inr rfl)
-        ((nodeOf (advanceCommitState state node)) node).isNewFollower
+        (advanceCommitState state node) node
+        (present := by simpa [advanceCommitState, replaceNode_keys] using present) .none
+        (Or.inr rfl) ((nodeOf (advanceCommitState state node)) node).isNewFollower
         committed nodeAllocated leader
   · have keys : ((advanceCommitState state node).nodes.map Prod.fst).Nodup := by
       simpa [advanceCommitState, replaceNode_keys] using distinct
     simpa [demoteRetiredCommitted, Model.Local.demoteRetiredCommitted, terminal,
-      replaceNode_nodeOf _ _ keys] using committed
+      replaceNode_nodeOf _ _ keys]
+      using committed
 
 /-- A nonterminal commit uses the ordinary commit action. -/
 lemma advanceCommitPreservesSystemInductiveInvariant
@@ -536,9 +542,11 @@ lemma advanceCommitPreservesSystemInductiveInvariant
     (enabled
       : (node ∈ joinedNodes
           /\ ((nodeOf state) node).role = .leader
-          /\ ((nodeOf state) node).commitIndex < highestCommittableIndex (nodeOf state node) node
+          /\ ((nodeOf state) node).commitIndex
+              < highestCommittableIndex (nodeOf state node) node
           /\ Not (terminalRetirementCommit (nodeOf state node) node)))
-    : SystemInductiveInvariant (joined := joinedNodes) (advanceCommitIndexEffect state node) := by
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (advanceCommitIndexEffect state node) := by
   simpa [concrete_effects, present]
     using advanceCommitTransitionPreservesSystemInductiveInvariant (present := present)
       state node distinct invariant
@@ -555,7 +563,8 @@ lemma advanceCommitAndProposeVotePreservesSystemInductiveInvariant
       : (source ∈ joinedNodes
           /\ destination ∈ joinedNodes
           /\ ((nodeOf state) source).role = .leader
-          /\ ((nodeOf state) source).commitIndex < highestCommittableIndex (nodeOf state source) source
+          /\ ((nodeOf state) source).commitIndex
+              < highestCommittableIndex (nodeOf state source) source
           /\ terminalRetirementCommit (nodeOf state source) source
           /\ plausibleSuccessor (nodeOf state source) source destination))
     : SystemInductiveInvariant (joined := joinedNodes)
@@ -589,7 +598,8 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
               \/ node ∈ ((nodeOf state) node).retirementCompleted)
           /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
           /\ INITIAL_PRE_VOTE_STATUS node = .enabled))
-    : SystemInductiveInvariant (joined := joinedNodes) (becomePreVoteCandidateEffect state node) := by
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (becomePreVoteCandidateEffect state node) := by
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
@@ -841,7 +851,8 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
         ⟨bootstrap.1, by simpa [termEq] using bootstrap.2⟩
     · exact Or.inr (by simpa [logEq, votesEq] using majority)
   change SystemInductiveInvariant (joined := joinedNodes) after
-  apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed (by simp [after, present, concrete_effects, present])
+  apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed
+    (by simp [after, present, concrete_effects, present])
     joinedCarriersAfter participatingBack candidateBack leaderBack
     (fun owner role => by
       by_cases same : owner = node
@@ -957,7 +968,8 @@ lemma initializeConfigurationPreservesSystemInductiveInvariant
           /\ ((nodeOf state) node).log = []
           /\ ((nodeOf state) node).commitIndex = 0
           /\ ((nodeOf state) node).membershipState = .active))
-    : SystemInductiveInvariant (joined := joinedNodes) (initializeConfigurationEffect state node) := by
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (initializeConfigurationEffect state node) := by
   rcases enabled with ⟨_, allocated, leader, _, emptyLog, _, _⟩
   have latest :
       latestConfiguration ((nodeOf state) node) = implicitConfiguration := by
@@ -965,7 +977,8 @@ lemma initializeConfigurationPreservesSystemInductiveInvariant
   let appended := leaderAppendState state node
     (.reconfiguration INITIAL_CONFIGURATION)
   have appendedInvariant : SystemInductiveInvariant (joined := joinedNodes) appended := by
-    simpa only [leaderAppendJoined, latest, implicitConfiguration, Finset.sdiff_self, Finset.union_empty]
+    simpa only [leaderAppendJoined, latest, implicitConfiguration, Finset.sdiff_self,
+      Finset.union_empty]
       using leaderAppendPreservesSystemInductiveInvariant state node (present := present)
         (.reconfiguration INITIAL_CONFIGURATION) invariant allocated leader
   apply retirementMetadataFramePreservesSystemInductiveInvariant

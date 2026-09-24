@@ -153,14 +153,17 @@ lemma effectiveAckerCurrentTermBound
     {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {elections : ElectionHistory Node TxId}
     (entriesBounded : EntriesDoNotExceedCurrentTerm state)
-    (currentHistory : AckerCurrentHistory (joined := joined) state responseHistory elections)
+    (currentHistory
+      : AckerCurrentHistory (joined := joined) state responseHistory elections)
     {leader supporter : Node}
     {frontier : Nat}
     (leaderRole : ((nodeOf state) leader).role = .leader)
     (frontierTerm
       : termAt ((nodeOf state) leader).log frontier = ((nodeOf state) leader).currentTerm)
     (frontierSignature : isSignatureAt ((nodeOf state) leader).log frontier = true)
-    (member : supporter ∈ effectiveAckers (joined := joined) state responseHistory leader frontier)
+    (member
+      : supporter
+        ∈ effectiveAckers (joined := joined) state responseHistory leader frontier)
     : ((nodeOf state) leader).currentTerm <= ((nodeOf state) supporter).currentTerm := by
   rcases
       currentHistory leader frontier leaderRole frontierTerm
@@ -267,7 +270,8 @@ lemma majorityAtConfiguration
     {configuration : Configuration Node}
     (active : configuration ∈ activeConfigurations ((nodeOf state) leader))
     (governs : configuration.index <= index)
-    : hasConfigurationMajority (acknowledgingNodes (nodeOf state leader) leader index) configuration := by
+    : hasConfigurationMajority (acknowledgingNodes (nodeOf state leader) leader index)
+        configuration := by
   rw [hasMajorityAt, List.all_eq_true] at majority
   exact (of_decide_eq_true (majority configuration active)) governs
 
@@ -277,7 +281,8 @@ lemma effectiveMajorityAtConfiguration
     {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {leader : Node}
     {index : Nat}
-    (majority : hasEffectiveMajorityAt (joined := joined) state responseHistory leader index)
+    (majority
+      : hasEffectiveMajorityAt (joined := joined) state responseHistory leader index)
     {configuration : Configuration Node}
     (active : configuration ∈ activeConfigurations ((nodeOf state) leader))
     (governs : configuration.index <= index)
@@ -294,12 +299,15 @@ lemma potentialMajorityAtConfiguration
     {responseHistory : AppendResponseKey Node -> List (Entry Node TxId)}
     {leader : Node}
     {index : Nat}
-    (majority : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory leader index)
+    (majority
+      : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
+          leader index)
     {configuration : Configuration Node}
     (active : configuration ∈ activeConfigurations ((nodeOf state) leader))
     (governs : configuration.index <= index)
     : hasConfigurationMajority
-        (potentialAckers (joined := joined) state appendHistory responseHistory leader index)
+        (potentialAckers (joined := joined) state appendHistory responseHistory leader
+          index)
         configuration := by
   rw [hasPotentialMajorityAt, List.all_eq_true] at majority
   exact (of_decide_eq_true (majority configuration active)) governs
@@ -388,7 +396,8 @@ lemma potentialElectionMajorityImpliesFuture
         ⊆ futureElectionVoters (joined := joined) state candidate targetTerm)
     (active : ballotActive = activeConfigurations ((nodeOf after) candidate))
     (majority : hasPotentialElectionMajority (joined := joined) after candidate)
-    : hasFutureElectionMajority (joined := joined) state candidate targetTerm ballotActive := by
+    : hasFutureElectionMajority (joined := joined) state candidate targetTerm
+        ballotActive := by
   rw [hasPotentialElectionMajority, List.all_eq_true] at majority
   rw [hasFutureElectionMajority, List.all_eq_true]
   intro configuration ballotMember
@@ -407,7 +416,9 @@ lemma futureElectionMajorityAtConfiguration
     {candidate : Node}
     {targetTerm : Nat}
     {ballotActive : List (Configuration Node)}
-    (majority : hasFutureElectionMajority (joined := joined) state candidate targetTerm ballotActive)
+    (majority
+      : hasFutureElectionMajority (joined := joined) state candidate targetTerm
+          ballotActive)
     {configuration : Configuration Node}
     (active : configuration ∈ ballotActive)
     : hasConfigurationMajority
@@ -582,7 +593,8 @@ lemma knownCommitEvidenceQueuedAppendContainsFrontier
           evidence supportedPrefix)
     {destination : Node}
     {request : AppendRequestKey Node TxId}
-    (queued : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
+    (queued
+      : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (newer : evidence.commitTerm < request.2.2.term)
     : evidence.history.take evidence.commitFrontier <+: appendHistory request := by
   rcases ownership.queuedAppendMetadata destination request queued with
@@ -794,11 +806,16 @@ lemma handledAppendRequestAdvancedCommittedHistory
     (request : AppendRequestKey Node TxId)
     (nextNode : NodeState Node TxId)
     (response : AppendEntriesResponse)
-    (requestMember : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
+    (requestMember
+      : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
     (oldCommitBound
-      : ((nodeOf state) destination).commitIndex <= ((nodeOf state) destination).log.length)
-    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
+      : ((nodeOf state) destination).commitIndex
+        <= ((nodeOf state) destination).log.length)
+    (notStepped
+      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
+            ∧ ((((nodeOf state) destination)).role = .candidate
+                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
@@ -997,7 +1014,8 @@ lemma appendRequestAlreadyDoneOfSharedPrefix
     (snapshot : RequestSnapshots history request)
     (beforePrefix : sharedPrefix <+: before.log)
     (historyPrefix : sharedPrefix <+: history)
-    (covers : request.2.2.prevLogIndex + request.2.2.entries.length <= sharedPrefix.length)
+    (covers
+      : request.2.2.prevLogIndex + request.2.2.entries.length <= sharedPrefix.length)
     : alreadyDone before request.2.2 := by
   right
   constructor
@@ -1041,8 +1059,12 @@ lemma successfulAppendRequestSharedPrefixLength
     (snapshot : RequestSnapshots history request)
     (beforePrefix : sharedPrefix <+: before.log)
     (historyPrefix : sharedPrefix <+: history)
-    (notStepped : ¬ (request.2.2.term = (before).currentTerm ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
-    (handled : handleAppendEntriesRequest? request.2.1 before request.2.2 = some (nextNode, response))
+    (notStepped
+      : ¬ (request.2.2.term = (before).currentTerm
+            ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
+    (handled
+      : handleAppendEntriesRequest? request.2.1 before request.2.2
+        = some (nextNode, response))
     (success : response.success = true)
     : sharedPrefix.length <= nextNode.log.length := by
   simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
@@ -1167,9 +1189,13 @@ lemma handledAppendRequestRetainsSharedPrefix
     (request : AppendRequestKey Node TxId)
     (nextNode : NodeState Node TxId)
     (response : AppendEntriesResponse)
-    (requestMember : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
+    (requestMember
+      : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
-    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
+    (notStepped
+      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
+            ∧ ((((nodeOf state) destination)).role = .candidate
+                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
@@ -1247,7 +1273,8 @@ lemma handledAppendRequestRetainsSharedPrefix
             = ((nodeOf state) destination).log.take request.2.2.prevLogIndex
               ++ request.2.2.entries :=
           extended
-        _ = (appendHistory request).take request.2.2.prevLogIndex ++ request.2.2.entries := by
+        _ = (appendHistory request).take request.2.2.prevLogIndex
+            ++ request.2.2.entries := by
           rw [previousAgreement]
         _ = (appendHistory request).take
               (request.2.2.prevLogIndex + request.2.2.entries.length) :=
@@ -1263,8 +1290,12 @@ lemma handleAppendEntriesRequestActiveUnchanged
     {before nextNode : NodeState Node TxId}
     {request : AppendRequestKey Node TxId}
     {response : AppendEntriesResponse}
-    (notStepped : ¬ (request.2.2.term = before.currentTerm ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
-    (handled : handleAppendEntriesRequest? request.2.1 before request.2.2 = some (nextNode, response))
+    (notStepped
+      : ¬ (request.2.2.term = before.currentTerm
+            ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
+    (handled
+      : handleAppendEntriesRequest? request.2.1 before request.2.2
+        = some (nextNode, response))
     (active : before.role = .candidate \/ before.role = .leader)
     : nextNode = before := by
   rcases active with candidate | leader
@@ -1285,8 +1316,12 @@ lemma successfulAppendResponseIndexWithinLog
     {before nextNode : NodeState Node TxId}
     {request : AppendRequestKey Node TxId}
     {response : AppendEntriesResponse}
-    (notStepped : ¬ (request.2.2.term = (before).currentTerm ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
-    (handled : handleAppendEntriesRequest? request.2.1 before request.2.2 = some (nextNode, response))
+    (notStepped
+      : ¬ (request.2.2.term = (before).currentTerm
+            ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
+    (handled
+      : handleAppendEntriesRequest? request.2.1 before request.2.2
+        = some (nextNode, response))
     (success : response.success = true)
     : response.lastLogIndex <= nextNode.log.length := by
   simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
@@ -1403,8 +1438,12 @@ lemma successfulAlreadyDoneAppendLogUnchanged
     {request : AppendRequestKey Node TxId}
     {response : AppendEntriesResponse}
     (already : alreadyDone before request.2.2)
-    (notStepped : ¬ (request.2.2.term = (before).currentTerm ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
-    (handled : handleAppendEntriesRequest? request.2.1 before request.2.2 = some (nextNode, response))
+    (notStepped
+      : ¬ (request.2.2.term = (before).currentTerm
+            ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
+    (handled
+      : handleAppendEntriesRequest? request.2.1 before request.2.2
+        = some (nextNode, response))
     (success : response.success = true)
     : nextNode.log = before.log := by
   simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
@@ -1449,9 +1488,13 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
     (request : AppendRequestKey Node TxId)
     (nextNode : NodeState Node TxId)
     (response : AppendEntriesResponse)
-    (requestMember : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
+    (requestMember
+      : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
-    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
+    (notStepped
+      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
+            ∧ ((((nodeOf state) destination)).role = .candidate
+                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
@@ -1657,9 +1700,13 @@ lemma handledAppendRequestCanonicalAgreement
     (request : AppendRequestKey Node TxId)
     (nextNode : NodeState Node TxId)
     (response : AppendEntriesResponse)
-    (requestMember : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
+    (requestMember
+      : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
-    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
+    (notStepped
+      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
+            ∧ ((((nodeOf state) destination)).role = .candidate
+                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
@@ -1751,7 +1798,8 @@ lemma handledAppendRequestCanonicalAgreement
               = ((nodeOf state) destination).log.take request.2.2.prevLogIndex
                 ++ request.2.2.entries :=
             extended
-          _ = (appendHistory request).take request.2.2.prevLogIndex ++ request.2.2.entries := by
+          _ = (appendHistory request).take request.2.2.prevLogIndex
+              ++ request.2.2.entries := by
             rw [previousAgreement]
           _ = (appendHistory request).take
                 (request.2.2.prevLogIndex + request.2.2.entries.length) :=
@@ -2257,7 +2305,7 @@ lemma appendRequestMemberBeforeReply
         (appendRequestEnvelope queuedRequest ∈ reply remaining response
           ∧ queuedRequest.2.1 = queuedDestination)
         -> (appendRequestEnvelope queuedRequest ∈ state.network
-          ∧ queuedRequest.2.1 = queuedDestination) := by
+            ∧ queuedRequest.2.1 = queuedDestination) := by
   intro queuedDestination queuedRequest member
   rcases List.mem_append.mp member.1 with old | added
   · exact ⟨(selectedSound taken).2.2 _ old, member.2⟩
@@ -2288,10 +2336,11 @@ lemma receiveAppendRequestCommitEvidenceFacts
     (commitBounded : CommitIndicesBounded state)
     (committedSignature : CommittedFrontierIsSignature state)
     (addressed : request.2.1 = destination)
-    (taken
-      : Selected source state.network (appendRequestEnvelope request)
-          remaining)
-    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
+    (taken : Selected source state.network (appendRequestEnvelope request) remaining)
+    (notStepped
+      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
+            ∧ ((((nodeOf state) destination)).role = .candidate
+                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
@@ -2342,10 +2391,11 @@ lemma receiveAppendRequestKnownEvidenceInherited
     (evidenceFacts : CommitEvidenceFacts state appendHistory nodeEvidence requestEvidence)
     (_commitBounded : CommitIndicesBounded state)
     (addressed : request.2.1 = destination)
-    (taken
-      : Selected source state.network (appendRequestEnvelope request)
-          remaining)
-    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
+    (taken : Selected source state.network (appendRequestEnvelope request) remaining)
+    (notStepped
+      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
+            ∧ ((((nodeOf state) destination)).role = .candidate
+                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
@@ -2530,9 +2580,13 @@ lemma handledAppendRequestRetainsEvidenceFrontier
           state appendHistory nodeEvidence requestEvidence
           evidence supportedPrefix)
     (ackMember : destination ∈ evidence.ackQuorum)
-    (requestMember : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
+    (requestMember
+      : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
-    (notStepped : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm ∧ ((((nodeOf state) destination)).role = .candidate ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
+    (notStepped
+      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
+            ∧ ((((nodeOf state) destination)).role = .candidate
+                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))

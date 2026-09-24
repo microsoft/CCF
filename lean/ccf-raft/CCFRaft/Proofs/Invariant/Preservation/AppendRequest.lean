@@ -24,8 +24,9 @@ attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.share
 private lemma accepted_of_success
     {self : Node} {before after : NodeState Node TxId}
     {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
-    (notStepped : ¬ (request.term = before.currentTerm
-      ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
+    (notStepped
+      : ¬ (request.term = before.currentTerm
+            ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
     (handled : handleAppendEntriesRequest? self before request = some (after, response))
     (success : response.success = true)
     : acceptAppendEntriesRequest? self before request = some (after, response) := by
@@ -55,10 +56,11 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
     (response : AppendResponseKey Node)
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (addressed : request.2.1 = destination)
-    (taken
-      : Selected source state.network (appendRequestEnvelope request)
-          remaining)
-    (notStepped : ¬ (request.2.2.term = (nodeOf state destination).currentTerm ∧ ((nodeOf state destination).role = .candidate ∨ (nodeOf state destination).role = .preVoteCandidate)))
+    (taken : Selected source state.network (appendRequestEnvelope request) remaining)
+    (notStepped
+      : ¬ (request.2.2.term = (nodeOf state destination).currentTerm
+            ∧ ((nodeOf state destination).role = .candidate
+                ∨ (nodeOf state destination).role = .preVoteCandidate)))
     (responseSource : response.1 = request.2.1)
     (responseDestination : response.2.1 = request.1)
     (handled
@@ -180,9 +182,10 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
           (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence facts destination)
           (by simpa [after, present, nodeOf_replaceNode] using positive)
     · simpa [after, present, nodeOf_replaceNode, Function.update, same]
-        using invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
-          facts node
-          (by simpa [after, present, nodeOf_replaceNode, Function.update, same] using positive)
+        using invariantFactsCommittedFrontierIsSignatureFromCommitEvidence facts node
+          (by
+            simpa [after, present, nodeOf_replaceNode, Function.update, same]
+              using positive)
   have committedMonotone :
       forall node,
         ((nodeOf state) node).committedLog <+:
@@ -287,13 +290,16 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
       · subst node
         simpa [after, present, nodeOf_replaceNode]
           using (handledAppendRequestCanonicalAgreement state votes appendHistory
-                  canonicalHistory owners ownership destination request nextNode response.2.2
-                  requestMember
+                  canonicalHistory owners ownership destination request nextNode
+                  response.2.2 requestMember
                   (facts.networkHistory.appendRequest destination request requestMember).1
-                  notStepped handled index entry (by simpa [after, present, nodeOf_replaceNode] using found))
+                  notStepped handled index entry
+                  (by simpa [after, present, nodeOf_replaceNode] using found))
       · simpa [after, present, nodeOf_replaceNode, Function.update, same]
           using (ownership.logEntryAgreement node index entry
-                  (by simpa [after, present, nodeOf_replaceNode, Function.update, same] using found))
+                  (by
+                    simpa [after, present, nodeOf_replaceNode, Function.update, same]
+                      using found))
     · intro queuedDestination queuedRequest member index entry found
       exact ownership.queuedHistoryEntryAgreement
         queuedDestination queuedRequest
@@ -377,13 +383,14 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
   have evidenceAfter :
       CommitEvidenceFacts
         after appendHistory newNodeEvidence requestEvidence := by
-    simpa only [responseKey, after, newNodeEvidence] using
-      receiveAppendRequestCommitEvidenceFacts state source destination present request nextNode response.2.2 remaining
-        votes appendHistory canonicalHistory owners ownership nodeEvidence requestEvidence evidenceFacts
+    simpa only [responseKey, after, newNodeEvidence]
+      using receiveAppendRequestCommitEvidenceFacts state source destination present
+        request nextNode response.2.2 remaining votes appendHistory canonicalHistory
+        owners ownership nodeEvidence requestEvidence evidenceFacts
         (facts.networkHistory.appendRequest destination request requestMember).1
         facts.commitIndicesBounded
-        (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence facts)
-        addressed taken notStepped handled
+        (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence facts) addressed
+        taken notStepped handled
   have knownInherited :
       forall evidence supportedPrefix,
         KnownCommitEvidence
@@ -630,7 +637,9 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
             (by simpa [after, present, nodeOf_replaceNode, unchanged] using member)
     · simpa [after, present, nodeOf_replaceNode, Function.update, same, termEq]
         using facts.entriesDoNotExceedCurrentTerm node entry
-          (by simpa [after, present, nodeOf_replaceNode, Function.update, same] using member)
+          (by
+            simpa [after, present, nodeOf_replaceNode, Function.update, same]
+              using member)
   have processedAckAfter :
       ProcessedAckHistoryFacts after ackHistory := by
     constructor
@@ -2004,7 +2013,8 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                 allConfigurations_index_unique
                   (TxId := TxId) ((nodeOf after) candidate).log
               · simpa [candidateConfiguration]
-                  using currentConfiguration_mem_allConfigurations ((nodeOf after) candidate)
+                  using currentConfiguration_mem_allConfigurations
+                    ((nodeOf after) candidate)
               · simp [allConfigurations, implicitConfiguration]
               · simpa [implicitConfiguration] using candidateZero
             exact evidenceImplicit.trans candidateImplicit.symm
@@ -2077,7 +2087,8 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
           (by
             rw [sameConfiguration]
             simpa [candidateConfiguration]
-              using currentConfiguration_mem_activeConfigurations ((nodeOf after) candidate))
+              using currentConfiguration_mem_activeConfigurations
+                ((nodeOf after) candidate))
       · rcases authorityRecordedAfter evidence supportedPrefix known with
           implicit | recordedAuthority
         · rw [implicit] at candidateBeforeAuthority
@@ -2588,10 +2599,11 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
             using facts.joinedCarriers.appendRequestDestinations
               destination request requestMember
         · simpa [after, present]
-            using facts.joinedCarriers.runtimeNodes.nonemptyLogs node (by
-              intro empty
-              apply nonempty
-              simpa [after, present, nodeOf_replaceNode, Function.update, same] using empty)
+            using facts.joinedCarriers.runtimeNodes.nonemptyLogs node
+              (by
+                intro empty
+                apply nonempty
+                simpa [after, present, nodeOf_replaceNode, Function.update, same] using empty)
   · intro node
     change TermNumberValid ((nodeOf after) node).currentTerm
     simpa only [termEq] using facts.currentTermsValid node
@@ -2623,10 +2635,11 @@ lemma receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (_destinationAllocated : destination ∈ joinedNodes)
     (addressed : request.2.1 = destination)
-    (taken
-      : Selected source state.network (appendRequestEnvelope request)
-          remaining)
-    (notStepped : ¬ (request.2.2.term = (nodeOf state destination).currentTerm ∧ ((nodeOf state destination).role = .candidate ∨ (nodeOf state destination).role = .preVoteCandidate)))
+    (taken : Selected source state.network (appendRequestEnvelope request) remaining)
+    (notStepped
+      : ¬ (request.2.2.term = (nodeOf state destination).currentTerm
+            ∧ ((nodeOf state destination).role = .candidate
+                ∨ (nodeOf state destination).role = .preVoteCandidate)))
     (responseSource : response.1 = request.2.1)
     (responseDestination : response.2.1 = request.1)
     (handled
@@ -2654,8 +2667,8 @@ lemma receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
   have beforeInvariant :
       SystemInductiveInvariant (joined := joinedNodes) beforeRefresh := by
     simpa [beforeRefresh, present]
-      using receiveAppendEntriesRequestPreservesSystemInductiveInvariant (present := present)
-        state source destination request remaining nextNode response
+      using receiveAppendEntriesRequestPreservesSystemInductiveInvariant
+        (present := present) state source destination request remaining nextNode response
         invariant addressed taken notStepped responseSource responseDestination handled
   change SystemInductiveInvariant (joined := joinedNodes) after
   apply

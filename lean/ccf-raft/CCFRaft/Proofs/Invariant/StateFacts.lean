@@ -123,15 +123,14 @@ theorem observeTerm_eq_updateTerm (state : NodeState Node TxId)
     · exact Or.inl same
     · exact Or.inr ⟨rfl, newer, by simp, by simp⟩
 
-
-theorem StateInvariant.joinedCarriers {state : Model.State Node TxId} {joined : Finset Node}
-    (invariant : StateInvariant state joined)
+theorem StateInvariant.joinedCarriers {state : Model.State Node TxId}
+    {joined : Finset Node} (invariant : StateInvariant state joined)
     : JoinedCarrierFacts (joined := joined) state := by
   obtain ⟨_, _, _, _, _, _, facts⟩ := invariant.safety
   exact facts.joinedCarriers
 
-theorem StateInvariant.joined_of_role {state : Model.State Node TxId} {joined : Finset Node}
-    (invariant : StateInvariant state joined) {node : Node}
+theorem StateInvariant.joined_of_role {state : Model.State Node TxId}
+    {joined : Finset Node} (invariant : StateInvariant state joined) {node : Node}
     (active : (nodeOf state node).role ≠ .none)
     : node ∈ joined := by
   by_contra absent
@@ -145,8 +144,8 @@ theorem StateInvariant.activeJoined {state : Model.State Node TxId} {joined : Fi
     : member ∈ joined :=
   invariant.joinedCarriers.activeNodes node active
 
-theorem StateInvariant.retiredJoined {state : Model.State Node TxId} {joined : Finset Node}
-    (invariant : StateInvariant state joined) {node member : Node}
+theorem StateInvariant.retiredJoined {state : Model.State Node TxId}
+    {joined : Finset Node} (invariant : StateInvariant state joined) {node member : Node}
     (retired : member ∈ (nodeOf state node).retirementCompleted)
     : member ∈ joined := by
   obtain ⟨configuration, listed, member⟩ := retirementCompletedNodes_configured retired
@@ -157,10 +156,12 @@ theorem StateInvariant.update {state : Model.State Node TxId} {joined : Finset N
     {node : Node} {value : NodeState Node TxId}
     {network : List (Model.Envelope Node TxId)} {joined' : Finset Node}
     (nodeJoined : node ∈ joined) (mono : joined ⊆ joined')
-    (safety : SystemInductiveInvariant (joined := joined')
-      { state with nodes := replaceNode state.nodes node value, network })
-    (endpoints : forall envelope, envelope ∈ network
-      -> envelope.source ∈ joined' /\ envelope.target ∈ joined')
+    (safety
+      : SystemInductiveInvariant (joined := joined')
+          { state with nodes := replaceNode state.nodes node value, network })
+    (endpoints
+      : forall envelope,
+          envelope ∈ network -> envelope.source ∈ joined' /\ envelope.target ∈ joined')
     : StateInvariant
         { state with nodes := replaceNode state.nodes node value, network } joined' where
   safety := safety
@@ -176,12 +177,14 @@ theorem StateInvariant.update {state : Model.State Node TxId} {joined : Finset N
     exact invariant.unjoined member (fun old => absent (mono old))
   endpoints := endpoints
 
-theorem StateInvariant.sentEndpoints {state : Model.State Node TxId} {joined joined' : Finset Node}
-    (invariant : StateInvariant state joined) (mono : joined ⊆ joined')
-    {sends : List (Model.Envelope Node TxId)}
-    (sent : forall envelope, envelope ∈ sends
-      -> envelope.source ∈ joined' /\ envelope.target ∈ joined')
-    : forall envelope, envelope ∈ state.network ++ sends
+theorem StateInvariant.sentEndpoints {state : Model.State Node TxId}
+    {joined joined' : Finset Node} (invariant : StateInvariant state joined)
+    (mono : joined ⊆ joined') {sends : List (Model.Envelope Node TxId)}
+    (sent
+      : forall envelope,
+          envelope ∈ sends -> envelope.source ∈ joined' /\ envelope.target ∈ joined')
+    : forall envelope,
+        envelope ∈ state.network ++ sends
         -> envelope.source ∈ joined' /\ envelope.target ∈ joined' := by
   intro envelope member
   rcases List.mem_append.mp member with old | outgoing
@@ -189,9 +192,11 @@ theorem StateInvariant.sentEndpoints {state : Model.State Node TxId} {joined joi
     exact ⟨mono source, mono target⟩
   · exact sent envelope outgoing
 
-theorem StateInvariant.erasedEndpoints {state : Model.State Node TxId} {joined : Finset Node}
-    (invariant : StateInvariant state joined) (selected : Model.Envelope Node TxId)
-    : forall envelope, envelope ∈ removeOne selected state.network
+theorem StateInvariant.erasedEndpoints {state : Model.State Node TxId}
+    {joined : Finset Node} (invariant : StateInvariant state joined)
+    (selected : Model.Envelope Node TxId)
+    : forall envelope,
+        envelope ∈ removeOne selected state.network
         -> envelope.source ∈ joined /\ envelope.target ∈ joined := by
   intro envelope member
   rw [removeOne_eq_list_erase] at member

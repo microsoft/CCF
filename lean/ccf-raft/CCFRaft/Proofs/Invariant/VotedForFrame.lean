@@ -58,7 +58,8 @@ lemma noConflictAppendEntriesRequest_votedFor
     (votedFor : Option Node)
     (request : AppendEntriesRequest Node TxId)
     : noConflictAppendEntriesRequest? self { node with votedFor := votedFor } request
-      = (noConflictAppendEntriesRequest? self node request).map (withVotedFor votedFor) := by
+      = (noConflictAppendEntriesRequest? self node request).map
+          (withVotedFor votedFor) := by
   by_cases enabled : noConflictExtension node request
   · have changed : noConflictExtension { node with votedFor := votedFor } request :=
       enabled

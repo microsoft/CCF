@@ -30,42 +30,56 @@ def freshNodeState : NodeState Node TxId where
   votedFor := none
   votesGranted := ∅
 
-
 /-- Start a campaign at one entry of the concrete node table. -/
 def becomeCandidateState (state : Model.State Node TxId) (node : Node)
     : Model.State Node TxId :=
-  { state with
-    nodes := replaceNode state.nodes node (becomeCandidateNodeState (nodeOf state node) node) }
+  {
+    state with
+      nodes :=
+        replaceNode state.nodes node (becomeCandidateNodeState (nodeOf state node) node)
+  }
 
 def advanceCommitState (state : Model.State Node TxId) (node : Node)
     : Model.State Node TxId :=
-  { state with
-    nodes := replaceNode state.nodes node (Model.Local.advanceCommit (nodeOf state node) node) }
+  {
+    state with
+      nodes :=
+        replaceNode state.nodes node (Model.Local.advanceCommit (nodeOf state node) node)
+  }
 
-def stepDownState (state : Model.State Node TxId) (node : Node)
-    : Model.State Node TxId :=
-  { state with
-    nodes := replaceNode state.nodes node
-      { nodeOf state node with role := .follower, isNewFollower := true } }
+def stepDownState (state : Model.State Node TxId) (node : Node) : Model.State Node TxId :=
+  {
+    state with
+      nodes :=
+        replaceNode state.nodes node
+          { nodeOf state node with role := .follower, isNewFollower := true }
+  }
 
 def demoteRetiredCommitted (state : Model.State Node TxId) (node : Node)
     : Model.State Node TxId :=
-  { state with
-    nodes := replaceNode state.nodes node (Model.Local.demoteRetiredCommitted (nodeOf state node)) }
+  {
+    state with
+      nodes :=
+        replaceNode state.nodes node
+          (Model.Local.demoteRetiredCommitted (nodeOf state node))
+  }
 
 /-- One occurrence is selected from the concrete network. -/
 def Selected (source : Node) (network : List (Model.Envelope Node TxId))
     (envelope : Model.Envelope Node TxId) (remaining : List (Model.Envelope Node TxId))
     : Prop :=
-  envelope.source = source /\ envelope ∈ network
-    /\ remaining = Shared.MultiNodeTransitionSystem.removeOne envelope network
+  envelope.source = source
+  /\ envelope ∈ network
+  /\ remaining = Shared.MultiNodeTransitionSystem.removeOne envelope network
 
 /-- Append the handler's reply to the remaining concrete network. -/
-def reply (remaining : List (Model.Envelope Node TxId)) (response : AppendResponseKey Node)
+def reply (remaining : List (Model.Envelope Node TxId))
+    (response : AppendResponseKey Node)
     : List (Model.Envelope Node TxId) :=
   remaining ++ [appendResponseEnvelope response]
 
-abbrev enqueue (network : List (Model.Envelope Node TxId)) (envelope : Model.Envelope Node TxId)
+abbrev enqueue (network : List (Model.Envelope Node TxId))
+    (envelope : Model.Envelope Node TxId)
     : List (Model.Envelope Node TxId) :=
   network ++ [envelope]
 

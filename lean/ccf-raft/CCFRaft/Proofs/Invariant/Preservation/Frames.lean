@@ -45,10 +45,10 @@ lemma networkTermsValidEnqueue
   · exact valid destination queued ⟨old, member.2⟩
   · simpa [List.mem_singleton.mp added] using termValid
 
-lemma networkTermsValidDequeue
-    {state : Model.State Node TxId} {source : Node} {message : Model.Envelope Node TxId}
-    {remaining : List (Model.Envelope Node TxId)}
-    (valid : NetworkTermsValid state) (taken : Selected source state.network message remaining)
+lemma networkTermsValidDequeue {state : Model.State Node TxId} {source : Node}
+    {message : Model.Envelope Node TxId} {remaining : List (Model.Envelope Node TxId)}
+    (valid : NetworkTermsValid state)
+    (taken : Selected source state.network message remaining)
     : NetworkTermsValid { state with network := remaining } := by
   intro peer queued member
   exact valid peer queued ⟨(selectedSound taken).2.2 queued member.1, member.2⟩
@@ -76,9 +76,11 @@ lemma committedConfigurationCoverageFrame
     (facts : CommittedConfigurationCoverage state activations)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (commitEq
-      : forall node, ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
+      : forall node,
+          ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
     (termMonotone
-      : forall node, ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
+      : forall node,
+          ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
     : CommittedConfigurationCoverage after activations := by
   intro node frontier within positive signature
   rcases
@@ -213,13 +215,16 @@ lemma committedConfigurationCoverageTakeFrame
     (oldCommitBound : CommitIndicesBounded state)
     (afterCommitBound : CommitIndicesBounded after)
     (commitEq
-      : forall node, ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
+      : forall node,
+          ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
     (termMonotone
-      : forall node, ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
+      : forall node,
+          ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
     (logTakeEq
       : forall node frontier,
           frontier <= ((nodeOf state) node).commitIndex
-          -> ((nodeOf after) node).log.take frontier = ((nodeOf state) node).log.take frontier)
+          -> ((nodeOf after) node).log.take frontier
+              = ((nodeOf state) node).log.take frontier)
     : CommittedConfigurationCoverage after activations := by
   intro node frontier within positive signature
   have oldWithin :
@@ -465,11 +470,14 @@ lemma commitEvidenceFrame
     (requestEvidence : RequestCommitEvidence Node TxId)
     (facts : CommitEvidenceFacts state appendHistory nodeEvidence requestEvidence)
     (commitEq
-      : forall node, ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
+      : forall node,
+          ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
     (committedEq
-      : forall node, ((nodeOf after) node).committedLog = ((nodeOf state) node).committedLog)
+      : forall node,
+          ((nodeOf after) node).committedLog = ((nodeOf state) node).committedLog)
     (termMonotone
-      : forall node, ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
+      : forall node,
+          ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
     (networkSubset
       : forall destination request,
           (appendRequestEnvelope request ∈ after.network /\ request.2.1 = destination)
@@ -542,7 +550,8 @@ lemma prospectiveCommitEvidenceFrame
           -> KnownCommitEvidence
               state oldAppendHistory oldNodeEvidence oldRequestEvidence
               evidence supportedPrefix)
-    (currentBack : forall member, ((nodeOf state) member).log <+: ((nodeOf after) member).log)
+    (currentBack
+      : forall member, ((nodeOf state) member).log <+: ((nodeOf after) member).log)
     (sameTermQueuedBack
       : forall evidence supportedPrefix destination request,
           KnownCommitEvidence
@@ -565,7 +574,8 @@ lemma prospectiveCommitEvidenceFrame
                 -> entry.term < ((nodeOf after) candidate).currentTerm)
           -> member ∈ evidence.ackQuorum
           -> member ∈ relaxedElectionVoters (joined := joinedNext) after candidate
-          -> RelaxedMemberFrameResult (joined := joined) state after evidence candidate member)
+          -> RelaxedMemberFrameResult (joined := joined) state after evidence candidate
+              member)
     : ProspectiveCommitEvidenceFacts (joined := joinedNext)
         after newAppendHistory newNodeEvidence newRequestEvidence elections := by
   constructor
@@ -930,7 +940,8 @@ lemma joinedCarrierFactsFrame
           configuration ∈ allConfigurations ((nodeOf after) node).log
           -> configuration ∈ allConfigurations ((nodeOf state) node).log)
     (votesSubset
-      : forall node, ((nodeOf after) node).votesGranted ⊆ ((nodeOf state) node).votesGranted)
+      : forall node,
+          ((nodeOf after) node).votesGranted ⊆ ((nodeOf state) node).votesGranted)
     (activeRoleJoined
       : forall node,
           ((nodeOf after) node).role = .candidate \/ ((nodeOf after) node).role = .leader
@@ -942,7 +953,8 @@ lemma joinedCarrierFactsFrame
       : forall node, Not (((nodeOf after) node).log = []) -> node ∈ joinedNext)
     (networkSubset
       : forall destination message,
-          (message ∈ after.network /\ message.target = destination) -> (message ∈ state.network /\ message.target = destination))
+          (message ∈ after.network /\ message.target = destination)
+          -> (message ∈ state.network /\ message.target = destination))
     : JoinedCarrierFacts (joined := joinedNext) after := by
   constructor
   · intro node peer member
@@ -1058,7 +1070,8 @@ lemma activationEvidenceFrame
     (candidateTermEq
       : forall candidate,
           ((nodeOf after) candidate).role = .candidate
-          -> ((nodeOf after) candidate).currentTerm = ((nodeOf state) candidate).currentTerm)
+          -> ((nodeOf after) candidate).currentTerm
+              = ((nodeOf state) candidate).currentTerm)
     (candidateLogPrefix
       : forall candidate,
           ((nodeOf after) candidate).role = .candidate
@@ -1110,7 +1123,8 @@ lemma activationSupporterProgressFrame
     (activations : ActivationHistory Node TxId)
     (facts : ActivationSupporterProgress state activations)
     (termMonotone
-      : forall node, ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
+      : forall node,
+          ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
     : ActivationSupporterProgress after activations := by
   intro index record recorded supporter member
   exact
@@ -1281,7 +1295,8 @@ lemma termOwnershipFrame
     (facts : TermOwnershipFacts state votes oldAppendHistory canonicalHistory owners)
     (roleBack
       : forall leader,
-          ((nodeOf after) leader).role = .leader -> ((nodeOf state) leader).role = .leader)
+          ((nodeOf after) leader).role = .leader
+          -> ((nodeOf state) leader).role = .leader)
     (ownerRoleForward
       : forall owner,
           (((nodeOf state) owner).role = .leader
@@ -1293,7 +1308,8 @@ lemma termOwnershipFrame
               \/ ((nodeOf after) owner).role = .preVoteCandidate
               \/ ((nodeOf after) owner).role = .none))
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (queuedHistory
       : forall destination request,
@@ -1382,13 +1398,16 @@ lemma effectiveAckerSnapshotExists
     (leaderRole : ((nodeOf state) leader).role = .leader)
     (frontierPositive : 0 < frontier)
     (frontierBound : frontier <= ((nodeOf state) leader).log.length)
-    (member : supporter ∈ effectiveAckers (joined := joined) state responseHistory leader frontier)
+    (member
+      : supporter
+        ∈ effectiveAckers (joined := joined) state responseHistory leader frontier)
     : Exists
         fun snapshot : ProcessedAckSnapshot Node TxId =>
           snapshot.term = ((nodeOf state) leader).currentTerm
           /\ frontier <= snapshot.index
           /\ snapshot.index <= snapshot.history.length
-          /\ snapshot.history.take frontier = ((nodeOf state) leader).log.take frontier := by
+          /\ snapshot.history.take frontier
+              = ((nodeOf state) leader).log.take frontier := by
   simp only [
     effectiveAckers, Finset.mem_filter] at member
   rcases member with ⟨_joined, self | processed | queued⟩
@@ -1463,7 +1482,8 @@ lemma activationSupporterCurrentHistoryFrame
     (facts : ActivationSupporterCurrentHistory state elections activations)
     (logMonotone : forall node, ((nodeOf state) node).log <+: ((nodeOf after) node).log)
     (termMonotone
-      : forall node, ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
+      : forall node,
+          ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
     (electionPreserved
       : forall term record,
           elections term = some record -> afterElections term = some record)
@@ -1500,7 +1520,8 @@ lemma electionConfigurationFrame
           ((nodeOf after) candidate).role = .candidate
           -> hasEffectiveElectionMajority (joined := joinedNext) after candidate
           -> ((nodeOf state) candidate).role = .candidate
-              /\ ((nodeOf after) candidate).currentTerm = ((nodeOf state) candidate).currentTerm
+              /\ ((nodeOf after) candidate).currentTerm
+                  = ((nodeOf state) candidate).currentTerm
               /\ hasEffectiveElectionMajority (joined := joined) state candidate)
     (activeForward
       : forall candidate configuration,
@@ -1513,7 +1534,8 @@ lemma electionConfigurationFrame
           -> forall entry,
               entry ∈ ((nodeOf after) candidate).log
               -> entry.term < ((nodeOf after) candidate).currentTerm)
-    : ElectionConfigurationFacts (joined := joinedNext) after elections afterActivations := by
+    : ElectionConfigurationFacts (joined := joinedNext) after elections
+        afterActivations := by
   constructor
   · exact facts.ballotCommittedFrontierSignature
   · intro term record recorded positive
@@ -1573,9 +1595,11 @@ lemma knownCommitEvidenceFrameBack
     (nodeEvidence : NodeCommitEvidence Node TxId)
     (requestEvidence : RequestCommitEvidence Node TxId)
     (commitEq
-      : forall node, ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
+      : forall node,
+          ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
     (committedEq
-      : forall node, ((nodeOf after) node).committedLog = ((nodeOf state) node).committedLog)
+      : forall node,
+          ((nodeOf after) node).committedLog = ((nodeOf state) node).committedLog)
     (networkSubset
       : forall destination request,
           (appendRequestEnvelope request ∈ after.network /\ request.2.1 = destination)
@@ -1639,13 +1663,17 @@ lemma appendRequestCommitEvidenceFacts
     (requestEvidence : RequestCommitEvidence Node TxId)
     (facts : CommitEvidenceFacts state appendHistory nodeEvidence requestEvidence)
     (oldCommitBound
-      : ((nodeOf state) destination).commitIndex <= ((nodeOf state) destination).log.length)
-    (notStepped : ¬ (request.2.2.term = (nodeOf state destination).currentTerm
-      ∧ ((nodeOf state destination).role = .candidate ∨ (nodeOf state destination).role = .preVoteCandidate)))
+      : ((nodeOf state) destination).commitIndex
+        <= ((nodeOf state) destination).log.length)
+    (notStepped
+      : ¬ (request.2.2.term = (nodeOf state destination).currentTerm
+            ∧ ((nodeOf state destination).role = .candidate
+                ∨ (nodeOf state destination).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
-    (requestMember : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
+    (requestMember
+      : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (advancedHistory
       : ((nodeOf state) destination).commitIndex < nextNode.commitIndex
         -> nextNode.committedLog = (appendHistory request).take nextNode.commitIndex)
@@ -1657,8 +1685,10 @@ lemma appendRequestCommitEvidenceFacts
             = true)
     (networkSubset
       : forall queuedDestination queuedRequest,
-          (appendRequestEnvelope queuedRequest ∈ afterNetwork /\ queuedRequest.2.1 = queuedDestination)
-          -> (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination))
+          (appendRequestEnvelope queuedRequest ∈ afterNetwork
+            /\ queuedRequest.2.1 = queuedDestination)
+          -> (appendRequestEnvelope queuedRequest ∈ state.network
+              /\ queuedRequest.2.1 = queuedDestination))
     : CommitEvidenceFacts
         {
           state with

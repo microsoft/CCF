@@ -18,18 +18,30 @@ variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Nod
 /-- Immediate ACK eligibility depends on protocol fields, not retirement metadata. -/
 theorem canProduceAppendAckAt_iff (node : NodeState Node TxId)
     (request : AppendRequestKey Node TxId) (index : Nat)
-    : canProduceAppendAckAt node request index ↔
-      request.2.2.term = node.currentTerm ∧ node.role = .follower
-      ∧ logOk node request.2.2 ∧ node.commitIndex ≤ request.2.2.prevLogIndex
-      ∧ index ≤ request.2.2.prevLogIndex + request.2.2.entries.length
-      ∧ (alreadyDone node request.2.2 ∨ noConflictExtension node request.2.2
-        ∨ (hasTermConflict node request.2.2 ∧ node.isNewFollower = true
-          ∧ (alreadyDone { node with
-                log := node.log.take request.2.2.prevLogIndex
-                isNewFollower := false } request.2.2
-            ∨ noConflictExtension { node with
-                log := node.log.take request.2.2.prevLogIndex
-                isNewFollower := false } request.2.2))) := by
+    : canProduceAppendAckAt node request index
+      ↔ request.2.2.term = node.currentTerm
+        ∧ node.role = .follower
+        ∧ logOk node request.2.2
+        ∧ node.commitIndex ≤ request.2.2.prevLogIndex
+        ∧ index ≤ request.2.2.prevLogIndex + request.2.2.entries.length
+        ∧ (alreadyDone node request.2.2
+            ∨ noConflictExtension node request.2.2
+            ∨ (hasTermConflict node request.2.2
+                ∧ node.isNewFollower = true
+                ∧ (alreadyDone
+                      {
+                        node with
+                          log := node.log.take request.2.2.prevLogIndex
+                          isNewFollower := false
+                      }
+                      request.2.2
+                    ∨ noConflictExtension
+                        {
+                          node with
+                            log := node.log.take request.2.2.prevLogIndex
+                            isNewFollower := false
+                        }
+                        request.2.2))) := by
   unfold canProduceAppendAckAt acceptAppendEntriesRequest?
   split_ifs with accepted
   · simp only [accepted, true_and]
@@ -46,7 +58,8 @@ theorem canProduceAppendAckAt_frame
     (log : after.log = before.log) (commit : after.commitIndex = before.commitIndex)
     (follower : after.isNewFollower = before.isNewFollower)
     (request : AppendRequestKey Node TxId) (index : Nat)
-    : canProduceAppendAckAt after request index ↔ canProduceAppendAckAt before request index := by
+    : canProduceAppendAckAt after request index
+      ↔ canProduceAppendAckAt before request index := by
   simp only [canProduceAppendAckAt_iff, logOk, alreadyDone, noConflictExtension,
     hasTermConflict, overlapLength, role, term, log, commit, follower]
 

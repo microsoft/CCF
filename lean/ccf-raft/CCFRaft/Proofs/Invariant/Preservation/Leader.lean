@@ -41,7 +41,8 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
                           (maxCommittableIndex ((nodeOf state) node).log))
                   })).membershipState
                 = .retiredCommitted)))
-    : SystemInductiveInvariant (joined := joinedNodes) (becomeLeaderEffect state node) := by
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (becomeLeaderEffect state node) := by
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
@@ -1113,8 +1114,8 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
         exact Role.noConfusion (role.symm.trans roleNode)
       simpa [roleOther candidate candidateNe, termEq, logOther candidate candidateNe,
         maxCommittableIndexEq, maxCommittableTermEq, lastIndexEq, lastTermEq, votedEq,
-        effectiveElectionVotersEq, relaxedElectionVoters, voteRequestKey, Model.Local.makeRequestVoteRequest,
-        voteLogUpToDate]
+        effectiveElectionVotersEq, relaxedElectionVoters, voteRequestKey,
+        Model.Local.makeRequestVoteRequest, voteLogUpToDate]
         using prospectiveFacts.relaxedSupporterCarriesFrontier evidence supportedPrefix
           (knownBack evidence supportedPrefix known)
           candidate member

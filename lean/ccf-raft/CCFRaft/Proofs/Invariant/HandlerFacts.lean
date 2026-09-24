@@ -709,7 +709,8 @@ variable [Bootstrap Node]
 
 /-- The computed commit frontier never exceeds the leader log length. -/
 lemma highestCommittableIndexBounded (state : Model.State Node TxId) (leader : Node)
-    : highestCommittableIndex (nodeOf state leader) leader <= ((nodeOf state) leader).log.length := by
+    : highestCommittableIndex (nodeOf state leader) leader
+      <= ((nodeOf state) leader).log.length := by
   unfold highestCommittableIndex
   let candidates := List.range (((nodeOf state) leader).log.length + 1)
   let choose :=
@@ -756,11 +757,17 @@ lemma highestCommittableIndexBounded (state : Model.State Node TxId) (leader : N
 lemma highestCommittableIndexFacts
     (state : Model.State Node TxId)
     (leader : Node)
-    (advances : ((nodeOf state) leader).commitIndex < highestCommittableIndex (nodeOf state leader) leader)
-    : isSignatureAt ((nodeOf state) leader).log (highestCommittableIndex (nodeOf state leader) leader) = true
-      /\ termAt ((nodeOf state) leader).log (highestCommittableIndex (nodeOf state leader) leader)
+    (advances
+      : ((nodeOf state) leader).commitIndex
+        < highestCommittableIndex (nodeOf state leader) leader)
+    : isSignatureAt ((nodeOf state) leader).log
+          (highestCommittableIndex (nodeOf state leader) leader)
+        = true
+      /\ termAt ((nodeOf state) leader).log
+            (highestCommittableIndex (nodeOf state leader) leader)
           = ((nodeOf state) leader).currentTerm
-      /\ hasMajorityAt (nodeOf state leader) leader (highestCommittableIndex (nodeOf state leader) leader) := by
+      /\ hasMajorityAt (nodeOf state leader) leader
+          (highestCommittableIndex (nodeOf state leader) leader) := by
   unfold highestCommittableIndex at advances ⊢
   let leaderState := (nodeOf state) leader
   let valid :=
@@ -809,18 +816,25 @@ lemma highestCommittableIndexFacts
 lemma highestCommittableIndexValid
     (state : Model.State Node TxId)
     (leader : Node)
-    (advances : ((nodeOf state) leader).commitIndex < highestCommittableIndex (nodeOf state leader) leader)
-    : termAt ((nodeOf state) leader).log (highestCommittableIndex (nodeOf state leader) leader)
+    (advances
+      : ((nodeOf state) leader).commitIndex
+        < highestCommittableIndex (nodeOf state leader) leader)
+    : termAt ((nodeOf state) leader).log
+          (highestCommittableIndex (nodeOf state leader) leader)
         = ((nodeOf state) leader).currentTerm
-      /\ hasMajorityAt (nodeOf state leader) leader (highestCommittableIndex (nodeOf state leader) leader) :=
+      /\ hasMajorityAt (nodeOf state leader) leader
+          (highestCommittableIndex (nodeOf state leader) leader) :=
   (highestCommittableIndexFacts state leader advances).2
 
 /-- A newly selected positive commit frontier points to a signature. -/
 lemma highestCommittableIndexIsSignature
     (state : Model.State Node TxId)
     (leader : Node)
-    (advances : ((nodeOf state) leader).commitIndex < highestCommittableIndex (nodeOf state leader) leader)
-    : isSignatureAt ((nodeOf state) leader).log (highestCommittableIndex (nodeOf state leader) leader)
+    (advances
+      : ((nodeOf state) leader).commitIndex
+        < highestCommittableIndex (nodeOf state leader) leader)
+    : isSignatureAt ((nodeOf state) leader).log
+        (highestCommittableIndex (nodeOf state leader) leader)
       = true :=
   (highestCommittableIndexFacts state leader advances).1
 
@@ -919,8 +933,8 @@ lemma handleProposeVoteRequestCases
     (state : NodeState Node TxId) (destination : Node) (term : Nat)
     : handleProposeVoteRequest state destination term = state
       ∨ (term = state.currentTerm
-        ∧ candidateTransitionEnabled state destination
-        ∧ handleProposeVoteRequest state destination term
+          ∧ candidateTransitionEnabled state destination
+          ∧ handleProposeVoteRequest state destination term
             = becomeCandidateNodeState state destination) := by
   unfold handleProposeVoteRequest
   split_ifs with eligible
@@ -1115,8 +1129,9 @@ lemma handleAppendEntriesRequestLocalPost
     {self : Node} {before after : NodeState Node TxId}
     {request : AppendEntriesRequest Node TxId}
     {response : AppendEntriesResponse}
-    (notStepped : ¬ (request.term = before.currentTerm
-      ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
+    (notStepped
+      : ¬ (request.term = before.currentTerm
+            ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
     (handled : handleAppendEntriesRequest? self before request = some (after, response))
     : AppendRequestLocalPost before after request response := by
   simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
@@ -1595,8 +1610,9 @@ lemma handleAppendEntriesRequestLeaderUnchanged
     {request : AppendEntriesRequest Node TxId}
     {response : AppendEntriesResponse}
     (leader : before.role = .leader)
-    (notStepped : ¬ (request.term = before.currentTerm
-      ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
+    (notStepped
+      : ¬ (request.term = before.currentTerm
+            ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
     (handled : handleAppendEntriesRequest? self before request = some (after, response))
     : after = before := by
   simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
@@ -1616,13 +1632,14 @@ lemma handleAppendEntriesRequestLeaderUnchanged
       exact Role.noConfusion (accepted.2.1.symm.trans leader)
     · contradiction
 
-
 lemma acceptAppendEntriesRequest_conditions
     {self : Node} {before after : NodeState Node TxId}
     {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
     (accepted : acceptAppendEntriesRequest? self before request = some (after, response))
-    : request.term = before.currentTerm ∧ before.role = .follower
-      ∧ logOk before request ∧ before.commitIndex ≤ request.prevLogIndex := by
+    : request.term = before.currentTerm
+      ∧ before.role = .follower
+      ∧ logOk before request
+      ∧ before.commitIndex ≤ request.prevLogIndex := by
   unfold acceptAppendEntriesRequest? at accepted
   split at accepted
   · assumption

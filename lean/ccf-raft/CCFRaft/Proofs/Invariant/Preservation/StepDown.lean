@@ -34,9 +34,13 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
     (nextNode : NodeState Node TxId)
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (_destinationAllocated : destination ∈ joinedNodes)
-    (canReturn : request.2.2.term = (nodeOf state destination).currentTerm
-      ∧ ((nodeOf state destination).role = .candidate ∨ (nodeOf state destination).role = .preVoteCandidate))
-    (stepped : nextNode = { nodeOf state destination with role := .follower, isNewFollower := true })
+    (canReturn
+      : request.2.2.term = (nodeOf state destination).currentTerm
+        ∧ ((nodeOf state destination).role = .candidate
+            ∨ (nodeOf state destination).role = .preVoteCandidate))
+    (stepped
+      : nextNode
+        = { nodeOf state destination with role := .follower, isNewFollower := true })
     : SystemInductiveInvariant (joined := joinedNodes)
         { state with nodes := replaceNode state.nodes destination nextNode } := by
   rcases invariant with
@@ -944,9 +948,8 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                   (allConfigurations_mono_prefix
                     sourceWitness.sharedPrefix_prefix_activationPrefix)
               simpa [sourceConfiguration]
-                using
-                  ConfigurationCoverageWitness.configuration_mem_activationHistoryTake
-                    activationQuorums.history sourceWitness
+                using ConfigurationCoverageWitness.configuration_mem_activationHistoryTake
+                  activationQuorums.history sourceWitness
           right
           exact ⟨
             sourceConfiguration,

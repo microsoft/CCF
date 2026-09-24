@@ -53,7 +53,6 @@ def CommittedLogsPrefix (state : Model.State Node TxId) : Prop :=
     ((nodeOf state) left).committedLog <+: ((nodeOf state) right).committedLog
     \/ ((nodeOf state) right).committedLog <+: ((nodeOf state) left).committedLog
 
-
 lemma commitEvidenceCommittedLogsPrefix
     {state : Model.State Node TxId}
     {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}

@@ -17,11 +17,11 @@ open Model.Local
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-
 @[simp]
 theorem replaceNode_twice (nodes : List (Node × NodeState Node TxId)) (node : Node)
     (first second : NodeState Node TxId)
-    : replaceNode (replaceNode nodes node first) node second = replaceNode nodes node second := by
+    : replaceNode (replaceNode nodes node first) node second
+      = replaceNode nodes node second := by
   unfold replaceNode
   rw [List.map_map]
   apply List.map_congr_left
@@ -31,9 +31,13 @@ theorem replaceNode_twice (nodes : List (Node × NodeState Node TxId)) (node : N
 theorem advanced_eq (state : Model.State Node TxId) (node : Node)
     (present : node ∈ state.nodes.map Prod.fst)
     : demoteRetiredCommitted (advanceCommitState state node) node
-      = { state with
-        nodes := replaceNode state.nodes node
-          (Model.Local.demoteRetiredCommitted (Model.Local.advanceCommit (nodeOf state node) node)) } := by
+      = {
+        state with
+          nodes :=
+            replaceNode state.nodes node
+              (Model.Local.demoteRetiredCommitted
+                (Model.Local.advanceCommit (nodeOf state node) node))
+      } := by
   simp only [demoteRetiredCommitted, advanceCommitState, nodeOf_replaceNode, present, ite_true,
     replaceNode_twice]
 
@@ -57,8 +61,8 @@ macro "extract_guard" : tactic =>
       List.append_nil]))
 
 /-- Preserve the invariant under the node update and sends of an internal input. -/
-theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node} (invariant : StateInvariant state joinedNodes)
-    {node : Node}
+theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node}
+    (invariant : StateInvariant state joinedNodes) {node : Node}
     (present : node ∈ state.nodes.map Prod.fst) {input : Model.Local.Input Node TxId}
     {execute : Model.Local.NodeEffect Node TxId (NodeState Node TxId)}
     (acted
@@ -66,9 +70,11 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
         = some execute)
     : ∃ joined,
         StateInvariant
-          { state with
-            nodes := replaceNode state.nodes node (execute.run {}).1
-            network := state.network ++ (execute.run {}).2.outgoing } joined := by
+          {
+            state with
+              nodes := replaceNode state.nodes node (execute.run {}).1
+              network := state.network ++ (execute.run {}).2.outgoing
+          } joined := by
   cases input with
   | initializeConfiguration =>
       extract_guard
@@ -77,7 +83,8 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
         joinedNodes,
         invariant.update joined (Finset.Subset.refl _) ?_ invariant.endpoints
       ⟩
-      simpa [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState]
+      simpa [concrete_effects, leaderAppendJoined,
+        replaceNode_nodeOf state node invariant.distinct, becomeCandidateState]
         using initializeConfigurationPreservesSystemInductiveInvariant
           state node (present := present) invariant.safety ⟨enabled.1, joined, enabled.2⟩
   | clientRequest txId =>
@@ -87,18 +94,22 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
         joinedNodes,
         invariant.update joined (Finset.Subset.refl _) ?_ invariant.endpoints
       ⟩
-      simpa [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState, Model.Local.appendEntry]
-        using clientRequestPreservesSystemInductiveInvariant state node (present := present) txId
-          invariant.safety ⟨joined, enabled⟩
+      simpa [concrete_effects, leaderAppendJoined,
+        replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
+        Model.Local.appendEntry]
+        using clientRequestPreservesSystemInductiveInvariant state node
+          (present := present) txId invariant.safety ⟨joined, enabled⟩
   | changeConfiguration configuration =>
       extract_guard
       have joined := invariant.joined_of_role (node := node) (by rw [enabled.1]; decide)
       let added := configuration \ (latestConfiguration ((nodeOf state) node)).nodes
       refine ⟨joinedNodes ∪ added,
         invariant.update joined Finset.subset_union_left ?_ ?_⟩
-      · simpa only [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState, Model.Local.appendEntry, added, refresh_sentIndex]
-          using changeConfigurationPreservesSystemInductiveInvariant state node (present := present)
-            configuration invariant.safety ⟨joined, enabled⟩
+      · simpa only [concrete_effects, leaderAppendJoined,
+          replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
+          Model.Local.appendEntry, added, refresh_sentIndex]
+          using changeConfigurationPreservesSystemInductiveInvariant state node
+            (present := present) configuration invariant.safety ⟨joined, enabled⟩
       · intro message member
         obtain ⟨source, target⟩ := invariant.endpoints message member
         exact ⟨Finset.mem_union_left _ source, Finset.mem_union_left _ target⟩
@@ -109,9 +120,11 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
         joinedNodes,
         invariant.update joined (Finset.Subset.refl _) ?_ invariant.endpoints
       ⟩
-      simpa [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState, Model.Local.appendEntry, allRetiredCommittedNodes]
-        using appendRetiredCommittedPreservesSystemInductiveInvariant state node (present := present)
-          invariant.safety ⟨joined, enabled⟩
+      simpa [concrete_effects, leaderAppendJoined,
+        replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
+        Model.Local.appendEntry, allRetiredCommittedNodes]
+        using appendRetiredCommittedPreservesSystemInductiveInvariant state node
+          (present := present) invariant.safety ⟨joined, enabled⟩
   | signCommittableMessages =>
       extract_guard
       have joined := invariant.joined_of_role (node := node) (by rw [enabled.1]; decide)
@@ -119,9 +132,11 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
         joinedNodes,
         invariant.update joined (Finset.Subset.refl _) ?_ invariant.endpoints
       ⟩
-      simpa [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState, Model.Local.appendEntry]
-        using signCommittableMessagesPreservesSystemInductiveInvariant state node (present := present)
-          invariant.safety ⟨joined, enabled⟩
+      simpa [concrete_effects, leaderAppendJoined,
+        replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
+        Model.Local.appendEntry]
+        using signCommittableMessagesPreservesSystemInductiveInvariant state node
+          (present := present) invariant.safety ⟨joined, enabled⟩
   | appendEntries destination batchEnd =>
       extract_guard
       have joined := invariant.joined_of_role (node := node) (by rw [enabled.1]; decide)
@@ -145,9 +160,11 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
         joinedNodes,
         invariant.update joined (Finset.Subset.refl _) ?_ invariant.endpoints
       ⟩
-      simpa [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState, advanced_eq state node present]
-        using advanceCommitPreservesSystemInductiveInvariant state node (present := present) invariant.distinct invariant.safety
-          ⟨joined, enabled⟩
+      simpa [concrete_effects, leaderAppendJoined,
+        replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
+        advanced_eq state node present]
+        using advanceCommitPreservesSystemInductiveInvariant state node
+          (present := present) invariant.distinct invariant.safety ⟨joined, enabled⟩
   | timeout =>
       extract_guard
       obtain ⟨eligible, capable⟩ := enabled
@@ -157,9 +174,10 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
         joinedNodes,
         invariant.update joined (Finset.Subset.refl _) ?_ invariant.endpoints
       ⟩
-      simpa [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState]
-        using timeoutPreservesSystemInductiveInvariant state node (present := present) invariant.safety
-          ⟨joined, eligible.1, eligible.2.1, eligible.2.2, capable⟩
+      simpa [concrete_effects, leaderAppendJoined,
+        replaceNode_nodeOf state node invariant.distinct, becomeCandidateState]
+        using timeoutPreservesSystemInductiveInvariant state node (present := present)
+          invariant.safety ⟨joined, eligible.1, eligible.2.1, eligible.2.2, capable⟩
   | becomePreVoteCandidate =>
       extract_guard
       obtain ⟨eligible, capable⟩ := enabled
@@ -169,9 +187,11 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
         joinedNodes,
         invariant.update joined (Finset.Subset.refl _) ?_ invariant.endpoints
       ⟩
-      simpa [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState]
-        using becomePreVoteCandidatePreservesSystemInductiveInvariant state node (present := present)
-          invariant.safety ⟨joined, eligible.1, eligible.2.1, eligible.2.2, capable⟩
+      simpa [concrete_effects, leaderAppendJoined,
+        replaceNode_nodeOf state node invariant.distinct, becomeCandidateState]
+        using becomePreVoteCandidatePreservesSystemInductiveInvariant state node
+          (present := present) invariant.safety
+          ⟨joined, eligible.1, eligible.2.1, eligible.2.2, capable⟩
   | becomeCandidate =>
       extract_guard
       obtain ⟨role, eligible, capable, majority⟩ := enabled
@@ -180,8 +200,10 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
         joinedNodes,
         invariant.update joined (Finset.Subset.refl _) ?_ invariant.endpoints
       ⟩
-      simpa [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState]
-        using becomeCandidatePreservesSystemInductiveInvariant state node (present := present) invariant.safety
+      simpa [concrete_effects, leaderAppendJoined,
+        replaceNode_nodeOf state node invariant.distinct, becomeCandidateState]
+        using becomeCandidatePreservesSystemInductiveInvariant state node
+          (present := present) invariant.safety
           ⟨joined, role, eligible.2.1, eligible.2.2, capable, majority⟩
   | requestVote destination =>
       extract_guard
@@ -216,9 +238,11 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
         joinedNodes,
         invariant.update joined (Finset.Subset.refl _) ?_ invariant.endpoints
       ⟩
-      simpa [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState, stepDownState]
-        using checkQuorumPreservesSystemInductiveInvariant state node (present := present) invariant.safety
-          ⟨joined, enabled⟩
+      simpa [concrete_effects, leaderAppendJoined,
+        replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
+        stepDownState]
+        using checkQuorumPreservesSystemInductiveInvariant state node (present := present)
+          invariant.safety ⟨joined, enabled⟩
   | becomeLeader =>
       extract_guard
       have joined := invariant.joined_of_role (node := node) (by rw [enabled.1]; decide)
@@ -226,16 +250,18 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
         joinedNodes,
         invariant.update joined (Finset.Subset.refl _) ?_ invariant.endpoints
       ⟩
-      simpa [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState]
-        using becomeLeaderPreservesSystemInductiveInvariant state node (present := present) invariant.safety
-          ⟨joined, enabled⟩
+      simpa [concrete_effects, leaderAppendJoined,
+        replaceNode_nodeOf state node invariant.distinct, becomeCandidateState]
+        using becomeLeaderPreservesSystemInductiveInvariant state node
+          (present := present) invariant.safety ⟨joined, enabled⟩
   | proposeVote destination =>
       extract_guard
       have joined := invariant.joined_of_role (node := node) (by rw [enabled.1]; decide)
       have target := invariant.activeJoined (Finset.mem_of_mem_erase enabled.2.1)
       refine ⟨joinedNodes, invariant.update joined (Finset.Subset.refl _) ?_
         (invariant.sentEndpoints (Finset.Subset.refl _) ?_)⟩
-      · simpa [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState]
+      · simpa [concrete_effects, leaderAppendJoined,
+          replaceNode_nodeOf state node invariant.distinct, becomeCandidateState]
           using proposeVotePreservesSystemInductiveInvariant state node destination
             invariant.safety ⟨joined, target, enabled⟩
       · intro envelope member
@@ -248,9 +274,12 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
       have target := invariant.activeJoined (Finset.mem_of_mem_erase enabled.2.2.2.1)
       refine ⟨joinedNodes, invariant.update joined (Finset.Subset.refl _) ?_
         (invariant.sentEndpoints (Finset.Subset.refl _) ?_)⟩
-      · simpa [concrete_effects, leaderAppendJoined, replaceNode_nodeOf state node invariant.distinct, becomeCandidateState, advanced_eq state node present]
-          using advanceCommitAndProposeVotePreservesSystemInductiveInvariant state node (present := present)
-            destination invariant.distinct invariant.safety ⟨joined, target, enabled⟩
+      · simpa [concrete_effects, leaderAppendJoined,
+          replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
+          advanced_eq state node present]
+          using advanceCommitAndProposeVotePreservesSystemInductiveInvariant state node
+            (present := present) destination invariant.distinct invariant.safety
+            ⟨joined, target, enabled⟩
       · intro envelope member
         simp only [List.mem_singleton] at member
         subst envelope

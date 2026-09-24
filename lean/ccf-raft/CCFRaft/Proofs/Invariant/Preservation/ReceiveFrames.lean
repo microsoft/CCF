@@ -28,13 +28,13 @@ lemma appendResponseMemAfterVoteRequestReceive
     (request : VoteRequestKey Node)
     (response : VoteResponseKey Node)
     (remaining : List (Model.Envelope Node TxId))
-    (taken
-      : Selected source network (voteRequestEnvelope request) remaining)
+    (taken : Selected source network (voteRequestEnvelope request) remaining)
     : forall queuedDestination queuedResponse,
-        (appendResponseEnvelope queuedResponse ∈ enqueue
-              (remaining)
-              (voteResponseEnvelope response) ∧ queuedResponse.2.1 = queuedDestination)
-        ↔ (appendResponseEnvelope queuedResponse ∈ network /\ queuedResponse.2.1 = queuedDestination) := by
+        (appendResponseEnvelope queuedResponse
+            ∈ enqueue (remaining) (voteResponseEnvelope response)
+          ∧ queuedResponse.2.1 = queuedDestination)
+        ↔ (appendResponseEnvelope queuedResponse ∈ network
+            /\ queuedResponse.2.1 = queuedDestination) := by
   intro queuedDestination queuedResponse
   have retained : appendResponseEnvelope queuedResponse ∈ remaining ↔ appendResponseEnvelope queuedResponse ∈ network :=
     selected_mem_iff taken (by simp [appendResponseEnvelope, voteRequestEnvelope])
@@ -50,14 +50,14 @@ lemma voteResponseMemAfterVoteRequestReceive
     (request : VoteRequestKey Node)
     (response queuedResponse : VoteResponseKey Node)
     (remaining : List (Model.Envelope Node TxId))
-    (taken
-      : Selected source network (voteRequestEnvelope request) remaining)
+    (taken : Selected source network (voteRequestEnvelope request) remaining)
     (queuedDestination : Node)
     (member
-      : (voteResponseEnvelope queuedResponse ∈ enqueue
-            (remaining)
-            (voteResponseEnvelope response) ∧ queuedResponse.2.1 = queuedDestination))
-    : (voteResponseEnvelope queuedResponse ∈ network /\ queuedResponse.2.1 = queuedDestination)
+      : (voteResponseEnvelope queuedResponse
+            ∈ enqueue (remaining) (voteResponseEnvelope response)
+          ∧ queuedResponse.2.1 = queuedDestination))
+    : (voteResponseEnvelope queuedResponse ∈ network
+        /\ queuedResponse.2.1 = queuedDestination)
       \/ (queuedDestination = response.2.1 /\ queuedResponse = response) := by
   rcases memEnqueue remaining (voteResponseEnvelope response) (voteResponseEnvelope queuedResponse)
       queuedDestination member with old | added
@@ -71,13 +71,14 @@ lemma oldVoteResponseMemAfterVoteRequestReceive
     (request : VoteRequestKey Node)
     (response queuedResponse : VoteResponseKey Node)
     (remaining : List (Model.Envelope Node TxId))
-    (taken
-      : Selected source network (voteRequestEnvelope request) remaining)
+    (taken : Selected source network (voteRequestEnvelope request) remaining)
     (queuedDestination : Node)
-    (member : (voteResponseEnvelope queuedResponse ∈ network /\ queuedResponse.2.1 = queuedDestination))
-    : (voteResponseEnvelope queuedResponse ∈ enqueue
-          (remaining)
-          (voteResponseEnvelope response) ∧ queuedResponse.2.1 = queuedDestination) := by
+    (member
+      : (voteResponseEnvelope queuedResponse ∈ network
+          /\ queuedResponse.2.1 = queuedDestination))
+    : (voteResponseEnvelope queuedResponse
+          ∈ enqueue (remaining) (voteResponseEnvelope response)
+        ∧ queuedResponse.2.1 = queuedDestination) := by
   have retained : voteResponseEnvelope queuedResponse ∈ remaining :=
     (selected_mem_iff taken (by simp [voteResponseEnvelope, voteRequestEnvelope])).mpr member.1
   exact ⟨List.mem_append_left _ retained, member.2⟩
@@ -89,11 +90,12 @@ lemma voteRequestMemAfterAppendRequestReceive
     (request : AppendRequestKey Node TxId)
     (response : AppendResponseKey Node)
     (remaining : List (Model.Envelope Node TxId))
-    (taken
-      : Selected source network (appendRequestEnvelope request) remaining)
+    (taken : Selected source network (appendRequestEnvelope request) remaining)
     : forall queuedDestination queuedRequest,
-        (voteRequestEnvelope queuedRequest ∈ (reply remaining response) ∧ queuedRequest.2.1 = queuedDestination)
-        ↔ (voteRequestEnvelope queuedRequest ∈ network /\ queuedRequest.2.1 = queuedDestination) := by
+        (voteRequestEnvelope queuedRequest ∈ (reply remaining response)
+          ∧ queuedRequest.2.1 = queuedDestination)
+        ↔ (voteRequestEnvelope queuedRequest ∈ network
+            /\ queuedRequest.2.1 = queuedDestination) := by
   intro queuedDestination queuedRequest
   have retained : voteRequestEnvelope queuedRequest ∈ remaining ↔ voteRequestEnvelope queuedRequest ∈ network :=
     selected_mem_iff taken (by simp [voteRequestEnvelope, appendRequestEnvelope])
@@ -109,11 +111,12 @@ lemma voteResponseMemAfterAppendRequestReceive
     (request : AppendRequestKey Node TxId)
     (response : AppendResponseKey Node)
     (remaining : List (Model.Envelope Node TxId))
-    (taken
-      : Selected source network (appendRequestEnvelope request) remaining)
+    (taken : Selected source network (appendRequestEnvelope request) remaining)
     : forall queuedDestination queuedResponse,
-        (voteResponseEnvelope queuedResponse ∈ (reply remaining response) ∧ queuedResponse.2.1 = queuedDestination)
-        ↔ (voteResponseEnvelope queuedResponse ∈ network /\ queuedResponse.2.1 = queuedDestination) := by
+        (voteResponseEnvelope queuedResponse ∈ (reply remaining response)
+          ∧ queuedResponse.2.1 = queuedDestination)
+        ↔ (voteResponseEnvelope queuedResponse ∈ network
+            /\ queuedResponse.2.1 = queuedDestination) := by
   intro queuedDestination queuedResponse
   have retained : voteResponseEnvelope queuedResponse ∈ remaining ↔ voteResponseEnvelope queuedResponse ∈ network :=
     selected_mem_iff taken (by simp [voteResponseEnvelope, appendRequestEnvelope])
@@ -129,12 +132,13 @@ lemma appendResponseMemAfterAppendRequestReceive
     (request : AppendRequestKey Node TxId)
     (response queuedResponse : AppendResponseKey Node)
     (remaining : List (Model.Envelope Node TxId))
-    (taken
-      : Selected source network (appendRequestEnvelope request) remaining)
+    (taken : Selected source network (appendRequestEnvelope request) remaining)
     (queuedDestination : Node)
     (member
-      : (appendResponseEnvelope queuedResponse ∈ (reply remaining response) ∧ queuedResponse.2.1 = queuedDestination))
-    : (appendResponseEnvelope queuedResponse ∈ network /\ queuedResponse.2.1 = queuedDestination)
+      : (appendResponseEnvelope queuedResponse ∈ (reply remaining response)
+          ∧ queuedResponse.2.1 = queuedDestination))
+    : (appendResponseEnvelope queuedResponse ∈ network
+        /\ queuedResponse.2.1 = queuedDestination)
       \/ (queuedDestination = response.2.1 /\ queuedResponse = response) := by
   rcases memEnqueue remaining (appendResponseEnvelope response) (appendResponseEnvelope queuedResponse)
       queuedDestination member with old | added
@@ -151,22 +155,24 @@ lemma effectiveAckerAfterAppendRequestReceive
     (remaining : List (Model.Envelope Node TxId))
     (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (newHistory : List (Entry Node TxId))
-    (taken
-      : Selected source state.network (appendRequestEnvelope request)
-          remaining)
+    (taken : Selected source state.network (appendRequestEnvelope request) remaining)
     (producedSource : response.1 = destination)
     (producedDestination : response.2.1 = request.1)
     (producedTerm
-      : response.2.2.success = true -> response.2.2.term = ((nodeOf state) destination).currentTerm)
+      : response.2.2.success = true
+        -> response.2.2.term = ((nodeOf state) destination).currentTerm)
     (successfulRequestTerm
-      : response.2.2.success = true -> request.2.2.term = ((nodeOf state) destination).currentTerm)
+      : response.2.2.success = true
+        -> request.2.2.term = ((nodeOf state) destination).currentTerm)
     (networkEq : after.network = (reply remaining response))
     (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (matchEq
       : forall leader peer,
-          ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
+          ((nodeOf after) leader).matchIndex peer
+          = ((nodeOf state) leader).matchIndex peer)
     (leaderLogEq
       : forall leader,
           ((nodeOf after) leader).role = .leader
@@ -178,7 +184,9 @@ lemma effectiveAckerAfterAppendRequestReceive
               ∈ effectiveAckers (joined := joinedNext) after
                   (Function.update responseHistory response newHistory)
                   leader index
-            -> voter ∈ effectiveAckers (joined := joinedNodes) state responseHistory leader index
+            -> voter
+                  ∈ effectiveAckers (joined := joinedNodes) state responseHistory leader
+                      index
                 \/ (response.2.2.success = true
                     /\ leader = request.1
                     /\ voter = destination
@@ -264,16 +272,20 @@ lemma appendRequestAckerTemporalFacts
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
     (electionQueued : ElectionQueuedHistoryFacts state appendHistory elections)
-    (currentFacts : AckerCurrentHistory (joined := joinedNodes) state responseHistory elections)
+    (currentFacts
+      : AckerCurrentHistory (joined := joinedNodes) state responseHistory elections)
     (ackerVoteFacts
-      : AckerVoteHistory (joined := joinedNodes) state votes responseHistory voteVoterHistory elections)
-    (ackerElectionFacts : AckerElectionHistory (joined := joinedNodes) state responseHistory elections)
+      : AckerVoteHistory (joined := joinedNodes) state votes responseHistory
+          voteVoterHistory elections)
+    (ackerElectionFacts
+      : AckerElectionHistory (joined := joinedNodes) state responseHistory elections)
     (requestDestination : request.2.1 = destination)
     (snapshot : RequestSnapshots (appendHistory request) request)
-    (notStepped : ¬ (request.2.2.term = (nodeOf state destination).currentTerm ∧ ((nodeOf state destination).role = .candidate ∨ (nodeOf state destination).role = .preVoteCandidate)))
-    (taken
-      : Selected source state.network (appendRequestEnvelope request)
-          remaining)
+    (notStepped
+      : ¬ (request.2.2.term = (nodeOf state destination).currentTerm
+            ∧ ((nodeOf state destination).role = .candidate
+                ∨ (nodeOf state destination).role = .preVoteCandidate)))
+    (taken : Selected source state.network (appendRequestEnvelope request) remaining)
     (responseSource : response.1 = request.2.1)
     (responseDestination : response.2.1 = request.1)
     (handled
@@ -288,8 +300,10 @@ lemma appendRequestAckerTemporalFacts
       let newResponseHistory :=
         Function.update responseHistory response (appendHistory request)
       AckerCurrentHistory (joined := joinedNodes) after newResponseHistory elections
-      /\ AckerVoteHistory (joined := joinedNodes) after votes newResponseHistory voteVoterHistory elections
-      /\ AckerElectionHistory (joined := joinedNodes) after newResponseHistory elections := by
+      /\ AckerVoteHistory (joined := joinedNodes) after votes newResponseHistory
+          voteVoterHistory elections
+      /\ AckerElectionHistory (joined := joinedNodes) after newResponseHistory
+          elections := by
   let post := handleAppendEntriesRequestLocalPost notStepped handled
   let after : Model.State Node TxId :=
     { state with
@@ -723,7 +737,8 @@ lemma handleRequestVoteRequestLocalPost
     {response : VoteResponseKey Node}
     (responseSource : response.1 = request.2.1)
     (responseDestination : response.2.1 = request.1)
-    (handled : handleRequestVoteRequest before request.1 request.2.2 = (after, response.2.2))
+    (handled
+      : handleRequestVoteRequest before request.1 request.2.2 = (after, response.2.2))
     : VoteRequestLocalPost before after request response := by
   have grant := (handleRequestVoteRequest before request.1 request.2.2).2.voteGranted
   unfold handleRequestVoteRequest at handled
@@ -785,12 +800,16 @@ lemma ackerVoteHistoryAfterGrantedRequest
     (elections : ElectionHistory Node TxId)
     (destination : Node)
     (request : VoteRequestKey Node)
-    (currentFacts : AckerCurrentHistory (joined := joinedNodes) state responseHistory elections)
-    (voteFacts : AckerVoteHistory (joined := joinedNodes) state votes responseHistory voteVoterHistory elections)
+    (currentFacts
+      : AckerCurrentHistory (joined := joinedNodes) state responseHistory elections)
+    (voteFacts
+      : AckerVoteHistory (joined := joinedNodes) state votes responseHistory
+          voteVoterHistory elections)
     (requestTerm : request.2.2.term = ((nodeOf state) destination).currentTerm)
     (roleEq : forall node, ((nodeOf after) node).role = ((nodeOf state) node).role)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (effectiveEq
       : forall source index,
@@ -804,7 +823,8 @@ lemma ackerVoteHistoryAfterGrantedRequest
         Function.update voteVoterHistory key
           (((nodeOf state) destination).log.take
             (maxCommittableIndex ((nodeOf state) destination).log))
-      AckerVoteHistory (joined := joinedNext) after newVotes responseHistory newVoterHistory elections := by
+      AckerVoteHistory (joined := joinedNext) after newVotes responseHistory
+        newVoterHistory elections := by
   dsimp
   intro source index role current signature
       voter voteTerm candidate effective voted different newer

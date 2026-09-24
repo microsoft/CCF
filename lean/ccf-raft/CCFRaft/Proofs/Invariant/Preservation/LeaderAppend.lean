@@ -24,7 +24,8 @@ attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.share
 def leaderAppendJoined (joined : Finset Node)
     (state : Model.State Node TxId) (node : Node) (content : EntryContent Node TxId)
     : Finset Node :=
-  joined ∪ match content with
+  joined
+  ∪ match content with
     | .reconfiguration newConfiguration =>
         newConfiguration \ (latestConfiguration (nodeOf state node)).nodes
     | _ => ∅
@@ -83,7 +84,8 @@ lemma leaderAppendState_nodes_of_ne
     (node candidate : Node)
     (content : EntryContent Node TxId)
     (different : Not (candidate = node))
-    : (nodeOf (leaderAppendState state node content)) candidate = (nodeOf state) candidate := by
+    : (nodeOf (leaderAppendState state node content)) candidate
+      = (nodeOf state) candidate := by
   cases content <;>
     simp [leaderAppendState, leaderAppendJoined, leaderAppendJoined, nodeOf_replaceNode, different]
 
@@ -254,7 +256,9 @@ lemma leaderAppendPreservesSystemInductiveInvariant
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (_nodeAllocated : node ∈ joinedNodes)
     (leaderRole : ((nodeOf state) node).role = .leader)
-    : SystemInductiveInvariant (joined := leaderAppendJoined joinedNodes state node content) (leaderAppendState state node content) := by
+    : SystemInductiveInvariant
+        (joined := leaderAppendJoined joinedNodes state node content)
+        (leaderAppendState state node content) := by
   classical
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
@@ -361,7 +365,8 @@ lemma leaderAppendPreservesSystemInductiveInvariant
   have logEqNode :
       ((nodeOf (leaderAppendState state node content)) node).log =
         ((nodeOf state) node).log ++ [entry] := by
-    simpa only [entry] using leaderAppendState_log_same state node (present := present) content
+    simpa only [entry]
+      using leaderAppendState_log_same state node (present := present) content
   have logEqOther :
       forall candidate,
         Not (candidate = node) ->
@@ -1331,7 +1336,8 @@ lemma leaderAppendPreservesSystemInductiveInvariant
                 ((nodeOf state) request.1).currentTerm := by
             calc
               request.2.2.term
-                  = ((nodeOf (leaderAppendState state node content)) source).currentTerm :=
+                  = ((nodeOf (leaderAppendState state node content))
+                      source).currentTerm :=
                 requestTerm
               _ = ((nodeOf state) source).currentTerm := currentTermEq source
               _ = ((nodeOf state) request.1).currentTerm := by
@@ -1419,7 +1425,8 @@ lemma leaderAppendPreservesSystemInductiveInvariant
         have oldIndex := indexOld.1
         calc
           termAt ((nodeOf state) source).log index
-              = termAt ((nodeOf (leaderAppendState state node content)) source).log index :=
+              = termAt ((nodeOf (leaderAppendState state node content)) source).log
+                  index :=
             (termAtIndexOld source index oldIndex).symm
           _ = ((nodeOf (leaderAppendState state node content)) source).currentTerm :=
             current
@@ -1464,7 +1471,8 @@ lemma leaderAppendPreservesSystemInductiveInvariant
             ((nodeOf state) source).currentTerm := by
         calc
           termAt ((nodeOf state) source).log index
-              = termAt ((nodeOf (leaderAppendState state node content)) source).log index :=
+              = termAt ((nodeOf (leaderAppendState state node content)) source).log
+                  index :=
             (termAtIndexOld source index oldIndex).symm
           _ = ((nodeOf (leaderAppendState state node content)) source).currentTerm :=
             current
@@ -1526,7 +1534,8 @@ lemma leaderAppendPreservesSystemInductiveInvariant
             ((nodeOf state) source).currentTerm := by
         calc
           termAt ((nodeOf state) source).log index
-              = termAt ((nodeOf (leaderAppendState state node content)) source).log index :=
+              = termAt ((nodeOf (leaderAppendState state node content)) source).log
+                  index :=
             (termAtIndexOld source index oldIndex).symm
           _ = ((nodeOf (leaderAppendState state node content)) source).currentTerm :=
             current
@@ -1719,7 +1728,8 @@ lemma leaderAppendPreservesSystemInductiveInvariant
               ((nodeOf state) node).currentTerm := by
           calc
             termAt ((nodeOf state) node).log index
-                = termAt ((nodeOf (leaderAppendState state node content)) node).log index :=
+                = termAt ((nodeOf (leaderAppendState state node content)) node).log
+                    index :=
               (termAtIndexOld node index within).symm
             _ = ((nodeOf (leaderAppendState state node content)) node).currentTerm :=
               current
@@ -2311,7 +2321,8 @@ lemma leaderAppendPreservesSystemInductiveInvariant
             ((nodeOf state) source).currentTerm := by
         calc
           termAt ((nodeOf state) source).log index
-              = termAt ((nodeOf (leaderAppendState state node content)) source).log index :=
+              = termAt ((nodeOf (leaderAppendState state node content)) source).log
+                  index :=
             (termAtIndexOld source index oldIndex).symm
           _ = ((nodeOf (leaderAppendState state node content)) source).currentTerm :=
             current
@@ -3384,7 +3395,8 @@ lemma appendRetiredCommittedPreservesSystemInductiveInvariant
       : (node ∈ joinedNodes
           /\ ((nodeOf state) node).role = .leader
           /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
-          /\ (((nodeOf state node).retirementCompleted \ allRetiredCommittedNodes (nodeOf state node).log)).Nonempty
+          /\ (((nodeOf state node).retirementCompleted
+                \ allRetiredCommittedNodes (nodeOf state node).log)).Nonempty
           /\ Not
               ((refreshRetirementState node
                   {
@@ -3395,15 +3407,20 @@ lemma appendRetiredCommittedPreservesSystemInductiveInvariant
                               term := ((nodeOf state) node).currentTerm,
                               content :=
                                 .retiredCommitted
-                                  (((nodeOf state node).retirementCompleted \ allRetiredCommittedNodes (nodeOf state node).log))
+                                  (((nodeOf state node).retirementCompleted
+                                    \ allRetiredCommittedNodes (nodeOf state node).log))
                             })]
                   }).membershipState
                 = .retiredCommitted)))
-    : SystemInductiveInvariant (joined := joinedNodes) (appendRetiredCommittedEffect state node) := by
-  simpa [leaderAppendState, leaderAppendJoined, leaderAppendJoined, present, concrete_effects, concrete_effects]
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (appendRetiredCommittedEffect state node) := by
+  simpa [leaderAppendState, leaderAppendJoined, leaderAppendJoined, present,
+    concrete_effects, concrete_effects]
     using leaderAppendPreservesSystemInductiveInvariant (present := present)
       state node
-      (.retiredCommitted (((nodeOf state node).retirementCompleted \ allRetiredCommittedNodes (nodeOf state node).log)))
+      (.retiredCommitted
+        (((nodeOf state node).retirementCompleted
+          \ allRetiredCommittedNodes (nodeOf state node).log)))
       invariant enabled.1 enabled.2.1
 
 /-- A client transaction append preserves the arbitrary-term invariant. -/
@@ -3429,8 +3446,10 @@ lemma clientRequestPreservesSystemInductiveInvariant
                             })]
                   }).membershipState
                 = .retiredCommitted)))
-    : SystemInductiveInvariant (joined := joinedNodes) (clientRequestEffect state node txId) := by
-  simpa [leaderAppendState, leaderAppendJoined, leaderAppendJoined, present, concrete_effects, concrete_effects]
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (clientRequestEffect state node txId) := by
+  simpa [leaderAppendState, leaderAppendJoined, leaderAppendJoined, present,
+    concrete_effects, concrete_effects]
     using leaderAppendPreservesSystemInductiveInvariant (present := present)
       state node (.transaction txId)
       invariant enabled.1 enabled.2.1
@@ -3458,8 +3477,10 @@ lemma signCommittableMessagesPreservesSystemInductiveInvariant
                             })]
                   }).membershipState
                 = .retiredCommitted)))
-    : SystemInductiveInvariant (joined := joinedNodes) (signCommittableMessagesEffect state node) := by
-  simpa [leaderAppendState, leaderAppendJoined, leaderAppendJoined, present, concrete_effects, concrete_effects]
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (signCommittableMessagesEffect state node) := by
+  simpa [leaderAppendState, leaderAppendJoined, leaderAppendJoined, present,
+    concrete_effects, concrete_effects]
     using leaderAppendPreservesSystemInductiveInvariant (present := present)
       state node .signature invariant enabled.1 enabled.2.1
 

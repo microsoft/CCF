@@ -20,24 +20,31 @@ theorem observeTerm_preserves {state : Model.State Node TxId} {joined : Finset N
     (present : envelope.target ∈ state.nodes.map Prod.fst)
     (queued : envelope ∈ state.network)
     : StateInvariant
-        { state with
-          nodes := replaceNode state.nodes envelope.target
-            (observeTerm (nodeOf state envelope.target) envelope.payload) } joined := by
-  apply invariant.update (invariant.endpoints envelope queued).2 (Finset.Subset.refl _) ?_ invariant.endpoints
+        {
+          state with
+            nodes :=
+              replaceNode state.nodes envelope.target
+                (observeTerm (nodeOf state envelope.target) envelope.payload)
+        } joined := by
+  apply invariant.update (invariant.endpoints envelope queued).2 (Finset.Subset.refl _) ?_
+    invariant.endpoints
   rcases observeTerm_eq_updateTerm (nodeOf state envelope.target) envelope.payload with
     same | ⟨updated, newer, _⟩
   · simpa only [same, replaceNode_nodeOf state envelope.target invariant.distinct] using invariant.safety
-  · simpa only [concrete_effects, updated] using
-      updateTermPreservesSystemInductiveInvariant state envelope.target (present := present)
-        envelope invariant.safety ⟨queued, rfl⟩ newer
+  · simpa only [concrete_effects, updated]
+      using updateTermPreservesSystemInductiveInvariant state envelope.target
+        (present := present) envelope invariant.safety ⟨queued, rfl⟩ newer
 
-theorem StateInvariant.receivedEndpoints {state : Model.State Node TxId} {joined : Finset Node}
-    (invariant : StateInvariant state joined) {envelope : Model.Envelope Node TxId}
-    (queued : envelope ∈ state.network) {sends : List (Model.Envelope Node TxId)}
-    (replies : forall sent, sent ∈ sends ->
-      sent.source = envelope.target ∧ sent.target = envelope.source)
-    : forall sent, sent ∈ removeOne envelope state.network ++ sends ->
-        sent.source ∈ joined ∧ sent.target ∈ joined := by
+theorem StateInvariant.receivedEndpoints {state : Model.State Node TxId}
+    {joined : Finset Node} (invariant : StateInvariant state joined)
+    {envelope : Model.Envelope Node TxId} (queued : envelope ∈ state.network)
+    {sends : List (Model.Envelope Node TxId)}
+    (replies
+      : forall sent,
+          sent ∈ sends -> sent.source = envelope.target ∧ sent.target = envelope.source)
+    : forall sent,
+        sent ∈ removeOne envelope state.network ++ sends
+        -> sent.source ∈ joined ∧ sent.target ∈ joined := by
   intro sent member
   rcases List.mem_append.mp member with old | outgoing
   · exact invariant.erasedEndpoints envelope sent old
@@ -51,15 +58,24 @@ theorem appendRequest_safety {state : Model.State Node TxId} {joined : Finset No
     (nodeJoined : destination ∈ joined) {request : AppendEntriesRequest Node TxId}
     (queued : appendRequestEnvelope (source, destination, request) ∈ state.network)
     {nextNode : NodeState Node TxId} {response : AppendEntriesResponse}
-    (handled : handleAppendEntriesRequest? destination (nodeOf state destination) request
-      = some (nextNode, response))
+    (handled
+      : handleAppendEntriesRequest? destination (nodeOf state destination) request
+        = some (nextNode, response))
     : SystemInductiveInvariant (joined := joined)
-        { state with
-          nodes := replaceNode state.nodes destination (refreshRetirementState destination nextNode)
-          network := removeOne (appendRequestEnvelope (source, destination, request)) state.network
-            ++ [appendResponseEnvelope (destination, source, response)] } := by
-  by_cases stepping : request.term = (nodeOf state destination).currentTerm ∧
-      ((nodeOf state destination).role = .candidate ∨ (nodeOf state destination).role = .preVoteCandidate)
+        {
+          state with
+            nodes :=
+              replaceNode state.nodes destination
+                (refreshRetirementState destination nextNode)
+            network :=
+              removeOne (appendRequestEnvelope (source, destination, request))
+                state.network
+              ++ [appendResponseEnvelope (destination, source, response)]
+        } := by
+  by_cases stepping :
+    request.term = (nodeOf state destination).currentTerm
+    ∧ ((nodeOf state destination).role = .candidate
+        ∨ (nodeOf state destination).role = .preVoteCandidate)
   · let middle : Model.State Node TxId :=
       { state with
         nodes := replaceNode state.nodes destination
@@ -90,12 +106,16 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
     (present : envelope.target ∈ state.nodes.map Prod.fst)
     {execute : NodeEffect Node TxId (NodeState Node TxId)}
     (queued : envelope ∈ state.network)
-    (received : Model.Local.receive (Capabilities.record envelope.target) envelope.target
-      envelope.source (nodeOf state envelope.target) envelope.payload = some execute)
+    (received
+      : Model.Local.receive (Capabilities.record envelope.target) envelope.target
+          envelope.source (nodeOf state envelope.target) envelope.payload
+        = some execute)
     : StateInvariant
-        { state with
-          nodes := replaceNode state.nodes envelope.target (execute.run {}).1
-          network := removeOne envelope state.network ++ (execute.run {}).2.outgoing } joined := by
+        {
+          state with
+            nodes := replaceNode state.nodes envelope.target (execute.run {}).1
+            network := removeOne envelope state.network ++ (execute.run {}).2.outgoing
+        } joined := by
   have nodeJoined := (invariant.endpoints envelope queued).2
   let middle : Model.State Node TxId :=
     { state with
@@ -127,7 +147,8 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
       simp only [Model.Local.receive] at received
       obtain rfl := Option.some.inj received
       simp only [Direct.run_pure, List.append_nil]
-      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_ (invariant.erasedEndpoints _)
+      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
+        (invariant.erasedEndpoints _)
       have preserved := receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         middle source destination (present := middlePresent) prepared.distinct
         (source, destination, response) _ _ prepared.safety nodeJoined
@@ -155,7 +176,8 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
       simp only [Model.Local.receive] at received
       obtain rfl := Option.some.inj received
       simp only [Direct.run_pure, List.append_nil]
-      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_ (invariant.erasedEndpoints _)
+      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
+        (invariant.erasedEndpoints _)
       have preserved := receiveRequestVoteResponsePreservesSystemInductiveInvariant
         middle source destination (present := middlePresent) (source, destination, response) _
         _ prepared.safety nodeJoined ⟨rfl, queued, rfl⟩ rfl (by rw [receiver])
@@ -179,7 +201,8 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
       simp only [Model.Local.receive] at received
       obtain rfl := Option.some.inj received
       simp only [Direct.run_pure, List.append_nil]
-      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_ (invariant.erasedEndpoints _)
+      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
+        (invariant.erasedEndpoints _)
       have preserved := receiveRequestPreVoteResponsePreservesSystemInductiveInvariant
         middle source destination (present := middlePresent) response _ _ prepared.safety
         ⟨rfl, queued, rfl⟩ (by rw [receiver])

@@ -31,7 +31,8 @@ lemma timeoutPotentialElectionVotersSubsetFuture
     {present : node ∈ state.nodes.map Prod.fst}
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     : potentialElectionVoters (joined := joinedNodes) (timeoutEffect state node) node
-      ⊆ futureElectionVoters (joined := joinedNodes) state node (((nodeOf state) node).currentTerm + 1) := by
+      ⊆ futureElectionVoters (joined := joinedNodes) state node
+          (((nodeOf state) node).currentTerm + 1) := by
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
@@ -1630,7 +1631,8 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               activationCanonical.activationFrontierCanonical
                 candidateCoverage.activationIndex candidateActivation
                 candidateStored
-            _ = ((nodeOf state) source).log.take candidateActivation.activationFrontier := by
+            _ = ((nodeOf state) source).log.take
+                  candidateActivation.activationFrontier := by
               rw [← sameTerm, ownership.activeLeaderHistory source oldRole]
         by_cases indexWithin :
             index <= candidateActivation.activationFrontier
@@ -2718,7 +2720,8 @@ lemma becomeCandidatePreservesSystemInductiveInvariant
           /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
           /\ INITIAL_PRE_VOTE_STATUS node = .enabled
           /\ hasPreVoteMajority (nodeOf state node)))
-    : SystemInductiveInvariant (joined := joinedNodes) (becomeCandidateEffect state node) := by
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (becomeCandidateEffect state node) := by
   have preserved :=
     candidateTransitionPreservesSystemInductiveInvariant (present := present)
       state node invariant

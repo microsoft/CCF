@@ -26,11 +26,14 @@ attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.share
 lemma effectiveElectionVotersAfterAppendResponse
     (state after : Model.State Node TxId)
     (response : AppendResponseKey Node) (remaining : List (Model.Envelope Node TxId))
-    (taken : Selected response.1 state.network (appendResponseEnvelope response) remaining)
+    (taken
+      : Selected response.1 state.network (appendResponseEnvelope response) remaining)
     (networkEq : after.network = remaining)
     (hasJoinedEq : joinedNext = joinedNodes)
-    (termEq : forall node, (nodeOf after node).currentTerm = (nodeOf state node).currentTerm)
-    (votesEq : forall node, (nodeOf after node).votesGranted = (nodeOf state node).votesGranted)
+    (termEq
+      : forall node, (nodeOf after node).currentTerm = (nodeOf state node).currentTerm)
+    (votesEq
+      : forall node, (nodeOf after node).votesGranted = (nodeOf state node).votesGranted)
     : forall candidate,
         effectiveElectionVoters (joined := joinedNext) after candidate
         = effectiveElectionVoters (joined := joinedNodes) state candidate := by
@@ -59,11 +62,13 @@ lemma processedAckHistoryFrameBack
       : forall node,
           ((nodeOf after) node).role = .leader -> ((nodeOf state) node).role = .leader)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (matchEq
       : forall leader peer,
-          ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
+          ((nodeOf after) leader).matchIndex peer
+          = ((nodeOf state) leader).matchIndex peer)
     : ProcessedAckHistoryFacts after history := by
   constructor
   · intro leader role peer zero
@@ -94,11 +99,13 @@ lemma processedAckHistoryFrame
     (facts : ProcessedAckHistoryFacts state history)
     (roleEq : forall node, ((nodeOf after) node).role = ((nodeOf state) node).role)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (matchEq
       : forall leader peer,
-          ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
+          ((nodeOf after) leader).matchIndex peer
+          = ((nodeOf state) leader).matchIndex peer)
     : ProcessedAckHistoryFacts after history :=
   processedAckHistoryFrameBack
     state after history facts
@@ -116,10 +123,12 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
     (joinedCarriersAfter : JoinedCarrierFacts (joined := joinedNext) after)
     (participatingBack
       : forall node,
-          Not (((nodeOf after) node).role = .none) -> Not (((nodeOf state) node).role = .none))
+          Not (((nodeOf after) node).role = .none)
+          -> Not (((nodeOf state) node).role = .none))
     (candidateBack
       : forall node,
-          ((nodeOf after) node).role = .candidate -> ((nodeOf state) node).role = .candidate)
+          ((nodeOf after) node).role = .candidate
+          -> ((nodeOf state) node).role = .candidate)
     (leaderBack
       : forall node,
           ((nodeOf after) node).role = .leader -> ((nodeOf state) node).role = .leader)
@@ -142,10 +151,12 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
               \/ ((nodeOf after) node).role = .preVoteCandidate
               \/ ((nodeOf after) node).role = .none))
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (commitEq
-      : forall node, ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
+      : forall node,
+          ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
     (candidatesSelfVoteAfter : CandidatesSelfVote after)
     (leadersHaveElectionWitnessAfter : LeadersHaveElectionWitness after)
     (voteHistoryAfter
@@ -190,7 +201,8 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
             voteRequestHistory voteCandidateHistory voteVoterHistory
           -> forall leader index,
               effectiveAckers (joined := joinedNext) after responseHistory leader index
-              ⊆ effectiveAckers (joined := joinedNodes) state responseHistory leader index)
+              ⊆ effectiveAckers (joined := joinedNodes) state responseHistory leader
+                  index)
     (potentialAckersSubsetAfter
       : forall (votes : VoteHistory Node)
                 (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
@@ -202,8 +214,10 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
             state votes appendHistory responseHistory
             voteRequestHistory voteCandidateHistory voteVoterHistory
           -> forall leader index,
-              potentialAckers (joined := joinedNext) after appendHistory responseHistory leader index
-              ⊆ potentialAckers (joined := joinedNodes) state appendHistory responseHistory leader index)
+              potentialAckers (joined := joinedNext) after appendHistory responseHistory
+                leader index
+              ⊆ potentialAckers (joined := joinedNodes) state appendHistory
+                  responseHistory leader index)
     (effectiveElectionMajorityBack
       : forall candidate,
           ((nodeOf after) candidate).role = .candidate
@@ -858,7 +872,8 @@ lemma networkFramePreservesSystemInductiveInvariant
             voteRequestHistory voteCandidateHistory voteVoterHistory
           -> forall leader index,
               effectiveAckers (joined := joinedNext) after responseHistory leader index
-              ⊆ effectiveAckers (joined := joinedNodes) state responseHistory leader index)
+              ⊆ effectiveAckers (joined := joinedNodes) state responseHistory leader
+                  index)
     (effectiveElectionMajorityBack
       : forall candidate,
           ((nodeOf after) candidate).role = .candidate
@@ -912,7 +927,8 @@ lemma networkFramePreservesSystemInductiveInvariant
     rcases networkFrame destination _ member with old | inert
     · exact old
     · simp [IsSafetyInert] at inert
-  apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed hasJoinedEq
+  apply roleAndNetworkFramePreservesSystemInductiveInvariant state after packed
+    hasJoinedEq
     (by
       constructor
       · intro node peer member
@@ -1143,8 +1159,8 @@ lemma safetyInertNetworkChangePreservesSystemInductiveInvariant
             responseDestination
           ⟩
       ⟩
-  apply
-    networkFramePreservesSystemInductiveInvariant state after invariant hasJoinedEq nodeStateEq networkFrame
+  apply networkFramePreservesSystemInductiveInvariant state after invariant hasJoinedEq
+    nodeStateEq networkFrame
   · intro _ _ responseHistory _ _ _ _ leader index peer member
     simp only [
       effectiveAckers, Finset.mem_filter] at member ⊢
@@ -1196,12 +1212,13 @@ lemma requestPreVotePreservesSystemInductiveInvariant
           /\ ((nodeOf state) source).role = .preVoteCandidate
           /\ Not (source = destination)
           /\ destination ∈ activeNodeUnion ((nodeOf state) source)))
-    : SystemInductiveInvariant (joined := joinedNodes) (requestPreVoteEffect state source destination) := by
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (requestPreVoteEffect state source destination) := by
   let request := voteRequestKey state source destination
   let after := requestPreVoteEffect state source destination
   change SystemInductiveInvariant (joined := joinedNodes) after
-  apply
-    safetyInertNetworkChangePreservesSystemInductiveInvariant state after invariant rfl (fun _ => rfl)
+  apply safetyInertNetworkChangePreservesSystemInductiveInvariant state after invariant
+    rfl (fun _ => rfl)
   intro queuedDestination message member
   rcases
       memEnqueue
@@ -1234,8 +1251,8 @@ lemma enqueueProposeVoteRequestPreservesSystemInductiveInvariant
       network :=
         enqueue state.network (proposeVoteEnvelope request) }
   change SystemInductiveInvariant (joined := joinedNodes) after
-  apply
-    safetyInertNetworkChangePreservesSystemInductiveInvariant state after invariant rfl (fun _ => rfl)
+  apply safetyInertNetworkChangePreservesSystemInductiveInvariant state after invariant
+    rfl (fun _ => rfl)
   intro queuedDestination message member
   rcases
       memEnqueue
@@ -1259,7 +1276,8 @@ lemma proposeVotePreservesSystemInductiveInvariant
           /\ destination ∈ joinedNodes
           /\ ((nodeOf state) source).role = .leader
           /\ plausibleSuccessor (nodeOf state source) source destination))
-    : SystemInductiveInvariant (joined := joinedNodes) (proposeVoteEffect state source destination) := by
+    : SystemInductiveInvariant (joined := joinedNodes)
+        (proposeVoteEffect state source destination) := by
   simpa [concrete_effects]
     using enqueueProposeVoteRequestPreservesSystemInductiveInvariant
       state ((source, destination, (nodeOf state source).currentTerm)) invariant
@@ -1271,11 +1289,13 @@ lemma effectiveAckersFrame
     (networkEq : after.network = state.network)
     (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (matchEq
       : forall leader peer,
-          ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
+          ((nodeOf after) leader).matchIndex peer
+          = ((nodeOf state) leader).matchIndex peer)
     : forall (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
               leader index,
         effectiveAckers (joined := joinedNext) after responseHistory leader index
@@ -1328,9 +1348,11 @@ lemma effectiveElectionVotersFrame
     (networkEq : after.network = state.network)
     (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (votesEq
-      : forall node, ((nodeOf after) node).votesGranted = ((nodeOf state) node).votesGranted)
+      : forall node,
+          ((nodeOf after) node).votesGranted = ((nodeOf state) node).votesGranted)
     : forall candidate,
         effectiveElectionVoters (joined := joinedNext) after candidate
         = effectiveElectionVoters (joined := joinedNodes) state candidate := by
@@ -1376,17 +1398,24 @@ lemma retirementMetadataFramePreservesSystemInductiveInvariant
     (networkEq : after.network = state.network)
     (roleEq : forall node, ((nodeOf after) node).role = ((nodeOf state) node).role)
     (termEq
-      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+      : forall node,
+          ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (commitEq
-      : forall node, ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
-    (sentEq : forall node, ((nodeOf after) node).sentIndex = ((nodeOf state) node).sentIndex)
-    (matchEq : forall node, ((nodeOf after) node).matchIndex = ((nodeOf state) node).matchIndex)
-    (votedEq : forall node, ((nodeOf after) node).votedFor = ((nodeOf state) node).votedFor)
+      : forall node,
+          ((nodeOf after) node).commitIndex = ((nodeOf state) node).commitIndex)
+    (sentEq
+      : forall node, ((nodeOf after) node).sentIndex = ((nodeOf state) node).sentIndex)
+    (matchEq
+      : forall node, ((nodeOf after) node).matchIndex = ((nodeOf state) node).matchIndex)
+    (votedEq
+      : forall node, ((nodeOf after) node).votedFor = ((nodeOf state) node).votedFor)
     (votesEq
-      : forall node, ((nodeOf after) node).votesGranted = ((nodeOf state) node).votesGranted)
-    (followerEq : forall node,
-      (nodeOf after node).isNewFollower = (nodeOf state node).isNewFollower)
+      : forall node,
+          ((nodeOf after) node).votesGranted = ((nodeOf state) node).votesGranted)
+    (followerEq
+      : forall node,
+          (nodeOf after node).isNewFollower = (nodeOf state node).isNewFollower)
     : SystemInductiveInvariant (joined := joinedNext) after := by
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
@@ -1503,16 +1532,22 @@ lemma retirementMetadataFramePreservesSystemInductiveInvariant
     · exact Or.inl
         ⟨bootstrap.1, by simpa [termEq] using bootstrap.2⟩
     · exact Or.inr (by simpa [logEq, votesEq] using majority)
-  apply
-    roleAndNetworkFramePreservesSystemInductiveInvariant state after ⟨votes, appendHistory, responseHistory,
-          voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩ hasJoinedEq joinedCarriersAfter
-        (fun node active => by simpa [roleEq] using active)
-        (fun node role => by simpa [roleEq] using role)
-        (fun node role => by simpa [roleEq] using role)
-        (fun node role => by simpa [roleEq] using role)
-        (fun node role => by simpa [roleEq] using role)
-        termEq logEq commitEq
-        candidatesSelfVoteAfter leadersHaveElectionWitnessAfter
+  apply roleAndNetworkFramePreservesSystemInductiveInvariant state after
+    ⟨
+      votes,
+      appendHistory,
+      responseHistory,
+      voteRequestHistory,
+      voteCandidateHistory,
+      voteVoterHistory,
+      facts
+    ⟩
+    hasJoinedEq joinedCarriersAfter (fun node active => by simpa [roleEq] using active)
+    (fun node role => by simpa [roleEq] using role)
+    (fun node role => by simpa [roleEq] using role)
+    (fun node role => by simpa [roleEq] using role)
+    (fun node role => by simpa [roleEq] using role) termEq logEq commitEq
+    candidatesSelfVoteAfter leadersHaveElectionWitnessAfter
   · intro _ _ _ _ _ _ actualFacts
     constructor
     · exact actualFacts.voteHistory.bootstrapEmpty
