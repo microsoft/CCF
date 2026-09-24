@@ -9,6 +9,8 @@ set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
 set_option linter.unusedSimpArgs false
 
+register_simp_attr view_effects
+
 namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Model.Local (
@@ -192,6 +194,7 @@ lemma protocolNodeState_refreshRetirementState (node : Node) (state : NodeState 
       = protocolNodeState state := by
   simp [protocolNodeState]
 
+omit [Bootstrap Node] in
 /-- Erasing a selected occurrence preserves membership of every remaining message. -/
 lemma selectedSound
     {source : Node} {queue remaining : List (Message Node TxId)}
