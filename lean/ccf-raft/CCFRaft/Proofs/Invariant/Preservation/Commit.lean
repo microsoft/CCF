@@ -11,38 +11,27 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
+open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
+variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-attribute [local simp] Message.destination ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /-- Advancing a current-term quorum frontier preserves all safety evidence. -/
 lemma advanceCommitStatePreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (node : Node)
-    (invariant : SystemInductiveInvariant state)
+    {present : node ∈ state.nodes.map Prod.fst}
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (enabled
-      : state.allocated node
-        /\ (state.nodes node).role = .leader
-        /\ (state.nodes node).commitIndex < highestCommittableIndex state node)
-    : SystemInductiveInvariant (advanceCommitState state node) := by
+      : node ∈ joinedNodes
+        /\ ((nodeOf state) node).role = .leader
+        /\ ((nodeOf state) node).commitIndex < highestCommittableIndex (nodeOf state node) node)
+    : SystemInductiveInvariant (joined := joinedNodes) (advanceCommitState state node) := by
   classical
   rcases invariant with
       ⟨votes, appendHistory, responseHistory,
@@ -60,7 +49,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
   have candidatesAboveBootstrap :=
     invariantFactsCandidatesAboveBootstrap facts
   have potentialCommitElectionSafe :
-      PotentialCommitElectionSafe state responseHistory :=
+      PotentialCommitElectionSafe (joined := joinedNodes) state responseHistory :=
     derivePotentialCommitElectionSafe
       facts.currentTermsPositive
       (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence facts)
@@ -73,114 +62,114 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       ackerCurrentFacts ackerVoteFacts ackerElectionFacts
       activationQuorums
   rcases facts.processedAckHistory with ⟨ackHistory, ackFacts⟩
-  let frontier := highestCommittableIndex state node
-  have leaderRole : (state.nodes node).role = .leader := enabled.2.1
-  have advances : (state.nodes node).commitIndex < frontier := by
+  let frontier := highestCommittableIndex (nodeOf state node) node
+  have leaderRole : ((nodeOf state) node).role = .leader := enabled.2.1
+  have advances : ((nodeOf state) node).commitIndex < frontier := by
     simpa [frontier] using enabled.2.2
-  have frontierBound : frontier <= (state.nodes node).log.length := by
+  have frontierBound : frontier <= ((nodeOf state) node).log.length := by
     simpa [frontier] using highestCommittableIndexBounded state node
   have frontierValid
-      : termAt (state.nodes node).log frontier = (state.nodes node).currentTerm
-        /\ hasMajorityAt state node frontier := by
+      : termAt ((nodeOf state) node).log frontier = ((nodeOf state) node).currentTerm
+        /\ hasMajorityAt (nodeOf state node) node frontier := by
     simpa [frontier]
       using highestCommittableIndexValid state node (by simpa [frontier] using advances)
-  have frontierSignature : isSignatureAt (state.nodes node).log frontier = true := by
+  have frontierSignature : isSignatureAt ((nodeOf state) node).log frontier = true := by
     simpa [frontier]
       using highestCommittableIndexIsSignature state node
         (by simpa [frontier] using advances)
   let evidence : CommitEvidence Node TxId :=
-    { commitTerm := (state.nodes node).currentTerm
-      history := (state.nodes node).log
+    { commitTerm := ((nodeOf state) node).currentTerm
+      history := ((nodeOf state) node).log
       commitFrontier := frontier
       supportedLength := frontier
       authority :=
-        currentConfigurationAt (state.nodes node).log frontier
-      ackQuorum := acknowledgingNodes state node frontier }
+        currentConfigurationAt ((nodeOf state) node).log frontier
+      ackQuorum := acknowledgingNodes (nodeOf state node) node frontier }
   let newNodeEvidence : NodeCommitEvidence Node TxId :=
     Function.update nodeEvidence node (some evidence)
   have roleEq :
         forall candidate,
-          ((advanceCommitState state node).nodes candidate).role =
-            (state.nodes candidate).role := by
+          ((nodeOf (advanceCommitState state node)) candidate).role =
+            ((nodeOf state) candidate).role := by
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, updateNode, same
+          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
         ]
   have termEq :
         forall candidate,
-          ((advanceCommitState state node).nodes candidate).currentTerm =
-            (state.nodes candidate).currentTerm := by
+          ((nodeOf (advanceCommitState state node)) candidate).currentTerm =
+            ((nodeOf state) candidate).currentTerm := by
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, updateNode, same
+          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
         ]
   have logEq :
         forall candidate,
-          ((advanceCommitState state node).nodes candidate).log =
-            (state.nodes candidate).log := by
+          ((nodeOf (advanceCommitState state node)) candidate).log =
+            ((nodeOf state) candidate).log := by
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, updateNode, same
+          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
         ]
   have sentEq :
         forall candidate,
-          ((advanceCommitState state node).nodes candidate).sentIndex =
-            (state.nodes candidate).sentIndex := by
+          ((nodeOf (advanceCommitState state node)) candidate).sentIndex =
+            ((nodeOf state) candidate).sentIndex := by
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, updateNode, same
+          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
         ]
   have matchEq :
         forall candidate,
-          ((advanceCommitState state node).nodes candidate).matchIndex =
-            (state.nodes candidate).matchIndex := by
+          ((nodeOf (advanceCommitState state node)) candidate).matchIndex =
+            ((nodeOf state) candidate).matchIndex := by
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, updateNode, same
+          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
         ]
   have votedEq :
         forall candidate,
-          ((advanceCommitState state node).nodes candidate).votedFor =
-            (state.nodes candidate).votedFor := by
+          ((nodeOf (advanceCommitState state node)) candidate).votedFor =
+            ((nodeOf state) candidate).votedFor := by
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, updateNode, same
+          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
         ]
   have votesEq :
         forall candidate,
-          ((advanceCommitState state node).nodes candidate).votesGranted =
-            (state.nodes candidate).votesGranted := by
+          ((nodeOf (advanceCommitState state node)) candidate).votesGranted =
+            ((nodeOf state) candidate).votesGranted := by
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, updateNode, same
+          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
         ]
   have commitNode :
-        ((advanceCommitState state node).nodes node).commitIndex =
+        ((nodeOf (advanceCommitState state node)) node).commitIndex =
           frontier := by
-      simp [advanceCommitState, frontier]
+      simp [advanceCommitState, Model.Local.advanceCommit, present, frontier]
   have commitOther :
         forall candidate,
           Not (candidate = node) ->
-          ((advanceCommitState state node).nodes candidate).commitIndex =
-            (state.nodes candidate).commitIndex := by
+          ((nodeOf (advanceCommitState state node)) candidate).commitIndex =
+            ((nodeOf state) candidate).commitIndex := by
       intro candidate different
       simp [
-        advanceCommitState, updateNode, different
+        advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, different
       ]
   have roleNode :
-      ((advanceCommitState state node).nodes node).role =
+      ((nodeOf (advanceCommitState state node)) node).role =
         .leader := by
     simpa [roleEq] using leaderRole
   have nodeNotCandidate :
       Not (
-        ((advanceCommitState state node).nodes node).role =
+        ((nodeOf (advanceCommitState state node)) node).role =
           .candidate) := by
     rw [roleNode]
     decide
@@ -188,8 +177,8 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       forall candidate,
         Not (candidate = node) ->
           activeConfigurations
-              ((advanceCommitState state node).nodes candidate) =
-            activeConfigurations (state.nodes candidate) := by
+              ((nodeOf (advanceCommitState state node)) candidate) =
+            activeConfigurations ((nodeOf state) candidate) := by
     intro candidate different
     unfold activeConfigurations currentConfiguration
     rw [logEq, commitOther candidate different]
@@ -209,15 +198,15 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
   have lastIndexEq :
       forall candidate,
         lastCommittableIndex
-            ((advanceCommitState state node).nodes candidate) =
-          lastCommittableIndex (state.nodes candidate) := by
+            ((nodeOf (advanceCommitState state node)) candidate) =
+          lastCommittableIndex ((nodeOf state) candidate) := by
     intro candidate
     rw [
       lastCommittableIndex_eq_maxCommittableIndex
-        ((advanceCommitState state node).nodes candidate)
+        ((nodeOf (advanceCommitState state node)) candidate)
         (committedSignatureAfter candidate),
       lastCommittableIndex_eq_maxCommittableIndex
-        (state.nodes candidate)
+        ((nodeOf state) candidate)
         (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
           facts candidate),
       logEq
@@ -225,45 +214,45 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
   have lastTermEq :
       forall candidate,
         lastCommittableTerm
-            ((advanceCommitState state node).nodes candidate) =
-          lastCommittableTerm (state.nodes candidate) := by
+            ((nodeOf (advanceCommitState state node)) candidate) =
+          lastCommittableTerm ((nodeOf state) candidate) := by
     intro candidate
     rw [
       lastCommittableTerm_eq_maxCommittableTerm
-        ((advanceCommitState state node).nodes candidate)
+        ((nodeOf (advanceCommitState state node)) candidate)
         (committedSignatureAfter candidate),
       lastCommittableTerm_eq_maxCommittableTerm
-        (state.nodes candidate)
+        ((nodeOf state) candidate)
         (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
           facts candidate),
       logEq
     ]
   have committedNode :
-        ((advanceCommitState state node).nodes node).committedLog =
-          (state.nodes node).log.take frontier := by
+        ((nodeOf (advanceCommitState state node)) node).committedLog =
+          ((nodeOf state) node).log.take frontier := by
       simp [NodeState.committedLog, commitNode, logEq]
   have committedOther :
         forall candidate,
           Not (candidate = node) ->
-          ((advanceCommitState state node).nodes candidate).committedLog =
-            (state.nodes candidate).committedLog := by
+          ((nodeOf (advanceCommitState state node)) candidate).committedLog =
+            ((nodeOf state) candidate).committedLog := by
       intro candidate different
       simp [NodeState.committedLog, commitOther candidate different, logEq]
   have committedMonotonic :
         forall candidate,
-          (state.nodes candidate).committedLog <+:
-            ((advanceCommitState state node).nodes candidate).committedLog := by
+          ((nodeOf state) candidate).committedLog <+:
+            ((nodeOf (advanceCommitState state node)) candidate).committedLog := by
       intro candidate
       by_cases same : candidate = node
       · subst candidate
         rw [committedNode]
         have oldLe :
-            (state.nodes node).commitIndex <= frontier :=
+            ((nodeOf state) node).commitIndex <= frontier :=
           Nat.le_of_lt advances
         have taken :=
           List.take_prefix
-            (state.nodes node).commitIndex
-            ((state.nodes node).log.take frontier)
+            ((nodeOf state) node).commitIndex
+            (((nodeOf state) node).log.take frontier)
         simpa [
           NodeState.committedLog,
           List.take_take, Nat.min_eq_left oldLe
@@ -271,25 +260,25 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       · rw [committedOther candidate same]
   have networkEq :
         (advanceCommitState state node).network = state.network := by
-      simp [advanceCommitState]
+      simp [advanceCommitState, Model.Local.advanceCommit, present]
   have effectiveAckersEq :
       forall leader index,
-        effectiveAckers
+        effectiveAckers (joined := joinedNodes)
             (advanceCommitState state node)
             responseHistory leader index =
-          effectiveAckers state responseHistory leader index := by
+          effectiveAckers (joined := joinedNodes) state responseHistory leader index := by
     intro leader index
     ext peer
     simp only [
       effectiveAckers, Finset.mem_filter]
     constructor
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [advanceCommitState] using joined, Or.inl self⟩
+      · exact ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inl self⟩
       · exact ⟨
-          by simpa [advanceCommitState] using joined,
+          by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined,
           Or.inr (Or.inl (by simpa [matchEq] using matched))
         ⟩
-      · refine ⟨by simpa [advanceCommitState] using joined, Or.inr (Or.inr ?_)⟩
+      · refine ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, responseTerm, sourceEq,
             destinationEq, lastIndex, covered⟩
@@ -304,12 +293,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           by simpa [logEq] using covered
         ⟩
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [advanceCommitState] using joined, Or.inl self⟩
+      · exact ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inl self⟩
       · exact ⟨
-          by simpa [advanceCommitState] using joined,
+          by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined,
           Or.inr (Or.inl (by simpa [matchEq] using matched))
         ⟩
-      · refine ⟨by simpa [advanceCommitState] using joined, Or.inr (Or.inr ?_)⟩
+      · refine ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, responseTerm, sourceEq,
             destinationEq, lastIndex, covered⟩
@@ -327,10 +316,10 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       forall leader,
         Not (leader = node) ->
           forall index,
-            (hasEffectiveMajorityAt
+            (hasEffectiveMajorityAt (joined := joinedNodes)
                 (advanceCommitState state node)
                 responseHistory leader index ↔
-              hasEffectiveMajorityAt state responseHistory leader index) := by
+              hasEffectiveMajorityAt (joined := joinedNodes) state responseHistory leader index) := by
     intro leader different index
     simp only [
       hasEffectiveMajorityAt,
@@ -339,19 +328,19 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     ]
   have effectiveElectionVotersEq :
       forall candidate,
-        effectiveElectionVoters
+        effectiveElectionVoters (joined := joinedNodes)
             (advanceCommitState state node) candidate =
-          effectiveElectionVoters state candidate := by
+          effectiveElectionVoters (joined := joinedNodes) state candidate := by
     intro candidate
     ext voter
     simp only [
       effectiveElectionVoters, Finset.mem_filter]
     constructor <;> rintro ⟨joined, processed | queued⟩
     · exact ⟨
-        by simpa [advanceCommitState] using joined,
+        by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined,
         Or.inl (by simpa [votesEq] using processed)
       ⟩
-    · refine ⟨by simpa [advanceCommitState] using joined, Or.inr ?_⟩
+    · refine ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inr ?_⟩
       rcases queued with
         ⟨response, member, granted, responseTerm,
           responseSource, responseDestination⟩
@@ -364,10 +353,10 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         responseDestination
       ⟩
     · exact ⟨
-        by simpa [advanceCommitState] using joined,
+        by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined,
         Or.inl (by simpa [votesEq] using processed)
       ⟩
-    · refine ⟨by simpa [advanceCommitState] using joined, Or.inr ?_⟩
+    · refine ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inr ?_⟩
       rcases queued with
         ⟨response, member, granted, responseTerm,
           responseSource, responseDestination⟩
@@ -382,9 +371,9 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
   have effectiveElectionMajorityOtherEq :
       forall candidate,
         Not (candidate = node) ->
-          (hasEffectiveElectionMajority
+          (hasEffectiveElectionMajority (joined := joinedNodes)
               (advanceCommitState state node) candidate ↔
-            hasEffectiveElectionMajority state candidate) := by
+            hasEffectiveElectionMajority (joined := joinedNodes) state candidate) := by
     intro candidate different
     simp only [
       hasEffectiveElectionMajority,
@@ -393,40 +382,40 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     ]
   have potentialElectionVotersEq :
       forall candidate,
-        potentialElectionVoters
+        potentialElectionVoters (joined := joinedNodes)
             (advanceCommitState state node) candidate =
-          potentialElectionVoters state candidate := by
+          potentialElectionVoters (joined := joinedNodes) state candidate := by
     intro candidate
     ext voter
     simp only [
       potentialElectionVoters, Finset.mem_filter]
     constructor <;> rintro ⟨joined, effective | eligible⟩
-    · exact ⟨by simpa [advanceCommitState] using joined, Or.inl (by
+    · exact ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inl (by
         rw [effectiveElectionVotersEq] at effective
         exact effective)⟩
-    · exact ⟨by simpa [advanceCommitState] using joined, Or.inr (by
+    · exact ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inr (by
         simpa [
           currentlyEligibleElectionVoter,
-          makeRequestVoteRequest,
+          voteRequestKey, Model.Local.makeRequestVoteRequest,
           termEq, logEq, lastIndexEq, lastTermEq,
           votedEq, voteLogUpToDate
         ] using eligible)⟩
-    · exact ⟨by simpa [advanceCommitState] using joined, Or.inl (by
+    · exact ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inl (by
         rw [effectiveElectionVotersEq]
         exact effective)⟩
-    · exact ⟨by simpa [advanceCommitState] using joined, Or.inr (by
+    · exact ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inr (by
         simpa [
           currentlyEligibleElectionVoter,
-          makeRequestVoteRequest,
+          voteRequestKey, Model.Local.makeRequestVoteRequest,
           termEq, logEq, lastIndexEq, lastTermEq,
           votedEq, voteLogUpToDate
         ] using eligible)⟩
   have potentialElectionMajorityOtherEq :
       forall candidate,
         Not (candidate = node) ->
-          (hasPotentialElectionMajority
+          (hasPotentialElectionMajority (joined := joinedNodes)
               (advanceCommitState state node) candidate ↔
-            hasPotentialElectionMajority state candidate) := by
+            hasPotentialElectionMajority (joined := joinedNodes) state candidate) := by
     intro candidate different
     simp only [
       hasPotentialElectionMajority,
@@ -437,29 +426,8 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       forall (leaderState : NodeState Node TxId) request index,
         leaderState.role = .leader ->
           Not (canProduceAppendAckAt leaderState request index) := by
-    intro leaderState request index role
-    rintro ⟨nextNode, response, handled, success, covered⟩
-    by_cases stale : request.term < leaderState.currentTerm
-    · have resultEq :
-          (protocolNodeState leaderState,
-            failureResponse (protocolNodeState leaderState) request) =
-            (nextNode, response) := by
-        exact Option.some.inj (by
-          simpa [
-            handleAppendEntriesRequest?,
-            rejectAppendEntriesRequest?, stale, protocolNodeState
-          ] using handled)
-      have responseEq :
-          failureResponse (protocolNodeState leaderState) request = response :=
-        congrArg Prod.snd resultEq
-      rw [← responseEq] at success
-      simp [failureResponse, stale, protocolNodeState] at success
-    · simp [
-        handleAppendEntriesRequest?,
-        rejectAppendEntriesRequest?,
-        acceptAppendEntriesRequest?,
-        stale, role, protocolNodeState
-      ] at handled
+    intro leaderState request index role direct
+    exact Role.noConfusion ((canProduceAppendAckAt_role direct).symm.trans role)
   have queuedAppendReserveEq :
       forall leader peer index,
         queuedAppendReserve
@@ -478,20 +446,20 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         by simpa [termEq] using requestTerm,
         by
           by_cases peerEq : peer = node
-          · have destinationNode : request.destination = node :=
+          · have destinationNode : request.2.1 = node :=
               destinationEq.trans peerEq
             subst peer
             rcases producible with direct | future
             · rw [destinationNode] at direct
               exact False.elim
                 (leaderCannotProduceAppendAck
-                  ((advanceCommitState state node).nodes node)
+                  ((nodeOf (advanceCommitState state node)) node)
                   request index roleNode direct)
             · exact Or.inr (by simpa [termEq] using future)
           · simpa [
               canProduceAppendAckEventuallyAt,
-              canProduceAppendAckAt, advanceCommitState,
-              updateNode, Function.update, peerEq
+              canProduceAppendAckAt, advanceCommitState, Model.Local.advanceCommit, present,
+              nodeOf_replaceNode, Function.update, peerEq
             ] using producible,
         by simpa [logEq] using covered
       ⟩
@@ -503,28 +471,28 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         by simpa [termEq] using requestTerm,
         by
           by_cases peerEq : peer = node
-          · have destinationNode : request.destination = node :=
+          · have destinationNode : request.2.1 = node :=
               destinationEq.trans peerEq
             subst peer
             rcases producible with direct | future
             · rw [destinationNode] at direct
               exact False.elim
                 (leaderCannotProduceAppendAck
-                  (state.nodes node) request index leaderRole direct)
+                  ((nodeOf state) node) request index leaderRole direct)
             · exact Or.inr (by simpa [termEq] using future)
           · simpa [
               canProduceAppendAckEventuallyAt,
-              canProduceAppendAckAt, advanceCommitState,
-              updateNode, Function.update, peerEq
+              canProduceAppendAckAt, advanceCommitState, Model.Local.advanceCommit, present,
+              nodeOf_replaceNode, Function.update, peerEq
             ] using producible,
         by simpa [logEq] using covered
       ⟩
   have potentialAckersEq :
       forall leader index,
-        potentialAckers
+        potentialAckers (joined := joinedNodes)
             (advanceCommitState state node)
             appendHistory responseHistory leader index =
-          potentialAckers
+          potentialAckers (joined := joinedNodes)
             state appendHistory responseHistory leader index := by
     intro leader index
     ext peer
@@ -532,15 +500,14 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       potentialAckers, Finset.mem_filter,
       effectiveAckersEq, queuedAppendReserveEq
     ]
-    simp [advanceCommitState]
   have potentialMajorityOtherEq :
       forall leader,
         Not (leader = node) ->
           forall index,
-            (hasPotentialMajorityAt
+            (hasPotentialMajorityAt (joined := joinedNodes)
                 (advanceCommitState state node)
                 appendHistory responseHistory leader index ↔
-              hasPotentialMajorityAt
+              hasPotentialMajorityAt (joined := joinedNodes)
                 state appendHistory responseHistory leader index) := by
     intro leader different index
     simp only [
@@ -549,12 +516,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       activeConfigurationsOtherEq leader different
     ]
   have frontierEffective :
-      hasEffectiveMajorityAt state responseHistory node frontier :=
+      hasEffectiveMajorityAt (joined := joinedNodes) state responseHistory node frontier :=
     majorityImpliesEffectiveMajority
       state responseHistory node frontier
         (facts.joinedCarriers.activeNodes node) frontierValid.2
   have frontierPotential :
-      hasPotentialMajorityAt
+      hasPotentialMajorityAt (joined := joinedNodes)
         state appendHistory responseHistory node frontier :=
     effectiveMajorityImpliesPotential
       state appendHistory responseHistory node frontier frontierEffective
@@ -563,13 +530,13 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
   have supporterSnapshotExists :
       forall supporter,
         supporter ∈
-            effectiveAckers state responseHistory node frontier ->
+            effectiveAckers (joined := joinedNodes) state responseHistory node frontier ->
           Exists fun snapshot : ProcessedAckSnapshot Node TxId =>
-            snapshot.term = (state.nodes node).currentTerm /\
+            snapshot.term = ((nodeOf state) node).currentTerm /\
               frontier <= snapshot.index /\
               snapshot.index <= snapshot.history.length /\
               snapshot.history.take frontier =
-                (state.nodes node).log.take frontier := by
+                ((nodeOf state) node).log.take frontier := by
     intro supporter member
     exact
       effectiveAckerSnapshotExists
@@ -581,7 +548,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     fun supporter =>
       if member :
           supporter ∈
-            effectiveAckers state responseHistory node frontier then
+            effectiveAckers (joined := joinedNodes) state responseHistory node frontier then
         Classical.choose (supporterSnapshotExists supporter member)
       else
         { term := 0
@@ -590,40 +557,40 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
   have supporterSnapshotSpec :
       forall supporter,
         supporter ∈
-            effectiveAckers state responseHistory node frontier ->
+            effectiveAckers (joined := joinedNodes) state responseHistory node frontier ->
           (supporterSnapshot supporter).term =
-              (state.nodes node).currentTerm /\
+              ((nodeOf state) node).currentTerm /\
             frontier <= (supporterSnapshot supporter).index /\
             (supporterSnapshot supporter).index <=
               (supporterSnapshot supporter).history.length /\
             (supporterSnapshot supporter).history.take frontier =
-              (state.nodes node).log.take frontier := by
+              ((nodeOf state) node).log.take frontier := by
     intro supporter member
     simpa [supporterSnapshot, member]
       using Classical.choose_spec (supporterSnapshotExists supporter member)
   have frontierHistoryCanonical :
       HistoryCanonical
-        canonicalHistory ((state.nodes node).log.take frontier) :=
+        canonicalHistory (((nodeOf state) node).log.take frontier) :=
     historyCanonicalOfPrefix
       (nodeLogCanonical ownership node)
-      (List.take_prefix frontier (state.nodes node).log)
-  let oldConfiguration := currentConfiguration (state.nodes node)
+      (List.take_prefix frontier ((nodeOf state) node).log)
+  let oldConfiguration := currentConfiguration ((nodeOf state) node)
   let newConfiguration :=
-    currentConfigurationAt (state.nodes node).log frontier
+    currentConfigurationAt ((nodeOf state) node).log frontier
   let activationRecord : ActivationRecord Node TxId :=
     { leader := node
-      history := (state.nodes node).log
-      priorCommitIndex := (state.nodes node).commitIndex
+      history := ((nodeOf state) node).log
+      priorCommitIndex := ((nodeOf state) node).commitIndex
       activationFrontier := frontier
-      activationTerm := (state.nodes node).currentTerm
+      activationTerm := ((nodeOf state) node).currentTerm
       oldConfiguration
       newConfiguration
       governingActive :=
-        ((allConfigurations (state.nodes node).log).filter fun configuration =>
+        ((allConfigurations ((nodeOf state) node).log).filter fun configuration =>
           oldConfiguration.index <= configuration.index /\
             configuration.index <= frontier)
       jointSupporters :=
-        effectiveAckers state responseHistory node frontier
+        effectiveAckers (joined := joinedNodes) state responseHistory node frontier
       supporterAckTerm :=
         fun supporter => (supporterSnapshot supporter).term
       supporterAckIndex :=
@@ -633,27 +600,27 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           (supporterSnapshot supporter).history.take frontier }
   let newActivationKey : ActivationKey (Node : Type) :=
     { configurationIndex := newConfiguration.index
-      term := (state.nodes node).currentTerm
+      term := ((nodeOf state) node).currentTerm
       frontier
       leader := node }
   have oldConfigurationKnown :
-      oldConfiguration ∈ allConfigurations (state.nodes node).log := by
+      oldConfiguration ∈ allConfigurations ((nodeOf state) node).log := by
     simpa [oldConfiguration]
-      using currentConfiguration_mem_allConfigurations (state.nodes node)
+      using currentConfiguration_mem_allConfigurations ((nodeOf state) node)
   have oldConfigurationIndexBound :
-      oldConfiguration.index <= (state.nodes node).commitIndex := by
+      oldConfiguration.index <= ((nodeOf state) node).commitIndex := by
     simpa [oldConfiguration]
-      using currentConfiguration_index_le_commitIndex (state.nodes node)
+      using currentConfiguration_index_le_commitIndex ((nodeOf state) node)
   have newConfigurationKnown :
-      newConfiguration ∈ allConfigurations (state.nodes node).log := by
+      newConfiguration ∈ allConfigurations ((nodeOf state) node).log := by
     simpa [newConfiguration, currentConfiguration]
       using currentConfiguration_mem_allConfigurations
-        { (state.nodes node) with commitIndex := frontier }
+        { ((nodeOf state) node) with commitIndex := frontier }
   have newConfigurationIndexBound :
       newConfiguration.index <= frontier := by
     simpa [newConfiguration, currentConfiguration]
       using currentConfiguration_index_le_commitIndex
-        { (state.nodes node) with commitIndex := frontier }
+        { ((nodeOf state) node) with commitIndex := frontier }
   have oldConfigurationBeforeNew :
       oldConfiguration.index <= newConfiguration.index := by
     have oldFrontierBound :
@@ -661,25 +628,25 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       oldConfigurationIndexBound.trans (Nat.le_of_lt advances)
     simpa [newConfiguration, currentConfiguration]
       using configuration_index_le_currentConfiguration
-        { (state.nodes node) with commitIndex := frontier }
+        { ((nodeOf state) node) with commitIndex := frontier }
         oldConfiguration
         (by simpa using oldConfigurationKnown)
         oldFrontierBound
   have newConfigurationActiveBefore :
-      newConfiguration ∈ activeConfigurations (state.nodes node) := by
+      newConfiguration ∈ activeConfigurations ((nodeOf state) node) := by
     simpa [activeConfigurations, oldConfiguration]
       using And.intro newConfigurationKnown oldConfigurationBeforeNew
   have frontierAuthorityMajority :
       hasConfigurationMajority
-        (acknowledgingNodes state node frontier)
+        (acknowledgingNodes (nodeOf state node) node frontier)
         newConfiguration :=
     majorityAtConfiguration
       frontierValid.2 newConfigurationActiveBefore
       newConfigurationIndexBound
   have frontierEffectiveAuthorityMajority :
       hasConfigurationMajority
-        (effectiveAckers state responseHistory node frontier)
-        (currentConfigurationAt (state.nodes node).log frontier) := by
+        (effectiveAckers (joined := joinedNodes) state responseHistory node frontier)
+        (currentConfigurationAt ((nodeOf state) node).log frontier) := by
     simpa [newConfiguration]
       using hasConfigurationMajority_mono
         (acknowledgingNodes_subset_effectiveAckers
@@ -687,14 +654,14 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           (facts.joinedCarriers.activeNodes node))
         frontierAuthorityMajority
   have frontierCanonicalEq :
-      (state.nodes node).log.take frontier =
-        (canonicalHistory (state.nodes node).currentTerm).take frontier := by
+      ((nodeOf state) node).log.take frontier =
+        (canonicalHistory ((nodeOf state) node).currentTerm).take frontier := by
     rcases isSignatureAtTrue frontierSignature with
       ⟨frontierEntry, frontierFound, _⟩
     have agreement :=
       (ownership.logEntryAgreement node frontier frontierEntry frontierFound).2
     have entryTerm :
-        frontierEntry.term = (state.nodes node).currentTerm := by
+        frontierEntry.term = ((nodeOf state) node).currentTerm := by
       simpa [termAt, frontierFound] using frontierValid.1
     simpa [entryTerm] using agreement
   have activationPrefixComparable
@@ -702,31 +669,31 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (record : ActivationRecord Node TxId)
       (stored : activations activationIndex = some record) :
       record.history.take record.activationFrontier <+:
-          (state.nodes node).log.take frontier \/
-        (state.nodes node).log.take frontier <+:
+          ((nodeOf state) node).log.take frontier \/
+        ((nodeOf state) node).log.take frontier <+:
           record.history.take record.activationFrontier := by
     have recordTermPositive :=
       activationQuorums.history.termPositive
         activationIndex record stored
     rcases Nat.lt_trichotomy
-        record.activationTerm (state.nodes node).currentTerm with
+        record.activationTerm ((nodeOf state) node).currentTerm with
       earlier | sameTerm | later
     · have nodeOwned := ownership.activeLeader node leaderRole
       rcases
           electionFacts.ownerRecorded
-            (state.nodes node).currentTerm node nodeOwned with
+            ((nodeOf state) node).currentTerm node nodeOwned with
         bootstrap | elected
-      · have nodeTerm : (state.nodes node).currentTerm = BOOTSTRAP_TERM := by
+      · have nodeTerm : ((nodeOf state) node).currentTerm = BOOTSTRAP_TERM := by
           simpa using bootstrap.1
         omega
       · rcases elected with ⟨election, electionStored, electionLeader⟩
         have recordInLeader :
             record.history.take record.activationFrontier <+:
-              (state.nodes node).log :=
+              ((nodeOf state) node).log :=
           (activationPrefixInLaterElection
             activationElections stored electionStored earlier).trans
             ((electionFacts.promotionCanonical
-              (state.nodes node).currentTerm election electionStored).trans
+              ((nodeOf state) node).currentTerm election electionStored).trans
               (by rw [ownership.activeLeaderHistory node leaderRole]))
         have activationBound :
             record.activationFrontier <= frontier := by
@@ -738,7 +705,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           rcases isSignatureAtTrue frontierSignature with
             ⟨frontierEntry, frontierFound, _⟩
           have activationFoundLeader :
-              entryAt? (state.nodes node).log record.activationFrontier =
+              entryAt? ((nodeOf state) node).log record.activationFrontier =
                 some activationEntry :=
             entryAt_of_prefix recordInLeader
               (by
@@ -751,7 +718,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 activationIndex record stored).1
             simpa [termAt, activationFound] using activationTerm
           have frontierEntryTerm :
-              frontierEntry.term = (state.nodes node).currentTerm := by
+              frontierEntry.term = ((nodeOf state) node).currentTerm := by
             simpa [termAt, frontierFound] using frontierValid.1
           by_contra outside
           have monotone :=
@@ -811,10 +778,10 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       Exists fun record =>
         activations activationIndex = some record /\
           newConfiguration ∈ record.governingActive /\
-          record.activationTerm <= (state.nodes node).currentTerm /\
+          record.activationTerm <= ((nodeOf state) node).currentTerm /\
           record.history.take
               (min frontier record.activationFrontier) =
-            (state.nodes node).log.take
+            ((nodeOf state) node).log.take
               (min frontier record.activationFrontier)
   let replaceActivation : Prop :=
     Not (oldConfiguration = newConfiguration) /\
@@ -831,7 +798,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (stored : activations activationIndex = some record)
       (governing : newConfiguration ∈ record.governingActive)
       (termBound :
-        record.activationTerm <= (state.nodes node).currentTerm) :
+        record.activationTerm <= ((nodeOf state) node).currentTerm) :
       retainedActivation := by
     refine ⟨activationIndex, record, stored, governing, termBound, ?_⟩
     let shared := min frontier record.activationFrontier
@@ -842,7 +809,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         (activationQuorums.history.valid
           activationIndex record stored).2.1]
     have frontierLength :
-        ((state.nodes node).log.take frontier).length = frontier := by
+        (((nodeOf state) node).log.take frontier).length = frontier := by
       simp [Nat.min_eq_left frontierBound]
     rcases activationPrefixComparable activationIndex record stored with
       recordBefore | frontierBefore
@@ -867,12 +834,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       recordBefore | frontierBefore
     · apply
         allConfigurations_index_unique
-          (TxId := TxId) (state.nodes node).log
+          (TxId := TxId) ((nodeOf state) node).log
       · apply
           memOfPrefix
             (allConfigurations_mono_prefix
               (recordBefore.trans
-                (List.take_prefix frontier (state.nodes node).log)))
+                (List.take_prefix frontier ((nodeOf state) node).log)))
         exact activationNewConfigurationKnown
           activationQuorums.history stored
       · exact newConfigurationKnown
@@ -894,7 +861,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 (List.take_prefix record.activationFrontier record.history)))
         exact
           allConfigurations_mem_take_of_index_le
-            (state.nodes node).log frontier frontierBound
+            ((nodeOf state) node).log frontier frontierBound
             newConfigurationKnown newConfigurationIndexBound
       · exact sameIndex
   have storedAtNewConfigurationEq
@@ -960,7 +927,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         newConfiguration ∈ allConfigurations witness.activation.history := by
       have newKnownLeaderTake :=
         allConfigurations_mem_take_of_index_le
-          (state.nodes node).log newConfiguration.index
+          ((nodeOf state) node).log newConfiguration.index
           (newConfigurationIndexBound.trans frontierBound)
           newConfigurationKnown le_rfl
       have activationLength :
@@ -969,7 +936,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               witness.activation.activationFrontier := by
         simp [Nat.min_eq_left valid.2.1]
       have frontierLength :
-          ((state.nodes node).log.take frontier).length = frontier := by
+          (((nodeOf state) node).log.take frontier).length = frontier := by
         simp [Nat.min_eq_left frontierBound]
       rcases
           activationPrefixComparable
@@ -986,7 +953,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 newConfiguration.index witness.activation.history))
         rw [show
           witness.activation.history.take newConfiguration.index =
-              (state.nodes node).log.take newConfiguration.index by
+              ((nodeOf state) node).log.take newConfiguration.index by
             simpa [
               List.take_take,
               Nat.min_eq_left newWithinActivation,
@@ -1004,7 +971,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 newConfiguration.index witness.activation.history))
         rw [show
           witness.activation.history.take newConfiguration.index =
-              (state.nodes node).log.take newConfiguration.index by
+              ((nodeOf state) node).log.take newConfiguration.index by
             simpa [
               List.take_take,
               Nat.min_eq_left newWithinActivation,
@@ -1047,7 +1014,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (record : ActivationRecord Node TxId)
       (stored : activations activationIndex = some record)
       (termBound :
-        record.activationTerm <= (state.nodes node).currentTerm) :
+        record.activationTerm <= ((nodeOf state) node).currentTerm) :
       Not (newConfiguration ∈ record.governingActive) := by
     intro governing
     exact
@@ -1056,7 +1023,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           activationIndex record stored governing termBound)
   have currentConfigurationNodeEq :
       currentConfiguration
-          ((advanceCommitState state node).nodes node) =
+          ((nodeOf (advanceCommitState state node)) node) =
         newConfiguration := by
     simp [
       currentConfiguration, newConfiguration,
@@ -1066,19 +1033,19 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       forall configuration,
         configuration ∈
             activeConfigurations
-              ((advanceCommitState state node).nodes node) ->
-          configuration ∈ activeConfigurations (state.nodes node) := by
+              ((nodeOf (advanceCommitState state node)) node) ->
+          configuration ∈ activeConfigurations ((nodeOf state) node) := by
     intro configuration active
     have parts :
-        configuration ∈ allConfigurations (state.nodes node).log /\
+        configuration ∈ allConfigurations ((nodeOf state) node).log /\
           newConfiguration.index <= configuration.index := by
       simpa [activeConfigurations, currentConfigurationNodeEq, logEq] using active
     simpa [activeConfigurations, oldConfiguration]
       using And.intro parts.1 (oldConfigurationBeforeNew.trans parts.2)
   have effectiveMajorityNodeAfterOfBefore :
       forall index,
-        hasEffectiveMajorityAt state responseHistory node index ->
-          hasEffectiveMajorityAt
+        hasEffectiveMajorityAt (joined := joinedNodes) state responseHistory node index ->
+          hasEffectiveMajorityAt (joined := joinedNodes)
             (advanceCommitState state node)
             responseHistory node index := by
     intro index majority
@@ -1102,7 +1069,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       ] at member
       have bounds := of_decide_eq_true member.2
       have active :
-          configuration ∈ activeConfigurations (state.nodes node) := by
+          configuration ∈ activeConfigurations ((nodeOf state) node) := by
         simp [
           activeConfigurations, oldConfiguration,
           member.1, bounds.1
@@ -1115,14 +1082,14 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     intro laterFrontier activationBefore laterBound
     have newKnown :
         newConfiguration ∈
-          allConfigurations (state.nodes node).log :=
+          allConfigurations ((nodeOf state) node).log :=
       newConfigurationKnown
     have newCommitted :
         newConfiguration.index <= laterFrontier :=
       newConfigurationIndexBound.trans activationBefore
     simpa [activationRecord, newConfiguration, currentConfiguration]
       using configuration_index_le_currentConfiguration
-        { (state.nodes node) with commitIndex := laterFrontier }
+        { ((nodeOf state) node) with commitIndex := laterFrontier }
         newConfiguration
         (by simpa using newKnown)
         newCommitted
@@ -1278,7 +1245,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           have witnessPrefixInFrontier :
               witness.activation.history.take
                   witness.activation.activationFrontier <+:
-                (state.nodes node).log.take frontier := by
+                ((nodeOf state) node).log.take frontier := by
             rcases
                 activationPrefixComparable
                   witness.activationIndex witness.activation
@@ -1297,7 +1264,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                           witness.activation.history)))
                 exact
                   allConfigurations_mem_take_of_index_le
-                    (state.nodes node).log frontier frontierBound
+                    ((nodeOf state) node).log frontier frontierBound
                     newConfigurationKnown newConfigurationIndexBound
               have valid :=
                 activationQuorums.history.valid
@@ -1308,13 +1275,13 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                       witness.activation.activationFrontier := by
                 simp [Nat.min_eq_left valid.2.1]
               have frontierLength :
-                  ((state.nodes node).log.take frontier).length = frontier := by
+                  (((nodeOf state) node).log.take frontier).length = frontier := by
                 simp [Nat.min_eq_left frontierBound]
               have frontierWithin :
                   frontier <= witness.activation.activationFrontier := by
                 simpa [activationLength, frontierLength] using reversed.length_le
               let activationNode : NodeState Node TxId :=
-                { state.nodes node with
+                { (nodeOf state) node with
                   log := witness.activation.history
                   commitIndex := witness.activation.activationFrontier }
               have maximal :=
@@ -1349,7 +1316,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 witness.activation.activationFrontier <=
                   frontier := by
               have frontierLength :
-                  ((state.nodes node).log.take frontier).length = frontier := by
+                  (((nodeOf state) node).log.take frontier).length = frontier := by
                 simp [Nat.min_eq_left frontierBound]
               simpa [activationLength, frontierLength]
                 using witnessPrefixInFrontier.length_le
@@ -1357,7 +1324,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 newConfiguration ∈
                   allConfigurations witness.activation.history := by
               have exactTake :
-                  (state.nodes node).log.take
+                  ((nodeOf state) node).log.take
                       witness.activation.activationFrontier =
                     witness.activation.history.take
                       witness.activation.activationFrontier := by
@@ -1373,12 +1340,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               rw [← exactTake]
               exact
                 allConfigurations_mem_take_of_index_le
-                  (state.nodes node).log
+                  ((nodeOf state) node).log
                   witness.activation.activationFrontier
                   (activationFrontierInLeader.trans frontierBound)
                   newConfigurationKnown newWithin
             let activationNode : NodeState Node TxId :=
-              { state.nodes node with
+              { (nodeOf state) node with
                 log := witness.activation.history
                 commitIndex := witness.activation.activationFrontier }
             have ordered :=
@@ -1508,7 +1475,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           have snapshot := supporterSnapshotSpec supporter member
           rw [show
             (activationRecord.supporterHistory supporter) =
-                (state.nodes node).log.take frontier by
+                ((nodeOf state) node).log.take frontier by
               simpa [activationRecord] using snapshot.2.2.2]
           exact frontierHistoryCanonical
         · exact
@@ -1533,7 +1500,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         (fun candidate => Nat.le_of_eq (termEq candidate).symm)
         (fun _ _ _ voted _ => voted)
   have oldAckerActivationAfter :
-      AckerActivationHistory
+      AckerActivationHistory (joined := joinedNodes)
         (advanceCommitState state node)
         responseHistory elections activations := by
     apply
@@ -1552,7 +1519,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · intro term record stored
       exact stored
   have ackerActivationAfter :
-      AckerActivationHistory
+      AckerActivationHistory (joined := joinedNodes)
         (advanceCommitState state node)
         responseHistory elections newActivations := by
     by_cases create : replaceActivation
@@ -1566,39 +1533,39 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         subst activation
         rcases
             electionFacts.ownerRecorded
-              (state.nodes node).currentTerm node
+              ((nodeOf state) node).currentTerm node
               (ownership.activeLeader node leaderRole) with
           bootstrap | recordedElection
         · have sourcePositive :=
             facts.currentTermsPositive source
               (by
-                have oldRole : (state.nodes source).role = .leader := by
+                have oldRole : ((nodeOf state) source).role = .leader := by
                   simpa [roleEq] using role
                 rw [oldRole]
                 decide)
           have bootstrapTerm :
-              (state.nodes node).currentTerm = BOOTSTRAP_TERM := by
+              ((nodeOf state) node).currentTerm = BOOTSTRAP_TERM := by
             simpa using bootstrap.1
           have sourceBeforeBootstrap :
-              (state.nodes source).currentTerm < BOOTSTRAP_TERM := by
+              ((nodeOf state) source).currentTerm < BOOTSTRAP_TERM := by
             simpa [activationRecord, termEq, bootstrapTerm] using later
           omega
         · rcases recordedElection with
             ⟨activationElection, electionStored, electionLeader⟩
           let sourcePrefix :=
-            ((advanceCommitState state node).nodes source).log.take index
+            ((nodeOf (advanceCommitState state node)) source).log.take index
           by_cases retained :
               sourcePrefix <+: activationElection.promotionLog
           · left
             have promotionInLeader :
                 activationElection.promotionLog <+:
-                  (state.nodes node).log :=
+                  ((nodeOf state) node).log :=
               (electionFacts.promotionCanonical
-                (state.nodes node).currentTerm
+                ((nodeOf state) node).currentTerm
                 activationElection electionStored).trans
                 (by rw [ownership.activeLeaderHistory node leaderRole])
             have sourceInLeader :
-                sourcePrefix <+: (state.nodes node).log :=
+                sourcePrefix <+: ((nodeOf state) node).log :=
               retained.trans promotionInLeader
             rcases isSignatureAtTrue signature with
               ⟨sourceEntry, sourceFound, _⟩
@@ -1606,14 +1573,14 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               ⟨frontierEntry, frontierFound, _⟩
             have sourceEntryTerm :
                 sourceEntry.term =
-                  (state.nodes source).currentTerm := by
+                  ((nodeOf state) source).currentTerm := by
               simpa [termAt, sourceFound, termEq] using current
             have frontierEntryTerm :
                 frontierEntry.term =
-                  (state.nodes node).currentTerm := by
+                  ((nodeOf state) node).currentTerm := by
               simpa [termAt, frontierFound] using frontierValid.1
             have sourceFoundLeader :
-                entryAt? (state.nodes node).log index =
+                entryAt? ((nodeOf state) node).log index =
                   some sourceEntry := by
               apply entryAt_of_prefix sourceInLeader
               rw [entryAtTake_of_le le_rfl]
@@ -1626,13 +1593,13 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   (by omega) frontierFound sourceFoundLeader
               rw [frontierEntryTerm, sourceEntryTerm] at monotone
               have sourceBefore :
-                  (state.nodes source).currentTerm <
-                    (state.nodes node).currentTerm := by
+                  ((nodeOf state) source).currentTerm <
+                    ((nodeOf state) node).currentTerm := by
                 simpa [activationRecord, termEq] using later
               omega
             have sourceInFrontier :
                 sourcePrefix <+:
-                  (state.nodes node).log.take frontier := by
+                  ((nodeOf state) node).log.take frontier := by
               rw [List.prefix_take_iff]
               refine ⟨sourceInLeader, ?_⟩
               have sourceBound := entryAtSomeIndexBound sourceFound
@@ -1644,12 +1611,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               supporterSnapshotSpec supporter activationSupporter
             rw [show
               activationRecord.supporterHistory supporter =
-                  (state.nodes node).log.take frontier by
+                  ((nodeOf state) node).log.take frontier by
                 simpa [activationRecord] using snapshot.2.2.2]
             exact sourceInFrontier
           · right
             exact ⟨
-              (state.nodes node).currentTerm,
+              ((nodeOf state) node).currentTerm,
               activationElection,
               by simpa [termEq] using later,
               le_rfl,
@@ -1720,7 +1687,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (before :
         activation.newConfiguration.index < newConfiguration.index) :
       activation.history.take activation.activationFrontier <+:
-        (state.nodes node).log.take frontier := by
+        ((nodeOf state) node).log.take frontier := by
     rcases activationPrefixComparable activationIndex activation stored with
       ordered | reversed
     · exact ordered
@@ -1734,10 +1701,10 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   activation.activationFrontier activation.history)))
         exact
           allConfigurations_mem_take_of_index_le
-            (state.nodes node).log frontier frontierBound
+            ((nodeOf state) node).log frontier frontierBound
             newConfigurationKnown newConfigurationIndexBound
       let activationNode : NodeState Node TxId :=
-        { state.nodes node with
+        { (nodeOf state) node with
           log := activation.history
           commitIndex := activation.activationFrontier }
       have maximal :=
@@ -1753,7 +1720,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 (activationQuorums.history.valid
                   activationIndex activation stored).2.1]
             have frontierLength :
-                ((state.nodes node).log.take frontier).length =
+                (((nodeOf state) node).log.take frontier).length =
                   frontier := by
               simp [Nat.min_eq_left frontierBound]
             have frontierBeforeActivation :
@@ -1775,18 +1742,18 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (stored : activations activationIndex = some activation)
       (before :
         newConfiguration.index < activation.newConfiguration.index) :
-      (state.nodes node).log.take frontier <+:
+      ((nodeOf state) node).log.take frontier <+:
         activation.history.take activation.activationFrontier := by
     rcases activationPrefixComparable activationIndex activation stored with
       reversed | ordered
     · have activationKnownLeader :
           activation.newConfiguration ∈
-            allConfigurations (state.nodes node).log := by
+            allConfigurations ((nodeOf state) node).log := by
         apply
           memOfPrefix
             (allConfigurations_mono_prefix
               (reversed.trans
-                (List.take_prefix frontier (state.nodes node).log)))
+                (List.take_prefix frontier ((nodeOf state) node).log)))
         exact
           activationNewConfigurationKnown
             activationQuorums.history stored
@@ -1801,7 +1768,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             (activationQuorums.history.valid
               activationIndex activation stored).2.1]
         have frontierLength :
-            ((state.nodes node).log.take frontier).length = frontier := by
+            (((nodeOf state) node).log.take frontier).length = frontier := by
           simp [Nat.min_eq_left frontierBound]
         have newWithinActivation :
             activation.newConfiguration.index <=
@@ -1818,7 +1785,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           (by simpa [activationLength, frontierLength] using reversedLength)
       have maximal :=
         configuration_index_le_currentConfiguration
-          { state.nodes node with commitIndex := frontier }
+          { (nodeOf state) node with commitIndex := frontier }
           activation.newConfiguration activationKnownLeader
           (by simpa using activationWithin)
       have contradiction :
@@ -1883,10 +1850,10 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (witness :
         ConfigurationCoverageWitness state activations candidate)
       (before :
-        (currentConfiguration (state.nodes candidate)).index <
+        (currentConfiguration ((nodeOf state) candidate)).index <
           newConfiguration.index) :
       witness.sharedPrefix <+:
-        (state.nodes node).log.take frontier := by
+        ((nodeOf state) node).log.take frontier := by
     rcases
         activationPrefixComparable
           witness.activationIndex witness.activation witness.stored with
@@ -1911,7 +1878,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                     witness.activation.history)))
           exact
             allConfigurations_mem_take_of_index_le
-              (state.nodes node).log frontier frontierBound
+              ((nodeOf state) node).log frontier frontierBound
               newConfigurationKnown newConfigurationIndexBound
         have newKnownActivationShared :
             newConfiguration ∈
@@ -1926,29 +1893,29 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             newKnownActivation newWithinShared
         have newKnownCandidate :
             newConfiguration ∈
-              allConfigurations (state.nodes candidate).log := by
+              allConfigurations ((nodeOf state) candidate).log := by
           apply
             memOfPrefix
               (allConfigurations_mono_prefix
                 (List.take_prefix
-                  witness.sharedFrontier (state.nodes candidate).log))
+                  witness.sharedFrontier ((nodeOf state) candidate).log))
           rw [← show
             witness.activation.history.take witness.sharedFrontier =
-                (state.nodes candidate).log.take witness.sharedFrontier by
+                ((nodeOf state) candidate).log.take witness.sharedFrontier by
               simpa [
                 ConfigurationCoverageWitness.sharedFrontier
               ] using witness.historyAgreement]
           exact newKnownActivationShared
         have maximal :=
           configuration_index_le_currentConfiguration
-            (state.nodes candidate) newConfiguration newKnownCandidate
+            ((nodeOf state) candidate) newConfiguration newKnownCandidate
             (newWithinShared.trans witness.sharedFrontier_le_commitIndex)
         omega
       have sharedWithinFrontier :
           witness.sharedFrontier <= frontier :=
         sharedBeforeNew.le.trans newConfigurationIndexBound
       have frontierLength :
-          ((state.nodes node).log.take frontier).length = frontier := by
+          (((nodeOf state) node).log.take frontier).length = frontier := by
         simp [Nat.min_eq_left frontierBound]
       have agreed :=
         takeEqOfPrefix frontierBefore
@@ -1957,7 +1924,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       rw [ConfigurationCoverageWitness.sharedPrefix]
       have exactShared :
           witness.activation.history.take witness.sharedFrontier =
-            (state.nodes node).log.take witness.sharedFrontier := by
+            ((nodeOf state) node).log.take witness.sharedFrontier := by
         simpa [List.take_take,
           Nat.min_eq_left witness.sharedFrontier_le_activationFrontier,
           Nat.min_eq_left sharedWithinFrontier]
@@ -1965,7 +1932,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       rw [exactShared]
       have taken :=
         List.take_prefix witness.sharedFrontier
-          ((state.nodes node).log.take frontier)
+          (((nodeOf state) node).log.take frontier)
       simpa [List.take_take, Nat.min_eq_left sharedWithinFrontier] using taken
   have newPrefixInOldCoverageSharedPrefix
       (create : replaceActivation)
@@ -1974,8 +1941,8 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         ConfigurationCoverageWitness state activations candidate)
       (before :
         newConfiguration.index <
-          (currentConfiguration (state.nodes candidate)).index) :
-      (state.nodes node).log.take frontier <+:
+          (currentConfiguration ((nodeOf state) candidate)).index) :
+      ((nodeOf state) node).log.take frontier <+:
         witness.sharedPrefix := by
     have newBeforeWitness :
         newConfiguration.index <
@@ -1996,19 +1963,19 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         omega
       have sharedWithinNewPrefix :
           witness.sharedFrontier <=
-            ((state.nodes node).log.take frontier).length := by
+            (((nodeOf state) node).log.take frontier).length := by
         simp [Nat.min_eq_left frontierBound]
         exact sharedBeforeFrontier.le
       have agreed :=
         takeEqOfPrefix newPrefixInWitness sharedWithinNewPrefix
       have candidateKnownNewPrefix :
-          currentConfiguration (state.nodes candidate) ∈
-            allConfigurations ((state.nodes node).log.take frontier) := by
+          currentConfiguration ((nodeOf state) candidate) ∈
+            allConfigurations (((nodeOf state) node).log.take frontier) := by
         have candidateKnownShared :=
           witness.configuration_mem_activationHistoryTake
             activationQuorums.history
         have agreedShared :
-            ((state.nodes node).log.take frontier).take
+            (((nodeOf state) node).log.take frontier).take
                 witness.sharedFrontier =
               witness.activation.history.take witness.sharedFrontier := by
           simpa [ConfigurationCoverageWitness.sharedPrefix, List.take_take,
@@ -2019,29 +1986,29 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             (allConfigurations_mono_prefix
               (List.take_prefix
                 witness.sharedFrontier
-                ((state.nodes node).log.take frontier)))
+                (((nodeOf state) node).log.take frontier)))
         rw [agreedShared]
         simpa [
                ConfigurationCoverageWitness.sharedPrefix]
           using candidateKnownShared
       have candidateKnownLeader :
-          currentConfiguration (state.nodes candidate) ∈
-            allConfigurations (state.nodes node).log :=
+          currentConfiguration ((nodeOf state) candidate) ∈
+            allConfigurations ((nodeOf state) node).log :=
         memOfPrefix
           (allConfigurations_mono_prefix
-            (List.take_prefix frontier (state.nodes node).log))
+            (List.take_prefix frontier ((nodeOf state) node).log))
           candidateKnownNewPrefix
       have maximal :=
         configuration_index_le_currentConfiguration
-          { state.nodes node with commitIndex := frontier }
-          (currentConfiguration (state.nodes candidate))
+          { (nodeOf state) node with commitIndex := frontier }
+          (currentConfiguration ((nodeOf state) candidate))
           candidateKnownLeader
           (by
             simpa using
               witness.configurationIndexBound.trans
                 (Nat.le_of_lt sharedBeforeFrontier))
       have contradiction :
-          (currentConfiguration (state.nodes candidate)).index <=
+          (currentConfiguration ((nodeOf state) candidate)).index <=
             newConfiguration.index := by
         simpa [currentConfiguration, newConfiguration] using maximal
       omega
@@ -2057,7 +2024,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       ?_
     ⟩
     have newPrefixLength :
-        ((state.nodes node).log.take frontier).length = frontier := by
+        (((nodeOf state) node).log.take frontier).length = frontier := by
       simp [Nat.min_eq_left frontierBound]
     have sharedBound :
         witness.sharedFrontier <= witness.activation.history.length :=
@@ -2071,9 +2038,9 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (witness :
         ConfigurationCoverageWitness state activations candidate)
       (sameIndex :
-        (currentConfiguration (state.nodes candidate)).index =
+        (currentConfiguration ((nodeOf state) candidate)).index =
           newConfiguration.index) :
-      currentConfiguration (state.nodes candidate) = newConfiguration := by
+      currentConfiguration ((nodeOf state) candidate) = newConfiguration := by
     have newAtOrBeforeWitness :
         newConfiguration.index <=
           witness.activation.newConfiguration.index := by
@@ -2097,7 +2064,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   witness.activation.history)))
         exact
           allConfigurations_mem_take_of_index_le
-            (state.nodes node).log frontier frontierBound
+            ((nodeOf state) node).log frontier frontierBound
             newConfigurationKnown newConfigurationIndexBound
       · have configurationEq :=
           activationConfigurationEqNew
@@ -2112,7 +2079,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         simpa [configurationEq]
           using activationNewConfigurationKnown activationQuorums.history witness.stored
     have currentKnownWitness :
-        currentConfiguration (state.nodes candidate) ∈
+        currentConfiguration ((nodeOf state) candidate) ∈
           allConfigurations witness.activation.history := by
       apply
         memOfPrefix
@@ -2136,11 +2103,11 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (witness :
         ConfigurationCoverageWitness state activations candidate)
       (before :
-        (currentConfiguration (state.nodes candidate)).index <
+        (currentConfiguration ((nodeOf state) candidate)).index <
           newConfiguration.index) :
-      currentConfiguration (state.nodes candidate) ∈
-        allConfigurations ((state.nodes node).log.take frontier) := by
-    let configuration := currentConfiguration (state.nodes candidate)
+      currentConfiguration ((nodeOf state) candidate) ∈
+        allConfigurations (((nodeOf state) node).log.take frontier) := by
+    let configuration := currentConfiguration ((nodeOf state) candidate)
     have configurationKnownActivation
         : configuration ∈ allConfigurations witness.activation.history :=
       memOfPrefix
@@ -2192,15 +2159,15 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         memOfPrefix
           (allConfigurations_mono_prefix
             (List.take_prefix
-              configuration.index ((state.nodes node).log.take frontier)))
+              configuration.index (((nodeOf state) node).log.take frontier)))
       simpa [List.take_take, Nat.min_eq_left configurationWithinFrontier]
         using (show
           configuration ∈
             allConfigurations
-              ((state.nodes node).log.take configuration.index) by
+              (((nodeOf state) node).log.take configuration.index) by
           rw [← show
             witness.activation.history.take configuration.index =
-                (state.nodes node).log.take configuration.index by
+                ((nodeOf state) node).log.take configuration.index by
               simpa [
                 List.take_take,
                 Nat.min_eq_left configurationWithinActivation,
@@ -2212,22 +2179,22 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           (count := configuration.index)
           (by
             have frontierLength :
-                ((state.nodes node).log.take frontier).length = frontier := by
+                (((nodeOf state) node).log.take frontier).length = frontier := by
               simp [Nat.min_eq_left frontierBound]
             simpa [frontierLength] using configurationWithinFrontier)
       apply
         memOfPrefix
           (allConfigurations_mono_prefix
             (List.take_prefix
-              configuration.index ((state.nodes node).log.take frontier)))
+              configuration.index (((nodeOf state) node).log.take frontier)))
       simpa [List.take_take, Nat.min_eq_left configurationWithinFrontier]
         using (show
           configuration ∈
             allConfigurations
-              ((state.nodes node).log.take configuration.index) by
+              (((nodeOf state) node).log.take configuration.index) by
           rw [← show
             witness.activation.history.take configuration.index =
-                (state.nodes node).log.take configuration.index by
+                ((nodeOf state) node).log.take configuration.index by
               simpa [
                 List.take_take,
                 Nat.min_eq_left configurationWithinActivation,
@@ -2240,7 +2207,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         ConfigurationCoverageWitness state activations candidate)
       (before :
         newConfiguration.index <
-          (currentConfiguration (state.nodes candidate)).index) :
+          (currentConfiguration ((nodeOf state) candidate)).index) :
       newConfiguration ∈ allConfigurations witness.sharedPrefix := by
     have newWithinShared :
         newConfiguration.index <= witness.sharedFrontier :=
@@ -2250,7 +2217,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       newWithinShared.trans witness.sharedFrontier_le_activationFrontier
     have newKnownLeaderTake :=
       allConfigurations_mem_take_of_index_le
-        (state.nodes node).log newConfiguration.index
+        ((nodeOf state) node).log newConfiguration.index
         (newConfigurationIndexBound.trans frontierBound)
         newConfigurationKnown le_rfl
     have newKnownActivationTake :
@@ -2275,7 +2242,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             (by simpa [activationLength] using newWithinActivation)
         rw [show
           witness.activation.history.take newConfiguration.index =
-              (state.nodes node).log.take newConfiguration.index by
+              ((nodeOf state) node).log.take newConfiguration.index by
             simpa [
               List.take_take,
               Nat.min_eq_left newWithinActivation,
@@ -2283,7 +2250,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             ] using agreed]
         exact newKnownLeaderTake
       · have frontierLength :
-            ((state.nodes node).log.take frontier).length = frontier := by
+            (((nodeOf state) node).log.take frontier).length = frontier := by
           simp [Nat.min_eq_left frontierBound]
         have agreed :=
           takeEqOfPrefix frontierBefore
@@ -2291,7 +2258,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             (by simpa [frontierLength] using newConfigurationIndexBound)
         rw [show
           witness.activation.history.take newConfiguration.index =
-              (state.nodes node).log.take newConfiguration.index by
+              ((nodeOf state) node).log.take newConfiguration.index by
             simpa [
               List.take_take,
               Nat.min_eq_left newWithinActivation,
@@ -2371,7 +2338,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       · exact Or.inl (by simpa [logEq] using retained)
       · exact Or.inr (by simpa [termEq] using bad)
   have configurationFactsAfter :
-      ElectionConfigurationFacts
+      ElectionConfigurationFacts (joined := joinedNodes)
         (advanceCommitState state node)
         elections newActivations := by
     constructor
@@ -2529,15 +2496,15 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         · intro candidateRole
           exact False.elim (nodeNotCandidate candidateRole)
       · have oldPositive :
-            0 < (currentConfiguration (state.nodes candidate)).index := by
+            0 < (currentConfiguration ((nodeOf state) candidate)).index := by
           simpa [currentConfiguration, logEq, commitOther candidate candidateEq]
             using positive
         rcases configurationActivations candidate oldPositive with
           ⟨witness⟩
         have afterConfiguration :
             currentConfiguration
-                ((advanceCommitState state node).nodes candidate) =
-              currentConfiguration (state.nodes candidate) := by
+                ((nodeOf (advanceCommitState state node)) candidate) =
+              currentConfiguration ((nodeOf state) candidate) := by
           simp [
             currentConfiguration, logEq,
             commitOther candidate candidateEq
@@ -2644,8 +2611,8 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       · have currentConfigurationEq :
             forall candidate,
               currentConfiguration
-                  ((advanceCommitState state node).nodes candidate) =
-                currentConfiguration (state.nodes candidate) := by
+                  ((nodeOf (advanceCommitState state node)) candidate) =
+                currentConfiguration ((nodeOf state) candidate) := by
           intro candidate
           by_cases same : candidate = node
           · subst candidate
@@ -2657,7 +2624,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         by_cases candidateEq : candidate = node
         · subst candidate
           have oldPositive :
-              0 < (currentConfiguration (state.nodes node)).index := by
+              0 < (currentConfiguration ((nodeOf state) node)).index := by
             simpa [currentConfigurationEq node] using positive
           rcases configurationActivations node oldPositive with ⟨witness⟩
           let afterShared :=
@@ -2691,7 +2658,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               using sharedOrder
           have afterHistoryAgreement :
               witness.activation.history.take afterShared =
-                (state.nodes node).log.take afterShared := by
+                ((nodeOf state) node).log.take afterShared := by
             have activationLength :
                 (witness.activation.history.take
                   witness.activation.activationFrontier).length =
@@ -2720,7 +2687,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 Nat.min_eq_left afterWithinFrontier
               ] using agreed
             · have frontierLength :
-                  ((state.nodes node).log.take frontier).length = frontier := by
+                  (((nodeOf state) node).log.take frontier).length = frontier := by
                 simp [Nat.min_eq_left frontierBound]
               have agreed :=
                 takeEqOfPrefix frontierBefore
@@ -2760,14 +2727,14 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   currentConfigurationEq node, unchanged, oldConfiguration
                 ] using order)
             have afterInFrontier :
-                (state.nodes node).log.take afterShared <+:
-                  (state.nodes node).log.take frontier := by
+                ((nodeOf state) node).log.take afterShared <+:
+                  ((nodeOf state) node).log.take frontier := by
               rw [List.prefix_take_iff]
               refine ⟨List.take_prefix _ _, ?_⟩
               have afterBound : afterShared <= frontier :=
                 Nat.min_le_left _ _
               have frontierLength :
-                  ((state.nodes node).log.take frontier).length = frontier := by
+                  (((nodeOf state) node).log.take frontier).length = frontier := by
                 simp [Nat.min_eq_left frontierBound]
               simpa [
                 List.length_take,
@@ -2799,7 +2766,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           · intro role
             exact False.elim (nodeNotCandidate role)
         · have oldPositive :
-              0 < (currentConfiguration (state.nodes candidate)).index := by
+              0 < (currentConfiguration ((nodeOf state) candidate)).index := by
             simpa [currentConfigurationEq candidate] using positive
           rcases configurationActivations candidate oldPositive with
             ⟨witness⟩
@@ -2860,15 +2827,15 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 (of_decide_eq_true
                   (List.mem_filter.mp governing).2).2⟩
         have leaderSharedInFrontier :
-            (state.nodes node).log.take shared <+:
-              (state.nodes node).log.take frontier := by
+            ((nodeOf state) node).log.take shared <+:
+              ((nodeOf state) node).log.take frontier := by
           rw [List.prefix_take_iff]
           refine ⟨List.take_prefix _ _, ?_⟩
           have sharedBefore : shared <= frontier := Nat.min_le_left _ _
-          have sharedBound : shared <= (state.nodes node).log.length :=
+          have sharedBound : shared <= ((nodeOf state) node).log.length :=
             sharedBefore.trans frontierBound
           have frontierLength :
-              ((state.nodes node).log.take frontier).length = frontier := by
+              (((nodeOf state) node).log.take frontier).length = frontier := by
             simp [Nat.min_eq_left frontierBound]
           simpa [
             List.length_take, Nat.min_eq_left sharedBound,
@@ -2927,11 +2894,11 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               have lowerWithinFrontier :
                   lower.activationFrontier <= frontier := by
                 have frontierLength :
-                    ((state.nodes node).log.take frontier).length = frontier := by
+                    (((nodeOf state) node).log.take frontier).length = frontier := by
                   simp [Nat.min_eq_left frontierBound]
                 simpa [lowerLength, frontierLength] using lowerInFrontier.length_le
               have exactTake :
-                  ((state.nodes node).log.take frontier).take
+                  (((nodeOf state) node).log.take frontier).take
                       lower.activationFrontier =
                     lower.history.take lower.activationFrontier := by
                 simpa [lowerLength, List.take_take, Nat.min_eq_left lowerWithinFrontier]
@@ -2945,20 +2912,20 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 rw [← exactTake]
                 exact
                   allConfigurations_mem_take_of_index_le
-                    ((state.nodes node).log.take frontier)
+                    (((nodeOf state) node).log.take frontier)
                     lower.activationFrontier
                     (by
                       have frontierLength :
-                          ((state.nodes node).log.take frontier).length =
+                          (((nodeOf state) node).log.take frontier).length =
                             frontier := by
                         simp [Nat.min_eq_left frontierBound]
                       simpa [frontierLength] using lowerWithinFrontier)
                     (allConfigurations_mem_take_of_index_le
-                      (state.nodes node).log frontier frontierBound
+                      ((nodeOf state) node).log frontier frontierBound
                       newConfigurationKnown newConfigurationIndexBound)
                     newWithinLower
               let lowerNode : NodeState Node TxId :=
-                { state.nodes node with
+                { (nodeOf state) node with
                   log := lower.history
                   commitIndex := lower.activationFrontier }
               have maximal :=
@@ -2975,10 +2942,10 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               exact (Nat.not_le_of_gt lowerBeforeNew) contradiction
             have lowerInLeaderShared :
                 lower.history.take lower.activationFrontier <+:
-                  (state.nodes node).log.take shared := by
+                  ((nodeOf state) node).log.take shared := by
               rw [List.prefix_take_iff]
               refine ⟨
-                lowerInFrontier.trans (List.take_prefix frontier (state.nodes node).log),
+                lowerInFrontier.trans (List.take_prefix frontier ((nodeOf state) node).log),
                 ?_
               ⟩
               have lowerLength :
@@ -2988,7 +2955,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   (activationQuorums.history.valid
                     lowerIndex lower oldStored).2.1]
               have sharedBound :
-                  shared <= (state.nodes node).log.length :=
+                  shared <= ((nodeOf state) node).log.length :=
                 (Nat.min_le_left _ _).trans frontierBound
               simpa [lowerLength, List.length_take, Nat.min_eq_left sharedBound]
                 using lowerFrontierBeforeShared
@@ -3005,15 +2972,15 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           · intro role
             exact False.elim (nodeNotCandidate role)
         · have oldPositive :
-              0 < (currentConfiguration (state.nodes candidate)).index := by
+              0 < (currentConfiguration ((nodeOf state) candidate)).index := by
             simpa [currentConfiguration, logEq, commitOther candidate candidateEq]
               using positive
           rcases configurationActivations candidate oldPositive with
             ⟨witness⟩
           have afterConfiguration :
               currentConfiguration
-                  ((advanceCommitState state node).nodes candidate) =
-                currentConfiguration (state.nodes candidate) := by
+                  ((nodeOf (advanceCommitState state node)) candidate) =
+                currentConfiguration ((nodeOf state) candidate) := by
             simp [
               currentConfiguration, logEq,
               commitOther candidate candidateEq
@@ -3055,16 +3022,16 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             exact witness.candidateTermStrict
               (by simpa [roleEq] using role)
   have evidenceValid :
-      evidence.Valid ((state.nodes node).log.take frontier) := by
+      evidence.Valid (((nodeOf state) node).log.take frontier) := by
     have newConfigurationActive :
-        newConfiguration ∈ activeConfigurations (state.nodes node) := by
+        newConfiguration ∈ activeConfigurations ((nodeOf state) node) := by
       simp [
         activeConfigurations, newConfigurationKnown,
         oldConfiguration, oldConfigurationBeforeNew
       ]
     have authorityMajority :
         hasConfigurationMajority
-          (acknowledgingNodes state node frontier)
+          (acknowledgingNodes (nodeOf state node) node frontier)
           newConfiguration :=
       majorityAtConfiguration
         frontierValid.2 newConfigurationActive newConfigurationIndexBound
@@ -3087,7 +3054,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             knownEvidence supportedPrefix ->
           (knownEvidence = evidence /\
             supportedPrefix =
-              ((advanceCommitState state node).nodes node).committedLog) \/
+              ((nodeOf (advanceCommitState state node)) node).committedLog) \/
             KnownCommitEvidence
               state appendHistory nodeEvidence requestEvidence
               knownEvidence supportedPrefix := by
@@ -3130,7 +3097,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           by simp [evidence, termEq]
         ⟩
       · have oldPositive :
-            0 < (state.nodes candidate).commitIndex := by
+            0 < ((nodeOf state) candidate).commitIndex := by
           simpa [commitOther candidate same] using positive
         rcases evidenceFacts.nodePositive candidate oldPositive with
           ⟨oldEvidence, stored, valid, lengthEq, termBound⟩
@@ -3146,12 +3113,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · intro destination request member positive
       exact
         evidenceFacts.requestPositive destination request
-          (by simpa [advanceCommitState] using member) positive
+          (by simpa [advanceCommitState, Model.Local.advanceCommit, present] using member) positive
   have evidenceMemberEffective :
       forall member,
         member ∈ evidence.ackQuorum ->
           member ∈
-            effectiveAckers state responseHistory node frontier := by
+            effectiveAckers (joined := joinedNodes) state responseHistory node frontier := by
     intro member memberIn
     simp only [
       evidence, acknowledgingNodes, effectiveAckers,
@@ -3160,7 +3127,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · exact ⟨facts.joinedCarriers.activeNodes node active, Or.inl self⟩
     · exact ⟨facts.joinedCarriers.activeNodes node active, Or.inr (Or.inl matched)⟩
   have prospectiveAfter :
-      ProspectiveCommitEvidenceFacts
+      ProspectiveCommitEvidenceFacts (joined := joinedNodes)
         (advanceCommitState state node)
         appendHistory newNodeEvidence requestEvidence elections := by
     constructor
@@ -3218,18 +3185,17 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       · rcases new with ⟨new, _⟩
         subst knownEvidence
         have oldQueued :
-            Message.appendEntriesRequest request ∈
-              state.network destination := by
+            (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination) := by
           simpa [networkEq] using queued
         have requestOwned :=
           (ownership.queuedAppendMetadata
             destination request oldQueued).2.1
         have nodeOwned := ownership.activeLeader node leaderRole
         have requestTerm :
-            request.term = (state.nodes node).currentTerm := by
+            request.2.2.term = ((nodeOf state) node).currentTerm := by
           simpa [evidence] using sameTerm.symm
         rw [requestTerm] at requestOwned
-        have sourceEq : request.source = node :=
+        have sourceEq : request.1 = node :=
           Option.some.inj (requestOwned.symm.trans nodeOwned)
         left
         have sourceHistory :=
@@ -3252,23 +3218,23 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       · rcases new with ⟨new, _⟩
         subst knownEvidence
         have oldRole :
-            (state.nodes candidate).role = .candidate := by
+            ((nodeOf state) candidate).role = .candidate := by
           simpa [roleEq] using role
         have oldNewer :
-            (state.nodes node).currentTerm <
-              (state.nodes candidate).currentTerm := by
+            ((nodeOf state) node).currentTerm <
+              ((nodeOf state) candidate).currentTerm := by
           simpa [evidence, termEq] using newer
         have oldEntriesBefore :
             forall entry,
-              entry ∈ (state.nodes candidate).log ->
-                entry.term < (state.nodes candidate).currentTerm := by
+              entry ∈ ((nodeOf state) candidate).log ->
+                entry.term < ((nodeOf state) candidate).currentTerm := by
           intro entry member
           simpa [termEq] using entriesBefore entry (by simpa [logEq] using member)
         have oldRelaxed :
-            member ∈ relaxedElectionVoters state candidate := by
-          simpa [relaxedElectionVoters, makeRequestVoteRequest, termEq, logEq,
+            member ∈ relaxedElectionVoters (joined := joinedNodes) state candidate := by
+          simpa [relaxedElectionVoters, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq, logEq,
             lastIndexEq, lastTermEq, effectiveElectionVotersEq,
-            show (advanceCommitState state node).hasJoined = state.hasJoined from rfl,
+            show joinedNodes = joinedNodes from rfl,
             voteLogUpToDate]
             using relaxed
         simpa [evidence, logEq]
@@ -3285,23 +3251,23 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             (evidenceMemberEffective member ackMember)
             oldRelaxed
       · have oldRole :
-            (state.nodes candidate).role = .candidate := by
+            ((nodeOf state) candidate).role = .candidate := by
           simpa [roleEq] using role
         have oldNewer :
             knownEvidence.commitTerm <
-              (state.nodes candidate).currentTerm := by
+              ((nodeOf state) candidate).currentTerm := by
           simpa [termEq] using newer
         have oldEntriesBefore :
             forall entry,
-              entry ∈ (state.nodes candidate).log ->
-                entry.term < (state.nodes candidate).currentTerm := by
+              entry ∈ ((nodeOf state) candidate).log ->
+                entry.term < ((nodeOf state) candidate).currentTerm := by
           intro entry member
           simpa [termEq] using entriesBefore entry (by simpa [logEq] using member)
         have oldRelaxed :
-            member ∈ relaxedElectionVoters state candidate := by
-          simpa [relaxedElectionVoters, makeRequestVoteRequest, termEq, logEq,
+            member ∈ relaxedElectionVoters (joined := joinedNodes) state candidate := by
+          simpa [relaxedElectionVoters, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq, logEq,
             lastIndexEq, lastTermEq, effectiveElectionVotersEq,
-            show (advanceCommitState state node).hasJoined = state.hasJoined from rfl,
+            show joinedNodes = joinedNodes from rfl,
             voteLogUpToDate]
             using relaxed
         simpa [logEq]
@@ -3354,7 +3320,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · intro history canonical
       exact canonical
   have voteCanonicalAfter :
-      GrantedVoteCanonicalSnapshots
+      GrantedVoteCanonicalSnapshots (joined := joinedNodes)
         (advanceCommitState state node)
         canonicalHistory voteCandidateHistory voteVoterHistory := by
     apply
@@ -3371,7 +3337,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · intro history canonical
       exact canonical
   have grantedSnapshotsAfter :
-      GrantedVoteSnapshots
+      GrantedVoteSnapshots (joined := joinedNodes)
         (advanceCommitState state node)
         votes voteCandidateHistory voteVoterHistory := by
     intro candidate voter active member
@@ -3379,7 +3345,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     have oldActive := active
     rw [roleEq] at oldActive
     have oldMember :
-        voter ∈ effectiveElectionVoters state candidate := by
+        voter ∈ effectiveElectionVoters (joined := joinedNodes) state candidate := by
       rw [effectiveElectionVotersEq] at member
       exact member
     simpa [voteLogUpToDate, logEq]
@@ -3428,22 +3394,22 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     simpa [termEq] using candidatesAboveBootstrap candidate (by simpa [roleEq] using role)
   have recordBridgeAfter :
       forall source index,
-        ((advanceCommitState state node).nodes source).role =
+        ((nodeOf (advanceCommitState state node)) source).role =
             .leader ->
         termAt
-            ((advanceCommitState state node).nodes source).log index =
-          ((advanceCommitState state node).nodes source).currentTerm ->
+            ((nodeOf (advanceCommitState state node)) source).log index =
+          ((nodeOf (advanceCommitState state node)) source).currentTerm ->
         isSignatureAt
-            ((advanceCommitState state node).nodes source).log index =
+            ((nodeOf (advanceCommitState state node)) source).log index =
           true ->
-        hasPotentialMajorityAt
+        hasPotentialMajorityAt (joined := joinedNodes)
             (advanceCommitState state node)
             appendHistory responseHistory source index ->
           forall term record,
             elections term = some record ->
-            ((advanceCommitState state node).nodes source).currentTerm <
+            ((nodeOf (advanceCommitState state node)) source).currentTerm <
                 term ->
-              ((advanceCommitState state node).nodes source).log.take
+              ((nodeOf (advanceCommitState state node)) source).log.take
                   index <+:
                 record.promotionLog := by
     intro source index sourceRole current signature potential
@@ -3460,36 +3426,36 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         term record recorded newer
   have candidateBridgeAfter :
       forall source index,
-        ((advanceCommitState state node).nodes source).role =
+        ((nodeOf (advanceCommitState state node)) source).role =
             .leader ->
         termAt
-            ((advanceCommitState state node).nodes source).log index =
-          ((advanceCommitState state node).nodes source).currentTerm ->
+            ((nodeOf (advanceCommitState state node)) source).log index =
+          ((nodeOf (advanceCommitState state node)) source).currentTerm ->
         isSignatureAt
-            ((advanceCommitState state node).nodes source).log index =
+            ((nodeOf (advanceCommitState state node)) source).log index =
           true ->
-        hasPotentialMajorityAt
+        hasPotentialMajorityAt (joined := joinedNodes)
             (advanceCommitState state node)
             appendHistory responseHistory source index ->
           forall candidate,
-            ((advanceCommitState state node).nodes candidate).role =
+            ((nodeOf (advanceCommitState state node)) candidate).role =
                 .candidate ->
-            hasPotentialElectionMajority
+            hasPotentialElectionMajority (joined := joinedNodes)
               (advanceCommitState state node) candidate ->
-            ((advanceCommitState state node).nodes source).currentTerm <
-              ((advanceCommitState state node).nodes
+            ((nodeOf (advanceCommitState state node)) source).currentTerm <
+              ((nodeOf (advanceCommitState state node))
                 candidate).currentTerm ->
-              ((advanceCommitState state node).nodes source).log.take
+              ((nodeOf (advanceCommitState state node)) source).log.take
                     index <+:
-                  ((advanceCommitState state node).nodes candidate).log \/
+                  ((nodeOf (advanceCommitState state node)) candidate).log \/
                 Exists fun configuration =>
                   configuration ∈
                       activeConfigurations
-                        ((advanceCommitState state node).nodes source) /\
+                        ((nodeOf (advanceCommitState state node)) source) /\
                     configuration.index <= index /\
                     configuration ∈
                       activeConfigurations
-                        ((advanceCommitState state node).nodes
+                        ((nodeOf (advanceCommitState state node))
                           candidate) := by
     intro source index sourceRole current signature potential
         candidate candidateRole candidateMajority newer
@@ -3500,18 +3466,18 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     by_cases sourceEq : source = node
     · subst source
       have oldCandidateRole :
-          (state.nodes candidate).role = .candidate := by
+          ((nodeOf state) candidate).role = .candidate := by
         simpa [roleEq] using candidateRole
       have oldCandidateMajority :
-          hasPotentialElectionMajority state candidate :=
+          hasPotentialElectionMajority (joined := joinedNodes) state candidate :=
         (potentialElectionMajorityOtherEq candidate candidateNe).mp
           candidateMajority
       have oldNewer :
-          (state.nodes node).currentTerm <
-            (state.nodes candidate).currentTerm := by
+          ((nodeOf state) node).currentTerm <
+            ((nodeOf state) candidate).currentTerm := by
         simpa [termEq] using newer
       have frontierInCandidate
-          : (state.nodes node).log.take frontier <+: (state.nodes candidate).log := by
+          : ((nodeOf state) node).log.take frontier <+: ((nodeOf state) candidate).log := by
         have frontierPotential :=
           effectiveMajorityImpliesPotential
             state appendHistory responseHistory node frontier
@@ -3541,18 +3507,18 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               oldNewer
       let candidateConfiguration :=
         currentConfiguration
-          ((advanceCommitState state node).nodes candidate)
+          ((nodeOf (advanceCommitState state node)) candidate)
       have newKnownCandidate :
           newConfiguration ∈
             allConfigurations
-              ((advanceCommitState state node).nodes candidate).log := by
+              ((nodeOf (advanceCommitState state node)) candidate).log := by
         apply
           memOfPrefix
             (allConfigurations_mono_prefix
               (by simpa [logEq] using frontierInCandidate))
         exact
           allConfigurations_mem_take_of_index_le
-            (state.nodes node).log frontier frontierBound
+            ((nodeOf state) node).log frontier frontierBound
             newConfigurationKnown newConfigurationIndexBound
       by_cases candidateBefore :
           candidateConfiguration.index <= newConfiguration.index
@@ -3564,7 +3530,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               rw [← currentConfigurationNodeEq]
               exact
                 currentConfiguration_mem_activeConfigurations
-                  ((advanceCommitState state node).nodes node),
+                  ((nodeOf (advanceCommitState state node)) node),
             governs,
             by
               simpa [candidateConfiguration, activeConfigurations]
@@ -3574,12 +3540,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           have indexBefore : index <= frontier := by
             omega
           have indexPrefix :
-              ((advanceCommitState state node).nodes node).log.take
+              ((nodeOf (advanceCommitState state node)) node).log.take
                   index <+:
-                (state.nodes node).log.take frontier := by
+                ((nodeOf state) node).log.take frontier := by
             simpa [logEq]
-              using (show (state.nodes node).log.take index <+:
-                  (state.nodes node).log.take frontier by
+              using (show ((nodeOf state) node).log.take index <+:
+                  ((nodeOf state) node).log.take frontier by
                 rw [List.prefix_take_iff]
                 exact
                   ⟨List.take_prefix _ _,
@@ -3622,9 +3588,9 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             (candidateWitness.candidateTermStrict candidateRole)
             candidateWitness.configurationCovered
             (currentConfiguration_mem_activeConfigurations
-              ((advanceCommitState state node).nodes candidate))
+              ((nodeOf (advanceCommitState state node)) candidate))
         rcases Nat.lt_trichotomy
-            (state.nodes node).currentTerm
+            ((nodeOf state) node).currentTerm
             candidateActivation.activationTerm with
           activationLater | sameTerm | activationEarlier
         · left
@@ -3662,7 +3628,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         · have activationInSource :
               candidateActivation.history.take
                   candidateActivation.activationFrontier <+:
-                (state.nodes node).log := by
+                ((nodeOf state) node).log := by
             have activationCanonicalEq :=
               activationCanonicalAfter.activationFrontierCanonical
                 candidateActivationIndex candidateActivation
@@ -3673,7 +3639,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               (by rw [ownership.activeLeaderHistory node leaderRole])
           have candidateKnownSource :
               candidateConfiguration ∈
-                allConfigurations (state.nodes node).log := by
+                allConfigurations ((nodeOf state) node).log := by
             apply
               memOfPrefix
                 (allConfigurations_mono_prefix activationInSource)
@@ -3688,7 +3654,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 ] using And.intro candidateKnownSource candidateAfter.le,
               governs,
               currentConfiguration_mem_activeConfigurations
-                ((advanceCommitState state node).nodes candidate)
+                ((nodeOf (advanceCommitState state node)) candidate)
             ⟩
           · left
             have activationLength :
@@ -3701,7 +3667,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   candidateStored).2.1]
             have exactTake := prefixEqTake activationInSource
             have exactFrontierTake :
-                (state.nodes node).log.take
+                ((nodeOf state) node).log.take
                     candidateActivation.activationFrontier =
                   candidateActivation.history.take
                     candidateActivation.activationFrontier := by
@@ -3716,14 +3682,14 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                     candidateWitness.sharedFrontier_le_activationFrontier
               omega
             have sourceInActivation :
-                ((advanceCommitState state node).nodes node).log.take
+                ((nodeOf (advanceCommitState state node)) node).log.take
                     index <+:
                   candidateActivation.history.take
                     candidateActivation.activationFrontier := by
               rw [List.prefix_iff_eq_take]
               calc
-                ((advanceCommitState state node).nodes node).log.take index
-                    = (state.nodes node).log.take index := by
+                ((nodeOf (advanceCommitState state node)) node).log.take index
+                    = ((nodeOf state) node).log.take index := by
                   rw [logEq]
                 _ = (candidateActivation.history.take
                       candidateActivation.activationFrontier).take
@@ -3732,12 +3698,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   simp [List.take_take, Nat.min_eq_left indexBefore]
                 _ = (candidateActivation.history.take
                       candidateActivation.activationFrontier).take
-                      (((advanceCommitState state node).nodes node).log.take
+                      (((nodeOf (advanceCommitState state node)) node).log.take
                         index).length := by
                   rcases isSignatureAtTrue signature with
                     ⟨entry, found, _⟩
                   have lengthEq :
-                      (((advanceCommitState state node).nodes node).log.take
+                      (((nodeOf (advanceCommitState state node)) node).log.take
                         index).length = index := by
                     simp [
                       List.length_take,
@@ -3750,9 +3716,9 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         · have nodeOwned := ownership.activeLeader node leaderRole
           rcases
               electionFacts.ownerRecorded
-                (state.nodes node).currentTerm node nodeOwned with
+                ((nodeOf state) node).currentTerm node nodeOwned with
             bootstrap | elected
-          · have nodeTerm : (state.nodes node).currentTerm = BOOTSTRAP_TERM := by
+          · have nodeTerm : ((nodeOf state) node).currentTerm = BOOTSTRAP_TERM := by
               simpa using bootstrap.1
             have activationPositive :=
               activationHistoryAfter.termPositive
@@ -3764,17 +3730,17 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             have activationInSource :
               candidateActivation.history.take
                   candidateActivation.activationFrontier <+:
-                (state.nodes node).log := by
+                ((nodeOf state) node).log := by
               exact (activationPrefixInLaterElection
                       activationElectionsAfter candidateStored
                       sourceElectionStored activationEarlier).trans
                 ((electionFacts.promotionCanonical
-                    (state.nodes node).currentTerm sourceElection
+                    ((nodeOf state) node).currentTerm sourceElection
                     sourceElectionStored).trans
                   (by rw [ownership.activeLeaderHistory node leaderRole]))
             have candidateKnownSource :
                 candidateConfiguration ∈
-                  allConfigurations (state.nodes node).log := by
+                  allConfigurations ((nodeOf state) node).log := by
               apply
                 memOfPrefix
                   (allConfigurations_mono_prefix activationInSource)
@@ -3789,7 +3755,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   ] using And.intro candidateKnownSource candidateAfter.le,
                 governs,
                 currentConfiguration_mem_activeConfigurations
-                  ((advanceCommitState state node).nodes candidate)
+                  ((nodeOf (advanceCommitState state node)) candidate)
               ⟩
             · left
               have activationLength :
@@ -3802,20 +3768,20 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                     candidateStored).2.1]
               have exactTake := prefixEqTake activationInSource
               have exactFrontierTake :
-                  (state.nodes node).log.take
+                  ((nodeOf state) node).log.take
                       candidateActivation.activationFrontier =
                     candidateActivation.history.take
                       candidateActivation.activationFrontier := by
                 simpa [activationLength] using exactTake
               have sourceInActivation :
-                  ((advanceCommitState state node).nodes node).log.take
+                  ((nodeOf (advanceCommitState state node)) node).log.take
                       index <+:
                     candidateActivation.history.take
                       candidateActivation.activationFrontier := by
                 rw [List.prefix_iff_eq_take]
                 calc
-                  ((advanceCommitState state node).nodes node).log.take index
-                      = (state.nodes node).log.take index := by
+                  ((nodeOf (advanceCommitState state node)) node).log.take index
+                      = ((nodeOf state) node).log.take index := by
                     rw [logEq]
                   _ = (candidateActivation.history.take
                         candidateActivation.activationFrontier).take
@@ -3834,12 +3800,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                     ]
                   _ = (candidateActivation.history.take
                         candidateActivation.activationFrontier).take
-                        (((advanceCommitState state node).nodes node).log.take
+                        (((nodeOf (advanceCommitState state node)) node).log.take
                           index).length := by
                     rcases isSignatureAtTrue signature with
                       ⟨entry, found, _⟩
                     have lengthEq :
-                        (((advanceCommitState state node).nodes node).log.take
+                        (((nodeOf (advanceCommitState state node)) node).log.take
                           index).length = index := by
                       simp [
                         List.length_take,
@@ -3850,26 +3816,26 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 sourceInActivation.trans
                   (candidateActivationInCandidate.trans (List.take_prefix _ _))
     · have oldSourceRole :
-          (state.nodes source).role = .leader := by
+          ((nodeOf state) source).role = .leader := by
         simpa [roleEq] using sourceRole
       have oldCurrent :
-          termAt (state.nodes source).log index =
-            (state.nodes source).currentTerm := by
+          termAt ((nodeOf state) source).log index =
+            ((nodeOf state) source).currentTerm := by
         simpa [logEq, termEq] using current
       have oldSignature :
-          isSignatureAt (state.nodes source).log index = true := by
+          isSignatureAt ((nodeOf state) source).log index = true := by
         simpa [logEq] using signature
       have oldPotential :=
         (potentialMajorityOtherEq source sourceEq index).mp potential
       have oldCandidateRole :
-          (state.nodes candidate).role = .candidate := by
+          ((nodeOf state) candidate).role = .candidate := by
         simpa [roleEq] using candidateRole
       have oldCandidateMajority :=
         (potentialElectionMajorityOtherEq candidate candidateNe).mp
           candidateMajority
       have oldNewer :
-          (state.nodes source).currentTerm <
-            (state.nodes candidate).currentTerm := by
+          ((nodeOf state) source).currentTerm <
+            ((nodeOf state) candidate).currentTerm := by
         simpa [termEq] using newer
       rcases
           activationQuorums.candidateBridge
@@ -3931,7 +3897,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       exact historyFound
     have memberFound :
         entryAt?
-            ((advanceCommitState state node).nodes member).log
+            ((nodeOf (advanceCommitState state node)) member).log
             knownEvidence.commitFrontier =
           some frontierEntry :=
       entryAt_of_prefix memberCovered prefixFound
@@ -3940,7 +3906,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         member knownEvidence.commitFrontier frontierEntry memberFound).2
     calc
       knownEvidence.history.take knownEvidence.commitFrontier
-          = ((advanceCommitState state node).nodes member).log.take
+          = ((nodeOf (advanceCommitState state node)) member).log.take
               knownEvidence.commitFrontier := by
         have covered := prefixEqTake memberCovered
         rw [prefixLength] at covered
@@ -3966,7 +3932,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           newConfiguration.index) :
       witness.activation.history.take
           (min coveredFrontier witness.activation.activationFrontier) <+:
-        (state.nodes node).log.take frontier := by
+        ((nodeOf state) node).log.take frontier := by
     rcases
         activationPrefixComparable
           witness.activationIndex witness.activation witness.stored with
@@ -4002,7 +3968,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                     witness.activation.history)))
           exact
             allConfigurations_mem_take_of_index_le
-              (state.nodes node).log frontier frontierBound
+              ((nodeOf state) node).log frontier frontierBound
               newConfigurationKnown newConfigurationIndexBound
         have newKnownActivationShared :
             newConfiguration ∈
@@ -4037,7 +4003,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             newKnownHistoryTake
         have maximal :=
           configuration_index_le_currentConfiguration
-            { (state.nodes node) with
+            { ((nodeOf state) node) with
               log := history
               commitIndex := coveredFrontier }
             newConfiguration newKnownHistory
@@ -4052,7 +4018,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             frontier :=
         sharedBeforeNew.le.trans newConfigurationIndexBound
       have frontierLength :
-          ((state.nodes node).log.take frontier).length = frontier := by
+          (((nodeOf state) node).log.take frontier).length = frontier := by
         simp [Nat.min_eq_left frontierBound]
       have agreed :=
         takeEqOfPrefix frontierBefore
@@ -4063,7 +4029,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         witness.activation.history.take
               (min coveredFrontier
                 witness.activation.activationFrontier) =
-            (state.nodes node).log.take
+            ((nodeOf state) node).log.take
               (min coveredFrontier
                 witness.activation.activationFrontier) by
           simpa [
@@ -4074,7 +4040,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       have taken :=
         List.take_prefix
           (min coveredFrontier witness.activation.activationFrontier)
-          ((state.nodes node).log.take frontier)
+          (((nodeOf state) node).log.take frontier)
       simpa [List.take_take, Nat.min_eq_left sharedWithinFrontier] using taken
   have newPrefixInOldFrontierCoverage
       {history : List (Entry Node TxId)}
@@ -4085,7 +4051,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (before :
         newConfiguration.index <
           (currentConfigurationAt history coveredFrontier).index) :
-      (state.nodes node).log.take frontier <+:
+      ((nodeOf state) node).log.take frontier <+:
         witness.activation.history.take
           (min coveredFrontier witness.activation.activationFrontier) := by
     have newBeforeWitness :
@@ -4132,23 +4098,23 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           coveredKnownActivation witness.configurationIndexBound
       have sharedWithinNewPrefix :
           min coveredFrontier witness.activation.activationFrontier <=
-            ((state.nodes node).log.take frontier).length := by
+            (((nodeOf state) node).log.take frontier).length := by
         rw [List.length_take, Nat.min_eq_left frontierBound]
         exact sharedBeforeFrontier.le
       have agreed :=
         takeEqOfPrefix newPrefixInWitness sharedWithinNewPrefix
       have coveredKnownNewPrefix :
           currentConfigurationAt history coveredFrontier ∈
-            allConfigurations ((state.nodes node).log.take frontier) := by
+            allConfigurations (((nodeOf state) node).log.take frontier) := by
         apply
           memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix
                 (min coveredFrontier
                   witness.activation.activationFrontier)
-                ((state.nodes node).log.take frontier)))
+                (((nodeOf state) node).log.take frontier)))
         rw [show
-          ((state.nodes node).log.take frontier).take
+          (((nodeOf state) node).log.take frontier).take
                 (min coveredFrontier
                   witness.activation.activationFrontier) =
               witness.activation.history.take
@@ -4161,14 +4127,14 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         exact coveredKnownShared
       have coveredKnownLeader :
           currentConfigurationAt history coveredFrontier ∈
-            allConfigurations (state.nodes node).log :=
+            allConfigurations ((nodeOf state) node).log :=
         memOfPrefix
           (allConfigurations_mono_prefix
-            (List.take_prefix frontier (state.nodes node).log))
+            (List.take_prefix frontier ((nodeOf state) node).log))
           coveredKnownNewPrefix
       have maximal :=
         configuration_index_le_currentConfiguration
-          { state.nodes node with commitIndex := frontier }
+          { (nodeOf state) node with commitIndex := frontier }
           (currentConfigurationAt history coveredFrontier)
           coveredKnownLeader
           (by
@@ -4189,7 +4155,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       ?_
     ⟩
     have newPrefixLength :
-        ((state.nodes node).log.take frontier).length = frontier := by
+        (((nodeOf state) node).log.take frontier).length = frontier := by
       simp [Nat.min_eq_left frontierBound]
     have sharedBound :
         min coveredFrontier witness.activation.activationFrontier <=
@@ -4289,24 +4255,24 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (candidate : Node)
       (configuration : Configuration Node)
       (configurationKnown :
-        configuration ∈ allConfigurations (state.nodes candidate).log)
+        configuration ∈ allConfigurations ((nodeOf state) candidate).log)
       (configurationCommitted :
-        configuration.index <= (state.nodes candidate).commitIndex)
+        configuration.index <= ((nodeOf state) candidate).commitIndex)
       (sameIndex : newConfiguration.index = configuration.index) :
       newConfiguration = configuration := by
     have newKnownAtFrontier :
         newConfiguration ∈
-          allConfigurations ((state.nodes node).log.take frontier) :=
+          allConfigurations (((nodeOf state) node).log.take frontier) :=
       allConfigurations_mem_take_of_index_le
-        (state.nodes node).log frontier frontierBound
+        ((nodeOf state) node).log frontier frontierBound
         newConfigurationKnown newConfigurationIndexBound
     have configurationKnownCommitted :
         configuration ∈
-          allConfigurations (state.nodes candidate).committedLog := by
+          allConfigurations ((nodeOf state) candidate).committedLog := by
       simpa [NodeState.committedLog]
         using allConfigurations_mem_take_of_index_le
-          (state.nodes candidate).log
-          (state.nodes candidate).commitIndex
+          ((nodeOf state) candidate).log
+          ((nodeOf state) candidate).commitIndex
           (facts.commitIndicesBounded candidate)
           configurationKnown configurationCommitted
     rcases
@@ -4316,49 +4282,49 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       newBefore | candidateBefore | shared
     · have newKnownCandidate :
           newConfiguration ∈
-            allConfigurations (state.nodes candidate).log := by
+            allConfigurations ((nodeOf state) candidate).log := by
         apply
           memOfPrefix
             (allConfigurations_mono_prefix
               (newBefore.trans
                 (List.take_prefix
-                  (state.nodes candidate).commitIndex
-                  (state.nodes candidate).log)))
+                  ((nodeOf state) candidate).commitIndex
+                  ((nodeOf state) candidate).log)))
         exact newKnownAtFrontier
       exact
         allConfigurations_index_unique
-          (TxId := TxId) (state.nodes candidate).log
+          (TxId := TxId) ((nodeOf state) candidate).log
           newKnownCandidate configurationKnown sameIndex
     · have configurationKnownLeader :
-          configuration ∈ allConfigurations (state.nodes node).log := by
+          configuration ∈ allConfigurations ((nodeOf state) node).log := by
         apply
           memOfPrefix
             (allConfigurations_mono_prefix
               (candidateBefore.trans
-                (List.take_prefix frontier (state.nodes node).log)))
+                (List.take_prefix frontier ((nodeOf state) node).log)))
         exact configurationKnownCommitted
       exact
         allConfigurations_index_unique
-          (TxId := TxId) (state.nodes node).log
+          (TxId := TxId) ((nodeOf state) node).log
           newConfigurationKnown configurationKnownLeader sameIndex
     · rcases shared with
         ⟨sharedConfiguration, sharedActive, sharedGoverns,
           sharedConfigurationEq⟩
       have sharedKnown :
-          sharedConfiguration ∈ allConfigurations (state.nodes node).log :=
+          sharedConfiguration ∈ allConfigurations ((nodeOf state) node).log :=
         (List.mem_filter.mp sharedActive).1
       have sharedLeNew :
           sharedConfiguration.index <= newConfiguration.index := by
         simpa [newConfiguration, currentConfiguration]
           using configuration_index_le_currentConfiguration
-            { state.nodes node with commitIndex := frontier }
+            { (nodeOf state) node with commitIndex := frontier }
             sharedConfiguration sharedKnown sharedGoverns
       have configurationLeShared :
           configuration.index <= sharedConfiguration.index := by
         rw [sharedConfigurationEq]
         exact
           configuration_index_le_currentConfiguration
-            (state.nodes candidate) configuration configurationKnown
+            ((nodeOf state) candidate) configuration configurationKnown
               configurationCommitted
       have sharedIndex :
           sharedConfiguration.index = newConfiguration.index := by
@@ -4366,21 +4332,21 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       have sharedEqNew :
           sharedConfiguration = newConfiguration :=
         allConfigurations_index_unique
-          (TxId := TxId) (state.nodes node).log
+          (TxId := TxId) ((nodeOf state) node).log
           sharedKnown newConfigurationKnown sharedIndex
       have candidateCurrentEq :
-          currentConfiguration (state.nodes candidate) =
+          currentConfiguration ((nodeOf state) candidate) =
             newConfiguration := by
         exact sharedConfigurationEq.symm.trans sharedEqNew
       have candidateCurrentKnown :=
         currentConfiguration_mem_allConfigurations
-          (state.nodes candidate)
+          ((nodeOf state) candidate)
       have configurationEq :
           configuration =
-            currentConfiguration (state.nodes candidate) := by
+            currentConfiguration ((nodeOf state) candidate) := by
         apply
           allConfigurations_index_unique
-            (TxId := TxId) (state.nodes candidate).log
+            (TxId := TxId) ((nodeOf state) candidate).log
             configurationKnown candidateCurrentKnown
         simpa [candidateCurrentEq] using sameIndex.symm
       exact candidateCurrentEq.symm.trans configurationEq.symm
@@ -4393,17 +4359,17 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (sameIndex :
         activation.newConfiguration.index =
           (currentConfigurationAt
-            (state.nodes node).log coveredFrontier).index) :
+            ((nodeOf state) node).log coveredFrontier).index) :
       activation.newConfiguration =
         currentConfigurationAt
-          (state.nodes node).log coveredFrontier := by
+          ((nodeOf state) node).log coveredFrontier := by
     have coveredKnown :
         currentConfigurationAt
-            (state.nodes node).log coveredFrontier ∈
-          allConfigurations (state.nodes node).log := by
+            ((nodeOf state) node).log coveredFrontier ∈
+          allConfigurations ((nodeOf state) node).log := by
       simpa [currentConfiguration]
         using currentConfiguration_mem_allConfigurations
-          { state.nodes node with commitIndex := coveredFrontier }
+          { (nodeOf state) node with commitIndex := coveredFrontier }
     have activationKnown :
         activation.newConfiguration ∈
           allConfigurations
@@ -4414,38 +4380,38 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       activationBefore | frontierBefore
     · have activationKnownLeader :
           activation.newConfiguration ∈
-            allConfigurations (state.nodes node).log :=
+            allConfigurations ((nodeOf state) node).log :=
         memOfPrefix
           (allConfigurations_mono_prefix
             (activationBefore.trans
-              (List.take_prefix frontier (state.nodes node).log)))
+              (List.take_prefix frontier ((nodeOf state) node).log)))
           activationKnown
       exact
         allConfigurations_index_unique
-          (TxId := TxId) (state.nodes node).log
+          (TxId := TxId) ((nodeOf state) node).log
           activationKnownLeader coveredKnown sameIndex
     · have coveredKnownActivation :
           currentConfigurationAt
-              (state.nodes node).log coveredFrontier ∈
+              ((nodeOf state) node).log coveredFrontier ∈
             allConfigurations
               (activation.history.take activation.activationFrontier) := by
         have coveredIndexBound :
             (currentConfigurationAt
-                (state.nodes node).log coveredFrontier).index <= frontier := by
+                ((nodeOf state) node).log coveredFrontier).index <= frontier := by
           have withinCovered :
               (currentConfigurationAt
-                  (state.nodes node).log coveredFrontier).index <=
+                  ((nodeOf state) node).log coveredFrontier).index <=
                 coveredFrontier := by
             simpa [currentConfiguration]
               using currentConfiguration_index_le_commitIndex
-                { state.nodes node with commitIndex := coveredFrontier }
+                { (nodeOf state) node with commitIndex := coveredFrontier }
           exact withinCovered.trans coveredWithin
         apply
           memOfPrefix
             (allConfigurations_mono_prefix frontierBefore)
         exact
           allConfigurations_mem_take_of_index_le
-            (state.nodes node).log frontier frontierBound
+            ((nodeOf state) node).log frontier frontierBound
             coveredKnown coveredIndexBound
       exact
         allConfigurations_index_unique
@@ -4461,9 +4427,9 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (higherStored : newActivations higherIndex = some higher)
       (order :
         (currentConfigurationAt
-            (state.nodes node).log coveredFrontier).index <
+            ((nodeOf state) node).log coveredFrontier).index <
           higher.newConfiguration.index) :
-      (state.nodes node).log.take coveredFrontier <+:
+      ((nodeOf state) node).log.take coveredFrontier <+:
         higher.history.take higher.activationFrontier := by
     by_cases higherNew : higherIndex = newActivationKey
     · subst higherIndex
@@ -4474,8 +4440,8 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       subst higher
       simpa [activationRecord]
         using (show
-          (state.nodes node).log.take coveredFrontier <+:
-            (state.nodes node).log.take frontier by
+          ((nodeOf state) node).log.take coveredFrontier <+:
+            ((nodeOf state) node).log.take frontier by
           rw [List.prefix_take_iff]
           exact
             ⟨List.take_prefix _ _,
@@ -4488,12 +4454,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         higherBefore | frontierBefore
       · have higherKnownLeader :
           higher.newConfiguration ∈
-            allConfigurations (state.nodes node).log := by
+            allConfigurations ((nodeOf state) node).log := by
           apply
             memOfPrefix
               (allConfigurations_mono_prefix
                 (higherBefore.trans
-                  (List.take_prefix frontier (state.nodes node).log)))
+                  (List.take_prefix frontier ((nodeOf state) node).log)))
           exact
             activationNewConfigurationKnown
               activationQuorums.history oldStored
@@ -4502,13 +4468,13 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           by_contra outside
           have maximal :=
             configuration_index_le_currentConfiguration
-              { state.nodes node with commitIndex := coveredFrontier }
+              { (nodeOf state) node with commitIndex := coveredFrontier }
               higher.newConfiguration higherKnownLeader
               (Nat.le_of_not_gt outside)
           have contradiction :
               higher.newConfiguration.index <=
                 (currentConfigurationAt
-                  (state.nodes node).log coveredFrontier).index := by
+                  ((nodeOf state) node).log coveredFrontier).index := by
             simpa [currentConfiguration] using maximal
           omega
         have coveredWithinHigher : coveredFrontier <= higher.activationFrontier :=
@@ -4531,7 +4497,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             (count := coveredFrontier)
             (by simpa [higherLength] using coveredWithinHigher)
         have exactTake :
-          (state.nodes node).log.take coveredFrontier =
+          ((nodeOf state) node).log.take coveredFrontier =
             higher.history.take coveredFrontier := by
           simpa [List.take_take, Nat.min_eq_left coveredWithin,
             Nat.min_eq_left coveredWithinHigher]
@@ -4539,8 +4505,8 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         rw [exactTake, List.prefix_take_iff]
         exact ⟨List.take_prefix _ _, (List.length_take_le _ _).trans coveredWithinHigher⟩
       · have coveredPrefix :
-            (state.nodes node).log.take coveredFrontier <+:
-              (state.nodes node).log.take frontier := by
+            ((nodeOf state) node).log.take coveredFrontier <+:
+              ((nodeOf state) node).log.take frontier := by
           rw [List.prefix_take_iff]
           exact ⟨List.take_prefix _ _, (List.length_take_le _ _).trans coveredWithin⟩
         exact coveredPrefix.trans frontierBefore
@@ -4554,9 +4520,9 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (order :
         lower.newConfiguration.index <
           (currentConfigurationAt
-            (state.nodes node).log coveredFrontier).index) :
+            ((nodeOf state) node).log coveredFrontier).index) :
       lower.history.take lower.activationFrontier <+:
-        (state.nodes node).log.take coveredFrontier := by
+        ((nodeOf state) node).log.take coveredFrontier := by
     have lowerNew : Not (lowerIndex = newActivationKey) := by
       intro same
       subst lowerIndex
@@ -4566,20 +4532,20 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       subst lower
       have coveredLeNew :
           (currentConfigurationAt
-              (state.nodes node).log coveredFrontier).index <=
+              ((nodeOf state) node).log coveredFrontier).index <=
             newConfiguration.index := by
         simpa [newConfiguration, currentConfiguration]
           using configuration_index_le_currentConfiguration
-            { state.nodes node with commitIndex := frontier }
-            (currentConfigurationAt (state.nodes node).log coveredFrontier)
+            { (nodeOf state) node with commitIndex := frontier }
+            (currentConfigurationAt ((nodeOf state) node).log coveredFrontier)
             (by
               simpa [currentConfiguration]
                 using currentConfiguration_mem_allConfigurations
-                  { state.nodes node with commitIndex := coveredFrontier })
+                  { (nodeOf state) node with commitIndex := coveredFrontier })
             (by
               simpa [currentConfiguration]
                 using (currentConfiguration_index_le_commitIndex
-                        { state.nodes node with commitIndex := coveredFrontier }).trans
+                        { (nodeOf state) node with commitIndex := coveredFrontier }).trans
                   coveredWithin)
       simpa [activationRecord] using (not_lt_of_ge coveredLeNew order)
     have oldStored :
@@ -4602,7 +4568,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               lowerIndex lower oldStored).2.1]
         have exactLower := prefixEqTake lowerBefore
         have leaderLength :
-            ((state.nodes node).log.take frontier).length = frontier := by
+            (((nodeOf state) node).log.take frontier).length = frontier := by
           simp [Nat.min_eq_left frontierBound]
         have lowerWithinFrontier :
             lower.activationFrontier <= frontier := by
@@ -4610,12 +4576,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           simpa [lowerLength, leaderLength] using lengthBound
         have lowerTakeEq :
             lower.history.take lower.activationFrontier =
-              (state.nodes node).log.take lower.activationFrontier := by
+              ((nodeOf state) node).log.take lower.activationFrontier := by
           simpa [lowerLength, List.take_take, Nat.min_eq_left lowerWithinFrontier]
             using exactLower.symm
         have coveredKnownLower :
             currentConfigurationAt
-                (state.nodes node).log coveredFrontier ∈
+                ((nodeOf state) node).log coveredFrontier ∈
               allConfigurations lower.history := by
           apply
             memOfPrefix
@@ -4624,7 +4590,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           rw [lowerTakeEq]
           exact
             allConfigurations_mem_take_of_index_le
-              (state.nodes node).log lower.activationFrontier
+              ((nodeOf state) node).log lower.activationFrontier
               (by
                 have lowerLength :
                     (lower.history.take lower.activationFrontier).length =
@@ -4633,7 +4599,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                     (activationQuorums.history.valid
                       lowerIndex lower oldStored).2.1]
                 have leaderLength :
-                    ((state.nodes node).log.take frontier).length =
+                    (((nodeOf state) node).log.take frontier).length =
                       frontier := by
                   simp [Nat.min_eq_left frontierBound]
                 have lengthBound := lowerBefore.length_le
@@ -4644,36 +4610,36 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               (by
                 simpa [currentConfiguration] using
                   currentConfiguration_mem_allConfigurations
-                    { state.nodes node with
+                    { (nodeOf state) node with
                       commitIndex := coveredFrontier })
               (by
                 simpa [currentConfiguration] using
                   (currentConfiguration_index_le_commitIndex
-                    { state.nodes node with
+                    { (nodeOf state) node with
                       commitIndex := coveredFrontier }).trans
                     coveredWithinLower.le)
         have maximal :=
           configuration_index_le_currentConfiguration
             {
-              state.nodes node with
+              (nodeOf state) node with
                 log := lower.history
                 commitIndex := lower.activationFrontier
             }
-            (currentConfigurationAt (state.nodes node).log coveredFrontier)
+            (currentConfigurationAt ((nodeOf state) node).log coveredFrontier)
             (by simpa using coveredKnownLower)
             (by
               have coveredIndexBound :
                   (currentConfigurationAt
-                      (state.nodes node).log coveredFrontier).index <=
+                      ((nodeOf state) node).log coveredFrontier).index <=
                     coveredFrontier := by
                 simpa [currentConfiguration]
                   using currentConfiguration_index_le_commitIndex
-                    { state.nodes node with commitIndex := coveredFrontier }
+                    { (nodeOf state) node with commitIndex := coveredFrontier }
               simpa using
                 coveredIndexBound.trans coveredWithinLower.le)
         have contradiction :
             (currentConfigurationAt
-                (state.nodes node).log coveredFrontier).index <=
+                ((nodeOf state) node).log coveredFrontier).index <=
               lower.newConfiguration.index := by
           simpa [currentConfiguration,
             (activationQuorums.history.valid
@@ -4682,7 +4648,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         omega
       rw [List.prefix_take_iff]
       exact ⟨
-        lowerBefore.trans (List.take_prefix frontier (state.nodes node).log),
+        lowerBefore.trans (List.take_prefix frontier ((nodeOf state) node).log),
         by
           have lowerLength :
               (lower.history.take lower.activationFrontier).length =
@@ -4694,7 +4660,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       ⟩
     · have coveredKnownLower :
           currentConfigurationAt
-              (state.nodes node).log coveredFrontier ∈
+              ((nodeOf state) node).log coveredFrontier ∈
             allConfigurations lower.history := by
         apply
           memOfPrefix
@@ -4703,29 +4669,29 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 (List.take_prefix lower.activationFrontier lower.history)))
         exact
           allConfigurations_mem_take_of_index_le
-            (state.nodes node).log frontier frontierBound
+            ((nodeOf state) node).log frontier frontierBound
             (by
               simpa [currentConfiguration] using
                 currentConfiguration_mem_allConfigurations
-                  { state.nodes node with
+                  { (nodeOf state) node with
                     commitIndex := coveredFrontier })
             (by
               simpa [currentConfiguration] using
                 (currentConfiguration_index_le_commitIndex
-                  { state.nodes node with
+                  { (nodeOf state) node with
                     commitIndex := coveredFrontier }).trans coveredWithin)
       have maximal :=
         configuration_index_le_currentConfiguration
           {
-            state.nodes node with
+            (nodeOf state) node with
               log := lower.history
               commitIndex := lower.activationFrontier
           }
-          (currentConfigurationAt (state.nodes node).log coveredFrontier)
+          (currentConfigurationAt ((nodeOf state) node).log coveredFrontier)
           (by simpa using coveredKnownLower)
           (by
             have frontierLength :
-                ((state.nodes node).log.take frontier).length = frontier := by
+                (((nodeOf state) node).log.take frontier).length = frontier := by
               simp [Nat.min_eq_left frontierBound]
             have lowerLength :
                 (lower.history.take lower.activationFrontier).length =
@@ -4739,15 +4705,15 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               simpa [frontierLength, lowerLength] using lengthBound
             have coveredIndexBound :
                 (currentConfigurationAt
-                    (state.nodes node).log coveredFrontier).index <=
+                    ((nodeOf state) node).log coveredFrontier).index <=
                   coveredFrontier := by
               simpa [currentConfiguration]
                 using currentConfiguration_index_le_commitIndex
-                  { state.nodes node with commitIndex := coveredFrontier }
+                  { (nodeOf state) node with commitIndex := coveredFrontier }
             exact coveredIndexBound.trans (coveredWithin.trans frontierLeLower))
       have contradiction :
           (currentConfigurationAt
-              (state.nodes node).log coveredFrontier).index <=
+              ((nodeOf state) node).log coveredFrontier).index <=
             lower.newConfiguration.index := by
         simpa [currentConfiguration,
           (activationQuorums.history.valid
@@ -4762,21 +4728,21 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       (higherStored : activations higherIndex = some higher)
       (order :
         (currentConfigurationAt
-            (state.nodes node).log coveredFrontier).index <
+            ((nodeOf state) node).log coveredFrontier).index <
           higher.newConfiguration.index) :
-      (state.nodes node).log.take coveredFrontier <+:
+      ((nodeOf state) node).log.take coveredFrontier <+:
         higher.history.take higher.activationFrontier := by
     rcases
         activationPrefixComparable higherIndex higher higherStored with
       higherBefore | frontierBefore
     · have higherKnownLeader :
           higher.newConfiguration ∈
-            allConfigurations (state.nodes node).log := by
+            allConfigurations ((nodeOf state) node).log := by
         apply
           memOfPrefix
             (allConfigurations_mono_prefix
               (higherBefore.trans
-                (List.take_prefix frontier (state.nodes node).log)))
+                (List.take_prefix frontier ((nodeOf state) node).log)))
         exact
           activationNewConfigurationKnown
             activationQuorums.history higherStored
@@ -4785,13 +4751,13 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         by_contra outside
         have maximal :=
           configuration_index_le_currentConfiguration
-            { state.nodes node with commitIndex := coveredFrontier }
+            { (nodeOf state) node with commitIndex := coveredFrontier }
             higher.newConfiguration higherKnownLeader
             (Nat.le_of_not_gt outside)
         have contradiction :
             higher.newConfiguration.index <=
               (currentConfigurationAt
-                (state.nodes node).log coveredFrontier).index := by
+                ((nodeOf state) node).log coveredFrontier).index := by
           simpa [currentConfiguration] using maximal
         omega
       have coveredWithinHigher : coveredFrontier <= higher.activationFrontier :=
@@ -4814,7 +4780,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           (count := coveredFrontier)
           (by simpa [higherLength] using coveredWithinHigher)
       have exactTake :
-          (state.nodes node).log.take coveredFrontier =
+          ((nodeOf state) node).log.take coveredFrontier =
             higher.history.take coveredFrontier := by
         simpa [List.take_take, Nat.min_eq_left coveredWithin,
           Nat.min_eq_left coveredWithinHigher]
@@ -4822,13 +4788,13 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       rw [exactTake, List.prefix_take_iff]
       exact ⟨List.take_prefix _ _, (List.length_take_le _ _).trans coveredWithinHigher⟩
     · have coveredPrefix :
-          (state.nodes node).log.take coveredFrontier <+:
-            (state.nodes node).log.take frontier := by
+          ((nodeOf state) node).log.take coveredFrontier <+:
+            ((nodeOf state) node).log.take frontier := by
         rw [List.prefix_take_iff]
         exact ⟨List.take_prefix _ _, (List.length_take_le _ _).trans coveredWithin⟩
       exact coveredPrefix.trans frontierBefore
   have activationQuorumsAfter :
-      ActivationQuorumFacts
+      ActivationQuorumFacts (joined := joinedNodes)
         (advanceCommitState state node)
         appendHistory responseHistory elections newActivations := by
     constructor
@@ -4842,12 +4808,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · exact candidateBridgeAfter
     · intro source index role current signature majority committed
       by_cases zero :
-          ((advanceCommitState state node).nodes committed).commitIndex = 0
+          ((nodeOf (advanceCommitState state node)) committed).commitIndex = 0
       · exact Or.inr (Or.inl (by
           simp [NodeState.committedLog, zero]))
       · have positive :
             0 <
-              ((advanceCommitState state node).nodes committed).commitIndex :=
+              ((nodeOf (advanceCommitState state node)) committed).commitIndex :=
           Nat.pos_of_ne_zero zero
         rcases evidenceAfter.nodePositive committed positive with
           ⟨committedEvidence, stored, valid, _lengthEq, _termBound⟩
@@ -4856,17 +4822,17 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               (advanceCommitState state node)
               appendHistory newNodeEvidence requestEvidence
               committedEvidence
-              ((advanceCommitState state node).nodes committed).committedLog :=
+              ((nodeOf (advanceCommitState state node)) committed).committedLog :=
           Or.inl ⟨committed, positive, stored, rfl⟩
         by_cases termOrder :
             committedEvidence.commitTerm <=
-              ((advanceCommitState state node).nodes source).currentTerm
+              ((nodeOf (advanceCommitState state node)) source).currentTerm
         · rcases
               configurationMajorityNonempty valid.2.2.2.2.2.1 with
             ⟨member, _authorityMember, ackMember⟩
           have committedInSource :
-              ((advanceCommitState state node).nodes committed).committedLog <+:
-                ((advanceCommitState state node).nodes source).log :=
+              ((nodeOf (advanceCommitState state node)) committed).committedLog <+:
+                ((nodeOf (advanceCommitState state node)) source).log :=
             (validEvidenceSupportedPrefixFrontier valid).trans
               (knownCommitEvidenceActiveLeaderContainsFrontier
                 ownershipAfter electionFactsAfter evidenceAfter
@@ -4874,19 +4840,19 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           rcases
               prefixesComparable
                 (List.take_prefix index
-                  ((advanceCommitState state node).nodes source).log)
+                  ((nodeOf (advanceCommitState state node)) source).log)
                 committedInSource with
             direct | direct
           · exact Or.inl direct
           · exact Or.inr (Or.inl direct)
         · have sourceBefore :
-              ((advanceCommitState state node).nodes source).currentTerm <
+              ((nodeOf (advanceCommitState state node)) source).currentTerm <
                 committedEvidence.commitTerm := by
             omega
           have canonicalEq :=
             knownEvidenceFrontierCanonicalAfter
               committedEvidence
-              ((advanceCommitState state node).nodes committed).committedLog
+              ((nodeOf (advanceCommitState state node)) committed).committedLog
               known
           have frontierPositive : 0 < committedEvidence.commitFrontier := by
             have supportedPositive :=
@@ -4941,7 +4907,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           · rcases elected with
               ⟨record, recordStored, _recordLeader⟩
             have sourceInCanonical :
-                ((advanceCommitState state node).nodes source).log.take index <+:
+                ((nodeOf (advanceCommitState state node)) source).log.take index <+:
                   canonicalHistory committedEvidence.commitTerm :=
               (recordBridgeAfter
                 source index role current signature
@@ -4953,7 +4919,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 (electionFactsAfter.promotionCanonical
                   committedEvidence.commitTerm record recordStored)
             have committedInCanonical :
-                ((advanceCommitState state node).nodes committed).committedLog <+:
+                ((nodeOf (advanceCommitState state node)) committed).committedLog <+:
                   canonicalHistory committedEvidence.commitTerm :=
               (validEvidenceSupportedPrefixFrontier valid).trans
                 (by
@@ -4968,13 +4934,13 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · intro left leftIndex leftRole leftCurrent leftSignature leftMajority
         right rightIndex rightRole rightCurrent rightSignature rightMajority
       rcases Nat.lt_trichotomy
-          ((advanceCommitState state node).nodes left).currentTerm
-          ((advanceCommitState state node).nodes right).currentTerm with
+          ((nodeOf (advanceCommitState state node)) left).currentTerm
+          ((nodeOf (advanceCommitState state node)) right).currentTerm with
         leftBefore | sameTerm | rightBefore
       · have rightOwned := ownershipAfter.activeLeader right rightRole
         rcases
             electionFactsAfter.ownerRecorded
-              ((advanceCommitState state node).nodes right).currentTerm
+              ((nodeOf (advanceCommitState state node)) right).currentTerm
               right rightOwned with
           bootstrap | elected
         · have leftPositive :=
@@ -4984,17 +4950,17 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         · rcases elected with
             ⟨record, recordStored, _recordLeader⟩
           have leftInRight :
-              ((advanceCommitState state node).nodes left).log.take leftIndex <+:
-                ((advanceCommitState state node).nodes right).log :=
+              ((nodeOf (advanceCommitState state node)) left).log.take leftIndex <+:
+                ((nodeOf (advanceCommitState state node)) right).log :=
             (recordBridgeAfter
               left leftIndex leftRole leftCurrent leftSignature
               (effectiveMajorityImpliesPotential
                 (advanceCommitState state node)
                 appendHistory responseHistory left leftIndex leftMajority)
-              ((advanceCommitState state node).nodes right).currentTerm
+              ((nodeOf (advanceCommitState state node)) right).currentTerm
               record recordStored leftBefore).trans
               ((electionFactsAfter.promotionCanonical
-                ((advanceCommitState state node).nodes right).currentTerm
+                ((nodeOf (advanceCommitState state node)) right).currentTerm
                 record recordStored).trans
                 (by
                   rw [ownershipAfter.activeLeaderHistory right rightRole]))
@@ -5002,7 +4968,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               prefixesComparable
                 leftInRight
                 (List.take_prefix rightIndex
-                  ((advanceCommitState state node).nodes right).log) with
+                  ((nodeOf (advanceCommitState state node)) right).log) with
             direct | direct
           · exact Or.inl direct
           · exact Or.inr (Or.inl direct)
@@ -5015,16 +4981,16 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         rcases
             prefixesComparable
               (List.take_prefix leftIndex
-                ((advanceCommitState state node).nodes left).log)
+                ((nodeOf (advanceCommitState state node)) left).log)
               (List.take_prefix rightIndex
-                ((advanceCommitState state node).nodes left).log) with
+                ((nodeOf (advanceCommitState state node)) left).log) with
           direct | direct
         · exact Or.inl direct
         · exact Or.inr (Or.inl direct)
       · have leftOwned := ownershipAfter.activeLeader left leftRole
         rcases
             electionFactsAfter.ownerRecorded
-              ((advanceCommitState state node).nodes left).currentTerm
+              ((nodeOf (advanceCommitState state node)) left).currentTerm
               left leftOwned with
           bootstrap | elected
         · have rightPositive :=
@@ -5034,17 +5000,17 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         · rcases elected with
             ⟨record, recordStored, _recordLeader⟩
           have rightInLeft :
-              ((advanceCommitState state node).nodes right).log.take rightIndex <+:
-                ((advanceCommitState state node).nodes left).log :=
+              ((nodeOf (advanceCommitState state node)) right).log.take rightIndex <+:
+                ((nodeOf (advanceCommitState state node)) left).log :=
             (recordBridgeAfter
               right rightIndex rightRole rightCurrent rightSignature
               (effectiveMajorityImpliesPotential
                 (advanceCommitState state node)
                 appendHistory responseHistory right rightIndex rightMajority)
-              ((advanceCommitState state node).nodes left).currentTerm
+              ((nodeOf (advanceCommitState state node)) left).currentTerm
               record recordStored rightBefore).trans
               ((electionFactsAfter.promotionCanonical
-                ((advanceCommitState state node).nodes left).currentTerm
+                ((nodeOf (advanceCommitState state node)) left).currentTerm
                 record recordStored).trans
                 (by
                   rw [ownershipAfter.activeLeaderHistory left leftRole]))
@@ -5052,7 +5018,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               prefixesComparable
                 rightInLeft
                 (List.take_prefix leftIndex
-                  ((advanceCommitState state node).nodes left).log) with
+                  ((nodeOf (advanceCommitState state node)) left).log) with
             direct | direct
           · exact Or.inr (Or.inl direct)
           · exact Or.inl direct
@@ -5065,18 +5031,18 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             simpa [newActivations, create] using stored
           subst activation
           have requestTerm :
-              queuedRequest.term =
-                (state.nodes node).currentTerm := by
+              queuedRequest.2.2.term =
+                ((nodeOf state) node).currentTerm := by
             simpa [activationRecord] using sameTerm
           have requestOwned :=
             (ownership.queuedAppendMetadata
               queuedDestination queuedRequest queued).2.1
           have leaderOwned := ownership.activeLeader node leaderRole
-          have sourceEq : queuedRequest.source = node := by
+          have sourceEq : queuedRequest.1 = node := by
             rw [requestTerm, leaderOwned] at requestOwned
             exact (Option.some.inj requestOwned).symm
           have historyPrefix :
-              appendHistory queuedRequest <+: (state.nodes node).log := by
+              appendHistory queuedRequest <+: ((nodeOf state) node).log := by
             simpa [sourceEq]
               using ownership.queuedActiveSourceHistory
                 queuedDestination queuedRequest queued
@@ -5085,9 +5051,9 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           have activationPrefix :
               activationRecord.history.take
                   activationRecord.activationFrontier <+:
-                (state.nodes node).log := by
+                ((nodeOf state) node).log := by
             simpa [activationRecord]
-              using List.take_prefix frontier (state.nodes node).log
+              using List.take_prefix frontier ((nodeOf state) node).log
           exact prefixesComparable activationPrefix
             historyPrefix
         · have oldStored :
@@ -5105,7 +5071,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · intro coveredNode coveredFrontier within positive signature
       have afterCommitBound :
           coveredFrontier <=
-            ((advanceCommitState state node).nodes coveredNode).log.length :=
+            ((nodeOf (advanceCommitState state node)) coveredNode).log.length :=
         within.trans
           (by
             by_cases coveredNodeEq : coveredNode = node
@@ -5115,7 +5081,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 commitOther coveredNode coveredNodeEq, logEq
               ] using facts.commitIndicesBounded coveredNode)
       by_cases oldWithin :
-          coveredFrontier <= (state.nodes coveredNode).commitIndex
+          coveredFrontier <= ((nodeOf state) coveredNode).commitIndex
       · rcases
             activationQuorums.committedCoverage
               coveredNode coveredFrontier oldWithin
@@ -5124,62 +5090,62 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           ⟨witness⟩
         have migrated :
             ConfigurationFrontierCoverageWitness
-              newActivations (state.nodes coveredNode).log
-                coveredFrontier (state.nodes coveredNode).currentTerm := by
+              newActivations ((nodeOf state) coveredNode).log
+                coveredFrontier ((nodeOf state) coveredNode).currentTerm := by
           apply migrateFrontierCoverage witness
           intro sameIndex
           have configurationKnown :
               currentConfigurationAt
-                  (state.nodes coveredNode).log coveredFrontier ∈
-                allConfigurations (state.nodes coveredNode).log := by
+                  ((nodeOf state) coveredNode).log coveredFrontier ∈
+                allConfigurations ((nodeOf state) coveredNode).log := by
             simpa [currentConfiguration]
               using currentConfiguration_mem_allConfigurations
-                { state.nodes coveredNode with commitIndex := coveredFrontier }
+                { (nodeOf state) coveredNode with commitIndex := coveredFrontier }
           have configurationCommitted :
               (currentConfigurationAt
-                  (state.nodes coveredNode).log coveredFrontier).index <=
-                (state.nodes coveredNode).commitIndex := by
+                  ((nodeOf state) coveredNode).log coveredFrontier).index <=
+                ((nodeOf state) coveredNode).commitIndex := by
             have configurationWithin :
                 (currentConfigurationAt
-                    (state.nodes coveredNode).log coveredFrontier).index <=
+                    ((nodeOf state) coveredNode).log coveredFrontier).index <=
                   coveredFrontier := by
               simpa [currentConfiguration]
                 using currentConfiguration_index_le_commitIndex
-                  { state.nodes coveredNode with commitIndex := coveredFrontier }
+                  { (nodeOf state) coveredNode with commitIndex := coveredFrontier }
             exact configurationWithin.trans oldWithin
           exact
             newConfigurationEqOfCommittedConfiguration
               coveredNode
               (currentConfigurationAt
-                (state.nodes coveredNode).log coveredFrontier)
+                ((nodeOf state) coveredNode).log coveredFrontier)
               configurationKnown configurationCommitted sameIndex
         exact ⟨by simpa [logEq, termEq] using migrated⟩
       · have coveredNodeEq : coveredNode = node := by
           by_contra different
           have oldCommitEq :
-              ((advanceCommitState state node).nodes coveredNode).commitIndex =
-                (state.nodes coveredNode).commitIndex :=
+              ((nodeOf (advanceCommitState state node)) coveredNode).commitIndex =
+                ((nodeOf state) coveredNode).commitIndex :=
             commitOther coveredNode different
           omega
         subst coveredNode
         have coveredWithin : coveredFrontier <= frontier := by
           simpa [commitNode] using within
         let coveredConfiguration :=
-          currentConfigurationAt (state.nodes node).log coveredFrontier
+          currentConfigurationAt ((nodeOf state) node).log coveredFrontier
         have coveredConfigurationKnown :
             coveredConfiguration ∈
-              allConfigurations (state.nodes node).log := by
+              allConfigurations ((nodeOf state) node).log := by
           simpa [coveredConfiguration, currentConfiguration]
             using currentConfiguration_mem_allConfigurations
-              { state.nodes node with commitIndex := coveredFrontier }
+              { (nodeOf state) node with commitIndex := coveredFrontier }
         have coveredConfigurationIndexBound :
             coveredConfiguration.index <= coveredFrontier := by
           simpa [coveredConfiguration, currentConfiguration]
             using currentConfiguration_index_le_commitIndex
-              { state.nodes node with commitIndex := coveredFrontier }
+              { (nodeOf state) node with commitIndex := coveredFrontier }
         have coveredConfigurationAfterEq :
             currentConfigurationAt
-                ((advanceCommitState state node).nodes node).log
+                ((nodeOf (advanceCommitState state node)) node).log
                 coveredFrontier =
               coveredConfiguration := by
           simp [coveredConfiguration, logEq]
@@ -5187,7 +5153,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             oldConfiguration.index <= coveredConfiguration.index := by
           simpa [coveredConfiguration, currentConfiguration]
             using configuration_index_le_currentConfiguration
-              { state.nodes node with commitIndex := coveredFrontier }
+              { (nodeOf state) node with commitIndex := coveredFrontier }
               oldConfiguration
               (by simpa using oldConfigurationKnown)
               (oldConfigurationIndexBound.trans
@@ -5248,7 +5214,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   coveredConfiguration = newConfiguration := by
                 apply
                   allConfigurations_index_unique
-                    (TxId := TxId) (state.nodes node).log
+                    (TxId := TxId) ((nodeOf state) node).log
                     coveredConfigurationKnown newConfigurationKnown
                 simpa [
                   activationRecord, coveredConfiguration,
@@ -5269,7 +5235,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               coveredConfiguration.index <= newConfiguration.index := by
             simpa [coveredConfiguration, newConfiguration, currentConfiguration]
               using configuration_index_le_currentConfiguration
-                { state.nodes node with commitIndex := frontier }
+                { (nodeOf state) node with commitIndex := frontier }
                 coveredConfiguration coveredConfigurationKnown
                 (coveredConfigurationIndexBound.trans coveredWithin)
           have retained : retainedActivation := by
@@ -5308,21 +5274,21 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   coveredConfiguration.index <=
                     activation.newConfiguration.index ->
                   activation.activationTerm <=
-                    (state.nodes node).currentTerm ->
+                    ((nodeOf state) node).currentTerm ->
                   activation.history.take
                       (min frontier activation.activationFrontier) =
-                    (state.nodes node).log.take
+                    ((nodeOf state) node).log.take
                       (min frontier activation.activationFrontier) ->
                     Exists fun coveringIndex =>
                       Exists fun covering =>
                         activations coveringIndex = some covering /\
                           coveredConfiguration ∈ covering.governingActive /\
                           covering.activationTerm <=
-                            (state.nodes node).currentTerm /\
+                            ((nodeOf state) node).currentTerm /\
                           covering.history.take
                               (min coveredFrontier
                                 covering.activationFrontier) =
-                            (state.nodes node).log.take
+                            ((nodeOf state) node).log.take
                               (min coveredFrontier
                                 covering.activationFrontier) := by
             intro configurationIndex
@@ -5353,10 +5319,10 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   have coveredKnownLeaderTake :
                       coveredConfiguration ∈
                         allConfigurations
-                          ((state.nodes node).log.take
+                          (((nodeOf state) node).log.take
                             coveredConfiguration.index) :=
                     allConfigurations_mem_take_of_index_le
-                      (state.nodes node).log coveredConfiguration.index
+                      ((nodeOf state) node).log coveredConfiguration.index
                       (coveredConfigurationIndexBound.trans
                         (coveredWithin.trans frontierBound))
                       coveredConfigurationKnown le_rfl
@@ -5376,7 +5342,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                     rw [show
                       activation.history.take
                             coveredConfiguration.index =
-                          (state.nodes node).log.take
+                          ((nodeOf state) node).log.take
                             coveredConfiguration.index by
                         simpa [
                           List.take_take,
@@ -5433,7 +5399,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                       activationQuorums.history priorStored oldGoverning
                   have priorTermBound :
                       prior.activationTerm <=
-                        (state.nodes node).currentTerm :=
+                        ((nodeOf state) node).currentTerm :=
                     (activationTermLeOfPrefix
                       ownership activationQuorums.history
                       activationCanonical
@@ -5482,7 +5448,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   have activationTakeEq :
                       activation.history.take
                             (min frontier prior.activationFrontier) =
-                        (state.nodes node).log.take
+                        ((nodeOf state) node).log.take
                             (min frontier prior.activationFrontier) := by
                     have restricted :=
                       congrArg
@@ -5497,7 +5463,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                   have priorAgreement :
                       prior.history.take
                             (min frontier prior.activationFrontier) =
-                        (state.nodes node).log.take
+                        ((nodeOf state) node).log.take
                             (min frontier prior.activationFrontier) :=
                     priorTakeEq.trans activationTakeEq
                   apply inductionHypothesis
@@ -5550,7 +5516,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             have coveredPrefix :
                 covering.history.take
                     (min coveredFrontier covering.activationFrontier) <+:
-                  (state.nodes node).log.take coveredFrontier := by
+                  ((nodeOf state) node).log.take coveredFrontier := by
               rw [coveringAgreement, List.prefix_take_iff]
               exact ⟨
                 List.take_prefix _ _,
@@ -5649,7 +5615,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 exact coveredKnownCoveringShared
               have maximal :=
                 configuration_index_le_currentConfiguration
-                  { state.nodes node with
+                  { (nodeOf state) node with
                     log := lower.history
                     commitIndex := lower.activationFrontier }
                   coveredConfiguration
@@ -5703,9 +5669,8 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · intro queuedDestination queuedRequest queued coveredFrontier within
         positive signature
       have oldQueued :
-          Message.appendEntriesRequest queuedRequest ∈
-            state.network queuedDestination := by
-        simpa [advanceCommitState] using queued
+          (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
+        simpa [advanceCommitState, Model.Local.advanceCommit, present] using queued
       rcases
           activationQuorums.queuedCoverage
             queuedDestination queuedRequest oldQueued coveredFrontier within
@@ -5724,7 +5689,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         simpa [configuration, currentConfiguration]
           using currentConfiguration_mem_allConfigurations
             {
-              state.nodes queuedRequest.source with
+              (nodeOf state) queuedRequest.1 with
                 log := appendHistory queuedRequest
                 commitIndex := coveredFrontier
             }
@@ -5733,59 +5698,59 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         simpa [configuration, currentConfiguration]
           using currentConfiguration_index_le_commitIndex
             {
-              state.nodes queuedRequest.source with
+              (nodeOf state) queuedRequest.1 with
                 log := appendHistory queuedRequest
                 commitIndex := coveredFrontier
             }
       have coveredByLeaderCommit :
-          coveredFrontier <= queuedRequest.leaderCommit :=
+          coveredFrontier <= queuedRequest.2.2.leaderCommit :=
         within.trans (Nat.min_le_left _ _)
       have requestCommittedPrefix :
-          (appendHistory queuedRequest).take queuedRequest.leaderCommit <+:
-            (state.nodes queuedRequest.source).committedLog := by
+          (appendHistory queuedRequest).take queuedRequest.2.2.leaderCommit <+:
+            ((nodeOf state) queuedRequest.1).committedLog := by
         exact requestFacts.2.2
       have configurationKnownRequestCommit :
           configuration ∈
             allConfigurations
               ((appendHistory queuedRequest).take
-                queuedRequest.leaderCommit) :=
+                queuedRequest.2.2.leaderCommit) :=
         allConfigurations_mem_take_of_index_le
-          (appendHistory queuedRequest) queuedRequest.leaderCommit
+          (appendHistory queuedRequest) queuedRequest.2.2.leaderCommit
           requestFacts.2.1 configurationKnownHistory
           (configurationIndexBound.trans coveredByLeaderCommit)
       have configurationKnownCommitted :
           configuration ∈
             allConfigurations
-              (state.nodes queuedRequest.source).committedLog :=
+              ((nodeOf state) queuedRequest.1).committedLog :=
         memOfPrefix
           (allConfigurations_mono_prefix requestCommittedPrefix)
           configurationKnownRequestCommit
       have configurationKnownSource :
           configuration ∈
-            allConfigurations (state.nodes queuedRequest.source).log := by
+            allConfigurations ((nodeOf state) queuedRequest.1).log := by
         apply
           memOfPrefix
             (allConfigurations_mono_prefix
               (List.take_prefix
-                (state.nodes queuedRequest.source).commitIndex
-                (state.nodes queuedRequest.source).log))
+                ((nodeOf state) queuedRequest.1).commitIndex
+                ((nodeOf state) queuedRequest.1).log))
         simpa [
           NodeState.committedLog,
           Nat.min_eq_left
-            (facts.commitIndicesBounded queuedRequest.source)
+            (facts.commitIndicesBounded queuedRequest.1)
         ] using configurationKnownCommitted
       have leaderCommitLeSourceCommit :
-          queuedRequest.leaderCommit <=
-            (state.nodes queuedRequest.source).commitIndex := by
+          queuedRequest.2.2.leaderCommit <=
+            ((nodeOf state) queuedRequest.1).commitIndex := by
         have prefixLength := requestCommittedPrefix.length_le
         simpa [
           NodeState.committedLog,
           Nat.min_eq_left requestFacts.2.1,
           Nat.min_eq_left
-            (facts.commitIndicesBounded queuedRequest.source)
+            (facts.commitIndicesBounded queuedRequest.1)
         ] using prefixLength
       exact newConfigurationEqOfCommittedConfiguration
-        queuedRequest.source configuration configurationKnownSource
+        queuedRequest.1 configuration configurationKnownSource
         (configurationIndexBound.trans
           (coveredByLeaderCommit.trans leaderCommitLeSourceCommit))
         (by simpa [configuration] using sameIndex)
@@ -5803,17 +5768,17 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         (List.length_take_le takeIndex history)
   have newConfigurationKnownAtFrontier :
       newConfiguration ∈
-        allConfigurations ((state.nodes node).log.take frontier) :=
+        allConfigurations (((nodeOf state) node).log.take frontier) :=
     allConfigurations_mem_take_of_index_le
-      (state.nodes node).log frontier frontierBound
+      ((nodeOf state) node).log frontier frontierBound
       newConfigurationKnown newConfigurationIndexBound
   have frontierEffectiveAfter :
-      hasEffectiveMajorityAt
+      hasEffectiveMajorityAt (joined := joinedNodes)
         (advanceCommitState state node)
         responseHistory node frontier :=
     effectiveMajorityNodeAfterOfBefore frontier frontierEffective
   have frontierPotentialAfter :
-      hasPotentialMajorityAt
+      hasPotentialMajorityAt (joined := joinedNodes)
         (advanceCommitState state node)
         appendHistory responseHistory node frontier :=
     effectiveMajorityImpliesPotential
@@ -5825,20 +5790,20 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             (advanceCommitState state node)
             appendHistory newNodeEvidence requestEvidence
             knownEvidence supportedPrefix ->
-          (state.nodes node).log.take frontier <+:
+          ((nodeOf state) node).log.take frontier <+:
               knownEvidence.history.take knownEvidence.commitFrontier \/
             knownEvidence.history.take knownEvidence.commitFrontier <+:
-              (state.nodes node).log.take frontier := by
+              ((nodeOf state) node).log.take frontier := by
     intro knownEvidence supportedPrefix known
     have valid := knownCommitEvidenceValid evidenceAfter known
     by_cases termOrder :
-        knownEvidence.commitTerm <= (state.nodes node).currentTerm
+        knownEvidence.commitTerm <= ((nodeOf state) node).currentTerm
     · rcases
           configurationMajorityNonempty valid.2.2.2.2.2.1 with
         ⟨member, _authorityMember, ackMember⟩
       have knownInNode :
           knownEvidence.history.take knownEvidence.commitFrontier <+:
-            (state.nodes node).log := by
+            ((nodeOf state) node).log := by
         simpa [logEq]
           using knownCommitEvidenceActiveLeaderContainsFrontier
             ownershipAfter electionFactsAfter evidenceAfter
@@ -5846,10 +5811,10 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             (by simpa [termEq] using termOrder) ackMember
       exact
         prefixesComparable
-          (List.take_prefix frontier (state.nodes node).log)
+          (List.take_prefix frontier ((nodeOf state) node).log)
           knownInNode
     · have nodeBefore :
-          (state.nodes node).currentTerm <
+          ((nodeOf state) node).currentTerm <
             knownEvidence.commitTerm := by
         omega
       have canonicalEq :=
@@ -5906,7 +5871,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       · rcases elected with
           ⟨record, recordStored, _recordLeader⟩
         have newInCanonical :
-            (state.nodes node).log.take frontier <+:
+            ((nodeOf state) node).log.take frontier <+:
               canonicalHistory knownEvidence.commitTerm := by
           simpa [logEq]
             using (recordBridgeAfter
@@ -5934,7 +5899,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             knownEvidence supportedPrefix ->
         knownEvidence.authority.index < newConfiguration.index ->
           knownEvidence.history.take knownEvidence.commitFrontier <+:
-            (state.nodes node).log.take frontier := by
+            ((nodeOf state) node).log.take frontier := by
     intro knownEvidence supportedPrefix known order
     rcases
         newFrontierComparableKnownAfter
@@ -5962,7 +5927,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           newConfiguration newKnownEvidenceFrontier
       have valid := knownCommitEvidenceValid evidenceAfter known
       let evidenceNode : NodeState Node TxId :=
-        { state.nodes node with
+        { (nodeOf state) node with
           log := knownEvidence.history
           commitIndex := knownEvidence.commitFrontier }
       have authorityAfterNew :=
@@ -5983,7 +5948,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             appendHistory newNodeEvidence requestEvidence
             knownEvidence supportedPrefix ->
         newConfiguration.index < knownEvidence.authority.index ->
-          (state.nodes node).log.take frontier <+:
+          ((nodeOf state) node).log.take frontier <+:
             knownEvidence.history.take knownEvidence.commitFrontier := by
     intro knownEvidence supportedPrefix known order
     rcases
@@ -5997,7 +5962,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             allConfigurations knownEvidence.history := by
         have currentKnown :=
           currentConfiguration_mem_allConfigurations
-            { (state.nodes node) with
+            { ((nodeOf state) node) with
               log := knownEvidence.history
               commitIndex := knownEvidence.commitFrontier }
         simpa [
@@ -6007,7 +5972,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           knownEvidence.authority.index <=
             knownEvidence.commitFrontier := by
         let evidenceNode : NodeState Node TxId :=
-          { state.nodes node with
+          { (nodeOf state) node with
             log := knownEvidence.history
             commitIndex := knownEvidence.commitFrontier }
         have bound :=
@@ -6025,25 +5990,25 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           authorityKnownHistory authorityIndexBound
       have authorityKnownNewFrontier :
           knownEvidence.authority ∈
-            allConfigurations ((state.nodes node).log.take frontier) :=
+            allConfigurations (((nodeOf state) node).log.take frontier) :=
         memOfPrefix
           (allConfigurations_mono_prefix knownBefore)
           authorityKnownFrontier
       have authorityKnownNode :
           knownEvidence.authority ∈
-            allConfigurations (state.nodes node).log :=
+            allConfigurations ((nodeOf state) node).log :=
         memOfPrefix
           (allConfigurations_mono_prefix
-            (List.take_prefix frontier (state.nodes node).log))
+            (List.take_prefix frontier ((nodeOf state) node).log))
           authorityKnownNewFrontier
       have authorityBound :
           knownEvidence.authority.index <= frontier :=
         configurationIndexLeOfMemTake
-          (state.nodes node).log frontier knownEvidence.authority
+          ((nodeOf state) node).log frontier knownEvidence.authority
           authorityKnownNewFrontier
       have currentAfterAuthority :=
         configuration_index_le_currentConfiguration
-          { (state.nodes node) with commitIndex := frontier }
+          { ((nodeOf state) node) with commitIndex := frontier }
           knownEvidence.authority authorityKnownNode authorityBound
       have contradiction :
           knownEvidence.authority.index <= newConfiguration.index := by
@@ -6064,7 +6029,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           allConfigurations knownEvidence.history := by
       have currentKnown :=
         currentConfiguration_mem_allConfigurations
-          { (state.nodes node) with
+          { ((nodeOf state) node) with
             log := knownEvidence.history
             commitIndex := knownEvidence.commitFrontier }
       simpa [
@@ -6100,7 +6065,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             newConfiguration = implicitConfiguration := by
           apply
             allConfigurations_index_unique
-              (TxId := TxId) (state.nodes node).log
+              (TxId := TxId) ((nodeOf state) node).log
               newConfigurationKnown
           · simp [allConfigurations, implicitConfiguration]
           · simpa [implicitConfiguration] using zero
@@ -6167,14 +6132,14 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           allConfigurations knownEvidence.history := by
       have currentKnown :=
         currentConfiguration_mem_allConfigurations
-          { state.nodes node with
+          { (nodeOf state) node with
             log := knownEvidence.history
             commitIndex := knownEvidence.commitFrontier }
       simpa [currentConfiguration, valid.2.2.2.2.1] using currentKnown
     have authorityWithin :
         knownEvidence.authority.index <= knownEvidence.commitFrontier := by
       let evidenceNode : NodeState Node TxId :=
-        { state.nodes node with
+        { (nodeOf state) node with
           log := knownEvidence.history
           commitIndex := knownEvidence.commitFrontier }
       have bound := currentConfiguration_index_le_commitIndex evidenceNode
@@ -6206,21 +6171,21 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           authorityKnownHistory newKnownEvidence sameIndex
     · have authorityKnownNode :
           knownEvidence.authority ∈
-            allConfigurations (state.nodes node).log := by
+            allConfigurations ((nodeOf state) node).log := by
         apply
           memOfPrefix
             (allConfigurations_mono_prefix
-              (List.take_prefix frontier (state.nodes node).log))
+              (List.take_prefix frontier ((nodeOf state) node).log))
         exact
           memOfPrefix
             (allConfigurations_mono_prefix knownBefore)
             authorityKnownFrontier
       exact
         allConfigurations_index_unique
-          (TxId := TxId) (state.nodes node).log
+          (TxId := TxId) ((nodeOf state) node).log
           authorityKnownNode newConfigurationKnown sameIndex
   have activationEvidenceAfter :
-      ActivationEvidenceFacts
+      ActivationEvidenceFacts (joined := joinedNodes)
         (advanceCommitState state node)
         appendHistory responseHistory newNodeEvidence requestEvidence
           elections newActivations := by
@@ -6343,7 +6308,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       · rcases new with ⟨new, _supported⟩
         subst knownEvidence
         have frontierEffectiveAfter :
-            hasEffectiveMajorityAt
+            hasEffectiveMajorityAt (joined := joinedNodes)
               (advanceCommitState state node)
               responseHistory node frontier :=
           effectiveMajorityNodeAfterOfBefore frontier frontierEffective
@@ -6363,7 +6328,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         · rcases shared with
             ⟨configuration, sourceActive, governs, candidateActive⟩
           have sourceParts :
-              configuration ∈ allConfigurations (state.nodes node).log /\
+              configuration ∈ allConfigurations ((nodeOf state) node).log /\
                 newConfiguration.index <= configuration.index := by
             simpa [activeConfigurations, currentConfigurationNodeEq, logEq]
               using sourceActive
@@ -6371,14 +6336,14 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               configuration.index <= newConfiguration.index := by
             have bound :=
               configuration_index_le_currentConfiguration
-                { state.nodes node with commitIndex := frontier }
+                { (nodeOf state) node with commitIndex := frontier }
                 configuration sourceParts.1 governs
             simpa [
               currentConfiguration, newConfiguration
             ] using bound
           have configurationEq : configuration = newConfiguration :=
             allConfigurations_index_unique
-              (TxId := TxId) (state.nodes node).log
+              (TxId := TxId) ((nodeOf state) node).log
               sourceParts.1 newConfigurationKnown
               (Nat.le_antisymm
                 configurationBeforeNew sourceParts.2)
@@ -6432,7 +6397,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     rw [votedEq, votesEq]
     exact facts.candidatesSelfVote candidate role
   · intro leader role
-    have oldRole : (state.nodes leader).role = .leader := by simpa [roleEq] using role
+    have oldRole : ((nodeOf state) leader).role = .leader := by simpa [roleEq] using role
     have old := facts.leadersHaveElectionWitness leader oldRole
     rw [termEq]
     rcases old with bootstrap | majority
@@ -6465,7 +6430,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       have old := facts.networkHistory.appendRequest destination request member
       refine ⟨old.1, old.2.1, ?_⟩
       unfold RequestCommitStillPresent at old ⊢
-      exact old.2.2.trans (committedMonotonic request.source)
+      exact old.2.2.trans (committedMonotonic request.1)
     · intro destination response member
       rw [networkEq] at member
       simpa [SuccessfulResponseSnapshot, termEq, roleEq, logEq]
@@ -6514,7 +6479,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     rw [termEq candidate, termEq voter]
     rw [roleEq] at active
     have oldMember :
-        voter ∈ effectiveElectionVoters state candidate := by
+        voter ∈ effectiveElectionVoters (joined := joinedNodes) state candidate := by
       rw [effectiveElectionVotersEq] at member
       exact member
     simpa [voteLogUpToDate, logEq]
@@ -6544,7 +6509,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
   · apply joinedCarrierFactsFrame
       state (advanceCommitState state node)
       facts.joinedCarriers
-      (by simp [advanceCommitState])
+      (by simp [advanceCommitState, Model.Local.advanceCommit, present])
     · intro candidate configuration active
       by_cases candidateEq : candidate = node
       · subst candidate
@@ -6556,19 +6521,19 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · intro candidate peer member
       simpa [votesEq] using member
     · intro candidate active
-      simpa [advanceCommitState]
+      simpa [advanceCommitState, Model.Local.advanceCommit, present]
         using facts.joinedCarriers.runtimeNodes.activeRoles candidate
           (by simpa [roleEq] using active)
     · intro leader peer positive
-      simpa [advanceCommitState]
+      simpa [advanceCommitState, Model.Local.advanceCommit, present]
         using facts.joinedCarriers.runtimeNodes.positiveMatches leader peer
           (by simpa [matchEq] using positive)
     · intro candidate nonempty
-      simpa [advanceCommitState]
+      simpa [advanceCommitState, Model.Local.advanceCommit, present]
         using facts.joinedCarriers.runtimeNodes.nonemptyLogs candidate
           (by simpa [logEq] using nonempty)
     · intro destination message member
-      simpa [advanceCommitState] using member
+      simpa [advanceCommitState, Model.Local.advanceCommit, present] using member
   · exact fun _ => Iff.rfl
   · intro candidate
     simpa only [termEq] using facts.currentTermsValid candidate
