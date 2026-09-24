@@ -1,7 +1,7 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.View
+import CCFRaft.Proofs.Invariant.Messages
 
 open CCFRaft.Model.Local (
   BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
@@ -24,32 +24,33 @@ set_option autoImplicit false
 namespace CCFRaft.Proofs.Invariant
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId]
+variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable {joined : Finset Node}
 
 /-- Every node's commit index points within its current log. -/
-def CommitIndicesBounded (state : View Node TxId) : Prop :=
-  forall node, (state.nodes node).commitIndex <= (state.nodes node).log.length
+def CommitIndicesBounded (state : Model.State Node TxId) : Prop :=
+  forall node, ((nodeOf state) node).commitIndex <= ((nodeOf state) node).log.length
 
 /-- Every positive node commit frontier points to a signature entry. -/
-def CommittedFrontierIsSignature (state : View Node TxId) : Prop :=
+def CommittedFrontierIsSignature (state : Model.State Node TxId) : Prop :=
   forall node,
-    0 < (state.nodes node).commitIndex
-    -> isSignatureAt (state.nodes node).log (state.nodes node).commitIndex = true
+    0 < ((nodeOf state) node).commitIndex
+    -> isSignatureAt ((nodeOf state) node).log ((nodeOf state) node).commitIndex = true
 
 /-- Equal index and term identify the same complete log prefix. -/
-def LogMatching (state : View Node TxId) : Prop :=
+def LogMatching (state : Model.State Node TxId) : Prop :=
   forall left right index leftEntry rightEntry,
-    entryAt? (state.nodes left).log index = some leftEntry
-    -> entryAt? (state.nodes right).log index = some rightEntry
+    entryAt? ((nodeOf state) left).log index = some leftEntry
+    -> entryAt? ((nodeOf state) right).log index = some rightEntry
     -> leftEntry.term = rightEntry.term
-    -> (state.nodes left).log.take index = (state.nodes right).log.take index
+    -> ((nodeOf state) left).log.take index = ((nodeOf state) right).log.take index
 
 /-- Entry terms do not decrease as log indices increase. -/
-def MonoLog (state : View Node TxId) : Prop :=
+def MonoLog (state : Model.State Node TxId) : Prop :=
   forall node earlier later earlierEntry laterEntry,
     earlier < later
-    -> entryAt? (state.nodes node).log earlier = some earlierEntry
-    -> entryAt? (state.nodes node).log later = some laterEntry
+    -> entryAt? ((nodeOf state) node).log earlier = some earlierEntry
+    -> entryAt? ((nodeOf state) node).log later = some laterEntry
     -> earlierEntry.term <= laterEntry.term
 
 end CCFRaft.Proofs.Invariant
@@ -70,8 +71,8 @@ later `UpdateTerm`.
 namespace CCFRaft.Proofs.Invariant
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId]
-variable [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable {joined : Finset Node}
 
 /-- A proof-only record of the candidate selected by a voter in a term. -/
 abbrev VoteHistory (Node : Type) := Node -> Nat -> Option Node
@@ -220,14 +221,14 @@ term. The immutable ACK histories stay in `ActivationRecord`; this state-indexed
 fact retains only monotone term progress.
 -/
 def ActivationSupporterProgress
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop :=
   forall index record,
     activations index = some record
     -> forall supporter,
         supporter ∈ record.jointSupporters
-        -> record.activationTerm <= (state.nodes supporter).currentTerm
+        -> record.activationTerm <= ((nodeOf state) supporter).currentTerm
 
 /-- Some frozen election after one signed prefix's term already omits it. -/
 def EarlierBadElectionForPrefix
@@ -250,7 +251,7 @@ a later frozen election no newer than that supporter's current term already
 provides the induction handoff.
 -/
 def ActivationSupporterCurrentHistory
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (elections : ElectionHistory Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop :=
@@ -258,57 +259,57 @@ def ActivationSupporterCurrentHistory
     activations index = some record
     -> forall supporter,
         supporter ∈ record.jointSupporters
-        -> record.history.take record.activationFrontier <+: (state.nodes supporter).log
+        -> record.history.take record.activationFrontier <+: ((nodeOf state) supporter).log
             \/ EarlierBadElectionForPrefix
                 elections
                 (record.history.take record.activationFrontier)
                 record.activationTerm
-                (state.nodes supporter).currentTerm
+                ((nodeOf state) supporter).currentTerm
 
 /--
 One immutable activation event covers a node's current configuration at the
 prefix shared by that event and the node's committed log.
 -/
 structure ConfigurationCoverageWitness
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (activations : ActivationHistory Node TxId)
     (node : Node) where
   activationIndex : ActivationKey Node
   activation : ActivationRecord Node TxId
   stored : activations activationIndex = some activation
   configurationCovered
-    : currentConfiguration (state.nodes node) ∈ activation.governingActive
-  activationTermBound : activation.activationTerm <= (state.nodes node).currentTerm
+    : currentConfiguration ((nodeOf state) node) ∈ activation.governingActive
+  activationTermBound : activation.activationTerm <= ((nodeOf state) node).currentTerm
   configurationIndexBound
-    : (currentConfiguration (state.nodes node)).index
-      <= min (state.nodes node).commitIndex activation.activationFrontier
+    : (currentConfiguration ((nodeOf state) node)).index
+      <= min ((nodeOf state) node).commitIndex activation.activationFrontier
   historyAgreement
     : activation.history.take
-        (min (state.nodes node).commitIndex activation.activationFrontier)
-      = (state.nodes node).log.take
-          (min (state.nodes node).commitIndex activation.activationFrontier)
+        (min ((nodeOf state) node).commitIndex activation.activationFrontier)
+      = ((nodeOf state) node).log.take
+          (min ((nodeOf state) node).commitIndex activation.activationFrontier)
   higherAuthority
     : forall higherIndex higher,
         activations higherIndex = some higher
-        -> (currentConfiguration (state.nodes node)).index < higher.newConfiguration.index
+        -> (currentConfiguration ((nodeOf state) node)).index < higher.newConfiguration.index
         -> activation.history.take
-              (min (state.nodes node).commitIndex activation.activationFrontier)
+              (min ((nodeOf state) node).commitIndex activation.activationFrontier)
             <+: higher.history.take higher.activationFrontier
   lowerAuthority
     : forall lowerIndex lower,
         activations lowerIndex = some lower
-        -> lower.newConfiguration.index < (currentConfiguration (state.nodes node)).index
+        -> lower.newConfiguration.index < (currentConfiguration ((nodeOf state) node)).index
         -> lower.history.take lower.activationFrontier
             <+: activation.history.take
-                  (min (state.nodes node).commitIndex activation.activationFrontier)
+                  (min ((nodeOf state) node).commitIndex activation.activationFrontier)
   sameAuthority
     : forall sameIndex same,
         activations sameIndex = some same
-        -> same.newConfiguration.index = (currentConfiguration (state.nodes node)).index
-        -> same.newConfiguration = currentConfiguration (state.nodes node)
+        -> same.newConfiguration.index = (currentConfiguration ((nodeOf state) node)).index
+        -> same.newConfiguration = currentConfiguration ((nodeOf state) node)
   candidateTermStrict
-    : (state.nodes node).role = .candidate
-      -> activation.activationTerm < (state.nodes node).currentTerm
+    : ((nodeOf state) node).role = .candidate
+      -> activation.activationTerm < ((nodeOf state) node).currentTerm
 
 /--
 Every positive current configuration is covered by an immutable activation
@@ -316,11 +317,11 @@ event. The event may activate a later configuration when a partial
 AppendEntries request exposes an intermediate configuration.
 -/
 def ConfigurationCoverageFacts
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop :=
   forall node,
-    0 < (currentConfiguration (state.nodes node)).index
+    0 < (currentConfiguration ((nodeOf state) node)).index
     -> Nonempty (ConfigurationCoverageWitness state activations node)
 
 structure ConfigurationFrontierCoverageWitness
@@ -358,33 +359,33 @@ structure ConfigurationFrontierCoverageWitness
         -> same.newConfiguration = currentConfigurationAt history frontier
 
 def CommittedConfigurationCoverage
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop :=
   forall node frontier,
-    frontier <= (state.nodes node).commitIndex
-    -> 0 < (currentConfigurationAt (state.nodes node).log frontier).index
-    -> isSignatureAt (state.nodes node).log frontier = true
+    frontier <= ((nodeOf state) node).commitIndex
+    -> 0 < (currentConfigurationAt ((nodeOf state) node).log frontier).index
+    -> isSignatureAt ((nodeOf state) node).log frontier = true
     -> Nonempty
         (ConfigurationFrontierCoverageWitness
-          activations (state.nodes node).log frontier
-          (state.nodes node).currentTerm)
+          activations ((nodeOf state) node).log frontier
+          ((nodeOf state) node).currentTerm)
 
 def QueuedConfigurationCoverage
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (activations : ActivationHistory Node TxId)
     : Prop :=
   forall destination request,
-    Message.appendEntriesRequest request ∈ state.network destination
+    (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
     -> forall frontier,
         frontier
-          <= min request.leaderCommit (request.prevLogIndex + request.entries.length)
+          <= min request.2.2.leaderCommit (request.2.2.prevLogIndex + request.2.2.entries.length)
         -> 0 < (currentConfigurationAt (appendHistory request) frontier).index
         -> isSignatureAt (appendHistory request) frontier = true
         -> Nonempty
             (ConfigurationFrontierCoverageWitness
-              activations (appendHistory request) frontier request.term)
+              activations (appendHistory request) frontier request.2.2.term)
 
 /--
 Every positive authority frozen in an election ballot is covered by an
@@ -443,7 +444,7 @@ abbrev NodeCommitEvidence (Node TxId : Type) :=
 
 /-- Commit evidence advertised by each immutable AppendEntries request. -/
 abbrev RequestCommitEvidence (Node TxId : Type) :=
-  AppendEntriesRequest Node TxId -> Option (CommitEvidence Node TxId)
+  AppendRequestKey Node TxId -> Option (CommitEvidence Node TxId)
 
 /-- Entry terms do not decrease inside one proof-only history. -/
 def MonoHistory (history : List (Entry Node TxId)) : Prop :=
@@ -523,100 +524,95 @@ structure ActivationElectionFacts
                             <+: election.promotionLog
 
 /-- Every log entry is from a term already observed by its local node. -/
-def EntriesDoNotExceedCurrentTerm (state : View Node TxId) : Prop :=
+def EntriesDoNotExceedCurrentTerm (state : Model.State Node TxId) : Prop :=
   forall node entry,
-    entry ∈ (state.nodes node).log -> entry.term <= (state.nodes node).currentTerm
+    entry ∈ ((nodeOf state) node).log -> entry.term <= ((nodeOf state) node).currentTerm
 
 /-- Every participating node has reached the bootstrap term. -/
-def CurrentTermsPositive (state : View Node TxId) : Prop :=
+def CurrentTermsPositive (state : Model.State Node TxId) : Prop :=
   forall node,
-    Not ((state.nodes node).role = .none)
-    -> BOOTSTRAP_TERM <= (state.nodes node).currentTerm
+    Not (((nodeOf state) node).role = .none)
+    -> BOOTSTRAP_TERM <= ((nodeOf state) node).currentTerm
 
 /-- Zero denotes an unknown term; numbered terms start at bootstrap. -/
 def TermNumberValid (term : Nat) : Prop :=
   term = 0 \/ BOOTSTRAP_TERM <= term
 
 /-- Inactive nodes retain either an unknown or a numbered current term. -/
-def CurrentTermsValid (state : View Node TxId) : Prop :=
-  forall node, TermNumberValid (state.nodes node).currentTerm
+def CurrentTermsValid (state : Model.State Node TxId) : Prop :=
+  forall node, TermNumberValid ((nodeOf state) node).currentTerm
 
 /-- Queued packets advertise only unknown or numbered terms. -/
-def NetworkTermsValid (state : View Node TxId) : Prop :=
+def NetworkTermsValid (state : Model.State Node TxId) : Prop :=
   forall destination message,
-    message ∈ state.network destination -> TermNumberValid message.term
+    (message ∈ state.network /\ message.target = destination) -> TermNumberValid message.payload.term
 
 /-- Candidates start each election with exactly their own persistent vote. -/
-def CandidatesSelfVote (state : View Node TxId) : Prop :=
+def CandidatesSelfVote (state : Model.State Node TxId) : Prop :=
   forall node,
-    (state.nodes node).role = .candidate
-    -> (state.nodes node).votedFor = some node /\ node ∈ (state.nodes node).votesGranted
+    ((nodeOf state) node).role = .candidate
+    -> ((nodeOf state) node).votedFor = some node /\ node ∈ ((nodeOf state) node).votesGranted
 
 /-- Every runtime candidacy is for a post-bootstrap term. -/
-def CandidatesAboveBootstrap (state : View Node TxId) : Prop :=
+def CandidatesAboveBootstrap (state : Model.State Node TxId) : Prop :=
   forall node,
-    (state.nodes node).role = .candidate
-    -> BOOTSTRAP_TERM < (state.nodes node).currentTerm
+    ((nodeOf state) node).role = .candidate
+    -> BOOTSTRAP_TERM < ((nodeOf state) node).currentTerm
 
 /-- Every active leader keeps both replication cursors inside its own log. -/
-def LeaderProgressBounded (state : View Node TxId) : Prop :=
+def LeaderProgressBounded (state : Model.State Node TxId) : Prop :=
   forall leader,
-    (state.nodes leader).role = .leader
+    ((nodeOf state) leader).role = .leader
     -> forall peer,
-        (state.nodes leader).sentIndex peer <= (state.nodes leader).log.length
-        /\ (state.nodes leader).matchIndex peer <= (state.nodes leader).log.length
+        ((nodeOf state) leader).sentIndex peer <= ((nodeOf state) leader).log.length
+        /\ ((nodeOf state) leader).matchIndex peer <= ((nodeOf state) leader).log.length
 
 /--
 The proof history agrees with the runtime vote in the current term, is empty
 in future terms, and justifies every vote counted by an active candidate or
 leader.
 -/
-structure VoteHistoryFacts (state : View Node TxId) (history : VoteHistory Node)
+structure VoteHistoryFacts (state : Model.State Node TxId) (history : VoteHistory Node)
     : Prop where
   bootstrapEmpty : forall voter, history voter BOOTSTRAP_TERM = none
   current
     : forall voter,
-        history voter (state.nodes voter).currentTerm = (state.nodes voter).votedFor
+        history voter ((nodeOf state) voter).currentTerm = ((nodeOf state) voter).votedFor
   future
     : forall voter term,
-        (state.nodes voter).currentTerm < term -> history voter term = none
+        ((nodeOf state) voter).currentTerm < term -> history voter term = none
   counted
     : forall candidate voter,
-        ((state.nodes candidate).role = .candidate
-          \/ (state.nodes candidate).role = .leader)
-        -> voter ∈ (state.nodes candidate).votesGranted
-        -> history voter (state.nodes candidate).currentTerm = some candidate
+        (((nodeOf state) candidate).role = .candidate
+          \/ ((nodeOf state) candidate).role = .leader)
+        -> voter ∈ ((nodeOf state) candidate).votesGranted
+        -> history voter ((nodeOf state) candidate).currentTerm = some candidate
 
 /-- The unique synthetic key used to retain a granted vote after dequeue. -/
 def grantedVoteKey (voter : Node) (term : Nat) (candidate : Node)
-    : RequestVoteResponse Node :=
-  {
-    term
-    voteGranted := true
-    source := voter
-    destination := candidate
-  }
+    : VoteResponseKey Node :=
+  (voter, candidate, { term, voteGranted := true })
 
 /-- The immutable fields of an AppendEntries request snapshot one history. -/
 def RequestSnapshots
     (history : List (Entry Node TxId))
-    (request : AppendEntriesRequest Node TxId)
+    (request : AppendRequestKey Node TxId)
     : Prop :=
-  request.prevLogIndex + request.entries.length <= history.length
-  /\ request.prevLogTerm = termAt history request.prevLogIndex
-  /\ history.take (request.prevLogIndex + request.entries.length)
-      = history.take request.prevLogIndex ++ request.entries
+  request.2.2.prevLogIndex + request.2.2.entries.length <= history.length
+  /\ request.2.2.prevLogTerm = termAt history request.2.2.prevLogIndex
+  /\ history.take (request.2.2.prevLogIndex + request.2.2.entries.length)
+      = history.take request.2.2.prevLogIndex ++ request.2.2.entries
 
 /--
 An advertised commit is still represented by the source's current committed
 log.  This survives delayed delivery because committed logs are append-only.
 -/
 def RequestCommitStillPresent
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (history : List (Entry Node TxId))
-    (request : AppendEntriesRequest Node TxId)
+    (request : AppendRequestKey Node TxId)
     : Prop :=
-  history.take request.leaderCommit <+: (state.nodes request.source).committedLog
+  history.take request.2.2.leaderCommit <+: ((nodeOf state) request.1).committedLog
 
 /--
 A successful response remembers an immutable source-log history.  While the
@@ -624,19 +620,19 @@ response is processable by its same-term destination leader, that history is
 still a prefix of the leader's current append-only log.
 -/
 def SuccessfulResponseSnapshot
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (history : List (Entry Node TxId))
-    (response : AppendEntriesResponse Node)
+    (response : AppendResponseKey Node)
     : Prop :=
-  response.success = true
-  -> response.lastLogIndex <= history.length
-      /\ response.term <= (state.nodes response.destination).currentTerm
-      /\ (response.term = (state.nodes response.destination).currentTerm
-          -> ((state.nodes response.destination).role = .leader
-                /\ history <+: (state.nodes response.destination).log)
-              \/ (state.nodes response.destination).role = .follower
-              \/ (state.nodes response.destination).role = .preVoteCandidate
-              \/ (state.nodes response.destination).role = .none)
+  response.2.2.success = true
+  -> response.2.2.lastLogIndex <= history.length
+      /\ response.2.2.term <= ((nodeOf state) response.2.1).currentTerm
+      /\ (response.2.2.term = ((nodeOf state) response.2.1).currentTerm
+          -> (((nodeOf state) response.2.1).role = .leader
+                /\ history <+: ((nodeOf state) response.2.1).log)
+              \/ ((nodeOf state) response.2.1).role = .follower
+              \/ ((nodeOf state) response.2.1).role = .preVoteCandidate
+              \/ ((nodeOf state) response.2.1).role = .none)
 
 /-- A vote snapshot ends exactly at its latest signature. -/
 abbrev EndsAtMaxCommittable (history : List (Entry Node TxId)) : Prop :=
@@ -647,129 +643,127 @@ Queued messages retain their immutable log/vote snapshots.  The witness
 functions are proof-only maps keyed by complete message values.
 -/
 structure NetworkHistoryFacts
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
-    (voteRequestHistory : RequestVoteRequest Node -> List (Entry Node TxId))
-    (voteCandidateHistory : RequestVoteResponse Node -> List (Entry Node TxId))
-    (voteVoterHistory : RequestVoteResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
+    (voteRequestHistory : VoteRequestKey Node -> List (Entry Node TxId))
+    (voteCandidateHistory : VoteResponseKey Node -> List (Entry Node TxId))
+    (voteVoterHistory : VoteResponseKey Node -> List (Entry Node TxId))
     (votes : VoteHistory Node)
     : Prop where
   addressed
     : forall destination message,
-        message ∈ state.network destination -> message.destination = destination
+        (message ∈ state.network /\ message.target = destination) -> message.target = destination
   appendRequest
     : forall destination request,
-        Message.appendEntriesRequest request ∈ state.network destination
+        (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
         -> RequestSnapshots (appendHistory request) request
-            /\ request.leaderCommit <= (appendHistory request).length
+            /\ request.2.2.leaderCommit <= (appendHistory request).length
             /\ RequestCommitStillPresent state (appendHistory request) request
   appendResponse
     : forall destination response,
-        Message.appendEntriesResponse response ∈ state.network destination
+        (appendResponseEnvelope response ∈ state.network /\ response.2.1 = destination)
         -> SuccessfulResponseSnapshot state (responseHistory response) response
   voteRequest
     : forall destination request,
-        Message.requestVoteRequest request ∈ state.network destination
-        -> request.lastCommittableIndex = (voteRequestHistory request).length
-            /\ request.lastCommittableTerm
+        (voteRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
+        -> request.2.2.lastCommittableIndex = (voteRequestHistory request).length
+            /\ request.2.2.lastCommittableTerm
                 = termAt (voteRequestHistory request) (voteRequestHistory request).length
             /\ EndsAtMaxCommittable (voteRequestHistory request)
-            /\ BOOTSTRAP_TERM < request.term
-            /\ request.term <= (state.nodes request.source).currentTerm
-            /\ (request.term = (state.nodes request.source).currentTerm
-                -> ((state.nodes request.source).role = .candidate
-                    \/ (state.nodes request.source).role = .leader)
-                -> voteRequestHistory request <+: (state.nodes request.source).log)
+            /\ BOOTSTRAP_TERM < request.2.2.term
+            /\ request.2.2.term <= ((nodeOf state) request.1).currentTerm
+            /\ (request.2.2.term = ((nodeOf state) request.1).currentTerm
+                -> (((nodeOf state) request.1).role = .candidate
+                    \/ ((nodeOf state) request.1).role = .leader)
+                -> voteRequestHistory request <+: ((nodeOf state) request.1).log)
   voteResponse
     : forall destination response,
-        Message.requestVoteResponse response ∈ state.network destination
-        -> response.voteGranted = true
-        -> response.term <= (state.nodes response.destination).currentTerm
-            /\ votes response.source response.term = some response.destination
+        (voteResponseEnvelope response ∈ state.network /\ response.2.1 = destination)
+        -> response.2.2.voteGranted = true
+        -> response.2.2.term <= ((nodeOf state) response.2.1).currentTerm
+            /\ votes response.1 response.2.2.term = some response.2.1
             /\ EndsAtMaxCommittable (voteCandidateHistory response)
             /\ EndsAtMaxCommittable (voteVoterHistory response)
-            /\ voteLogUpToDate
-                { (state.nodes response.source) with log := voteVoterHistory response }
+            /\ Model.Local.voteLogUpToDate
+                { ((nodeOf state) response.1) with log := voteVoterHistory response }
                 {
-                  term := response.term
+                  term := response.2.2.term
                   lastCommittableTerm :=
                     termAt
                       (voteCandidateHistory response)
                       (voteCandidateHistory response).length
                   lastCommittableIndex :=
                     (voteCandidateHistory response).length
-                  source := response.destination
-                  destination := response.source
                 }
 
 /-- Whether a granted same-term response is still queued at its candidate. -/
-def queuedGrantedVote (state : View Node TxId) (candidate voter : Node) : Prop :=
+def queuedGrantedVote (state : Model.State Node TxId) (candidate voter : Node) : Prop :=
   Exists
     fun response =>
-      Message.requestVoteResponse response ∈ state.network candidate
-      /\ response.voteGranted = true
-      /\ response.term = (state.nodes candidate).currentTerm
-      /\ response.source = voter
-      /\ response.destination = candidate
+      (voteResponseEnvelope response ∈ state.network /\ response.2.1 = candidate)
+      /\ response.2.2.voteGranted = true
+      /\ response.2.2.term = ((nodeOf state) candidate).currentTerm
+      /\ response.1 = voter
+      /\ response.2.1 = candidate
 
 /--
 Processed votes and granted same-term responses still in flight are two
 representations of the same election evidence.
 -/
-noncomputable def effectiveElectionVoters (state : View Node TxId) (candidate : Node)
+noncomputable def effectiveElectionVoters (state : Model.State Node TxId) (candidate : Node)
     : Finset Node := by
   classical
   exact
-    state.hasJoined.filter fun voter =>
-      voter ∈ (state.nodes candidate).votesGranted \/
+    joined.filter fun voter =>
+      voter ∈ ((nodeOf state) candidate).votesGranted \/
         queuedGrantedVote state candidate voter
 
 /-- A strict quorum of processed or queued granted votes. -/
-def hasEffectiveElectionMajority (state : View Node TxId) (candidate : Node) : Prop :=
-  (activeConfigurations (state.nodes candidate)).all
+def hasEffectiveElectionMajority (state : Model.State Node TxId) (candidate : Node) : Prop :=
+  (activeConfigurations ((nodeOf state) candidate)).all
     fun configuration =>
       decide
-        (hasConfigurationMajority (effectiveElectionVoters state candidate) configuration)
+        (hasConfigurationMajority (effectiveElectionVoters (joined := joined) state candidate) configuration)
 
-noncomputable instance (state : View Node TxId) (candidate : Node)
-    : Decidable (hasEffectiveElectionMajority state candidate) := by
+noncomputable instance (state : Model.State Node TxId) (candidate : Node)
+    : Decidable (hasEffectiveElectionMajority (joined := joined) state candidate) := by
   exact Classical.propDecidable _
 
 /--
 A node is currently eligible when the exact canonical RequestVote generated
 from the candidate's current term and log would pass the grant predicate.
 -/
-def currentlyEligibleElectionVoter (state : View Node TxId) (candidate voter : Node)
+def currentlyEligibleElectionVoter (state : Model.State Node TxId) (candidate voter : Node)
     : Prop :=
-  let request := makeRequestVoteRequest state candidate voter
-  request.term = (state.nodes voter).currentTerm
-  /\ voteLogUpToDate (state.nodes voter) request
-  /\ ((state.nodes voter).votedFor = none
-      \/ (state.nodes voter).votedFor = some candidate)
+  let request := voteRequestKey state candidate voter
+  request.2.2.term = ((nodeOf state) voter).currentTerm
+  /\ Model.Local.voteLogUpToDate ((nodeOf state) voter) request.2.2
+  /\ (((nodeOf state) voter).votedFor = none
+      \/ ((nodeOf state) voter).votedFor = some candidate)
 
 /--
 Potential voters combine persistent processed/in-flight evidence with
 nodes whose current state would grant the candidate's canonical request.
 This is the source-side election evidence which exists before send or grant.
 -/
-noncomputable def potentialElectionVoters (state : View Node TxId) (candidate : Node)
+noncomputable def potentialElectionVoters (state : Model.State Node TxId) (candidate : Node)
     : Finset Node := by
   classical
   exact
-    state.hasJoined.filter fun voter =>
-      voter ∈ effectiveElectionVoters state candidate \/
+    joined.filter fun voter =>
+      voter ∈ effectiveElectionVoters (joined := joined) state candidate \/
         currentlyEligibleElectionVoter state candidate voter
 
 /-- A strict quorum of persistent or currently eligible election voters. -/
-def hasPotentialElectionMajority (state : View Node TxId) (candidate : Node) : Prop :=
-  (activeConfigurations (state.nodes candidate)).all
+def hasPotentialElectionMajority (state : Model.State Node TxId) (candidate : Node) : Prop :=
+  (activeConfigurations ((nodeOf state) candidate)).all
     fun configuration =>
       decide
-        (hasConfigurationMajority (potentialElectionVoters state candidate) configuration)
+        (hasConfigurationMajority (potentialElectionVoters (joined := joined) state candidate) configuration)
 
-noncomputable instance (state : View Node TxId) (candidate : Node)
-    : Decidable (hasPotentialElectionMajority state candidate) := by
+noncomputable instance (state : Model.State Node TxId) (candidate : Node)
+    : Decidable (hasPotentialElectionMajority (joined := joined) state candidate) := by
   exact Classical.propDecidable _
 
 /--
@@ -778,29 +772,29 @@ supporters retain their frozen vote snapshots; all other supporters are
 classified only by the log-freshness check which a canonical vote request
 would perform.
 -/
-noncomputable def relaxedElectionVoters (state : View Node TxId) (candidate : Node)
+noncomputable def relaxedElectionVoters (state : Model.State Node TxId) (candidate : Node)
     : Finset Node := by
   classical
-  let request := makeRequestVoteRequest state candidate candidate
+  let request := voteRequestKey state candidate candidate
   exact
-    state.hasJoined.filter fun voter =>
-      voter ∈ effectiveElectionVoters state candidate \/
-        ((state.nodes voter).currentTerm <=
-            (state.nodes candidate).currentTerm /\
-          voteLogUpToDate (state.nodes voter) request)
+    joined.filter fun voter =>
+      voter ∈ effectiveElectionVoters (joined := joined) state candidate \/
+        (((nodeOf state) voter).currentTerm <=
+            ((nodeOf state) candidate).currentTerm /\
+          Model.Local.voteLogUpToDate ((nodeOf state) voter) request.2.2)
 
 /--
 Relaxed election support is still a strict majority in every active candidate
 configuration; relaxing voter timing does not relax quorum authority.
 -/
-def hasRelaxedElectionMajority (state : View Node TxId) (candidate : Node) : Prop :=
-  (activeConfigurations (state.nodes candidate)).all
+def hasRelaxedElectionMajority (state : Model.State Node TxId) (candidate : Node) : Prop :=
+  (activeConfigurations ((nodeOf state) candidate)).all
     fun configuration =>
       decide
-        (hasConfigurationMajority (relaxedElectionVoters state candidate) configuration)
+        (hasConfigurationMajority (relaxedElectionVoters (joined := joined) state candidate) configuration)
 
-noncomputable instance (state : View Node TxId) (candidate : Node)
-    : Decidable (hasRelaxedElectionMajority state candidate) := by
+noncomputable instance (state : Model.State Node TxId) (candidate : Node)
+    : Decidable (hasRelaxedElectionMajority (joined := joined) state candidate) := by
   exact Classical.propDecidable _
 
 /--
@@ -809,26 +803,26 @@ supporter; every other supporter must currently be no newer than the target
 term and consider the unchanged candidate log up to date.
 -/
 noncomputable def futureElectionVoters
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (candidate : Node)
     (targetTerm : Nat)
     : Finset Node := by
   classical
   let request :=
-    { makeRequestVoteRequest state candidate candidate with
+    { (voteRequestKey state candidate candidate).2.2 with
       term := targetTerm }
   exact
-    state.hasJoined.filter fun voter =>
+    joined.filter fun voter =>
       voter = candidate \/
-        ((state.nodes voter).currentTerm <= targetTerm /\
-          voteLogUpToDate (state.nodes voter) request)
+        (((nodeOf state) voter).currentTerm <= targetTerm /\
+          Model.Local.voteLogUpToDate ((nodeOf state) voter) request)
 
 /--
 Future election support is interpreted against an explicit frozen ballot
 configuration list, rather than whichever configurations are active later.
 -/
 def hasFutureElectionMajority
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (candidate : Node)
     (targetTerm : Nat)
     (ballotActive : List (Configuration Node))
@@ -837,15 +831,15 @@ def hasFutureElectionMajority
     fun configuration =>
       decide
         (hasConfigurationMajority
-          (futureElectionVoters state candidate targetTerm)
+          (futureElectionVoters (joined := joined) state candidate targetTerm)
           configuration)
 
 noncomputable instance
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (candidate : Node)
     (targetTerm : Nat)
     (ballotActive : List (Configuration Node))
-    : Decidable (hasFutureElectionMajority state candidate targetTerm ballotActive) := by
+    : Decidable (hasFutureElectionMajority (joined := joined) state candidate targetTerm ballotActive) := by
   exact Classical.propDecidable _
 
 /--
@@ -854,60 +848,58 @@ synthetic key lets response dequeue retain the candidate/voter histories and
 their original RequestVote up-to-date check without adding runtime state.
 -/
 def GrantedVoteSnapshots
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (votes : VoteHistory Node)
-    (voteCandidateHistory : RequestVoteResponse Node -> List (Entry Node TxId))
-    (voteVoterHistory : RequestVoteResponse Node -> List (Entry Node TxId))
+    (voteCandidateHistory : VoteResponseKey Node -> List (Entry Node TxId))
+    (voteVoterHistory : VoteResponseKey Node -> List (Entry Node TxId))
     : Prop :=
   forall candidate voter,
-    ((state.nodes candidate).role = .candidate \/ (state.nodes candidate).role = .leader)
-    -> voter ∈ effectiveElectionVoters state candidate
-    ->  let response := grantedVoteKey voter (state.nodes candidate).currentTerm candidate
-        votes voter (state.nodes candidate).currentTerm = some candidate
+    (((nodeOf state) candidate).role = .candidate \/ ((nodeOf state) candidate).role = .leader)
+    -> voter ∈ effectiveElectionVoters (joined := joined) state candidate
+    ->  let response := grantedVoteKey voter ((nodeOf state) candidate).currentTerm candidate
+        votes voter ((nodeOf state) candidate).currentTerm = some candidate
         /\ (voter = candidate
-            \/ (voteCandidateHistory response <+: (state.nodes candidate).log
+            \/ (voteCandidateHistory response <+: ((nodeOf state) candidate).log
                 /\ EndsAtMaxCommittable (voteCandidateHistory response)
                 /\ EndsAtMaxCommittable (voteVoterHistory response)
-                /\ response.term <= (state.nodes voter).currentTerm
-                /\ voteLogUpToDate
-                    { (state.nodes voter) with log := voteVoterHistory response }
+                /\ response.2.2.term <= ((nodeOf state) voter).currentTerm
+                /\ Model.Local.voteLogUpToDate
+                    { ((nodeOf state) voter) with log := voteVoterHistory response }
                     {
-                      term := response.term
+                      term := response.2.2.term
                       lastCommittableTerm :=
                         termAt
                           (voteCandidateHistory response)
                           (voteCandidateHistory response).length
                       lastCommittableIndex :=
                         (voteCandidateHistory response).length
-                      source := response.destination
-                      destination := response.source
                     }))
 
 /-- Active election snapshots retain canonical agreement for both log views. -/
 def GrantedVoteCanonicalSnapshots
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (voteCandidateHistory voteVoterHistory
-      : RequestVoteResponse Node -> List (Entry Node TxId))
+      : VoteResponseKey Node -> List (Entry Node TxId))
     : Prop :=
   forall candidate voter,
-    ((state.nodes candidate).role = .candidate \/ (state.nodes candidate).role = .leader)
-    -> voter ∈ effectiveElectionVoters state candidate
+    (((nodeOf state) candidate).role = .candidate \/ ((nodeOf state) candidate).role = .leader)
+    -> voter ∈ effectiveElectionVoters (joined := joined) state candidate
     -> voter = candidate
         \/ (HistoryCanonical
               canonicalHistory
               (voteCandidateHistory
-                (grantedVoteKey voter (state.nodes candidate).currentTerm candidate))
+                (grantedVoteKey voter ((nodeOf state) candidate).currentTerm candidate))
             /\ MonoHistory
                 (voteCandidateHistory
-                  (grantedVoteKey voter (state.nodes candidate).currentTerm candidate))
+                  (grantedVoteKey voter ((nodeOf state) candidate).currentTerm candidate))
             /\ HistoryCanonical
                 canonicalHistory
                 (voteVoterHistory
-                  (grantedVoteKey voter (state.nodes candidate).currentTerm candidate))
+                  (grantedVoteKey voter ((nodeOf state) candidate).currentTerm candidate))
             /\ MonoHistory
                 (voteVoterHistory
-                  (grantedVoteKey voter (state.nodes candidate).currentTerm candidate)))
+                  (grantedVoteKey voter ((nodeOf state) candidate).currentTerm candidate)))
 
 /-- Voters whose retained term-indexed choices name one candidate. -/
 noncomputable def historicalElectionVoters
@@ -945,26 +937,26 @@ promoted. Canonical histories identify the owner of every represented entry,
 while election records retain the provenance of every owned term.
 -/
 structure TermOwnershipFacts
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (votes : VoteHistory Node)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (owners : TermOwners Node)
     : Prop where
   bootstrap : owners BOOTSTRAP_TERM = some INITIAL_LEADER
   activeLeader
     : forall leader,
-        (state.nodes leader).role = .leader
-        -> owners (state.nodes leader).currentTerm = some leader
+        ((nodeOf state) leader).role = .leader
+        -> owners ((nodeOf state) leader).currentTerm = some leader
   logEntryAgreement
     : forall node index entry,
-        entryAt? (state.nodes node).log index = some entry
+        entryAt? ((nodeOf state) node).log index = some entry
         -> entryAt? (canonicalHistory entry.term) index = some entry
-            /\ (state.nodes node).log.take index
+            /\ ((nodeOf state) node).log.take index
                 = (canonicalHistory entry.term).take index
   queuedHistoryEntryAgreement
     : forall destination request,
-        Message.appendEntriesRequest request ∈ state.network destination
+        (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
         -> forall index entry,
             entryAt? (appendHistory request) index = some entry
             -> entryAt? (canonicalHistory entry.term) index = some entry
@@ -972,8 +964,8 @@ structure TermOwnershipFacts
                     = (canonicalHistory entry.term).take index
   activeLeaderHistory
     : forall leader,
-        (state.nodes leader).role = .leader
-        -> canonicalHistory (state.nodes leader).currentTerm = (state.nodes leader).log
+        ((nodeOf state) leader).role = .leader
+        -> canonicalHistory ((nodeOf state) leader).currentTerm = ((nodeOf state) leader).log
   canonicalEntryOwner
     : forall term index entry,
         entryAt? (canonicalHistory term) index = some entry
@@ -983,24 +975,24 @@ structure TermOwnershipFacts
   ownerProgress
     : forall term owner,
         owners term = some owner
-        -> term <= (state.nodes owner).currentTerm
-            /\ (term = (state.nodes owner).currentTerm
-                -> (state.nodes owner).role = .leader
-                    \/ (state.nodes owner).role = .follower
-                    \/ (state.nodes owner).role = .preVoteCandidate
-                    \/ (state.nodes owner).role = .none)
+        -> term <= ((nodeOf state) owner).currentTerm
+            /\ (term = ((nodeOf state) owner).currentTerm
+                -> ((nodeOf state) owner).role = .leader
+                    \/ ((nodeOf state) owner).role = .follower
+                    \/ ((nodeOf state) owner).role = .preVoteCandidate
+                    \/ ((nodeOf state) owner).role = .none)
   queuedAppendMetadata
     : forall destination request,
-        Message.appendEntriesRequest request ∈ state.network destination
-        -> Not (request.source = request.destination)
-            /\ owners request.term = some request.source
-            /\ forall entry, entry ∈ appendHistory request -> entry.term <= request.term
+        (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
+        -> Not (request.1 = request.2.1)
+            /\ owners request.2.2.term = some request.1
+            /\ forall entry, entry ∈ appendHistory request -> entry.term <= request.2.2.term
   queuedActiveSourceHistory
     : forall destination request,
-        Message.appendEntriesRequest request ∈ state.network destination
-        -> request.term = (state.nodes request.source).currentTerm
-        -> (state.nodes request.source).role = .leader
-        -> appendHistory request <+: (state.nodes request.source).log
+        (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
+        -> request.2.2.term = ((nodeOf state) request.1).currentTerm
+        -> ((nodeOf state) request.1).role = .leader
+        -> appendHistory request <+: ((nodeOf state) request.1).log
 
 /--
 Every non-bootstrap owned term retains the exact supporters, ballot
@@ -1009,7 +1001,7 @@ support induction across elections which happened before an old prefix became
 fully quorum-supported.
 -/
 structure ElectionHistoryFacts
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (votes : VoteHistory Node)
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (owners : TermOwners Node)
@@ -1041,7 +1033,7 @@ structure ElectionHistoryFacts
         -> record.ballotActive
             = activeConfigurations
                 {
-                  (state.nodes record.leader) with
+                  ((nodeOf state) record.leader) with
                     log := record.ballotLog
                     commitIndex := record.ballotCommitIndex
                 }
@@ -1098,30 +1090,28 @@ structure ElectionHistoryFacts
     : forall term record voter,
         elections term = some record
         -> voter ∈ record.supporters
-        -> voteLogUpToDate
-            { (state.nodes voter) with log := record.voterLog voter }
+        -> Model.Local.voteLogUpToDate
+            { ((nodeOf state) voter) with log := record.voterLog voter }
             {
               term
               lastCommittableTerm :=
                 termAt (record.candidateLog voter) (record.candidateLog voter).length
               lastCommittableIndex :=
                 (record.candidateLog voter).length
-              source := record.leader
-              destination := voter
             }
   termAboveBootstrap
     : forall term record, elections term = some record -> BOOTSTRAP_TERM < term
 
 /-- Every queued leader history contains that term's promotion snapshot. -/
 def ElectionQueuedHistoryFacts
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
     : Prop :=
   forall destination request,
-    Message.appendEntriesRequest request ∈ state.network destination
+    (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
     -> forall record,
-        elections request.term = some record
+        elections request.2.2.term = some record
         -> record.promotionLog <+: appendHistory request
 
 /--
@@ -1131,7 +1121,7 @@ ballot, the shared configuration is supplied by the permanent activation chain
 rather than by a global fixed-world quorum.
 -/
 structure ElectionConfigurationFacts
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (elections : ElectionHistory Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop where
@@ -1154,115 +1144,115 @@ structure ElectionConfigurationFacts
   potentialShared
     : forall term record candidate,
         elections term = some record
-        -> (state.nodes candidate).role = .candidate
-        -> (state.nodes candidate).currentTerm = term
-        -> hasEffectiveElectionMajority state candidate
+        -> ((nodeOf state) candidate).role = .candidate
+        -> ((nodeOf state) candidate).currentTerm = term
+        -> hasEffectiveElectionMajority (joined := joined) state candidate
         -> Exists
             fun configuration =>
               configuration ∈ record.ballotActive
-              /\ configuration ∈ activeConfigurations (state.nodes candidate)
+              /\ configuration ∈ activeConfigurations ((nodeOf state) candidate)
   effectiveCandidatesShared
     : forall left right,
-        (state.nodes left).role = .candidate
-        -> (state.nodes right).role = .candidate
-        -> (state.nodes left).currentTerm = (state.nodes right).currentTerm
-        -> hasEffectiveElectionMajority state left
-        -> hasEffectiveElectionMajority state right
+        ((nodeOf state) left).role = .candidate
+        -> ((nodeOf state) right).role = .candidate
+        -> ((nodeOf state) left).currentTerm = ((nodeOf state) right).currentTerm
+        -> hasEffectiveElectionMajority (joined := joined) state left
+        -> hasEffectiveElectionMajority (joined := joined) state right
         -> Exists
             fun configuration =>
-              configuration ∈ activeConfigurations (state.nodes left)
-              /\ configuration ∈ activeConfigurations (state.nodes right)
+              configuration ∈ activeConfigurations ((nodeOf state) left)
+              /\ configuration ∈ activeConfigurations ((nodeOf state) right)
   candidateEntriesBeforeTerm
     : forall candidate,
-        (state.nodes candidate).role = .candidate
+        ((nodeOf state) candidate).role = .candidate
         -> forall entry,
-            entry ∈ (state.nodes candidate).log
-            -> entry.term < (state.nodes candidate).currentTerm
+            entry ∈ ((nodeOf state) candidate).log
+            -> entry.term < ((nodeOf state) candidate).currentTerm
 
 /--
 Every locally committed log is represented by a member of every strict
 majority of that node's current configuration. This is the
 configuration-qualified form of `QuorumLogInv` from `ccfraft.tla`.
 -/
-def QuorumLog (state : View Node TxId) : Prop :=
+def QuorumLog (state : Model.State Node TxId) : Prop :=
   forall node configuration,
-    configuration = currentConfiguration (state.nodes node)
+    configuration = currentConfiguration ((nodeOf state) node)
     -> forall quorum : Finset Node,
         hasConfigurationMajority quorum configuration
         -> Exists
             fun witness =>
               witness ∈ configuration.nodes
               /\ witness ∈ quorum
-              /\ (state.nodes node).committedLog <+: (state.nodes witness).log
+              /\ ((nodeOf state) node).committedLog <+: ((nodeOf state) witness).log
 
 /-- Whether one queued successful response acknowledges an index for a leader. -/
 def queuedSuccessfulAck
-    (state : View Node TxId)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (leader peer : Node)
     (index : Nat)
     : Prop :=
   Exists
     fun response =>
-      Message.appendEntriesResponse response ∈ state.network leader
-      /\ response.success = true
-      /\ response.term = (state.nodes leader).currentTerm
-      /\ response.source = peer
-      /\ response.destination = leader
-      /\ index <= response.lastLogIndex
-      /\ responseHistory response <+: (state.nodes leader).log
+      (appendResponseEnvelope response ∈ state.network /\ response.2.1 = leader)
+      /\ response.2.2.success = true
+      /\ response.2.2.term = ((nodeOf state) leader).currentTerm
+      /\ response.1 = peer
+      /\ response.2.1 = leader
+      /\ index <= response.2.2.lastLogIndex
+      /\ responseHistory response <+: ((nodeOf state) leader).log
 
 /--
 Processed match indices and same-term successful responses still queued at the
 leader are two representations of the same acknowledgement evidence.
 -/
 noncomputable def effectiveAckers
-    (state : View Node TxId)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
     : Finset Node := by
   classical
   exact
-    state.hasJoined.filter fun node =>
+    joined.filter fun node =>
       node = leader \/
-        (state.nodes leader).matchIndex node >= index \/
+        ((nodeOf state) leader).matchIndex node >= index \/
         queuedSuccessfulAck state responseHistory leader node index
 
 /-- A strict quorum of processed or queued successful acknowledgements. -/
 def hasEffectiveMajorityAt
-    (state : View Node TxId)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
     : Prop :=
-  (activeConfigurations (state.nodes leader)).all
+  (activeConfigurations ((nodeOf state) leader)).all
     fun configuration =>
       decide
         (configuration.index <= index
           -> hasConfigurationMajority
-              (effectiveAckers state responseHistory leader index)
+              (effectiveAckers (joined := joined) state responseHistory leader index)
               configuration)
 
 noncomputable instance
-    (state : View Node TxId)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
-    : Decidable (hasEffectiveMajorityAt state responseHistory leader index) := by
+    : Decidable (hasEffectiveMajorityAt (joined := joined) state responseHistory leader index) := by
   exact Classical.propDecidable _
 
 /-- A request can produce a successful ACK directly in the current node state. -/
 def canProduceAppendAckAt
     (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
+    (request : AppendRequestKey Node TxId)
     (index : Nat)
     : Prop :=
   Exists
     fun nextNode =>
       Exists
         fun response =>
-          handleAppendEntriesRequest? (protocolNodeState node) request
+          Model.Local.handleAppendEntriesRequest? request.2.1 node request.2.2
             = some (nextNode, response)
           /\ response.success = true
           /\ index <= response.lastLogIndex
@@ -1284,31 +1274,31 @@ UpdateTerm preparation for its term.
 -/
 def canProduceAppendAckEventuallyAt
     (node : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
+    (request : AppendRequestKey Node TxId)
     (index : Nat)
     : Prop :=
   canProduceAppendAckAt node request index
-  \/ (node.currentTerm < request.term
-      /\ index <= request.prevLogIndex + request.entries.length)
+  \/ (node.currentTerm < request.2.2.term
+      /\ index <= request.2.2.prevLogIndex + request.2.2.entries.length)
 
 /--
 A queued request reserves one future acknowledgement while it is directly
 ACKable now or after observing its newer term.
 -/
 def queuedAppendReserve
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (leader peer : Node)
     (index : Nat)
     : Prop :=
   Exists
     fun request =>
-      Message.appendEntriesRequest request ∈ state.network peer
-      /\ request.source = leader
-      /\ request.destination = peer
-      /\ request.term = (state.nodes leader).currentTerm
-      /\ canProduceAppendAckEventuallyAt (state.nodes peer) request index
-      /\ appendHistory request <+: (state.nodes leader).log
+      (appendRequestEnvelope request ∈ state.network /\ request.2.1 = peer)
+      /\ request.1 = leader
+      /\ request.2.1 = peer
+      /\ request.2.2.term = ((nodeOf state) leader).currentTerm
+      /\ canProduceAppendAckEventuallyAt ((nodeOf state) peer) request index
+      /\ appendHistory request <+: ((nodeOf state) leader).log
 
 /--
 Potential supporters combine materialised acknowledgements with queued
@@ -1316,42 +1306,42 @@ requests which can still materialise one.  This is proof-only Raft
 committability, independent of `commitIndex` and CCF signature committability.
 -/
 noncomputable def potentialAckers
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
     : Finset Node := by
   classical
   exact
-    state.hasJoined.filter fun node =>
-      node ∈ effectiveAckers state responseHistory leader index \/
+    joined.filter fun node =>
+      node ∈ effectiveAckers (joined := joined) state responseHistory leader index \/
         queuedAppendReserve state appendHistory leader node index
 
 /-- A strict quorum of materialised or still-reserved acknowledgements. -/
 def hasPotentialMajorityAt
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
     : Prop :=
-  (activeConfigurations (state.nodes leader)).all
+  (activeConfigurations ((nodeOf state) leader)).all
     fun configuration =>
       decide
         (configuration.index <= index
           -> hasConfigurationMajority
-              (potentialAckers state appendHistory responseHistory leader index)
+              (potentialAckers (joined := joined) state appendHistory responseHistory leader index)
               configuration)
 
 noncomputable instance
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
     : Decidable
-        (hasPotentialMajorityAt state appendHistory responseHistory leader index) := by
+        (hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory leader index) := by
   exact Classical.propDecidable _
 
 /--
@@ -1360,84 +1350,84 @@ into a successor ballot, or identifies one governing configuration on which
 the old replication support and successor election support intersect.
 -/
 structure ActivationQuorumFacts
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop where
   history : ActivationHistoryFacts activations
   recordBridge
     : forall source index,
-        (state.nodes source).role = .leader
-        -> termAt (state.nodes source).log index = (state.nodes source).currentTerm
-        -> isSignatureAt (state.nodes source).log index = true
-        -> hasPotentialMajorityAt state appendHistory responseHistory source index
+        ((nodeOf state) source).role = .leader
+        -> termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm
+        -> isSignatureAt ((nodeOf state) source).log index = true
+        -> hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory source index
         -> forall term record,
             elections term = some record
-            -> (state.nodes source).currentTerm < term
-            -> (state.nodes source).log.take index <+: record.promotionLog
+            -> ((nodeOf state) source).currentTerm < term
+            -> ((nodeOf state) source).log.take index <+: record.promotionLog
                 \/ Exists
                     fun configuration =>
-                      configuration ∈ activeConfigurations (state.nodes source)
+                      configuration ∈ activeConfigurations ((nodeOf state) source)
                       /\ configuration.index <= index
                       /\ configuration ∈ record.ballotActive
   candidateBridge
     : forall source index,
-        (state.nodes source).role = .leader
-        -> termAt (state.nodes source).log index = (state.nodes source).currentTerm
-        -> isSignatureAt (state.nodes source).log index = true
-        -> hasPotentialMajorityAt state appendHistory responseHistory source index
+        ((nodeOf state) source).role = .leader
+        -> termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm
+        -> isSignatureAt ((nodeOf state) source).log index = true
+        -> hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory source index
         -> forall candidate,
-            (state.nodes candidate).role = .candidate
-            -> hasPotentialElectionMajority state candidate
-            -> (state.nodes source).currentTerm < (state.nodes candidate).currentTerm
-            -> (state.nodes source).log.take index <+: (state.nodes candidate).log
+            ((nodeOf state) candidate).role = .candidate
+            -> hasPotentialElectionMajority (joined := joined) state candidate
+            -> ((nodeOf state) source).currentTerm < ((nodeOf state) candidate).currentTerm
+            -> ((nodeOf state) source).log.take index <+: ((nodeOf state) candidate).log
                 \/ Exists
                     fun configuration =>
-                      configuration ∈ activeConfigurations (state.nodes source)
+                      configuration ∈ activeConfigurations ((nodeOf state) source)
                       /\ configuration.index <= index
-                      /\ configuration ∈ activeConfigurations (state.nodes candidate)
+                      /\ configuration ∈ activeConfigurations ((nodeOf state) candidate)
   committedBridge
     : forall source index,
-        (state.nodes source).role = .leader
-        -> termAt (state.nodes source).log index = (state.nodes source).currentTerm
-        -> isSignatureAt (state.nodes source).log index = true
-        -> hasEffectiveMajorityAt state responseHistory source index
+        ((nodeOf state) source).role = .leader
+        -> termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm
+        -> isSignatureAt ((nodeOf state) source).log index = true
+        -> hasEffectiveMajorityAt (joined := joined) state responseHistory source index
         -> forall node,
-            (state.nodes source).log.take index <+: (state.nodes node).committedLog
-            \/ (state.nodes node).committedLog <+: (state.nodes source).log.take index
+            ((nodeOf state) source).log.take index <+: ((nodeOf state) node).committedLog
+            \/ ((nodeOf state) node).committedLog <+: ((nodeOf state) source).log.take index
             \/ Exists
                 fun configuration =>
-                  configuration ∈ activeConfigurations (state.nodes source)
+                  configuration ∈ activeConfigurations ((nodeOf state) source)
                   /\ configuration.index <= index
-                  /\ configuration = currentConfiguration (state.nodes node)
+                  /\ configuration = currentConfiguration ((nodeOf state) node)
   potentialBridge
     : forall left leftIndex,
-        (state.nodes left).role = .leader
-        -> termAt (state.nodes left).log leftIndex = (state.nodes left).currentTerm
-        -> isSignatureAt (state.nodes left).log leftIndex = true
-        -> hasEffectiveMajorityAt state responseHistory left leftIndex
+        ((nodeOf state) left).role = .leader
+        -> termAt ((nodeOf state) left).log leftIndex = ((nodeOf state) left).currentTerm
+        -> isSignatureAt ((nodeOf state) left).log leftIndex = true
+        -> hasEffectiveMajorityAt (joined := joined) state responseHistory left leftIndex
         -> forall right rightIndex,
-            (state.nodes right).role = .leader
-            -> termAt (state.nodes right).log rightIndex = (state.nodes right).currentTerm
-            -> isSignatureAt (state.nodes right).log rightIndex = true
-            -> hasEffectiveMajorityAt state responseHistory right rightIndex
-            -> (state.nodes left).log.take leftIndex
-                  <+: (state.nodes right).log.take rightIndex
-                \/ (state.nodes right).log.take rightIndex
-                    <+: (state.nodes left).log.take leftIndex
+            ((nodeOf state) right).role = .leader
+            -> termAt ((nodeOf state) right).log rightIndex = ((nodeOf state) right).currentTerm
+            -> isSignatureAt ((nodeOf state) right).log rightIndex = true
+            -> hasEffectiveMajorityAt (joined := joined) state responseHistory right rightIndex
+            -> ((nodeOf state) left).log.take leftIndex
+                  <+: ((nodeOf state) right).log.take rightIndex
+                \/ ((nodeOf state) right).log.take rightIndex
+                    <+: ((nodeOf state) left).log.take leftIndex
                 \/ Exists
                     fun configuration =>
-                      configuration ∈ activeConfigurations (state.nodes left)
+                      configuration ∈ activeConfigurations ((nodeOf state) left)
                       /\ configuration.index <= leftIndex
-                      /\ configuration ∈ activeConfigurations (state.nodes right)
+                      /\ configuration ∈ activeConfigurations ((nodeOf state) right)
                       /\ configuration.index <= rightIndex
   queuedComparable
     : forall activationIndex activation destination request,
         activations activationIndex = some activation
-        -> Message.appendEntriesRequest request ∈ state.network destination
-        -> request.term = activation.activationTerm
+        -> (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
+        -> request.2.2.term = activation.activationTerm
         -> activation.history.take activation.activationFrontier <+: appendHistory request
             \/ appendHistory request
                 <+: activation.history.take activation.activationFrontier
@@ -1451,29 +1441,29 @@ elected term had already lost that prefix.  The latter alternative is what a
 least-counterexample induction rules out.
 -/
 def AckerElectionHistory
-    (state : View Node TxId)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
     : Prop :=
   forall source index,
-    (state.nodes source).role = .leader
-    -> termAt (state.nodes source).log index = (state.nodes source).currentTerm
-    -> isSignatureAt (state.nodes source).log index = true
+    ((nodeOf state) source).role = .leader
+    -> termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm
+    -> isSignatureAt ((nodeOf state) source).log index = true
     -> forall term record voter,
         elections term = some record
         -> voter ∈ record.supporters
-        -> voter ∈ effectiveAckers state responseHistory source index
-        -> (state.nodes source).currentTerm < term
-        -> (state.nodes source).log.take index <+: record.voterLog voter
+        -> voter ∈ effectiveAckers (joined := joined) state responseHistory source index
+        -> ((nodeOf state) source).currentTerm < term
+        -> ((nodeOf state) source).log.take index <+: record.voterLog voter
             \/ Exists
                 fun earlierTerm =>
                   Exists
                     fun earlierRecord =>
-                      (state.nodes source).currentTerm < earlierTerm
+                      ((nodeOf state) source).currentTerm < earlierTerm
                       /\ earlierTerm < term
                       /\ elections earlierTerm = some earlierRecord
                       /\ Not
-                          ((state.nodes source).log.take index
+                          (((nodeOf state) source).log.take index
                             <+: earlierRecord.promotionLog)
 
 /--
@@ -1482,44 +1472,44 @@ the lower-term signed prefix in its immutable activation snapshot, unless an
 intervening election no later than the activation term already omitted it.
 -/
 def AckerActivationHistory
-    (state : View Node TxId)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop :=
   forall source index,
-    (state.nodes source).role = .leader
-    -> termAt (state.nodes source).log index = (state.nodes source).currentTerm
-    -> isSignatureAt (state.nodes source).log index = true
+    ((nodeOf state) source).role = .leader
+    -> termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm
+    -> isSignatureAt ((nodeOf state) source).log index = true
     -> forall activationIndex activation configuration supporter,
         activations activationIndex = some activation
         -> configuration ∈ activation.governingActive
         -> supporter ∈ activation.jointSupporters
-        -> supporter ∈ effectiveAckers state responseHistory source index
-        -> (state.nodes source).currentTerm < activation.activationTerm
-        -> (state.nodes source).log.take index <+: activation.supporterHistory supporter
+        -> supporter ∈ effectiveAckers (joined := joined) state responseHistory source index
+        -> ((nodeOf state) source).currentTerm < activation.activationTerm
+        -> ((nodeOf state) source).log.take index <+: activation.supporterHistory supporter
             \/ Exists
                 fun earlierTerm =>
                   Exists
                     fun earlierRecord =>
-                      (state.nodes source).currentTerm < earlierTerm
+                      ((nodeOf state) source).currentTerm < earlierTerm
                       /\ earlierTerm <= activation.activationTerm
                       /\ elections earlierTerm = some earlierRecord
                       /\ Not
-                          ((state.nodes source).log.take index
+                          (((nodeOf state) source).log.take index
                             <+: earlierRecord.promotionLog)
 
 /-- Some elected term up to a bound is the first known loss of one prefix. -/
 def EarlierBadElection
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (elections : ElectionHistory Node TxId)
     (source : Node)
     (index bound : Nat)
     : Prop :=
   EarlierBadElectionForPrefix
     elections
-    ((state.nodes source).log.take index)
-    (state.nodes source).currentTerm
+    (((nodeOf state) source).log.take index)
+    ((nodeOf state) source).currentTerm
     bound
 
 /--
@@ -1527,20 +1517,20 @@ A materialised ACK remains in the supporter's current log unless an elected
 intermediate term has already omitted it.
 -/
 def AckerCurrentHistory
-    (state : View Node TxId)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
     : Prop :=
   forall source index,
-    (state.nodes source).role = .leader
-    -> termAt (state.nodes source).log index = (state.nodes source).currentTerm
-    -> isSignatureAt (state.nodes source).log index = true
+    ((nodeOf state) source).role = .leader
+    -> termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm
+    -> isSignatureAt ((nodeOf state) source).log index = true
     -> forall voter,
-        voter ∈ effectiveAckers state responseHistory source index
-        -> (state.nodes source).log.take index <+: (state.nodes voter).log
+        voter ∈ effectiveAckers (joined := joined) state responseHistory source index
+        -> ((nodeOf state) source).log.take index <+: ((nodeOf state) voter).log
             \/ EarlierBadElection
                 state elections source index
-                (state.nodes voter).currentTerm
+                ((nodeOf state) voter).currentTerm
 
 /--
 When a non-self voter records a higher-term vote, every earlier ACK prefix is
@@ -1548,22 +1538,22 @@ present in that immutable voter snapshot unless an already elected
 intermediate term omitted it.
 -/
 def AckerVoteHistory
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (votes : VoteHistory Node)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
-    (voteVoterHistory : RequestVoteResponse Node -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
+    (voteVoterHistory : VoteResponseKey Node -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
     : Prop :=
   forall source index,
-    (state.nodes source).role = .leader
-    -> termAt (state.nodes source).log index = (state.nodes source).currentTerm
-    -> isSignatureAt (state.nodes source).log index = true
+    ((nodeOf state) source).role = .leader
+    -> termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm
+    -> isSignatureAt ((nodeOf state) source).log index = true
     -> forall voter voteTerm candidate,
-        voter ∈ effectiveAckers state responseHistory source index
+        voter ∈ effectiveAckers (joined := joined) state responseHistory source index
         -> votes voter voteTerm = some candidate
         -> Not (voter = candidate)
-        -> (state.nodes source).currentTerm < voteTerm
-        -> (state.nodes source).log.take index
+        -> ((nodeOf state) source).currentTerm < voteTerm
+        -> ((nodeOf state) source).log.take index
               <+: voteVoterHistory (grantedVoteKey voter voteTerm candidate)
             \/ EarlierBadElection state elections source index voteTerm
 
@@ -1574,7 +1564,7 @@ election already provides the induction handoff.
 -/
 def ActivationVoteHistory
     (votes : VoteHistory Node)
-    (voteVoterHistory : RequestVoteResponse Node -> List (Entry Node TxId))
+    (voteVoterHistory : VoteResponseKey Node -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
     (activations : ActivationHistory Node TxId)
     : Prop :=
@@ -1597,27 +1587,27 @@ Each positive active-leader match frontier is justified by an immutable
 successful-ACK history.  A zero frontier has no processed evidence.
 -/
 structure ProcessedAckHistoryFacts
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (history : ProcessedAckHistory Node TxId)
     : Prop where
   zero
     : forall leader,
-        (state.nodes leader).role = .leader
+        ((nodeOf state) leader).role = .leader
         -> forall peer,
-            (state.nodes leader).matchIndex peer = 0 -> history leader peer = none
+            ((nodeOf state) leader).matchIndex peer = 0 -> history leader peer = none
   positive
     : forall leader,
-        (state.nodes leader).role = .leader
+        ((nodeOf state) leader).role = .leader
         -> forall peer,
-            0 < (state.nodes leader).matchIndex peer
+            0 < ((nodeOf state) leader).matchIndex peer
             -> Exists
                 fun snapshot =>
                   history leader peer = some snapshot
-                  /\ snapshot.term = (state.nodes leader).currentTerm
-                  /\ snapshot.index = (state.nodes leader).matchIndex peer
+                  /\ snapshot.term = ((nodeOf state) leader).currentTerm
+                  /\ snapshot.index = ((nodeOf state) leader).matchIndex peer
                   /\ snapshot.index <= snapshot.history.length
                   /\ snapshot.history.take snapshot.index
-                      = (state.nodes leader).log.take snapshot.index
+                      = ((nodeOf state) leader).log.take snapshot.index
 
 /-- One evidence value exactly justifies the supplied committed prefix. -/
 def CommitEvidence.Valid
@@ -1640,8 +1630,8 @@ it supports a node's current nonempty committed log, or it is attached to a
 currently queued nonempty AppendEntries commit advertisement.
 -/
 def KnownCommitEvidence
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (nodeEvidence : NodeCommitEvidence Node TxId)
     (requestEvidence : RequestCommitEvidence Node TxId)
     (evidence : CommitEvidence Node TxId)
@@ -1649,17 +1639,17 @@ def KnownCommitEvidence
     : Prop :=
   (Exists
     fun node =>
-      0 < (state.nodes node).commitIndex
+      0 < ((nodeOf state) node).commitIndex
       /\ nodeEvidence node = some evidence
-      /\ supportedPrefix = (state.nodes node).committedLog)
+      /\ supportedPrefix = ((nodeOf state) node).committedLog)
   \/ (Exists
         fun destination =>
           Exists
             fun request =>
-              Message.appendEntriesRequest request ∈ state.network destination
-              /\ 0 < request.leaderCommit
+              (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
+              /\ 0 < request.2.2.leaderCommit
               /\ requestEvidence request = some evidence
-              /\ supportedPrefix = (appendHistory request).take request.leaderCommit)
+              /\ supportedPrefix = (appendHistory request).take request.2.2.leaderCommit)
 
 /--
 Current nonempty commits and queued nonempty leader-commit advertisements
@@ -1667,30 +1657,30 @@ carry proof-only evidence.  Zero-valued slots are outside the live evidence
 relation and remain unconstrained.
 -/
 structure CommitEvidenceFacts
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (nodeEvidence : NodeCommitEvidence Node TxId)
     (requestEvidence : RequestCommitEvidence Node TxId)
     : Prop where
   nodePositive
     : forall node,
-        0 < (state.nodes node).commitIndex
+        0 < ((nodeOf state) node).commitIndex
         -> Exists
             fun evidence =>
               nodeEvidence node = some evidence
-              /\ evidence.Valid (state.nodes node).committedLog
-              /\ evidence.supportedLength = (state.nodes node).commitIndex
-              /\ evidence.commitTerm <= (state.nodes node).currentTerm
+              /\ evidence.Valid ((nodeOf state) node).committedLog
+              /\ evidence.supportedLength = ((nodeOf state) node).commitIndex
+              /\ evidence.commitTerm <= ((nodeOf state) node).currentTerm
   requestPositive
     : forall destination request,
-        Message.appendEntriesRequest request ∈ state.network destination
-        -> 0 < request.leaderCommit
+        (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
+        -> 0 < request.2.2.leaderCommit
         -> Exists
             fun evidence =>
               requestEvidence request = some evidence
-              /\ evidence.Valid ((appendHistory request).take request.leaderCommit)
-              /\ evidence.supportedLength = request.leaderCommit
-              /\ evidence.commitTerm <= request.term
+              /\ evidence.Valid ((appendHistory request).take request.2.2.leaderCommit)
+              /\ evidence.supportedLength = request.2.2.leaderCommit
+              /\ evidence.commitTerm <= request.2.2.term
 
 /--
 Per-ACK prospective closure retained with each live commit witness.  These
@@ -1698,8 +1688,8 @@ member-wise facts are stronger than a current majority statement: they remain
 usable when one newly eligible voter creates the first election majority.
 -/
 structure ProspectiveCommitEvidenceFacts
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     (nodeEvidence : NodeCommitEvidence Node TxId)
     (requestEvidence : RequestCommitEvidence Node TxId)
     (elections : ElectionHistory Node TxId)
@@ -1726,15 +1716,15 @@ structure ProspectiveCommitEvidenceFacts
           evidence supportedPrefix
         -> forall member,
             member ∈ evidence.ackQuorum
-            -> evidence.history.take evidence.commitFrontier <+: (state.nodes member).log
+            -> evidence.history.take evidence.commitFrontier <+: ((nodeOf state) member).log
   sameTermQueuedComparable
     : forall evidence supportedPrefix,
         KnownCommitEvidence
           state appendHistory nodeEvidence requestEvidence
           evidence supportedPrefix
         -> forall destination request,
-            Message.appendEntriesRequest request ∈ state.network destination
-            -> evidence.commitTerm = request.term
+            (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
+            -> evidence.commitTerm = request.2.2.term
             -> appendHistory request <+: evidence.history
                 \/ evidence.history.take evidence.commitFrontier <+: appendHistory request
   relaxedSupporterCarriesFrontier
@@ -1743,15 +1733,15 @@ structure ProspectiveCommitEvidenceFacts
           state appendHistory nodeEvidence requestEvidence
           evidence supportedPrefix
         -> forall candidate member,
-            (state.nodes candidate).role = .candidate
-            -> evidence.commitTerm < (state.nodes candidate).currentTerm
+            ((nodeOf state) candidate).role = .candidate
+            -> evidence.commitTerm < ((nodeOf state) candidate).currentTerm
             -> (forall entry,
-                  entry ∈ (state.nodes candidate).log
-                  -> entry.term < (state.nodes candidate).currentTerm)
+                  entry ∈ ((nodeOf state) candidate).log
+                  -> entry.term < ((nodeOf state) candidate).currentTerm)
             -> member ∈ evidence.ackQuorum
-            -> member ∈ relaxedElectionVoters state candidate
+            -> member ∈ relaxedElectionVoters (joined := joined) state candidate
             -> evidence.history.take evidence.commitFrontier
-                <+: (state.nodes candidate).log
+                <+: ((nodeOf state) candidate).log
 
 /--
 Authority-tagged commit evidence is ordered by the permanent activation chain.
@@ -1761,9 +1751,9 @@ supported-prefix comparability when evidence is restricted to an older signed
 frontier.
 -/
 structure ActivationEvidenceFacts
-    (state : View Node TxId)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (nodeEvidence : NodeCommitEvidence Node TxId)
     (requestEvidence : RequestCommitEvidence Node TxId)
     (elections : ElectionHistory Node TxId)
@@ -1824,12 +1814,12 @@ structure ActivationEvidenceFacts
           state appendHistory nodeEvidence requestEvidence
           evidence supportedPrefix
         -> forall candidate,
-            (state.nodes candidate).role = .candidate
-            -> hasPotentialElectionMajority state candidate
-            -> evidence.commitTerm < (state.nodes candidate).currentTerm
+            ((nodeOf state) candidate).role = .candidate
+            -> hasPotentialElectionMajority (joined := joined) state candidate
+            -> evidence.commitTerm < ((nodeOf state) candidate).currentTerm
             -> evidence.history.take evidence.commitFrontier
-                  <+: (state.nodes candidate).log
-                \/ evidence.authority ∈ activeConfigurations (state.nodes candidate)
+                  <+: ((nodeOf state) candidate).log
+                \/ evidence.authority ∈ activeConfigurations ((nodeOf state) candidate)
 
 /--
 Any current-term signature frontier already acknowledged by a majority is
@@ -1837,17 +1827,17 @@ compatible with every committed log.  This covers delayed ACK processing by
 an isolated old leader.
 -/
 def PotentialCommitSafe
-    (state : View Node TxId)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     : Prop :=
   forall leader index,
-    (state.nodes leader).role = .leader
-    -> termAt (state.nodes leader).log index = (state.nodes leader).currentTerm
-    -> isSignatureAt (state.nodes leader).log index = true
-    -> hasEffectiveMajorityAt state responseHistory leader index
+    ((nodeOf state) leader).role = .leader
+    -> termAt ((nodeOf state) leader).log index = ((nodeOf state) leader).currentTerm
+    -> isSignatureAt ((nodeOf state) leader).log index = true
+    -> hasEffectiveMajorityAt (joined := joined) state responseHistory leader index
     -> forall node,
-        (state.nodes leader).log.take index <+: (state.nodes node).committedLog
-        \/ (state.nodes node).committedLog <+: (state.nodes leader).log.take index
+        ((nodeOf state) leader).log.take index <+: ((nodeOf state) node).committedLog
+        \/ ((nodeOf state) node).committedLog <+: ((nodeOf state) leader).log.take index
 
 /--
 Every higher-term election winner already contains each lower-term current-term
@@ -1856,20 +1846,20 @@ acknowledgements.  This is the delayed-ACK bridge needed when an old leader
 commits after a newer election.
 -/
 def PotentialCommitElectionSafe
-    (state : View Node TxId)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     : Prop :=
   forall source index,
-    (state.nodes source).role = .leader
-    -> termAt (state.nodes source).log index = (state.nodes source).currentTerm
-    -> isSignatureAt (state.nodes source).log index = true
-    -> hasEffectiveMajorityAt state responseHistory source index
+    ((nodeOf state) source).role = .leader
+    -> termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm
+    -> isSignatureAt ((nodeOf state) source).log index = true
+    -> hasEffectiveMajorityAt (joined := joined) state responseHistory source index
     -> forall winner,
-        ((state.nodes winner).role = .leader
-          \/ ((state.nodes winner).role = .candidate
-              /\ hasEffectiveElectionMajority state winner))
-        -> (state.nodes source).currentTerm < (state.nodes winner).currentTerm
-        -> (state.nodes source).log.take index <+: (state.nodes winner).log
+        (((nodeOf state) winner).role = .leader
+          \/ (((nodeOf state) winner).role = .candidate
+              /\ hasEffectiveElectionMajority (joined := joined) state winner))
+        -> ((nodeOf state) source).currentTerm < ((nodeOf state) winner).currentTerm
+        -> ((nodeOf state) source).log.take index <+: ((nodeOf state) winner).log
 
 /--
 Every current-term signature frontier that an active leader could commit is
@@ -1877,16 +1867,16 @@ already represented in every strict quorum.  Advancing `commitIndex`
 therefore preserves `QuorumLog` even when ACK processing is delayed.
 -/
 def PotentialCommitQuorumLog
-    (state : View Node TxId)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     : Prop :=
   forall source index,
-    (state.nodes source).role = .leader
-    -> termAt (state.nodes source).log index = (state.nodes source).currentTerm
-    -> isSignatureAt (state.nodes source).log index = true
-    -> hasEffectiveMajorityAt state responseHistory source index
+    ((nodeOf state) source).role = .leader
+    -> termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm
+    -> isSignatureAt ((nodeOf state) source).log index = true
+    -> hasEffectiveMajorityAt (joined := joined) state responseHistory source index
     -> forall configuration,
-        configuration ∈ activeConfigurations (state.nodes source)
+        configuration ∈ activeConfigurations ((nodeOf state) source)
         -> configuration.index <= index
         -> forall quorum : Finset Node,
             hasConfigurationMajority quorum configuration
@@ -1894,7 +1884,7 @@ def PotentialCommitQuorumLog
                 fun witness =>
                   witness ∈ configuration.nodes
                   /\ witness ∈ quorum
-                  /\ (state.nodes source).log.take index <+: (state.nodes witness).log
+                  /\ ((nodeOf state) source).log.take index <+: ((nodeOf state) witness).log
 
 /--
 Any two current-term signature frontiers already acknowledged by strict
@@ -1902,96 +1892,96 @@ majorities are prefix-comparable.  This lets one such prefix become committed
 without invalidating delayed commit evidence retained by another active leader.
 -/
 def PotentialCommitsComparable
-    (state : View Node TxId)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (state : Model.State Node TxId)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     : Prop :=
   forall left leftIndex,
-    (state.nodes left).role = .leader
-    -> termAt (state.nodes left).log leftIndex = (state.nodes left).currentTerm
-    -> isSignatureAt (state.nodes left).log leftIndex = true
-    -> hasEffectiveMajorityAt state responseHistory left leftIndex
+    ((nodeOf state) left).role = .leader
+    -> termAt ((nodeOf state) left).log leftIndex = ((nodeOf state) left).currentTerm
+    -> isSignatureAt ((nodeOf state) left).log leftIndex = true
+    -> hasEffectiveMajorityAt (joined := joined) state responseHistory left leftIndex
     -> forall right rightIndex,
-        (state.nodes right).role = .leader
-        -> termAt (state.nodes right).log rightIndex = (state.nodes right).currentTerm
-        -> isSignatureAt (state.nodes right).log rightIndex = true
-        -> hasEffectiveMajorityAt state responseHistory right rightIndex
-        -> (state.nodes left).log.take leftIndex
-              <+: (state.nodes right).log.take rightIndex
-            \/ (state.nodes right).log.take rightIndex
-                <+: (state.nodes left).log.take leftIndex
+        ((nodeOf state) right).role = .leader
+        -> termAt ((nodeOf state) right).log rightIndex = ((nodeOf state) right).currentTerm
+        -> isSignatureAt ((nodeOf state) right).log rightIndex = true
+        -> hasEffectiveMajorityAt (joined := joined) state responseHistory right rightIndex
+        -> ((nodeOf state) left).log.take leftIndex
+              <+: ((nodeOf state) right).log.take rightIndex
+            \/ ((nodeOf state) right).log.take rightIndex
+                <+: ((nodeOf state) left).log.take leftIndex
 
 /--
 A candidate which already has a winning quorum is ready for promotion: it
 contains every committed prefix belonging to a node in a lower term.
 -/
-def WinningCandidateCompleteness (state : View Node TxId) : Prop :=
+def WinningCandidateCompleteness (state : Model.State Node TxId) : Prop :=
   forall candidate,
-    (state.nodes candidate).role = .candidate
-    -> hasEffectiveElectionMajority state candidate
+    ((nodeOf state) candidate).role = .candidate
+    -> hasEffectiveElectionMajority (joined := joined) state candidate
     -> forall node,
         Not (candidate = node)
-        -> (state.nodes candidate).currentTerm > (state.nodes node).currentTerm
-        -> (state.nodes node).committedLog <+: (state.nodes candidate).log
+        -> ((nodeOf state) candidate).currentTerm > ((nodeOf state) node).currentTerm
+        -> ((nodeOf state) node).committedLog <+: ((nodeOf state) candidate).log
 
 /--
 A candidate which can win has no entry from its election term anywhere yet.
 This is the arbitrary-term form of `CandidateTermNotInLogInv`.
 -/
-def CandidateTermNotInLogs (state : View Node TxId) : Prop :=
+def CandidateTermNotInLogs (state : Model.State Node TxId) : Prop :=
   forall candidate,
-    (state.nodes candidate).role = .candidate
-    -> hasEffectiveElectionMajority state candidate
+    ((nodeOf state) candidate).role = .candidate
+    -> hasEffectiveElectionMajority (joined := joined) state candidate
     -> forall node index entry,
-        entryAt? (state.nodes node).log index = some entry
-        -> Not (entry.term = (state.nodes candidate).currentTerm)
+        entryAt? ((nodeOf state) node).log index = some entry
+        -> Not (entry.term = ((nodeOf state) candidate).currentTerm)
 
 /--
 An active leader contains the complete prefix through every entry carrying its
 term.  This prevents a later client append from colliding at an existing
 same-term index.
 -/
-def LeaderTermDominance (state : View Node TxId) : Prop :=
+def LeaderTermDominance (state : Model.State Node TxId) : Prop :=
   forall leader,
-    (state.nodes leader).role = .leader
+    ((nodeOf state) leader).role = .leader
     -> forall node index entry,
-        entryAt? (state.nodes node).log index = some entry
-        -> entry.term = (state.nodes leader).currentTerm
-        -> index <= (state.nodes leader).log.length
-            /\ (state.nodes node).log.take index = (state.nodes leader).log.take index
+        entryAt? ((nodeOf state) node).log index = some entry
+        -> entry.term = ((nodeOf state) leader).currentTerm
+        -> index <= ((nodeOf state) leader).log.length
+            /\ ((nodeOf state) node).log.take index = ((nodeOf state) leader).log.take index
 
 /--
 The current TLA state-local leader-completeness formula.  Leaders need contain
 the committed logs of strictly lower-term peers, not those of newer peers.
 -/
-def LeaderCompleteness (state : View Node TxId) : Prop :=
+def LeaderCompleteness (state : Model.State Node TxId) : Prop :=
   forall leader,
-    (state.nodes leader).role = .leader
+    ((nodeOf state) leader).role = .leader
     -> forall node,
         Not (leader = node)
-        -> (state.nodes leader).currentTerm > (state.nodes node).currentTerm
-        -> (state.nodes node).committedLog <+: (state.nodes leader).log
+        -> ((nodeOf state) leader).currentTerm > ((nodeOf state) node).currentTerm
+        -> ((nodeOf state) node).committedLog <+: ((nodeOf state) leader).log
 
-def LeadersHaveElectionWitness (state : View Node TxId) : Prop :=
+def LeadersHaveElectionWitness (state : Model.State Node TxId) : Prop :=
   forall leader,
-    (state.nodes leader).role = .leader
-    -> ((leader = INITIAL_LEADER /\ (state.nodes leader).currentTerm = BOOTSTRAP_TERM)
+    ((nodeOf state) leader).role = .leader
+    -> ((leader = INITIAL_LEADER /\ ((nodeOf state) leader).currentTerm = BOOTSTRAP_TERM)
         \/ Exists
             fun configuration =>
-              configuration ∈ allConfigurations (state.nodes leader).log
-              /\ hasConfigurationMajority (state.nodes leader).votesGranted configuration)
+              configuration ∈ allConfigurations ((nodeOf state) leader).log
+              /\ hasConfigurationMajority ((nodeOf state) leader).votesGranted configuration)
 
 /--
 Immutable election, activation, and commit evidence. Each field supplies one
 causal edge used to order committed prefixes across terms and configurations.
 -/
 structure HistoricalSafetyFacts
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (votes : VoteHistory Node)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
-    (voteRequestHistory : RequestVoteRequest Node -> List (Entry Node TxId))
-    (voteCandidateHistory : RequestVoteResponse Node -> List (Entry Node TxId))
-    (voteVoterHistory : RequestVoteResponse Node -> List (Entry Node TxId))
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
+    (voteRequestHistory : VoteRequestKey Node -> List (Entry Node TxId))
+    (voteCandidateHistory : VoteResponseKey Node -> List (Entry Node TxId))
+    (voteVoterHistory : VoteResponseKey Node -> List (Entry Node TxId))
     (owners : TermOwners Node)
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
@@ -2001,25 +1991,25 @@ structure HistoricalSafetyFacts
     : Prop where
   termOwnership : TermOwnershipFacts state votes appendHistory canonicalHistory owners
   electionHistory : ElectionHistoryFacts state votes canonicalHistory owners elections
-  electionConfigurations : ElectionConfigurationFacts state elections activations
+  electionConfigurations : ElectionConfigurationFacts (joined := joined) state elections activations
   grantedVoteCanonical
-    : GrantedVoteCanonicalSnapshots
+    : GrantedVoteCanonicalSnapshots (joined := joined)
         state canonicalHistory voteCandidateHistory voteVoterHistory
-  ackerCurrent : AckerCurrentHistory state responseHistory elections
-  ackerVotes : AckerVoteHistory state votes responseHistory voteVoterHistory elections
+  ackerCurrent : AckerCurrentHistory (joined := joined) state responseHistory elections
+  ackerVotes : AckerVoteHistory (joined := joined) state votes responseHistory voteVoterHistory elections
   activationVotes : ActivationVoteHistory votes voteVoterHistory elections activations
-  ackerElections : AckerElectionHistory state responseHistory elections
-  ackerActivations : AckerActivationHistory state responseHistory elections activations
+  ackerElections : AckerElectionHistory (joined := joined) state responseHistory elections
+  ackerActivations : AckerActivationHistory (joined := joined) state responseHistory elections activations
   queuedElections : ElectionQueuedHistoryFacts state appendHistory elections
   activationProgress : ActivationSupporterProgress state activations
   activationQuorums
-    : ActivationQuorumFacts state appendHistory responseHistory elections activations
+    : ActivationQuorumFacts (joined := joined) state appendHistory responseHistory elections activations
   commitEvidence : CommitEvidenceFacts state appendHistory nodeEvidence requestEvidence
   prospectiveCommits
-    : ProspectiveCommitEvidenceFacts
+    : ProspectiveCommitEvidenceFacts (joined := joined)
         state appendHistory nodeEvidence requestEvidence elections
   activationEvidence
-    : ActivationEvidenceFacts
+    : ActivationEvidenceFacts (joined := joined)
         state appendHistory responseHistory
         nodeEvidence requestEvidence elections activations
   activationCanonical : ActivationCanonicalFacts canonicalHistory owners activations
@@ -2027,64 +2017,64 @@ structure HistoricalSafetyFacts
   configurationCoverage : ConfigurationCoverageFacts state activations
 
 /-- Operationally populated node state belongs only to joined nodes. -/
-structure RuntimeNodeCarrierFacts (state : View Node TxId) : Prop where
+structure RuntimeNodeCarrierFacts (state : Model.State Node TxId) : Prop where
   activeRoles
     : forall node,
-        (state.nodes node).role = .candidate \/ (state.nodes node).role = .leader
-        -> node ∈ state.hasJoined
+        ((nodeOf state) node).role = .candidate \/ ((nodeOf state) node).role = .leader
+        -> node ∈ joined
   positiveMatches
     : forall leader peer,
-        0 < (state.nodes leader).matchIndex peer -> peer ∈ state.hasJoined
+        0 < ((nodeOf state) leader).matchIndex peer -> peer ∈ joined
   appendResponses
     : forall destination response,
-        Message.appendEntriesResponse response ∈ state.network destination
-        -> response.source ∈ state.hasJoined
-  nonemptyLogs : forall node, Not ((state.nodes node).log = []) -> node ∈ state.hasJoined
+        (appendResponseEnvelope response ∈ state.network /\ response.2.1 = destination)
+        -> response.1 ∈ joined
+  nonemptyLogs : forall node, Not (((nodeOf state) node).log = []) -> node ∈ joined
 
 /-- Every runtime support carrier contains only nodes which have joined. -/
-structure JoinedCarrierFacts (state : View Node TxId) : Prop where
-  activeNodes : forall node, activeNodeUnion (state.nodes node) ⊆ state.hasJoined
+structure JoinedCarrierFacts (state : Model.State Node TxId) : Prop where
+  activeNodes : forall node, activeNodeUnion ((nodeOf state) node) ⊆ joined
   configurationNodes
     : forall node configuration,
-        configuration ∈ allConfigurations (state.nodes node).log
-        -> configuration.nodes ⊆ state.hasJoined
-  grantedVotes : forall node, (state.nodes node).votesGranted ⊆ state.hasJoined
+        configuration ∈ allConfigurations ((nodeOf state) node).log
+        -> configuration.nodes ⊆ joined
+  grantedVotes : forall node, ((nodeOf state) node).votesGranted ⊆ joined
   voteRequestDestinations
     : forall destination request,
-        Message.requestVoteRequest request ∈ state.network destination
-        -> destination ∈ state.hasJoined
+        (voteRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
+        -> destination ∈ joined
   appendRequestDestinations
     : forall destination request,
-        Message.appendEntriesRequest request ∈ state.network destination
-        -> destination ∈ state.hasJoined
+        (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
+        -> destination ∈ joined
   appendRequestConfigurations
     : forall destination request,
-        Message.appendEntriesRequest request ∈ state.network destination
+        (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
         -> forall configuration,
-            configuration ∈ allConfigurations request.entries
-            -> configuration.nodes ⊆ state.hasJoined
+            configuration ∈ allConfigurations request.2.2.entries
+            -> configuration.nodes ⊆ joined
   voteResponseSources
     : forall destination response,
-        Message.requestVoteResponse response ∈ state.network destination
-        -> response.source ∈ state.hasJoined
-  runtimeNodes : RuntimeNodeCarrierFacts state
+        (voteResponseEnvelope response ∈ state.network /\ response.2.1 = destination)
+        -> response.1 ∈ joined
+  runtimeNodes : RuntimeNodeCarrierFacts (joined := joined) state
 
 /--
 Allocated identities are exactly the identities that have joined. Allocation,
 join history, and configuration membership remain distinct state concepts.
 -/
-def AllocatedNodesExactlyJoined (state : View Node TxId) : Prop :=
-  forall node, state.allocated node <-> node ∈ state.hasJoined
+def AllocatedNodesExactlyJoined (_state : Model.State Node TxId) : Prop :=
+  forall node, node ∈ joined <-> node ∈ joined
 
 /-- The invariant preserved by the reconfiguring transition system. -/
 structure InvariantFacts
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (votes : VoteHistory Node)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
-    (voteRequestHistory : RequestVoteRequest Node -> List (Entry Node TxId))
-    (voteCandidateHistory : RequestVoteResponse Node -> List (Entry Node TxId))
-    (voteVoterHistory : RequestVoteResponse Node -> List (Entry Node TxId))
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
+    (voteRequestHistory : VoteRequestKey Node -> List (Entry Node TxId))
+    (voteCandidateHistory : VoteResponseKey Node -> List (Entry Node TxId))
+    (voteVoterHistory : VoteResponseKey Node -> List (Entry Node TxId))
     : Prop where
   commitIndicesBounded : CommitIndicesBounded state
   currentTermsPositive : CurrentTermsPositive state
@@ -2110,20 +2100,20 @@ structure InvariantFacts
                         fun nodeEvidence =>
                           Exists
                             fun requestEvidence =>
-                              HistoricalSafetyFacts state votes appendHistory
+                              HistoricalSafetyFacts (joined := joined) state votes appendHistory
                                 responseHistory voteRequestHistory voteCandidateHistory
                                 voteVoterHistory owners canonicalHistory elections
                                 activations nodeEvidence requestEvidence
   grantedVoteSnapshots
-    : GrantedVoteSnapshots state votes voteCandidateHistory voteVoterHistory
+    : GrantedVoteSnapshots (joined := joined) state votes voteCandidateHistory voteVoterHistory
   processedAckHistory : Exists fun history => ProcessedAckHistoryFacts state history
-  joinedCarriers : JoinedCarrierFacts state
-  allocatedNodesExactlyJoined : AllocatedNodesExactlyJoined state
+  joinedCarriers : JoinedCarrierFacts (joined := joined) state
+  allocatedNodesExactlyJoined : AllocatedNodesExactlyJoined (joined := joined) state
   currentTermsValid : CurrentTermsValid state
   networkTermsValid : NetworkTermsValid state
 
 /-- Existentially package every consensus-safety invariant component. -/
-def SystemInductiveInvariant (state : View Node TxId) : Prop :=
+def SystemInductiveInvariant (state : Model.State Node TxId) : Prop :=
   Exists
     fun votes =>
       Exists
@@ -2136,23 +2126,24 @@ def SystemInductiveInvariant (state : View Node TxId) : Prop :=
                     fun voteCandidateHistory =>
                       Exists
                         fun voteVoterHistory =>
-                          InvariantFacts
+                          InvariantFacts (joined := joined)
                             state votes appendHistory responseHistory voteRequestHistory
                             voteCandidateHistory voteVoterHistory
 
-/-- Concrete-step side conditions for the safety invariant. -/
-structure ViewInvariant (state : View Node TxId) : Prop where
-  safety : SystemInductiveInvariant state
-  initialJoined : INITIAL_CONFIGURATION ⊆ state.hasJoined
+/-- Safety and concrete-step side conditions for one ghost joined set. -/
+structure StateInvariant (state : Model.State Node TxId) (joined : Finset Node) : Prop where
+  safety : SystemInductiveInvariant (joined := joined) state
+  distinct : (state.nodes.map Prod.fst).Nodup
+  initialJoined : INITIAL_CONFIGURATION ⊆ joined
   unjoined
-    : forall node, node ∉ state.hasJoined -> state.nodes node = initialNodeState node
+    : forall node, node ∉ joined -> nodeOf state node = initialNodeState node
   endpoints
-    : forall destination message,
-        message ∈ state.network destination
-        -> message.source ∈ state.hasJoined /\ message.destination ∈ state.hasJoined
+    : forall envelope,
+        envelope ∈ state.network
+        -> envelope.source ∈ joined /\ envelope.target ∈ joined
 
-/-- Some joined set makes the safety invariant and its side conditions hold on `view`. -/
+/-- The invariant of a concrete state, with an existential proof-only joined set. -/
 def Inv (state : Model.State Node TxId) : Prop :=
-  Exists fun joined : Finset Node => ViewInvariant (view state joined)
+  Exists fun joined : Finset Node => StateInvariant state joined
 
 end CCFRaft.Proofs.Invariant
