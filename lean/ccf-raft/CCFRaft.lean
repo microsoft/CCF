@@ -9,7 +9,6 @@ import CCFRaft.Proofs.Direct.CommitFrontier
 import CCFRaft.Proofs.Direct.Framework
 import CCFRaft.Proofs.Invariant.ConfigurationCoverage
 import CCFRaft.Proofs.Invariant.Effects
-import CCFRaft.Proofs.Invariant.FactLemmas
 import CCFRaft.Proofs.Invariant.Facts
 import CCFRaft.Proofs.Invariant.HandlerFacts
 import CCFRaft.Proofs.Invariant.Handlers

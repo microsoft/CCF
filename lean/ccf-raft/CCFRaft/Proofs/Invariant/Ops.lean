@@ -267,21 +267,6 @@ def handleProposeVoteRequest?
   else
     some nodeState
 
-/-- Requests may introduce an unknown sender; responses require a known peer. -/
-def messageSourceAllowed (state : View Node TxId) (message : Message Node TxId) : Prop :=
-  match message with
-  | .appendEntriesRequest _ => True
-  | .requestVoteRequest _ => True
-  | .requestPreVote _ => True
-  | .appendEntriesResponse response => state.allocated response.source
-  | .requestVoteResponse response => state.allocated response.source
-  | .requestPreVoteResponse response => state.allocated response.source
-  | .proposeVoteRequest _ => True
-
-instance (state : View Node TxId) (message : Message Node TxId)
-    : Decidable (messageSourceAllowed state message) := by
-  cases message <;> simp only [messageSourceAllowed] <;> infer_instance
-
 /-- Replace a destination queue with its remaining messages, then append a reply. -/
 @[macro_inline]
 def reply

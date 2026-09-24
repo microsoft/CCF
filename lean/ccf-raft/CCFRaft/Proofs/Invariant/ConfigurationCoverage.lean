@@ -1,7 +1,7 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.FactLemmas
+import CCFRaft.Proofs.Invariant.Facts
 import CCFRaft.Proofs.Invariant.HandlerFacts
 import CCFRaft.Proofs.Ledger
 
@@ -235,21 +235,6 @@ lemma sharedPrefix_eq_nodeLogTake
     : witness.sharedPrefix = (state.nodes node).log.take witness.sharedFrontier := by
   exact witness.historyAgreement
 
-/-- The shared prefix has the full shared-frontier length. -/
-lemma sharedPrefix_length
-    {state : View Node TxId}
-    {activations : ActivationHistory Node TxId}
-    {node : Node}
-    (historyFacts : ActivationHistoryFacts activations)
-    (witness : ConfigurationCoverageWitness state activations node)
-    : witness.sharedPrefix.length = witness.sharedFrontier := by
-  have valid := witness.activationValid historyFacts
-  simp [
-    sharedPrefix, List.length_take,
-    Nat.min_eq_left
-      (witness.sharedFrontier_le_activationFrontier.trans valid.2.1)
-  ]
-
 omit [DecidableEq TxId] in
 /-- The shared prefix is a restriction of the full activation prefix. -/
 lemma sharedPrefix_prefix_activationPrefix
@@ -268,52 +253,6 @@ lemma sharedPrefix_prefix_activationPrefix
         List.length_take
       ]
   ⟩
-
-/-- Every positive shared prefix ends at a signature. -/
-lemma sharedPrefix_signature
-    {state : View Node TxId}
-    {activations : ActivationHistory Node TxId}
-    {node : Node}
-    (historyFacts : ActivationHistoryFacts activations)
-    (committedSignature : CommittedFrontierIsSignature state)
-    (witness : ConfigurationCoverageWitness state activations node)
-    (positive : 0 < witness.sharedFrontier)
-    : isSignatureAt witness.activation.history witness.sharedFrontier = true := by
-  have valid := witness.activationValid historyFacts
-  by_cases commitBefore :
-      (state.nodes node).commitIndex <=
-        witness.activation.activationFrontier
-  · have sharedEq :
-        witness.sharedFrontier = (state.nodes node).commitIndex := by
-      simp [sharedFrontier, Nat.min_eq_left commitBefore]
-    have nodeSignature :
-        isSignatureAt
-            (state.nodes node).log witness.sharedFrontier = true := by
-      rw [sharedEq]
-      exact committedSignature node (by simpa [sharedEq] using positive)
-    have nodeTakeSignature :
-        isSignatureAt
-            ((state.nodes node).log.take witness.sharedFrontier)
-            witness.sharedFrontier = true :=
-      isSignatureAt_take_of_le le_rfl nodeSignature
-    have activationTakeSignature :
-        isSignatureAt witness.sharedPrefix witness.sharedFrontier = true := by
-      rw [witness.sharedPrefix_eq_nodeLogTake]
-      exact nodeTakeSignature
-    exact
-      isSignatureAt_of_prefix
-        (List.take_prefix
-          witness.sharedFrontier witness.activation.history)
-        activationTakeSignature
-  · have activationBefore :
-        witness.activation.activationFrontier <=
-          (state.nodes node).commitIndex := by
-      omega
-    have sharedEq :
-        witness.sharedFrontier =
-          witness.activation.activationFrontier := by
-      simp [sharedFrontier, Nat.min_eq_right activationBefore]
-    simpa [sharedEq] using valid.2.2.2.2.2.1
 
 /-- The covered current configuration occurs in the event's shared prefix. -/
 lemma configuration_mem_activationHistoryTake
@@ -340,24 +279,6 @@ lemma configuration_mem_activationHistoryTake
       change (currentConfiguration (state.nodes node)).index
       <= min (state.nodes node).commitIndex witness.activation.activationFrontier
       exact witness.configurationIndexBound)
-
-/-- The covered current configuration occurs in the node's shared prefix. -/
-lemma configuration_mem_nodeLogTake
-    {state : View Node TxId}
-    {activations : ActivationHistory Node TxId}
-    {node : Node}
-    (historyFacts : ActivationHistoryFacts activations)
-    (witness : ConfigurationCoverageWitness state activations node)
-    : currentConfiguration (state.nodes node)
-      ∈ allConfigurations ((state.nodes node).log.take witness.sharedFrontier) := by
-  have covered :=
-    witness.configuration_mem_activationHistoryTake historyFacts
-  have agreement :
-      witness.activation.history.take witness.sharedFrontier =
-        (state.nodes node).log.take witness.sharedFrontier := by
-    simpa [sharedFrontier] using witness.historyAgreement
-  rw [agreement] at covered
-  exact covered
 
 /-- A covered current configuration is no later than the event it belongs to. -/
 lemma configurationIndex_le_activationConfiguration
@@ -598,71 +519,5 @@ lemma configurationCoverageCurrentIndexUnique
       allConfigurations_index_unique
         (TxId := TxId) leftWitness.activation.history
         leftKnownOwn rightKnownLeft sameIndex
-
-/--
-Return the covering activation event for a positive current configuration,
-together with the facts available at its shared frontier.
--/
-lemma currentConfigurationCoverageAtSharedFrontier
-    {state : View Node TxId}
-    {activations : ActivationHistory Node TxId}
-    (historyFacts : ActivationHistoryFacts activations)
-    (coverage : ConfigurationCoverageFacts state activations)
-    {node : Node}
-    (positive : 0 < (currentConfiguration (state.nodes node)).index)
-    : Exists
-        fun witness : ConfigurationCoverageWitness state activations node =>
-          witness.activation.Valid
-          /\ min (state.nodes node).commitIndex witness.activation.activationFrontier
-              <= (state.nodes node).commitIndex
-          /\ min (state.nodes node).commitIndex witness.activation.activationFrontier
-              <= witness.activation.activationFrontier
-          /\ currentConfiguration (state.nodes node)
-              ∈ allConfigurations
-                  (witness.activation.history.take
-                    (min
-                      (state.nodes node).commitIndex
-                      witness.activation.activationFrontier))
-          /\ currentConfiguration (state.nodes node)
-              ∈ allConfigurations
-                  ((state.nodes node).log.take
-                    (min
-                      (state.nodes node).commitIndex
-                      witness.activation.activationFrontier))
-          /\ witness.activation.activationTerm <= (state.nodes node).currentTerm
-          /\ (forall higherIndex higher,
-                activations higherIndex = some higher
-                -> (currentConfiguration (state.nodes node)).index
-                    < higher.newConfiguration.index
-                -> witness.sharedPrefix <+: higher.history.take higher.activationFrontier)
-          /\ (forall lowerIndex lower,
-                activations lowerIndex = some lower
-                -> lower.newConfiguration.index
-                    < (currentConfiguration (state.nodes node)).index
-                -> lower.history.take lower.activationFrontier <+: witness.sharedPrefix)
-          /\ (forall sameIndex same,
-                activations sameIndex = some same
-                -> same.newConfiguration.index
-                    = (currentConfiguration (state.nodes node)).index
-                -> same.newConfiguration = currentConfiguration (state.nodes node))
-          /\ ((state.nodes node).role = .candidate
-              -> witness.activation.activationTerm < (state.nodes node).currentTerm) := by
-  rcases coverage node positive with ⟨witness⟩
-  exact ⟨
-    witness,
-    witness.activationValid historyFacts,
-    witness.sharedFrontier_le_commitIndex,
-    witness.sharedFrontier_le_activationFrontier,
-    witness.configuration_mem_activationHistoryTake historyFacts,
-    witness.configuration_mem_nodeLogTake historyFacts,
-    witness.activationTerm_le_currentTerm,
-    fun _ _ stored order =>
-      witness.sharedPrefix_prefix_higherAuthority stored order,
-    fun _ _ stored order =>
-      witness.lowerAuthority_prefix_sharedPrefix stored order,
-    fun _ _ stored sameConfigurationIndex =>
-      witness.sameAuthority_configurationEq stored sameConfigurationIndex,
-    witness.activationTerm_lt_candidateTerm
-  ⟩
 
 end CCFRaft.Proofs.Invariant

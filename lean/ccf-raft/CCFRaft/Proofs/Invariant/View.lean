@@ -476,7 +476,9 @@ def toMessage (envelope : Model.Envelope Node TxId) : Message Node TxId :=
         }
   | .requestVoteResponse response =>
       .requestVoteResponse
-        { term := response.term, voteGranted := response.voteGranted, source, destination }
+        {
+          term := response.term, voteGranted := response.voteGranted, source, destination
+        }
   | .requestPreVote request =>
       .requestPreVote
         {
@@ -488,12 +490,15 @@ def toMessage (envelope : Model.Envelope Node TxId) : Message Node TxId :=
         }
   | .requestPreVoteResponse response =>
       .requestPreVoteResponse
-        { term := response.term, voteGranted := response.voteGranted, source, destination }
+        {
+          term := response.term, voteGranted := response.voteGranted, source, destination
+        }
   | .proposeVoteRequest term => .proposeVoteRequest { term, source, destination }
 
 /-- The global view of a network state with the given joined nodes. -/
 def view (state : Model.State Node TxId) (joined : Finset Node) : View Node TxId where
-  nodes node := (Shared.MultiNodeTransitionSystem.nodeState state node).getD (initialNodeState node)
+  nodes node :=
+    (Shared.MultiNodeTransitionSystem.nodeState state node).getD (initialNodeState node)
   network destination :=
     (state.network.filter fun envelope => envelope.target = destination).map toMessage
   hasJoined := joined

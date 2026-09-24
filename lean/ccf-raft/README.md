@@ -85,31 +85,38 @@ The proofs say nothing about liveness, fairness, or the C++ implementation.
 
 ## Proofs
 
-`CommittedFrontierIsSignature` is proved directly on the network model in
-`Proofs/Direct/`. `NodeInvariant` lifts a predicate that every local step
-preserves to every node of every reachable state, so the proof reasons about
-one node at a time. A step truncates a log only above its commit index, and
-it moves the commit index only forward and only to a signature. So a node's
-committed log only grows along a trace, which is also proved directly.
+All proofs concern `Model.transitionSystem` directly. `Proofs/Direct/`
+proves node-local commit bounds, signature frontiers, and committed-log
+growth. `NodeInvariant` lifts a predicate preserved by every local step to
+every node of every reachable state.
 
-`ElectionSafety`, and agreement between the committed logs of two nodes in
-one state, compare nodes, so they need the reconfiguration invariant. They
-are proved by refinement. `Proofs/CommittedLogs.lean` carries a node's
-committed log forward to the later of two states and compares the two logs
-there. `Proofs/Abstract/` holds a global-state model of the same protocol: per
-destination message queues, allocation of nodes on reconfiguration, and a
-separate `updateTerm` action. It shares the node state and ledger functions
-of `Model/Node.lean`. `Proofs/Abstract/ReconfigurationPreservation.lean`
-proves that its enabled actions preserve `SystemInductiveInvariant`.
+The cross-node proofs use `Proofs/Invariant/View.lean`. `view c J` reads the
+node table of concrete state `c`, using `initialNodeState` for absent nodes.
+It groups the concrete envelopes by destination and attaches their endpoints
+to the messages. `J` is a proof-only joined set, extended when a configuration
+names new nodes. `Inv c` holds when some `J` makes `ViewInvariant (view c J)`
+hold. Its core is `SystemInductiveInvariant`, with vote, log, election, and
+configuration-activation histories. The side conditions require bootstrap
+members and message endpoints to belong to `J`, and nodes outside `J` to
+remain in `initialNodeState`.
 
-`Proofs/Refinement/` proves that every reachable state of the network model
-corresponds to an abstract state satisfying that invariant. The two states
-have equal node states, and each abstract queue is a permutation of the
-envelopes to that destination. The proof simulates one network step by
-reordering one abstract queue, taking an abstract `updateTerm` when the
-receiver adopts a newer term, taking an abstract same-term step-down, and
-then taking the abstract action with the same name. `Proofs/Model.lean`
-derives election safety and same-state agreement from this correspondence.
+`Proofs/Invariant/Preservation/` proves preservation under node and queue
+updates, split into modules for incremental builds. `Internal.lean` applies
+these lemmas to all 16 inputs of `Local.act`. `Receive.lean` composes term
+observation, same-term step-down, and the message handler. A delivery erases
+one occurrence of its message and appends any reply. There is no separate
+transition system over `View`.
+
+`Proofs/Invariant/Reachable.lean` proves `reachable_inv` by induction over
+the concrete local and delivery steps. `Safety.lean` derives leader
+uniqueness and same-state committed-log agreement from the invariant.
+`Proofs/CommittedLogs.lean` carries the earlier node's committed log to the
+later state, then applies same-state agreement. This proves the trace-wide
+`CommittedLogsPrefix` claim.
+
+[`scripts/invariant-dependencies.lean`](scripts/invariant-dependencies.lean)
+reports the invariant declarations in the exported proofs' kernel dependency
+closure. It supports removal of unused proof lemmas.
 
 ## Trace validation
 

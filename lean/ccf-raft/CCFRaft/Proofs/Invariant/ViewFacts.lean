@@ -151,11 +151,6 @@ theorem initialNodeState_of_not_mem {node : Node} (absent : node ∉ INITIAL_CON
     exact absent (Bootstrap.leader_mem)
   simp [initialNodeState, freshNodeState, absent, notLeader]
 
-theorem retirementCompletedNodes_nil
-    : retirementCompletedNodes ([] : List (Entry Node TxId)) 0 = ∅ := by
-  simp [retirementCompletedNodes, currentConfigurationAt, configurationsInLog,
-    configurationsInLogFrom, allConfigurations, implicitConfiguration]
-
 theorem enqueue_apply (network : Node -> List (Message Node TxId))
     (message : Message Node TxId) (target : Node)
     : enqueue network message target
@@ -170,13 +165,6 @@ theorem enqueue_toMessage (network : Node -> List (Message Node TxId))
     : enqueue network (toMessage envelope) target
       = network target ++ messagesAt [envelope] target := by
   rw [enqueue_apply, messagesAt_singleton, toMessage_destination]
-
-theorem updateQueue_updateQueue
-    (network : Node -> List (Message Node TxId)) (destination : Node)
-    (first second : List (Message Node TxId))
-    : updateQueue (updateQueue network destination first) destination second
-      = updateQueue network destination second := by
-  simp [updateQueue]
 
 theorem updateQueue_apply (network : Node -> List (Message Node TxId))
     (destination target : Node) (queue : List (Message Node TxId))

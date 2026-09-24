@@ -1,7 +1,8 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.FactLemmas
+import CCFRaft.Proofs.Invariant.Facts
+import CCFRaft.Proofs.Invariant.NodeFacts
 import CCFRaft.Proofs.Ledger
 
 set_option autoImplicit false

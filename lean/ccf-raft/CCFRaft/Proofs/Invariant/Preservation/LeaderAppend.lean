@@ -33,7 +33,7 @@ variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
 attribute [local simp] Message.destination ConfigurationCoverageWitness.sharedPrefix
 
-/-- Append one current-term entry while applying the action-specific client set. -/
+/-- Append a current-term entry and extend the joined set for a reconfiguration. -/
 def leaderAppendState
     (state : View Node TxId)
     (node : Node)

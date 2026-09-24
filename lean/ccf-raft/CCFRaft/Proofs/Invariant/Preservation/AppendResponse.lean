@@ -208,68 +208,6 @@ lemma canProduceAppendAckEventuallyAt_sentIndex
     · exact Or.inr future
 
 omit [Bootstrap Node] in
-/-- Dequeuing any response can only remove effective ACK evidence. -/
-lemma effectiveAckersAfterResponseSubset
-    (state after : View Node TxId)
-    (destination : Node)
-    (response : AppendEntriesResponse Node)
-    (remaining : List (Message Node TxId))
-    (taken
-      : Selected response.source (state.network destination)
-          (.appendEntriesResponse response) remaining)
-    (networkEq : after.network = updateQueue state.network destination remaining)
-    (hasJoinedEq : after.hasJoined = state.hasJoined)
-    (termEq
-      : forall node, (after.nodes node).currentTerm = (state.nodes node).currentTerm)
-    (logEq : forall node, (after.nodes node).log = (state.nodes node).log)
-    (matchEq
-      : forall leader peer,
-          (after.nodes leader).matchIndex peer = (state.nodes leader).matchIndex peer)
-    : forall (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
-              leader index,
-        effectiveAckers after responseHistory leader index
-        ⊆ effectiveAckers state responseHistory leader index := by
-  intro responseHistory leader index peer member
-  have remainingOld := (selectedSound taken).2.2
-  simp only [
-    effectiveAckers, Finset.mem_filter] at member ⊢
-  rcases member with ⟨joined, self | matched | queued⟩
-  · exact ⟨by simpa [hasJoinedEq] using joined, Or.inl self⟩
-  · exact ⟨
-      by simpa [hasJoinedEq] using joined,
-      Or.inr (Or.inl (by simpa [matchEq] using matched))
-    ⟩
-  · rcases queued with
-      ⟨queuedResponse, queuedMember, success, responseTerm, sourceEq,
-        responseDestination, lastIndex, covered⟩
-    have oldMember :
-        Message.appendEntriesResponse queuedResponse ∈
-          state.network leader := by
-      rw [networkEq] at queuedMember
-      by_cases leaderEq : leader = destination
-      · subst leader
-        have remainingMember :
-            Message.appendEntriesResponse queuedResponse ∈ remaining := by
-          simpa [updateQueue, Function.update, leaderEq] using queuedMember
-        simpa [leaderEq] using remainingOld _ remainingMember
-      · simpa [updateQueue, Function.update, leaderEq] using queuedMember
-    exact ⟨
-      by simpa [hasJoinedEq] using joined,
-      Or.inr
-        (Or.inr
-          ⟨
-            queuedResponse,
-            oldMember,
-            success,
-            by simpa [termEq] using responseTerm,
-            sourceEq,
-            responseDestination,
-            lastIndex,
-            by simpa [logEq] using covered
-          ⟩)
-    ⟩
-
-omit [Bootstrap Node] in
 /-- Dequeuing an ACK which is not effective leaves effective evidence intact. -/
 lemma effectiveAckersAfterInactiveResponse
     (state after : View Node TxId)

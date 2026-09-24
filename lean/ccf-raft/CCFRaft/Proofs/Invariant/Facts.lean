@@ -30,6 +30,12 @@ variable [DecidableEq Node] [DecidableEq TxId]
 def CommitIndicesBounded (state : View Node TxId) : Prop :=
   forall node, (state.nodes node).commitIndex <= (state.nodes node).log.length
 
+/-- Every positive node commit frontier points to a signature entry. -/
+def CommittedFrontierIsSignature (state : View Node TxId) : Prop :=
+  forall node,
+    0 < (state.nodes node).commitIndex
+    -> isSignatureAt (state.nodes node).log (state.nodes node).commitIndex = true
+
 /-- Equal index and term identify the same complete log prefix. -/
 def LogMatching (state : View Node TxId) : Prop :=
   forall left right index leftEntry rightEntry,

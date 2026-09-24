@@ -40,17 +40,6 @@ lemma initialLeader_mem_initialConfiguration
         (INITIAL_LEADER (Node := Node)) :=
   bootstrap.leader_mem
 
-/-- Every valid bootstrap configuration is nonempty. -/
-lemma initialConfiguration_nonempty
-    {Node : Type}
-    [DecidableEq Node]
-    [bootstrap : Bootstrap Node]
-    : (INITIAL_CONFIGURATION (Node := Node)).Nonempty := by
-  exact
-    Exists.intro
-      (INITIAL_LEADER (Node := Node))
-      (initialLeader_mem_initialConfiguration (Node := Node))
-
 variable {Node TxId : Type}
 variable [DecidableEq Node]
 

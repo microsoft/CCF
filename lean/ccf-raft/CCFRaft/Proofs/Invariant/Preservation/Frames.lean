@@ -173,22 +173,6 @@ lemma queuedConfigurationCoverageFrame
   exact ⟨by simpa [historyEq] using witness⟩
 
 omit [DecidableEq TxId] in
-lemma currentConfigurationAt_append_of_le_length
-    (log : List (Entry Node TxId))
-    (entry : Entry Node TxId)
-    (frontier : Nat)
-    (within : frontier <= log.length)
-    : currentConfigurationAt (log ++ [entry]) frontier
-      = currentConfigurationAt log frontier := by
-  cases content : entry.content <;>
-    simp [
-      currentConfigurationAt, configurationsInLog,
-      configurationsInLogFrom_append, configurationsInLogFrom,
-      content
-    ]
-  omega
-
-omit [DecidableEq TxId] in
 /-- Current configuration depends only on the log through its frontier. -/
 lemma currentConfigurationAt_eq_of_take_eq
     {left right : List (Entry Node TxId)}
@@ -1258,46 +1242,6 @@ lemma activationPrefixInLaterElection
         _voter, _activationSupporter, _electionSupporter,
         _voted, _voterPrefix, promotionPrefix⟩
     exact promotionPrefix
-
-/-- Empty promotion logs cannot follow a nonempty signed activation. -/
-lemma activationElectionPromotionNonempty
-    {votes : VoteHistory Node}
-    {elections : ElectionHistory Node TxId}
-    {activations : ActivationHistory Node TxId}
-    (historyFacts : ActivationHistoryFacts activations)
-    (facts : ActivationElectionFacts votes elections activations)
-    {activationIndex : ActivationKey Node}
-    {electionTerm : Nat}
-    {activation : ActivationRecord Node TxId}
-    {election : ElectionRecord Node TxId}
-    (activationStored : activations activationIndex = some activation)
-    (electionStored : elections electionTerm = some election)
-    (later : activation.activationTerm < electionTerm)
-    : election.promotionLog = ([] : List (Entry Node TxId)) -> False := by
-  intro emptyPromotion
-  have covered :
-      List.IsPrefix
-        (activation.history.take activation.activationFrontier)
-        election.promotionLog := by
-    exact
-      activationPrefixInLaterElection
-        facts activationStored electionStored later
-  have activationBound :=
-    (historyFacts.valid
-      activationIndex activation activationStored).2.1
-  have activationPositive :
-      0 < activation.activationFrontier := by
-    have priorBefore :=
-      (historyFacts.valid
-        activationIndex activation activationStored).1
-    omega
-  have prefixLength := covered.length_le
-  rw [emptyPromotion] at prefixLength
-  simp [
-    List.length_take,
-    Nat.min_eq_left activationBound
-  ] at prefixLength
-  omega
 
 omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Frame immutable activation/election closure through preserved old votes. -/

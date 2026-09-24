@@ -235,11 +235,6 @@ theorem noConflictExtension_iff
       <-> Model.Local.noConflictExtension state request :=
   Iff.rfl
 
-theorem committedFromLeader_eq (log : List (Model.Local.Entry Node TxId))
-    : committedFromLeader state (annotateAppendRequest request source destination) log
-      = Model.Local.committedFromLeader state request log :=
-  rfl
-
 theorem reject_eq
     : rejectAppendEntriesRequest? state (annotateAppendRequest request source destination)
       = (Model.Local.rejectAppendEntriesRequest? state request).map
@@ -381,12 +376,6 @@ theorem handleAppendEntriesResponse_eq (state : NodeState Node TxId)
       · have stale : term < state.currentTerm := by omega
         simp [leader, same, stale, annotateAppendResponse]
   · simp [leader]
-
-theorem voteLogUpToDate_iff (state : NodeState Node TxId)
-    (request : Model.Local.RequestVoteRequest) (source destination : Node)
-    : voteLogUpToDate state (annotateVoteRequest request source destination)
-      <-> Model.Local.voteLogUpToDate state request :=
-  Iff.rfl
 
 theorem handleRequestVoteRequest_eq (state : NodeState Node TxId)
     (request : Model.Local.RequestVoteRequest) (source destination : Node)

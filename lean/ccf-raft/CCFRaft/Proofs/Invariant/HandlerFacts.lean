@@ -222,70 +222,6 @@ lemma allConfigurations_mono_prefix
     ⟨suffix, agreed⟩
   exact ⟨suffix, by simp [agreed]⟩
 
-omit [Bootstrap Node] in
-/-- Once a removal index is found, extending the configuration history keeps it. -/
-lemma retirementIndexFromConfigurations_some_append
-    (node : Node)
-    (previouslyIncluded : Bool)
-    (configurations suffix : List (Configuration Node))
-    (index : Nat)
-    (found
-      : retirementIndexFromConfigurations node previouslyIncluded configurations
-        = some index)
-    : retirementIndexFromConfigurations node previouslyIncluded (configurations ++ suffix)
-      = some index := by
-  induction configurations generalizing previouslyIncluded with
-  | nil =>
-      simp [retirementIndexFromConfigurations] at found
-  | cons configuration remaining inductionHypothesis =>
-      by_cases member : node ∈ configuration.nodes
-      · simp [retirementIndexFromConfigurations, member] at found ⊢
-        exact inductionHypothesis true found
-      · by_cases included : previouslyIncluded
-        · simp [retirementIndexFromConfigurations, member, included] at found ⊢
-          exact found
-        · simp [retirementIndexFromConfigurations, member, included] at found ⊢
-          exact inductionHypothesis false found
-
-/-- A log extension preserves an already discovered retirement index. -/
-lemma retirementIndexInLog_some_of_prefix
-    (node : Node)
-    {left right : List (Entry Node TxId)}
-    {index : Nat}
-    (isPrefix : left <+: right)
-    (found : retirementIndexInLog node left = some index)
-    : retirementIndexInLog node right = some index := by
-  unfold retirementIndexInLog at found ⊢
-  rcases allConfigurations_mono_prefix (TxId := TxId) isPrefix with
-    ⟨suffix, configurationsEq⟩
-  rw [← configurationsEq]
-  exact
-    retirementIndexFromConfigurations_some_append
-      node false (allConfigurations left) suffix index found
-
-/-- A log extension preserves existence of committed removal evidence. -/
-lemma retirementIndexInLog_isSome_of_prefix
-    (node : Node)
-    {left right : List (Entry Node TxId)}
-    (isPrefix : left <+: right)
-    (found : (retirementIndexInLog node left).isSome)
-    : (retirementIndexInLog node right).isSome := by
-  rw [Option.isSome_iff_exists] at found ⊢
-  rcases found with ⟨index, indexFound⟩
-  exact ⟨
-    index,
-    retirementIndexInLog_some_of_prefix (TxId := TxId) node isPrefix indexFound
-  ⟩
-
-/-- Every completed-retirement set member has a committed removal prefix. -/
-lemma retirementCompletedNodes_hasRemoval
-    (log : List (Entry Node TxId))
-    (commitIndex : Nat)
-    {node : Node}
-    (member : node ∈ retirementCompletedNodes log commitIndex)
-    : (retirementIndexInLog node (log.take commitIndex)).isSome := by
-  simpa [retirementCompletedNodes] using (Finset.mem_filter.mp member).2
-
 omit [DecidableEq Node] [Bootstrap Node] in
 /-- Every projected physical configuration index lies in its source interval. -/
 lemma configurationsInLogFrom_index_bounds
@@ -438,31 +374,6 @@ lemma allConfigurations_pairwise_index_lt (log : List (Entry Node TxId))
     simpa [implicitConfiguration] using positive
   · exact configurationsInLog_pairwise_index_lt (TxId := TxId) log
 
-omit [DecidableEq Node] [Bootstrap Node] in
-/-- Physical configuration indices contain no duplicates. -/
-lemma configurationsInLog_indices_nodup (log : List (Entry Node TxId))
-    : ((configurationsInLog log).map
-        fun configuration =>
-          configuration.index).Nodup := by
-  have ordered :
-      ((configurationsInLog log).map fun configuration =>
-        configuration.index).Pairwise (fun left right => left < right) :=
-    List.pairwise_map.mpr
-      (configurationsInLog_pairwise_index_lt (TxId := TxId) log)
-  exact ordered.nodup
-
-/-- Known configuration indices, including implicit index zero, are unique. -/
-lemma allConfigurations_indices_nodup (log : List (Entry Node TxId))
-    : ((allConfigurations log).map
-        fun configuration =>
-          configuration.index).Nodup := by
-  have ordered :
-      ((allConfigurations log).map fun configuration =>
-        configuration.index).Pairwise (fun left right => left < right) :=
-    List.pairwise_map.mpr
-      (allConfigurations_pairwise_index_lt (TxId := TxId) log)
-  exact ordered.nodup
-
 omit [Bootstrap Node] in
 /-- A strictly index-ordered configuration list has unique index ownership. -/
 private lemma pairwiseConfigurationIndex_unique
@@ -491,19 +402,6 @@ private lemma pairwiseConfigurationIndex_unique
         · exact
             inductionHypothesis ordered.2 leftTail rightTail sameIndex
 
-omit [Bootstrap Node] in
-/-- A physical log index identifies at most one configuration. -/
-lemma configurationsInLog_index_unique
-    (log : List (Entry Node TxId))
-    {left right : Configuration Node}
-    (leftMember : left ∈ configurationsInLog log)
-    (rightMember : right ∈ configurationsInLog log)
-    (sameIndex : left.index = right.index)
-    : left = right :=
-  pairwiseConfigurationIndex_unique
-    (configurationsInLog_pairwise_index_lt (TxId := TxId) log)
-    leftMember rightMember sameIndex
-
 /-- Every known configuration, including the implicit one, has a unique index. -/
 lemma allConfigurations_index_unique
     (log : List (Entry Node TxId))
@@ -515,25 +413,6 @@ lemma allConfigurations_index_unique
   pairwiseConfigurationIndex_unique
     (allConfigurations_pairwise_index_lt (TxId := TxId) log)
     leftMember rightMember sameIndex
-
-omit [DecidableEq Node] [Bootstrap Node] in
-/-- Physical configurations contain no duplicate records. -/
-lemma configurationsInLog_nodup (log : List (Entry Node TxId))
-    : (configurationsInLog log).Nodup := by
-  rw [List.nodup_iff_pairwise_ne]
-  exact (configurationsInLog_pairwise_index_lt (TxId := TxId) log).imp (by
-    intro left right ordered same
-    subst right
-    omega)
-
-/-- Known configurations contain no duplicate records. -/
-lemma allConfigurations_nodup (log : List (Entry Node TxId))
-    : (allConfigurations log).Nodup := by
-  rw [List.nodup_iff_pairwise_ne]
-  exact (allConfigurations_pairwise_index_lt (TxId := TxId) log).imp (by
-    intro left right ordered same
-    subst right
-    omega)
 
 omit [DecidableEq Node] [Bootstrap Node] in
 /-- Appending a non-reconfiguration entry does not add a configuration. -/
@@ -596,24 +475,6 @@ lemma currentConfigurationAt_append_nonreconfiguration
     configurationsInLog_append_nonreconfiguration
       (TxId := TxId) log entry notReconfiguration
   ]
-
-/-- Appending a non-reconfiguration entry preserves all active authorities. -/
-lemma activeConfigurations_append_nonreconfiguration
-    (state : NodeState Node TxId)
-    (entry : Entry Node TxId)
-    (notReconfiguration : forall nodes, Not (entry.content = .reconfiguration nodes))
-    : activeConfigurations { state with log := state.log ++ [entry] }
-      = activeConfigurations state := by
-  simp [
-    activeConfigurations, currentConfiguration,
-    allConfigurations,
-    configurationsInLog_append_nonreconfiguration
-      (TxId := TxId) state.log entry notReconfiguration,
-    currentConfigurationAt_append_nonreconfiguration
-      (TxId := TxId) state.log entry state.commitIndex
-        notReconfiguration
-  ]
-  rfl
 
 /-- Select a configuration exactly when its physical index is committed. -/
 private def selectConfiguration
@@ -749,37 +610,6 @@ private lemma foldlSelectConfiguration_greatest
                     (List.mem_cons_of_mem head candidateMember))
               ordered.2 tailMember
 
-omit [DecidableEq Node] [Bootstrap Node] in
-/-- If every list member is pending, selection preserves its fallback. -/
-private lemma foldlSelectConfiguration_eq_of_all_after
-    (commitIndex : Nat)
-    (configurations : List (Configuration Node))
-    (fallback : Configuration Node)
-    (pending
-      : forall configuration,
-          configuration ∈ configurations -> commitIndex < configuration.index)
-    : configurations.foldl (selectConfiguration commitIndex) fallback = fallback := by
-  induction configurations generalizing fallback with
-  | nil =>
-      rfl
-  | cons head tail inductionHypothesis =>
-      have headPending : commitIndex < head.index :=
-        pending head (by simp)
-      have headNotCommitted : Not (head.index <= commitIndex) := by
-        omega
-      simp only [
-        List.foldl_cons,
-        selectConfiguration,
-        ite_eq_right headNotCommitted
-      ]
-      exact inductionHypothesis
-        fallback
-        (by
-          intro configuration member
-          exact
-            pending configuration
-              (List.mem_cons_of_mem head member))
-
 /--
 The current configuration is either implicit or one of the physical
 configurations projected from the log.
@@ -847,39 +677,6 @@ lemma configuration_index_le_currentConfiguration
         physical
         committed
 
-/--
-The implicit configuration is current exactly when every physical
-reconfiguration is still beyond the commit frontier.
--/
-lemma currentConfiguration_eq_implicit_iff (state : NodeState Node TxId)
-    : currentConfiguration state = implicitConfiguration
-      <-> forall configuration,
-            configuration ∈ configurationsInLog state.log
-            -> state.commitIndex < configuration.index := by
-  constructor
-  · intro currentImplicit configuration physical
-    by_contra notPending
-    have committed : configuration.index <= state.commitIndex := by
-      omega
-    have greatest :=
-      configuration_index_le_currentConfiguration
-        state configuration
-        (by simp [allConfigurations, physical])
-        committed
-    have positive :=
-      (configurationsInLog_index_bounds
-        (TxId := TxId) state.log physical).1
-    rw [currentImplicit] at greatest
-    simp [implicitConfiguration] at greatest
-    omega
-  · intro pending
-    exact
-      foldlSelectConfiguration_eq_of_all_after
-        state.commitIndex
-        (configurationsInLog state.log)
-        implicitConfiguration
-        pending
-
 /-- The current configuration is one of the active configurations. -/
 lemma currentConfiguration_mem_activeConfigurations (state : NodeState Node TxId)
     : currentConfiguration state ∈ activeConfigurations state := by
@@ -887,130 +684,6 @@ lemma currentConfiguration_mem_activeConfigurations (state : NodeState Node TxId
     activeConfigurations,
     currentConfiguration_mem_allConfigurations
   ]
-
-/--
-Unique commit authority: an active configuration whose index is committed is
-the current configuration.
-
-This lets proofs for an already-committed index reuse ordinary
-single-configuration quorum arguments: every active authority governing that
-index is definitionally the same current configuration.
--/
-lemma activeConfigurationAtCommittedIndex_eq_current
-    (state : NodeState Node TxId)
-    (configuration : Configuration Node)
-    (active : configuration ∈ activeConfigurations state)
-    (committed : configuration.index <= state.commitIndex)
-    : configuration = currentConfiguration state := by
-  have activeFacts :
-      configuration ∈ allConfigurations state.log /\
-        (currentConfiguration state).index <= configuration.index := by
-    simpa [activeConfigurations] using active
-  have noLater :=
-    configuration_index_le_currentConfiguration
-      state configuration activeFacts.1 committed
-  have sameIndex :
-      configuration.index = (currentConfiguration state).index :=
-    Nat.le_antisymm noLater activeFacts.2
-  exact
-    allConfigurations_index_unique
-      (TxId := TxId)
-      state.log
-      activeFacts.1
-      (currentConfiguration_mem_allConfigurations state)
-      sameIndex
-
-/-- Any two active configurations at committed indices are identical. -/
-lemma activeConfigurationsAtCommittedIndices_unique
-    (state : NodeState Node TxId)
-    {left right : Configuration Node}
-    (leftActive : left ∈ activeConfigurations state)
-    (rightActive : right ∈ activeConfigurations state)
-    (leftCommitted : left.index <= state.commitIndex)
-    (rightCommitted : right.index <= state.commitIndex)
-    : left = right := by
-  rw [
-    activeConfigurationAtCommittedIndex_eq_current
-      state left leftActive leftCommitted,
-    activeConfigurationAtCommittedIndex_eq_current
-      state right rightActive rightCommitted
-  ]
-
-/--
-At an already-committed log index, the only active configuration that can
-govern that index is the current configuration.
--/
-lemma activeConfigurationGoverningCommittedIndex_eq_current
-    (state : NodeState Node TxId)
-    {configuration : Configuration Node}
-    {index : Nat}
-    (active : configuration ∈ activeConfigurations state)
-    (governs : configuration.index <= index)
-    (committed : index <= state.commitIndex)
-    : configuration = currentConfiguration state :=
-  activeConfigurationAtCommittedIndex_eq_current
-    state configuration active (governs.trans committed)
-
-/--
-Any decidable per-configuration obligation at an already-committed index
-reduces to the current configuration. This local form avoids introducing a
-global `State` into single-node quorum arguments.
--/
-lemma activeConfigurations_all_at_committed_index_iff_current
-    (state : NodeState Node TxId)
-    (index : Nat)
-    (committed : index <= state.commitIndex)
-    (predicate : Configuration Node -> Prop)
-    [DecidablePred predicate]
-    : (activeConfigurations state).all
-        (fun configuration =>
-          decide (configuration.index <= index -> predicate configuration))
-      <-> ((currentConfiguration state).index <= index
-            -> predicate (currentConfiguration state)) := by
-  constructor
-  · intro allActive currentGoverns
-    rw [List.all_eq_true] at allActive
-    have currentRequired :=
-      allActive
-        (currentConfiguration state)
-        (currentConfiguration_mem_activeConfigurations state)
-    exact (of_decide_eq_true currentRequired) currentGoverns
-  · intro currentRequired
-    rw [List.all_eq_true]
-    intro configuration active
-    apply decide_eq_true
-    intro governs
-    have currentEq :=
-      activeConfigurationGoverningCommittedIndex_eq_current
-        state active governs committed
-    subst configuration
-    exact currentRequired governs
-
-/--
-For an already-committed index, `hasMajorityAt` reduces to the current
-configuration's strict-majority obligation (or no obligation before its
-configuration index).
--/
-lemma hasMajorityAt_committed_iff_currentConfiguration
-    (state : View Node TxId)
-    (leader : Node)
-    (index : Nat)
-    (committed : index <= (state.nodes leader).commitIndex)
-    : hasMajorityAt state leader index
-      <-> ((currentConfiguration (state.nodes leader)).index <= index
-            -> hasConfigurationMajority
-                (acknowledgingNodes state leader index)
-                (currentConfiguration (state.nodes leader))) := by
-  unfold hasMajorityAt
-  exact
-    activeConfigurations_all_at_committed_index_iff_current
-      (state.nodes leader)
-      index
-      committed
-      (fun configuration =>
-        hasConfigurationMajority
-          (acknowledgingNodes state leader index)
-          configuration)
 
 end Bootstrap
 
@@ -1064,46 +737,6 @@ lemma memOfPrefix
   simp [member]
 
 /-! ## Generic commit-frontier facts -/
-
-/-- There is no signature exactly when the latest committable index is zero. -/
-lemma maxCommittableIndex_eq_zero_iff (log : List (Entry Node TxId))
-    : maxCommittableIndex log = 0 <-> forall index, isSignatureAt log index = false := by
-  constructor
-  · intro zero index
-    cases signature : isSignatureAt log index with
-    | false =>
-        rfl
-    | true =>
-        have bounded :=
-          signatureIndex_le_maxCommittableIndex signature
-        rw [zero] at bounded
-        have indexZero : index = 0 := by omega
-        subst index
-        simp [isSignatureAt, entryAt?] at signature
-  · intro noSignature
-    by_contra nonzero
-    have positive : 0 < maxCommittableIndex log :=
-      Nat.pos_of_ne_zero nonzero
-    have signature :=
-      maxCommittableIndexPositiveIsSignature positive
-    rw [noSignature] at signature
-    exact Bool.noConfusion signature
-
-/-- Appending a signature makes it the latest committable entry. -/
-lemma maxCommittableIndex_append_signature
-    (log : List (Entry Node TxId))
-    (entry : Entry Node TxId)
-    (signature : entry.content = .signature)
-    : maxCommittableIndex (log ++ [entry]) = log.length + 1 := by
-  have appendedSignature :
-      isSignatureAt (log ++ [entry]) (log.length + 1) = true := by
-    simp [isSignatureAt, entryAt?, signature]
-  have lower :=
-    signatureIndex_le_maxCommittableIndex appendedSignature
-  have upper :=
-    maxCommittableIndexBounded (log ++ [entry])
-  simp only [List.length_append, List.length_cons, List.length_nil] at upper
-  omega
 
 section BootstrapCommit
 
@@ -1384,27 +1017,6 @@ lemma handleAppendEntriesResponseNonLeaderUnchanged
     : handleAppendEntriesResponse? before response = some before := by
   simp [handleAppendEntriesResponse?, notLeader]
 
-/-- Once recorded, a retirement commit frontier survives later refreshes. -/
-lemma refreshRetirementState_retiredCommittedIndex_preserved
-    (node : Node)
-    (state : NodeState Node TxId)
-    {frontier : Nat}
-    (recorded : state.retiredCommittedIndex = some frontier)
-    : (refreshRetirementState node state).retiredCommittedIndex = some frontier := by
-  simp [refreshRetirementState, recorded]
-
-/-- The first covering refresh records the commit frontier, not the marker index. -/
-lemma refreshRetirementState_retiredCommittedIndex_first
-    (node : Node)
-    (state : NodeState Node TxId)
-    {markerIndex : Nat}
-    (unrecorded : state.retiredCommittedIndex = none)
-    (marker : retiredCommittedIndexInLog node state.log = some markerIndex)
-    (covered : markerIndex <= state.commitIndex)
-    : (refreshRetirementState node state).retiredCommittedIndex
-      = some state.commitIndex := by
-  simp [refreshRetirementState, unrecorded, marker, covered]
-
 /-- Facts guaranteed after tallying a RequestVote response. -/
 structure VoteResponseHandlerPost
     (before after : NodeState Node TxId)
@@ -1485,21 +1097,6 @@ lemma handleRequestPreVoteStateUnchanged
   split at handled
   · simp at handled
     exact handled.1.symm
-  · contradiction
-
-omit [Bootstrap Node] in
-/-- RequestPreVote replies preserve the request's source and destination. -/
-lemma handleRequestPreVoteResponseAddressed
-    {before after : NodeState Node TxId}
-    {request : RequestPreVote Node}
-    {response : RequestPreVoteResponse Node}
-    (handled : handleRequestPreVote? before request = some (after, response))
-    : response.source = request.destination /\ response.destination = request.source := by
-  unfold handleRequestPreVote? at handled
-  split at handled
-  · simp at handled
-    rw [← handled.2]
-    exact ⟨rfl, rfl⟩
   · contradiction
 
 /-- Tallying a pre-vote response changes only the speculative vote set. -/
@@ -2309,29 +1906,6 @@ lemma handleAppendEntriesRequestLeaderUnchanged
     split at handled
     · rename_i accepted
       exact Role.noConfusion (accepted.2.1.symm.trans leader)
-    · contradiction
-
-/-- A non-follower can only take the stale rejecting request branch. -/
-lemma handleAppendEntriesRequestNonFollowerUnchanged
-    {before after : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId}
-    {response : AppendEntriesResponse Node}
-    (notFollower : Not (before.role = .follower))
-    (handled : handleAppendEntriesRequest? before request = some (after, response))
-    : after = before := by
-  unfold handleAppendEntriesRequest? at handled
-  split at handled
-  · rename_i rejectedState rejectedResponse rejected
-    unfold rejectAppendEntriesRequest? at rejected
-    split at rejected
-    · have pairEq :=
-        (Option.some.inj rejected).trans (Option.some.inj handled)
-      exact (congrArg Prod.fst pairEq).symm
-    · contradiction
-  · unfold acceptAppendEntriesRequest? at handled
-    split at handled
-    · rename_i accepted
-      exact False.elim (notFollower accepted.2.1)
     · contradiction
 
 end CCFRaft.Proofs.Invariant

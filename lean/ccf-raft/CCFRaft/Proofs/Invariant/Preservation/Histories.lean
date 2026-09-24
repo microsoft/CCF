@@ -79,72 +79,6 @@ lemma entryAtSomeOfPositiveBound
   rw [List.getElem?_eq_some_iff]
   exact ⟨by omega, rfl⟩
 
-/-- Every valid commit candidate is at most the selected advancing frontier. -/
-lemma committableIndex_le_highestCommittableIndex
-    (state : View Node TxId)
-    (leader : Node)
-    (index : Nat)
-    (advances : (state.nodes leader).commitIndex < highestCommittableIndex state leader)
-    (signature : isSignatureAt (state.nodes leader).log index = true)
-    (current : termAt (state.nodes leader).log index = (state.nodes leader).currentTerm)
-    (majority : hasMajorityAt state leader index)
-    : index <= highestCommittableIndex state leader := by
-  by_cases alreadyCommitted :
-      index <= (state.nodes leader).commitIndex
-  · omega
-  have indexBound : index <= (state.nodes leader).log.length := by
-    rcases isSignatureAtTrue signature with ⟨entry, found, _⟩
-    exact entryAtSomeIndexBound found
-  unfold highestCommittableIndex
-  let valid :=
-    fun candidate =>
-      candidate > (state.nodes leader).commitIndex /\
-        isSignatureAt (state.nodes leader).log candidate = true /\
-        termAt (state.nodes leader).log candidate =
-          (state.nodes leader).currentTerm /\
-        hasMajorityAt state leader candidate
-  let choose :=
-    fun best candidate =>
-      if valid candidate then max best candidate else best
-  have validIndex : valid index :=
-    ⟨by omega, signature, current, majority⟩
-  have foldGeInitial :
-      forall (values : List Nat) best,
-        best <= values.foldl choose best := by
-    intro values
-    induction values with
-    | nil =>
-        intro best
-        simp
-    | cons head tail inductionHypothesis =>
-        intro best
-        apply (show best <= choose best head by
-          simp only [choose]
-          split <;> omega).trans
-        exact inductionHypothesis (choose best head)
-  have memberLeFold :
-      forall (values : List Nat) best,
-        index ∈ values ->
-          index <= values.foldl choose best := by
-    intro values
-    induction values with
-    | nil =>
-        intro best member
-        simp at member
-    | cons head tail inductionHypothesis =>
-        intro best member
-        simp only [List.foldl_cons]
-        rcases List.mem_cons.mp member with same | later
-        · subst head
-          exact (show index <= choose best index by
-            simp [choose, validIndex]).trans
-            (foldGeInitial tail (choose best index))
-        · exact inductionHypothesis (choose best head) later
-  change
-    index <=
-      (List.range ((state.nodes leader).log.length + 1)).foldl choose 0
-  exact memberLeFold (List.range ((state.nodes leader).log.length + 1)) 0 (by simp; omega)
-
 omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
 /-- Taking beyond a one-based lookup leaves that lookup unchanged. -/
 lemma entryAtTake_of_le
@@ -395,81 +329,6 @@ lemma potentialMajorityAtConfiguration
   rw [hasPotentialMajorityAt, List.all_eq_true] at majority
   exact (of_decide_eq_true (majority configuration active)) governs
 
-omit [Bootstrap Node] in
-/--
-If adding at most one node creates a configuration majority, that node is the
-unique delta inside the configuration and removing it destroys the majority.
--/
-lemma configurationMajorityOneNodeDelta
-    {configuration : Configuration Node}
-    {before after : Finset Node}
-    {added : Node}
-    (beforeSubset : before ⊆ after)
-    (afterSubset : after ⊆ insert added before)
-    (afterMajority : hasConfigurationMajority after configuration)
-    (beforeNotMajority : Not (hasConfigurationMajority before configuration))
-    : added ∈ configuration.nodes
-      /\ added ∈ after
-      /\ added ∉ before
-      /\ after = insert added before
-      /\ (after ∩ configuration.nodes).card = (before ∩ configuration.nodes).card + 1
-      /\ Not (hasConfigurationMajority (after.erase added) configuration) := by
-  have addedAfter : added ∈ after := by
-    by_contra missing
-    have afterBefore : after ⊆ before := by
-      intro node member
-      have inserted := afterSubset member
-      rcases Finset.mem_insert.mp inserted with same | old
-      · subst node
-        exact False.elim (missing member)
-      · exact old
-    exact
-      beforeNotMajority
-        (hasConfigurationMajority_mono afterBefore afterMajority)
-  have addedNotBefore : added ∉ before := by
-    intro old
-    have afterBefore : after ⊆ before := by
-      intro node member
-      rcases Finset.mem_insert.mp (afterSubset member) with same | oldMember
-      · simpa [same] using old
-      · exact oldMember
-    exact
-      beforeNotMajority
-        (hasConfigurationMajority_mono afterBefore afterMajority)
-  have afterEq : after = insert added before := by
-    apply Finset.Subset.antisymm afterSubset
-    intro node member
-    rcases Finset.mem_insert.mp member with same | old
-    · simpa [same] using addedAfter
-    · exact beforeSubset old
-  have addedConfiguration : added ∈ configuration.nodes := by
-    by_contra outside
-    have intersectionsEqual :
-        after ∩ configuration.nodes =
-          before ∩ configuration.nodes := by
-      ext node
-      simp only [Finset.mem_inter]
-      constructor
-      · intro member
-        rcases Finset.mem_insert.mp
-            (afterSubset member.1) with same | old
-        · subst node
-          exact False.elim (outside member.2)
-        · exact ⟨old, member.2⟩
-      · intro member
-        exact ⟨beforeSubset member.1, member.2⟩
-    apply beforeNotMajority
-    unfold hasConfigurationMajority at afterMajority ⊢
-    rw [← intersectionsEqual]
-    exact afterMajority
-  have erasedEq : after.erase added = before := by
-    rw [afterEq]
-    simp [addedNotBefore]
-  refine ⟨addedConfiguration, addedAfter, addedNotBefore, afterEq, ?_, ?_⟩
-  · rw [afterEq]
-    simp [addedConfiguration, addedNotBefore]
-  · simpa [erasedEq] using beforeNotMajority
-
 omit [DecidableEq TxId] in
 /-- Extract one active configuration's processed election majority. -/
 lemma electionMajorityAtConfiguration
@@ -600,25 +459,6 @@ lemma validEvidenceSupportedPrefixFrontier
       (List.length_take_le evidence.supportedLength evidence.history)
       supportedBound
   ⟩
-
-/--
-An authority bridge's full-frontier inclusion and supported-length bound
-place the earlier full frontier inside the later supported prefix.
--/
-lemma authorityBridgeSupportedPrefix
-    {earlier later : CommitEvidence Node TxId}
-    {earlierPrefix laterPrefix : List (Entry Node TxId)}
-    (earlierValid : earlier.Valid earlierPrefix)
-    (laterValid : later.Valid laterPrefix)
-    (bridge
-      : earlier.history.take earlier.commitFrontier
-          <+: later.history.take later.commitFrontier
-        /\ earlier.commitFrontier <= later.supportedLength)
-    : earlier.history.take earlier.commitFrontier <+: laterPrefix := by
-  rw [← laterValid.2.2.2.1]
-  rw [List.prefix_take_iff]
-  refine ⟨bridge.1.trans (List.take_prefix later.commitFrontier later.history), ?_⟩
-  simpa [List.length_take, Nat.min_eq_left earlierValid.1] using bridge.2
 
 /--
 Ballot ancestry puts a known evidence frontier in every active leader whose
@@ -1975,30 +1815,6 @@ lemma handledAppendRequestCanonicalAgreement
     have unchanged := post.failedStateUnchanged failed
     subst nextNode
     exact ownership.logEntryAgreement destination index entry found
-
-omit [DecidableEq TxId] in
-/-- Canonical term histories directly imply state-local log matching. -/
-lemma canonicalHistoriesLogMatching
-    {state : View Node TxId}
-    {votes : VoteHistory Node}
-    {appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId)}
-    {canonicalHistory : Nat -> List (Entry Node TxId)}
-    {owners : TermOwners Node}
-    (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
-    : LogMatching state := by
-  intro left right index leftEntry rightEntry leftFound rightFound sameTerm
-  rcases
-      ownership.logEntryAgreement left index leftEntry leftFound with
-    ⟨_, leftAgreed⟩
-  rcases
-      ownership.logEntryAgreement right index rightEntry rightFound with
-    ⟨_, rightAgreed⟩
-  calc
-    (state.nodes left).log.take index = (canonicalHistory leftEntry.term).take index :=
-      leftAgreed
-    _ = (canonicalHistory rightEntry.term).take index := by rw [sameTerm]
-    _ = (state.nodes right).log.take index :=
-      rightAgreed.symm
 
 omit [DecidableEq TxId] in
 /-- Canonical history monotonicity transfers to every represented node log. -/
