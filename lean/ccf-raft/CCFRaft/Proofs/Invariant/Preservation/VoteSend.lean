@@ -11,40 +11,28 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
+open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
+variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-attribute [local simp] Message.destination ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /-- Sending a vote request changes only the network and its proof snapshot. -/
 lemma requestVotePreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (source destination : Node)
-    (invariant : SystemInductiveInvariant state)
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (enabled
-      : (state.allocated source
-          /\ state.allocated destination
-          /\ (state.nodes source).role = .candidate
+      : (source ∈ joinedNodes
+          /\ destination ∈ joinedNodes
+          /\ ((nodeOf state) source).role = .candidate
           /\ Not (source = destination)
-          /\ destination ∈ activeNodeUnion (state.nodes source)))
-    : SystemInductiveInvariant (requestVoteEffect state source destination) := by
+          /\ destination ∈ activeNodeUnion ((nodeOf state) source)))
+    : SystemInductiveInvariant (joined := joinedNodes) (requestVoteEffect state source destination) := by
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
@@ -72,82 +60,81 @@ lemma requestVotePreservesSystemInductiveInvariant
       exact retained
   have candidatesAboveBootstrap :=
     invariantFactsCandidatesAboveBootstrap facts
-  let request := makeRequestVoteRequest state source destination
+  let request := voteRequestKey state source destination
   let voteRequestSnapshot :=
-    (state.nodes source).log.take
-      (maxCommittableIndex (state.nodes source).log)
+    ((nodeOf state) source).log.take
+      (maxCommittableIndex ((nodeOf state) source).log)
   let newVoteRequestHistory :=
     Function.update voteRequestHistory request voteRequestSnapshot
   have sourceLastIndex :
-      lastCommittableIndex (state.nodes source) =
-        maxCommittableIndex (state.nodes source).log :=
+      lastCommittableIndex ((nodeOf state) source) =
+        maxCommittableIndex ((nodeOf state) source).log :=
     lastCommittableIndex_eq_maxCommittableIndex
-      (state.nodes source)
+      ((nodeOf state) source)
       (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
         facts source)
   have sourceLastTerm :
-      lastCommittableTerm (state.nodes source) =
-        maxCommittableTerm (state.nodes source).log :=
+      lastCommittableTerm ((nodeOf state) source) =
+        maxCommittableTerm ((nodeOf state) source).log :=
     lastCommittableTerm_eq_maxCommittableTerm
-      (state.nodes source)
+      ((nodeOf state) source)
       (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
         facts source)
   have snapshotLength :
       voteRequestSnapshot.length =
-        maxCommittableIndex (state.nodes source).log := by
+        maxCommittableIndex ((nodeOf state) source).log := by
     simp [
       voteRequestSnapshot,
       Nat.min_eq_left
-        (maxCommittableIndexBounded (state.nodes source).log)
+        (maxCommittableIndexBounded ((nodeOf state) source).log)
     ]
   have snapshotTerm :
       termAt voteRequestSnapshot voteRequestSnapshot.length =
-        maxCommittableTerm (state.nodes source).log := by
+        maxCommittableTerm ((nodeOf state) source).log := by
     rw [snapshotLength]
     exact (termAtTakeOfLe
-            (log := (state.nodes source).log)
-            (index := maxCommittableIndex (state.nodes source).log)
-            (count := maxCommittableIndex (state.nodes source).log)
+            (log := ((nodeOf state) source).log)
+            (index := maxCommittableIndex ((nodeOf state) source).log)
+            (count := maxCommittableIndex ((nodeOf state) source).log)
             le_rfl).trans
       rfl
   have snapshotCommittable :
       maxCommittableIndex voteRequestSnapshot =
         voteRequestSnapshot.length := by
     rw [snapshotLength]
-    exact maxCommittableIndexTakeMax (state.nodes source).log
+    exact maxCommittableIndexTakeMax ((nodeOf state) source).log
   have effectiveAckersEq :
       forall leader index,
-        effectiveAckers
+        effectiveAckers (joined := joinedNodes)
             (requestVoteEffect state source destination)
             responseHistory leader index =
-          effectiveAckers state responseHistory leader index := by
+          effectiveAckers (joined := joinedNodes) state responseHistory leader index := by
     intro leader index
     ext peer
     simp only [
       effectiveAckers, Finset.mem_filter]
     constructor
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [view_effects, view_effects] using joined, Or.inl self⟩
+      · exact ⟨by simpa [concrete_effects, concrete_effects] using joined, Or.inl self⟩
       · exact ⟨
-          by simpa [view_effects, view_effects] using joined,
+          by simpa [concrete_effects, concrete_effects] using joined,
           Or.inr
-            (Or.inl (by simpa [view_effects, view_effects] using matched))
+            (Or.inl (by simpa [concrete_effects, concrete_effects] using matched))
         ⟩
       · refine ⟨
-          by simpa [view_effects, view_effects] using joined,
+          by simpa [concrete_effects, concrete_effects] using joined,
           Or.inr (Or.inr ?_)
         ⟩
         rcases queued with
           ⟨response, member, success, term, sourceEq,
             destinationEq, lastIndex, covered⟩
         have oldMember :
-            Message.appendEntriesResponse response ∈
-              state.network leader := by
+            (appendResponseEnvelope response ∈ state.network /\ response.2.1 = leader) := by
           rcases
               memEnqueue
-                state.network (.requestVoteRequest request)
-                  (.appendEntriesResponse response) leader
-                  (by simpa [view_effects, view_effects, request] using member) with
+                state.network (voteRequestEnvelope request)
+                  (appendResponseEnvelope response) leader
+                  (by simpa [concrete_effects, concrete_effects, request] using member) with
             old | new
           · exact old
           · simp at new
@@ -155,20 +142,20 @@ lemma requestVotePreservesSystemInductiveInvariant
           response,
           oldMember,
           success,
-          by simpa [view_effects, view_effects] using term,
+          by simpa [concrete_effects, concrete_effects] using term,
           sourceEq,
           destinationEq,
           lastIndex,
-          by simpa [view_effects, view_effects] using covered
+          by simpa [concrete_effects, concrete_effects] using covered
         ⟩
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [view_effects, view_effects] using joined, Or.inl self⟩
+      · exact ⟨by simpa [concrete_effects, concrete_effects] using joined, Or.inl self⟩
       · exact ⟨
-          by simpa [view_effects, view_effects] using joined,
+          by simpa [concrete_effects, concrete_effects] using joined,
           Or.inr
-            (Or.inl (by simpa [view_effects, view_effects] using matched))
+            (Or.inl (by simpa [concrete_effects, concrete_effects] using matched))
         ⟩
-      · refine ⟨by simpa [view_effects, view_effects] using joined, Or.inr (Or.inr ?_)⟩
+      · refine ⟨by simpa [concrete_effects, concrete_effects] using joined, Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, term, sourceEq,
             destinationEq, lastIndex, covered⟩
@@ -176,31 +163,31 @@ lemma requestVotePreservesSystemInductiveInvariant
           response,
           ?_,
           success,
-          by simpa [view_effects, view_effects] using term,
+          by simpa [concrete_effects, concrete_effects] using term,
           sourceEq,
           destinationEq,
           lastIndex,
-          by simpa [view_effects, view_effects] using covered
+          by simpa [concrete_effects, concrete_effects] using covered
         ⟩
-        simpa [view_effects, view_effects, request]
+        simpa [concrete_effects, concrete_effects, request]
           using memEnqueueNoDupOfMem
-            state.network (.requestVoteRequest request)
-            (.appendEntriesResponse response) leader member
+            state.network (voteRequestEnvelope request)
+            (appendResponseEnvelope response) leader member
   have effectiveMajorityEq :
       forall leader index,
-        hasEffectiveMajorityAt
+        hasEffectiveMajorityAt (joined := joinedNodes)
             (requestVoteEffect state source destination)
             responseHistory leader index ↔
-          hasEffectiveMajorityAt state responseHistory leader index := by
+          hasEffectiveMajorityAt (joined := joinedNodes) state responseHistory leader index := by
     intro leader index
     unfold hasEffectiveMajorityAt
     rw [effectiveAckersEq]
     rfl
   have effectiveElectionVotersEq :
       forall candidate,
-        effectiveElectionVoters
+        effectiveElectionVoters (joined := joinedNodes)
             (requestVoteEffect state source destination) candidate =
-          effectiveElectionVoters state candidate := by
+          effectiveElectionVoters (joined := joinedNodes) state candidate := by
     intro candidate
     ext voter
     simp only [
@@ -208,24 +195,23 @@ lemma requestVotePreservesSystemInductiveInvariant
     constructor
     · rintro ⟨joined, processed | queued⟩
       · exact ⟨
-          by simpa [view_effects, view_effects] using joined,
-          Or.inl (by simpa [view_effects, view_effects] using processed)
+          by simpa [concrete_effects, concrete_effects] using joined,
+          Or.inl (by simpa [concrete_effects, concrete_effects] using processed)
         ⟩
       · refine ⟨
-          by simpa [view_effects, view_effects] using joined,
+          by simpa [concrete_effects, concrete_effects] using joined,
           Or.inr ?_
         ⟩
         rcases queued with
           ⟨response, member, granted, responseTerm,
             responseSource, responseDestination⟩
         have oldMember :
-            Message.requestVoteResponse response ∈
-              state.network candidate := by
+            (voteResponseEnvelope response ∈ state.network /\ response.2.1 = candidate) := by
           rcases
               memEnqueue
-                state.network (.requestVoteRequest request)
-                  (.requestVoteResponse response) candidate
-                  (by simpa [view_effects, view_effects, request] using member) with
+                state.network (voteRequestEnvelope request)
+                  (voteResponseEnvelope response) candidate
+                  (by simpa [concrete_effects, concrete_effects, request] using member) with
             old | new
           · exact old
           · simp at new
@@ -233,16 +219,16 @@ lemma requestVotePreservesSystemInductiveInvariant
           response,
           oldMember,
           granted,
-          by simpa [view_effects, view_effects] using responseTerm,
+          by simpa [concrete_effects, concrete_effects] using responseTerm,
           responseSource,
           responseDestination
         ⟩
     · rintro ⟨joined, processed | queued⟩
       · exact ⟨
-          by simpa [view_effects, view_effects] using joined,
-          Or.inl (by simpa [view_effects, view_effects] using processed)
+          by simpa [concrete_effects, concrete_effects] using joined,
+          Or.inl (by simpa [concrete_effects, concrete_effects] using processed)
         ⟩
-      · refine ⟨by simpa [view_effects, view_effects] using joined, Or.inr ?_⟩
+      · refine ⟨by simpa [concrete_effects, concrete_effects] using joined, Or.inr ?_⟩
         rcases queued with
           ⟨response, member, granted, responseTerm,
             responseSource, responseDestination⟩
@@ -250,60 +236,60 @@ lemma requestVotePreservesSystemInductiveInvariant
           response,
           ?_,
           granted,
-          by simpa [view_effects, view_effects] using responseTerm,
+          by simpa [concrete_effects, concrete_effects] using responseTerm,
           responseSource,
           responseDestination
         ⟩
-        simpa [view_effects, view_effects, request]
+        simpa [concrete_effects, concrete_effects, request]
           using memEnqueueNoDupOfMem
-            state.network (.requestVoteRequest request)
-            (.requestVoteResponse response) candidate member
+            state.network (voteRequestEnvelope request)
+            (voteResponseEnvelope response) candidate member
   have effectiveElectionMajorityEq :
       forall candidate,
-        hasEffectiveElectionMajority
+        hasEffectiveElectionMajority (joined := joinedNodes)
             (requestVoteEffect state source destination) candidate ↔
-          hasEffectiveElectionMajority state candidate := by
+          hasEffectiveElectionMajority (joined := joinedNodes) state candidate := by
     intro candidate
     unfold hasEffectiveElectionMajority
     rw [effectiveElectionVotersEq]
     rfl
   have potentialElectionVotersEq :
       forall candidate,
-        potentialElectionVoters
+        potentialElectionVoters (joined := joinedNodes)
             (requestVoteEffect state source destination) candidate =
-          potentialElectionVoters state candidate := by
+          potentialElectionVoters (joined := joinedNodes) state candidate := by
     intro candidate
     ext voter
     simp only [
       potentialElectionVoters, Finset.mem_filter]
     constructor
     · rintro ⟨joined, effective | eligible⟩
-      · exact ⟨by simpa [view_effects, view_effects] using joined, Or.inl (by
+      · exact ⟨by simpa [concrete_effects, concrete_effects] using joined, Or.inl (by
           rw [effectiveElectionVotersEq] at effective
           exact effective)⟩
-      · exact ⟨by simpa [view_effects, view_effects] using joined, Or.inr (by
+      · exact ⟨by simpa [concrete_effects, concrete_effects] using joined, Or.inr (by
           simpa [
           currentlyEligibleElectionVoter,
-          makeRequestVoteRequest,
-          view_effects, view_effects,
+          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          concrete_effects, concrete_effects,
           voteLogUpToDate
           ] using eligible)⟩
     · rintro ⟨joined, effective | eligible⟩
-      · exact ⟨by simpa [view_effects, view_effects] using joined, Or.inl (by
+      · exact ⟨by simpa [concrete_effects, concrete_effects] using joined, Or.inl (by
           rw [effectiveElectionVotersEq]
           exact effective)⟩
-      · exact ⟨by simpa [view_effects, view_effects] using joined, Or.inr (by
+      · exact ⟨by simpa [concrete_effects, concrete_effects] using joined, Or.inr (by
           simpa [
           currentlyEligibleElectionVoter,
-          makeRequestVoteRequest,
-          view_effects, view_effects,
+          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          concrete_effects, concrete_effects,
           voteLogUpToDate
           ] using eligible)⟩
   have potentialElectionMajorityEq :
       forall candidate,
-        hasPotentialElectionMajority
+        hasPotentialElectionMajority (joined := joinedNodes)
             (requestVoteEffect state source destination) candidate ↔
-          hasPotentialElectionMajority state candidate := by
+          hasPotentialElectionMajority (joined := joinedNodes) state candidate := by
     intro candidate
     unfold hasPotentialElectionMajority
     rw [potentialElectionVotersEq]
@@ -319,13 +305,12 @@ lemma requestVotePreservesSystemInductiveInvariant
     · rintro ⟨queuedRequest, member, requestSource, requestDestination,
                requestTerm, producible, covered⟩
       have oldMember :
-          Message.appendEntriesRequest queuedRequest ∈
-            state.network peer := by
+          (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = peer) := by
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.appendEntriesRequest queuedRequest) peer
-                (by simpa [view_effects, view_effects] using member) with
+              state.network (voteRequestEnvelope request)
+                (appendRequestEnvelope queuedRequest) peer
+                (by simpa [concrete_effects, concrete_effects] using member) with
           old | new
         · exact old
         · simp at new
@@ -334,31 +319,31 @@ lemma requestVotePreservesSystemInductiveInvariant
         oldMember,
         requestSource,
         requestDestination,
-        by simpa [view_effects, view_effects] using requestTerm,
-        by simpa [view_effects, view_effects] using producible,
-        by simpa [view_effects, view_effects] using covered
+        by simpa [concrete_effects, concrete_effects] using requestTerm,
+        by simpa [concrete_effects, concrete_effects] using producible,
+        by simpa [concrete_effects, concrete_effects] using covered
       ⟩
     · rintro ⟨queuedRequest, member, requestSource, requestDestination,
                requestTerm, producible, covered⟩
       exact ⟨
         queuedRequest,
         by
-          simpa [view_effects, view_effects, request]
+          simpa [concrete_effects, concrete_effects, request]
             using memEnqueueNoDupOfMem
-              state.network (.requestVoteRequest request)
-              (.appendEntriesRequest queuedRequest) peer member,
+              state.network (voteRequestEnvelope request)
+              (appendRequestEnvelope queuedRequest) peer member,
         requestSource,
         requestDestination,
-        by simpa [view_effects, view_effects] using requestTerm,
-        by simpa [view_effects, view_effects] using producible,
-        by simpa [view_effects, view_effects] using covered
+        by simpa [concrete_effects, concrete_effects] using requestTerm,
+        by simpa [concrete_effects, concrete_effects] using producible,
+        by simpa [concrete_effects, concrete_effects] using covered
       ⟩
   have potentialAckersEq :
       forall leader index,
-        potentialAckers
+        potentialAckers (joined := joinedNodes)
             (requestVoteEffect state source destination)
             appendHistory responseHistory leader index =
-          potentialAckers
+          potentialAckers (joined := joinedNodes)
             state appendHistory responseHistory leader index := by
     intro leader index
     ext peer
@@ -366,13 +351,12 @@ lemma requestVotePreservesSystemInductiveInvariant
       potentialAckers, Finset.mem_filter,
       effectiveAckersEq, queuedAppendReserveEq
     ]
-    simp [view_effects, view_effects]
   have potentialMajorityEq :
       forall leader index,
-        hasPotentialMajorityAt
+        hasPotentialMajorityAt (joined := joinedNodes)
             (requestVoteEffect state source destination)
             appendHistory responseHistory leader index ↔
-          hasPotentialMajorityAt
+          hasPotentialMajorityAt (joined := joinedNodes)
             state appendHistory responseHistory leader index := by
     intro leader index
     unfold hasPotentialMajorityAt
@@ -384,16 +368,16 @@ lemma requestVotePreservesSystemInductiveInvariant
       votes votes responseHistory voteVoterHistory elections
       ackerCurrentFacts ackerVoteFacts ackerElectionFacts
       (fun leader role => by
-        simpa [view_effects, view_effects] using role)
-      (fun leader _ => by simp [view_effects, view_effects])
-      (fun leader => by simp [view_effects, view_effects])
+        simpa [concrete_effects, concrete_effects] using role)
+      (fun leader _ => by simp [concrete_effects, concrete_effects])
+      (fun leader => by simp [concrete_effects, concrete_effects])
       (fun leader index voter _ _ member => by
         rw [effectiveAckersEq] at member
         exact member)
-      (fun node => Nat.le_of_eq (by simp [view_effects, view_effects]))
+      (fun node => Nat.le_of_eq (by simp [concrete_effects, concrete_effects]))
       (fun _ _ _ voted _ => voted)
   have ackerActivationAfter :
-      AckerActivationHistory
+      AckerActivationHistory (joined := joinedNodes)
         (requestVoteEffect state source destination)
         responseHistory elections activations := by
     apply
@@ -402,11 +386,11 @@ lemma requestVotePreservesSystemInductiveInvariant
           responseHistory elections elections activations
           ackerActivationFacts
     · intro leader role
-      simpa [view_effects, view_effects] using role
+      simpa [concrete_effects, concrete_effects] using role
     · intro leader role
-      simp [view_effects, view_effects]
+      simp [concrete_effects, concrete_effects]
     · intro leader
-      simp [view_effects, view_effects]
+      simp [concrete_effects, concrete_effects]
     · intro leader index supporter role current member
       rw [effectiveAckersEq] at member
       exact member
@@ -431,35 +415,34 @@ lemma requestVotePreservesSystemInductiveInvariant
   · constructor
     · exact facts.voteHistory.bootstrapEmpty
     · intro voter
-      simpa [view_effects, view_effects] using facts.voteHistory.current voter
+      simpa [concrete_effects, concrete_effects] using facts.voteHistory.current voter
     · intro voter term future
       apply facts.voteHistory.future voter term
-      simpa [view_effects, view_effects] using future
+      simpa [concrete_effects, concrete_effects] using future
     · intro candidate voter active member
       apply facts.voteHistory.counted candidate voter
-      · simpa [view_effects, view_effects] using active
-      · simpa [view_effects, view_effects] using member
+      · simpa [concrete_effects, concrete_effects] using active
+      · simpa [concrete_effects, concrete_effects] using member
   · constructor
     · intro queuedDestination message member
       rcases
           memEnqueue
-            state.network (.requestVoteRequest request)
+            state.network (voteRequestEnvelope request)
               message queuedDestination
-              (by simpa [view_effects, view_effects, request] using member) with
+              (by simpa [concrete_effects, concrete_effects, request] using member) with
         old | new
       · exact facts.networkHistory.addressed queuedDestination message old
       · rcases new with ⟨destinationEq, messageEq⟩
         subst message
-        simpa [request, makeRequestVoteRequest] using destinationEq.symm
+        simpa [request, voteRequestKey, Model.Local.makeRequestVoteRequest] using destinationEq.symm
     · intro queuedDestination queuedRequest member
       have old :
-          Message.appendEntriesRequest queuedRequest ∈
-            state.network queuedDestination := by
+          (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.appendEntriesRequest queuedRequest) queuedDestination
-                (by simpa [view_effects, view_effects, request] using member) with
+              state.network (voteRequestEnvelope request)
+                (appendRequestEnvelope queuedRequest) queuedDestination
+                (by simpa [concrete_effects, concrete_effects, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -467,13 +450,12 @@ lemma requestVotePreservesSystemInductiveInvariant
         queuedDestination queuedRequest old
     · intro queuedDestination response member
       have old :
-          Message.appendEntriesResponse response ∈
-            state.network queuedDestination := by
+          (appendResponseEnvelope response ∈ state.network /\ response.2.1 = queuedDestination) := by
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.appendEntriesResponse response) queuedDestination
-                (by simpa [view_effects, view_effects, request] using member) with
+              state.network (voteRequestEnvelope request)
+                (appendResponseEnvelope response) queuedDestination
+                (by simpa [concrete_effects, concrete_effects, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -483,9 +465,9 @@ lemma requestVotePreservesSystemInductiveInvariant
     · intro queuedDestination queuedRequest member
       rcases
           memEnqueue
-            state.network (.requestVoteRequest request)
-              (.requestVoteRequest queuedRequest) queuedDestination
-              (by simpa [view_effects, view_effects, request] using member) with
+            state.network (voteRequestEnvelope request)
+              (voteRequestEnvelope queuedRequest) queuedDestination
+              (by simpa [concrete_effects, concrete_effects, request] using member) with
         old | new
       · have oldFacts :=
           facts.networkHistory.voteRequest
@@ -495,12 +477,12 @@ lemma requestVotePreservesSystemInductiveInvariant
           refine ⟨
             by simp [
                 newVoteRequestHistory,
-                request, makeRequestVoteRequest,
+                request, voteRequestKey, Model.Local.makeRequestVoteRequest,
                 sourceLastIndex, snapshotLength
               ],
             by simp [
                 newVoteRequestHistory,
-                request, makeRequestVoteRequest,
+                request, voteRequestKey, Model.Local.makeRequestVoteRequest,
                 sourceLastTerm, snapshotTerm
               ],
             by simpa [
@@ -508,30 +490,30 @@ lemma requestVotePreservesSystemInductiveInvariant
               ] using snapshotCommittable,
             candidatesAboveBootstrap source enabled.2.2.1,
             by
-              simp [request, makeRequestVoteRequest, view_effects, view_effects],
+              simp [request, voteRequestKey, Model.Local.makeRequestVoteRequest, concrete_effects, concrete_effects],
             ?_
           ⟩
           intro _ _
           simpa [newVoteRequestHistory, Function.update, voteRequestSnapshot, request,
-            makeRequestVoteRequest, view_effects]
+            voteRequestKey, Model.Local.makeRequestVoteRequest, concrete_effects]
             using List.take_prefix
-              (maxCommittableIndex (state.nodes source).log)
-              (state.nodes source).log
+              (maxCommittableIndex ((nodeOf state) source).log)
+              ((nodeOf state) source).log
         · simpa [
-            newVoteRequestHistory, Function.update, sameRequest, view_effects
+            newVoteRequestHistory, Function.update, sameRequest, concrete_effects
           ] using oldFacts
       · rcases new with ⟨destinationEq, messageEq⟩
-        simp only [Message.requestVoteRequest.injEq] at messageEq
+        simp only [voteRequestEnvelope.injEq] at messageEq
         subst queuedRequest
         refine ⟨
           by simp [
               newVoteRequestHistory,
-              request, makeRequestVoteRequest,
+              request, voteRequestKey, Model.Local.makeRequestVoteRequest,
               sourceLastIndex, snapshotLength
             ],
           by simp [
               newVoteRequestHistory,
-              request, makeRequestVoteRequest,
+              request, voteRequestKey, Model.Local.makeRequestVoteRequest,
               sourceLastTerm, snapshotTerm
             ],
           by simpa [
@@ -539,24 +521,23 @@ lemma requestVotePreservesSystemInductiveInvariant
             ] using snapshotCommittable,
           candidatesAboveBootstrap source enabled.2.2.1,
           by
-            simp [request, makeRequestVoteRequest, view_effects, view_effects],
+            simp [request, voteRequestKey, Model.Local.makeRequestVoteRequest, concrete_effects, concrete_effects],
           ?_
         ⟩
         intro _ _
         simpa [newVoteRequestHistory, Function.update, voteRequestSnapshot, request,
-          makeRequestVoteRequest, view_effects]
+          voteRequestKey, Model.Local.makeRequestVoteRequest, concrete_effects]
           using List.take_prefix
-            (maxCommittableIndex (state.nodes source).log)
-            (state.nodes source).log
+            (maxCommittableIndex ((nodeOf state) source).log)
+            ((nodeOf state) source).log
     · intro queuedDestination response member granted
       have old :
-          Message.requestVoteResponse response ∈
-            state.network queuedDestination := by
+          (voteResponseEnvelope response ∈ state.network /\ response.2.1 = queuedDestination) := by
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.requestVoteResponse response) queuedDestination
-                (by simpa [view_effects, view_effects, request] using member) with
+              state.network (voteRequestEnvelope request)
+                (voteResponseEnvelope response) queuedDestination
+                (by simpa [concrete_effects, concrete_effects, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -565,7 +546,7 @@ lemma requestVotePreservesSystemInductiveInvariant
             queuedDestination response old granted with
         ⟨termBound, recorded, upToDate⟩
       exact ⟨
-        by simpa [view_effects, view_effects] using termBound,
+        by simpa [concrete_effects, concrete_effects] using termBound,
         recorded,
         by simpa [voteLogUpToDate] using upToDate
       ⟩
@@ -578,23 +559,23 @@ lemma requestVotePreservesSystemInductiveInvariant
         state (requestVoteEffect state source destination)
           appendHistory nodeEvidence requestEvidence evidenceFacts
       · intro node
-        simp [view_effects, view_effects]
+        simp [concrete_effects, concrete_effects]
       · intro node
-        simp [view_effects, view_effects, NodeState.committedLog]
+        simp [concrete_effects, concrete_effects, NodeState.committedLog]
       · intro node
-        simp [view_effects, view_effects]
+        simp [concrete_effects, concrete_effects]
       · intro queuedDestination queuedRequest member
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.appendEntriesRequest queuedRequest)
+              state.network (voteRequestEnvelope request)
+                (appendRequestEnvelope queuedRequest)
                 queuedDestination
-                (by simpa [view_effects, view_effects] using member) with
+                (by simpa [concrete_effects, concrete_effects] using member) with
           old | new
         · exact old
         · simp at new
   have prospectiveAfter :
-      ProspectiveCommitEvidenceFacts
+      ProspectiveCommitEvidenceFacts (joined := joinedNodes)
         (requestVoteEffect state source destination)
         appendHistory nodeEvidence requestEvidence elections := by
     apply
@@ -609,30 +590,30 @@ lemma requestVotePreservesSystemInductiveInvariant
           state (requestVoteEffect state source destination)
             appendHistory
             nodeEvidence requestEvidence
-            (fun node => by simp [view_effects, view_effects])
+            (fun node => by simp [concrete_effects, concrete_effects])
             (fun node => by
-              simp [view_effects, view_effects, NodeState.committedLog])
+              simp [concrete_effects, concrete_effects, NodeState.committedLog])
             (fun queuedDestination queuedRequest member => by
               rcases
                   memEnqueue
-                    state.network (.requestVoteRequest request)
-                      (.appendEntriesRequest queuedRequest)
+                    state.network (voteRequestEnvelope request)
+                      (appendRequestEnvelope queuedRequest)
                       queuedDestination
-                      (by simpa [view_effects, view_effects] using member) with
+                      (by simpa [concrete_effects, concrete_effects] using member) with
                 old | new
               · exact old
               · simp at new)
             known
     · intro member
-      simp [view_effects, view_effects]
+      simp [concrete_effects, concrete_effects]
     · intro evidence supportedPrefix queuedDestination queuedRequest
         known queued sameTerm
       rcases
           memEnqueue
-            state.network (.requestVoteRequest request)
-              (.appendEntriesRequest queuedRequest)
+            state.network (voteRequestEnvelope request)
+              (appendRequestEnvelope queuedRequest)
               queuedDestination
-              (by simpa [view_effects, view_effects] using queued) with
+              (by simpa [concrete_effects, concrete_effects] using queued) with
         old | new
       · exact Or.inl ⟨old, rfl⟩
       · simp at new
@@ -640,34 +621,34 @@ lemma requestVotePreservesSystemInductiveInvariant
         entriesBefore ackMember relaxed
       left
       refine ⟨
-        by simpa [view_effects, view_effects] using role,
-        by simpa [view_effects, view_effects] using newer,
+        by simpa [concrete_effects, concrete_effects] using role,
+        by simpa [concrete_effects, concrete_effects] using newer,
         ?_,
         ?_,
-        by simp [view_effects, view_effects]
+        by simp [concrete_effects, concrete_effects]
       ⟩
       · intro entry entryMember
-        simpa [view_effects, view_effects]
+        simpa [concrete_effects, concrete_effects]
           using entriesBefore entry
-            (by simpa [view_effects, view_effects] using entryMember)
+            (by simpa [concrete_effects, concrete_effects] using entryMember)
       · simp only [
           relaxedElectionVoters, Finset.mem_filter] at relaxed ⊢
         rcases relaxed with ⟨joined, effective | upToDate⟩
         · rw [effectiveElectionVotersEq] at effective
           exact ⟨
-            by simpa [view_effects, view_effects] using joined,
+            by simpa [concrete_effects, concrete_effects] using joined,
             Or.inl effective
           ⟩
         · exact ⟨
-            by simpa [view_effects, view_effects] using joined,
+            by simpa [concrete_effects, concrete_effects] using joined,
             Or.inr
               (by
-                simpa [makeRequestVoteRequest, view_effects, view_effects,
+                simpa [voteRequestKey, Model.Local.makeRequestVoteRequest, concrete_effects, concrete_effects,
                   voteLogUpToDate]
                   using upToDate)
           ⟩
   have configurationFactsAfter :
-      ElectionConfigurationFacts
+      ElectionConfigurationFacts (joined := joinedNodes)
         (requestVoteEffect state source destination)
         elections activations := by
     apply
@@ -682,28 +663,28 @@ lemma requestVotePreservesSystemInductiveInvariant
           elections elections activations
           configurationFacts.supporterCurrentHistory
       · intro candidate
-        simp [view_effects, view_effects]
+        simp [concrete_effects, concrete_effects]
       · intro candidate
-        simp [view_effects, view_effects]
+        simp [concrete_effects, concrete_effects]
       · intro _ _ stored
         exact stored
     · intro candidate role majority
       exact ⟨
-        by simpa [view_effects, view_effects] using role,
-        by simp [view_effects, view_effects],
+        by simpa [concrete_effects, concrete_effects] using role,
+        by simp [concrete_effects, concrete_effects],
         (effectiveElectionMajorityEq candidate).mp majority
       ⟩
     · intro candidate configuration role active
-      simpa [view_effects, view_effects] using active
+      simpa [concrete_effects, concrete_effects] using active
     · intro candidate role entry member
-      simpa [view_effects, view_effects]
+      simpa [concrete_effects, concrete_effects]
         using configurationFacts.candidateEntriesBeforeTerm
           candidate
-          (by simpa [view_effects, view_effects] using role)
+          (by simpa [concrete_effects, concrete_effects] using role)
           entry
-          (by simpa [view_effects, view_effects] using member)
+          (by simpa [concrete_effects, concrete_effects] using member)
   have activationQuorumsAfter :
-      ActivationQuorumFacts
+      ActivationQuorumFacts (joined := joinedNodes)
         (requestVoteEffect state source destination)
         appendHistory responseHistory elections activations := by
     constructor
@@ -713,63 +694,62 @@ lemma requestVotePreservesSystemInductiveInvariant
       have old :=
         activationQuorums.recordBridge
           leader index
-          (by simpa [view_effects, view_effects] using role)
-          (by simpa [view_effects, view_effects] using current)
-          (by simpa [view_effects, view_effects] using signature)
+          (by simpa [concrete_effects, concrete_effects] using role)
+          (by simpa [concrete_effects, concrete_effects] using current)
+          (by simpa [concrete_effects, concrete_effects] using signature)
           ((potentialMajorityEq leader index).mp potential)
           term record recorded
-          (by simpa [view_effects, view_effects] using newer)
-      simpa [view_effects, view_effects] using old
+          (by simpa [concrete_effects, concrete_effects] using newer)
+      simpa [concrete_effects, concrete_effects] using old
     · intro leader index role current signature potential
         candidate candidateRole candidateMajority newer
       have old :=
         activationQuorums.candidateBridge
           leader index
-          (by simpa [view_effects, view_effects] using role)
-          (by simpa [view_effects, view_effects] using current)
-          (by simpa [view_effects, view_effects] using signature)
+          (by simpa [concrete_effects, concrete_effects] using role)
+          (by simpa [concrete_effects, concrete_effects] using current)
+          (by simpa [concrete_effects, concrete_effects] using signature)
           ((potentialMajorityEq leader index).mp potential)
           candidate
-          (by simpa [view_effects, view_effects] using candidateRole)
+          (by simpa [concrete_effects, concrete_effects] using candidateRole)
           ((potentialElectionMajorityEq candidate).mp candidateMajority)
-          (by simpa [view_effects, view_effects] using newer)
-      simpa [view_effects, view_effects] using old
+          (by simpa [concrete_effects, concrete_effects] using newer)
+      simpa [concrete_effects, concrete_effects] using old
     · intro leader index role current signature majority node
       have old :=
         activationQuorums.committedBridge
           leader index
-          (by simpa [view_effects, view_effects] using role)
-          (by simpa [view_effects, view_effects] using current)
-          (by simpa [view_effects, view_effects] using signature)
+          (by simpa [concrete_effects, concrete_effects] using role)
+          (by simpa [concrete_effects, concrete_effects] using current)
+          (by simpa [concrete_effects, concrete_effects] using signature)
           ((effectiveMajorityEq leader index).mp majority)
           node
-      simpa [view_effects, view_effects] using old
+      simpa [concrete_effects, concrete_effects] using old
     · intro left leftIndex leftRole leftCurrent leftSignature leftMajority
         right rightIndex rightRole rightCurrent rightSignature rightMajority
       have old :=
         activationQuorums.potentialBridge
           left leftIndex
-          (by simpa [view_effects, view_effects] using leftRole)
-          (by simpa [view_effects, view_effects] using leftCurrent)
-          (by simpa [view_effects, view_effects] using leftSignature)
+          (by simpa [concrete_effects, concrete_effects] using leftRole)
+          (by simpa [concrete_effects, concrete_effects] using leftCurrent)
+          (by simpa [concrete_effects, concrete_effects] using leftSignature)
           ((effectiveMajorityEq left leftIndex).mp leftMajority)
           right rightIndex
-          (by simpa [view_effects, view_effects] using rightRole)
-          (by simpa [view_effects, view_effects] using rightCurrent)
-          (by simpa [view_effects, view_effects] using rightSignature)
+          (by simpa [concrete_effects, concrete_effects] using rightRole)
+          (by simpa [concrete_effects, concrete_effects] using rightCurrent)
+          (by simpa [concrete_effects, concrete_effects] using rightSignature)
           ((effectiveMajorityEq right rightIndex).mp rightMajority)
-      simpa [view_effects, view_effects] using old
+      simpa [concrete_effects, concrete_effects] using old
     · intro activationIndex activation queuedDestination queuedRequest
         stored queued sameTerm
       have oldQueued :
-          Message.appendEntriesRequest queuedRequest ∈
-            state.network queuedDestination := by
+          (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.appendEntriesRequest queuedRequest)
+              state.network (voteRequestEnvelope request)
+                (appendRequestEnvelope queuedRequest)
                 queuedDestination
-                (by simpa [view_effects, view_effects] using queued) with
+                (by simpa [concrete_effects, concrete_effects] using queued) with
           old | new
         · exact old
         · simp at new
@@ -782,9 +762,9 @@ lemma requestVotePreservesSystemInductiveInvariant
     · exact
         committedConfigurationCoverageFrame
           activationQuorums.committedCoverage
-          (fun node => by simp [view_effects, view_effects])
-          (fun node => by simp [view_effects, view_effects])
-          (fun node => by simp [view_effects, view_effects])
+          (fun node => by simp [concrete_effects, concrete_effects])
+          (fun node => by simp [concrete_effects, concrete_effects])
+          (fun node => by simp [concrete_effects, concrete_effects])
     · apply
         queuedConfigurationCoverageFrame
           activationQuorums.queuedCoverage
@@ -792,10 +772,10 @@ lemma requestVotePreservesSystemInductiveInvariant
       · intro queuedDestination queuedRequest queued
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.appendEntriesRequest queuedRequest)
+              state.network (voteRequestEnvelope request)
+                (appendRequestEnvelope queuedRequest)
                 queuedDestination
-                (by simpa [view_effects, view_effects] using queued) with
+                (by simpa [concrete_effects, concrete_effects] using queued) with
           old | new
         · exact old
         · simp at new
@@ -810,9 +790,9 @@ lemma requestVotePreservesSystemInductiveInvariant
         state (requestVoteEffect state source destination)
           activations activationProgress
     intro candidate
-    simp [view_effects, view_effects]
+    simp [concrete_effects, concrete_effects]
   have activationEvidenceAfter :
-      ActivationEvidenceFacts
+      ActivationEvidenceFacts (joined := joinedNodes)
         (requestVoteEffect state source destination)
         appendHistory responseHistory nodeEvidence requestEvidence
           elections activations := by
@@ -828,31 +808,31 @@ lemma requestVotePreservesSystemInductiveInvariant
         knownCommitEvidenceFrameBack
           state (requestVoteEffect state source destination)
           appendHistory nodeEvidence requestEvidence
-          (fun node => by simp [view_effects, view_effects])
+          (fun node => by simp [concrete_effects, concrete_effects])
           (fun node => by
-            simp [view_effects, view_effects, NodeState.committedLog])
+            simp [concrete_effects, concrete_effects, NodeState.committedLog])
           (fun queuedDestination queuedRequest member => by
             rcases
                 memEnqueue
-                  state.network (.requestVoteRequest request)
-                  (.appendEntriesRequest queuedRequest)
+                  state.network (voteRequestEnvelope request)
+                  (appendRequestEnvelope queuedRequest)
                   queuedDestination
-                  (by simpa [view_effects, view_effects] using member) with
+                  (by simpa [concrete_effects, concrete_effects] using member) with
               old | new
             · exact old
             · simp at new)
           known
     · intro candidate role majority
       exact ⟨
-        by simpa [view_effects, view_effects] using role,
+        by simpa [concrete_effects, concrete_effects] using role,
         (potentialElectionMajorityEq candidate).mp majority
       ⟩
     · intro candidate role
-      simp [view_effects, view_effects]
+      simp [concrete_effects, concrete_effects]
     · intro candidate role
-      simp [view_effects, view_effects]
+      simp [concrete_effects, concrete_effects]
     · intro candidate configuration role active
-      simpa [view_effects, view_effects] using active
+      simpa [concrete_effects, concrete_effects] using active
   have configurationActivationsAfter :
       ConfigurationCoverageFacts
         (requestVoteEffect state source destination) activations := by
@@ -889,21 +869,20 @@ lemma requestVotePreservesSystemInductiveInvariant
     · intro leader role
       exact
         ownership.activeLeader leader
-          (by simpa [view_effects, view_effects] using role)
+          (by simpa [concrete_effects, concrete_effects] using role)
     · intro node index entry found
       exact
         ownership.logEntryAgreement node index entry
-          (by simpa [view_effects, view_effects] using found)
+          (by simpa [concrete_effects, concrete_effects] using found)
     · intro queuedDestination queuedRequest member index entry found
       have oldMember :
-          Message.appendEntriesRequest queuedRequest ∈
-            state.network queuedDestination := by
+          (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.appendEntriesRequest queuedRequest)
+              state.network (voteRequestEnvelope request)
+                (appendRequestEnvelope queuedRequest)
                 queuedDestination
-                (by simpa [view_effects, view_effects] using member) with
+                (by simpa [concrete_effects, concrete_effects] using member) with
           old | new
         · exact old
         · simp at new
@@ -913,21 +892,20 @@ lemma requestVotePreservesSystemInductiveInvariant
     · intro leader role
       exact
         ownership.activeLeaderHistory leader
-          (by simpa [view_effects, view_effects] using role)
+          (by simpa [concrete_effects, concrete_effects] using role)
     · exact ownership.canonicalEntryOwner
     · exact ownership.canonicalMonoLog
     · intro term owner owned
-      simpa [view_effects, view_effects] using ownership.ownerProgress term owner owned
+      simpa [concrete_effects, concrete_effects] using ownership.ownerProgress term owner owned
     · intro queuedDestination queuedRequest member
       have oldMember :
-          Message.appendEntriesRequest queuedRequest ∈
-            state.network queuedDestination := by
+          (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.appendEntriesRequest queuedRequest)
+              state.network (voteRequestEnvelope request)
+                (appendRequestEnvelope queuedRequest)
                 queuedDestination
-                (by simpa [view_effects, view_effects] using member) with
+                (by simpa [concrete_effects, concrete_effects] using member) with
           old | new
         · exact old
         · simp at new
@@ -936,22 +914,21 @@ lemma requestVotePreservesSystemInductiveInvariant
           queuedDestination queuedRequest oldMember
     · intro queuedDestination queuedRequest member sameTerm leaderRole
       have oldMember :
-          Message.appendEntriesRequest queuedRequest ∈
-            state.network queuedDestination := by
+          (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.appendEntriesRequest queuedRequest)
+              state.network (voteRequestEnvelope request)
+                (appendRequestEnvelope queuedRequest)
                 queuedDestination
-                (by simpa [view_effects, view_effects] using member) with
+                (by simpa [concrete_effects, concrete_effects] using member) with
           old | new
         · exact old
         · simp at new
       exact
         ownership.queuedActiveSourceHistory
           queuedDestination queuedRequest oldMember
-            (by simpa [view_effects, view_effects] using sameTerm)
-            (by simpa [view_effects, view_effects] using leaderRole)
+            (by simpa [concrete_effects, concrete_effects] using sameTerm)
+            (by simpa [concrete_effects, concrete_effects] using leaderRole)
     · apply
         electionHistoryFrame
           state (requestVoteEffect state source destination)
@@ -968,9 +945,9 @@ lemma requestVotePreservesSystemInductiveInvariant
           state (requestVoteEffect state source destination)
             canonicalHistory canonicalHistory
             voteCandidateHistory voteVoterHistory voteCanonicalFacts
-            (fun candidate _ => by simp [view_effects, view_effects])
+            (fun candidate _ => by simp [concrete_effects, concrete_effects])
       · intro candidate active
-        simpa [view_effects, view_effects] using active
+        simpa [concrete_effects, concrete_effects] using active
       · intro candidate voter _ member
         rw [effectiveElectionVotersEq] at member
         exact member
@@ -981,14 +958,13 @@ lemma requestVotePreservesSystemInductiveInvariant
     · exact temporalFacts.2.2
     · intro queuedDestination queuedRequest queued record recorded
       have oldMember :
-          Message.appendEntriesRequest queuedRequest ∈
-            state.network queuedDestination := by
+          (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.appendEntriesRequest queuedRequest)
+              state.network (voteRequestEnvelope request)
+                (appendRequestEnvelope queuedRequest)
                 queuedDestination
-                (by simpa [view_effects, view_effects] using queued) with
+                (by simpa [concrete_effects, concrete_effects] using queued) with
           old | new
         · exact old
         · simp at new
@@ -997,74 +973,73 @@ lemma requestVotePreservesSystemInductiveInvariant
           queuedDestination queuedRequest oldMember record recorded
   · intro candidate voter active member
     have oldActive :
-        (state.nodes candidate).role = .candidate \/
-          (state.nodes candidate).role = .leader := by
-      simpa [view_effects, view_effects] using active
+        ((nodeOf state) candidate).role = .candidate \/
+          ((nodeOf state) candidate).role = .leader := by
+      simpa [concrete_effects, concrete_effects] using active
     have oldMember :
-        voter ∈ effectiveElectionVoters state candidate := by
+        voter ∈ effectiveElectionVoters (joined := joinedNodes) state candidate := by
       rw [effectiveElectionVotersEq] at member
       exact member
-    simpa [view_effects, view_effects]
+    simpa [concrete_effects, concrete_effects]
       using facts.grantedVoteSnapshots candidate voter oldActive oldMember
   · refine ⟨ackHistory, ?_⟩
     constructor
     · intro leader role peer zero
       exact
         ackFacts.zero leader
-          (by simpa [view_effects, view_effects] using role)
-          peer (by simpa [view_effects, view_effects] using zero)
+          (by simpa [concrete_effects, concrete_effects] using role)
+          peer (by simpa [concrete_effects, concrete_effects] using zero)
     · intro leader role peer positive
       rcases
           ackFacts.positive leader
-            (by simpa [view_effects, view_effects] using role)
-            peer (by simpa [view_effects, view_effects] using positive) with
+            (by simpa [concrete_effects, concrete_effects] using role)
+            peer (by simpa [concrete_effects, concrete_effects] using positive) with
         ⟨snapshot, stored, snapshotTerm, snapshotIndex,
           historyBound, agreed⟩
       exact ⟨
         snapshot,
         stored,
-        by simpa [view_effects, view_effects] using snapshotTerm,
-        by simpa [view_effects, view_effects] using snapshotIndex,
+        by simpa [concrete_effects, concrete_effects] using snapshotTerm,
+        by simpa [concrete_effects, concrete_effects] using snapshotIndex,
         historyBound,
-        by simpa [view_effects, view_effects] using agreed
+        by simpa [concrete_effects, concrete_effects] using agreed
       ⟩
   · constructor
     · intro node peer member
-      simpa [view_effects, view_effects]
+      simpa [concrete_effects, concrete_effects]
         using facts.joinedCarriers.activeNodes node member
     · intro node configuration member peer inNodes
       exact
         facts.joinedCarriers.configurationNodes node configuration
-          (by simpa [view_effects, view_effects] using member)
-          (by simpa [view_effects, view_effects] using inNodes)
+          (by simpa [concrete_effects, concrete_effects] using member)
+          (by simpa [concrete_effects, concrete_effects] using inNodes)
     · intro node peer member
-      simpa [view_effects, view_effects]
+      simpa [concrete_effects, concrete_effects]
         using facts.joinedCarriers.grantedVotes node member
     · intro queuedDestination queuedRequest member
       rcases
           memEnqueue
-            state.network (.requestVoteRequest request)
-              (.requestVoteRequest queuedRequest) queuedDestination
-              (by simpa [view_effects, view_effects, request] using member) with
+            state.network (voteRequestEnvelope request)
+              (voteRequestEnvelope queuedRequest) queuedDestination
+              (by simpa [concrete_effects, concrete_effects, request] using member) with
         old | new
       · exact
           facts.joinedCarriers.voteRequestDestinations
             queuedDestination queuedRequest old
       · rcases new with ⟨destinationEq, requestEq⟩
-        simp at requestEq
+        simp only [voteRequestEnvelope.injEq] at requestEq
         subst queuedRequest
         rw [destinationEq]
         exact
           facts.joinedCarriers.activeNodes source enabled.2.2.2.2
     · intro queuedDestination queuedRequest member
       have old :
-          Message.appendEntriesRequest queuedRequest ∈
-            state.network queuedDestination := by
+          (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.appendEntriesRequest queuedRequest) queuedDestination
-                (by simpa [view_effects, view_effects, request] using member) with
+              state.network (voteRequestEnvelope request)
+                (appendRequestEnvelope queuedRequest) queuedDestination
+                (by simpa [concrete_effects, concrete_effects, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -1074,13 +1049,12 @@ lemma requestVotePreservesSystemInductiveInvariant
     · intro queuedDestination queuedRequest member configuration configured
         peer inNodes
       have old :
-          Message.appendEntriesRequest queuedRequest ∈
-            state.network queuedDestination := by
+          (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.appendEntriesRequest queuedRequest) queuedDestination
-                (by simpa [view_effects, view_effects, request] using member) with
+              state.network (voteRequestEnvelope request)
+                (appendRequestEnvelope queuedRequest) queuedDestination
+                (by simpa [concrete_effects, concrete_effects, request] using member) with
           old | new
         · exact old
         · simp at new
@@ -1090,46 +1064,44 @@ lemma requestVotePreservesSystemInductiveInvariant
             inNodes
     · intro queuedDestination response member
       have old :
-          Message.requestVoteResponse response ∈
-            state.network queuedDestination := by
+          (voteResponseEnvelope response ∈ state.network /\ response.2.1 = queuedDestination) := by
         rcases
             memEnqueue
-              state.network (.requestVoteRequest request)
-                (.requestVoteResponse response) queuedDestination
-                (by simpa [view_effects, view_effects, request] using member) with
+              state.network (voteRequestEnvelope request)
+                (voteResponseEnvelope response) queuedDestination
+                (by simpa [concrete_effects, concrete_effects, request] using member) with
           old | new
         · exact old
         · simp at new
-      simpa [view_effects, view_effects]
+      simpa [concrete_effects, concrete_effects]
         using facts.joinedCarriers.voteResponseSources queuedDestination response old
     · constructor
       · intro node active
-        simpa [view_effects, view_effects]
+        simpa [concrete_effects, concrete_effects]
           using facts.joinedCarriers.runtimeNodes.activeRoles node
-            (by simpa [view_effects, view_effects] using active)
+            (by simpa [concrete_effects, concrete_effects] using active)
       · intro leader peer positive
-        simpa [view_effects, view_effects]
+        simpa [concrete_effects, concrete_effects]
           using facts.joinedCarriers.runtimeNodes.positiveMatches leader peer
-            (by simpa [view_effects, view_effects] using positive)
+            (by simpa [concrete_effects, concrete_effects] using positive)
       · intro queuedDestination response member
         have old :
-            Message.appendEntriesResponse response ∈
-              state.network queuedDestination := by
+            (appendResponseEnvelope response ∈ state.network /\ response.2.1 = queuedDestination) := by
           rcases
               memEnqueue
-                state.network (.requestVoteRequest request)
-                  (.appendEntriesResponse response) queuedDestination
-                  (by simpa [view_effects, view_effects, request] using member) with
+                state.network (voteRequestEnvelope request)
+                  (appendResponseEnvelope response) queuedDestination
+                  (by simpa [concrete_effects, concrete_effects, request] using member) with
             old | new
           · exact old
           · simp at new
-        simpa [view_effects, view_effects]
+        simpa [concrete_effects, concrete_effects]
           using facts.joinedCarriers.runtimeNodes.appendResponses
             queuedDestination response old
       · intro node nonempty
-        simpa [view_effects, view_effects]
+        simpa [concrete_effects, concrete_effects]
           using facts.joinedCarriers.runtimeNodes.nonemptyLogs node
-            (by simpa [view_effects, view_effects] using nonempty)
+            (by simpa [concrete_effects, concrete_effects] using nonempty)
   · exact
       AllocatedNodesExactlyJoined.frame
         facts.allocatedNodesExactlyJoined
@@ -1137,9 +1109,9 @@ lemma requestVotePreservesSystemInductiveInvariant
         rfl
 
   · exact facts.currentTermsValid
-  · simpa only [NetworkTermsValid, view_effects, view_effects]
+  · simpa only [NetworkTermsValid, concrete_effects, concrete_effects]
       using (networkTermsValidEnqueue
-              (message := .requestVoteRequest request)
+              (message := voteRequestEnvelope request)
               facts.networkTermsValid (facts.currentTermsValid source))
 
 end CCFRaft.Proofs.Invariant

@@ -11,37 +11,26 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
+open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
+variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-attribute [local simp] Message.destination ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /-- Observing a queued newer term steps down without changing log history. -/
 lemma updateTermPreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (destination : Node)
-    (selected : Message Node TxId)
-    (invariant : SystemInductiveInvariant state)
-    (selectedMember : selected ∈ state.network destination)
-    (newer : (state.nodes destination).currentTerm < selected.term)
-    : SystemInductiveInvariant (observeTermEffect state destination selected.term) := by
+    {present : destination ∈ state.nodes.map Prod.fst}
+    (selected : Model.Envelope Node TxId)
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
+    (selectedMember : selected ∈ state.network ∧ selected.target = destination)
+    (newer : ((nodeOf state) destination).currentTerm < selected.payload.term)
+    : SystemInductiveInvariant (joined := joinedNodes) (observeTermEffect state destination selected.payload.term) := by
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
@@ -67,135 +56,135 @@ lemma updateTermPreservesSystemInductiveInvariant
       exact voted
     · intro _ _ _ _ retained
       exact retained
-  have selectedTermBound : BOOTSTRAP_TERM <= selected.term := by
+  have selectedTermBound : BOOTSTRAP_TERM <= selected.payload.term := by
     rcases facts.networkTermsValid destination selected selectedMember with
       zero | bound
     · simp [zero] at newer
     · exact bound
   have roleDestination :
-      ((observeTermEffect state destination selected.term).nodes destination).role =
+      ((nodeOf (observeTermEffect state destination selected.payload.term)) destination).role =
         .follower := by
-    simp [view_effects]
+    simp [concrete_effects, updateTerm, newer, present]
   have termDestination :
-      ((observeTermEffect state destination selected.term).nodes destination).currentTerm =
-        selected.term := by
-    simp [view_effects]
+      ((nodeOf (observeTermEffect state destination selected.payload.term)) destination).currentTerm =
+        selected.payload.term := by
+    simp [concrete_effects, updateTerm, newer, present]
   have votedDestination :
-      ((observeTermEffect state destination selected.term).nodes destination).votedFor =
+      ((nodeOf (observeTermEffect state destination selected.payload.term)) destination).votedFor =
         none := by
-    simp [view_effects]
+    simp [concrete_effects, updateTerm, newer, present]
   have roleOther :
       forall node,
         Not (node = destination) ->
-        ((observeTermEffect state destination selected.term).nodes node).role =
-          (state.nodes node).role := by
+        ((nodeOf (observeTermEffect state destination selected.payload.term)) node).role =
+          ((nodeOf state) node).role := by
     intro node different
     simp [
-      view_effects, updateNode, different
+      concrete_effects, updateTerm, newer, present, nodeOf_replaceNode, different
     ]
   have termOther :
       forall node,
         Not (node = destination) ->
-        ((observeTermEffect state destination selected.term).nodes node).currentTerm =
-          (state.nodes node).currentTerm := by
+        ((nodeOf (observeTermEffect state destination selected.payload.term)) node).currentTerm =
+          ((nodeOf state) node).currentTerm := by
     intro node different
     simp [
-      view_effects, updateNode, different
+      concrete_effects, updateTerm, newer, present, nodeOf_replaceNode, different
     ]
   have votedOther :
       forall node,
         Not (node = destination) ->
-        ((observeTermEffect state destination selected.term).nodes node).votedFor =
-          (state.nodes node).votedFor := by
+        ((nodeOf (observeTermEffect state destination selected.payload.term)) node).votedFor =
+          ((nodeOf state) node).votedFor := by
     intro node different
     simp [
-      view_effects, updateNode, different
+      concrete_effects, updateTerm, newer, present, nodeOf_replaceNode, different
     ]
   have logEq :
       forall node,
-        ((observeTermEffect state destination selected.term).nodes node).log =
-          (state.nodes node).log := by
+        ((nodeOf (observeTermEffect state destination selected.payload.term)) node).log =
+          ((nodeOf state) node).log := by
     intro node
     by_cases same : node = destination <;>
       simp [
-        view_effects, updateNode, same
+        concrete_effects, updateTerm, newer, present, nodeOf_replaceNode, same
       ]
   have commitEq :
       forall node,
-        ((observeTermEffect state destination selected.term).nodes node).commitIndex =
-          (state.nodes node).commitIndex := by
+        ((nodeOf (observeTermEffect state destination selected.payload.term)) node).commitIndex =
+          ((nodeOf state) node).commitIndex := by
     intro node
     by_cases same : node = destination <;>
       simp [
-        view_effects, updateNode, same
+        concrete_effects, updateTerm, newer, present, nodeOf_replaceNode, same
       ]
   have lastIndexEq :
       forall node,
         lastCommittableIndex
-            ((observeTermEffect state destination selected.term).nodes node) =
-          lastCommittableIndex (state.nodes node) := by
+            ((nodeOf (observeTermEffect state destination selected.payload.term)) node) =
+          lastCommittableIndex ((nodeOf state) node) := by
     intro node
     exact lastCommittableIndexFrame (logEq node) (commitEq node)
   have lastTermEq :
       forall node,
         lastCommittableTerm
-            ((observeTermEffect state destination selected.term).nodes node) =
-          lastCommittableTerm (state.nodes node) := by
+            ((nodeOf (observeTermEffect state destination selected.payload.term)) node) =
+          lastCommittableTerm ((nodeOf state) node) := by
     intro node
     exact lastCommittableTermFrame (logEq node) (commitEq node)
   have committedEq :
       forall node,
-        ((observeTermEffect state destination selected.term).nodes node).committedLog =
-          (state.nodes node).committedLog := by
+        ((nodeOf (observeTermEffect state destination selected.payload.term)) node).committedLog =
+          ((nodeOf state) node).committedLog := by
     intro node
     simp [NodeState.committedLog, commitEq, logEq]
   have activeConfigurationsEq :
       forall node,
         activeConfigurations
-            ((observeTermEffect state destination selected.term).nodes node) =
-          activeConfigurations (state.nodes node) := by
+            ((nodeOf (observeTermEffect state destination selected.payload.term)) node) =
+          activeConfigurations ((nodeOf state) node) := by
     intro node
     unfold activeConfigurations currentConfiguration
     rw [logEq, commitEq]
   have sentEq :
       forall node,
-        ((observeTermEffect state destination selected.term).nodes node).sentIndex =
-          (state.nodes node).sentIndex := by
+        ((nodeOf (observeTermEffect state destination selected.payload.term)) node).sentIndex =
+          ((nodeOf state) node).sentIndex := by
     intro node
     by_cases same : node = destination <;>
       simp [
-        view_effects, updateNode, same
+        concrete_effects, updateTerm, newer, present, nodeOf_replaceNode, same
       ]
   have matchEq :
       forall node,
-        ((observeTermEffect state destination selected.term).nodes node).matchIndex =
-          (state.nodes node).matchIndex := by
+        ((nodeOf (observeTermEffect state destination selected.payload.term)) node).matchIndex =
+          ((nodeOf state) node).matchIndex := by
     intro node
     by_cases same : node = destination <;>
       simp [
-        view_effects, updateNode, same
+        concrete_effects, updateTerm, newer, present, nodeOf_replaceNode, same
       ]
   have votesEq :
       forall node,
-        ((observeTermEffect state destination selected.term).nodes node).votesGranted =
-          (state.nodes node).votesGranted := by
+        ((nodeOf (observeTermEffect state destination selected.payload.term)) node).votesGranted =
+          ((nodeOf state) node).votesGranted := by
     intro node
     by_cases same : node = destination <;>
       simp [
-        view_effects, updateNode, same
+        concrete_effects, updateTerm, newer, present, nodeOf_replaceNode, same
       ]
   have networkEq :
-      (observeTermEffect state destination selected.term).network =
+      (observeTermEffect state destination selected.payload.term).network =
         state.network := by
-    simp [view_effects]
+    simp [concrete_effects, updateTerm, newer, present]
   have effectiveAckersEq :
       forall leader,
         Not (leader = destination) ->
           forall index,
-            effectiveAckers
-                (observeTermEffect state destination selected.term)
+            effectiveAckers (joined := joinedNodes)
+                (observeTermEffect state destination selected.payload.term)
                 responseHistory leader index =
-              effectiveAckers state responseHistory leader index := by
+              effectiveAckers (joined := joinedNodes) state responseHistory leader index := by
     intro leader leaderNe index
     ext peer
     simp only [
@@ -203,15 +192,15 @@ lemma updateTermPreservesSystemInductiveInvariant
     constructor
     · rintro ⟨joined, self | matched | queued⟩
       · exact ⟨
-          by simpa [view_effects] using joined,
+          by simpa [concrete_effects, updateTerm, newer, present] using joined,
           Or.inl self
         ⟩
       · exact ⟨
-          by simpa [view_effects] using joined,
+          by simpa [concrete_effects, updateTerm, newer, present] using joined,
           Or.inr (Or.inl (by simpa [matchEq] using matched))
         ⟩
       · refine ⟨
-          by simpa [view_effects] using joined,
+          by simpa [concrete_effects, updateTerm, newer, present] using joined,
           Or.inr (Or.inr ?_)
         ⟩
         rcases queued with
@@ -229,15 +218,15 @@ lemma updateTermPreservesSystemInductiveInvariant
         ⟩
     · rintro ⟨joined, self | matched | queued⟩
       · exact ⟨
-          by simpa [view_effects] using joined,
+          by simpa [concrete_effects, updateTerm, newer, present] using joined,
           Or.inl self
         ⟩
       · exact ⟨
-          by simpa [view_effects] using joined,
+          by simpa [concrete_effects, updateTerm, newer, present] using joined,
           Or.inr (Or.inl (by simpa [matchEq] using matched))
         ⟩
       · refine ⟨
-          by simpa [view_effects] using joined,
+          by simpa [concrete_effects, updateTerm, newer, present] using joined,
           Or.inr (Or.inr ?_)
         ⟩
         rcases queued with
@@ -257,10 +246,10 @@ lemma updateTermPreservesSystemInductiveInvariant
       forall leader,
         Not (leader = destination) ->
           forall index,
-            hasEffectiveMajorityAt
-                (observeTermEffect state destination selected.term)
+            hasEffectiveMajorityAt (joined := joinedNodes)
+                (observeTermEffect state destination selected.payload.term)
                 responseHistory leader index ↔
-              hasEffectiveMajorityAt state responseHistory leader index := by
+              hasEffectiveMajorityAt (joined := joinedNodes) state responseHistory leader index := by
     intro leader leaderNe index
     simp only [
       hasEffectiveMajorityAt, activeConfigurationsEq,
@@ -269,9 +258,9 @@ lemma updateTermPreservesSystemInductiveInvariant
   have effectiveElectionVotersEq :
       forall candidate,
         Not (candidate = destination) ->
-          effectiveElectionVoters
-              (observeTermEffect state destination selected.term) candidate =
-            effectiveElectionVoters state candidate := by
+          effectiveElectionVoters (joined := joinedNodes)
+              (observeTermEffect state destination selected.payload.term) candidate =
+            effectiveElectionVoters (joined := joinedNodes) state candidate := by
     intro candidate candidateNe
     ext voter
     simp only [
@@ -279,11 +268,11 @@ lemma updateTermPreservesSystemInductiveInvariant
     constructor
     · rintro ⟨joined, processed | queued⟩
       · exact ⟨
-          by simpa [view_effects] using joined,
+          by simpa [concrete_effects, updateTerm, newer, present] using joined,
           Or.inl (by simpa [votesEq] using processed)
         ⟩
       · refine ⟨
-          by simpa [view_effects] using joined,
+          by simpa [concrete_effects, updateTerm, newer, present] using joined,
           Or.inr ?_
         ⟩
         rcases queued with
@@ -299,11 +288,11 @@ lemma updateTermPreservesSystemInductiveInvariant
         ⟩
     · rintro ⟨joined, processed | queued⟩
       · exact ⟨
-          by simpa [view_effects] using joined,
+          by simpa [concrete_effects, updateTerm, newer, present] using joined,
           Or.inl (by simpa [votesEq] using processed)
         ⟩
       · refine ⟨
-          by simpa [view_effects] using joined,
+          by simpa [concrete_effects, updateTerm, newer, present] using joined,
           Or.inr ?_
         ⟩
         rcases queued with
@@ -320,9 +309,9 @@ lemma updateTermPreservesSystemInductiveInvariant
   have effectiveElectionMajorityEq :
       forall candidate,
         Not (candidate = destination) ->
-          (hasEffectiveElectionMajority
-              (observeTermEffect state destination selected.term) candidate ↔
-            hasEffectiveElectionMajority state candidate) := by
+          (hasEffectiveElectionMajority (joined := joinedNodes)
+              (observeTermEffect state destination selected.payload.term) candidate ↔
+            hasEffectiveElectionMajority (joined := joinedNodes) state candidate) := by
     intro candidate candidateNe
     simp only [
       hasEffectiveElectionMajority, activeConfigurationsEq,
@@ -332,23 +321,23 @@ lemma updateTermPreservesSystemInductiveInvariant
       forall leader,
         Not (leader = destination) ->
           forall index,
-            potentialAckers
-                (observeTermEffect state destination selected.term)
+            potentialAckers (joined := joinedNodes)
+                (observeTermEffect state destination selected.payload.term)
                 appendHistory responseHistory leader index ⊆
-              potentialAckers
+              potentialAckers (joined := joinedNodes)
                 state appendHistory responseHistory leader index := by
     intro leader leaderNe index peer member
     simp only [
       potentialAckers, Finset.mem_filter] at member ⊢
     rcases member with ⟨joined, effective | reserve⟩
     · exact ⟨
-        by simpa [view_effects] using joined,
+        by simpa [concrete_effects, updateTerm, newer, present] using joined,
         Or.inl
           (by
             rw [effectiveAckersEq leader leaderNe index] at effective
             exact effective)
       ⟩
-    · refine ⟨by simpa [view_effects] using joined, Or.inr ?_⟩
+    · refine ⟨by simpa [concrete_effects, updateTerm, newer, present] using joined, Or.inr ?_⟩
       rcases reserve with
         ⟨request, queued, requestSource, requestDestination,
           requestTerm, producible, covered⟩
@@ -363,21 +352,21 @@ lemma updateTermPreservesSystemInductiveInvariant
         by simpa [logEq] using covered
       ⟩
       by_cases peerEq : peer = destination
-      · have destinationEq : request.destination = destination :=
+      · have destinationEq : request.2.1 = destination :=
           requestDestinationEq.trans peerEq
         rcases producible with direct | future
         · rcases direct with
             ⟨nextNode, response, handled, success, acknowledged⟩
           have localPost :=
-            handleAppendEntriesRequestLocalPost handled
+            acceptAppendEntriesRequestLocalPost handled
           have requestCurrent :
-              request.term = selected.term := by
+              request.2.2.term = selected.payload.term := by
             calc
-              request.term
-                  = ((observeTermEffect state destination selected.term).nodes
+              request.2.2.term
+                  = ((nodeOf (observeTermEffect state destination selected.payload.term))
                       peer).currentTerm := by
                 exact localPost.successfulCurrentTerm success
-              _ = selected.term := by
+              _ = selected.payload.term := by
                 rw [peerEq]
                 exact termDestination
           exact Or.inr
@@ -394,17 +383,17 @@ lemma updateTermPreservesSystemInductiveInvariant
                   ] using future.1),
               future.2⟩
       · simpa [
-          view_effects, updateNode,
+          concrete_effects, updateTerm, newer, present, nodeOf_replaceNode,
           Function.update, peerEq
         ] using producible
   have potentialMajorityBack :
       forall leader,
         Not (leader = destination) ->
           forall index,
-            hasPotentialMajorityAt
-                (observeTermEffect state destination selected.term)
+            hasPotentialMajorityAt (joined := joinedNodes)
+                (observeTermEffect state destination selected.payload.term)
                 appendHistory responseHistory leader index ->
-              hasPotentialMajorityAt
+              hasPotentialMajorityAt (joined := joinedNodes)
                 state appendHistory responseHistory leader index := by
     intro leader leaderNe index majority
     rw [hasPotentialMajorityAt, List.all_eq_true] at majority
@@ -415,7 +404,7 @@ lemma updateTermPreservesSystemInductiveInvariant
     have afterActive :
         configuration ∈
           activeConfigurations
-            ((observeTermEffect state destination selected.term).nodes
+            ((nodeOf (observeTermEffect state destination selected.payload.term))
               leader) := by
       simpa [activeConfigurationsEq] using active
     exact
@@ -425,8 +414,8 @@ lemma updateTermPreservesSystemInductiveInvariant
           (majority configuration afterActive)) governs)
   have termMonotone :
       forall node,
-        (state.nodes node).currentTerm <=
-          ((observeTermEffect state destination selected.term).nodes
+        ((nodeOf state) node).currentTerm <=
+          ((nodeOf (observeTermEffect state destination selected.payload.term))
             node).currentTerm := by
     intro node
     by_cases nodeEq : node = destination
@@ -436,14 +425,14 @@ lemma updateTermPreservesSystemInductiveInvariant
     · exact Nat.le_of_eq (termOther node nodeEq).symm
   have voteFactsAfter :
       VoteHistoryFacts
-        (observeTermEffect state destination selected.term) votes := by
+        (observeTermEffect state destination selected.payload.term) votes := by
     constructor
     · exact facts.voteHistory.bootstrapEmpty
     · intro voter
       by_cases voterEq : voter = destination
       · subst voter
         rw [termDestination, votedDestination]
-        exact facts.voteHistory.future destination selected.term newer
+        exact facts.voteHistory.future destination selected.payload.term newer
       · rw [termOther voter voterEq, votedOther voter voterEq]
         exact facts.voteHistory.current voter
     · intro voter term future
@@ -470,7 +459,7 @@ lemma updateTermPreservesSystemInductiveInvariant
       exact facts.voteHistory.counted candidate voter active member
   have temporalFacts :=
     ackerTemporalFrameSameLogs
-      state (observeTermEffect state destination selected.term)
+      state (observeTermEffect state destination selected.payload.term)
         votes votes responseHistory voteVoterHistory elections
         ackerCurrentFacts ackerVoteFacts ackerElectionFacts
         (fun leader role => by
@@ -579,46 +568,46 @@ lemma updateTermPreservesSystemInductiveInvariant
     · intro queuedDestination response member success
       rw [networkEq] at member
       have responseDestination :
-          response.destination = queuedDestination := by
+          response.2.1 = queuedDestination := by
         simpa using
           facts.networkHistory.addressed
-            queuedDestination (.appendEntriesResponse response) member
+            queuedDestination (appendResponseEnvelope response) member
       subst queuedDestination
       rcases
           facts.networkHistory.appendResponse
-            response.destination response member success with
+            response.2.1 response member success with
         ⟨lengthBound, termBound, supported⟩
       refine ⟨lengthBound, ?_, ?_⟩
-      · by_cases destinationEq : response.destination = destination
+      · by_cases destinationEq : response.2.1 = destination
         · rw [destinationEq, termDestination]
           exact Nat.le_trans (by simpa [destinationEq] using termBound) newer.le
-        · simpa [termOther response.destination destinationEq] using termBound
+        · simpa [termOther response.2.1 destinationEq] using termBound
       intro sameTerm
-      by_cases destinationEq : response.destination = destination
+      by_cases destinationEq : response.2.1 = destination
       · have impossibleOldTerm :
-            response.term >
-              (state.nodes response.destination).currentTerm := by
+            response.2.2.term >
+              ((nodeOf state) response.2.1).currentTerm := by
           rw [destinationEq, termDestination] at sameTerm
           rw [destinationEq]
           omega
         exact False.elim (Nat.not_lt_of_ge termBound impossibleOldTerm)
       · have oldTerm :
-            response.term =
-              (state.nodes response.destination).currentTerm := by
-          simpa [termOther response.destination destinationEq] using sameTerm
+            response.2.2.term =
+              ((nodeOf state) response.2.1).currentTerm := by
+          simpa [termOther response.2.1 destinationEq] using sameTerm
         rcases supported oldTerm with active | follower | preVoteCandidate
         · exact Or.inl
             ⟨by
-                simpa [roleOther response.destination destinationEq] using
+                simpa [roleOther response.2.1 destinationEq] using
                   active.1,
               by simpa [logEq] using active.2⟩
         · exact Or.inr
             (Or.inl (by
-              simpa [roleOther response.destination destinationEq] using
+              simpa [roleOther response.2.1 destinationEq] using
                 follower))
         · exact Or.inr
             (Or.inr (by
-              simpa [roleOther response.destination destinationEq] using
+              simpa [roleOther response.2.1 destinationEq] using
                 preVoteCandidate))
     · intro queuedDestination request member
       rw [networkEq] at member
@@ -628,28 +617,28 @@ lemma updateTermPreservesSystemInductiveInvariant
         ⟨lastIndex, lastTerm, maxIndex,
           aboveBootstrap, termBound, activePrefix⟩
       refine ⟨lastIndex, lastTerm, maxIndex, aboveBootstrap, ?_, ?_⟩
-      · by_cases sourceEq : request.source = destination
+      · by_cases sourceEq : request.1 = destination
         · have oldBound :
-              request.term <=
-                (state.nodes destination).currentTerm := by
+              request.2.2.term <=
+                ((nodeOf state) destination).currentTerm := by
             simpa [sourceEq] using termBound
           rw [sourceEq, termDestination]
           exact Nat.le_trans oldBound newer.le
-        · simpa [termOther request.source sourceEq] using termBound
+        · simpa [termOther request.1 sourceEq] using termBound
       · intro sameTerm active
-        by_cases sourceEq : request.source = destination
+        by_cases sourceEq : request.1 = destination
         · have oldBound :
-              request.term <=
-                (state.nodes destination).currentTerm := by
+              request.2.2.term <=
+                ((nodeOf state) destination).currentTerm := by
             simpa [sourceEq] using termBound
           have newSame :
-              request.term = selected.term := by
+              request.2.2.term = selected.payload.term := by
             simpa [sourceEq, termDestination] using sameTerm
           omega
         · have oldPrefix :=
             activePrefix
-              (by simpa [termOther request.source sourceEq] using sameTerm)
-              (by simpa [roleOther request.source sourceEq] using active)
+              (by simpa [termOther request.1 sourceEq] using sameTerm)
+              (by simpa [roleOther request.1 sourceEq] using active)
           simpa [logEq] using oldPrefix
     · intro queuedDestination response member granted
       rw [networkEq] at member
@@ -659,23 +648,23 @@ lemma updateTermPreservesSystemInductiveInvariant
         ⟨oldBound, oldVote, upToDate⟩
       refine ⟨?_, oldVote, ?_⟩
       · by_cases responseDestinationEq :
-            response.destination = destination
+            response.2.1 = destination
         · rw [responseDestinationEq, termDestination]
           exact
             Nat.le_trans
               (by simpa [responseDestinationEq] using oldBound)
               newer.le
         · simpa [
-            termOther response.destination responseDestinationEq
+            termOther response.2.1 responseDestinationEq
           ] using oldBound
       · simpa [voteLogUpToDate] using upToDate
   have evidenceAfter :
       CommitEvidenceFacts
-        (observeTermEffect state destination selected.term)
+        (observeTermEffect state destination selected.payload.term)
         appendHistory nodeEvidence requestEvidence := by
     apply
       commitEvidenceFrame
-        state (observeTermEffect state destination selected.term)
+        state (observeTermEffect state destination selected.payload.term)
         appendHistory nodeEvidence requestEvidence evidenceFacts
         commitEq committedEq
     · intro node
@@ -685,25 +674,25 @@ lemma updateTermPreservesSystemInductiveInvariant
         exact newer.le
       · exact Nat.le_of_eq (termOther node nodeEq).symm
     · intro queuedDestination request member
-      simpa [view_effects] using member
+      simpa [concrete_effects, updateTerm, newer, present] using member
   have prospectiveAfter :
-      ProspectiveCommitEvidenceFacts
-        (observeTermEffect state destination selected.term)
+      ProspectiveCommitEvidenceFacts (joined := joinedNodes)
+        (observeTermEffect state destination selected.payload.term)
         appendHistory nodeEvidence requestEvidence elections := by
     apply
       prospectiveCommitEvidenceFrame
-        state (observeTermEffect state destination selected.term)
+        state (observeTermEffect state destination selected.payload.term)
           appendHistory appendHistory
           nodeEvidence nodeEvidence requestEvidence requestEvidence
             elections prospectiveFacts
     · intro evidence supportedPrefix known
       exact
         knownCommitEvidenceFrameBack
-          state (observeTermEffect state destination selected.term)
+          state (observeTermEffect state destination selected.payload.term)
             appendHistory nodeEvidence requestEvidence
             commitEq committedEq
             (fun queuedDestination request member => by
-              simpa [view_effects] using member)
+              simpa [concrete_effects, updateTerm, newer, present] using member)
             known
     · intro member
       simp [logEq]
@@ -711,7 +700,7 @@ lemma updateTermPreservesSystemInductiveInvariant
         known queued sameTerm
       left
       exact ⟨
-        by simpa [view_effects] using queued,
+        by simpa [concrete_effects, updateTerm, newer, present] using queued,
         rfl
       ⟩
     · intro evidence supportedPrefix candidate member known role
@@ -736,17 +725,17 @@ lemma updateTermPreservesSystemInductiveInvariant
         rcases relaxed with ⟨joined, effective | supporter⟩
         · rw [effectiveElectionVotersEq candidate candidateNe] at effective
           exact ⟨
-            by simpa [view_effects] using joined,
+            by simpa [concrete_effects, updateTerm, newer, present] using joined,
             Or.inl effective
           ⟩
         · refine ⟨
-            by simpa [view_effects] using joined,
+            by simpa [concrete_effects, updateTerm, newer, present] using joined,
             Or.inr ⟨?_, ?_⟩
           ⟩
           · by_cases memberEq : member = destination
             · have oldTermLe :
-                  (state.nodes destination).currentTerm <=
-                    ((observeTermEffect state destination selected.term).nodes
+                  ((nodeOf state) destination).currentTerm <=
+                    ((nodeOf (observeTermEffect state destination selected.payload.term))
                         destination).currentTerm := by
                 rw [termDestination]
                 exact newer.le
@@ -757,7 +746,7 @@ lemma updateTermPreservesSystemInductiveInvariant
             · simpa [termOther member memberEq,
                 termOther candidate candidateNe] using supporter.1
           · simpa [
-              makeRequestVoteRequest,
+              voteRequestKey, Model.Local.makeRequestVoteRequest,
               termOther candidate candidateNe,
               logEq, lastIndexEq, lastTermEq,
               voteLogUpToDate
@@ -765,7 +754,7 @@ lemma updateTermPreservesSystemInductiveInvariant
       · simp [logEq]
   have ownershipAfter :
       TermOwnershipFacts
-        (observeTermEffect state destination selected.term)
+        (observeTermEffect state destination selected.payload.term)
         votes appendHistory canonicalHistory owners := by
     constructor
     · exact ownership.bootstrap
@@ -787,7 +776,7 @@ lemma updateTermPreservesSystemInductiveInvariant
       exact
         ownership.queuedHistoryEntryAgreement
           queuedDestination request
-            (by simpa [view_effects] using member)
+            (by simpa [concrete_effects, updateTerm, newer, present] using member)
             index entry foundEntry
     · intro leader role
       have leaderNe : Not (leader = destination) := by
@@ -795,7 +784,7 @@ lemma updateTermPreservesSystemInductiveInvariant
         subst leader
         exact Role.noConfusion (role.symm.trans roleDestination)
       rw [termOther leader leaderNe]
-      have oldRole : (state.nodes leader).role = .leader := by
+      have oldRole : ((nodeOf state) leader).role = .leader := by
         simpa [roleOther leader leaderNe] using role
       simpa [logEq] using ownership.activeLeaderHistory leader oldRole
     · exact ownership.canonicalEntryOwner
@@ -815,38 +804,37 @@ lemma updateTermPreservesSystemInductiveInvariant
         · simpa [termOther owner ownerEq] using bound
         · intro same
           have oldSame :
-              term = (state.nodes owner).currentTerm := by
+              term = ((nodeOf state) owner).currentTerm := by
             simpa [termOther owner ownerEq] using same
           simpa [roleOther owner ownerEq] using oldLeader oldSame
     · intro queuedDestination request member
       exact
         ownership.queuedAppendMetadata queuedDestination request
-          (by simpa [view_effects] using member)
+          (by simpa [concrete_effects, updateTerm, newer, present] using member)
     · intro queuedDestination request member sameTerm leaderRole
-      by_cases sourceEq : request.source = destination
+      by_cases sourceEq : request.1 = destination
       · have afterLeader :
-            ((observeTermEffect state destination selected.term).nodes
+            ((nodeOf (observeTermEffect state destination selected.payload.term))
               destination).role = .leader := by
           simpa [sourceEq] using leaderRole
         exact False.elim
           (Role.noConfusion (afterLeader.symm.trans roleDestination))
       · have oldMember :
-            Message.appendEntriesRequest request ∈
-              state.network queuedDestination := by
-          simpa [view_effects] using member
+            (appendRequestEnvelope request ∈ state.network /\ request.2.1 = queuedDestination) := by
+          simpa [concrete_effects, updateTerm, newer, present] using member
         have oldPrefix :=
           ownership.queuedActiveSourceHistory
             queuedDestination request oldMember
-              (by simpa [termOther request.source sourceEq] using sameTerm)
-              (by simpa [roleOther request.source sourceEq] using leaderRole)
+              (by simpa [termOther request.1 sourceEq] using sameTerm)
+              (by simpa [roleOther request.1 sourceEq] using leaderRole)
         simpa [logEq] using oldPrefix
   have electionFactsAfter :
       ElectionHistoryFacts
-        (observeTermEffect state destination selected.term)
+        (observeTermEffect state destination selected.payload.term)
         votes canonicalHistory owners elections := by
     apply
       electionHistoryFrame
-        state (observeTermEffect state destination selected.term)
+        state (observeTermEffect state destination selected.payload.term)
           votes votes canonicalHistory canonicalHistory
           owners elections electionFacts
     · intros
@@ -857,21 +845,21 @@ lemma updateTermPreservesSystemInductiveInvariant
       exact canonical
   have activationProgressAfter :
       ActivationSupporterProgress
-        (observeTermEffect state destination selected.term) activations :=
+        (observeTermEffect state destination selected.payload.term) activations :=
     activationSupporterProgressFrame
-      state (observeTermEffect state destination selected.term)
+      state (observeTermEffect state destination selected.payload.term)
         activations activationProgress termMonotone
   have currentConfigurationEq :
       forall node,
         currentConfiguration
-            ((observeTermEffect state destination selected.term).nodes node) =
-          currentConfiguration (state.nodes node) := by
+            ((nodeOf (observeTermEffect state destination selected.payload.term)) node) =
+          currentConfiguration ((nodeOf state) node) := by
     intro node
     unfold currentConfiguration
     rw [logEq, commitEq]
   have configurationActivationsAfter :
       ConfigurationCoverageFacts
-        (observeTermEffect state destination selected.term) activations := by
+        (observeTermEffect state destination selected.payload.term) activations := by
     apply
       configurationCoverageFrame
         configurationActivations currentConfigurationEq
@@ -886,12 +874,12 @@ lemma updateTermPreservesSystemInductiveInvariant
         using witness.candidateTermStrict
           (by simpa [roleOther candidate candidateNe] using role)
   have ackerActivationAfter :
-      AckerActivationHistory
-        (observeTermEffect state destination selected.term)
+      AckerActivationHistory (joined := joinedNodes)
+        (observeTermEffect state destination selected.payload.term)
         responseHistory elections activations := by
     apply
       ackerActivationFrameSameLogs
-        state (observeTermEffect state destination selected.term)
+        state (observeTermEffect state destination selected.payload.term)
           responseHistory elections elections activations
           ackerActivationFacts
     · intro leader role
@@ -918,11 +906,11 @@ lemma updateTermPreservesSystemInductiveInvariant
       exact stored
   have supporterCurrentAfter :
       ActivationSupporterCurrentHistory
-        (observeTermEffect state destination selected.term)
+        (observeTermEffect state destination selected.payload.term)
         elections activations := by
     apply
       activationSupporterCurrentHistoryFrame
-        state (observeTermEffect state destination selected.term)
+        state (observeTermEffect state destination selected.payload.term)
           elections elections activations
           configurationFacts.supporterCurrentHistory
     · intro node
@@ -931,12 +919,12 @@ lemma updateTermPreservesSystemInductiveInvariant
     · intro _ _ stored
       exact stored
   have configurationFactsAfter :
-      ElectionConfigurationFacts
-        (observeTermEffect state destination selected.term)
+      ElectionConfigurationFacts (joined := joinedNodes)
+        (observeTermEffect state destination selected.payload.term)
         elections activations := by
     apply
       electionConfigurationFrame
-        state (observeTermEffect state destination selected.term)
+        state (observeTermEffect state destination selected.payload.term)
           elections activations activations configurationFacts
     · intro _ _ stored
       exact stored
@@ -966,7 +954,7 @@ lemma updateTermPreservesSystemInductiveInvariant
           (by simpa [logEq] using member)
   have termsPositiveAfter :
       CurrentTermsPositive
-        (observeTermEffect state destination selected.term) := by
+        (observeTermEffect state destination selected.payload.term) := by
     intro node participating
     by_cases nodeEq : node = destination
     · subst node
@@ -979,27 +967,27 @@ lemma updateTermPreservesSystemInductiveInvariant
       simpa [roleOther node nodeEq] using none
   have entriesBoundedAfter :
       EntriesDoNotExceedCurrentTerm
-        (observeTermEffect state destination selected.term) := by
+        (observeTermEffect state destination selected.payload.term) := by
     intro node entry member
     rw [logEq] at member
     exact (facts.entriesDoNotExceedCurrentTerm node entry member).trans
       (termMonotone node)
   have committedSignatureAfter :
       CommittedFrontierIsSignature
-        (observeTermEffect state destination selected.term) := by
+        (observeTermEffect state destination selected.payload.term) := by
     intro node positive
-    have oldPositive : 0 < (state.nodes node).commitIndex := by
+    have oldPositive : 0 < ((nodeOf state) node).commitIndex := by
       simpa [commitEq] using positive
     simpa [commitEq, logEq]
       using (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
               facts node oldPositive)
   have voteCanonicalFactsAfter :
-      GrantedVoteCanonicalSnapshots
-        (observeTermEffect state destination selected.term)
+      GrantedVoteCanonicalSnapshots (joined := joinedNodes)
+        (observeTermEffect state destination selected.payload.term)
         canonicalHistory voteCandidateHistory voteVoterHistory := by
     apply
       grantedVoteCanonicalFrame
-        state (observeTermEffect state destination selected.term)
+        state (observeTermEffect state destination selected.payload.term)
           canonicalHistory canonicalHistory
           voteCandidateHistory voteVoterHistory voteCanonicalFacts
           (fun candidate active => by
@@ -1037,8 +1025,8 @@ lemma updateTermPreservesSystemInductiveInvariant
     · intro history canonical
       exact canonical
   have snapshotsAfter :
-      GrantedVoteSnapshots
-        (observeTermEffect state destination selected.term)
+      GrantedVoteSnapshots (joined := joinedNodes)
+        (observeTermEffect state destination selected.payload.term)
         votes voteCandidateHistory voteVoterHistory := by
     intro candidate voter active member
     have candidateNe : Not (candidate = destination) := by
@@ -1049,12 +1037,12 @@ lemma updateTermPreservesSystemInductiveInvariant
       · exact Role.noConfusion (leaderRole.symm.trans roleDestination)
     rw [termOther candidate candidateNe]
     have oldActive :
-        (state.nodes candidate).role = .candidate \/
-          (state.nodes candidate).role = .leader := by
+        ((nodeOf state) candidate).role = .candidate \/
+          ((nodeOf state) candidate).role = .leader := by
       rw [roleOther candidate candidateNe] at active
       exact active
     have oldMember :
-        voter ∈ effectiveElectionVoters state candidate := by
+        voter ∈ effectiveElectionVoters (joined := joinedNodes) state candidate := by
       rw [effectiveElectionVotersEq candidate candidateNe] at member
       exact member
     rcases
@@ -1076,7 +1064,7 @@ lemma updateTermPreservesSystemInductiveInvariant
   have knownBack :
       forall evidence supportedPrefix,
         KnownCommitEvidence
-            (observeTermEffect state destination selected.term)
+            (observeTermEffect state destination selected.payload.term)
             appendHistory nodeEvidence requestEvidence
             evidence supportedPrefix ->
           KnownCommitEvidence
@@ -1085,31 +1073,31 @@ lemma updateTermPreservesSystemInductiveInvariant
     intro evidence supportedPrefix known
     exact
       knownCommitEvidenceFrameBack
-        state (observeTermEffect state destination selected.term)
+        state (observeTermEffect state destination selected.payload.term)
           appendHistory nodeEvidence requestEvidence
           commitEq committedEq
           (fun queuedDestination request member => by
-            simpa [view_effects] using member)
+            simpa [concrete_effects, updateTerm, newer, present] using member)
           known
   have updateTermEvidenceBridge :
       forall evidence supportedPrefix,
         KnownCommitEvidence
-            (observeTermEffect state destination selected.term)
+            (observeTermEffect state destination selected.payload.term)
             appendHistory nodeEvidence requestEvidence
             evidence supportedPrefix ->
         forall candidate,
-          ((observeTermEffect state destination selected.term).nodes candidate).role =
+          ((nodeOf (observeTermEffect state destination selected.payload.term)) candidate).role =
               .candidate ->
-          hasPotentialElectionMajority
-            (observeTermEffect state destination selected.term) candidate ->
+          hasPotentialElectionMajority (joined := joinedNodes)
+            (observeTermEffect state destination selected.payload.term) candidate ->
           evidence.commitTerm <
-            ((observeTermEffect state destination selected.term).nodes
+            ((nodeOf (observeTermEffect state destination selected.payload.term))
                 candidate).currentTerm ->
             evidence.history.take evidence.commitFrontier <+:
-                ((observeTermEffect state destination selected.term).nodes candidate).log \/
+                ((nodeOf (observeTermEffect state destination selected.payload.term)) candidate).log \/
               evidence.authority ∈
                 activeConfigurations
-                  ((observeTermEffect state destination selected.term).nodes candidate) := by
+                  ((nodeOf (observeTermEffect state destination selected.payload.term)) candidate) := by
     intro evidence supportedPrefix known candidate candidateRole
         candidateMajority evidenceBeforeCandidate
     have candidateNe : Not (candidate = destination) := by
@@ -1118,21 +1106,21 @@ lemma updateTermPreservesSystemInductiveInvariant
       exact Role.noConfusion
         (candidateRole.symm.trans roleDestination)
     have candidateUnchanged :
-        (observeTermEffect state destination selected.term).nodes candidate =
-          state.nodes candidate := by
+        (nodeOf (observeTermEffect state destination selected.payload.term)) candidate =
+          (nodeOf state) candidate := by
       simp [
-        view_effects, updateNode, candidateNe
+        concrete_effects, updateTerm, newer, present, nodeOf_replaceNode, candidateNe
       ]
     have oldKnown := knownBack evidence supportedPrefix known
     let candidateConfiguration :=
-      currentConfiguration (state.nodes candidate)
+      currentConfiguration ((nodeOf state) candidate)
     have directOfActive
         (authorityActive :
           evidence.authority ∈
             activeConfigurations
-              ((observeTermEffect state destination selected.term).nodes candidate)) :
+              ((nodeOf (observeTermEffect state destination selected.payload.term)) candidate)) :
         evidence.history.take evidence.commitFrontier <+:
-          ((observeTermEffect state destination selected.term).nodes candidate).log := by
+          ((nodeOf (observeTermEffect state destination selected.payload.term)) candidate).log := by
       have valid := knownCommitEvidenceValid evidenceAfter known
       have electionMajority :=
         potentialElectionMajorityAtConfiguration
@@ -1143,8 +1131,8 @@ lemma updateTermPreservesSystemInductiveInvariant
         ⟨member, _authorityMember, ackMember, electionMember⟩
       have relaxed :
           member ∈
-            relaxedElectionVoters
-              (observeTermEffect state destination selected.term)
+            relaxedElectionVoters (joined := joinedNodes)
+              (observeTermEffect state destination selected.payload.term)
               candidate := by
         simp only [
           potentialElectionVoters, relaxedElectionVoters,
@@ -1155,9 +1143,9 @@ lemma updateTermPreservesSystemInductiveInvariant
         · refine ⟨joined, Or.inr ?_⟩
           unfold currentlyEligibleElectionVoter at eligible
           exact ⟨
-            by simpa [makeRequestVoteRequest] using eligible.1.symm.le,
+            by simpa [voteRequestKey, Model.Local.makeRequestVoteRequest] using eligible.1.symm.le,
             by simpa [
-                makeRequestVoteRequest, voteLogUpToDate
+                voteRequestKey, Model.Local.makeRequestVoteRequest, voteLogUpToDate
               ] using eligible.2.1
           ⟩
       exact
@@ -1173,12 +1161,12 @@ lemma updateTermPreservesSystemInductiveInvariant
     · have candidatePositive : 0 < candidateConfiguration.index := by
         exact Nat.zero_lt_of_lt authorityBefore
       have commitPositive :
-          0 < (state.nodes candidate).commitIndex := by
+          0 < ((nodeOf state) candidate).commitIndex := by
         have configurationBound :
             candidateConfiguration.index <=
-              (state.nodes candidate).commitIndex := by
+              ((nodeOf state) candidate).commitIndex := by
           simpa [candidateConfiguration]
-            using currentConfiguration_index_le_commitIndex (state.nodes candidate)
+            using currentConfiguration_index_le_commitIndex ((nodeOf state) candidate)
         exact candidatePositive.trans_le configurationBound
       rcases evidenceFacts.nodePositive candidate commitPositive with
         ⟨candidateEvidence, candidateStored, candidateValid,
@@ -1186,30 +1174,30 @@ lemma updateTermPreservesSystemInductiveInvariant
       have candidateKnown :
           KnownCommitEvidence
             state appendHistory nodeEvidence requestEvidence
-            candidateEvidence (state.nodes candidate).committedLog :=
+            candidateEvidence ((nodeOf state) candidate).committedLog :=
         Or.inl ⟨candidate, commitPositive, candidateStored, rfl⟩
       have candidateConfigurationKnownCommitted :
           candidateConfiguration ∈
-            allConfigurations (state.nodes candidate).committedLog := by
+            allConfigurations ((nodeOf state) candidate).committedLog := by
         unfold NodeState.committedLog
         have candidateConfigurationKnown :
             candidateConfiguration ∈
-              allConfigurations (state.nodes candidate).log := by
+              allConfigurations ((nodeOf state) candidate).log := by
           simpa [candidateConfiguration]
-            using currentConfiguration_mem_allConfigurations (state.nodes candidate)
+            using currentConfiguration_mem_allConfigurations ((nodeOf state) candidate)
         have candidateConfigurationBound :
             candidateConfiguration.index <=
-              (state.nodes candidate).commitIndex := by
+              ((nodeOf state) candidate).commitIndex := by
           simpa [candidateConfiguration]
-            using currentConfiguration_index_le_commitIndex (state.nodes candidate)
+            using currentConfiguration_index_le_commitIndex ((nodeOf state) candidate)
         exact
           allConfigurations_mem_take_of_index_le
-            (state.nodes candidate).log
-            (state.nodes candidate).commitIndex
+            ((nodeOf state) candidate).log
+            ((nodeOf state) candidate).commitIndex
             (facts.commitIndicesBounded candidate)
             candidateConfigurationKnown candidateConfigurationBound
       have committedInEvidence :
-          (state.nodes candidate).committedLog <+:
+          ((nodeOf state) candidate).committedLog <+:
             candidateEvidence.history := by
         rw [← candidateValid.2.2.2.1]
         exact List.take_prefix _ _
@@ -1227,9 +1215,9 @@ lemma updateTermPreservesSystemInductiveInvariant
               candidateEvidence.supportedLength := by
           rw [candidateSupportedLength]
           simpa [candidateConfiguration]
-            using currentConfiguration_index_le_commitIndex (state.nodes candidate)
+            using currentConfiguration_index_le_commitIndex ((nodeOf state) candidate)
         let evidenceNode : NodeState Node TxId :=
-          { state.nodes candidate with
+          { (nodeOf state) candidate with
             log := candidateEvidence.history
             commitIndex := candidateEvidence.commitFrontier }
         have bound :=
@@ -1246,7 +1234,7 @@ lemma updateTermPreservesSystemInductiveInvariant
       have covered :=
         activationEvidence.authorityBridge
           evidence supportedPrefix oldKnown
-          candidateEvidence (state.nodes candidate).committedLog
+          candidateEvidence ((nodeOf state) candidate).committedLog
           candidateKnown evidenceBeforeCandidateEvidence
       have valid := knownCommitEvidenceValid evidenceFacts oldKnown
       have evidenceFrontierBound :
@@ -1258,7 +1246,7 @@ lemma updateTermPreservesSystemInductiveInvariant
               candidateEvidence.supportedLength := by
           rw [candidateSupportedLength]
           simpa [candidateConfiguration]
-            using currentConfiguration_index_le_commitIndex (state.nodes candidate)
+            using currentConfiguration_index_le_commitIndex ((nodeOf state) candidate)
         have candidateIndexWithinEvidence :
             candidateConfiguration.index <= evidence.commitFrontier :=
           candidateIndexWithinSupported.trans
@@ -1309,7 +1297,7 @@ lemma updateTermPreservesSystemInductiveInvariant
         have candidateBeforeEvidenceAuthority :
             candidateConfiguration.index <= evidence.authority.index := by
           let evidenceNode : NodeState Node TxId :=
-            { state.nodes candidate with
+            { (nodeOf state) candidate with
               log := evidence.history
               commitIndex := evidence.commitFrontier }
           have maximal :=
@@ -1341,8 +1329,8 @@ lemma updateTermPreservesSystemInductiveInvariant
         (by
           rw [candidateValid.2.2.2.1]
           simpa [candidateUnchanged]
-            using (show (state.nodes candidate).committedLog <+:
-                (state.nodes candidate).log by
+            using (show ((nodeOf state) candidate).committedLog <+:
+                ((nodeOf state) candidate).log by
               unfold NodeState.committedLog
               exact List.take_prefix _ _))
     · right
@@ -1353,7 +1341,7 @@ lemma updateTermPreservesSystemInductiveInvariant
           have evidenceKnown :
               evidence.authority ∈ allConfigurations evidence.history := by
             let evidenceNode : NodeState Node TxId :=
-              { state.nodes candidate with
+              { (nodeOf state) candidate with
                 log := evidence.history
                 commitIndex := evidence.commitFrontier }
             simpa [evidenceNode, currentConfiguration, valid.2.2.2.2.1]
@@ -1373,9 +1361,9 @@ lemma updateTermPreservesSystemInductiveInvariant
               candidateConfiguration = implicitConfiguration := by
             apply
               allConfigurations_index_unique
-                (TxId := TxId) (state.nodes candidate).log
+                (TxId := TxId) ((nodeOf state) candidate).log
             · simpa [candidateConfiguration]
-                using currentConfiguration_mem_allConfigurations (state.nodes candidate)
+                using currentConfiguration_mem_allConfigurations ((nodeOf state) candidate)
             · simp [allConfigurations, implicitConfiguration]
             · simpa [implicitConfiguration] using candidateZero
           exact evidenceImplicit.trans candidateImplicit.symm
@@ -1447,7 +1435,7 @@ lemma updateTermPreservesSystemInductiveInvariant
               (by simpa [candidateConfiguration] using sameIndex)
       rw [sameConfiguration]
       simpa [candidateConfiguration, activeConfigurationsEq]
-        using currentConfiguration_mem_activeConfigurations (state.nodes candidate)
+        using currentConfiguration_mem_activeConfigurations ((nodeOf state) candidate)
     · right
       rcases
           activationEvidence.authorityRecorded
@@ -1482,16 +1470,16 @@ lemma updateTermPreservesSystemInductiveInvariant
         have authorityKnownCandidate :
             evidence.authority ∈
               allConfigurations
-                ((observeTermEffect state destination selected.term).nodes candidate).log := by
+                ((nodeOf (observeTermEffect state destination selected.payload.term)) candidate).log := by
           apply
             memOfPrefix
               (allConfigurations_mono_prefix
                 (activationInCandidate.trans
                   (List.take_prefix
                     (maxCommittableIndex
-                      ((observeTermEffect state destination selected.term).nodes
+                      ((nodeOf (observeTermEffect state destination selected.payload.term))
                           candidate).log)
-                    ((observeTermEffect state destination selected.term).nodes candidate).log)))
+                    ((nodeOf (observeTermEffect state destination selected.payload.term)) candidate).log)))
           have valid :=
             activationQuorums.history.valid
               authorityActivationIndex authorityActivation
@@ -1508,8 +1496,8 @@ lemma updateTermPreservesSystemInductiveInvariant
         simpa [activeConfigurations, candidateConfiguration, candidateUnchanged]
           using And.intro authorityKnownCandidate candidateBeforeAuthority.le
   have activationEvidenceAfter :
-      ActivationEvidenceFacts
-        (observeTermEffect state destination selected.term)
+      ActivationEvidenceFacts (joined := joinedNodes)
+        (observeTermEffect state destination selected.payload.term)
         appendHistory responseHistory nodeEvidence requestEvidence
           elections activations := by
     constructor
@@ -1539,8 +1527,8 @@ lemma updateTermPreservesSystemInductiveInvariant
           right rightPrefix (knownBack right rightPrefix rightKnown)
     · exact updateTermEvidenceBridge
   have activationQuorumsAfter :
-      ActivationQuorumFacts
-        (observeTermEffect state destination selected.term)
+      ActivationQuorumFacts (joined := joinedNodes)
+        (observeTermEffect state destination selected.payload.term)
         appendHistory responseHistory elections activations := by
     constructor
     · exact activationQuorums.history
@@ -1599,21 +1587,20 @@ lemma updateTermPreservesSystemInductiveInvariant
             exact
               updateTermPotentialPrefixOfRelaxedAuthority
                 (before := state)
-                (after := observeTermEffect state destination selected.term)
+                (after := observeTermEffect state destination selected.payload.term)
                 (source := leader)
                 (candidate := candidate)
                 (index := index)
                 (configuration := configuration)
                 (by
                   simp [
-                    view_effects, updateNode, leaderNe
+                    concrete_effects, updateTerm, newer, present, nodeOf_replaceNode, leaderNe
                   ])
                 (by
                   simp [
-                    view_effects, updateNode, candidateNe
+                    concrete_effects, updateTerm, newer, present, nodeOf_replaceNode, candidateNe
                   ])
                 logEq termMonotone
-                (by simp [view_effects])
                 (by
                   intro voter member
                   rw [effectiveAckersEq leader leaderNe index] at member
@@ -1720,7 +1707,7 @@ lemma updateTermPreservesSystemInductiveInvariant
         activationQuorums.queuedComparable
           activationIndex activation queuedDestination queuedRequest
           stored
-          (by simpa [view_effects] using queued)
+          (by simpa [concrete_effects, updateTerm, newer, present] using queued)
           sameTerm
     · exact
         committedConfigurationCoverageFrame
@@ -1730,7 +1717,7 @@ lemma updateTermPreservesSystemInductiveInvariant
           activationQuorums.queuedCoverage
           (afterAppendHistory := appendHistory)
       · intro queuedDestination queuedRequest queued
-        simpa [view_effects] using queued
+        simpa [concrete_effects, updateTerm, newer, present] using queued
       · intro _
         rfl
   · refine ⟨
@@ -1761,7 +1748,7 @@ lemma updateTermPreservesSystemInductiveInvariant
     ⟩
     · apply
         grantedVoteCanonicalFrame
-          state (observeTermEffect state destination selected.term)
+          state (observeTermEffect state destination selected.payload.term)
             canonicalHistory canonicalHistory
             voteCandidateHistory voteVoterHistory voteCanonicalFacts
             (fun candidate active => by
@@ -1813,12 +1800,12 @@ lemma updateTermPreservesSystemInductiveInvariant
       · exact Role.noConfusion (leaderRole.symm.trans roleDestination)
     rw [termOther candidate candidateNe]
     have oldActive :
-        (state.nodes candidate).role = .candidate \/
-          (state.nodes candidate).role = .leader := by
+        ((nodeOf state) candidate).role = .candidate \/
+          ((nodeOf state) candidate).role = .leader := by
       rw [roleOther candidate candidateNe] at active
       exact active
     have oldMember :
-        voter ∈ effectiveElectionVoters state candidate := by
+        voter ∈ effectiveElectionVoters (joined := joinedNodes) state candidate := by
       rw [effectiveElectionVotersEq candidate candidateNe] at member
       exact member
     rcases
@@ -1869,39 +1856,39 @@ lemma updateTermPreservesSystemInductiveInvariant
       ⟩
   · constructor
     · intro node peer member
-      simpa [view_effects]
+      simpa [concrete_effects, updateTerm, newer, present]
         using facts.joinedCarriers.activeNodes node
           (by simpa [activeNodeUnion, activeConfigurationsEq] using member)
     · intro node configuration member peer inNodes
-      simpa [view_effects]
+      simpa [concrete_effects, updateTerm, newer, present]
         using facts.joinedCarriers.configurationNodes node configuration
           (by simpa [logEq] using member) inNodes
     · intro node peer member
-      simpa [view_effects]
+      simpa [concrete_effects, updateTerm, newer, present]
         using facts.joinedCarriers.grantedVotes node
           (by rw [← votesEq node]; exact member)
     · intro queuedDestination request member
-      simpa [view_effects]
+      simpa [concrete_effects, updateTerm, newer, present]
         using facts.joinedCarriers.voteRequestDestinations
           queuedDestination request
-          (by simpa [view_effects] using member)
+          (by simpa [concrete_effects, updateTerm, newer, present] using member)
     · intro queuedDestination request member
-      simpa [view_effects]
+      simpa [concrete_effects, updateTerm, newer, present]
         using facts.joinedCarriers.appendRequestDestinations
           queuedDestination request
-          (by simpa [view_effects] using member)
+          (by simpa [concrete_effects, updateTerm, newer, present] using member)
     · intro queuedDestination request member configuration configured
         peer inNodes
-      simpa [view_effects]
+      simpa [concrete_effects, updateTerm, newer, present]
         using facts.joinedCarriers.appendRequestConfigurations
           queuedDestination request
-          (by simpa [view_effects] using member)
+          (by simpa [concrete_effects, updateTerm, newer, present] using member)
           configuration configured inNodes
     · intro queuedDestination response member
-      simpa [view_effects]
+      simpa [concrete_effects, updateTerm, newer, present]
         using facts.joinedCarriers.voteResponseSources
           queuedDestination response
-          (by simpa [view_effects] using member)
+          (by simpa [concrete_effects, updateTerm, newer, present] using member)
     · constructor
       · intro candidate active
         have different : Not (candidate = destination) := by
@@ -1910,20 +1897,20 @@ lemma updateTermPreservesSystemInductiveInvariant
           rcases active with candidateRole | leaderRole
           · exact Role.noConfusion (candidateRole.symm.trans roleDestination)
           · exact Role.noConfusion (leaderRole.symm.trans roleDestination)
-        simpa [view_effects]
+        simpa [concrete_effects, updateTerm, newer, present]
           using facts.joinedCarriers.runtimeNodes.activeRoles candidate
             (by simpa [roleOther candidate different] using active)
       · intro leader peer positive
-        simpa [view_effects]
+        simpa [concrete_effects, updateTerm, newer, present]
           using facts.joinedCarriers.runtimeNodes.positiveMatches leader peer
             (by simpa [matchEq] using positive)
       · intro queuedDestination response member
-        simpa [view_effects]
+        simpa [concrete_effects, updateTerm, newer, present]
           using facts.joinedCarriers.runtimeNodes.appendResponses
             queuedDestination response
-            (by simpa [view_effects] using member)
+            (by simpa [concrete_effects, updateTerm, newer, present] using member)
       · intro candidate nonempty
-        simpa [view_effects]
+        simpa [concrete_effects, updateTerm, newer, present]
           using facts.joinedCarriers.runtimeNodes.nonemptyLogs candidate
             (by simpa [logEq] using nonempty)
   · exact fun _ => Iff.rfl

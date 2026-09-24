@@ -65,4 +65,18 @@ def reply (remaining : List (Model.Envelope Node TxId)) (response : AppendRespon
     : List (Model.Envelope Node TxId) :=
   remaining ++ [appendResponseEnvelope response]
 
+abbrev enqueue (network : List (Model.Envelope Node TxId)) (envelope : Model.Envelope Node TxId)
+    : List (Model.Envelope Node TxId) :=
+  network ++ [envelope]
+
+theorem memEnqueue (network : List (Model.Envelope Node TxId))
+    (newMessage message : Model.Envelope Node TxId) (destination : Node)
+    (member : message ∈ enqueue network newMessage ∧ message.target = destination)
+    : (message ∈ network ∧ message.target = destination)
+      ∨ (destination = newMessage.target ∧ message = newMessage) := by
+  rcases List.mem_append.mp member.1 with old | added
+  · exact Or.inl ⟨old, member.2⟩
+  · have same := List.mem_singleton.mp added
+    exact Or.inr ⟨by simpa [same] using member.2.symm, same⟩
+
 end CCFRaft.Proofs.Invariant
