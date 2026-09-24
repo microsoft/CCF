@@ -3,10 +3,6 @@
 #pragma once
 
 #include "ccf/ds/logger_level.h"
-#include "ccf/node/start_type.h"
-
-using ccf::start_type_to_str;
-using ccf::StartType;
 
 enum CreateNodeStatus : std::uint8_t
 {

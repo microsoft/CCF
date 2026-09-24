@@ -3,6 +3,8 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/js/core/context.h"
+#include "ccf/node/configuration.h"
+#include "ccf/node/start_type.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
 #include "crypto/openssl/hash.h"

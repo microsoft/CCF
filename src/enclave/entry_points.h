@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/node/configuration.h"
+#include "ccf/node/start_type.h"
 #include "common/configuration.h"
 #include "common/enclave_interface_types.h"
 #include "ds/work_beacon.h"
