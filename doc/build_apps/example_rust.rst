@@ -1,0 +1,99 @@
+Example app (Rust)
+==================
+
+.. warning:: The Rust interface is **experimental**. It is not a stable or production-supported SDK, and it is not covered by the API stability commitments in :doc:`release_policy`. Its Rust API, C ABI, and build integration may change incompatibly in any release.
+
+CCF provides an initial Rust interface for native applications. It deliberately
+exposes a small subset of the public application API:
+
+- read-write and read-only HTTP endpoints;
+- user-certificate authentication or no authentication;
+- request bodies, raw queries, decoded path parameters, and named headers;
+- response status, headers, body, and OData errors; and
+- raw-byte KV ``get``, ``has``, ``put``, and ``remove`` operations.
+
+Advanced endpoint configuration, custom authentication, historical queries,
+indexing, and commit callbacks are not currently exposed.
+
+Build
+-----
+
+Rust 1.90 and Cargo are required. A Rust application is a ``staticlib`` crate
+which depends on the source-tree ``src/rust/ccf-app`` crate or the installed
+``share/ccf/src/rust/ccf-app`` crate. Its CMake file registers the crate with
+``add_ccf_rust_app``:
+
+.. code-block:: cmake
+
+    add_ccf_rust_app(
+      my_app
+      MANIFEST_PATH ${CMAKE_CURRENT_LIST_DIR}/Cargo.toml
+      PACKAGE my-app
+    )
+
+The helper maps CMake ``Debug`` builds to Cargo's development profile and all
+other build types to Cargo's release profile. It also links the generic C++ ABI
+bridge, launcher, and CCF libraries. Cargo is invoked on every build and decides
+whether the crate is up to date, so Rust source edits do not require CMake to be
+reconfigured. ``LIB_NAME`` defaults to the package name with dashes replaced by
+underscores; set it explicitly when the crate's ``[lib] name`` differs from its
+package name. The application should commit ``Cargo.lock`` and pin a Rust
+toolchain for reproducible builds.
+
+The bridge is framework-owned scaffolding, built by CCF against its internal
+APIs and distributed as a precompiled object. Applications extend it only
+through the C ABI in ``ccf/rust_ffi.h`` and do not compile the bridge or depend
+on CCF's private C++ headers.
+
+CCF's existing Rust components remain in its prebuilt ``libccf_rs.a``; their
+Rust implementation symbols are internal and do not collide with the
+application's Rust runtime. Building an application therefore compiles only the
+application crate, ``ccf-app``, and the application's other Cargo dependencies.
+Additional Rust code should be included as Cargo dependencies, not linked as
+separate Rust ``staticlib`` archives, which may export duplicate runtime
+symbols.
+
+The complete records example is in :ccf_repo:`samples/apps/basic_rust`. It
+exports a registration function with ``ccf_app::export_app!`` and registers
+handlers through ``Registry::read_write`` and ``Registry::read_only``.
+
+Endpoint execution
+------------------
+
+Handlers may run concurrently and must implement ``Send`` and ``Sync``. CCF may also
+retry a read-write handler when a transaction conflicts, so handlers should be
+deterministic and should not perform non-transactional side effects.
+
+Request and response contexts, transactions, and map handles borrow the callback
+context and cannot be retained. Values returned by KV ``get`` are owned copies.
+The SDK requires Rust's ``unwind`` panic strategy so that panics are caught at
+the ABI boundary and become HTTP 500 errors. Builds using ``panic = "abort"``
+are rejected. C++ exceptions are also contained by the bridge. When a handler
+returns an ``EndpointError`` with a status that is not a known HTTP error
+status, the host bridge emits HTTP 500 while preserving the error code and
+message.
+
+Panic messages may contain request or KV data, and node output is visible to
+the host. ``export_app!`` therefore installs a panic hook which does not report
+panics raised by the application's registration function, handlers, or handler
+destructors. Other panics are passed to the previously installed hook.
+Applications that install their own panic hook must not write confidential data
+to node output.
+
+KV values and keys
+------------------
+
+The initial API treats keys and values as byte strings. Applications may layer
+their own serializers on these operations; the ``Codec`` trait provides a
+common interface without prescribing a wire format.
+
+Map names retain the standard CCF security semantics. Names beginning with
+``public:`` are written to the ledger in plaintext. All other application map
+names, such as the sample's ``records`` map, are private and encrypted. Like
+native C++ applications, native Rust applications are trusted code: raw map
+access does not enforce the namespace restrictions applied to JavaScript
+applications for reserved governance and internal maps.
+
+Read-only handlers receive only ``ReadOnlyMap``, so write operations are
+not available at compile time. Errors returned by a handler use the normal CCF
+transaction semantics: unsuccessful responses discard writes.

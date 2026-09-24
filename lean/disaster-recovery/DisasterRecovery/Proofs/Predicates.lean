@@ -1,11 +1,33 @@
-import DisasterRecovery.Protocol.Invariants
+import DisasterRecovery.Proofs.Execution
 
-/-! Human-reviewed vote provenance, quorum and opening predicates. -/
+/-! Safety predicates and committed-prefix assumptions for decorated executions. -/
 
-namespace DisasterRecovery.Protocol.Quorum
+namespace DisasterRecovery.Proofs.Predicates
 
-open Model hiding Config
-open Global
+open Execution.Local hiding Config
+open Execution.Global
+
+/-! ## Well-formedness and message provenance -/
+
+structure HistoriesActive (state : State) : Prop where
+  openings : forall opening, opening ∈ state.openings -> opening.node ∈ state.active
+  restarts : forall node, node ∈ state.restarts -> node ∈ state.active
+  completed : forall node, node ∈ state.completed -> node ∈ state.active
+
+structure WellFormed (config : Config) (state : State) : Prop where
+  nodeKeys : state.system.nodes.map Prod.fst = config.protocol.expectedLocations
+  nodeKeysNodup : (state.system.nodes.map Prod.fst).Nodup
+  nodeLocations : forall entry, entry ∈ state.system.nodes -> entry.2.location = entry.1
+  activeNodup : state.active.Nodup
+  activeConfigured
+    : forall node, node ∈ state.active -> node ∈ config.protocol.expectedLocations
+  sentValid : forall envelope, envelope ∈ state.sent -> envelope.Valid config
+  sentSourceActive
+    : forall envelope, envelope ∈ state.sent -> envelope.source ∈ state.active
+  networkSent : forall envelope, envelope ∈ state.network -> envelope ∈ state.sent
+  historiesActive : HistoriesActive state
+
+/-! ## Votes, quorums, and openings -/
 
 def SentVote (state : State) (voter target : Location) : Prop :=
   exists envelope,
@@ -81,4 +103,24 @@ def QuorumOpened (state : State) (node : Location) : Prop :=
   exists opening,
     opening ∈ state.openings /\ opening.node = node /\ opening.kind = .quorum
 
-end DisasterRecovery.Protocol.Quorum
+/-! ## Committed-prefix ordering and assumptions -/
+
+namespace TxID
+
+def EarlierThan (left right : TxID) : Prop :=
+  left.view < right.view \/ (left.view = right.view /\ left.seqno <= right.seqno)
+
+end TxID
+
+def FullGossipSelection (config : Config) (state : State) (opener : Location) : Prop :=
+  exists vote,
+    vote ∈ state.sent
+    /\ vote.payload = .vote
+    /\ vote.target = opener
+    /\ forall gossip, gossip ∈ vote.sourceState.gossips <-> gossip ∈ config.recovered
+
+def DurableCommit (config : Config) (committed : TxID) : Prop :=
+  exists location txid,
+    (location, txid) ∈ config.recovered /\ TxID.EarlierThan committed txid
+
+end DisasterRecovery.Proofs.Predicates
