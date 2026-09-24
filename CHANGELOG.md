@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- `MapDiff::get()` (the typed wrapper over a transaction's key-value diff) now correctly returns an engaged `std::optional` holding `std::nullopt` for keys that were deleted, distinguishing them from untouched keys (which still return a disengaged `std::optional`), matching its documented contract. Previously both cases collapsed to a disengaged `std::optional`, so callers could not tell a deletion from no change.
+- `MapDiff::get()` (the typed wrapper over a transaction's key-value diff) now correctly returns an engaged `std::optional` holding `std::nullopt` for keys that were deleted, distinguishing them from untouched keys (which still return a disengaged `std::optional`), matching its documented contract. Previously both cases collapsed to a disengaged `std::optional`, so callers could not tell a deletion from no change (#8429).
 - JS registry tables and their configured namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. The governance-driven registry uses `public:ccf.gov.*` and leaves application namespaces unchanged. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`; platform permissions still apply (#8359).
 - Fixed `set_member` failures on services which have only ever emitted COSE ledger signatures (#8407).
 
