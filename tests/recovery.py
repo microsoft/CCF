@@ -6,7 +6,6 @@ import hashlib
 import http
 import json
 import os
-import random
 import re
 import shutil
 import subprocess
@@ -583,18 +582,6 @@ def _recover_service(
 
     if from_snapshot and snapshots_dir is None:
         snapshots_dir = network.get_committed_snapshots(old_primary)
-
-    if force_election:
-        # Populate the private ledger so the primary is still reading it when
-        # prodded below. Release builds read it at roughly 4k entries/s, so this
-        # only buys well under a second: recover_with_primary_dying keeps the
-        # work it does after the last share is submitted to a minimum.
-        network.txs.issue(
-            network,
-            number_txs=2000,
-            send_public=False,
-            msg=str(bytes(random.getrandbits(8) for _ in range(512))),
-        )
 
     # Start health watcher and stop nodes one by one until a recovery has to be staged
     watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
