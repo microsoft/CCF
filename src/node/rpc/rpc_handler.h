@@ -39,7 +39,7 @@ namespace ccf
       std::shared_ptr<AbstractForwarder> cmd_forwarder_) = 0;
     virtual void tick(std::chrono::milliseconds /*elapsed*/) {}
     virtual void start_periodic_tick(
-      ccf::tasks::JobBoard&, std::chrono::milliseconds)
+      ccf::tasks::JobBoard& /*job_board*/, std::chrono::milliseconds /*period*/)
     {}
     virtual void open() = 0;
     virtual bool is_open() = 0;
