@@ -1,0 +1,205 @@
+import DisasterRecovery.Shared.MultiNodeTransitionSystem
+
+namespace DisasterRecovery.Tests.Network
+
+open Shared
+
+private inductive Input where
+  | receive (source message : Nat)
+  | increment
+  | blocked
+  | burst
+
+private def protocol
+    : MultiNodeTransitionSystem.Protocol Nat Nat Input Nat Nat Input where
+  init _ state := state = 0
+  step host _ state action := do
+    match action with
+    | .receive source message =>
+        guard (message != 0)
+        guard (message != 99)
+        pure do
+          host.notify message
+          host.send 1 source
+          return state + message
+    | .increment => pure (pure (state + 1))
+    | .blocked => none
+    | .burst =>
+        pure do
+          host.notify 10
+          host.send 1 0
+          host.notify 20
+          host.send 2 0
+          return state + 1
+  receive := .receive
+  internal := id
+
+example (host : Capabilities Nat Nat Nat) (node state : Nat)
+    : protocol.step host node state .blocked = none :=
+  rfl
+
+example (host : Capabilities Nat Nat Nat) (node state : Nat)
+    : protocol.step host node state (.receive 0 99) = none :=
+  rfl
+
+example (node state : Nat)
+    : (protocol.step (Capabilities.record node) node state .burst).map
+        (fun execute => execute.run {})
+      = some
+          (
+            state + 1,
+            {
+              outgoing :=
+                [
+                  { source := node, target := 0, payload := 1 },
+                  { source := node, target := 0, payload := 2 }
+                ]
+              notifications := [10, 20]
+            }
+          ) :=
+  rfl
+
+private def burstStep : MultiNodeTransitionSystem.LocalStep Nat Nat Input Nat Nat :=
+  {
+    node := 99
+    before := 42
+    action := .burst
+    after := 43
+    effects :=
+      {
+        outgoing :=
+          [
+            { source := 99, target := 0, payload := 1 },
+            { source := 99, target := 0, payload := 2 }
+          ]
+        notifications := [10, 20]
+      }
+  }
+
+example : protocol.ValidStep burstStep := ⟨_, rfl, rfl⟩
+
+example : ¬ protocol.ValidStep { burstStep with action := .blocked } := by
+  rintro ⟨execute, enabled, _⟩
+  cases enabled
+
+example : ¬ protocol.ValidStep { burstStep with after := 44 } := by
+  rintro ⟨execute, enabled, result⟩
+  cases enabled
+  cases result
+
+example
+    : ¬ protocol.ValidStep
+          { burstStep with effects := { notifications := [10, 20] } } := by
+  rintro ⟨execute, enabled, result⟩
+  cases enabled
+  cases result
+
+example
+    : ¬ protocol.ValidStep
+          {
+            burstStep with
+              effects := { burstStep.effects with notifications := [20, 10] }
+          } := by
+  rintro ⟨execute, enabled, result⟩
+  cases enabled
+  cases result
+
+private def initial : MultiNodeTransitionSystem.State Nat Nat Nat :=
+  {
+    nodes := [(0, 0), (1, 0)]
+    active := [0, 1]
+  }
+
+private def expect (condition : Bool) (message : String) : IO Unit :=
+  unless condition do throw (IO.userError message)
+
+private def requireSome (value : Option α) (message : String) : IO α :=
+  match value with
+  | some result => pure result
+  | none => throw (IO.userError message)
+
+def run : IO Unit := do
+  let machine := MultiNodeTransitionSystem.lift [0, 1] protocol
+  let message : Envelope Nat Nat := { source := 0, target := 1, payload := 5 }
+  let reply : Envelope Nat Nat := { source := 1, target := 0, payload := 1 }
+  let queued := { initial with network := [message, message] }
+  let delivered <- requireSome (machine.step queued (.deliver message))
+                    "generic delivery unexpectedly disabled"
+  expect
+    (MultiNodeTransitionSystem.nodeState delivered 1 == some 5
+      && MultiNodeTransitionSystem.nodeState delivered 0 == some 0)
+    "delivery failed to update exactly its receiver"
+  expect (delivered.network == [message, reply])
+    "delivery must consume one occurrence and append its reply atomically"
+  let nonHead <- requireSome
+                  (machine.step { initial with network := [reply, message, message] }
+                    (.deliver message))
+                  "delivery incorrectly required the head of the global queue"
+  expect (nonHead.nodes == delivered.nodes && nonHead.network == [reply, message, reply])
+    "non-head delivery failed to preserve other queued messages and append its reply"
+  expect ((machine.step initial (.deliver message)).isNone)
+    "delivery fabricated a queued message"
+  expect ((machine.step { queued with active := [0] } (.deliver message)).isNone)
+    "inactive receiver accepted a message"
+  expect ((machine.step { queued with nodes := [(0, 0)] } (.deliver message)).isNone)
+    "an active receiver with no local state accepted a message"
+
+  let blocked : Envelope Nat Nat := { message with payload := 0 }
+  expect
+    ((machine.step { initial with network := [blocked] } (.deliver blocked)).isNone)
+    "a disabled local receive consumed a message"
+  let blockedSend : Envelope Nat Nat := { message with payload := 99 }
+  expect
+    ((machine.step { initial with network := [blockedSend] }
+        (.deliver blockedSend)).isNone)
+    "a disabled receive produced a successor"
+  expect ((machine.step initial (.local 1 .blocked)).isNone)
+    "a disabled internal action produced a successor"
+
+  let burst <- requireSome (machine.step queued (.local 1 .burst))
+                "enabled send burst was disabled"
+  expect
+    (MultiNodeTransitionSystem.nodeState burst 1 == some 1
+      && burst.network == [message, message, reply, { reply with payload := 2 }])
+    "accumulated sends were reordered, lost, or executed more than once"
+
+  let synthetic <- requireSome (machine.step queued (.local 1 (.receive 0 5)))
+                    "generic network disallowed a synthetic local receive"
+  expect (MultiNodeTransitionSystem.nodeState synthetic 1 == some 5)
+    "synthetic receive failed to update local state"
+  expect (synthetic.network == [message, message, reply])
+    "synthetic receive removed a queued message"
+  let isolated := { queued with nodes := [(1, 0)], active := [1] }
+  let isolatedSent <- requireSome (machine.step isolated (.local 1 (.receive 0 5)))
+                        "sending to an absent node disabled the local step"
+  expect
+    (MultiNodeTransitionSystem.nodeState isolatedSent 1
+        == MultiNodeTransitionSystem.nodeState synthetic 1
+      && isolatedSent.network == synthetic.network)
+    "other nodes influenced a local step or its sends"
+  expect ((machine.step isolatedSent (.deliver reply)).isNone)
+    "an absent recipient accepted a queued message"
+  let inactiveSent <- requireSome
+                        (machine.step { initial with active := [1] }
+                          (.local 1 (.receive 0 5)))
+                        "sending to an inactive node disabled the local step"
+  expect
+    (MultiNodeTransitionSystem.nodeState inactiveSent 1
+        == MultiNodeTransitionSystem.nodeState synthetic 1
+      && inactiveSent.network == [reply])
+    "recipient activity or the existing queue influenced a local step"
+  let incremented <- requireSome (machine.step synthetic (.local 1 .increment))
+                      "internal increment disabled"
+  expect (incremented.network == synthetic.network)
+    "a later action replayed old outgoing messages"
+
+  let self : Envelope Nat Nat := { source := 0, target := 0, payload := 1 }
+  let echoed <- requireSome
+                  (machine.step { initial with network := [self] } (.deliver self))
+                  "self-delivery disabled"
+  expect
+    (echoed.network == [self] && MultiNodeTransitionSystem.nodeState echoed 0 == some 1)
+    "a fresh identical reply was confused with the consumed occurrence"
+  IO.println "generic network composition checks passed"
+
+end DisasterRecovery.Tests.Network
