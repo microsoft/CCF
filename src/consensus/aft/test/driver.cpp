@@ -6,6 +6,7 @@
 #include "driver.h"
 
 #include "ccf/ds/hash.h"
+#include "tracing/fluentd_sink.h"
 
 #include <cassert>
 #include <fstream>
@@ -21,22 +22,32 @@ int main(int argc, char** argv)
 {
   const regex delim{","};
   size_t lineno = 1;
-  auto driver = make_shared<RaftDriver>();
-
-  if (argc < 2)
+  if (argc != 2 && argc != 4)
   {
     throw std::runtime_error(
-      "Too few arguments - first must be path to scenario");
+      "Expected a scenario path, optionally followed by a Fluentd host and "
+      "port");
   }
 
   // Log all raft steps to stdout (python wrapper raft_scenario_runner.py
   // filters them).
-#ifdef CCF_RAFT_TRACING
-  ccf::logger::config::add_json_console_logger();
-#else
   ccf::logger::config::add_text_console_logger();
-#endif
   ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
+
+  ccf::tracing::FluentdSink::Lifetime trace_lifetime;
+  if (argc >= 4)
+  {
+    ccf::tracing::FluentdSink::Endpoint endpoint{argv[2], argv[3]};
+    ccf::tracing::FluentdSink::configure(endpoint);
+    ccf::tracing::FluentdSink::bind_producer(0);
+    if (!ccf::tracing::FluentdSink::wait_for_connection(
+          std::chrono::seconds(5)))
+    {
+      LOG_FAIL_FMT("Timed out waiting for Fluentd connection");
+      return 1;
+    }
+  }
+  auto driver = make_shared<RaftDriver>();
 
   const std::string filename = argv[1];
 
@@ -70,13 +81,10 @@ int main(int argc, char** argv)
       // Terminate early if four or more '=' appear on a line.
       break;
     }
-#ifdef CCF_RAFT_TRACING
     if (!line.empty())
     {
-      std::cout << "{\"tag\": \"raft_trace\", \"cmd\": \"" << line << "\"}"
-                << std::endl;
+      ccf::tracing::emit(aft::trace::raft_trace_tag, "cmd", line);
     }
-#endif
     // Steps which don't alter state don't need to recheck invariants
     bool skip_invariants = false;
 
@@ -337,5 +345,12 @@ int main(int argc, char** argv)
   // Confirm path to liveness from final state
   driver->loop_until_sync(lineno);
 
+  ccf::tracing::FluentdSink::shutdown();
+  const auto dropped = ccf::tracing::FluentdSink::dropped_count();
+  if (dropped != 0)
+  {
+    LOG_FAIL_FMT("Raft trace exporter dropped {} events", dropped);
+    return 1;
+  }
   return 0;
 }

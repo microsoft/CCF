@@ -4,17 +4,22 @@
 """Shared orchestration and reporting for Locust benchmarks."""
 
 import argparse
+import copy
 import csv
 import dataclasses
+import json
 import math
 import os
+import pathlib
 import subprocess
 from collections.abc import Callable, Mapping
+from contextlib import nullcontext
 from typing import Any
 
 from loguru import logger as LOG
 
 import infra.bencher
+import infra.fluentd
 import infra.interfaces
 import infra.net
 import infra.network
@@ -285,27 +290,52 @@ def measure(
     # interval configuration.
     args.consensus_update_timeout_ms = sig_ms_interval
 
-    LOG.info(f"Starting nodes on {args.nodes} with {sig_ms_interval}ms signatures")
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_open(args)
-        primary, _ = network.find_primary()
-        workload = prepare_workload(args, network, primary)
-        stats = run_locust(args, network, primary, workload)
-        target = workload.target_node or primary
-        memory = infra.proc.get_proc_memory_stats(target.remote.remote.proc.pid)
-        result = parse_result(
-            stats,
-            args.measure_time_s,
-            memory,
-            response_length_as_throughput_units=(
-                workload.response_length_as_throughput_units
-            ),
-            throughput_unit=workload.throughput_unit,
+    export = os.environ.get("CCF_BENCHMARK_FLUENTD", "0")
+    if export not in ("0", "1"):
+        raise ValueError("CCF_BENCHMARK_FLUENTD must be 0 or 1")
+    if export == "1" and args.observability is not None:
+        raise ValueError("Benchmark collector cannot override --observability")
+
+    with (
+        infra.fluentd.Collector(len(args.nodes)) if export == "1" else nullcontext()
+    ) as collector:
+        if collector is not None:
+            args = copy.deepcopy(args)
+            args.observability = {"fluentd": collector.endpoint}
+        LOG.info(f"Starting nodes on {args.nodes} with {sig_ms_interval}ms signatures")
+        with infra.network.network(
+            args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+        ) as network:
+            network.start_and_open(args)
+            primary, _ = network.find_primary()
+            workload = prepare_workload(args, network, primary)
+            stats = run_locust(args, network, primary, workload)
+            target = workload.target_node or primary
+            memory = infra.proc.get_proc_memory_stats(target.remote.remote.proc.pid)
+            result = parse_result(
+                stats,
+                args.measure_time_s,
+                memory,
+                response_length_as_throughput_units=(
+                    workload.response_length_as_throughput_units
+                ),
+                throughput_unit=workload.throughput_unit,
+            )
+            network.stop_all_nodes()
+    if collector is not None:
+        counts = {
+            "records": collector.records,
+            "bytes": collector.bytes,
+            "processes": len(collector.processes),
+            "expected_processes": len(args.nodes),
+        }
+        pathlib.Path(f"{args.label}_{sig_ms_interval}ms_received.json").write_text(
+            json.dumps(counts), encoding="utf-8"
         )
-        network.stop_all_nodes()
-        return result
+        LOG.info(f"Fluentd collector: {counts}")
+        if collector.records == 0 or len(collector.processes) != len(args.nodes):
+            raise RuntimeError("Every benchmark node must export Raft trace events")
+    return result
 
 
 def run(args: argparse.Namespace, prepare_workload: PrepareWorkload) -> None:

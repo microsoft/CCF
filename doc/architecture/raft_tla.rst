@@ -46,5 +46,10 @@ Calling the trace validation on, for example, the ``append`` scenario can then b
 
 Generating a trace of a scenario and validating it in one go can be done with ``./tlc.py --workers 1 tv --scenario ../tests/raft_scenarios/append consensus/Traceccfraft.tla``.
 This runs the raft_driver on the scenario, cleans the trace and then validates it against the TLA+ specification.
+The scenario runner receives the driver's trace events as MessagePack over a local TCP connection.
+Install ``msgpack`` from :ccf_repo:`tests/requirements.txt` in the Python environment that runs ``tlc.py``.
+
+Trace validation reads ``msg.idx`` from ``commit`` events, and ``msg.idx``, ``msg.nodes``, and ``msg.rid`` from ``add_configuration`` events.
+Traces from older drivers nest these fields under ``msg.args``. Regenerate those traces before validation.
 
 CCF also provides a command line trace visualizer to aid debugging, for example, the ``append`` scenario can be visualized with ``python ../tests/trace_viz.py ../build/append.ndjson``. 

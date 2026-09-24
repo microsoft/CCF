@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Experimental support for exporting Raft trace events to a Fluentd collector, configured with [`observability.fluentd`](doc/host_config_schema/host_config.json). The configuration and event format may change in future releases (#8386).
 - ML-DSA-44/65/87 key-pair and public-key APIs for key generation, PKCS#8/SPKI PEM and DER import/export, and pure ML-DSA signing and verification with optional context strings. These APIs are compiled only with OpenSSL 3.5 or newer (#8378).
 
 ### Changed
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - Removed the unused ringbuffer writer from the public research `CustomProtocolSubsystemInterface::Essentials` structure. Custom protocol extensions can no longer access `Essentials::writer` (#8395).
+- Removed the `CCF_RAFT_TRACING` CMake option. Raft tracing is always built in (#8386).
 
 ## [7.0.16]
 

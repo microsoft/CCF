@@ -95,6 +95,7 @@ jobs:
           # Convert microbenchmark output to bencher json
           source env/bin/activate
           PYTHONPATH=../tests python convert_pico_to_bencher.py
+          PYTHONPATH=../tests python -m unittest fluentd_benchmark_test
         shell: bash
 
       - name: "Collect perf results"
@@ -126,6 +127,7 @@ jobs:
             build/workspace/*/stack_trace
             build/workspace/*/locust_failures.csv
             build/workspace/**/openapi_coverage.json
+            build/*_received.json
           if-no-files-found: ignore
         if: success() || failure()
 

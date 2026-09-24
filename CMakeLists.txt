@@ -465,11 +465,6 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
 
-option(CCF_RAFT_TRACING "Enable tracing of Raft consensus" OFF)
-if(CCF_RAFT_TRACING)
-  add_compile_definitions(CCF_RAFT_TRACING)
-endif()
-
 # Build common library for CCF enclaves
 set(
   CCF_IMPL_SOURCE
@@ -775,6 +770,17 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_straddling_history.cpp
     )
     target_link_libraries(raft_test PRIVATE ccfcrypto ccf_kv ccf_tasks)
+
+    add_unit_test(
+      tracing_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tracing/test/fluentd.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tracing/test/events.cpp
+    )
+    target_link_options(
+      tracing_test
+      PRIVATE "LINKER:--wrap=send" "LINKER:--wrap=_Znwm"
+    )
+    set_tests_properties(tracing_test PROPERTIES TIMEOUT 30)
 
     add_unit_test(
       raft_enclave_test
@@ -1398,6 +1404,19 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
+  find_program(FLUENTD_EXECUTABLE fluentd)
+  set(FLUENTD_TEST_ARGS)
+  if(FLUENTD_EXECUTABLE)
+    list(APPEND FLUENTD_TEST_ARGS --fluentd ${FLUENTD_EXECUTABLE})
+  endif()
+  add_e2e_test(
+    NAME raft_trace_e2e
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/raft_trace_e2e.py
+    BUCKET bucket_c
+    BUILD_DEPENDS logging
+    ADDITIONAL_ARGS --package samples/apps/logging/logging ${FLUENTD_TEST_ARGS}
+  )
+
   set(
     RBAC_CONSTITUTION_ARGS
     --constitution
@@ -1649,6 +1668,31 @@ if(BUILD_TESTS)
       --sig-ms-intervals
       2
       20
+      100
+  )
+
+  add_e2e_test(
+    NAME fluentd_emission
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fluentd_benchmark.py
+    LABEL perf
+    CONFIGURATIONS perf
+    BUILD_DEPENDS basic
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/basic/basic"
+      --worker-threads
+      2
+      --snapshot-tx-interval
+      1000000000
+      --users
+      320
+      --spawn-rate
+      320
+      --locust-processes
+      4
+      --measure-time-s
+      20
+      --sig-ms-intervals
       100
   )
 

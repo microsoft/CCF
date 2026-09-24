@@ -51,6 +51,23 @@ public:
 using TestTextLogger = TestLogger<ccf::logger::TextConsoleLogger>;
 using TestJsonLogger = TestLogger<ccf::logger::JsonConsoleLogger>;
 
+TEST_CASE("JSON logs retain wall-clock timestamps and string messages")
+{
+  std::vector<std::string> logs;
+  TestJsonLogger logger(logs);
+  ccf::logger::LogLine line(ccf::LoggerLevel::INFO, "test", __FILE__, __LINE__);
+  line.msg = R"({"function":"replicate"})";
+  logger.write(line);
+
+  REQUIRE(logs.size() == 1);
+  const auto record = nlohmann::json::parse(logs.front());
+  CHECK(record["msg"] == line.msg);
+  const auto timestamp = record["h_ts"].get<std::string>();
+  REQUIRE(timestamp.size() == 27);
+  CHECK(timestamp[10] == 'T');
+  CHECK(timestamp.back() == 'Z');
+}
+
 class ScopedLoggerConfig
 {
   const ccf::LoggerLevel previous_level = ccf::logger::config::level();

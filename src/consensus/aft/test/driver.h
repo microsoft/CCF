@@ -16,15 +16,8 @@
 #include <unordered_set>
 #include <utility>
 
-#ifdef CCF_RAFT_TRACING
-#  define RAFT_DRIVER_PRINT(...) \
-    std::cout << "<RaftDriver>  " << fmt::format(__VA_ARGS__) \
-              << fmt::format(" (ts={})", ccf::logger::logical_clock) \
-              << std::endl;
-#else
-#  define RAFT_DRIVER_PRINT(...) \
-    std::cout << "<RaftDriver>  " << fmt::format(__VA_ARGS__) << std::endl;
-#endif
+#define RAFT_DRIVER_PRINT(...) \
+  std::cout << "<RaftDriver>  " << fmt::format(__VA_ARGS__) << std::endl;
 
 std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
 {
@@ -521,7 +514,17 @@ public:
     const uint8_t* data = contents.data();
     size_t size = contents.size();
 
-    nlohmann::json packet;
+    const auto log_packet = [&](const auto& packet) {
+      log_msg_details(node_id, tgt_node_id, packet, dropped);
+      if (dropped)
+      {
+        aft::trace::drop_pending_to(
+          _nodes.at(node_id).raft->get_state_for_trace(),
+          node_id.value(),
+          tgt_node_id.value(),
+          packet);
+      }
+    };
 
     const auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
     switch (msg_type)
@@ -529,43 +532,37 @@ public:
       case (aft::RaftMsgType::raft_request_vote):
       {
         auto rv = *(aft::RequestVote*)data;
-        packet = rv;
-        log_msg_details(node_id, tgt_node_id, rv, dropped);
+        log_packet(rv);
         break;
       }
       case (aft::RaftMsgType::raft_request_pre_vote):
       {
         auto rpv = *(aft::RequestPreVote*)data;
-        packet = rpv;
-        log_msg_details(node_id, tgt_node_id, rpv, dropped);
+        log_packet(rpv);
         break;
       }
       case (aft::RaftMsgType::raft_request_vote_response):
       {
-        auto rvr = *(aft::RequestPreVoteResponse*)data;
-        packet = rvr;
-        log_msg_details(node_id, tgt_node_id, rvr, dropped);
+        auto rvr = *(aft::RequestVoteResponse*)data;
+        log_packet(rvr);
         break;
       }
       case (aft::RaftMsgType::raft_request_pre_vote_response):
       {
-        auto rvr = *(aft::RequestVoteResponse*)data;
-        packet = rvr;
-        log_msg_details(node_id, tgt_node_id, rvr, dropped);
+        auto rvr = *(aft::RequestPreVoteResponse*)data;
+        log_packet(rvr);
         break;
       }
       case (aft::RaftMsgType::raft_append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
-        packet = ae;
-        log_msg_details(node_id, tgt_node_id, ae, dropped);
+        log_packet(ae);
         break;
       }
       case (aft::RaftMsgType::raft_append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
-        packet = aer;
-        log_msg_details(node_id, tgt_node_id, aer, dropped);
+        log_packet(aer);
         break;
       }
       case (aft::RaftMsgType::raft_append_entries_signed_response):
@@ -576,8 +573,7 @@ public:
       case (aft::RaftMsgType::raft_propose_request_vote):
       {
         auto prv = *(aft::ProposeRequestVote*)data;
-        packet = prv;
-        log_msg_details(node_id, tgt_node_id, prv, dropped);
+        log_packet(prv);
         break;
       }
       default:
@@ -586,23 +582,6 @@ public:
           fmt::format("Unhandled RaftMsgType: {}", msg_type));
       }
     }
-
-#ifdef CCF_RAFT_TRACING
-    if (dropped)
-    {
-      nlohmann::json j = {};
-      j["function"] = "drop_pending_to";
-      j["from_node_id"] = node_id;
-      j["to_node_id"] = tgt_node_id;
-      // state is used by raft_scenarios_runner.py to identify indicate which
-      // node a log occurred on. Here we assign all dropped messages to the
-      // sender.
-      // Populate additional fields for trace_viz.py
-      j["state"] = _nodes.at(node_id).raft->get_state_representation();
-      j["packet"] = packet;
-      RAFT_TRACE_JSON_OUT(j);
-    }
-#endif
   }
 
   void connect(ccf::NodeId first, ccf::NodeId second)
