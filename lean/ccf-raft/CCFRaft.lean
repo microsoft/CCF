@@ -41,6 +41,7 @@ import CCFRaft.Proofs.Invariant.Preservation.VoteSend
 import CCFRaft.Proofs.Invariant.Reachable
 import CCFRaft.Proofs.Invariant.Receive
 import CCFRaft.Proofs.Invariant.Safety
+import CCFRaft.Proofs.Invariant.State
 import CCFRaft.Proofs.Invariant.TermAuthority
 import CCFRaft.Proofs.Invariant.View
 import CCFRaft.Proofs.Invariant.ViewFacts
