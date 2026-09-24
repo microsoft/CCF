@@ -81,6 +81,9 @@ namespace asynchost
     size_t end_idx{};
   };
 
+  // A single ledger chunk on disk. LedgerFile is not internally synchronised:
+  // all access, including reads, is serialised by the owning Ledger's
+  // state_lock.
   class LedgerFile
   {
   private:
@@ -93,7 +96,6 @@ namespace asynchost
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
     FILE* file = nullptr;
-    ccf::ds::Mutex file_lock;
 
     size_t start_idx = 1;
     size_t total_len = 0; // Points to end of last written entry
@@ -508,7 +510,6 @@ namespace asynchost
         file_name,
         max_size.value_or(0));
 
-      std::unique_lock<ccf::ds::Mutex> guard(file_lock);
       auto [size, to_] = entries_size(from, to, max_size);
       if (size == 0)
       {
@@ -657,8 +658,6 @@ namespace asynchost
     std::optional<PendingChunkRead> prepare_completed_chunk(
       size_t from, size_t to)
     {
-      std::unique_lock<ccf::ds::Mutex> guard(file_lock);
-
       const auto [raw_entries_size, end_idx] = entries_size(from, to);
       if (raw_entries_size == 0 || end_idx != to)
       {
@@ -1033,40 +1032,48 @@ namespace asynchost
     // Ledger directories (read-only)
     const std::vector<fs::path> read_ledger_dirs;
 
+    // Guards all mutable ledger state below, and transitively every LedgerFile
+    // reachable from `files`, since LedgerFile is not internally synchronised.
+    // Also guards the on-disk layout of `ledger_dir`: file renames and
+    // removals happen under it, so directory scans under it observe a
+    // consistent set of names.
     ccf::ds::Mutex state_lock;
 
     // Keep tracks of all ledger files for writing.
     // Current ledger file is always the last one
-    std::list<std::shared_ptr<LedgerFile>> files;
+    std::list<std::shared_ptr<LedgerFile>> files CCF_GUARDED_BY(state_lock);
 
     // Cache of ledger files for reading
     const size_t max_read_cache_files;
-    std::list<std::shared_ptr<LedgerFile>> files_read_cache;
-    ccf::ds::Mutex read_cache_lock;
+    std::list<std::shared_ptr<LedgerFile>> files_read_cache
+      CCF_GUARDED_BY(state_lock);
 
-    size_t last_idx = 0;
-    size_t committed_idx = 0;
+    size_t last_idx CCF_GUARDED_BY(state_lock) = 0;
+    size_t committed_idx CCF_GUARDED_BY(state_lock) = 0;
 
-    size_t end_of_committed_files_idx = 0;
+    size_t end_of_committed_files_idx CCF_GUARDED_BY(state_lock) = 0;
 
     // Indicates if the ledger has been initialised at a specific idx and
     // may still be replaying existing entries.
-    bool use_existing_files = false;
+    bool use_existing_files CCF_GUARDED_BY(state_lock) = false;
     // Used to remember the last recovered idx on init so that
     // use_existing_files can be disabled once this idx is passed
-    std::optional<size_t> last_idx_on_init = std::nullopt;
+    std::optional<size_t> last_idx_on_init CCF_GUARDED_BY(state_lock) =
+      std::nullopt;
 
     // Use to remember the index from which replication started
-    size_t init_idx = 0;
+    size_t init_idx CCF_GUARDED_BY(state_lock) = 0;
 
     // Set during recovery to mark files as temporary until the recovery is
     // complete
-    std::optional<size_t> recovery_start_idx = std::nullopt;
+    std::optional<size_t> recovery_start_idx CCF_GUARDED_BY(state_lock) =
+      std::nullopt;
 
     std::shared_ptr<ccf::ds::WorkerShutdownGate> shutdown_gate =
       std::make_shared<ccf::ds::WorkerShutdownGate>();
 
     [[nodiscard]] auto get_it_contains_idx(size_t idx) const
+      CCF_REQUIRES(state_lock)
     {
       if (idx == 0)
       {
@@ -1085,22 +1092,19 @@ namespace asynchost
     }
 
     std::shared_ptr<LedgerFile> get_file_from_cache(size_t idx)
+      CCF_REQUIRES(state_lock)
     {
       if (idx == 0)
       {
         return nullptr;
       }
 
+      // First, try to find file from read cache
+      for (auto const& f : files_read_cache)
       {
-        std::unique_lock<ccf::ds::Mutex> guard(read_cache_lock);
-
-        // First, try to find file from read cache
-        for (auto const& f : files_read_cache)
+        if (f->get_start_idx() <= idx && idx <= f->get_last_idx())
         {
-          if (f->get_start_idx() <= idx && idx <= f->get_last_idx())
-          {
-            return f;
-          }
+          return f;
         }
       }
 
@@ -1150,21 +1154,17 @@ namespace asynchost
         return nullptr;
       }
 
+      files_read_cache.emplace_back(match_file);
+      if (files_read_cache.size() > max_read_cache_files)
       {
-        std::unique_lock<ccf::ds::Mutex> guard(read_cache_lock);
-
-        files_read_cache.emplace_back(match_file);
-        if (files_read_cache.size() > max_read_cache_files)
-        {
-          files_read_cache.erase(files_read_cache.begin());
-        }
+        files_read_cache.erase(files_read_cache.begin());
       }
 
       return match_file;
     }
 
     std::shared_ptr<LedgerFile> get_file_from_idx(
-      size_t idx, bool read_cache_only = false)
+      size_t idx, bool read_cache_only = false) CCF_REQUIRES(state_lock)
     {
       if (idx == 0)
       {
@@ -1195,7 +1195,7 @@ namespace asynchost
     }
 
     [[nodiscard]] std::shared_ptr<LedgerFile> get_latest_file(
-      bool incomplete_only = true) const
+      bool incomplete_only = true) const CCF_REQUIRES(state_lock)
     {
       if (files.empty())
       {
@@ -1216,7 +1216,7 @@ namespace asynchost
       bool read_cache_only = false,
       std::optional<size_t> max_entries_size = std::nullopt)
     {
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      ccf::ds::MutexGuard guard(state_lock);
 
       // Note: if max_entries_size is set, this returns contiguous ledger
       // entries on a best effort basis, so that the returned entries fit in
@@ -1282,6 +1282,7 @@ namespace asynchost
     }
 
     void ignore_ledger_file(const std::string& file_name)
+      CCF_REQUIRES(state_lock)
     {
       if (ccf::ledger::is_ledger_file_name_ignored(file_name))
       {
@@ -1299,7 +1300,7 @@ namespace asynchost
       }
     }
 
-    void delete_ledger_files_after_idx(size_t idx)
+    void delete_ledger_files_after_idx(size_t idx) CCF_REQUIRES(state_lock)
     {
       // Use with caution! Delete all ledger files later than idx
       for (auto const& f : fs::directory_iterator(ledger_dir))
@@ -1325,6 +1326,7 @@ namespace asynchost
     }
 
     std::shared_ptr<LedgerFile> get_existing_ledger_file_for_idx(size_t idx)
+      CCF_REQUIRES(state_lock)
     {
       if (!use_existing_files)
       {
@@ -1556,7 +1558,7 @@ namespace asynchost
       ccf::ds::TimeBoundLogger log_if_slow(
         fmt::format("Initing ledger - seqno={}", idx));
 
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      ccf::ds::MutexGuard guard(state_lock);
 
       init_idx = idx;
 
@@ -1635,7 +1637,7 @@ namespace asynchost
       // Note: this operation cannot be rolled back.
       LOG_INFO_FMT("Ledger complete recovery");
 
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      ccf::ds::MutexGuard guard(state_lock);
 
       for (auto it = files.begin(); it != files.end();)
       {
@@ -1662,14 +1664,14 @@ namespace asynchost
 
     [[nodiscard]] size_t get_last_idx()
     {
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      ccf::ds::MutexGuard guard(state_lock);
 
       return last_idx;
     }
 
     void set_recovery_start_idx(size_t idx)
     {
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      ccf::ds::MutexGuard guard(state_lock);
 
       recovery_start_idx = idx;
     }
@@ -1702,7 +1704,7 @@ namespace asynchost
       ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
         "Writing ledger entry - {} bytes, committable={}", size, committable));
 
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      ccf::ds::MutexGuard guard(state_lock);
 
       auto header =
         serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
@@ -1795,7 +1797,7 @@ namespace asynchost
       ccf::ds::TimeBoundLogger log_if_slow(
         fmt::format("Truncating ledger at {}", idx));
 
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      ccf::ds::MutexGuard guard(state_lock);
 
       LOG_DEBUG_FMT(
         "Ledger truncate: {}/{} [recovery: {}]", idx, last_idx, recovery_mode);
@@ -1880,7 +1882,7 @@ namespace asynchost
       ccf::ds::TimeBoundLogger log_if_slow(
         fmt::format("Committing ledger entry {}", idx));
 
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      ccf::ds::MutexGuard guard(state_lock);
 
       LOG_DEBUG_FMT("Ledger commit: {}/{}", idx, last_idx);
 
@@ -1920,7 +1922,7 @@ namespace asynchost
 
     [[nodiscard]] bool is_in_committed_file(size_t idx)
     {
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      ccf::ds::MutexGuard guard(state_lock);
 
       return idx <= end_of_committed_files_idx;
     }
@@ -1933,7 +1935,7 @@ namespace asynchost
     [[nodiscard]] std::optional<fs::path> committed_ledger_path_with_idx(
       size_t idx)
     {
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      ccf::ds::MutexGuard guard(state_lock);
 
       if (idx > end_of_committed_files_idx)
       {
@@ -1963,7 +1965,7 @@ namespace asynchost
     [[nodiscard]] std::optional<std::pair<size_t, size_t>>
     committed_ledger_prefix_range_with_idx(size_t idx)
     {
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      ccf::ds::MutexGuard guard(state_lock);
 
       if (idx == 0 || idx <= end_of_committed_files_idx || idx > committed_idx)
       {
@@ -1989,7 +1991,7 @@ namespace asynchost
       // entry bytes, potentially many megabytes, are read afterwards so that
       // serving a prefix does not stall the ledger writer.
       auto pending = [&]() -> std::optional<LedgerFile::PendingChunkRead> {
-        std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+        ccf::ds::MutexGuard guard(state_lock);
 
         if (from == 0 || to < from || to > committed_idx)
         {
@@ -2017,7 +2019,7 @@ namespace asynchost
 
     [[nodiscard]] size_t get_init_idx()
     {
-      std::unique_lock<ccf::ds::Mutex> guard(state_lock);
+      ccf::ds::MutexGuard guard(state_lock);
 
       return init_idx;
     }

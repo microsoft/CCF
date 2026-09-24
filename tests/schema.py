@@ -346,6 +346,10 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=1,
         ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
+        # Force a signature (and so a new chunk) after every transaction, so the
+        # chunk count depends only on transaction count, not on how much
+        # wall-clock time elapses before the default signature interval fires.
+        sig_tx_interval=1,
     )
 
     cr.add(
