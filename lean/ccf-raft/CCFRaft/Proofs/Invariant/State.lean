@@ -93,6 +93,24 @@ theorem replaceNode_absent (nodes : List (Node × NodeState Node TxId))
     exact absent (same ▸ List.mem_map_of_mem listed)
   simp [different]
 
+@[simp]
+theorem replaceNode_nodeOf (state : Model.State Node TxId) (node : Node)
+    (distinct : (state.nodes.map Prod.fst).Nodup)
+    : replaceNode state.nodes node (nodeOf state node) = state.nodes := by
+  by_cases present : node ∈ state.nodes.map Prod.fst
+  · unfold replaceNode
+    conv_rhs => rw [← List.map_id state.nodes]
+    apply List.map_congr_left
+    intro entry listed
+    by_cases same : entry.1 = node
+    · have lookup : nodeOf state node = entry.2 := by
+        rw [← same]
+        exact nodeOf_of_mem distinct (by simpa using listed)
+      simp [same, lookup]
+      exact Prod.ext same.symm rfl
+    · simp [same]
+  · exact replaceNode_absent _ _ _ present
+
 /-- Concrete replacement has the usual lookup law when the key is present. -/
 @[simp]
 theorem nodeOf_replaceNode (state : Model.State Node TxId)

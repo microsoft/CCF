@@ -11,530 +11,206 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
+open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
+variable {joinedNodes joinedNext : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-attribute [local simp] Message.destination ConfigurationCoverageWitness.sharedPrefix
-
-def setResultSentIndex
-    (sentIndex : Node -> Nat)
-    (result : NodeState Node TxId × AppendEntriesResponse Node)
-    : NodeState Node TxId × AppendEntriesResponse Node :=
-  ({ result.1 with sentIndex }, result.2)
-
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
-lemma rejectAppendEntriesRequest_sentIndex
-    (node : NodeState Node TxId)
-    (sentIndex : Node -> Nat)
-    (request : AppendEntriesRequest Node TxId)
-    : rejectAppendEntriesRequest? { node with sentIndex } request
-      = (rejectAppendEntriesRequest? node request).map
-          (setResultSentIndex sentIndex) := by
-  simp [
-    rejectAppendEntriesRequest?, logOk, failureResponse,
-    setResultSentIndex
-  ]
-
-omit [Bootstrap Node] in
-lemma appendEntriesAlreadyDone_sentIndex
-    (node : NodeState Node TxId)
-    (sentIndex : Node -> Nat)
-    (request : AppendEntriesRequest Node TxId)
-    : appendEntriesAlreadyDone? { node with sentIndex } request
-      = (appendEntriesAlreadyDone? node request).map (setResultSentIndex sentIndex) := by
-  simp [
-    appendEntriesAlreadyDone?, alreadyDone,
-    committedFromLeader, successResponse, setResultSentIndex
-  ]
-
-lemma noConflictAppendEntriesRequest_sentIndex
-    (node : NodeState Node TxId)
-    (sentIndex : Node -> Nat)
-    (request : AppendEntriesRequest Node TxId)
-    : noConflictAppendEntriesRequest? { node with sentIndex } request
-      = (noConflictAppendEntriesRequest? node request).map
-          (setResultSentIndex sentIndex) := by
-  unfold noConflictAppendEntriesRequest?
-  split
-  · rename_i extension
-    change noConflictExtension node request at extension
-    rw [ite_eq_left extension]
-    rfl
-  · rename_i extension
-    change ¬ noConflictExtension node request at extension
-    rw [ite_eq_right extension]
-    rfl
-
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
-lemma conflictAppendEntriesRequest_sentIndex
-    (node : NodeState Node TxId)
-    (sentIndex : Node -> Nat)
-    (request : AppendEntriesRequest Node TxId)
-    : conflictAppendEntriesRequest? { node with sentIndex } request
-      = (conflictAppendEntriesRequest? node request).map
-          (fun nextNode => { nextNode with sentIndex }) := by
-  simp [
-    conflictAppendEntriesRequest?, hasTermConflict,
-    overlapLength
-  ]
-
-lemma acceptAppendEntriesRequest_sentIndex
-    (node : NodeState Node TxId)
-    (sentIndex : Node -> Nat)
-    (request : AppendEntriesRequest Node TxId)
-    : acceptAppendEntriesRequest? { node with sentIndex } request
-      = (acceptAppendEntriesRequest? node request).map
-          (setResultSentIndex sentIndex) := by
-  unfold acceptAppendEntriesRequest?
-  by_cases enabled :
-      request.term = node.currentTerm /\
-        node.role = .follower /\
-        logOk node request /\
-        request.prevLogIndex >= node.commitIndex
-  · have updatedEnabled :
-        request.term = ({ node with sentIndex }).currentTerm /\
-          ({ node with sentIndex }).role = .follower /\
-          logOk { node with sentIndex } request /\
-          request.prevLogIndex >= ({ node with sentIndex }).commitIndex := by
-      simpa [logOk] using enabled
-    rw [ite_eq_left updatedEnabled, ite_eq_left enabled]
-    rw [appendEntriesAlreadyDone_sentIndex]
-    cases done : appendEntriesAlreadyDone? node request with
-    | some result =>
-        simp []
-    | none =>
-        simp only [ Option.map_none]
-        rw [noConflictAppendEntriesRequest_sentIndex]
-        cases extension : noConflictAppendEntriesRequest? node request with
-        | some result =>
-            simp []
-        | none =>
-            simp only [ Option.map_none]
-            rw [conflictAppendEntriesRequest_sentIndex]
-            cases conflict : conflictAppendEntriesRequest? node request with
-            | none =>
-                simp []
-            | some truncated =>
-                simp only [ Option.map_some]
-                rw [appendEntriesAlreadyDone_sentIndex]
-                cases repeated : appendEntriesAlreadyDone? truncated request with
-                | some result =>
-                    simp [ setResultSentIndex]
-                | none =>
-                    simp only [ Option.map_none]
-                    rw [noConflictAppendEntriesRequest_sentIndex]
-  · have updatedDisabled :
-        Not (
-          request.term = ({ node with sentIndex }).currentTerm /\
-            ({ node with sentIndex }).role = .follower /\
-            logOk { node with sentIndex } request /\
-            request.prevLogIndex >=
-              ({ node with sentIndex }).commitIndex) := by
-      simpa [logOk] using enabled
-    rw [ite_eq_right updatedDisabled, ite_eq_right enabled]
-    rfl
-
-lemma handleAppendEntriesRequest_sentIndex
-    (node : NodeState Node TxId)
-    (sentIndex : Node -> Nat)
-    (request : AppendEntriesRequest Node TxId)
-    : handleAppendEntriesRequest? { node with sentIndex } request
-      = (handleAppendEntriesRequest? node request).map
-          (setResultSentIndex sentIndex) := by
-  unfold handleAppendEntriesRequest?
-  rw [rejectAppendEntriesRequest_sentIndex]
-  cases rejected : rejectAppendEntriesRequest? node request with
-  | none =>
-      simp [ acceptAppendEntriesRequest_sentIndex]
-  | some result =>
-      simp []
+attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 lemma canProduceAppendAckEventuallyAt_sentIndex
-    (node : NodeState Node TxId)
-    (sentIndex : Node -> Nat)
-    (request : AppendEntriesRequest Node TxId)
-    (index : Nat)
+    (node : NodeState Node TxId) (sentIndex : Node -> Nat)
+    (request : AppendRequestKey Node TxId) (index : Nat)
     : canProduceAppendAckEventuallyAt { node with sentIndex } request index
       ↔ canProduceAppendAckEventuallyAt node request index := by
-  constructor
-  · rintro (⟨nextNode, response, handled, success, covered⟩ | future)
-    · rw [
-        protocolNodeState_set_sentIndex,
-        handleAppendEntriesRequest_sentIndex
-      ] at handled
-      cases oldResult : handleAppendEntriesRequest? (protocolNodeState node) request with
-      | none =>
-          simp [oldResult] at handled
-      | some result =>
-          simp [oldResult] at handled
-          have responseEq : result.2 = response :=
-            congrArg Prod.snd handled
-          exact Or.inl
-            ⟨
-              result.1,
-              result.2,
-              oldResult,
-              by rw [responseEq]; exact success,
-              by rw [responseEq]; exact covered
-            ⟩
-    · exact Or.inr future
-  · rintro (⟨nextNode, response, handled, success, covered⟩ | future)
-    · exact Or.inl
-        ⟨{ nextNode with sentIndex }, response,
-          by
-            rw [
-              protocolNodeState_set_sentIndex,
-              handleAppendEntriesRequest_sentIndex, handled
-            ]
-            rfl,
-          success, covered⟩
-    · exact Or.inr future
+  unfold canProduceAppendAckEventuallyAt
+  apply or_congr
+  · exact canProduceAppendAckAt_frame (before := node) (after := { node with sentIndex })
+      rfl rfl rfl rfl rfl request index
+  · rfl
 
-omit [Bootstrap Node] in
 /-- Dequeuing an ACK which is not effective leaves effective evidence intact. -/
 lemma effectiveAckersAfterInactiveResponse
-    (state after : View Node TxId)
+    (state after : Model.State Node TxId)
     (destination : Node)
-    (response : AppendEntriesResponse Node)
-    (remaining : List (Message Node TxId))
+    (response : AppendResponseKey Node)
+    (responseDestination : response.2.1 = destination)
+    (remaining : List (Model.Envelope Node TxId))
     (taken
-      : Selected response.source (state.network destination)
-          (.appendEntriesResponse response) remaining)
-    (networkEq : after.network = updateQueue state.network destination remaining)
-    (hasJoinedEq : after.hasJoined = state.hasJoined)
+      : Selected response.1 state.network
+          (appendResponseEnvelope response) remaining)
+    (networkEq : after.network = remaining)
+    (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, (after.nodes node).currentTerm = (state.nodes node).currentTerm)
-    (logEq : forall node, (after.nodes node).log = (state.nodes node).log)
+      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+    (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (matchEq
       : forall leader peer,
-          (after.nodes leader).matchIndex peer = (state.nodes leader).matchIndex peer)
+          ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
     (inactive
       : Not
-          (response.success = true
-            /\ response.term = (state.nodes destination).currentTerm))
-    : forall (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+          (response.2.2.success = true
+            /\ response.2.2.term = ((nodeOf state) destination).currentTerm))
+    : forall (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
               leader index,
-        effectiveAckers after responseHistory leader index
-        = effectiveAckers state responseHistory leader index := by
+        effectiveAckers (joined := joinedNext) after responseHistory leader index
+        = effectiveAckers (joined := joinedNodes) state responseHistory leader index := by
+  classical
   intro responseHistory leader index
-  have remainingOld := (selectedSound taken).2.2
   ext peer
-  simp only [
-    effectiveAckers, Finset.mem_filter]
+  simp only [effectiveAckers, Finset.mem_filter]
   apply and_congr (by simp only [hasJoinedEq])
   constructor
-  · rintro (self | matched | queued)
+  · rintro (self | matched | ⟨queued, member, success, term, source, target, covered, retainedLog⟩)
     · exact Or.inl self
     · exact Or.inr (Or.inl (by simpa [matchEq] using matched))
-    · right
-      right
-      rcases queued with
-        ⟨queuedResponse, member, success, responseTerm, sourceEq,
-          responseDestination, lastIndex, covered⟩
-      have oldMember :
-          Message.appendEntriesResponse queuedResponse ∈
-            state.network leader := by
-        rw [networkEq] at member
-        by_cases leaderEq : leader = destination
-        · have queuedDestination :
-              queuedResponse.destination = destination :=
-            responseDestination.trans leaderEq
-          subst leader
-          have remainingMember :
-              Message.appendEntriesResponse queuedResponse ∈ remaining := by
-            simpa [updateQueue, Function.update, queuedDestination] using member
-          simpa [queuedDestination] using remainingOld _ remainingMember
-        · simpa [updateQueue, Function.update, leaderEq] using member
-      exact ⟨
-        queuedResponse,
-        oldMember,
-        success,
-        by simpa [termEq] using responseTerm,
-        sourceEq,
-        responseDestination,
-        lastIndex,
-        by simpa [logEq] using covered
-      ⟩
-  · rintro (self | matched | queued)
+    · exact Or.inr (Or.inr ⟨queued,
+        ⟨(selectedSound taken).2.2 _ (by simpa [networkEq] using member.1), member.2⟩,
+        success, by simpa [termEq] using term, source, target, covered,
+        by simpa [logEq] using retainedLog⟩)
+  · rintro (self | matched | ⟨queued, member, success, term, source, target, covered, retainedLog⟩)
     · exact Or.inl self
     · exact Or.inr (Or.inl (by simpa [matchEq] using matched))
-    · right
-      right
-      rcases queued with
-        ⟨queuedResponse, member, success, responseTerm, sourceEq,
-          responseDestination, lastIndex, covered⟩
-      have afterMember :
-          Message.appendEntriesResponse queuedResponse ∈
-            after.network leader := by
-        rw [networkEq]
-        by_cases leaderEq : leader = destination
-        · have queuedDestination :
-              queuedResponse.destination = destination :=
-            responseDestination.trans leaderEq
-          subst leader
-          have oldMember :
-              Message.appendEntriesResponse queuedResponse ∈
-                state.network destination := by
-            simpa [queuedDestination] using member
-          rcases
-              memSelectedOrRemaining taken oldMember with
-            selectedEq | remainingMember
-          · simp only [Message.appendEntriesResponse.injEq] at selectedEq
-            subst queuedResponse
-            exact False.elim
-              (inactive
-                ⟨success,
-                  by simpa [queuedDestination] using responseTerm⟩)
-          · simpa [
-              updateQueue, Function.update, queuedDestination
-            ] using remainingMember
-        · simpa [updateQueue, Function.update, leaderEq] using member
-      exact ⟨
-        queuedResponse,
-        afterMember,
-        success,
-        by simpa [termEq] using responseTerm,
-        sourceEq,
-        responseDestination,
-        lastIndex,
-        by simpa [logEq] using covered
-      ⟩
+    · have retained : appendResponseEnvelope queued ∈ remaining := by
+        rcases memSelectedOrRemaining taken member.1 with same | retained
+        · have equal := appendResponseEnvelope.injEq.mp same
+          subst queued
+          have here : leader = destination := target.symm.trans responseDestination
+          exact False.elim (inactive ⟨success, by simpa [here] using term⟩)
+        · exact retained
+      exact Or.inr (Or.inr ⟨queued, ⟨by simpa [networkEq] using retained, member.2⟩,
+        success, by simpa [termEq] using term, source, target, covered,
+        by simpa [logEq] using retainedLog⟩)
 
-omit [Bootstrap Node] in
 /--
 Processing a successful same-term ACK transfers its evidence from the queue to
 the destination leader's monotone `matchIndex`.
 -/
 lemma effectiveAckersAfterSuccessfulResponse
-    (state after : View Node TxId)
+    (state after : Model.State Node TxId)
     (destination : Node)
-    (response : AppendEntriesResponse Node)
-    (remaining : List (Message Node TxId))
+    (response : AppendResponseKey Node)
+    (remaining : List (Model.Envelope Node TxId))
     (taken
-      : Selected response.source (state.network destination)
-          (.appendEntriesResponse response) remaining)
-    (responseDestination : response.destination = destination)
-    (success : response.success = true)
-    (sameTerm : response.term = (state.nodes destination).currentTerm)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
-    (covered : responseHistory response <+: (state.nodes destination).log)
-    (networkEq : after.network = updateQueue state.network destination remaining)
-    (hasJoinedEq : after.hasJoined = state.hasJoined)
+      : Selected response.1 state.network
+          (appendResponseEnvelope response) remaining)
+    (responseDestination : response.2.1 = destination)
+    (success : response.2.2.success = true)
+    (sameTerm : response.2.2.term = ((nodeOf state) destination).currentTerm)
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
+    (covered : responseHistory response <+: ((nodeOf state) destination).log)
+    (networkEq : after.network = remaining)
+    (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, (after.nodes node).currentTerm = (state.nodes node).currentTerm)
-    (logEq : forall node, (after.nodes node).log = (state.nodes node).log)
+      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+    (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (matchDestination
       : forall peer,
-          (after.nodes destination).matchIndex peer
+          ((nodeOf after) destination).matchIndex peer
           = updateIndex
-              (state.nodes destination).matchIndex
-              response.source
+              ((nodeOf state) destination).matchIndex
+              response.1
               (max
-                ((state.nodes destination).matchIndex response.source)
-                response.lastLogIndex)
+                (((nodeOf state) destination).matchIndex response.1)
+                response.2.2.lastLogIndex)
               peer)
     (matchOther
       : forall leader,
           Not (leader = destination)
           -> forall peer,
-              (after.nodes leader).matchIndex peer = (state.nodes leader).matchIndex peer)
+              ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
     : forall leader index,
-        effectiveAckers after responseHistory leader index
-        = effectiveAckers state responseHistory leader index := by
+        effectiveAckers (joined := joinedNext) after responseHistory leader index
+        = effectiveAckers (joined := joinedNodes) state responseHistory leader index := by
+  classical
   intro leader index
-  have selectedMember :
-      Message.appendEntriesResponse response ∈
-        state.network destination :=
-    (selectedSound taken).2.1
-  have remainingOld := (selectedSound taken).2.2
   ext peer
-  simp only [
-    effectiveAckers, Finset.mem_filter]
+  simp only [effectiveAckers, Finset.mem_filter]
   apply and_congr (by simp only [hasJoinedEq])
   constructor
-  · rintro (self | matched | queued)
+  · rintro (self | matched | ⟨queued, member, ok, term, source, target, coveredIndex, retainedLog⟩)
     · exact Or.inl self
-    · by_cases leaderEq : leader = destination
+    · by_cases here : leader = destination
       · subst leader
-        by_cases peerEq : peer = response.source
+        by_cases sameSource : peer = response.1
         · subst peer
           rw [matchDestination, updateIndex_same] at matched
-          by_cases oldCovers :
-              index <=
-                (state.nodes destination).matchIndex response.source
-          · exact Or.inr (Or.inl oldCovers)
-          · right
-            right
-            refine ⟨
-              response,
-              selectedMember,
-              success,
-              sameTerm,
-              rfl,
-              responseDestination,
-              ?_,
-              covered
-            ⟩
-            omega
-        · right
-          left
-          simpa [
-            matchDestination, updateIndex,
-            Function.update, peerEq
-          ] using matched
-      · exact Or.inr
-          (Or.inl (by simpa [matchOther leader leaderEq] using matched))
-    · right
-      right
-      rcases queued with
-        ⟨queuedResponse, member, queuedSuccess, responseTerm, sourceEq,
-          queuedDestination, lastIndex, queuedCovered⟩
-      have oldMember :
-          Message.appendEntriesResponse queuedResponse ∈
-            state.network leader := by
-        rw [networkEq] at member
-        by_cases leaderEq : leader = destination
-        · have queuedDestinationEq :
-              queuedResponse.destination = destination :=
-            queuedDestination.trans leaderEq
-          subst leader
-          have remainingMember :
-              Message.appendEntriesResponse queuedResponse ∈ remaining := by
-            simpa [updateQueue, Function.update, queuedDestinationEq] using member
-          simpa [queuedDestinationEq] using remainingOld _ remainingMember
-        · simpa [updateQueue, Function.update, leaderEq] using member
-      exact ⟨
-        queuedResponse,
-        oldMember,
-        queuedSuccess,
-        by simpa [termEq] using responseTerm,
-        sourceEq,
-        queuedDestination,
-        lastIndex,
-        by simpa [logEq] using queuedCovered
-      ⟩
-  · rintro (self | matched | queued)
+          rcases le_max_iff.mp matched with old | fresh
+          · exact Or.inr (Or.inl old)
+          · exact Or.inr (Or.inr ⟨response, ⟨taken.2.1, responseDestination⟩,
+              success, sameTerm, rfl, responseDestination, fresh, covered⟩)
+        · exact Or.inr (Or.inl (by simpa [matchDestination, updateIndex, sameSource] using matched))
+      · exact Or.inr (Or.inl (by simpa [matchOther leader here] using matched))
+    · exact Or.inr (Or.inr ⟨queued,
+        ⟨(selectedSound taken).2.2 _ (by simpa [networkEq] using member.1), member.2⟩,
+        ok, by simpa [termEq] using term, source, target, coveredIndex,
+        by simpa [logEq] using retainedLog⟩)
+  · rintro (self | matched | ⟨queued, member, ok, term, source, target, coveredIndex, retainedLog⟩)
     · exact Or.inl self
     · right
       left
-      by_cases leaderEq : leader = destination
+      by_cases here : leader = destination
       · subst leader
-        by_cases peerEq : peer = response.source
+        by_cases sameSource : peer = response.1
         · subst peer
           rw [matchDestination, updateIndex_same]
-          omega
-        · simpa [
-            matchDestination, updateIndex,
-            Function.update, peerEq
-          ] using matched
-      · simpa [matchOther leader leaderEq] using matched
-    · rcases queued with
-        ⟨queuedResponse, member, queuedSuccess, responseTerm, sourceEq,
-          queuedDestination, lastIndex, queuedCovered⟩
-      by_cases leaderEq : leader = destination
-      · have queuedDestinationEq :
-            queuedResponse.destination = destination :=
-          queuedDestination.trans leaderEq
+          exact matched.trans (le_max_left _ _)
+        · simpa [matchDestination, updateIndex, sameSource] using matched
+      · simpa [matchOther leader here] using matched
+    · rcases memSelectedOrRemaining taken member.1 with same | retained
+      · have equal := appendResponseEnvelope.injEq.mp same
+        subst queued
+        have here : leader = destination := target.symm.trans responseDestination
         subst leader
-        have oldMember :
-            Message.appendEntriesResponse queuedResponse ∈
-              state.network destination := by
-          simpa [queuedDestinationEq] using member
-        rcases memSelectedOrRemaining taken oldMember with
-          selectedEq | remainingMember
-        · simp only [Message.appendEntriesResponse.injEq] at selectedEq
-          rw [selectedEq] at sourceEq
-          have peerEq : peer = response.source := sourceEq.symm
-          subst peer
-          subst queuedResponse
-          right
-          left
-          rw [responseDestination, matchDestination, updateIndex_same]
-          omega
-        · right
-          right
-          refine ⟨
-            queuedResponse,
-            ?_,
-            queuedSuccess,
-            by simpa [termEq] using responseTerm,
-            sourceEq,
-            rfl,
-            lastIndex,
-            by simpa [logEq] using queuedCovered
-          ⟩
-          rw [networkEq]
-          simpa [updateQueue, Function.update, queuedDestinationEq] using remainingMember
-      · right
+        subst peer
         right
-        refine ⟨
-          queuedResponse,
-          ?_,
-          queuedSuccess,
-          by simpa [termEq] using responseTerm,
-          sourceEq,
-          queuedDestination,
-          lastIndex,
-          by simpa [logEq] using queuedCovered
-        ⟩
-        rw [networkEq]
-        simpa [updateQueue, Function.update, leaderEq] using member
+        left
+        rw [responseDestination, matchDestination, updateIndex_same]
+        exact coveredIndex.trans (le_max_right _ _)
+      · exact Or.inr (Or.inr ⟨queued, ⟨by simpa [networkEq] using retained, member.2⟩,
+          ok, by simpa [termEq] using term, source, target, coveredIndex,
+          by simpa [logEq] using retainedLog⟩)
 
-omit [DecidableEq TxId] [Bootstrap Node] in
 /--
 Before dequeue, a successful same-term ACK's monotone `matchIndex` update only
 changes the representation of evidence already present in the queue.
 -/
 lemma effectiveAckersAfterSuccessfulResponseHandler
-    (state after : View Node TxId)
+    (state after : Model.State Node TxId)
     (destination : Node)
-    (response : AppendEntriesResponse Node)
-    (responseDestination : response.destination = destination)
-    (success : response.success = true)
-    (sameTerm : response.term = (state.nodes destination).currentTerm)
-    (selectedMember : Message.appendEntriesResponse response ∈ state.network destination)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
-    (covered : responseHistory response <+: (state.nodes destination).log)
+    (response : AppendResponseKey Node)
+    (responseDestination : response.2.1 = destination)
+    (success : response.2.2.success = true)
+    (sameTerm : response.2.2.term = ((nodeOf state) destination).currentTerm)
+    (selectedMember : (appendResponseEnvelope response ∈ state.network /\ response.2.1 = destination))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
+    (covered : responseHistory response <+: ((nodeOf state) destination).log)
     (networkEq : after.network = state.network)
-    (hasJoinedEq : after.hasJoined = state.hasJoined)
+    (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, (after.nodes node).currentTerm = (state.nodes node).currentTerm)
-    (logEq : forall node, (after.nodes node).log = (state.nodes node).log)
+      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+    (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (matchDestination
       : forall peer,
-          (after.nodes destination).matchIndex peer
+          ((nodeOf after) destination).matchIndex peer
           = updateIndex
-              (state.nodes destination).matchIndex
-              response.source
+              ((nodeOf state) destination).matchIndex
+              response.1
               (max
-                ((state.nodes destination).matchIndex response.source)
-                response.lastLogIndex)
+                (((nodeOf state) destination).matchIndex response.1)
+                response.2.2.lastLogIndex)
               peer)
     (matchOther
       : forall leader,
           Not (leader = destination)
           -> forall peer,
-              (after.nodes leader).matchIndex peer = (state.nodes leader).matchIndex peer)
+              ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
     : forall leader index,
-        effectiveAckers after responseHistory leader index
-        = effectiveAckers state responseHistory leader index := by
+        effectiveAckers (joined := joinedNext) after responseHistory leader index
+        = effectiveAckers (joined := joinedNodes) state responseHistory leader index := by
   intro leader index
   ext peer
   simp only [
@@ -545,12 +221,12 @@ lemma effectiveAckersAfterSuccessfulResponseHandler
     · exact Or.inl self
     · by_cases leaderEq : leader = destination
       · subst leader
-        by_cases peerEq : peer = response.source
+        by_cases peerEq : peer = response.1
         · subst peer
           rw [matchDestination, updateIndex_same] at matched
           by_cases oldCovers :
               index <=
-                (state.nodes destination).matchIndex response.source
+                ((nodeOf state) destination).matchIndex response.1
           · exact Or.inr (Or.inl oldCovers)
           · right
             right
@@ -593,7 +269,7 @@ lemma effectiveAckersAfterSuccessfulResponseHandler
       left
       by_cases leaderEq : leader = destination
       · subst leader
-        by_cases peerEq : peer = response.source
+        by_cases peerEq : peer = response.1
         · subst peer
           rw [matchDestination, updateIndex_same]
           omega
@@ -618,77 +294,76 @@ lemma effectiveAckersAfterSuccessfulResponseHandler
         by simpa [logEq] using queuedCovered
       ⟩
 
-omit [DecidableEq TxId] [Bootstrap Node] in
 /-- A successful ACK transfers its immutable history into processed evidence. -/
 lemma processedAckHistoryAfterSuccessfulResponse
-    (state after : View Node TxId)
+    (state after : Model.State Node TxId)
     (destination : Node)
-    (response : AppendEntriesResponse Node)
+    (response : AppendResponseKey Node)
     (history : ProcessedAckHistory Node TxId)
     (historyFacts : ProcessedAckHistoryFacts state history)
     (responseHistory : List (Entry Node TxId))
-    (responseBound : response.lastLogIndex <= responseHistory.length)
-    (responseCovered : responseHistory <+: (state.nodes destination).log)
+    (responseBound : response.2.2.lastLogIndex <= responseHistory.length)
+    (responseCovered : responseHistory <+: ((nodeOf state) destination).log)
     (successful
-      : response.term = (state.nodes destination).currentTerm
-        /\ (state.nodes destination).role = .leader)
-    (roleEq : forall node, (after.nodes node).role = (state.nodes node).role)
+      : response.2.2.term = ((nodeOf state) destination).currentTerm
+        /\ ((nodeOf state) destination).role = .leader)
+    (roleEq : forall node, ((nodeOf after) node).role = ((nodeOf state) node).role)
     (termEq
-      : forall node, (after.nodes node).currentTerm = (state.nodes node).currentTerm)
-    (logEq : forall node, (after.nodes node).log = (state.nodes node).log)
+      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+    (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (matchDestination
       : forall peer,
-          (after.nodes destination).matchIndex peer
+          ((nodeOf after) destination).matchIndex peer
           = updateIndex
-              (state.nodes destination).matchIndex
-              response.source
+              ((nodeOf state) destination).matchIndex
+              response.1
               (max
-                ((state.nodes destination).matchIndex response.source)
-                response.lastLogIndex)
+                (((nodeOf state) destination).matchIndex response.1)
+                response.2.2.lastLogIndex)
               peer)
     (matchOther
       : forall leader,
           Not (leader = destination)
           -> forall peer,
-              (after.nodes leader).matchIndex peer = (state.nodes leader).matchIndex peer)
+              ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
     : Exists
         fun nextHistory =>
           ProcessedAckHistoryFacts after nextHistory := by
   by_cases raised :
-      (state.nodes destination).matchIndex response.source <
-        response.lastLogIndex
+      ((nodeOf state) destination).matchIndex response.1 <
+        response.2.2.lastLogIndex
   · let snapshot : ProcessedAckSnapshot Node TxId :=
-      { term := response.term
-        index := response.lastLogIndex
+      { term := response.2.2.term
+        index := response.2.2.lastLogIndex
         history := responseHistory }
     let nextHistory : ProcessedAckHistory Node TxId :=
       Function.update history destination
         (Function.update
-          (history destination) response.source (some snapshot))
+          (history destination) response.1 (some snapshot))
     refine ⟨nextHistory, ?_⟩
     constructor
     · intro leader role peer zero
       by_cases leaderEq : leader = destination
       · subst leader
-        by_cases peerEq : peer = response.source
+        by_cases peerEq : peer = response.1
         · subst peer
           rw [matchDestination, updateIndex_same] at zero
           omega
         · have oldZero :
-              (state.nodes destination).matchIndex peer = 0 := by
+              ((nodeOf state) destination).matchIndex peer = 0 := by
             simpa [matchDestination, updateIndex, Function.update, peerEq] using zero
           simpa [nextHistory, Function.update, peerEq]
             using historyFacts.zero destination successful.2 peer oldZero
-      · have oldRole : (state.nodes leader).role = .leader := by simpa [roleEq] using role
+      · have oldRole : ((nodeOf state) leader).role = .leader := by simpa [roleEq] using role
         have oldZero :
-            (state.nodes leader).matchIndex peer = 0 := by
+            ((nodeOf state) leader).matchIndex peer = 0 := by
           simpa [matchOther leader leaderEq] using zero
         simpa [nextHistory, Function.update, leaderEq]
           using historyFacts.zero leader oldRole peer oldZero
     · intro leader role peer positive
       by_cases leaderEq : leader = destination
       · subst leader
-        by_cases peerEq : peer = response.source
+        by_cases peerEq : peer = response.1
         · subst peer
           refine ⟨snapshot, ?_, ?_, ?_, ?_, ?_⟩
           · simp [nextHistory, snapshot]
@@ -706,7 +381,7 @@ lemma processedAckHistoryAfterSuccessfulResponse
             rw [logEq]
             exact equalTake
         · have oldPositive :
-              0 < (state.nodes destination).matchIndex peer := by
+              0 < ((nodeOf state) destination).matchIndex peer := by
             simpa [matchDestination, updateIndex, Function.update, peerEq] using positive
           rcases
               historyFacts.positive
@@ -726,9 +401,9 @@ lemma processedAckHistoryAfterSuccessfulResponse
             historyBound,
             by simpa [logEq] using agreed
           ⟩
-      · have oldRole : (state.nodes leader).role = .leader := by simpa [roleEq] using role
+      · have oldRole : ((nodeOf state) leader).role = .leader := by simpa [roleEq] using role
         have oldPositive :
-            0 < (state.nodes leader).matchIndex peer := by
+            0 < ((nodeOf state) leader).matchIndex peer := by
           simpa [matchOther leader leaderEq] using positive
         rcases
             historyFacts.positive leader oldRole peer oldPositive with
@@ -747,12 +422,12 @@ lemma processedAckHistoryAfterSuccessfulResponse
   · refine ⟨history, ?_⟩
     have matchEq :
         forall leader peer,
-          (after.nodes leader).matchIndex peer =
-            (state.nodes leader).matchIndex peer := by
+          ((nodeOf after) leader).matchIndex peer =
+            ((nodeOf state) leader).matchIndex peer := by
       intro leader peer
       by_cases leaderEq : leader = destination
       · subst leader
-        by_cases peerEq : peer = response.source
+        by_cases peerEq : peer = response.1
         · subst peer
           rw [matchDestination, updateIndex_same]
           omega
@@ -785,182 +460,175 @@ lemma processedAckHistoryAfterSuccessfulResponse
 
 /-- Receiving an AppendEntries response preserves all delayed-ACK evidence. -/
 lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (source destination : Node)
-    (response : AppendEntriesResponse Node)
-    (remaining : List (Message Node TxId))
+    {present : destination ∈ state.nodes.map Prod.fst}
+    (distinct : (state.nodes.map Prod.fst).Nodup)
+    (response : AppendResponseKey Node)
+    (remaining : List (Model.Envelope Node TxId))
     (nextNode : NodeState Node TxId)
-    (invariant : SystemInductiveInvariant state)
-    (_destinationAllocated : state.allocated destination)
+    (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
+    (_destinationAllocated : destination ∈ joinedNodes)
     (taken
-      : Selected source (state.network destination) (.appendEntriesResponse response)
+      : Selected source state.network (appendResponseEnvelope response)
           remaining)
-    (responseDestination : response.destination = destination)
+    (responseDestination : response.2.1 = destination)
     (handled
-      : handleAppendEntriesResponse? (state.nodes destination) response = some nextNode)
-    : SystemInductiveInvariant
+      : handleAppendEntriesResponse ((nodeOf state) destination) response.1 response.2.2 = nextNode)
+    : SystemInductiveInvariant (joined := joinedNodes)
         {
           state with
-            nodes := updateNode state.nodes destination nextNode
-            network := updateQueue state.network destination remaining
+            nodes := replaceNode state.nodes destination nextNode
+            network := remaining
         } := by
-  have responseSource : response.source = source :=
+  have responseSource : response.1 = source :=
     (selectedSound taken).1
   have takenByResponseSource :
-      Selected response.source (state.network destination) (.appendEntriesResponse response) remaining := by
+      Selected response.1 state.network (appendResponseEnvelope response) remaining := by
     simpa [responseSource] using taken
   have selectedMember :
-      Message.appendEntriesResponse response ∈
-        state.network destination :=
-    (selectedSound taken).2.1
+      (appendResponseEnvelope response ∈ state.network /\ response.2.1 = destination) :=
+    ⟨(selectedSound taken).2.1, responseDestination⟩
   have remainingOld := (selectedSound taken).2.2
   have updateQueueSubset :
       forall queuedDestination message,
-        message ∈
-            updateQueue state.network destination remaining
-              queuedDestination ->
-          message ∈ state.network queuedDestination := by
+        (message ∈ remaining ∧ message.target = queuedDestination) ->
+          (message ∈ state.network ∧ message.target = queuedDestination) := by
     intro queuedDestination message member
-    by_cases destinationEq : queuedDestination = destination
-    · subst queuedDestination
-      exact remainingOld message
-        (by simpa [updateQueue, Function.update] using member)
-    · simpa [updateQueue, Function.update, destinationEq] using member
+    exact ⟨remainingOld message member.1, member.2⟩
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
   have packed :
-      SystemInductiveInvariant state :=
+      SystemInductiveInvariant (joined := joinedNodes) state :=
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
-  by_cases isLeader : (state.nodes destination).role = .leader
+  by_cases isLeader : ((nodeOf state) destination).role = .leader
   case neg =>
     rw [handleAppendEntriesResponseNonLeaderUnchanged
-      (state.nodes destination) response isLeader] at handled
-    have unchanged := Option.some.inj handled
+      ((nodeOf state) destination) response.1 response.2.2 isLeader] at handled
     subst nextNode
-    rw [show updateNode state.nodes destination (state.nodes destination) =
-      state.nodes from (by simp [updateNode])]
+    rw [replaceNode_nodeOf state destination distinct]
     exact safetyInertNetworkChangePreservesSystemInductiveInvariant
       state _ packed rfl (fun _ => Iff.rfl) (fun _ => rfl)
       (fun queuedDestination message member =>
         Or.inl (updateQueueSubset queuedDestination message member))
-  unfold handleAppendEntriesResponse? at handled
+  unfold handleAppendEntriesResponse at handled
   by_cases successful :
-      response.success = true /\
-        response.term = (state.nodes destination).currentTerm /\
-        (state.nodes destination).role = .leader
+      response.2.2.success = true /\
+        response.2.2.term = ((nodeOf state) destination).currentTerm /\
+        ((nodeOf state) destination).role = .leader
   · simp [successful] at handled
     subst nextNode
-    let intermediate : View Node TxId :=
+    let intermediate : Model.State Node TxId :=
       { state with
         nodes :=
-          updateNode state.nodes destination
-            { state.nodes destination with
+          replaceNode state.nodes destination
+            { (nodeOf state) destination with
               matchIndex :=
                 updateIndex
-                  (state.nodes destination).matchIndex
-                  response.source
+                  ((nodeOf state) destination).matchIndex
+                  response.1
                   (max
-                    ((state.nodes destination).matchIndex response.source)
-                    response.lastLogIndex) } }
-    let after : View Node TxId :=
+                    (((nodeOf state) destination).matchIndex response.1)
+                    response.2.2.lastLogIndex) } }
+    let after : Model.State Node TxId :=
       { state with
         nodes :=
-          updateNode state.nodes destination
-            { state.nodes destination with
+          replaceNode state.nodes destination
+            { (nodeOf state) destination with
               matchIndex :=
                 updateIndex
-                  (state.nodes destination).matchIndex
-                  response.source
+                  ((nodeOf state) destination).matchIndex
+                  response.1
                   (max
-                    ((state.nodes destination).matchIndex response.source)
-                    response.lastLogIndex) }
-        network := updateQueue state.network destination remaining }
+                    (((nodeOf state) destination).matchIndex response.1)
+                    response.2.2.lastLogIndex) }
+        network := remaining }
     have roleEq :
         forall node,
-          (intermediate.nodes node).role = (state.nodes node).role := by
+          ((nodeOf intermediate) node).role = ((nodeOf state) node).role := by
       intro node
       by_cases same : node = destination <;>
-        simp [intermediate, updateNode, same]
+        simp [intermediate, present, nodeOf_replaceNode, present, same]
     have termEq :
         forall node,
-          (intermediate.nodes node).currentTerm =
-            (state.nodes node).currentTerm := by
+          ((nodeOf intermediate) node).currentTerm =
+            ((nodeOf state) node).currentTerm := by
       intro node
       by_cases same : node = destination <;>
-        simp [intermediate, updateNode, same]
+        simp [intermediate, present, nodeOf_replaceNode, present, same]
     have logEq :
         forall node,
-          (intermediate.nodes node).log = (state.nodes node).log := by
+          ((nodeOf intermediate) node).log = ((nodeOf state) node).log := by
       intro node
       by_cases same : node = destination <;>
-        simp [intermediate, updateNode, same]
+        simp [intermediate, present, nodeOf_replaceNode, present, same]
     have commitEq :
         forall node,
-          (intermediate.nodes node).commitIndex =
-            (state.nodes node).commitIndex := by
+          ((nodeOf intermediate) node).commitIndex =
+            ((nodeOf state) node).commitIndex := by
       intro node
       by_cases same : node = destination <;>
-        simp [intermediate, updateNode, same]
+        simp [intermediate, present, nodeOf_replaceNode, present, same]
     have newFollowerEq :
         forall node,
-          (intermediate.nodes node).isNewFollower =
-            (state.nodes node).isNewFollower := by
+          ((nodeOf intermediate) node).isNewFollower =
+            ((nodeOf state) node).isNewFollower := by
       intro node
       by_cases same : node = destination <;>
-        simp [intermediate, updateNode, same]
+        simp [intermediate, present, nodeOf_replaceNode, present, same]
     have votedEq :
         forall node,
-          (intermediate.nodes node).votedFor =
-            (state.nodes node).votedFor := by
+          ((nodeOf intermediate) node).votedFor =
+            ((nodeOf state) node).votedFor := by
       intro node
       by_cases same : node = destination <;>
-        simp [intermediate, updateNode, same]
+        simp [intermediate, present, nodeOf_replaceNode, present, same]
     have votesEq :
         forall node,
-          (intermediate.nodes node).votesGranted =
-            (state.nodes node).votesGranted := by
+          ((nodeOf intermediate) node).votesGranted =
+            ((nodeOf state) node).votesGranted := by
       intro node
       by_cases same : node = destination <;>
-        simp [intermediate, updateNode, same]
+        simp [intermediate, present, nodeOf_replaceNode, present, same]
     have activeConfigurationsEq :
         forall node,
-          activeConfigurations (intermediate.nodes node) =
-            activeConfigurations (state.nodes node) := by
+          activeConfigurations ((nodeOf intermediate) node) =
+            activeConfigurations ((nodeOf state) node) := by
       intro node
       unfold activeConfigurations currentConfiguration
       rw [logEq, commitEq]
     have matchDestination :
         forall peer,
-          (intermediate.nodes destination).matchIndex peer =
+          ((nodeOf intermediate) destination).matchIndex peer =
             updateIndex
-              (state.nodes destination).matchIndex
-              response.source
+              ((nodeOf state) destination).matchIndex
+              response.1
               (max
-                ((state.nodes destination).matchIndex response.source)
-                response.lastLogIndex)
+                (((nodeOf state) destination).matchIndex response.1)
+                response.2.2.lastLogIndex)
               peer := by
       intro peer
-      simp [intermediate, updateNode]
+      simp [intermediate, present, nodeOf_replaceNode, present]
     have matchOther :
         forall leader,
           Not (leader = destination) ->
             forall peer,
-              (intermediate.nodes leader).matchIndex peer =
-                (state.nodes leader).matchIndex peer := by
+              ((nodeOf intermediate) leader).matchIndex peer =
+                ((nodeOf state) leader).matchIndex peer := by
       intro leader different peer
-      simp [intermediate, updateNode, different]
+      simp [intermediate, present, nodeOf_replaceNode, present, different]
     have responseSnapshot :=
       facts.networkHistory.appendResponse
         destination response selectedMember successful.1
     have snapshotSameTerm :
-        response.term =
-          (state.nodes response.destination).currentTerm := by
+        response.2.2.term =
+          ((nodeOf state) response.2.1).currentTerm := by
       simpa [responseDestination] using successful.2.1
     have responseCovered :
         responseHistory response <+:
-          (state.nodes destination).log := by
+          ((nodeOf state) destination).log := by
       have covered :=
         successfulResponseSnapshotCoveredOfLeader
           (facts.networkHistory.appendResponse
@@ -975,8 +643,8 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
       by_cases leaderEq : leader = destination
       · subst leader
         constructor
-        · simpa [intermediate, updateNode] using old.1
-        · by_cases peerEq : peer = response.source
+        · simpa [intermediate, present, nodeOf_replaceNode, present] using old.1
+        · by_cases peerEq : peer = response.1
           · subst peer
             rw [matchDestination, updateIndex_same]
             rw [logEq]
@@ -988,16 +656,16 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
               Function.update, peerEq, logEq
             ] using old.2
       · simpa [
-          intermediate, updateNode, Function.update, leaderEq
+          intermediate, present, nodeOf_replaceNode, present, Function.update, leaderEq
         ] using old
     have effectiveElectionVotersIntermediate :
         forall candidate,
-          effectiveElectionVoters intermediate candidate =
-            effectiveElectionVoters state candidate :=
+          effectiveElectionVoters (joined := joinedNodes) intermediate candidate =
+            effectiveElectionVoters (joined := joinedNodes) state candidate :=
       effectiveElectionVotersFrame
         state intermediate (by rfl) (by rfl) termEq votesEq
     have intermediateInvariant :
-        SystemInductiveInvariant intermediate := by
+        SystemInductiveInvariant (joined := joinedNodes) intermediate := by
       apply roleAndNetworkFramePreservesSystemInductiveInvariant state intermediate packed
         (by rfl)
         (fun _ => Iff.rfl)
@@ -1006,8 +674,8 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           (by
             intro node configuration active
             have same :
-                activeConfigurations (intermediate.nodes node) =
-                  activeConfigurations (state.nodes node) := by
+                activeConfigurations ((nodeOf intermediate) node) =
+                  activeConfigurations ((nodeOf state) node) := by
               unfold activeConfigurations currentConfiguration
               rw [logEq, commitEq]
             rw [same] at active
@@ -1026,7 +694,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
             intro leader peer positive
             by_cases leaderEq : leader = destination
             · subst leader
-              by_cases peerEq : peer = response.source
+              by_cases peerEq : peer = response.1
               · subst peer
                 exact
                   facts.joinedCarriers.runtimeNodes.appendResponses
@@ -1089,7 +757,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
             destination response selectedMember successful.1
         have actualCovered :
             actualResponseHistory response <+:
-              (state.nodes destination).log := by
+              ((nodeOf state) destination).log := by
           have covered :=
             successfulResponseSnapshotCoveredOfLeader
               (actualFacts.networkHistory.appendResponse
@@ -1107,7 +775,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
                 by simpa [responseDestination] using successful.2.2⟩
               roleEq termEq logEq matchDestination matchOther
       · intro queuedDestination message member
-        exact Or.inl (by simpa [intermediate] using member)
+        exact Or.inl (by simpa [intermediate, present] using member)
       · exact progressIntermediate
       · intro _ _ actualResponseHistory _ _ _ actualFacts leader index
         have actualSnapshot :=
@@ -1115,7 +783,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
             destination response selectedMember successful.1
         have actualCovered :
             actualResponseHistory response <+:
-              (state.nodes destination).log := by
+              ((nodeOf state) destination).log := by
           have covered :=
             successfulResponseSnapshotCoveredOfLeader
               (actualFacts.networkHistory.appendResponse
@@ -1135,7 +803,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         simp only [
           potentialAckers, Finset.mem_filter] at member ⊢
         rcases member with ⟨joined, effective | reserve⟩
-        · refine ⟨by simpa [intermediate] using joined, Or.inl ?_⟩
+        · refine ⟨by simpa [intermediate, present] using joined, Or.inl ?_⟩
           rw [
             effectiveAckersAfterSuccessfulResponseHandler
               state intermediate destination response responseDestination
@@ -1156,42 +824,42 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
                 rfl rfl termEq logEq matchDestination matchOther
           ] at effective
           exact effective
-        · refine ⟨by simpa [intermediate] using joined, Or.inr ?_⟩
+        · refine ⟨by simpa [intermediate, present] using joined, Or.inr ?_⟩
           rcases reserve with
             ⟨request, queued, sourceEq, destinationEq,
               requestTerm, producible, covered⟩
           have oldProducible :
               canProduceAppendAckEventuallyAt
-                (state.nodes peer) request index := by
+                ((nodeOf state) peer) request index := by
             by_cases peerEq : peer = destination
             · have destinationProducible :
                   canProduceAppendAckEventuallyAt
-                    (intermediate.nodes destination) request index := by
+                    ((nodeOf intermediate) destination) request index := by
                 simpa only [peerEq] using producible
               rcases destinationProducible with direct | future
               · have follower := canProduceAppendAckAt_role direct
                 have leader :
-                    (intermediate.nodes destination).role = .leader := by
+                    ((nodeOf intermediate) destination).role = .leader := by
                   rw [roleEq]
                   exact successful.2.2
                 exact False.elim
                   (Role.noConfusion (follower.symm.trans leader))
               · have result :
                     canProduceAppendAckEventuallyAt
-                      (state.nodes destination) request index :=
+                      ((nodeOf state) destination) request index :=
                   Or.inr
                     ⟨by simpa [termEq] using future.1, future.2⟩
                 rw [peerEq]
                 exact result
             · have nodesEq :
-                  intermediate.nodes peer = state.nodes peer := by
+                  (nodeOf intermediate) peer = (nodeOf state) peer := by
                 simp [
-                  intermediate, updateNode, peerEq
+                  intermediate, present, nodeOf_replaceNode, present, peerEq
                 ]
               rw [nodesEq] at producible
               exact producible
           refine ⟨request, ?_, sourceEq, destinationEq, ?_, oldProducible, ?_⟩
-          · simpa [intermediate] using queued
+          · simpa [intermediate, present] using queued
           · simpa [termEq] using requestTerm
           · simpa [logEq] using covered
       · intro candidate role majority
@@ -1205,7 +873,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         simpa [
           potentialElectionVoters,
           currentlyEligibleElectionVoter,
-          makeRequestVoteRequest,
+          voteRequestKey, Model.Local.makeRequestVoteRequest,
           activeConfigurationsEq,
           effectiveElectionVotersIntermediate,
           termEq, logEq, commitEq, votedEq,
@@ -1218,62 +886,61 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
       · intro candidate voter _ member
         simpa [effectiveElectionVotersIntermediate] using member
     have nodeStateEq :
-        forall node, after.nodes node = intermediate.nodes node := by
+        forall node, (nodeOf after) node = (nodeOf intermediate) node := by
       intro node
       rfl
     have intermediateSelectedMember :
-        Message.appendEntriesResponse response ∈
-          intermediate.network destination := by
-      simpa [intermediate] using selectedMember
+        (appendResponseEnvelope response ∈ intermediate.network /\ response.2.1 = destination) := by
+      simpa [intermediate, present] using selectedMember
     have takenFromIntermediate :
-        Selected response.source (intermediate.network destination) (.appendEntriesResponse response) remaining := by
-      simpa [intermediate] using takenByResponseSource
+        Selected response.1 intermediate.network (appendResponseEnvelope response) remaining := by
+      simpa [intermediate, present] using takenByResponseSource
     have networkSubsetAfter :
         forall queuedDestination message,
-          message ∈ after.network queuedDestination ->
-            message ∈ intermediate.network queuedDestination := by
+          (message ∈ after.network /\ message.target = queuedDestination) ->
+            (message ∈ intermediate.network /\ message.target = queuedDestination) := by
       intro queuedDestination message member
       have old :=
         updateQueueSubset queuedDestination message
-          (by simpa [after] using member)
-      simpa [intermediate] using old
+          (by simpa [after, present] using member)
+      simpa [intermediate, present] using old
     have matchCoversResponse :
-        response.lastLogIndex <=
-          (intermediate.nodes destination).matchIndex response.source := by
+        response.2.2.lastLogIndex <=
+          ((nodeOf intermediate) destination).matchIndex response.1 := by
       rw [matchDestination, updateIndex_same]
       omega
     have matchDestinationAfter :
         forall peer,
-          (after.nodes destination).matchIndex peer =
+          ((nodeOf after) destination).matchIndex peer =
             updateIndex
-              (intermediate.nodes destination).matchIndex
-              response.source
+              ((nodeOf intermediate) destination).matchIndex
+              response.1
               (max
-                ((intermediate.nodes destination).matchIndex response.source)
-                response.lastLogIndex)
+                (((nodeOf intermediate) destination).matchIndex response.1)
+                response.2.2.lastLogIndex)
               peer := by
       intro peer
       rw [nodeStateEq]
-      by_cases peerEq : peer = response.source
+      by_cases peerEq : peer = response.1
       · subst peer
         rw [updateIndex_same, max_eq_left matchCoversResponse]
       · simp [updateIndex, Function.update, peerEq]
     have effectiveElectionVotersAfter :
         forall candidate,
-          effectiveElectionVoters after candidate =
-            effectiveElectionVoters intermediate candidate :=
+          effectiveElectionVoters (joined := joinedNodes) after candidate =
+            effectiveElectionVoters (joined := joinedNodes) intermediate candidate :=
       effectiveElectionVotersAfterAppendResponse
-        intermediate after destination response remaining
+        intermediate after response remaining
           takenFromIntermediate
-          (by simp [after, intermediate])
-          (by simp [after, intermediate])
+          (by simp [after, present, intermediate, present])
+          (by simp [after, present, intermediate, present])
           (fun node => by rw [nodeStateEq node])
           (fun node => by rw [nodeStateEq node])
     rw [← successful.2.2]
-    change SystemInductiveInvariant after
+    change SystemInductiveInvariant (joined := joinedNodes) after
     apply networkFramePreservesSystemInductiveInvariant
       intermediate after intermediateInvariant
-      (by simp [after, intermediate]) (fun _ => Iff.rfl) nodeStateEq
+      (by simp [after, present, intermediate, present]) (fun _ => Iff.rfl) nodeStateEq
       (fun destination message member =>
         Or.inl (networkSubsetAfter destination message member))
     · intro _ _ actualResponseHistory _ _ _ actualFacts leader index
@@ -1281,12 +948,12 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         actualFacts.networkHistory.appendResponse
           destination response intermediateSelectedMember successful.1
       have sameTermIntermediate :
-          response.term =
-            (intermediate.nodes response.destination).currentTerm := by
+          response.2.2.term =
+            ((nodeOf intermediate) response.2.1).currentTerm := by
         simpa [responseDestination, termEq] using successful.2.1
       have actualCovered :
           actualResponseHistory response <+:
-            (intermediate.nodes destination).log := by
+            ((nodeOf intermediate) destination).log := by
         have covered :=
           successfulResponseSnapshotCoveredOfLeader
             (actualFacts.networkHistory.appendResponse
@@ -1300,8 +967,8 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           takenFromIntermediate responseDestination successful.1
           (by simpa [termEq] using successful.2.1)
           actualResponseHistory actualCovered
-          (by simp [after, intermediate])
-          (by simp [after, intermediate])
+          (by simp [after, present, intermediate, present])
+          (by simp [after, present, intermediate, present])
           (fun node => by rw [nodeStateEq node])
           (fun node => by rw [nodeStateEq node])
           matchDestinationAfter
@@ -1312,103 +979,103 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
       simpa [nodeStateEq, effectiveElectionVotersAfter] using majority
     · intro candidate voter _ member
       simpa [effectiveElectionVotersAfter] using member
-  · by_cases failed : response.success = false
+  · by_cases failed : response.2.2.success = false
     · simp only [
-        show ((state.nodes destination).role != .leader) = false by simp [isLeader],
-        Bool.false_eq_true, ↓reduceIte, failed, false_and, Option.some.injEq
+        show (((nodeOf state) destination).role != .leader) = false by simp [isLeader],
+        Bool.false_eq_true, ↓reduceIte, failed, false_and, Bool.false_eq_true
       ] at handled
       subst nextNode
-      let intermediate : View Node TxId :=
+      let intermediate : Model.State Node TxId :=
         { state with
           nodes :=
-            updateNode state.nodes destination
-              { state.nodes destination with
+            replaceNode state.nodes destination
+              { (nodeOf state) destination with
                 sentIndex :=
                   updateIndex
-                    (state.nodes destination).sentIndex
-                    response.source
+                    ((nodeOf state) destination).sentIndex
+                    response.1
                     (max
                       (min
                         (findHighestPossibleMatch
-                          (state.nodes destination).log
-                          response.lastLogIndex response.term)
-                        ((state.nodes destination).sentIndex response.source))
-                      ((state.nodes destination).matchIndex response.source)) } }
-      let after : View Node TxId :=
+                          ((nodeOf state) destination).log
+                          response.2.2.lastLogIndex response.2.2.term)
+                        (((nodeOf state) destination).sentIndex response.1))
+                      (((nodeOf state) destination).matchIndex response.1)) } }
+      let after : Model.State Node TxId :=
         { state with
           nodes :=
-            updateNode state.nodes destination
-              { state.nodes destination with
+            replaceNode state.nodes destination
+              { (nodeOf state) destination with
                 sentIndex :=
                   updateIndex
-                    (state.nodes destination).sentIndex
-                    response.source
+                    ((nodeOf state) destination).sentIndex
+                    response.1
                     (max
                       (min
                         (findHighestPossibleMatch
-                          (state.nodes destination).log
-                          response.lastLogIndex response.term)
-                        ((state.nodes destination).sentIndex response.source))
-                      ((state.nodes destination).matchIndex response.source)) }
-          network := updateQueue state.network destination remaining }
+                          ((nodeOf state) destination).log
+                          response.2.2.lastLogIndex response.2.2.term)
+                        (((nodeOf state) destination).sentIndex response.1))
+                      (((nodeOf state) destination).matchIndex response.1)) }
+          network := remaining }
       have roleEq :
           forall node,
-            (intermediate.nodes node).role = (state.nodes node).role := by
+            ((nodeOf intermediate) node).role = ((nodeOf state) node).role := by
         intro node
         by_cases same : node = destination <;>
-          simp [intermediate, updateNode, same]
+          simp [intermediate, present, nodeOf_replaceNode, present, same]
       have termEq :
           forall node,
-            (intermediate.nodes node).currentTerm =
-              (state.nodes node).currentTerm := by
+            ((nodeOf intermediate) node).currentTerm =
+              ((nodeOf state) node).currentTerm := by
         intro node
         by_cases same : node = destination <;>
-          simp [intermediate, updateNode, same]
+          simp [intermediate, present, nodeOf_replaceNode, present, same]
       have logEq :
           forall node,
-            (intermediate.nodes node).log = (state.nodes node).log := by
+            ((nodeOf intermediate) node).log = ((nodeOf state) node).log := by
         intro node
         by_cases same : node = destination <;>
-          simp [intermediate, updateNode, same]
+          simp [intermediate, present, nodeOf_replaceNode, present, same]
       have commitEq :
           forall node,
-            (intermediate.nodes node).commitIndex =
-              (state.nodes node).commitIndex := by
+            ((nodeOf intermediate) node).commitIndex =
+              ((nodeOf state) node).commitIndex := by
         intro node
         by_cases same : node = destination <;>
-          simp [intermediate, updateNode, same]
+          simp [intermediate, present, nodeOf_replaceNode, present, same]
       have newFollowerEq :
           forall node,
-            (intermediate.nodes node).isNewFollower =
-              (state.nodes node).isNewFollower := by
+            ((nodeOf intermediate) node).isNewFollower =
+              ((nodeOf state) node).isNewFollower := by
         intro node
         by_cases same : node = destination <;>
-          simp [intermediate, updateNode, same]
+          simp [intermediate, present, nodeOf_replaceNode, present, same]
       have votedEq :
           forall node,
-            (intermediate.nodes node).votedFor =
-              (state.nodes node).votedFor := by
+            ((nodeOf intermediate) node).votedFor =
+              ((nodeOf state) node).votedFor := by
         intro node
         by_cases same : node = destination <;>
-          simp [intermediate, updateNode, same]
+          simp [intermediate, present, nodeOf_replaceNode, present, same]
       have votesEq :
           forall node,
-            (intermediate.nodes node).votesGranted =
-              (state.nodes node).votesGranted := by
+            ((nodeOf intermediate) node).votesGranted =
+              ((nodeOf state) node).votesGranted := by
         intro node
         by_cases same : node = destination <;>
-          simp [intermediate, updateNode, same]
+          simp [intermediate, present, nodeOf_replaceNode, present, same]
       have matchEq :
           forall leader peer,
-            (intermediate.nodes leader).matchIndex peer =
-              (state.nodes leader).matchIndex peer := by
+            ((nodeOf intermediate) leader).matchIndex peer =
+              ((nodeOf state) leader).matchIndex peer := by
         intro leader peer
         by_cases same : leader = destination <;>
-          simp [intermediate, updateNode, same]
+          simp [intermediate, present, nodeOf_replaceNode, present, same]
       have activeConfigurationsEq :
           forall node,
-            activeConfigurations (intermediate.nodes node) =
-              activeConfigurations (state.nodes node) := by
+            activeConfigurations ((nodeOf intermediate) node) =
+              activeConfigurations ((nodeOf state) node) := by
         intro node
         unfold activeConfigurations currentConfiguration
         rw [logEq, commitEq]
@@ -1419,32 +1086,32 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         by_cases leaderEq : leader = destination
         · subst leader
           constructor
-          · by_cases peerEq : peer = response.source
+          · by_cases peerEq : peer = response.1
             · subst peer
-              simp [intermediate, updateNode, updateIndex_same]
+              simp [intermediate, present, nodeOf_replaceNode, present, updateIndex_same]
               exact ⟨Or.inr old.1, old.2⟩
             · simpa [
-                intermediate, updateNode, updateIndex,
+                intermediate, present, nodeOf_replaceNode, present, updateIndex,
                 Function.update, peerEq
               ] using old.1
           · simpa [matchEq, logEq] using old.2
         · simpa [
-            intermediate, updateNode, Function.update, leaderEq
+            intermediate, present, nodeOf_replaceNode, present, Function.update, leaderEq
           ] using old
       have effectiveAckersIntermediate :
           forall actualResponseHistory leader index,
-            effectiveAckers intermediate actualResponseHistory leader index =
-              effectiveAckers state actualResponseHistory leader index :=
+            effectiveAckers (joined := joinedNodes) intermediate actualResponseHistory leader index =
+              effectiveAckers (joined := joinedNodes) state actualResponseHistory leader index :=
         effectiveAckersFrame
           state intermediate rfl rfl termEq logEq matchEq
       have effectiveElectionVotersIntermediate :
           forall candidate,
-            effectiveElectionVoters intermediate candidate =
-              effectiveElectionVoters state candidate :=
+            effectiveElectionVoters (joined := joinedNodes) intermediate candidate =
+              effectiveElectionVoters (joined := joinedNodes) state candidate :=
         effectiveElectionVotersFrame
           state intermediate rfl rfl termEq votesEq
       have intermediateInvariant :
-          SystemInductiveInvariant intermediate := by
+          SystemInductiveInvariant (joined := joinedNodes) intermediate := by
         apply roleAndNetworkFramePreservesSystemInductiveInvariant
           state intermediate packed rfl
           (fun _ => Iff.rfl)
@@ -1452,8 +1119,8 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
             (by
               intro node configuration active
               have same :
-                  activeConfigurations (intermediate.nodes node) =
-                    activeConfigurations (state.nodes node) := by
+                  activeConfigurations ((nodeOf intermediate) node) =
+                    activeConfigurations ((nodeOf state) node) := by
                 unfold activeConfigurations currentConfiguration
                 rw [logEq, commitEq]
               rw [same] at active
@@ -1520,7 +1187,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
               roleEq termEq logEq matchEq
           ⟩
         · intro queuedDestination message member
-          exact Or.inl (by simpa [intermediate] using member)
+          exact Or.inl (by simpa [intermediate, present] using member)
         · exact progressIntermediate
         · intro _ _ actualResponseHistory _ _ _ _ leader index
           exact Finset.subset_of_eq
@@ -1531,7 +1198,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
             potentialAckers, Finset.mem_filter] at member ⊢
           rcases member with ⟨joined, effective | reserve⟩
           · exact ⟨
-              by simpa [intermediate] using joined,
+              by simpa [intermediate, present] using joined,
               Or.inl
                 (by
                   rw [
@@ -1540,40 +1207,40 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
                   ] at effective
                   exact effective)
             ⟩
-          · refine ⟨by simpa [intermediate] using joined, Or.inr ?_⟩
+          · refine ⟨by simpa [intermediate, present] using joined, Or.inr ?_⟩
             rcases reserve with
               ⟨request, queued, sourceEq, destinationEq,
                 requestTerm, producible, covered⟩
             have oldProducible :
                 canProduceAppendAckEventuallyAt
-                  (state.nodes peer) request index := by
+                  ((nodeOf state) peer) request index := by
               by_cases peerEq : peer = destination
               · have destinationProducible :
                     canProduceAppendAckEventuallyAt
-                      (intermediate.nodes destination) request index := by
+                      ((nodeOf intermediate) destination) request index := by
                   simpa [peerEq] using producible
                 have framed :=
                   (canProduceAppendAckEventuallyAt_sentIndex
-                    (state.nodes destination)
+                    ((nodeOf state) destination)
                     (updateIndex
-                      (state.nodes destination).sentIndex
-                      response.source
+                      ((nodeOf state) destination).sentIndex
+                      response.1
                       (max
                         (min
                           (findHighestPossibleMatch
-                            (state.nodes destination).log
-                            response.lastLogIndex response.term)
-                          ((state.nodes destination).sentIndex response.source))
-                        ((state.nodes destination).matchIndex response.source)))
+                            ((nodeOf state) destination).log
+                            response.2.2.lastLogIndex response.2.2.term)
+                          (((nodeOf state) destination).sentIndex response.1))
+                        (((nodeOf state) destination).matchIndex response.1)))
                     request index).mp
-                    (by simpa [intermediate, updateNode] using destinationProducible)
+                    (by simpa [intermediate, present, nodeOf_replaceNode, present] using destinationProducible)
                 simpa [peerEq] using framed
               · simpa [
-                  intermediate, updateNode, Function.update, peerEq
+                  intermediate, present, nodeOf_replaceNode, present, Function.update, peerEq
                 ] using producible
             exact ⟨
               request,
-              by simpa [intermediate] using queued,
+              by simpa [intermediate, present] using queued,
               sourceEq,
               destinationEq,
               by simpa [termEq] using requestTerm,
@@ -1591,7 +1258,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           simpa [
             potentialElectionVoters,
             currentlyEligibleElectionVoter,
-            makeRequestVoteRequest,
+            voteRequestKey, Model.Local.makeRequestVoteRequest,
             activeConfigurationsEq,
             effectiveElectionVotersIntermediate,
             termEq, logEq, commitEq, votedEq,
@@ -1604,45 +1271,45 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         · intro candidate voter _ member
           simpa [effectiveElectionVotersIntermediate] using member
       have nodeStateEq :
-          forall node, after.nodes node = intermediate.nodes node := by
+          forall node, (nodeOf after) node = (nodeOf intermediate) node := by
         intro node
         rfl
       have takenFromIntermediate :
-          Selected response.source (intermediate.network destination) (.appendEntriesResponse response) remaining := by
-        simpa [intermediate] using takenByResponseSource
+          Selected response.1 intermediate.network (appendResponseEnvelope response) remaining := by
+        simpa [intermediate, present] using takenByResponseSource
       have networkSubsetAfter :
           forall queuedDestination message,
-            message ∈ after.network queuedDestination ->
-              message ∈ intermediate.network queuedDestination := by
+            (message ∈ after.network /\ message.target = queuedDestination) ->
+              (message ∈ intermediate.network /\ message.target = queuedDestination) := by
         intro queuedDestination message member
         have old :=
           updateQueueSubset queuedDestination message
-            (by simpa [after] using member)
-        simpa [intermediate] using old
+            (by simpa [after, present] using member)
+        simpa [intermediate, present] using old
       have effectiveElectionVotersAfter :
           forall candidate,
-            effectiveElectionVoters after candidate =
-              effectiveElectionVoters intermediate candidate :=
+            effectiveElectionVoters (joined := joinedNodes) after candidate =
+              effectiveElectionVoters (joined := joinedNodes) intermediate candidate :=
         effectiveElectionVotersAfterAppendResponse
-          intermediate after destination response remaining
+          intermediate after response remaining
             takenFromIntermediate
-            (by simp [after, intermediate])
-            (by simp [after, intermediate])
+            (by simp [after, present, intermediate, present])
+            (by simp [after, present, intermediate, present])
             (fun node => by rw [nodeStateEq node])
             (fun node => by rw [nodeStateEq node])
-      change SystemInductiveInvariant after
+      change SystemInductiveInvariant (joined := joinedNodes) after
       apply networkFramePreservesSystemInductiveInvariant
         intermediate after intermediateInvariant
-        (by simp [after, intermediate]) (fun _ => Iff.rfl) nodeStateEq
+        (by simp [after, present, intermediate, present]) (fun _ => Iff.rfl) nodeStateEq
         (fun destination message member =>
           Or.inl (networkSubsetAfter destination message member))
       · intro _ _ actualResponseHistory _ _ _ _ leader index
         apply Finset.subset_of_eq
         apply effectiveAckersAfterInactiveResponse
-            intermediate after destination response remaining
+            intermediate after destination response responseDestination remaining
               takenFromIntermediate
-        · simp [after, intermediate]
-        · simp [after, intermediate]
+        · simp [after, present, intermediate, present]
+        · simp [after, present, intermediate, present]
         · intro node
           rw [nodeStateEq node]
         · intro node
@@ -1656,92 +1323,58 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         simpa [nodeStateEq, effectiveElectionVotersAfter] using majority
       · intro candidate voter _ member
         simpa [effectiveElectionVotersAfter] using member
-    · by_cases notLeader :
-        ((state.nodes destination).role != .leader) = true
-      · simp [isLeader] at notLeader
-      · by_cases stale :
-          response.term < (state.nodes destination).currentTerm
-        · have responseSuccess : response.success = true := by
-            cases responseSuccess : response.success
-            · exact False.elim (failed responseSuccess)
-            · rfl
-          have roleLeader :
-              (state.nodes destination).role = .leader := by
-            simpa using notLeader
-          have differentTerm :
-              Not (
-                response.term =
-                  (state.nodes destination).currentTerm) := by
-            omega
-          simp [responseSuccess, roleLeader, differentTerm] at handled
-          have nextNodeEq := handled.2
-          clear handled
-          subst nextNode
-          have updatedNodesEq :
-              updateNode state.nodes destination (state.nodes destination) =
-                state.nodes := by exact (by simp [updateNode])
-          rw [updatedNodesEq]
-          let after : View Node TxId :=
-            { state with
-              network := updateQueue state.network destination remaining }
-          have fieldEq :
-              forall node, after.nodes node = state.nodes node := by
-            intro node
-            rfl
-          change SystemInductiveInvariant after
-          apply networkFramePreservesSystemInductiveInvariant
-            state after packed rfl (fun _ => Iff.rfl) fieldEq
-            (fun queuedDestination message member =>
-              Or.inl
-                (updateQueueSubset queuedDestination message
-                  (by simpa [after] using member)))
-          · intro _ _ actualResponseHistory _ _ _ _ leader index
-            apply Finset.subset_of_eq
-            apply effectiveAckersAfterInactiveResponse
-                state after destination response remaining
-                  takenByResponseSource
-            · rfl
-            · rfl
-            · intro node
-              rfl
-            · intro node
-              rfl
-            · intro leader peer
-              rfl
-            · rintro ⟨_, sameTerm⟩
-              omega
-          · intro candidate role majority
-            unfold hasEffectiveElectionMajority at majority ⊢
-            rw [
-              effectiveElectionVotersAfterAppendResponse
-                state after destination response remaining
-                  takenByResponseSource rfl rfl
-                  (fun node => rfl) (fun node => rfl)
-            ] at majority
-            exact majority
-          · intro candidate voter active member
-            rw [
-              effectiveElectionVotersAfterAppendResponse
-                state after destination response remaining
-                  takenByResponseSource rfl rfl
-                  (fun node => rfl) (fun node => rfl)
-            ] at member
-            exact member
-        · have responseSuccess : response.success = true := by
-            cases responseSuccess : response.success
-            · exact False.elim (failed responseSuccess)
-            · rfl
-          have roleLeader :
-              (state.nodes destination).role = .leader := by
-            simpa using notLeader
-          have differentTerm :
-              Not (
-                response.term =
-                  (state.nodes destination).currentTerm) := by
-            intro sameTerm
-            exact successful ⟨responseSuccess, sameTerm, roleLeader⟩
-          simp [
-            responseSuccess, roleLeader, differentTerm, stale
-          ] at handled
+    · have responseSuccess : response.2.2.success = true := Bool.eq_true_of_not_eq_false failed
+      have differentTerm : response.2.2.term ≠ (nodeOf state destination).currentTerm := by
+        intro same
+        exact successful ⟨responseSuccess, same, isLeader⟩
+      simp [responseSuccess, isLeader, differentTerm] at handled
+      subst nextNode
+      rw [replaceNode_nodeOf state destination distinct]
+      let after : Model.State Node TxId :=
+        { state with
+          network := remaining }
+      have fieldEq :
+          forall node, (nodeOf after) node = (nodeOf state) node := by
+        intro node
+        rfl
+      change SystemInductiveInvariant (joined := joinedNodes) after
+      apply networkFramePreservesSystemInductiveInvariant
+        state after packed rfl (fun _ => Iff.rfl) fieldEq
+        (fun queuedDestination message member =>
+          Or.inl
+            (updateQueueSubset queuedDestination message
+              (by simpa [after, present] using member)))
+      · intro _ _ actualResponseHistory _ _ _ _ leader index
+        apply Finset.subset_of_eq
+        apply effectiveAckersAfterInactiveResponse
+            state after destination response responseDestination remaining
+              takenByResponseSource
+        · rfl
+        · rfl
+        · intro node
+          rfl
+        · intro node
+          rfl
+        · intro leader peer
+          rfl
+        · rintro ⟨_, sameTerm⟩
+          omega
+      · intro candidate role majority
+        unfold hasEffectiveElectionMajority at majority ⊢
+        rw [
+          effectiveElectionVotersAfterAppendResponse
+            state after response remaining
+              takenByResponseSource rfl rfl
+              (fun node => rfl) (fun node => rfl)
+        ] at majority
+        exact majority
+      · intro candidate voter active member
+        rw [
+          effectiveElectionVotersAfterAppendResponse
+            state after response remaining
+              takenByResponseSource rfl rfl
+              (fun node => rfl) (fun node => rfl)
+        ] at member
+        exact member
 
 end CCFRaft.Proofs.Invariant
