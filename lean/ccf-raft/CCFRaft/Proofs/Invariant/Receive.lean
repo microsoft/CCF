@@ -2,7 +2,6 @@
 -- Licensed under the Apache 2.0 License.
 
 import CCFRaft.Proofs.Invariant.Internal
-import CCFRaft.Proofs.Invariant.Handlers
 
 set_option autoImplicit false
 set_option maxHeartbeats 700000
@@ -11,301 +10,188 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open Shared Concrete
-open Model.Local (Bootstrap NodeState Role refreshRetirementState)
+open Shared Shared.MultiNodeTransitionSystem Concrete
+open Model.Local
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-@[simp]
-theorem updateNode_updateNode (nodes : Node -> NodeState Node TxId) (node : Node)
-    (first second : NodeState Node TxId)
-    : updateNode (updateNode nodes node first) node second
-      = updateNode nodes node second := by
-  simp [updateNode]
-
-/-- Term observation leaves the message queued for its handler. -/
-theorem observeTerm_preserves {state : View Node TxId} (invariant : ViewInvariant state)
-    (envelope : Model.Envelope Node TxId)
-    (queued : toMessage envelope ∈ state.network envelope.target)
-    : ViewInvariant
-        {
-          state with
-            nodes :=
-              updateNode state.nodes envelope.target
-                (Model.Local.observeTerm (state.nodes envelope.target) envelope.payload)
-        } := by
-  have joined : envelope.target ∈ state.hasJoined := by
-    simpa using (invariant.endpoints _ _ queued).2
-  apply invariant.update joined (Finset.Subset.refl _) ?_ invariant.endpoints
-  rcases observeTerm_eq_updateTerm (state.nodes envelope.target) envelope.payload with
+theorem observeTerm_preserves {state : Model.State Node TxId} {joined : Finset Node}
+    (invariant : StateInvariant state joined) (envelope : Model.Envelope Node TxId)
+    (present : envelope.target ∈ state.nodes.map Prod.fst)
+    (queued : envelope ∈ state.network)
+    : StateInvariant
+        { state with
+          nodes := replaceNode state.nodes envelope.target
+            (observeTerm (nodeOf state envelope.target) envelope.payload) } joined := by
+  apply invariant.update (invariant.endpoints envelope queued).2 (Finset.Subset.refl _) ?_ invariant.endpoints
+  rcases observeTerm_eq_updateTerm (nodeOf state envelope.target) envelope.payload with
     same | ⟨updated, newer, _⟩
-  · simpa [same] using invariant.safety
-  · have preserved := updateTermPreservesSystemInductiveInvariant
-      state envelope.target (toMessage envelope) invariant.safety queued
-      (by simpa using newer)
-    simpa [view_effects, updated, Model.Local.updateTerm, newer] using preserved
+  · simpa only [same, replaceNode_nodeOf state envelope.target invariant.distinct] using invariant.safety
+  · simpa only [concrete_effects, updated] using
+      updateTermPreservesSystemInductiveInvariant state envelope.target (present := present)
+        envelope invariant.safety ⟨queued, rfl⟩ newer
 
-theorem ViewInvariant.receivedEndpoints {state : View Node TxId}
-    (invariant : ViewInvariant state) {envelope : Model.Envelope Node TxId}
-    (queued : toMessage envelope ∈ state.network envelope.target)
-    {sends : List (Model.Envelope Node TxId)}
-    (replies
-      : forall sent,
-          sent ∈ sends -> sent.source = envelope.target /\ sent.target = envelope.source)
-    : forall destination message,
-        message
-          ∈ updateQueue state.network envelope.target
-              ((state.network envelope.target).erase (toMessage envelope)) destination
-            ++ messagesAt sends destination
-        -> message.source ∈ state.hasJoined /\ message.destination ∈ state.hasJoined := by
-  intro destination message member
+theorem StateInvariant.receivedEndpoints {state : Model.State Node TxId} {joined : Finset Node}
+    (invariant : StateInvariant state joined) {envelope : Model.Envelope Node TxId}
+    (queued : envelope ∈ state.network) {sends : List (Model.Envelope Node TxId)}
+    (replies : forall sent, sent ∈ sends ->
+      sent.source = envelope.target ∧ sent.target = envelope.source)
+    : forall sent, sent ∈ removeOne envelope state.network ++ sends ->
+        sent.source ∈ joined ∧ sent.target ∈ joined := by
+  intro sent member
   rcases List.mem_append.mp member with old | outgoing
-  · exact invariant.erasedEndpoints _ _ destination message old
-  · obtain ⟨sent, listed, rfl⟩ := List.mem_map.mp outgoing
-    obtain ⟨source, target⟩ := replies sent (List.mem_filter.mp listed).1
-    obtain ⟨senderJoined, receiverJoined⟩ := invariant.endpoints _ _ queued
-    simpa [source, target] using And.intro receiverJoined senderJoined
+  · exact invariant.erasedEndpoints envelope sent old
+  · obtain ⟨source, target⟩ := replies sent outgoing
+    obtain ⟨senderJoined, receiverJoined⟩ := invariant.endpoints envelope queued
+    exact ⟨source ▸ receiverJoined, target ▸ senderJoined⟩
 
-/-- Same-term step-down and the AppendEntries handler compose without dequeuing twice. -/
-theorem appendRequest_safety {state : View Node TxId}
-    (invariant : SystemInductiveInvariant state) {source destination : Node}
-    (joined : state.allocated destination)
-    {request : Model.Local.AppendEntriesRequest Node TxId}
-    (queued
-      : Message.appendEntriesRequest (annotateAppendRequest request source destination)
-        ∈ state.network destination)
-    {nextNode : NodeState Node TxId} {response : Model.Local.AppendEntriesResponse}
-    (handled
-      : Model.Local.handleAppendEntriesRequest? destination (state.nodes destination)
-          request
-        = some (nextNode, response))
-    : SystemInductiveInvariant
-        {
-          state with
-            nodes :=
-              updateNode state.nodes destination
-                (refreshRetirementState destination nextNode)
-            network :=
-              reply state.network destination
-                ((state.network destination).erase
-                  (.appendEntriesRequest
-                    (annotateAppendRequest request source destination)))
-                (annotateAppendResponse response destination source)
-        } := by
-  let middle : View Node TxId :=
-    { state with nodes := updateNode state.nodes destination (stepDown (state.nodes destination) request) }
-  have middleInvariant : SystemInductiveInvariant middle := by
-    by_cases stepping : request.term = (state.nodes destination).currentTerm /\
-        ((state.nodes destination).role = .candidate \/ (state.nodes destination).role = .preVoteCandidate)
-    · exact returnToFollowerPreservesSystemInductiveInvariant
-        state destination (annotateAppendRequest request source destination) _ invariant joined
-        (by simp [returnToFollower_eq, stepping])
-    · simpa [middle, stepDown, stepping] using invariant
-  have noStep : ¬(request.term = (middle.nodes destination).currentTerm /\
-      ((middle.nodes destination).role = .candidate \/ (middle.nodes destination).role = .preVoteCandidate)) := by
-    simpa [middle] using stepDown_noStepDown (state.nodes destination) request
-  have handledMiddle : handleAppendEntriesRequest? (middle.nodes destination)
-      (annotateAppendRequest request source destination) =
-        some (nextNode, annotateAppendResponse response destination source) := by
-    rw [handleAppendEntriesRequest_eq _ _ _ _ noStep]
-    have localHandled : Model.Local.handleAppendEntriesRequest? destination (middle.nodes destination) request
+theorem appendRequest_safety {state : Model.State Node TxId} {joined : Finset Node}
+    (invariant : SystemInductiveInvariant (joined := joined) state)
+    {source destination : Node} (present : destination ∈ state.nodes.map Prod.fst)
+    (nodeJoined : destination ∈ joined) {request : AppendEntriesRequest Node TxId}
+    (queued : appendRequestEnvelope (source, destination, request) ∈ state.network)
+    {nextNode : NodeState Node TxId} {response : AppendEntriesResponse}
+    (handled : handleAppendEntriesRequest? destination (nodeOf state destination) request
+      = some (nextNode, response))
+    : SystemInductiveInvariant (joined := joined)
+        { state with
+          nodes := replaceNode state.nodes destination (refreshRetirementState destination nextNode)
+          network := removeOne (appendRequestEnvelope (source, destination, request)) state.network
+            ++ [appendResponseEnvelope (destination, source, response)] } := by
+  by_cases stepping : request.term = (nodeOf state destination).currentTerm ∧
+      ((nodeOf state destination).role = .candidate ∨ (nodeOf state destination).role = .preVoteCandidate)
+  · let middle : Model.State Node TxId :=
+      { state with
+        nodes := replaceNode state.nodes destination
+          { nodeOf state destination with role := .follower, isNewFollower := true } }
+    have middlePresent : destination ∈ middle.nodes.map Prod.fst := by
+      simpa [middle, replaceNode_keys] using present
+    have middleInvariant : SystemInductiveInvariant (joined := joined) middle :=
+      returnToFollowerPreservesSystemInductiveInvariant state destination (present := present)
+        (source, destination, request) _ invariant nodeJoined stepping rfl
+    have follower : (nodeOf middle destination).role = .follower := by
+      simp [middle, present]
+    have handledMiddle : handleAppendEntriesRequest? destination (nodeOf middle destination) request
         = some (nextNode, response) := by
-      simpa only [middle, updateNode_same, ← handleAppendEntriesRequest_stepDown]
-        using handled
-    simp [localHandled, annotateResult]
-  have preserved := receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
-    middle source destination (annotateAppendRequest request source destination) _ nextNode
-    (annotateAppendResponse response destination source) middleInvariant joined
-    (show Selected source (middle.network destination)
-      (.appendEntriesRequest (annotateAppendRequest request source destination))
-      ((state.network destination).erase (.appendEntriesRequest
-        (annotateAppendRequest request source destination))) from ⟨rfl, queued, rfl⟩)
-    (by simp [returnToFollower_eq, noStep]) handledMiddle
-  simpa [middle] using preserved
+      simpa [middle, present, handleAppendEntriesRequest?, stepping] using handled
+    have preserved := receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
+      middle source destination (present := middlePresent) (source, destination, request) _
+      nextNode (destination, source, response) middleInvariant nodeJoined rfl
+      ⟨rfl, queued, rfl⟩ (by simp [follower]) rfl rfl handledMiddle
+    simpa only [middle, replaceNode_twice, reply] using preserved
+  · exact receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
+      state source destination (present := present) (source, destination, request) _
+      nextNode (destination, source, response) invariant nodeJoined rfl
+      ⟨rfl, queued, rfl⟩ stepping rfl rfl handled
 
-theorem handleProposeVoteRequest_eq (state : View Node TxId) (source destination : Node)
-    (term : Nat) (joined : state.allocated destination)
-    : handleProposeVoteRequest? state destination { term, source, destination }
-      = some
-          (Model.Local.handleProposeVoteRequest (state.nodes destination) destination
-            term) := by
-  have eligible : candidateTransitionEnabled state destination
-      ↔ Model.Local.candidateTransitionEnabled (state.nodes destination) destination := by
-    simp [candidateTransitionEnabled, Model.Local.candidateTransitionEnabled, joined]
-  simp only [handleProposeVoteRequest?, Model.Local.handleProposeVoteRequest, eligible]
-  split_ifs <;> rfl
-
-/-- A delivery observes the term, handles its message, erases it, and appends any reply. -/
-theorem receive_preserves {state : View Node TxId} (invariant : ViewInvariant state)
-    {envelope : Model.Envelope Node TxId}
-    {execute : Model.Local.NodeEffect Node TxId (NodeState Node TxId)}
-    (queued : toMessage envelope ∈ state.network envelope.target)
-    (received
-      : Model.Local.receive (Capabilities.record envelope.target) envelope.target
-          envelope.source (state.nodes envelope.target) envelope.payload
-        = some execute)
-    : ViewInvariant
-        {
-          nodes := updateNode state.nodes envelope.target (execute.run {}).1
-          network :=
-            fun destination =>
-              updateQueue state.network envelope.target
-                ((state.network envelope.target).erase (toMessage envelope)) destination
-              ++ messagesAt (execute.run {}).2.outgoing destination
-          hasJoined := state.hasJoined
-        } := by
-  have joined : envelope.target ∈ state.hasJoined := by
-    simpa using (invariant.endpoints _ _ queued).2
-  let beforeHandler : View Node TxId :=
+/-- Delivery observes the term, handles the payload, removes one envelope, and appends replies. -/
+theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
+    (invariant : StateInvariant state joined) {envelope : Model.Envelope Node TxId}
+    (present : envelope.target ∈ state.nodes.map Prod.fst)
+    {execute : NodeEffect Node TxId (NodeState Node TxId)}
+    (queued : envelope ∈ state.network)
+    (received : Model.Local.receive (Capabilities.record envelope.target) envelope.target
+      envelope.source (nodeOf state envelope.target) envelope.payload = some execute)
+    : StateInvariant
+        { state with
+          nodes := replaceNode state.nodes envelope.target (execute.run {}).1
+          network := removeOne envelope state.network ++ (execute.run {}).2.outgoing } joined := by
+  have nodeJoined := (invariant.endpoints envelope queued).2
+  let middle : Model.State Node TxId :=
     { state with
-      nodes := updateNode state.nodes envelope.target
-        (Model.Local.observeTerm (state.nodes envelope.target) envelope.payload) }
-  have prepared : ViewInvariant beforeHandler := observeTerm_preserves invariant envelope queued
-  have receiver : beforeHandler.nodes envelope.target =
-      Model.Local.observeTerm (state.nodes envelope.target) envelope.payload := by
-    simp [beforeHandler]
-  have taken : Selected envelope.source (beforeHandler.network envelope.target) (toMessage envelope)
-      ((state.network envelope.target).erase (toMessage envelope)) :=
-    ⟨toMessage_source _, queued, rfl⟩
+      nodes := replaceNode state.nodes envelope.target
+        (observeTerm (nodeOf state envelope.target) envelope.payload) }
+  have prepared : StateInvariant middle joined := observeTerm_preserves invariant envelope present queued
+  have middlePresent : envelope.target ∈ middle.nodes.map Prod.fst := by
+    simpa [middle, replaceNode_keys] using present
+  have receiver : nodeOf middle envelope.target =
+      observeTerm (nodeOf state envelope.target) envelope.payload := by
+    simp [middle, present]
   rcases envelope with ⟨source, destination, payload⟩
   cases payload with
   | appendEntriesRequest request =>
       simp only [Model.Local.receive] at received
       obtain ⟨⟨nextNode, response⟩, handled, done⟩ := Option.bind_eq_some_iff.mp received
-      have done := Option.some.inj done
-      subst done
-      change ViewInvariant
-        { nodes := updateNode state.nodes destination (refreshRetirementState destination nextNode)
-          network := fun target =>
-            updateQueue state.network destination
-              ((state.network destination).erase
-                (toMessage ⟨source, destination, .appendEntriesRequest request⟩)) target
-            ++ messagesAt [⟨destination, source, .appendEntriesResponse response⟩] target
-          hasJoined := state.hasJoined }
-      apply invariant.update joined (Finset.Subset.refl _) ?_
-        (invariant.receivedEndpoints queued ?_)
-      · have preserved := appendRequest_safety prepared.safety joined (by exact queued)
-          (by rw [receiver]; exact handled)
-        simpa [beforeHandler, append_messagesAt_singleton, toMessage, reply,
-          annotateAppendRequest, annotateAppendResponse] using preserved
-      · intro sent member
-        simp only [List.mem_singleton] at member
-        subst sent
-        exact ⟨rfl, rfl⟩
+      obtain rfl := Option.some.inj done
+      change StateInvariant
+        { state with
+          nodes := replaceNode state.nodes destination (refreshRetirementState destination nextNode)
+          network := removeOne ⟨source, destination, .appendEntriesRequest request⟩ state.network
+            ++ [⟨destination, source, .appendEntriesResponse response⟩] } joined
+      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
+        (invariant.receivedEndpoints queued (by simp))
+      have preserved := appendRequest_safety prepared.safety middlePresent nodeJoined queued
+        (by rw [receiver]; exact handled)
+      simpa only [middle, replaceNode_twice] using preserved
   | appendEntriesResponse response =>
       simp only [Model.Local.receive] at received
-      have done := Option.some.inj received
-      subst done
-      simp only [Direct.run_pure, messagesAt_nil, List.append_nil]
-      apply invariant.update joined (Finset.Subset.refl _) ?_
-        (invariant.erasedEndpoints _ _)
-      have bounded : (beforeHandler.nodes destination).role = .leader ->
-          response.term <= (beforeHandler.nodes destination).currentTerm := by
-        rw [receiver]
-        simp only [Model.Local.observeTerm]
-        split_ifs with leader
-        · intro _
-          exact updateTerm_bounded _ _
-        · intro isLeader
-          exact absurd isLeader leader
+      obtain rfl := Option.some.inj received
+      simp only [Direct.run_pure, List.append_nil]
+      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_ (invariant.erasedEndpoints _)
       have preserved := receiveAppendEntriesResponsePreservesSystemInductiveInvariant
-        beforeHandler source destination (annotateAppendResponse response source destination) _ _
-        prepared.safety joined taken rfl (handleAppendEntriesResponse_eq _ _ _ _ bounded)
-      simpa [beforeHandler, toMessage, annotateAppendResponse] using preserved
+        middle source destination (present := middlePresent) prepared.distinct
+        (source, destination, response) _ _ prepared.safety nodeJoined
+        ⟨rfl, queued, rfl⟩ rfl (by rw [receiver])
+      simpa only [middle, replaceNode_twice] using preserved
   | requestVoteRequest request =>
       simp only [Model.Local.receive] at received
-      have done := Option.some.inj received
-      subst done
-      let answer := Model.Local.handleRequestVoteRequest
-        (Model.Local.observeTerm (state.nodes destination) (.requestVoteRequest request)) source request
-      change ViewInvariant
-        { nodes := updateNode state.nodes destination answer.1
-          network := fun target =>
-            updateQueue state.network destination
-              ((state.network destination).erase
-                (toMessage ⟨source, destination, .requestVoteRequest request⟩)) target
-            ++ messagesAt [⟨destination, source, .requestVoteResponse answer.2⟩] target
-          hasJoined := state.hasJoined }
-      apply invariant.update joined (Finset.Subset.refl _) ?_
-        (invariant.receivedEndpoints queued ?_)
-      · have bounded : request.term <= (beforeHandler.nodes destination).currentTerm := by
-          rw [receiver]
-          exact updateTerm_bounded _ _
-        have preserved := receiveRequestVoteRequestPreservesSystemInductiveInvariant
-          beforeHandler source destination (annotateVoteRequest request source destination) _ _ _
-          prepared.safety joined taken (handleRequestVoteRequest_eq _ _ _ _ bounded)
-        simpa [answer, beforeHandler, append_messagesAt_singleton, toMessage,
-          annotateVoteRequest, annotateVoteResponse] using preserved
-      · intro sent member
-        simp only [List.mem_singleton] at member
-        subst sent
-        exact ⟨rfl, rfl⟩
+      obtain rfl := Option.some.inj received
+      let answer := handleRequestVoteRequest (nodeOf middle destination) source request
+      change StateInvariant
+        { state with
+          nodes := replaceNode state.nodes destination
+            (handleRequestVoteRequest (observeTerm (nodeOf state destination) (.requestVoteRequest request)) source request).1
+          network := removeOne ⟨source, destination, .requestVoteRequest request⟩ state.network
+            ++ [⟨destination, source, .requestVoteResponse
+              (handleRequestVoteRequest (observeTerm (nodeOf state destination) (.requestVoteRequest request)) source request).2⟩] } joined
+      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
+        (invariant.receivedEndpoints queued (by simp))
+      have preserved := receiveRequestVoteRequestPreservesSystemInductiveInvariant
+        middle source destination (present := middlePresent) prepared.distinct
+        (source, destination, request) _ answer.1 (destination, source, answer.2)
+        prepared.safety nodeJoined rfl ⟨rfl, queued, rfl⟩ rfl rfl rfl
+      simpa only [answer, receiver, middle, replaceNode_twice, enqueue] using preserved
   | requestVoteResponse response =>
       simp only [Model.Local.receive] at received
-      have done := Option.some.inj received
-      subst done
-      simp only [Direct.run_pure, messagesAt_nil, List.append_nil]
-      apply invariant.update joined (Finset.Subset.refl _) ?_
-        (invariant.erasedEndpoints _ _)
-      have bounded : response.term <= (beforeHandler.nodes destination).currentTerm := by
-        rw [receiver]
-        exact updateTerm_bounded _ _
+      obtain rfl := Option.some.inj received
+      simp only [Direct.run_pure, List.append_nil]
+      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_ (invariant.erasedEndpoints _)
       have preserved := receiveRequestVoteResponsePreservesSystemInductiveInvariant
-        beforeHandler source destination (annotateVoteResponse response source destination) _ _
-        prepared.safety joined taken rfl (handleRequestVoteResponse_eq _ _ _ _ bounded)
-      simpa [beforeHandler, toMessage, annotateVoteResponse] using preserved
+        middle source destination (present := middlePresent) (source, destination, response) _
+        _ prepared.safety nodeJoined ⟨rfl, queued, rfl⟩ rfl (by rw [receiver])
+      simpa only [middle, replaceNode_twice] using preserved
   | requestPreVote request =>
       simp only [Model.Local.receive] at received
-      have done := Option.some.inj received
-      subst done
-      let observedNode := Model.Local.observeTerm (state.nodes destination) (.requestPreVote request)
-      change ViewInvariant
-        { nodes := updateNode state.nodes destination observedNode
-          network := fun target =>
-            updateQueue state.network destination
-              ((state.network destination).erase
-                (toMessage ⟨source, destination, .requestPreVote request⟩)) target
-            ++ messagesAt [⟨destination, source,
-              .requestPreVoteResponse (Model.Local.handleRequestPreVote observedNode request)⟩] target
-          hasJoined := state.hasJoined }
-      apply invariant.update joined (Finset.Subset.refl _) ?_
-        (invariant.receivedEndpoints queued ?_)
-      · have bounded : request.term <= (beforeHandler.nodes destination).currentTerm := by
-          rw [receiver]
-          exact updateTerm_bounded _ _
-        have preserved := receiveRequestPreVotePreservesSystemInductiveInvariant
-          beforeHandler source destination (annotatePreVote request source destination) _ _ _
-          prepared.safety joined taken (handleRequestPreVote_eq _ _ _ _ bounded)
-        simpa [observedNode, beforeHandler, append_messagesAt_singleton, toMessage,
-          annotatePreVote, annotatePreVoteResponse] using preserved
-      · intro sent member
-        simp only [List.mem_singleton] at member
-        subst sent
-        exact ⟨rfl, rfl⟩
+      obtain rfl := Option.some.inj received
+      change StateInvariant
+        { state with
+          nodes := replaceNode state.nodes destination
+            (observeTerm (nodeOf state destination) (.requestPreVote request))
+          network := removeOne ⟨source, destination, .requestPreVote request⟩ state.network
+            ++ [⟨destination, source, .requestPreVoteResponse
+              (handleRequestPreVote (observeTerm (nodeOf state destination) (.requestPreVote request)) request)⟩] } joined
+      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
+        (invariant.receivedEndpoints queued (by simp))
+      have preserved := receiveRequestPreVotePreservesSystemInductiveInvariant
+        middle source destination request _ prepared.safety ⟨rfl, queued, rfl⟩
+      simpa only [receiver, middle] using preserved
   | requestPreVoteResponse response =>
       simp only [Model.Local.receive] at received
-      have done := Option.some.inj received
-      subst done
-      simp only [Direct.run_pure, messagesAt_nil, List.append_nil]
-      apply invariant.update joined (Finset.Subset.refl _) ?_
-        (invariant.erasedEndpoints _ _)
-      have bounded : response.term <= (beforeHandler.nodes destination).currentTerm := by
-        rw [receiver]
-        exact updateTerm_bounded _ _
+      obtain rfl := Option.some.inj received
+      simp only [Direct.run_pure, List.append_nil]
+      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_ (invariant.erasedEndpoints _)
       have preserved := receiveRequestPreVoteResponsePreservesSystemInductiveInvariant
-        beforeHandler source destination (annotatePreVoteResponse response source destination) _ _
-        prepared.safety joined taken (handleRequestPreVoteResponse_eq _ _ _ _ bounded)
-      simpa [beforeHandler, toMessage, annotatePreVoteResponse] using preserved
+        middle source destination (present := middlePresent) response _ _ prepared.safety
+        ⟨rfl, queued, rfl⟩ (by rw [receiver])
+      simpa only [middle, replaceNode_twice] using preserved
   | proposeVoteRequest term =>
       simp only [Model.Local.receive] at received
-      have done := Option.some.inj received
-      subst done
-      simp only [Direct.run_pure, messagesAt_nil, List.append_nil]
-      apply invariant.update joined (Finset.Subset.refl _) ?_
-        (invariant.erasedEndpoints _ _)
+      obtain rfl := Option.some.inj received
+      simp only [Direct.run_pure, List.append_nil]
+      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_ (invariant.erasedEndpoints _)
       have preserved := receiveProposeVoteRequestPreservesSystemInductiveInvariant
-        beforeHandler source destination { term, source, destination } _ _
-        prepared.safety joined taken (handleProposeVoteRequest_eq _ _ _ _ joined)
-      simpa [beforeHandler, toMessage] using preserved
+        middle source destination (present := middlePresent) prepared.distinct term _
+        prepared.safety nodeJoined ⟨rfl, queued, rfl⟩
+      simpa only [receiver, middle, replaceNode_twice] using preserved
 
 end CCFRaft.Proofs.Invariant

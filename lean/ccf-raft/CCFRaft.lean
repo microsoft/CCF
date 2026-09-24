@@ -7,12 +7,13 @@ import CCFRaft.Proofs.Concrete
 import CCFRaft.Proofs.Direct.AppendOnly
 import CCFRaft.Proofs.Direct.CommitFrontier
 import CCFRaft.Proofs.Direct.Framework
+import CCFRaft.Proofs.Invariant.AckFacts
 import CCFRaft.Proofs.Invariant.ConfigurationCoverage
 import CCFRaft.Proofs.Invariant.Effects
 import CCFRaft.Proofs.Invariant.Facts
 import CCFRaft.Proofs.Invariant.HandlerFacts
-import CCFRaft.Proofs.Invariant.Handlers
 import CCFRaft.Proofs.Invariant.Internal
+import CCFRaft.Proofs.Invariant.Messages
 import CCFRaft.Proofs.Invariant.NodeFacts
 import CCFRaft.Proofs.Invariant.Ops
 import CCFRaft.Proofs.Invariant.Preservation.AppendRequest
@@ -42,9 +43,8 @@ import CCFRaft.Proofs.Invariant.Reachable
 import CCFRaft.Proofs.Invariant.Receive
 import CCFRaft.Proofs.Invariant.Safety
 import CCFRaft.Proofs.Invariant.State
+import CCFRaft.Proofs.Invariant.StateFacts
 import CCFRaft.Proofs.Invariant.TermAuthority
-import CCFRaft.Proofs.Invariant.View
-import CCFRaft.Proofs.Invariant.ViewFacts
 import CCFRaft.Proofs.Invariant.VotedForFrame
 import CCFRaft.Proofs.Ledger
 import CCFRaft.Proofs.Witnesses

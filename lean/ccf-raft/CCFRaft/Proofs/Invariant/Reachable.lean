@@ -7,11 +7,11 @@ import CCFRaft.Proofs.Invariant.Preservation.Initial
 set_option autoImplicit false
 
 /-!
-# The invariant on reachable network states
+# The invariant on reachable concrete states
 
-Each concrete step runs either `Local.act` or `Local.receive`. The view of
-its result is the node replacement and queue update proved in `Internal`
-and `Receive`. The joined set is ghost state; configuration changes extend it.
+Each step runs `Local.act` or `Local.receive`, replaces one node-table entry,
+and updates the envelope list. The joined set is proof-only; configuration
+changes extend it without changing the concrete state representation.
 -/
 
 namespace CCFRaft.Proofs.Invariant
@@ -25,55 +25,36 @@ theorem initial_inv {nodes : List Node} {state : Model.State Node TxId}
     (initialized : (Model.transitionSystem nodes).init state)
     : Inv state := by
   refine ⟨INITIAL_CONFIGURATION, ?_⟩
-  rw [view_initial initialized]
-  exact ⟨initialSystemInductiveInvariant, Finset.Subset.refl _, fun _ _ => rfl, by simp⟩
+  exact {
+    safety := initialSystemInductiveInvariant state (nodeOf_initial initialized) initialized.2.2.2.2.1
+    distinct := initialized.2.1 ▸ initialized.1
+    initialJoined := Finset.Subset.refl _
+    unjoined := fun node _ => nodeOf_initial initialized node
+    endpoints := by simp [initialized.2.2.2.2.1]
+  }
 
 theorem step_inv {nodes : List Node} {before after : Model.State Node TxId}
     {action : Model.Action Node TxId} (invariant : Inv before)
-    (distinct : (before.nodes.map Prod.fst).Nodup)
     (stepped : (Model.transitionSystem nodes).step before action = some after)
     : Inv after := by
   obtain ⟨joined, invariant⟩ := invariant
   cases action with
   | «local» node input =>
       obtain ⟨local_, execute, found, acted, rfl⟩ := step_local stepped
-      have here := view_node (joined := joined) found
-      obtain ⟨joined', preserved⟩ := act_preserves invariant (by rwa [here])
-      refine ⟨joined', ?_⟩
-      rw [view_replaceNode (joined := joined) distinct found]
-      have network :
-          messagesAt (before.network ++ (execute.run {}).2.outgoing)
-          = fun destination =>
-              (view before joined).network destination
-              ++ messagesAt (execute.run {}).2.outgoing destination :=
-        funext fun destination => messagesAt_append _ _ destination
-      rw [network]
-      exact preserved
+      have present : node ∈ before.nodes.map Prod.fst :=
+        List.mem_map.mpr ⟨(node, local_), mem_of_nodeState found, rfl⟩
+      exact act_preserves invariant present (by rwa [nodeOf_of_lookup found])
   | deliver envelope =>
       obtain ⟨queued, local_, execute, found, received, rfl⟩ := step_deliver stepped
-      have here := view_node (joined := joined) found
-      have preserved := receive_preserves invariant (mem_view_network queued) (by rwa [here])
-      refine ⟨joined, ?_⟩
-      rw [view_replaceNode (joined := joined) distinct found]
-      have network :
-          messagesAt (removeOne envelope before.network ++ (execute.run {}).2.outgoing)
-          = fun destination =>
-              updateQueue (view before joined).network envelope.target
-                  (((view before joined).network envelope.target).erase (toMessage envelope))
-                  destination
-              ++ messagesAt (execute.run {}).2.outgoing destination := by
-        funext destination
-        rw [messagesAt_append, messagesAt_erase_eq]
-        rfl
-      rw [network]
-      exact preserved
+      have present : envelope.target ∈ before.nodes.map Prod.fst :=
+        List.mem_map.mpr ⟨(envelope.target, local_), mem_of_nodeState found, rfl⟩
+      exact ⟨joined, receive_preserves invariant present queued (by rwa [nodeOf_of_lookup found])⟩
 
 theorem reachable_inv {nodes : List Node} {c : Model.State Node TxId}
     (reachable : (Model.transitionSystem (TxId := TxId) nodes).Reachable c)
     : Inv c := by
   induction reachable with
   | initial initialized => exact initial_inv initialized
-  | @step before after action reachable stepped invariant =>
-      exact step_inv invariant (Direct.keys_nodup reachable) stepped
+  | step _ stepped invariant => exact step_inv invariant stepped
 
 end CCFRaft.Proofs.Invariant
