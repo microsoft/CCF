@@ -161,8 +161,9 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     # had that regressed, bootstrap would fail and the endpoint would never
     # become ready. Whether the joiner also observes the stale pre-recovery
     # endorsement while replaying, and retries, depends on replay timing; that
-    # retry is covered deterministically by the network_identity_subsystem unit
-    # test.
+    # retry is covered deterministically, against a real KV, by the
+    # network_identity_subsystem unit test "Joiner replaying a recovery from a
+    # pre-recovery snapshot retries until the recovered identity is in its KV".
     verify_cross_recovery_identity_chain(
         new_node,
         minimum_key_count=2,
