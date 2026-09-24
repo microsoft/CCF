@@ -12,8 +12,7 @@ Glossary
     A :ref:`unique string <use_apps/verify_tx:Commit Evidence>` produced per transaction, and included in the Merkle Tree along with the :term:`Write Set` digest and the `claims_digest`. The reveal of that string guarantees the transaction is committed.
 
   CFT
-    Crash Fault Tolerance is a type of fault tolerance that allows the system to tolerate network and node failures up to
-    a given limit. CFT however does not account for any nodes behaving maliciously. Read more on CFT :ref:`here <architecture/consensus/index:Consensus Protocol>`.
+    Crash Fault Tolerance is a type of fault tolerance that allows the system to tolerate network and node failures up to a given limit. CFT however does not account for any nodes behaving maliciously. Read more on CFT :ref:`here <architecture/consensus/index:Consensus Protocol>`.
 
   Enclave
     `Trusted Execution Environments <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_, allowing fully encrypted and auditable execution without direct access from the host machine.
