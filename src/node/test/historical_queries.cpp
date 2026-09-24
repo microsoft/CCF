@@ -309,7 +309,7 @@ TEST_CASE("StateCache periodic tick")
   using namespace std::chrono_literals;
 
   auto state = create_and_init_state();
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   auto cache = std::make_shared<ccf::historical::StateCache>(
     *state.kv_store, state.ledger_secrets, stub_writer);
   REQUIRE(cache->get_state_at(0, 1) == nullptr);
