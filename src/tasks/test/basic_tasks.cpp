@@ -225,6 +225,160 @@ TEST_CASE("JobBoard external work beacon" * doctest::test_suite("basic_tasks"))
   }
 }
 
+namespace
+{
+  struct CriticalTask : public ccf::tasks::BasicTask
+  {
+    using ccf::tasks::BasicTask::BasicTask;
+
+    [[nodiscard]] ccf::tasks::TaskClass get_task_class() const override
+    {
+      return ccf::tasks::TaskClass::Critical;
+    }
+  };
+
+  ccf::tasks::Task make_critical_task(std::function<void()> fn = []() {})
+  {
+    return std::make_shared<CriticalTask>(std::move(fn), "Critical");
+  }
+}
+
+TEST_CASE("JobBoard critical tasks" * doctest::test_suite("basic_tasks"))
+{
+  constexpr auto short_wait = std::chrono::milliseconds(10);
+
+  SUBCASE("Critical tasks are taken before earlier general tasks")
+  {
+    ccf::tasks::JobBoard job_board;
+    const auto general = ccf::tasks::make_basic_task([]() {});
+    const auto critical = make_critical_task();
+
+    job_board.add_task(general);
+    job_board.add_task(critical);
+    REQUIRE(job_board.get_summary().pending_tasks == 2);
+
+    REQUIRE(job_board.get_task() == critical);
+    REQUIRE(job_board.get_task() == general);
+    REQUIRE(job_board.get_task() == nullptr);
+  }
+
+  SUBCASE("Reserved executors never take general tasks")
+  {
+    ccf::tasks::JobBoard job_board;
+    const auto general = ccf::tasks::make_basic_task([]() {});
+    const auto critical = make_critical_task();
+
+    job_board.add_task(general);
+    REQUIRE(job_board.get_critical_task() == nullptr);
+
+    job_board.add_task(critical);
+    REQUIRE(job_board.get_critical_task() == critical);
+    REQUIRE(job_board.get_critical_task() == nullptr);
+    REQUIRE(job_board.get_task() == general);
+  }
+
+  SUBCASE("Critical work beacon ignores general tasks")
+  {
+    auto critical_beacon = std::make_shared<ccf::ds::WorkBeacon>();
+    ccf::tasks::JobBoard job_board;
+    job_board.set_critical_work_beacon(critical_beacon);
+
+    job_board.add_task(ccf::tasks::make_basic_task([]() {}));
+    REQUIRE_FALSE(critical_beacon->wait_for_work_with_timeout(short_wait));
+
+    const auto critical = make_critical_task();
+    job_board.add_task(critical);
+    REQUIRE(critical_beacon->wait_for_work_with_timeout(short_wait));
+    REQUIRE(job_board.get_critical_task() == critical);
+
+    job_board.set_critical_work_beacon(nullptr);
+    job_board.add_task(make_critical_task());
+    REQUIRE_FALSE(critical_beacon->wait_for_work_with_timeout(short_wait));
+  }
+
+  SUBCASE("Setting a critical beacon wakes for already-pending critical work")
+  {
+    auto critical_beacon = std::make_shared<ccf::ds::WorkBeacon>();
+    ccf::tasks::JobBoard job_board;
+    job_board.add_task(make_critical_task());
+    job_board.set_critical_work_beacon(critical_beacon);
+    REQUIRE(critical_beacon->wait_for_work_with_timeout(short_wait));
+  }
+
+  SUBCASE("Idle general workers run critical tasks")
+  {
+    ccf::tasks::JobBoard job_board;
+    std::atomic<bool> stop = false;
+    std::atomic<bool> ran = false;
+    std::thread worker(
+      [&]() { ccf::tasks::task_worker_loop(job_board, stop); });
+
+    while (job_board.get_summary().idle_workers == 0)
+    {
+      std::this_thread::yield();
+    }
+    job_board.add_task(make_critical_task([&]() { ran = true; }));
+    while (!ran.load())
+    {
+      std::this_thread::yield();
+    }
+
+    stop = true;
+    job_board.stop_waiters();
+    worker.join();
+  }
+
+  SUBCASE("A blocked general worker leaves critical capacity available")
+  {
+    ccf::tasks::JobBoard job_board;
+    std::atomic<bool> stop = false;
+    std::atomic<bool> release_general = false;
+    std::atomic<bool> general_started = false;
+    std::atomic<bool> critical_ran = false;
+
+    std::thread general_worker(
+      [&]() { ccf::tasks::task_worker_loop(job_board, stop); });
+
+    job_board.add_task(ccf::tasks::make_basic_task([&]() {
+      general_started = true;
+      while (!release_general.load())
+      {
+        std::this_thread::yield();
+      }
+    }));
+    while (!general_started.load())
+    {
+      std::this_thread::yield();
+    }
+
+    // Further general work queues behind the blocked worker, but a reserved
+    // executor still runs critical work immediately
+    job_board.add_task(ccf::tasks::make_basic_task([]() {}));
+    job_board.add_task(make_critical_task([&]() { critical_ran = true; }));
+    auto task = job_board.get_critical_task();
+    REQUIRE(task != nullptr);
+    ccf::tasks::try_do_task(*task);
+    REQUIRE(critical_ran.load());
+    REQUIRE(job_board.get_critical_task() == nullptr);
+
+    release_general = true;
+    stop = true;
+    job_board.stop_waiters();
+    general_worker.join();
+  }
+
+  SUBCASE("Shutdown discards pending critical tasks")
+  {
+    ccf::tasks::JobBoard job_board;
+    bool ran = false;
+    job_board.add_task(make_critical_task([&]() { ran = true; }));
+    job_board.shutdown();
+    REQUIRE(job_board.get_summary().pending_tasks == 0);
+    REQUIRE(job_board.get_critical_task() == nullptr);
+    REQUIRE_FALSE(ran);
+  }
+}
+
 TEST_CASE("Cancellation" * doctest::test_suite("basic_tasks"))
 {
   ccf::tasks::JobBoard job_board;
