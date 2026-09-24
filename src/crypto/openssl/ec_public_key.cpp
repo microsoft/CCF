@@ -26,7 +26,7 @@ namespace ccf::crypto
 
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL() = default;
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(EVP_PKEY* key) :
-    PublicKey_OpenSSL(key)
+    key(key, EVP_PKEY_free)
   {
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
@@ -34,9 +34,15 @@ namespace ccf::crypto
         "Cannot construct ECPublicKey_OpenSSL from non-EC key");
     }
   }
-  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const Pem& pem) :
-    PublicKey_OpenSSL(pem)
+  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const Pem& pem)
   {
+    Unique_BIO mem(pem);
+    key.reset(PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr));
+    if (key == nullptr)
+    {
+      throw std::runtime_error("could not parse PEM");
+    }
+
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
       throw std::logic_error(
@@ -48,7 +54,7 @@ namespace ccf::crypto
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(std::span<const uint8_t> der)
   {
     Unique_BIO buf(der);
-    key = d2i_PUBKEY_bio(buf, &key);
+    key.reset(d2i_PUBKEY_bio(buf, nullptr));
     if (key == nullptr)
     {
       throw std::runtime_error("Could not read DER");
@@ -98,7 +104,6 @@ namespace ccf::crypto
 
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const JsonWebKeyECPublic& jwk)
   {
-    key = EVP_PKEY_new();
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     auto buf = ec_point_public_from_jwk(jwk);
 
@@ -113,8 +118,11 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(
-      pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
+    EVP_PKEY* parsed = nullptr;
+    const auto rc = EVP_PKEY_fromdata(
+      pctx, &parsed, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params));
+    key.reset(parsed);
+    CHECK1(rc);
   }
 
   CurveID ECPublicKey_OpenSSL::get_curve_id() const
