@@ -1269,6 +1269,16 @@ namespace ccf::kv
      * compacted until the next compact() however). So it is important to
      * make sure that the private state being swapped in is fully compacted
      * before the swap.
+     *
+     * This is not exception-safe: if it throws (for instance because
+     * source and target disagree on a map's security domain), some of
+     * source's maps may be left locked, with no way to unlock them again.
+     * Both source and *this must be treated as unusable and discarded after
+     * any exception from this call - do not catch and continue using
+     * either store. Callers should ensure the pre-conditions checked here
+     * cannot be violated in practice (eg - by relying only on the
+     * naming-derived security domain of maps, and never overriding it),
+     * rather than relying on this to fail safely.
      **/
     void swap_private_maps(Store& store)
     {

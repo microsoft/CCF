@@ -1718,9 +1718,9 @@ TEST_CASE("MapDiff")
     auto tx_diff = kv_store.create_tx_diff();
     auto* diff = tx_diff.diff(map);
     REQUIRE(diff->size() == 0);
-    REQUIRE(!diff->get("anything").has_value());
-    REQUIRE(!diff->has("anything"));
-    REQUIRE(!diff->is_deleted("anything"));
+    REQUIRE_FALSE(diff->get("anything").has_value());
+    REQUIRE_FALSE(diff->has("anything"));
+    REQUIRE_FALSE(diff->is_deleted("anything"));
   }
 
   SUBCASE("Write, overwrite and remove")
@@ -1748,8 +1748,8 @@ TEST_CASE("MapDiff")
     INFO("get()");
     {
       // No change made in this diff at all -> nullopt
-      REQUIRE(!diff->get("written").has_value());
-      REQUIRE(!diff->get("untouched").has_value());
+      REQUIRE_FALSE(diff->get("written").has_value());
+      REQUIRE_FALSE(diff->get("untouched").has_value());
 
       // Overwritten -> optional<optional<V>> engaged, holding the new value
       const auto overwritten = diff->get("overwritten");
@@ -1760,26 +1760,26 @@ TEST_CASE("MapDiff")
       // Removed -> optional<optional<V>> engaged, holding nullopt
       const auto removed = diff->get("removed");
       REQUIRE(removed.has_value());
-      REQUIRE(!removed.value().has_value());
+      REQUIRE_FALSE(removed.value().has_value());
 
       // Never present -> nullopt
-      REQUIRE(!diff->get("never_present").has_value());
+      REQUIRE_FALSE(diff->get("never_present").has_value());
     }
 
     INFO("has()");
     {
       REQUIRE(diff->has("overwritten"));
-      REQUIRE(!diff->has("removed"));
-      REQUIRE(!diff->has("untouched"));
-      REQUIRE(!diff->has("never_present"));
+      REQUIRE_FALSE(diff->has("removed"));
+      REQUIRE_FALSE(diff->has("untouched"));
+      REQUIRE_FALSE(diff->has("never_present"));
     }
 
     INFO("is_deleted()");
     {
       REQUIRE(diff->is_deleted("removed"));
-      REQUIRE(!diff->is_deleted("overwritten"));
-      REQUIRE(!diff->is_deleted("untouched"));
-      REQUIRE(!diff->is_deleted("never_present"));
+      REQUIRE_FALSE(diff->is_deleted("overwritten"));
+      REQUIRE_FALSE(diff->is_deleted("untouched"));
+      REQUIRE_FALSE(diff->is_deleted("never_present"));
     }
 
     INFO("size()");
@@ -1837,7 +1837,7 @@ TEST_CASE("MapDiff")
       REQUIRE(collected.size() == 2);
       REQUIRE(collected.at("overwritten").has_value());
       REQUIRE(collected.at("overwritten").value() == "after");
-      REQUIRE(!collected.at("removed").has_value());
+      REQUIRE_FALSE(collected.at("removed").has_value());
 
       // Range over a subset which excludes "overwritten"
       collected.clear();
@@ -2739,7 +2739,7 @@ TEST_CASE("Store error handling")
     kv_store.set_readiness(ccf::kv::StoreReadiness::InstallingSnapshot);
     REQUIRE(
       kv_store.get_readiness() == ccf::kv::StoreReadiness::InstallingSnapshot);
-    REQUIRE(!kv_store.is_ready());
+    REQUIRE_FALSE(kv_store.is_ready());
 
     kv_store.set_readiness(ccf::kv::StoreReadiness::Ready);
     REQUIRE(kv_store.is_ready());
@@ -2890,39 +2890,13 @@ TEST_CASE("Store error handling")
     REQUIRE_THROWS_AS(kv_store.swap_private_maps(ahead), std::runtime_error);
   }
 
-  SUBCASE("swap_private_maps rejects mismatched security domains")
-  {
-    ccf::kv::Store source;
-    source.set_encryptor(encryptor);
-    MapTypes::StringString source_map("private_conflict");
-
-    {
-      auto tx = source.create_tx();
-      tx.rw(source_map)->put("k", "v");
-      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    }
-
-    // Target already has a map of the same name, but registered as PUBLIC
-    // via add_dynamic_map (bypassing the private-by-default naming
-    // convention), so the domains conflict when the private map is copied
-    // in from the source.
-    auto target_map = std::make_shared<ccf::kv::untyped::Map>(
-      &kv_store, "private_conflict", ccf::kv::SecurityDomain::PUBLIC);
-    kv_store.add_dynamic_map(kv_store.current_version(), target_map);
-
-    {
-      // Ensure the target's version is at least that of the source
-      auto tx = kv_store.create_tx();
-      tx.rw(map)->put("k", "v");
-      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-    }
-
-    REQUIRE_THROWS_WITH_AS(
-      kv_store.swap_private_maps(source),
-      "Swap mismatch - map private_conflict is private in source but not "
-      "in target",
-      std::logic_error);
-  }
+  // NB: There is no test here for swap_private_maps() rejecting mismatched
+  // security domains. Constructing that scenario throws mid-way through the
+  // implementation, after some (but not all) of the source's maps have been
+  // locked, leaving those maps permanently locked. Deliberately provoking
+  // that terminal state - even in a test, where the Store is subsequently
+  // destroyed - destroys a still-locked mutex, which is undefined behaviour.
+  // See the exception-safety note on swap_private_maps() for more detail.
 
   SUBCASE("deserialize rejects a transaction with duplicate map writes")
   {
@@ -3778,7 +3752,7 @@ TEST_CASE("CommittableTx guards")
 
     tx.unset_tx_flag(
       ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
-    REQUIRE(!tx.tx_flag_enabled(
+    REQUIRE_FALSE(tx.tx_flag_enabled(
       ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
   }
 
@@ -3787,7 +3761,7 @@ TEST_CASE("CommittableTx guards")
     ccf::kv::Store kv_store;
     kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
 
-    REQUIRE(!kv_store.flag_enabled(
+    REQUIRE_FALSE(kv_store.flag_enabled(
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
 
     auto tx = kv_store.create_tx();
@@ -3806,7 +3780,7 @@ TEST_CASE("CommittableTx guards")
     ccf::kv::Store kv_store;
     kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
 
-    REQUIRE(!kv_store.flag_enabled(
+    REQUIRE_FALSE(kv_store.flag_enabled(
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
 
     // A read-only transaction (no writes) has no version to attach a ledger
@@ -3820,7 +3794,7 @@ TEST_CASE("CommittableTx guards")
 
     REQUIRE(kv_store.flag_enabled(
       ccf::kv::AbstractStore::StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
-    REQUIRE(!tx.tx_flag_enabled(
+    REQUIRE_FALSE(tx.tx_flag_enabled(
       ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
   }
 }
