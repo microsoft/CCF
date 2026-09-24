@@ -3312,8 +3312,14 @@ TEST_CASE("ccf.crypto bindings cover all supported parameters")
     // ccf.crypto.sign supports SHA-256/384/512. A signature produced with
     // SHA-384/512 therefore cannot be verified via this binding; this is an
     // existing asymmetry in the API surface, not something introduced here.
+    //
+    // Uses secp521r1 rather than a smaller curve: OpenSSL's ECDSA signing
+    // fails with "output buffer too small" when the digest is longer than
+    // the curve's order (e.g. SHA-512's 64-byte digest against
+    // secp384r1's 48-byte order), so secp521r1 (66-byte order) is required
+    // to exercise both hashes without hitting that pre-existing limitation.
     run_crypto_handler(R"JS(
-      const kp = ccf.crypto.generateEcdsaKeyPair("secp384r1");
+      const kp = ccf.crypto.generateEcdsaKeyPair("secp521r1");
       const data = ccf.strToBuf("hello");
       for (const hash of ["SHA-384", "SHA-512"]) {
         const sig = new Uint8Array(
