@@ -79,4 +79,11 @@ theorem memEnqueue (network : List (Model.Envelope Node TxId))
   · have same := List.mem_singleton.mp added
     exact Or.inr ⟨by simpa [same] using member.2.symm, same⟩
 
+theorem selected_mem_iff {source : Node}
+    {network remaining : List (Model.Envelope Node TxId)}
+    {selected envelope : Model.Envelope Node TxId}
+    (taken : Selected source network selected remaining) (different : envelope ≠ selected)
+    : envelope ∈ remaining ↔ envelope ∈ network := by
+  rw [taken.2.2, removeOne_eq_list_erase, List.mem_erase_of_ne different]
+
 end CCFRaft.Proofs.Invariant

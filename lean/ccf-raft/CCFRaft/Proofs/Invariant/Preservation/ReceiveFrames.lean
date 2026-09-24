@@ -11,294 +11,183 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
-  )
+open CCFRaft.Model.Local
+open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
+variable {joinedNodes joinedNext : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 
-attribute [local simp] Message.destination ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
-omit [Bootstrap Node] in
 /-- Append responses are unaffected by consuming a vote request and replying. -/
 lemma appendResponseMemAfterVoteRequestReceive
-    (network : Node -> List (Message Node TxId))
-    (source destination : Node)
-    (request : RequestVoteRequest Node)
-    (response : RequestVoteResponse Node)
-    (remaining : List (Message Node TxId))
+    (network : List (Model.Envelope Node TxId))
+    (source _destination : Node)
+    (request : VoteRequestKey Node)
+    (response : VoteResponseKey Node)
+    (remaining : List (Model.Envelope Node TxId))
     (taken
-      : Selected source (network destination) (.requestVoteRequest request) remaining)
+      : Selected source network (voteRequestEnvelope request) remaining)
     : forall queuedDestination queuedResponse,
-        Message.appendEntriesResponse queuedResponse
-          ∈ enqueue
-              (updateQueue network destination remaining)
-              (.requestVoteResponse response)
-              queuedDestination
-        ↔ Message.appendEntriesResponse queuedResponse ∈ network queuedDestination := by
+        (appendResponseEnvelope queuedResponse ∈ enqueue
+              (remaining)
+              (voteResponseEnvelope response) ∧ queuedResponse.2.1 = queuedDestination)
+        ↔ (appendResponseEnvelope queuedResponse ∈ network /\ queuedResponse.2.1 = queuedDestination) := by
   intro queuedDestination queuedResponse
-  constructor
-  · intro member
-    rcases
-        memEnqueue
-          (updateQueue network destination remaining)
-          (.requestVoteResponse response)
-          (.appendEntriesResponse queuedResponse)
-          queuedDestination member with
-      old | new
-    · by_cases same : queuedDestination = destination
-      · subst queuedDestination
-        have retained :
-            Message.appendEntriesResponse queuedResponse ∈ remaining := by
-          simpa [updateQueue] using old
-        exact (selectedSound taken).2.2 _ retained
-      · simpa [updateQueue, Function.update, same] using old
-    · simp at new
-  · intro member
-    apply memEnqueueNoDupOfMem
-    by_cases same : queuedDestination = destination
-    · subst queuedDestination
-      rcases memSelectedOrRemaining taken member with selected | retained
-      · simp at selected
-      · simpa [updateQueue] using retained
-    · simpa [updateQueue, Function.update, same] using member
+  have retained : appendResponseEnvelope queuedResponse ∈ remaining ↔ appendResponseEnvelope queuedResponse ∈ network :=
+    selected_mem_iff taken (by simp [appendResponseEnvelope, voteRequestEnvelope])
+  simp only [reply, enqueue, List.mem_append, List.mem_singleton]
+  have different : (appendResponseEnvelope queuedResponse : Model.Envelope Node TxId) ≠ voteResponseEnvelope response := by
+    simp [appendResponseEnvelope, voteResponseEnvelope]
+  simp only [different, or_false, retained]
 
-omit [Bootstrap Node] in
 /-- A queued vote response is old or is the response just produced. -/
 lemma voteResponseMemAfterVoteRequestReceive
-    (network : Node -> List (Message Node TxId))
-    (source destination : Node)
-    (request : RequestVoteRequest Node)
-    (response queuedResponse : RequestVoteResponse Node)
-    (remaining : List (Message Node TxId))
+    (network : List (Model.Envelope Node TxId))
+    (source _destination : Node)
+    (request : VoteRequestKey Node)
+    (response queuedResponse : VoteResponseKey Node)
+    (remaining : List (Model.Envelope Node TxId))
     (taken
-      : Selected source (network destination) (.requestVoteRequest request) remaining)
+      : Selected source network (voteRequestEnvelope request) remaining)
     (queuedDestination : Node)
     (member
-      : Message.requestVoteResponse queuedResponse
-        ∈ enqueue
-            (updateQueue network destination remaining)
-            (.requestVoteResponse response)
-            queuedDestination)
-    : Message.requestVoteResponse queuedResponse ∈ network queuedDestination
-      \/ (queuedDestination = response.destination /\ queuedResponse = response) := by
-  rcases
-      memEnqueue
-        (updateQueue network destination remaining)
-        (.requestVoteResponse response)
-        (.requestVoteResponse queuedResponse)
-        queuedDestination member with
-    old | new
-  · left
-    by_cases same : queuedDestination = destination
-    · subst queuedDestination
-      have retained :
-          Message.requestVoteResponse queuedResponse ∈ remaining := by
-        simpa [updateQueue] using old
-      exact (selectedSound taken).2.2 _ retained
-    · simpa [updateQueue, Function.update, same] using old
-  · simp only [Message.requestVoteResponse.injEq] at new
-    exact Or.inr ⟨new.1, new.2⟩
+      : (voteResponseEnvelope queuedResponse ∈ enqueue
+            (remaining)
+            (voteResponseEnvelope response) ∧ queuedResponse.2.1 = queuedDestination))
+    : (voteResponseEnvelope queuedResponse ∈ network /\ queuedResponse.2.1 = queuedDestination)
+      \/ (queuedDestination = response.2.1 /\ queuedResponse = response) := by
+  rcases memEnqueue remaining (voteResponseEnvelope response) (voteResponseEnvelope queuedResponse)
+      queuedDestination member with old | added
+  · exact Or.inl ⟨(selectedSound taken).2.2 _ old.1, old.2⟩
+  · exact Or.inr ⟨added.1, voteResponseEnvelope.injEq.mp added.2⟩
 
-omit [Bootstrap Node] in
 /-- Every old vote response remains queued after consuming a vote request. -/
 lemma oldVoteResponseMemAfterVoteRequestReceive
-    (network : Node -> List (Message Node TxId))
-    (source destination : Node)
-    (request : RequestVoteRequest Node)
-    (response queuedResponse : RequestVoteResponse Node)
-    (remaining : List (Message Node TxId))
+    (network : List (Model.Envelope Node TxId))
+    (source _destination : Node)
+    (request : VoteRequestKey Node)
+    (response queuedResponse : VoteResponseKey Node)
+    (remaining : List (Model.Envelope Node TxId))
     (taken
-      : Selected source (network destination) (.requestVoteRequest request) remaining)
+      : Selected source network (voteRequestEnvelope request) remaining)
     (queuedDestination : Node)
-    (member : Message.requestVoteResponse queuedResponse ∈ network queuedDestination)
-    : Message.requestVoteResponse queuedResponse
-      ∈ enqueue
-          (updateQueue network destination remaining)
-          (.requestVoteResponse response)
-          queuedDestination := by
-  apply memEnqueueNoDupOfMem
-  by_cases same : queuedDestination = destination
-  · subst queuedDestination
-    rcases memSelectedOrRemaining taken member with selected | retained
-    · simp at selected
-    · simpa [updateQueue] using retained
-  · simpa [updateQueue, Function.update, same] using member
+    (member : (voteResponseEnvelope queuedResponse ∈ network /\ queuedResponse.2.1 = queuedDestination))
+    : (voteResponseEnvelope queuedResponse ∈ enqueue
+          (remaining)
+          (voteResponseEnvelope response) ∧ queuedResponse.2.1 = queuedDestination) := by
+  have retained : voteResponseEnvelope queuedResponse ∈ remaining :=
+    (selected_mem_iff taken (by simp [voteResponseEnvelope, voteRequestEnvelope])).mpr member.1
+  exact ⟨List.mem_append_left _ retained, member.2⟩
 
-omit [Bootstrap Node] in
 /-- Vote requests are unaffected by consuming an AppendEntries request. -/
 lemma voteRequestMemAfterAppendRequestReceive
-    (network : Node -> List (Message Node TxId))
-    (source destination : Node)
-    (request : AppendEntriesRequest Node TxId)
-    (response : AppendEntriesResponse Node)
-    (remaining : List (Message Node TxId))
+    (network : List (Model.Envelope Node TxId))
+    (source _destination : Node)
+    (request : AppendRequestKey Node TxId)
+    (response : AppendResponseKey Node)
+    (remaining : List (Model.Envelope Node TxId))
     (taken
-      : Selected source (network destination) (.appendEntriesRequest request) remaining)
+      : Selected source network (appendRequestEnvelope request) remaining)
     : forall queuedDestination queuedRequest,
-        Message.requestVoteRequest queuedRequest
-          ∈ reply network destination remaining response queuedDestination
-        ↔ Message.requestVoteRequest queuedRequest ∈ network queuedDestination := by
+        (voteRequestEnvelope queuedRequest ∈ (reply remaining response) ∧ queuedRequest.2.1 = queuedDestination)
+        ↔ (voteRequestEnvelope queuedRequest ∈ network /\ queuedRequest.2.1 = queuedDestination) := by
   intro queuedDestination queuedRequest
-  constructor
-  · intro member
-    rcases
-        memEnqueue
-          (updateQueue network destination remaining)
-          (.appendEntriesResponse response)
-          (.requestVoteRequest queuedRequest)
-          queuedDestination (by simpa [reply] using member) with
-      old | new
-    · by_cases same : queuedDestination = destination
-      · subst queuedDestination
-        exact (selectedSound taken).2.2 _
-          (by simpa [updateQueue] using old)
-      · simpa [updateQueue, Function.update, same] using old
-    · simp at new
-  · intro member
-    rw [reply]
-    apply memEnqueueNoDupOfMem
-    by_cases same : queuedDestination = destination
-    · subst queuedDestination
-      rcases memSelectedOrRemaining taken member with selected | retained
-      · simp at selected
-      · simpa [updateQueue] using retained
-    · simpa [updateQueue, Function.update, same] using member
+  have retained : voteRequestEnvelope queuedRequest ∈ remaining ↔ voteRequestEnvelope queuedRequest ∈ network :=
+    selected_mem_iff taken (by simp [voteRequestEnvelope, appendRequestEnvelope])
+  simp only [reply, enqueue, List.mem_append, List.mem_singleton]
+  have different : (voteRequestEnvelope queuedRequest : Model.Envelope Node TxId) ≠ appendResponseEnvelope response := by
+    simp [voteRequestEnvelope, appendResponseEnvelope]
+  simp only [different, or_false, retained]
 
-omit [Bootstrap Node] in
 /-- Vote responses are unaffected by consuming an AppendEntries request. -/
 lemma voteResponseMemAfterAppendRequestReceive
-    (network : Node -> List (Message Node TxId))
-    (source destination : Node)
-    (request : AppendEntriesRequest Node TxId)
-    (response : AppendEntriesResponse Node)
-    (remaining : List (Message Node TxId))
+    (network : List (Model.Envelope Node TxId))
+    (source _destination : Node)
+    (request : AppendRequestKey Node TxId)
+    (response : AppendResponseKey Node)
+    (remaining : List (Model.Envelope Node TxId))
     (taken
-      : Selected source (network destination) (.appendEntriesRequest request) remaining)
+      : Selected source network (appendRequestEnvelope request) remaining)
     : forall queuedDestination queuedResponse,
-        Message.requestVoteResponse queuedResponse
-          ∈ reply network destination remaining response queuedDestination
-        ↔ Message.requestVoteResponse queuedResponse ∈ network queuedDestination := by
+        (voteResponseEnvelope queuedResponse ∈ (reply remaining response) ∧ queuedResponse.2.1 = queuedDestination)
+        ↔ (voteResponseEnvelope queuedResponse ∈ network /\ queuedResponse.2.1 = queuedDestination) := by
   intro queuedDestination queuedResponse
-  constructor
-  · intro member
-    rcases
-        memEnqueue
-          (updateQueue network destination remaining)
-          (.appendEntriesResponse response)
-          (.requestVoteResponse queuedResponse)
-          queuedDestination (by simpa [reply] using member) with
-      old | new
-    · by_cases same : queuedDestination = destination
-      · subst queuedDestination
-        exact (selectedSound taken).2.2 _
-          (by simpa [updateQueue] using old)
-      · simpa [updateQueue, Function.update, same] using old
-    · simp at new
-  · intro member
-    rw [reply]
-    apply memEnqueueNoDupOfMem
-    by_cases same : queuedDestination = destination
-    · subst queuedDestination
-      rcases memSelectedOrRemaining taken member with selected | retained
-      · simp at selected
-      · simpa [updateQueue] using retained
-    · simpa [updateQueue, Function.update, same] using member
+  have retained : voteResponseEnvelope queuedResponse ∈ remaining ↔ voteResponseEnvelope queuedResponse ∈ network :=
+    selected_mem_iff taken (by simp [voteResponseEnvelope, appendRequestEnvelope])
+  simp only [reply, enqueue, List.mem_append, List.mem_singleton]
+  have different : (voteResponseEnvelope queuedResponse : Model.Envelope Node TxId) ≠ appendResponseEnvelope response := by
+    simp [voteResponseEnvelope, appendResponseEnvelope]
+  simp only [different, or_false, retained]
 
-omit [Bootstrap Node] in
 /-- A queued AppendEntries response is old or is the response just produced. -/
 lemma appendResponseMemAfterAppendRequestReceive
-    (network : Node -> List (Message Node TxId))
-    (source destination : Node)
-    (request : AppendEntriesRequest Node TxId)
-    (response queuedResponse : AppendEntriesResponse Node)
-    (remaining : List (Message Node TxId))
+    (network : List (Model.Envelope Node TxId))
+    (source _destination : Node)
+    (request : AppendRequestKey Node TxId)
+    (response queuedResponse : AppendResponseKey Node)
+    (remaining : List (Model.Envelope Node TxId))
     (taken
-      : Selected source (network destination) (.appendEntriesRequest request) remaining)
+      : Selected source network (appendRequestEnvelope request) remaining)
     (queuedDestination : Node)
     (member
-      : Message.appendEntriesResponse queuedResponse
-        ∈ reply network destination remaining response queuedDestination)
-    : Message.appendEntriesResponse queuedResponse ∈ network queuedDestination
-      \/ (queuedDestination = response.destination /\ queuedResponse = response) := by
-  rcases
-      memEnqueue
-        (updateQueue network destination remaining)
-        (.appendEntriesResponse response)
-        (.appendEntriesResponse queuedResponse)
-        queuedDestination (by simpa [reply] using member) with
-    old | new
-  · left
-    by_cases same : queuedDestination = destination
-    · subst queuedDestination
-      exact (selectedSound taken).2.2 _
-        (by simpa [updateQueue] using old)
-    · simpa [updateQueue, Function.update, same] using old
-  · simp only [Message.appendEntriesResponse.injEq] at new
-    exact Or.inr new
+      : (appendResponseEnvelope queuedResponse ∈ (reply remaining response) ∧ queuedResponse.2.1 = queuedDestination))
+    : (appendResponseEnvelope queuedResponse ∈ network /\ queuedResponse.2.1 = queuedDestination)
+      \/ (queuedDestination = response.2.1 /\ queuedResponse = response) := by
+  rcases memEnqueue remaining (appendResponseEnvelope response) (appendResponseEnvelope queuedResponse)
+      queuedDestination member with old | added
+  · exact Or.inl ⟨(selectedSound taken).2.2 _ old.1, old.2⟩
+  · exact Or.inr ⟨added.1, appendResponseEnvelope.injEq.mp added.2⟩
 
-omit [Bootstrap Node] in
 /-- Post-receive ACK evidence is old evidence or the selected request's newly
 materialised destination ACK. -/
 lemma effectiveAckerAfterAppendRequestReceive
-    (state after : View Node TxId)
+    (state after : Model.State Node TxId)
     (source destination : Node)
-    (request : AppendEntriesRequest Node TxId)
-    (response : AppendEntriesResponse Node)
-    (remaining : List (Message Node TxId))
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
+    (request : AppendRequestKey Node TxId)
+    (response : AppendResponseKey Node)
+    (remaining : List (Model.Envelope Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (newHistory : List (Entry Node TxId))
     (taken
-      : Selected source (state.network destination) (.appendEntriesRequest request)
+      : Selected source state.network (appendRequestEnvelope request)
           remaining)
-    (producedSource : response.source = destination)
-    (producedDestination : response.destination = request.source)
+    (producedSource : response.1 = destination)
+    (producedDestination : response.2.1 = request.1)
     (producedTerm
-      : response.success = true -> response.term = (state.nodes destination).currentTerm)
+      : response.2.2.success = true -> response.2.2.term = ((nodeOf state) destination).currentTerm)
     (successfulRequestTerm
-      : response.success = true -> request.term = (state.nodes destination).currentTerm)
-    (networkEq : after.network = reply state.network destination remaining response)
-    (hasJoinedEq : after.hasJoined = state.hasJoined)
+      : response.2.2.success = true -> request.2.2.term = ((nodeOf state) destination).currentTerm)
+    (networkEq : after.network = (reply remaining response))
+    (hasJoinedEq : joinedNext = joinedNodes)
     (termEq
-      : forall node, (after.nodes node).currentTerm = (state.nodes node).currentTerm)
+      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
     (matchEq
       : forall leader peer,
-          (after.nodes leader).matchIndex peer = (state.nodes leader).matchIndex peer)
+          ((nodeOf after) leader).matchIndex peer = ((nodeOf state) leader).matchIndex peer)
     (leaderLogEq
       : forall leader,
-          (after.nodes leader).role = .leader
-          -> (after.nodes leader).log = (state.nodes leader).log)
+          ((nodeOf after) leader).role = .leader
+          -> ((nodeOf after) leader).log = ((nodeOf state) leader).log)
     : forall leader index,
-        (after.nodes leader).role = .leader
+        ((nodeOf after) leader).role = .leader
         -> forall voter,
             voter
-              ∈ effectiveAckers after
+              ∈ effectiveAckers (joined := joinedNext) after
                   (Function.update responseHistory response newHistory)
                   leader index
-            -> voter ∈ effectiveAckers state responseHistory leader index
-                \/ (response.success = true
-                    /\ leader = request.source
+            -> voter ∈ effectiveAckers (joined := joinedNodes) state responseHistory leader index
+                \/ (response.2.2.success = true
+                    /\ leader = request.1
                     /\ voter = destination
-                    /\ index <= response.lastLogIndex
-                    /\ request.term = (state.nodes request.source).currentTerm) := by
+                    /\ index <= response.2.2.lastLogIndex
+                    /\ request.2.2.term = ((nodeOf state) request.1).currentTerm) := by
   intro leader index role voter member
   simp only [
     effectiveAckers, Finset.mem_filter] at member ⊢
-  have oldJoined : voter ∈ state.hasJoined := by simpa [hasJoinedEq] using member.1
+  have oldJoined : voter ∈ joinedNodes := by simpa [hasJoinedEq] using member.1
   rcases member.2 with self | matched | queued
   · exact Or.inl ⟨oldJoined, Or.inl self⟩
   · exact Or.inl
@@ -315,7 +204,7 @@ lemma effectiveAckerAfterAppendRequestReceive
     by_cases sameResponse : queuedResponse = response
     · subst queuedResponse
       right
-      have leaderSource : leader = request.source := by
+      have leaderSource : leader = request.1 := by
         rw [producedDestination] at responseDestination
         exact responseDestination.symm
       exact ⟨
@@ -355,16 +244,17 @@ lemma effectiveAckerAfterAppendRequestReceive
 
 /-- Reserve materialisation preserves all temporal ACK histories. -/
 lemma appendRequestAckerTemporalFacts
-    (state : View Node TxId)
+    (state : Model.State Node TxId)
     (source destination : Node)
-    (request : AppendEntriesRequest Node TxId)
+    {present : destination ∈ state.nodes.map Prod.fst}
+    (request : AppendRequestKey Node TxId)
     (nextNode : NodeState Node TxId)
-    (response : AppendEntriesResponse Node)
-    (remaining : List (Message Node TxId))
+    (response : AppendResponseKey Node)
+    (remaining : List (Model.Envelope Node TxId))
     (votes : VoteHistory Node)
-    (appendHistory : AppendEntriesRequest Node TxId -> List (Entry Node TxId))
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
-    (voteVoterHistory : RequestVoteResponse Node -> List (Entry Node TxId))
+    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
+    (voteVoterHistory : VoteResponseKey Node -> List (Entry Node TxId))
     (canonicalHistory : Nat -> List (Entry Node TxId))
     (owners : TermOwners Node)
     (elections : ElectionHistory Node TxId)
@@ -374,132 +264,134 @@ lemma appendRequestAckerTemporalFacts
     (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
     (electionFacts : ElectionHistoryFacts state votes canonicalHistory owners elections)
     (electionQueued : ElectionQueuedHistoryFacts state appendHistory elections)
-    (currentFacts : AckerCurrentHistory state responseHistory elections)
+    (currentFacts : AckerCurrentHistory (joined := joinedNodes) state responseHistory elections)
     (ackerVoteFacts
-      : AckerVoteHistory state votes responseHistory voteVoterHistory elections)
-    (ackerElectionFacts : AckerElectionHistory state responseHistory elections)
-    (requestDestination : request.destination = destination)
+      : AckerVoteHistory (joined := joinedNodes) state votes responseHistory voteVoterHistory elections)
+    (ackerElectionFacts : AckerElectionHistory (joined := joinedNodes) state responseHistory elections)
+    (requestDestination : request.2.1 = destination)
     (snapshot : RequestSnapshots (appendHistory request) request)
-    (notStepped : returnToFollowerState? (state.nodes destination) request = none)
+    (notStepped : ¬ (request.2.2.term = (nodeOf state destination).currentTerm ∧ ((nodeOf state destination).role = .candidate ∨ (nodeOf state destination).role = .preVoteCandidate)))
     (taken
-      : Selected source (state.network destination) (.appendEntriesRequest request)
+      : Selected source state.network (appendRequestEnvelope request)
           remaining)
+    (responseSource : response.1 = request.2.1)
+    (responseDestination : response.2.1 = request.1)
     (handled
-      : handleAppendEntriesRequest? (state.nodes destination) request
-        = some (nextNode, response))
-    : let after : View Node TxId :=
+      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
+        = some (nextNode, response.2.2))
+    : let after : Model.State Node TxId :=
         {
           state with
-            nodes := updateNode state.nodes destination nextNode
-            network := reply state.network destination remaining response
+            nodes := replaceNode state.nodes destination nextNode
+            network := (reply remaining response)
         }
       let newResponseHistory :=
         Function.update responseHistory response (appendHistory request)
-      AckerCurrentHistory after newResponseHistory elections
-      /\ AckerVoteHistory after votes newResponseHistory voteVoterHistory elections
-      /\ AckerElectionHistory after newResponseHistory elections := by
-  let post := handleAppendEntriesRequestLocalPost handled
-  let after : View Node TxId :=
+      AckerCurrentHistory (joined := joinedNodes) after newResponseHistory elections
+      /\ AckerVoteHistory (joined := joinedNodes) after votes newResponseHistory voteVoterHistory elections
+      /\ AckerElectionHistory (joined := joinedNodes) after newResponseHistory elections := by
+  let post := handleAppendEntriesRequestLocalPost notStepped handled
+  let after : Model.State Node TxId :=
     { state with
-      nodes := updateNode state.nodes destination nextNode
-      network := reply state.network destination remaining response }
+      nodes := replaceNode state.nodes destination nextNode
+      network := (reply remaining response) }
   let newResponseHistory :=
     Function.update responseHistory response (appendHistory request)
   have requestMember :
-      Message.appendEntriesRequest request ∈ state.network destination :=
-    (selectedSound taken).2.1
+      (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination) :=
+    ⟨(selectedSound taken).2.1, requestDestination⟩
   have roleEq :
       forall node,
-        (after.nodes node).role = (state.nodes node).role := by
+        ((nodeOf after) node).role = ((nodeOf state) node).role := by
     intro node
     by_cases same : node = destination
     · subst node
-      simpa [after, updateNode] using post.roleUnchanged
-    · simp [after, updateNode, same]
+      simpa [after, present, nodeOf_replaceNode] using post.roleUnchanged
+    · simp [after, present, nodeOf_replaceNode, same]
   have termEq :
       forall node,
-        (after.nodes node).currentTerm =
-          (state.nodes node).currentTerm := by
+        ((nodeOf after) node).currentTerm =
+          ((nodeOf state) node).currentTerm := by
     intro node
     by_cases same : node = destination
     · subst node
-      simpa [after, updateNode] using post.currentTermUnchanged
-    · simp [after, updateNode, same]
+      simpa [after, present, nodeOf_replaceNode] using post.currentTermUnchanged
+    · simp [after, present, nodeOf_replaceNode, same]
   have matchEq :
       forall leader peer,
-        (after.nodes leader).matchIndex peer =
-          (state.nodes leader).matchIndex peer := by
+        ((nodeOf after) leader).matchIndex peer =
+          ((nodeOf state) leader).matchIndex peer := by
     intro leader peer
     by_cases same : leader = destination
     · subst leader
-      simpa [after, updateNode] using congrFun post.matchIndexUnchanged peer
-    · simp [after, updateNode, same]
+      simpa [after, present, nodeOf_replaceNode] using congrFun post.matchIndexUnchanged peer
+    · simp [after, present, nodeOf_replaceNode, same]
   have activeNodeEq :
       forall node,
-        ((state.nodes node).role = .candidate \/
-          (state.nodes node).role = .leader) ->
-          after.nodes node = state.nodes node := by
+        (((nodeOf state) node).role = .candidate \/
+          ((nodeOf state) node).role = .leader) ->
+          (nodeOf after) node = (nodeOf state) node := by
     intro node active
     by_cases same : node = destination
     · subst node
       have unchanged :=
         handleAppendEntriesRequestActiveUnchanged
           notStepped handled active
-      simp [after, updateNode, unchanged]
-    · simp [after, updateNode, same]
+      simp [after, present, nodeOf_replaceNode, unchanged]
+    · simp [after, present, nodeOf_replaceNode, same]
   have leaderLogEq :
       forall leader,
-        (after.nodes leader).role = .leader ->
-          (after.nodes leader).log = (state.nodes leader).log := by
+        ((nodeOf after) leader).role = .leader ->
+          ((nodeOf after) leader).log = ((nodeOf state) leader).log := by
     intro leader role
-    have oldRole : (state.nodes leader).role = .leader := by simpa [roleEq] using role
+    have oldRole : ((nodeOf state) leader).role = .leader := by simpa [roleEq] using role
     exact congrArg NodeState.log
       (activeNodeEq leader (Or.inr oldRole))
   have effectiveCases :
       forall leader index,
-        (after.nodes leader).role = .leader ->
+        ((nodeOf after) leader).role = .leader ->
         forall voter,
-          voter ∈ effectiveAckers after newResponseHistory leader index ->
-            voter ∈ effectiveAckers state responseHistory leader index \/
-              (response.success = true /\
-                leader = request.source /\
+          voter ∈ effectiveAckers (joined := joinedNodes) after newResponseHistory leader index ->
+            voter ∈ effectiveAckers (joined := joinedNodes) state responseHistory leader index \/
+              (response.2.2.success = true /\
+                leader = request.1 /\
                 voter = destination /\
-                index <= response.lastLogIndex /\
-                request.term =
-                  (state.nodes request.source).currentTerm) := by
+                index <= response.2.2.lastLogIndex /\
+                request.2.2.term =
+                  ((nodeOf state) request.1).currentTerm) := by
     intro leader index role voter member
     exact
       effectiveAckerAfterAppendRequestReceive
         state after source destination request response remaining
           responseHistory (appendHistory request) taken
-          (by simpa [requestDestination] using post.responseSource)
-          post.responseDestination
+          (by simpa [requestDestination] using responseSource)
+          responseDestination
           post.successfulResponseTerm post.successfulCurrentTerm
           rfl rfl termEq matchEq leaderLogEq
           leader index role voter
           (by simpa [newResponseHistory] using member)
   have sourceStateEq :
       forall leader,
-        (after.nodes leader).role = .leader ->
-          after.nodes leader = state.nodes leader := by
+        ((nodeOf after) leader).role = .leader ->
+          (nodeOf after) leader = (nodeOf state) leader := by
     intro leader role
-    have oldRole : (state.nodes leader).role = .leader := by simpa [roleEq] using role
+    have oldRole : ((nodeOf state) leader).role = .leader := by simpa [roleEq] using role
     exact activeNodeEq leader (Or.inr oldRole)
   change
-    AckerCurrentHistory after newResponseHistory elections /\
-      AckerVoteHistory
+    AckerCurrentHistory (joined := joinedNodes) after newResponseHistory elections /\
+      AckerVoteHistory (joined := joinedNodes)
         after votes newResponseHistory voteVoterHistory elections /\
-      AckerElectionHistory after newResponseHistory elections
+      AckerElectionHistory (joined := joinedNodes) after newResponseHistory elections
   constructor
   · intro leader index role current signature voter effective
-    have oldRole : (state.nodes leader).role = .leader := by simpa [roleEq] using role
+    have oldRole : ((nodeOf state) leader).role = .leader := by simpa [roleEq] using role
     have leaderEq := sourceStateEq leader role
     have oldCurrent :
-        termAt (state.nodes leader).log index =
-          (state.nodes leader).currentTerm := by
+        termAt ((nodeOf state) leader).log index =
+          ((nodeOf state) leader).currentTerm := by
       simpa [leaderEq] using current
     have oldSignature :
-        isSignatureAt (state.nodes leader).log index = true := by
+        isSignatureAt ((nodeOf state) leader).log index = true := by
       simpa [leaderEq] using signature
     rcases effectiveCases leader index role voter effective with
       oldEffective | materialised
@@ -509,15 +401,15 @@ lemma appendRequestAckerTemporalFacts
         retained | bad
       · by_cases voterEq : voter = destination
         · subst voter
-          by_cases succeeded : response.success = true
+          by_cases succeeded : response.2.2.success = true
           · have destinationTerm :
-                request.term =
-                  (state.nodes destination).currentTerm :=
+                request.2.2.term =
+                  ((nodeOf state) destination).currentTerm :=
               post.successfulCurrentTerm succeeded
             have leaderTermLe :
-                (state.nodes leader).currentTerm <= request.term := by
+                ((nodeOf state) leader).currentTerm <= request.2.2.term := by
               have currentPositive :
-                  0 < termAt (state.nodes leader).log index := by
+                  0 < termAt ((nodeOf state) leader).log index := by
                 rw [oldCurrent]
                 exact
                   positiveOfBootstrapTermLe
@@ -526,7 +418,7 @@ lemma appendRequestAckerTemporalFacts
                 ⟨entry, found, entryTerm⟩
               have foundInPrefix :
                   entryAt?
-                      ((state.nodes leader).log.take index)
+                      (((nodeOf state) leader).log.take index)
                       index =
                     some entry := by
                 rw [entryAtTake_of_le (le_refl index)]
@@ -538,14 +430,14 @@ lemma appendRequestAckerTemporalFacts
                   (entryAtSomeMember destinationFound)
               simpa [entryTerm, oldCurrent, destinationTerm] using bounded
             by_cases sameTerm :
-                (state.nodes leader).currentTerm = request.term
+                ((nodeOf state) leader).currentTerm = request.2.2.term
             · have requestOwner :=
                 (ownership.queuedAppendMetadata
                   destination request requestMember).2.1
               have leaderOwner := ownership.activeLeader leader oldRole
               rw [sameTerm] at leaderOwner
               have sameLeader :
-                  leader = request.source :=
+                  leader = request.1 :=
                 Option.some.inj (leaderOwner.symm.trans requestOwner)
               subst leader
               have requestHistory :=
@@ -554,16 +446,16 @@ lemma appendRequestAckerTemporalFacts
                     (by simp [sameTerm])
                     oldRole
               let leaderPrefix :=
-                (state.nodes request.source).log.take index
+                ((nodeOf state) request.1).log.take index
               have prefixLength :
                   leaderPrefix.length = index := by
                 have currentPositive :
                     0 < termAt
-                      (state.nodes request.source).log index := by
+                      ((nodeOf state) request.1).log index := by
                   rw [oldCurrent]
                   exact
                     positiveOfBootstrapTermLe
-                      (termsPositive request.source (by rw [oldRole]; decide))
+                      (termsPositive request.1 (by rw [oldRole]; decide))
                 rcases termAtPositiveEntry currentPositive with
                   ⟨entry, found, _⟩
                 simp [
@@ -578,19 +470,19 @@ lemma appendRequestAckerTemporalFacts
                   rw [List.prefix_iff_eq_take]
                   calc
                     leaderPrefix
-                        = (state.nodes request.source).log.take leaderPrefix.length := by
+                        = ((nodeOf state) request.1).log.take leaderPrefix.length := by
                       simp [leaderPrefix, prefixLength]
                     _ = (appendHistory request).take leaderPrefix.length :=
                       (takeEqOfPrefix requestHistory coveredByHistory).symm
                 have retainedNext :=
                   handledAppendRequestRetainsSharedPrefix
                     state votes appendHistory canonicalHistory owners
-                      ownership destination request nextNode response
-                      requestMember snapshot handled succeeded retained shared
+                      ownership destination request nextNode response.2.2
+                      requestMember snapshot notStepped handled succeeded retained shared
                 exact Or.inl
                   (by
-                    rw [sourceStateEq request.source role]
-                    simpa [after, updateNode, leaderPrefix] using retainedNext)
+                    rw [sourceStateEq request.1 role]
+                    simpa [after, present, nodeOf_replaceNode, leaderPrefix] using retainedNext)
               · have historyInPrefix :
                     appendHistory request <+: leaderPrefix := by
                   rw [List.prefix_iff_eq_take]
@@ -599,7 +491,7 @@ lemma appendRequestAckerTemporalFacts
                         leaderPrefix.length := by omega
                   calc
                     appendHistory request
-                        = (state.nodes request.source).log.take
+                        = ((nodeOf state) request.1).log.take
                             (appendHistory request).length :=
                       (prefixEqTake requestHistory).symm
                     _ = leaderPrefix.take (appendHistory request).length := by
@@ -610,26 +502,26 @@ lemma appendRequestAckerTemporalFacts
                       ]
                 have historyBefore :
                     appendHistory request <+:
-                      (state.nodes destination).log :=
+                      ((nodeOf state) destination).log :=
                   historyInPrefix.trans retained
                 have already :
-                    alreadyDone (state.nodes destination) request :=
+                    alreadyDone ((nodeOf state) destination) request.2.2 :=
                   appendRequestAlreadyDoneOfSharedPrefix
                     snapshot historyBefore (prefixRefl _)
                       snapshot.1
                 have unchanged :=
                   successfulAlreadyDoneAppendLogUnchanged
-                    already handled succeeded
+                    already notStepped handled succeeded
                 exact Or.inl
                   (by
-                    rw [sourceStateEq request.source role]
-                    simpa [after, updateNode, unchanged] using retained)
+                    rw [sourceStateEq request.1 role]
+                    simpa [after, present, nodeOf_replaceNode, unchanged] using retained)
             · have strict :
-                  (state.nodes leader).currentTerm < request.term := by
+                  ((nodeOf state) leader).currentTerm < request.2.2.term := by
                 omega
               rcases
                   electionFacts.ownerRecorded
-                    request.term request.source
+                    request.2.2.term request.1
                       ((ownership.queuedAppendMetadata
                         destination request requestMember).2.1) with
                 bootstrap | recorded
@@ -641,7 +533,7 @@ lemma appendRequestAckerTemporalFacts
               · rcases recorded with
                   ⟨record, recordStored, _⟩
                 by_cases inPromotion :
-                    (state.nodes leader).log.take index <+:
+                    ((nodeOf state) leader).log.take index <+:
                       record.promotionLog
                 · have shared :=
                     inPromotion.trans
@@ -651,33 +543,33 @@ lemma appendRequestAckerTemporalFacts
                   have retainedNext :=
                     handledAppendRequestRetainsSharedPrefix
                       state votes appendHistory canonicalHistory owners
-                        ownership destination request nextNode response
-                        requestMember snapshot handled succeeded retained shared
+                        ownership destination request nextNode response.2.2
+                        requestMember snapshot notStepped handled succeeded retained shared
                   exact Or.inl
                     (by
                       rw [leaderEq]
-                      simpa [after, updateNode] using retainedNext)
+                      simpa [after, present, nodeOf_replaceNode] using retainedNext)
                 · right
                   exact ⟨
-                    request.term,
+                    request.2.2.term,
                     record,
                     by simpa [leaderEq] using strict,
                     by simp [termEq, destinationTerm],
                     recordStored,
                     by simpa [leaderEq] using inPromotion
                   ⟩
-          · have failed : response.success = false :=
+          · have failed : response.2.2.success = false :=
               Bool.eq_false_of_not_eq_true succeeded
             have unchanged := post.failedStateUnchanged failed
             exact Or.inl
               (by
                 rw [leaderEq]
-                simpa [after, updateNode, unchanged] using retained)
+                simpa [after, present, nodeOf_replaceNode, unchanged] using retained)
         · exact Or.inl
             (by
               rw [leaderEq]
               simpa [
-                after, updateNode, Function.update, voterEq
+                after, present, nodeOf_replaceNode, Function.update, voterEq
               ] using retained)
       · right
         rcases bad with
@@ -698,25 +590,25 @@ lemma appendRequestAckerTemporalFacts
       have acknowledgedPrefix :=
         handledAppendRequestAcknowledgesSourcePrefix
           state votes appendHistory canonicalHistory owners ownership
-            destination request nextNode response requestMember snapshot
-            handled succeeded
+            destination request nextNode response.2.2 requestMember snapshot
+            notStepped handled succeeded
             (by simpa [roleEq] using role)
             requestTerm acknowledged
       exact Or.inl
         (by
-          rw [sourceStateEq request.source role]
-          simpa [after, updateNode] using acknowledgedPrefix)
+          rw [sourceStateEq request.1 role]
+          simpa [after, present, nodeOf_replaceNode] using acknowledgedPrefix)
   · constructor
     · intro leader index role current signature
         voter voteTerm candidate effective voted different newer
-      have oldRole : (state.nodes leader).role = .leader := by simpa [roleEq] using role
+      have oldRole : ((nodeOf state) leader).role = .leader := by simpa [roleEq] using role
       have leaderEq := sourceStateEq leader role
       have oldCurrent :
-          termAt (state.nodes leader).log index =
-            (state.nodes leader).currentTerm := by
+          termAt ((nodeOf state) leader).log index =
+            ((nodeOf state) leader).currentTerm := by
         simpa [leaderEq] using current
       have oldSignature :
-          isSignatureAt (state.nodes leader).log index = true := by
+          isSignatureAt ((nodeOf state) leader).log index = true := by
         simpa [leaderEq] using signature
       rcases effectiveCases leader index role voter effective with
         oldEffective | materialised
@@ -743,14 +635,14 @@ lemma appendRequestAckerTemporalFacts
         subst leader
         subst voter
         have destinationTerm :
-            request.term =
-              (state.nodes destination).currentTerm :=
+            request.2.2.term =
+              ((nodeOf state) destination).currentTerm :=
           post.successfulCurrentTerm succeeded
         have future : votes destination voteTerm = none :=
           voteFacts.future destination voteTerm
             (by
               have sourceNewer :
-                  (state.nodes request.source).currentTerm < voteTerm := by
+                  ((nodeOf state) request.1).currentTerm < voteTerm := by
                 simpa [leaderEq] using newer
               rw [← destinationTerm, requestTerm]
               exact sourceNewer)
@@ -758,14 +650,14 @@ lemma appendRequestAckerTemporalFacts
         contradiction
     · intro leader index role current signature
         term record voter recorded voterMember effective newer
-      have oldRole : (state.nodes leader).role = .leader := by simpa [roleEq] using role
+      have oldRole : ((nodeOf state) leader).role = .leader := by simpa [roleEq] using role
       have leaderEq := sourceStateEq leader role
       have oldCurrent :
-          termAt (state.nodes leader).log index =
-            (state.nodes leader).currentTerm := by
+          termAt ((nodeOf state) leader).log index =
+            ((nodeOf state) leader).currentTerm := by
         simpa [leaderEq] using current
       have oldSignature :
-          isSignatureAt (state.nodes leader).log index = true := by
+          isSignatureAt ((nodeOf state) leader).log index = true := by
         simpa [leaderEq] using signature
       rcases effectiveCases leader index role voter effective with
         oldEffective | materialised
@@ -782,14 +674,14 @@ lemma appendRequestAckerTemporalFacts
         subst leader
         subst voter
         have destinationTerm :
-            request.term =
-              (state.nodes destination).currentTerm :=
+            request.2.2.term =
+              ((nodeOf state) destination).currentTerm :=
           post.successfulCurrentTerm succeeded
         have voterTerm :=
           electionHistoryVoterTerm
             voteFacts electionFacts recorded voterMember
         have sourceNewer :
-            request.term < term := by
+            request.2.2.term < term := by
           simpa [leaderEq, requestTerm] using newer
         rw [destinationTerm] at sourceNewer
         omega
@@ -797,8 +689,8 @@ lemma appendRequestAckerTemporalFacts
 /-- Arbitrary-term local facts for one handled RequestVote request. -/
 structure VoteRequestLocalPost
     (before after : NodeState Node TxId)
-    (request : RequestVoteRequest Node)
-    (response : RequestVoteResponse Node)
+    (request : VoteRequestKey Node)
+    (response : VoteResponseKey Node)
     : Prop where
   roleUnchanged : after.role = before.role
   currentTermUnchanged : after.currentTerm = before.currentTerm
@@ -809,156 +701,132 @@ structure VoteRequestLocalPost
   votesGrantedUnchanged : after.votesGranted = before.votesGranted
   votedForUpdate
     : after.votedFor = before.votedFor
-      \/ (before.votedFor = none /\ after.votedFor = some request.source)
-  responseTerm : response.term = before.currentTerm
-  responseSource : response.source = request.destination
-  responseDestination : response.destination = request.source
+      \/ (before.votedFor = none /\ after.votedFor = some request.1)
+  responseTerm : response.2.2.term = before.currentTerm
+  responseSource : response.1 = request.2.1
+  responseDestination : response.2.1 = request.1
   granted
-    : response.voteGranted = true
-      -> request.term = before.currentTerm
-          /\ voteLogUpToDate before request
-          /\ (before.votedFor = none \/ before.votedFor = some request.source)
-          /\ after.votedFor = some request.source
+    : response.2.2.voteGranted = true
+      -> request.2.2.term = before.currentTerm
+          /\ voteLogUpToDate before request.2.2
+          /\ (before.votedFor = none \/ before.votedFor = some request.1)
+          /\ after.votedFor = some request.1
   grantedState
-    : response.voteGranted = true
-      -> after = { before with votedFor := some request.source }
-  rejectedState : response.voteGranted = false -> after = before
+    : response.2.2.voteGranted = true
+      -> after = { before with votedFor := some request.1 }
+  rejectedState : response.2.2.voteGranted = false -> after = before
 
-omit [Bootstrap Node] in
 /-- The RequestVote handler changes only the persistent vote and reply. -/
 lemma handleRequestVoteRequestLocalPost
     {before after : NodeState Node TxId}
-    {request : RequestVoteRequest Node}
-    {response : RequestVoteResponse Node}
-    (handled : handleRequestVoteRequest? before request = some (after, response))
+    {request : VoteRequestKey Node}
+    {response : VoteResponseKey Node}
+    (responseSource : response.1 = request.2.1)
+    (responseDestination : response.2.1 = request.1)
+    (handled : handleRequestVoteRequest before request.1 request.2.2 = (after, response.2.2))
     : VoteRequestLocalPost before after request response := by
-  unfold handleRequestVoteRequest? at handled
-  split at handled
-  · rename_i current
-    let grant : Bool :=
-      decide (
-        request.term = before.currentTerm /\
-          voteLogUpToDate before request /\
-          (before.votedFor = none \/
-            before.votedFor = some request.source))
-    by_cases granted : grant = true
-    · have grantFacts :
-          request.term = before.currentTerm /\
-            voteLogUpToDate before request /\
-            (before.votedFor = none \/
-              before.votedFor = some request.source) := by
-        simpa [grant, Bool.decide_eq_true] using granted
-      have pairEq := Option.some.inj handled
-      simp [grant, granted] at pairEq
-      rcases pairEq with ⟨afterEq, responseEq⟩
-      subst after
-      subst response
-      constructor
-      · rfl
-      · rfl
-      · rfl
-      · rfl
-      · rfl
-      · rfl
-      · rfl
-      · rcases grantFacts.2.2 with noVote | sameVote
-        · exact Or.inr ⟨noVote, by simp []⟩
-        · exact Or.inl (by simp [ sameVote])
-      · rfl
-      · rfl
-      · rfl
-      · intro _
-        exact ⟨grantFacts.1, grantFacts.2.1, grantFacts.2.2, by simp []⟩
-      · intro _
-        rfl
-      · intro rejected
-        contradiction
-    · have notGranted :
-          Not (
-            request.term = before.currentTerm /\
-              voteLogUpToDate before request /\
-              (before.votedFor = none \/
-                before.votedFor = some request.source)) := by
-        intro facts
-        apply granted
-        simp [grant, facts]
-      have pairEq := Option.some.inj handled
-      simp [grant, granted] at pairEq
-      rcases pairEq with ⟨afterEq, responseEq⟩
-      subst after
-      subst response
-      constructor
-      · rfl
-      · rfl
-      · rfl
-      · rfl
-      · rfl
-      · rfl
-      · rfl
-      · exact Or.inl rfl
-      · rfl
-      · rfl
-      · rfl
-      · intro success
-        simp [] at success
-      · intro success
-        contradiction
-      · intro _
-        rfl
-  · contradiction
+  have grant := (handleRequestVoteRequest before request.1 request.2.2).2.voteGranted
+  unfold handleRequestVoteRequest at handled
+  dsimp only at handled
+  split_ifs at handled with granted
+  · have equal := Prod.mk.inj handled
+    have afterEq := equal.1.symm
+    have payloadEq := equal.2.symm
+    rw [afterEq]
+    have freshness : request.2.2.term = before.currentTerm ∧ voteLogUpToDate before request.2.2
+        ∧ (before.votedFor = none ∨ before.votedFor = some request.1) := by
+      simpa only [decide_eq_true_eq] using granted
+    constructor
+    · rfl
+    · rfl
+    · rfl
+    · rfl
+    · rfl
+    · rfl
+    · rfl
+    · rcases freshness.2.2 with absent | same
+      · exact Or.inr ⟨absent, rfl⟩
+      · exact Or.inl same.symm
+    · simp [payloadEq]
+    · exact responseSource
+    · exact responseDestination
+    · exact fun _ => ⟨freshness.1, freshness.2.1, freshness.2.2, rfl⟩
+    · exact fun _ => rfl
+    · intro rejected
+      simp [payloadEq, granted] at rejected
+  · have equal := Prod.mk.inj handled
+    have afterEq := equal.1.symm
+    have payloadEq := equal.2.symm
+    rw [afterEq]
+    constructor
+    · rfl
+    · rfl
+    · rfl
+    · rfl
+    · rfl
+    · rfl
+    · rfl
+    · exact Or.inl rfl
+    · simp [payloadEq]
+    · exact responseSource
+    · exact responseDestination
+    · intro accepted
+      simp [payloadEq, granted] at accepted
+    · intro accepted
+      simp [payloadEq, granted] at accepted
+    · exact fun _ => rfl
 
-omit [Bootstrap Node] in
 /-- Granting a vote freezes every prior ACK-retention fact at vote time. -/
 lemma ackerVoteHistoryAfterGrantedRequest
-    (state after : View Node TxId)
+    (state after : Model.State Node TxId)
     (votes : VoteHistory Node)
-    (responseHistory : AppendEntriesResponse Node -> List (Entry Node TxId))
-    (voteVoterHistory : RequestVoteResponse Node -> List (Entry Node TxId))
+    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
+    (voteVoterHistory : VoteResponseKey Node -> List (Entry Node TxId))
     (elections : ElectionHistory Node TxId)
     (destination : Node)
-    (request : RequestVoteRequest Node)
-    (currentFacts : AckerCurrentHistory state responseHistory elections)
-    (voteFacts : AckerVoteHistory state votes responseHistory voteVoterHistory elections)
-    (requestTerm : request.term = (state.nodes destination).currentTerm)
-    (roleEq : forall node, (after.nodes node).role = (state.nodes node).role)
+    (request : VoteRequestKey Node)
+    (currentFacts : AckerCurrentHistory (joined := joinedNodes) state responseHistory elections)
+    (voteFacts : AckerVoteHistory (joined := joinedNodes) state votes responseHistory voteVoterHistory elections)
+    (requestTerm : request.2.2.term = ((nodeOf state) destination).currentTerm)
+    (roleEq : forall node, ((nodeOf after) node).role = ((nodeOf state) node).role)
     (termEq
-      : forall node, (after.nodes node).currentTerm = (state.nodes node).currentTerm)
-    (logEq : forall node, (after.nodes node).log = (state.nodes node).log)
+      : forall node, ((nodeOf after) node).currentTerm = ((nodeOf state) node).currentTerm)
+    (logEq : forall node, ((nodeOf after) node).log = ((nodeOf state) node).log)
     (effectiveEq
       : forall source index,
-          effectiveAckers after responseHistory source index
-          = effectiveAckers state responseHistory source index)
-    : let key := grantedVoteKey destination request.term request.source
+          effectiveAckers (joined := joinedNext) after responseHistory source index
+          = effectiveAckers (joined := joinedNodes) state responseHistory source index)
+    : let key := grantedVoteKey destination request.2.2.term request.1
       let newVotes : VoteHistory (Node : Type) :=
         Function.update votes destination
-          (Function.update (votes destination) request.term (some request.source))
+          (Function.update (votes destination) request.2.2.term (some request.1))
       let newVoterHistory :=
         Function.update voteVoterHistory key
-          ((state.nodes destination).log.take
-            (maxCommittableIndex (state.nodes destination).log))
-      AckerVoteHistory after newVotes responseHistory newVoterHistory elections := by
+          (((nodeOf state) destination).log.take
+            (maxCommittableIndex ((nodeOf state) destination).log))
+      AckerVoteHistory (joined := joinedNext) after newVotes responseHistory newVoterHistory elections := by
   dsimp
   intro source index role current signature
       voter voteTerm candidate effective voted different newer
-  have oldRole : (state.nodes source).role = .leader := by simpa [roleEq] using role
+  have oldRole : ((nodeOf state) source).role = .leader := by simpa [roleEq] using role
   have oldCurrent :
-      termAt (state.nodes source).log index =
-        (state.nodes source).currentTerm := by
+      termAt ((nodeOf state) source).log index =
+        ((nodeOf state) source).currentTerm := by
     simpa [logEq, termEq] using current
   have oldSignature :
-      isSignatureAt (state.nodes source).log index = true := by
+      isSignatureAt ((nodeOf state) source).log index = true := by
     simpa [logEq] using signature
   have oldEffective :
-      voter ∈ effectiveAckers state responseHistory source index := by
+      voter ∈ effectiveAckers (joined := joinedNodes) state responseHistory source index := by
     rw [effectiveEq] at effective
     exact effective
   by_cases voterEq : voter = destination
   · subst voter
-    by_cases voteTermEq : voteTerm = request.term
+    by_cases voteTermEq : voteTerm = request.2.2.term
     · subst voteTerm
-      have candidateEq : candidate = request.source := by
+      have candidateEq : candidate = request.1 := by
         have chosen :
-            some request.source = some candidate := by
+            some request.1 = some candidate := by
           simpa [Function.update] using voted
         exact (Option.some.inj chosen).symm
       subst candidate
@@ -994,11 +862,11 @@ lemma ackerVoteHistoryAfterGrantedRequest
             Not (
               grantedVoteKey destination voteTerm candidate =
                 grantedVoteKey
-                  destination request.term request.source) := by
+                  destination request.2.2.term request.1) := by
           intro same
           have sameTerm :
-              voteTerm = request.term :=
-            congrArg RequestVoteResponse.term same
+              voteTerm = request.2.2.term :=
+            congrArg (fun key : VoteResponseKey Node => key.2.2.term) same
           exact voteTermEq sameTerm
         simpa [Function.update, keyNe, logEq] using retained
       · right
@@ -1025,11 +893,11 @@ lemma ackerVoteHistoryAfterGrantedRequest
           Not (
             grantedVoteKey voter voteTerm candidate =
               grantedVoteKey
-                destination request.term request.source) := by
+                destination request.2.2.term request.1) := by
         intro same
         have sameVoter :
             voter = destination :=
-          congrArg RequestVoteResponse.source same
+          congrArg (fun key : VoteResponseKey Node => key.1) same
         exact voterEq sameVoter
       simpa [Function.update, keyNe, logEq] using retained
     · right
