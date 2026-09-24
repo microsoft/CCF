@@ -4776,6 +4776,7 @@ lemma memEnqueueNoDupSelf
   · simp []
   · simp [ updateQueue]
 
+omit [Bootstrap Node] in
 lemma memSelectedOrRemaining
     {source : Node} {queue remaining : List (Message Node TxId)}
     {selected message : Message Node TxId}
