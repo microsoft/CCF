@@ -12,7 +12,6 @@ reachability, the multi-node network) is built on these two fields.
 structure TransitionSystem (State Action : Type) where
   init : State -> Prop
   step : State -> Action -> Option State
-  step : State -> Action -> State -> Prop
 
 namespace TransitionSystem
 
