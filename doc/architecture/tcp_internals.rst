@@ -6,7 +6,7 @@ Overview
 
 In CCF, the :term:`TCP` host layer is implemented using `libuv <https://libuv.org/>`_, allowing us to listen for connections from other nodes and requests from clients as well as connect to other nodes.
 
-Both :term:`RPC` and Node-to-Node connections use TCP to communicate with external resources and then pass the packets through the :term:`ring buffer` to communicate with the enclave.
+Both :term:`RPC` and Node-to-Node connections use TCP to communicate with external resources. Node-to-node connections implement the node's typed transport interface: inbound frames are copied into owned buffers and passed to the node, and outbound messages are submitted by the node from any thread.
 
 CCF uses a HTTP :term:`REST` interface to call programs inside the enclave, so the process is usually read request, call enclave function and receive response (via `ring buffer` message), send the response to the client.
 
@@ -21,12 +21,12 @@ Because `TCPImpl` does not have access to the `ring buffer`, it must use behavio
 
 Most of the call backs are for logging purposes, but the two important ones are:
 - `on_accept` on servers, which creates a new socket to communicate with the particular connecting client
-- `on_read`, which takes the data that is read and writes it to the `ring buffer`
+- `on_read`, which takes the data that is read and passes it to the enclave
 
 For node-to-node connections, the behaviours are:
 - `NodeServerBehaviour`, the main listening socket and, `on_accept`, creates a new socket to communicate with a particular connecting client
 - `NodeIncomingBehaviour`, the socket that is created above, that waits for input and passes that to the enclave
-- `NodeOutgoingBehaviour`, a socket that is created by the enclave (via ring buffer messages into the host), to connect to external nodes
+- `NodeOutgoingBehaviour`, a socket that is created when the enclave sends to a node with no existing connection, to connect to external nodes
 
 For RPC connections, the behaviours are:
 - `RPCServerBehaviour`, same as the `NodeServerBehaviour` above
@@ -163,7 +163,7 @@ Client logic
 
 Clients don't have a cycle, as they connect to an existing server, send the request, wait for the response and disconnect.
 
-Clients are used from the enclave side (Node-to-node and RPC), via a `ring buffer` message.
+Clients are used from the enclave side (Node-to-node and RPC).
 
 Node-to-node clients are used for pings across nodes, electing a new leader, etc.
 
@@ -204,7 +204,7 @@ Here's the diagram of the client control flow:
 
         subgraph NodeConnections
             ncc(create_connection)
-            nw(ccf::node_outbound)
+            nw(send)
             subgraph NodeConnectionBehaviour
                 nsbor(on_read)
             end

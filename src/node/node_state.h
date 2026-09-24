@@ -440,7 +440,7 @@ namespace ccf
     //
     // kv store, replication, and I/O
     //
-    ringbuffer::AbstractWriterFactory& writer_factory;
+    std::shared_ptr<AbstractNodeTransport> node_transport;
     std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem;
     ccf::consensus::Configuration consensus_config;
     size_t sig_tx_interval = 0;
@@ -795,7 +795,7 @@ namespace ccf
 
   public:
     NodeState(
-      ringbuffer::AbstractWriterFactory& writer_factory,
+      std::shared_ptr<AbstractNodeTransport> node_transport_,
       NetworkState& network,
       std::shared_ptr<AbstractRPCSessions> rpcsessions,
       ccf::crypto::CurveID curve_id_,
@@ -807,7 +807,7 @@ namespace ccf
       self(compute_node_id_from_kp(node_sign_kp)),
       node_encrypt_kp(ccf::crypto::make_rsa_key_pair()),
       runtime_control(runtime_control_),
-      writer_factory(writer_factory),
+      node_transport(std::move(node_transport_)),
       ledger_subsystem(std::move(ledger_subsystem_)),
       network(network),
       rpcsessions(std::move(rpcsessions)),
@@ -861,7 +861,7 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
-      n2n_channels = std::make_shared<NodeToNodeChannelManager>(writer_factory);
+      n2n_channels = std::make_shared<NodeToNodeChannelManager>(node_transport);
 
       cmd_forwarder = std::make_shared<Forwarder<NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map);
@@ -2683,7 +2683,11 @@ namespace ccf
       return stop_noticed;
     }
 
-    void recv_node_inbound(const uint8_t* data, size_t size)
+    void recv_node_inbound(
+      NodeMsgType msg_type,
+      const NodeId& from,
+      const uint8_t* data,
+      size_t size)
     {
       if (!can_process_node_inbound_message(sm))
       {
@@ -2694,7 +2698,13 @@ namespace ccf
       }
 
       recv_node_inbound_message(
-        data, size, cmd_forwarder.get(), n2n_channels.get(), consensus.get());
+        msg_type,
+        from,
+        data,
+        size,
+        cmd_forwarder.get(),
+        n2n_channels.get(),
+        consensus.get());
     }
 
     //

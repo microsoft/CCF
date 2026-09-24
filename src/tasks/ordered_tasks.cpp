@@ -13,6 +13,7 @@ namespace ccf::tasks
   {
     JobBoard& job_board;
     const std::string name;
+    const TaskClass task_class;
     SubTaskQueue<TaskAction> actions;
     std::unique_ptr<JobBoard::Registration> registration;
 
@@ -59,8 +60,9 @@ namespace ccf::tasks
   OrderedTasks::OrderedTasks(
     [[maybe_unused]] OrderedTasks::Private force_private_constructor,
     JobBoard& job_board_,
-    const std::string& name) :
-    pimpl(std::make_unique<OrderedTasks::PImpl>(job_board_, name))
+    const std::string& name,
+    TaskClass task_class) :
+    pimpl(std::make_unique<OrderedTasks::PImpl>(job_board_, name, task_class))
   {}
 
   void OrderedTasks::do_task_implementation()
@@ -105,6 +107,11 @@ namespace ccf::tasks
     return pimpl->name;
   }
 
+  TaskClass OrderedTasks::get_task_class() const
+  {
+    return pimpl->task_class;
+  }
+
   void OrderedTasks::add_action(TaskAction&& action)
   {
     if (is_shutdown())
@@ -134,9 +141,10 @@ namespace ccf::tasks
   }
 
   std::shared_ptr<OrderedTasks> OrderedTasks::create(
-    JobBoard& job_board_, const std::string& name)
+    JobBoard& job_board_, const std::string& name, TaskClass task_class)
   {
-    auto tasks = std::make_shared<OrderedTasks>(Private{}, job_board_, name);
+    auto tasks =
+      std::make_shared<OrderedTasks>(Private{}, job_board_, name, task_class);
     tasks->pimpl->registration = job_board_.register_task(tasks);
     return tasks;
   }

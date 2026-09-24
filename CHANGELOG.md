@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
 
+### Changed
+
+- Node-to-node traffic no longer passes through the host-enclave ringbuffer. Inbound node messages, consensus ticks and stop notices run in order as critical tasks, which every worker runs before other tasks and which the dispatch thread is now reserved for, so that blocking tasks cannot delay consensus. A node-to-node frame larger than `memory.max_msg_size` now closes the connection it arrived on, rather than terminating the receiving node.
+
 ### Removed
 
 - Nodes no longer accept forwarded RPC requests and responses in the legacy v1 and v2 wire formats. All supported releases have emitted the v3 format since 4.0, so mixed-version networks are unaffected (#8426).

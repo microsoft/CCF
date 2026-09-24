@@ -14,6 +14,7 @@
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
+#include "node/node_transport.h"
 #include "node/node_types.h"
 
 #include <iostream>
@@ -187,7 +188,7 @@ namespace ccf
     ccf::crypto::VerifierPtr peer_cv;
     ccf::crypto::Pem peer_cert;
 
-    ringbuffer::WriterPtr to_host;
+    std::shared_ptr<AbstractNodeTransport> transport;
     NodeId peer_id;
 
     // Used for key exchange
@@ -330,13 +331,8 @@ namespace ccf
         "send_key_exchange_init: node serial: {}",
         make_verifier(node_cert)->serial_number());
 
-      RINGBUFFER_WRITE_MESSAGE(
-        node_outbound,
-        to_host,
-        peer_id.value(),
-        NodeMsgType::channel_msg,
-        self.value(),
-        payload);
+      transport->send(
+        peer_id, NodeMsgType::channel_msg, self, std::move(payload));
     }
 
     void send_key_exchange_response()
@@ -365,13 +361,8 @@ namespace ccf
         ds::to_hex(kex_ctx.get_own_key_share()),
         ds::to_hex(payload));
 
-      RINGBUFFER_WRITE_MESSAGE(
-        node_outbound,
-        to_host,
-        peer_id.value(),
-        NodeMsgType::channel_msg,
-        self.value(),
-        payload);
+      transport->send(
+        peer_id, NodeMsgType::channel_msg, self, std::move(payload));
     }
 
     void send_key_exchange_final()
@@ -390,13 +381,8 @@ namespace ccf
         ds::to_hex(kex_ctx.get_peer_key_share()),
         ds::to_hex(payload));
 
-      RINGBUFFER_WRITE_MESSAGE(
-        node_outbound,
-        to_host,
-        peer_id.value(),
-        NodeMsgType::channel_msg,
-        self.value(),
-        payload);
+      transport->send(
+        peer_id, NodeMsgType::channel_msg, self, std::move(payload));
     }
 
     void advance_connection_attempt()
@@ -943,14 +929,16 @@ namespace ccf
       // 3) ciphertext
       // NB: None of these are length-prefixed, so it is assumed that the
       // receiver knows the fixed size of the aad and gcm header
-      const serializer::ByteRange payload[] = {
-        {aad.data(), static_cast<size_t>(aad.size())},
-        {gcm_hdr_serialised.data(),
-         static_cast<size_t>(gcm_hdr_serialised.size())},
-        {cipher.data(), static_cast<size_t>(cipher.size())}};
+      std::vector<uint8_t> payload;
+      payload.reserve(aad.size() + gcm_hdr_serialised.size() + cipher.size());
+      payload.insert(payload.end(), aad.begin(), aad.end());
+      payload.insert(
+        payload.end(), gcm_hdr_serialised.begin(), gcm_hdr_serialised.end());
+      payload.insert(payload.end(), cipher.begin(), cipher.end());
 
-      RINGBUFFER_WRITE_MESSAGE(
-        node_outbound, to_host, peer_id.value(), type, self.value(), payload);
+      // Submitted while holding the channel lock, so the transport receives
+      // this channel's messages in nonce order.
+      transport->send(peer_id, type, self, std::move(payload));
 
       check_message_limit();
 
@@ -961,7 +949,7 @@ namespace ccf
     static constexpr size_t protocol_version = 1;
 
     Channel(
-      ringbuffer::AbstractWriterFactory& writer_factory,
+      std::shared_ptr<AbstractNodeTransport> transport_,
       const ccf::crypto::Pem& service_cert_,
       ccf::crypto::ECKeyPairPtr node_kp_,
       const ccf::crypto::Pem& node_cert_,
@@ -972,7 +960,7 @@ namespace ccf
       service_cert(service_cert_),
       node_kp(std::move(node_kp_)),
       node_cert(node_cert_),
-      to_host(writer_factory.create_writer_to_outside()),
+      transport(std::move(transport_)),
       peer_id(std::move(peer_id_)),
       status(fmt::format("Channel to {}", peer_id), INACTIVE),
       message_limit(message_limit_)
@@ -1108,7 +1096,7 @@ namespace ccf
     {
       std::lock_guard<ccf::ds::Mutex> guard(lock);
 
-      RINGBUFFER_WRITE_MESSAGE(close_node_outbound, to_host, peer_id.value());
+      transport->close(peer_id);
       reset_key_exchange();
       outgoing_consensus_msg.reset();
 

@@ -4,6 +4,7 @@
 
 #include "common/enclave_interface_types.h"
 #include "ds/work_beacon.h"
+#include "node/node_transport.h"
 #include "node/rpc/ledger_interface.h"
 #include "node/runtime_control.h"
 
@@ -13,7 +14,8 @@
 namespace ccf
 {
   // ledger_subsystem is the host-owned read-only view of the ledger. It is
-  // installed as a node subsystem and must outlive the node.
+  // installed as a node subsystem and must outlive the node. node_transport is
+  // the host-owned node-to-node transport, which must also outlive the node.
   CreateNodeStatus enclave_create_node(
     const EnclaveConfig& enclave_config,
     const ccf::StartupConfig& ccf_config,
@@ -25,7 +27,8 @@ namespace ccf
     size_t num_worker_thread,
     const ccf::ds::WorkBeaconPtr& work_beacon,
     ccf::AbstractRuntimeControl& runtime_control,
-    const std::shared_ptr<AbstractLedgerSubsystemInterface>& ledger_subsystem);
+    const std::shared_ptr<AbstractLedgerSubsystemInterface>& ledger_subsystem,
+    const std::shared_ptr<AbstractNodeTransport>& node_transport);
 
   bool enclave_run();
   bool enclave_request_stop();

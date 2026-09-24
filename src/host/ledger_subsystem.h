@@ -138,10 +138,8 @@ namespace asynchost
     // submitted after it. Returns false, without running fn, once shutdown has
     // begun.
     //
-    // Temporary: node-to-node messages still travel over the ringbuffer, on a
-    // different queue from ledger mutations, but AppendEntries attachment on
-    // the host must observe the appends the enclave emitted ahead of it. Remove
-    // when node-to-node transport leaves the ringbuffer.
+    // Used by the node-to-node transport: AppendEntries framing on the host
+    // must observe the appends the node submitted ahead of it.
     template <typename F>
     bool run_in_mutation_order(std::string name, F&& fn)
     {
