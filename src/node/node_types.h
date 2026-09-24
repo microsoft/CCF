@@ -38,11 +38,13 @@ namespace ccf
   // Types of frontend messages
   enum ForwardedMsg : Node2NodeMsg
   {
+    // No longer accepted on receive: all supported peers emit at least v3.
     forwarded_cmd_v1 = 0,
     forwarded_response_v1,
 
     // Includes a command_id, so that forwarded requests and responses can be
-    // precisely correlated. Supported since 2.0.8, emitted since 3.0.0
+    // precisely correlated. Supported since 2.0.8, emitted since 3.0.0.
+    // No longer accepted on receive: all supported peers emit at least v3.
     forwarded_cmd_v2,
     forwarded_response_v2,
 
