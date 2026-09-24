@@ -6,7 +6,6 @@ import hashlib
 import http
 import json
 import os
-import random
 import re
 import shutil
 import subprocess
@@ -146,6 +145,49 @@ def get_replacement_package(args):
     )
 
 
+def get_step_down_commit_seqno(node):
+    """Return the commit seqno a node reported when it first stepped down
+    after being sent SIGTERM (a stop notice)."""
+    seen_stop_notice = False
+    with open(node.remote.remote.out, encoding="utf-8") as f:
+        for line in f:
+            if "SIGTERM: Notifying enclave" in line:
+                seen_stop_notice = True
+            elif seen_stop_notice:
+                m = re.search(r"Becoming follower \S+: \d+\.(\d+)", line)
+                if m:
+                    return int(m.group(1))
+    return None
+
+
+def find_service_open_seqnos(node, from_seqno):
+    """Return the seqnos after from_seqno, in the node's ledger, of the
+    transactions which set the service status to Open."""
+    ledger = ccf.ledger.Ledger(
+        node.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
+    )
+    open_seqnos = []
+    for chunk in ledger:
+        _, chunk_end_seqno = chunk.get_seqnos()
+        if chunk_end_seqno is not None and chunk_end_seqno <= from_seqno:
+            continue
+        for tx in chunk:
+            public_domain = tx.get_public_domain()
+            seqno = public_domain.get_seqno()
+            tables = public_domain.get_tables()
+            if seqno <= from_seqno or ccf.ledger.SERVICE_INFO_TABLE_NAME not in tables:
+                continue
+            service_info = tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
+                ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+            ]
+            if (
+                service_info is not None
+                and json.loads(service_info)["status"] == "Open"
+            ):
+                open_seqnos.append(seqno)
+    return open_seqnos
+
+
 def recover_with_primary_dying(args, recovered_network):
     # Force an election immediately after the final recovery share is accepted
     # and check recovery still completes and the service is opened exactly
@@ -154,16 +196,23 @@ def recover_with_primary_dying(args, recovered_network):
     # immediately, with no election-timeout wait.
     #
     # Whether the stop notice lands before or after the primary finishes
-    # reading the private ledger is a race the test does not try to control.
-    # Either the primary steps down first and the survivor opens the service,
-    # or the primary writes the opening transaction and then steps down: if
-    # that write had not replicated, the new leader rolls it back and opens the
-    # service itself. In every case the service ends up open and every survivor
-    # healthy. A second committed opening would be fatal to the node attempting
-    # it, since opening requires the service to still be waiting for shares
-    # (that guard is unit-tested in open_service_test; the check
-    # that only the primary attempts to open lives in NodeState and is
-    # exercised here).
+    # reading the private ledger, and before or after its opening commits, is
+    # a race the test cannot control from outside the node. A stop notice only
+    # makes the primary nominate a successor, so it stays leader, and can still
+    # commit, until it sees the successor's higher term. The orderings are:
+    # - the primary steps down before opening, and the new primary opens;
+    # - the primary writes the opening and steps down before it commits: the
+    #   new leader rolls it back if it had not replicated, and opens itself;
+    # - the opening commits before the primary steps down, so the election
+    #   follows a completed recovery.
+    # With a short private ledger the second ordering is the usual one. The
+    # checks below hold in all of them: recovery completes, every survivor stays
+    # healthy, and each survivor's ledger opens the recovered service exactly
+    # once. A second opening would be fatal to the node attempting it, since
+    # opening requires the service to still be waiting for shares (that guard
+    # is unit-tested in open_service_test; the check that only the primary
+    # attempts to open lives in NodeState and is exercised here). The ordering
+    # that occurred is logged.
     recovered_network.consortium.activate(recovered_network.find_random_node())
     recovered_network.consortium.check_for_service(
         recovered_network.find_random_node(),
@@ -194,14 +243,13 @@ def recover_with_primary_dying(args, recovered_network):
     # SIGTERM (not SIGKILL) the primary: thanks to ignore_first_sigterm it
     # stays up, treats this as a stop notice and immediately nominates a
     # successor.
-    LOG.info(f"SIGTERM primary {retired_id} to nominate a successor mid-recovery")
+    LOG.info(f"SIGTERM primary {retired_id} to nominate a successor")
     retired_primary.sigterm()
 
-    # The nominated successor is elected rapidly (no election-timeout wait). A new
-    # view confirms the election ran while recovery was still in progress.
+    # The nominated successor is elected rapidly (no election-timeout wait).
     primary, new_view = recovered_network.wait_for_new_primary(retired_primary)
     assert new_view > initial_view, (new_view, initial_view)
-    LOG.info(f"New primary {primary.node_id} elected mid-recovery in view {new_view}")
+    LOG.info(f"New primary {primary.node_id} elected in view {new_view}")
 
     # SIGKILL the old primary (it ignored the SIGTERM) and confirm it is gone
     # before dropping it: SIGKILL is asynchronous, and once removed nothing else
@@ -229,6 +277,36 @@ def recover_with_primary_dying(args, recovered_network):
         assert not node.check_log_for_error_message(
             "current service status is"
         ), f"Node {node.node_id} attempted to open an already-open service"
+
+    # Each survivor's ledger, once it has everything the new primary committed,
+    # opens the recovered service exactly once. An opening the old primary
+    # wrote but did not commit has been rolled back out of it.
+    with primary.client() as c:
+        create_seqno = ccf.tx_id.TxID.from_str(
+            c.get("/node/network").body.json()["current_service_create_txid"]
+        ).seqno
+    recovered_network.wait_for_all_nodes_to_commit(primary=primary)
+    open_seqno = None
+    for node in recovered_network.get_joined_nodes():
+        open_seqnos = find_service_open_seqnos(node, create_seqno)
+        assert (
+            len(open_seqnos) == 1
+        ), f"Node {node.node_id} ledger opens the service at {open_seqnos}"
+        assert open_seqno in (None, open_seqnos[0]), (open_seqno, open_seqnos)
+        open_seqno = open_seqnos[0]
+
+    step_down_commit_seqno = get_step_down_commit_seqno(retired_primary)
+    if step_down_commit_seqno is not None and step_down_commit_seqno < open_seqno:
+        LOG.info(
+            f"Old primary stepped down at commit seqno {step_down_commit_seqno}, "
+            f"before the service opening at seqno {open_seqno} committed"
+        )
+    else:
+        LOG.warning(
+            f"Service opening at seqno {open_seqno} committed before the old "
+            f"primary stepped down (at commit seqno {step_down_commit_seqno}): "
+            "the election followed a completed recovery"
+        )
 
 
 @reqs.description("Recovery members cannot be changed during recovery")
@@ -584,18 +662,6 @@ def _recover_service(
     if from_snapshot and snapshots_dir is None:
         snapshots_dir = network.get_committed_snapshots(old_primary)
 
-    if force_election:
-        # Populate the private ledger so the primary is still reading it when
-        # prodded below. Release builds read it at roughly 4k entries/s, so this
-        # only buys well under a second: recover_with_primary_dying keeps the
-        # work it does after the last share is submitted to a minimum.
-        network.txs.issue(
-            network,
-            number_txs=2000,
-            send_public=False,
-            msg=str(bytes(random.getrandbits(8) for _ in range(512))),
-        )
-
     # Start health watcher and stop nodes one by one until a recovery has to be staged
     watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
     watcher.start()
@@ -635,7 +701,7 @@ def _recover_service(
                 snapshots_dir=snapshots_dir,
                 service_data_json_file=ntf.name,
                 # Lets recover_with_primary_dying SIGTERM the primary to nominate
-                # a successor mid-recovery rather than killing it outright.
+                # a successor rather than killing it outright.
                 ignore_first_sigterm=force_election,
             )
             LOG.info("Check that service data has been set")
@@ -2016,7 +2082,7 @@ def run_recover_snapshot_from_expired_node_certificate(args):
 
 def run_recovery_with_election(args):
     """
-    Recover a service but force election during recovery.
+    Recover a service but force an election as the final recovery share is accepted.
     """
     if not args.with_election:
         return
@@ -2999,7 +3065,7 @@ checked. Note that the key for each logging message is unique (per table).
         )
         parser.add_argument(
             "--with-election",
-            help="If set, the primary gets killed to force election mid-recovery",
+            help="If set, the primary is stopped to force an election at the end of recovery",
             action="store_true",
             default=False,
         )

@@ -257,13 +257,9 @@ This is conceptually equivalent to getting a signature from the service for clai
 
 CCF will record this transaction as a leaf in the Merkle tree constructed from the combined digest of the write set, this ``claims_digest``, and the :term:`Commit Evidence`.
 
-This ``claims_digest`` will be exposed in receipts under ``leaf_components``. It can then be revealed externally,
-or by the endpoint directly if it has been stored in the ledger. The receipt object deliberately makes the ``claims_digest`` optional,
-to allow the endpoint to remove it when the claims themselves are revealed.
+This ``claims_digest`` will be exposed in receipts under ``leaf_components``. It can then be revealed externally, or by the endpoint directly if it has been stored in the ledger. The receipt object deliberately makes the ``claims_digest`` optional, to allow the endpoint to remove it when the claims themselves are revealed.
 
-Receipt verification can then only succeed if the revealed claims are digested and their digest combined into a
-``leaf`` that correctly combines with the ``proof`` to form the ``root`` that the signature covers. Receipt verification
-therefore establishes the authenticity of the claims.
+Receipt verification can then only succeed if the revealed claims are digested and their digest combined into a ``leaf`` that correctly combines with the ``proof`` to form the ``root`` that the signature covers. Receipt verification therefore establishes the authenticity of the claims.
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
@@ -271,8 +267,7 @@ therefore establishes the authenticity of the claims.
     :end-before: SNIPPET_END: claims_digest_in_receipt
     :dedent:
 
-A client consuming the output of this endpoint must digest the claims themselves, combine the digest with the other leaf components
-(``write_set_digest`` and ``hash(commit_evidence)``) to obtain the equivalent ``leaf``. See :ref:`use_apps/verify_tx:Receipt Verification` for the full set of steps.
+A client consuming the output of this endpoint must digest the claims themselves, combine the digest with the other leaf components (``write_set_digest`` and ``hash(commit_evidence)``) to obtain the equivalent ``leaf``. See :ref:`use_apps/verify_tx:Receipt Verification` for the full set of steps.
 
 As an example, a logging application may register the contents being logged as a claim:
 
