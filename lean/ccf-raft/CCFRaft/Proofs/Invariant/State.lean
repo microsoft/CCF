@@ -53,16 +53,6 @@ theorem nodeOf_replaceNode_other (state : Model.State Node TxId)
   change nodeOf { state with nodes := replaceNode state.nodes node value } member = _
   simp [nodeOf, lookup_replaceNode_other state node member value different]
 
-theorem nodeOf_replaceNode_same {state : Model.State Node TxId}
-    {node : Node} {old : NodeState Node TxId}
-    (distinct : (state.nodes.map Prod.fst).Nodup)
-    (found : nodeState state node = some old) (value : NodeState Node TxId)
-    : nodeOf { state with nodes := replaceNode state.nodes node value } node
-      = value := by
-  apply nodeOf_of_mem
-  · simpa [replaceNode_keys] using distinct
-  · exact List.mem_map.mpr ⟨(node, old), mem_of_nodeState found, by simp⟩
-
 theorem lookup_replaceNode_present (state : Model.State Node TxId)
     (node : Node) (value : NodeState Node TxId)
     (present : node ∈ state.nodes.map Prod.fst)

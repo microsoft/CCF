@@ -49,16 +49,6 @@ lemma updateIndex_same (indices : Node -> Nat) (node : Node) (value : Nat)
     : updateIndex indices node value node = value := by
   simp [updateIndex]
 
-/-- Updating one peer index leaves all other peer indices unchanged. -/
-@[simp]
-lemma updateIndex_of_ne
-    (indices : Node -> Nat)
-    (node candidate : Node)
-    (value : Nat)
-    (different : Not (candidate = node))
-    : updateIndex indices node value candidate = indices candidate := by
-  simp [updateIndex, different]
-
 variable [Bootstrap Node] [DecidableEq TxId]
 
 @[simp]
@@ -100,15 +90,6 @@ lemma refreshRetirementState_votesGranted (node : Node) (state : NodeState Node 
 lemma refreshRetirementState_preVotesGranted (node : Node) (state : NodeState Node TxId)
     : (refreshRetirementState node state).preVotesGranted = state.preVotesGranted := by
   simp [refreshRetirementState]
-
-@[simp]
-lemma refreshRetirementState_idempotent (node : Node) (state : NodeState Node TxId)
-    : refreshRetirementState node (refreshRetirementState node state)
-      = refreshRetirementState node state := by
-  have repeatOr (left right : Option Nat) :
-      (left.or right).or right = left.or right := by
-    cases left <;> cases right <;> rfl
-  simp [refreshRetirementState, repeatOr]
 
 omit [Bootstrap Node] in
 /-- Erasing a selected occurrence preserves membership of every remaining message. -/

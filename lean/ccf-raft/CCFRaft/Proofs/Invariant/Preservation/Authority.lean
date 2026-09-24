@@ -3888,12 +3888,6 @@ lemma effectiveAckersBeyondLeaderLog
     have historyBound := covered.length_le
     omega
 
-/-- The outgoing envelope occurs in the extended network. -/
-lemma memEnqueueNoDupSelf
-    (network : List (Model.Envelope Node TxId)) (message : Model.Envelope Node TxId)
-    : message ∈ network ++ [message] ∧ message.target = message.target := by
-  simp
-
 lemma memSelectedOrRemaining
     {source : Node} {queue remaining : List (Model.Envelope Node TxId)}
     {selected message : Model.Envelope Node TxId}

@@ -37,14 +37,6 @@ def CommittedFrontierIsSignature (state : Model.State Node TxId) : Prop :=
     0 < ((nodeOf state) node).commitIndex
     -> isSignatureAt ((nodeOf state) node).log ((nodeOf state) node).commitIndex = true
 
-/-- Equal index and term identify the same complete log prefix. -/
-def LogMatching (state : Model.State Node TxId) : Prop :=
-  forall left right index leftEntry rightEntry,
-    entryAt? ((nodeOf state) left).log index = some leftEntry
-    -> entryAt? ((nodeOf state) right).log index = some rightEntry
-    -> leftEntry.term = rightEntry.term
-    -> ((nodeOf state) left).log.take index = ((nodeOf state) right).log.take index
-
 /-- Entry terms do not decrease as log indices increase. -/
 def MonoLog (state : Model.State Node TxId) : Prop :=
   forall node earlier later earlierEntry laterEntry,
@@ -1169,22 +1161,6 @@ structure ElectionConfigurationFacts
             entry ∈ ((nodeOf state) candidate).log
             -> entry.term < ((nodeOf state) candidate).currentTerm
 
-/--
-Every locally committed log is represented by a member of every strict
-majority of that node's current configuration. This is the
-configuration-qualified form of `QuorumLogInv` from `ccfraft.tla`.
--/
-def QuorumLog (state : Model.State Node TxId) : Prop :=
-  forall node configuration,
-    configuration = currentConfiguration ((nodeOf state) node)
-    -> forall quorum : Finset Node,
-        hasConfigurationMajority quorum configuration
-        -> Exists
-            fun witness =>
-              witness ∈ configuration.nodes
-              /\ witness ∈ quorum
-              /\ ((nodeOf state) node).committedLog <+: ((nodeOf state) witness).log
-
 /-- Whether one queued successful response acknowledges an index for a leader. -/
 def queuedSuccessfulAck
     (state : Model.State Node TxId)
@@ -1256,17 +1232,6 @@ def canProduceAppendAckAt
             = some (nextNode, response)
           /\ response.success = true
           /\ index <= response.lastLogIndex
-
-/-- The exact local node update performed after observing a newer term. -/
-def prepareNodeForUpdateTerm (node : NodeState Node TxId) (term : Nat)
-    : NodeState Node TxId :=
-  {
-    node with
-      role := .follower
-      currentTerm := term
-      isNewFollower := true
-      votedFor := none
-  }
 
 /--
 A request is ACKable now, or becomes directly ACKable after the exact local
@@ -1822,24 +1787,6 @@ structure ActivationEvidenceFacts
                 \/ evidence.authority ∈ activeConfigurations ((nodeOf state) candidate)
 
 /--
-Any current-term signature frontier already acknowledged by a majority is
-compatible with every committed log.  This covers delayed ACK processing by
-an isolated old leader.
--/
-def PotentialCommitSafe
-    (state : Model.State Node TxId)
-    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
-    : Prop :=
-  forall leader index,
-    ((nodeOf state) leader).role = .leader
-    -> termAt ((nodeOf state) leader).log index = ((nodeOf state) leader).currentTerm
-    -> isSignatureAt ((nodeOf state) leader).log index = true
-    -> hasEffectiveMajorityAt (joined := joined) state responseHistory leader index
-    -> forall node,
-        ((nodeOf state) leader).log.take index <+: ((nodeOf state) node).committedLog
-        \/ ((nodeOf state) node).committedLog <+: ((nodeOf state) leader).log.take index
-
-/--
 Every higher-term election winner already contains each lower-term current-term
 signature frontier that an active leader could commit from its recorded
 acknowledgements.  This is the delayed-ACK bridge needed when an old leader
@@ -1862,68 +1809,6 @@ def PotentialCommitElectionSafe
         -> ((nodeOf state) source).log.take index <+: ((nodeOf state) winner).log
 
 /--
-Every current-term signature frontier that an active leader could commit is
-already represented in every strict quorum.  Advancing `commitIndex`
-therefore preserves `QuorumLog` even when ACK processing is delayed.
--/
-def PotentialCommitQuorumLog
-    (state : Model.State Node TxId)
-    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
-    : Prop :=
-  forall source index,
-    ((nodeOf state) source).role = .leader
-    -> termAt ((nodeOf state) source).log index = ((nodeOf state) source).currentTerm
-    -> isSignatureAt ((nodeOf state) source).log index = true
-    -> hasEffectiveMajorityAt (joined := joined) state responseHistory source index
-    -> forall configuration,
-        configuration ∈ activeConfigurations ((nodeOf state) source)
-        -> configuration.index <= index
-        -> forall quorum : Finset Node,
-            hasConfigurationMajority quorum configuration
-            -> Exists
-                fun witness =>
-                  witness ∈ configuration.nodes
-                  /\ witness ∈ quorum
-                  /\ ((nodeOf state) source).log.take index <+: ((nodeOf state) witness).log
-
-/--
-Any two current-term signature frontiers already acknowledged by strict
-majorities are prefix-comparable.  This lets one such prefix become committed
-without invalidating delayed commit evidence retained by another active leader.
--/
-def PotentialCommitsComparable
-    (state : Model.State Node TxId)
-    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
-    : Prop :=
-  forall left leftIndex,
-    ((nodeOf state) left).role = .leader
-    -> termAt ((nodeOf state) left).log leftIndex = ((nodeOf state) left).currentTerm
-    -> isSignatureAt ((nodeOf state) left).log leftIndex = true
-    -> hasEffectiveMajorityAt (joined := joined) state responseHistory left leftIndex
-    -> forall right rightIndex,
-        ((nodeOf state) right).role = .leader
-        -> termAt ((nodeOf state) right).log rightIndex = ((nodeOf state) right).currentTerm
-        -> isSignatureAt ((nodeOf state) right).log rightIndex = true
-        -> hasEffectiveMajorityAt (joined := joined) state responseHistory right rightIndex
-        -> ((nodeOf state) left).log.take leftIndex
-              <+: ((nodeOf state) right).log.take rightIndex
-            \/ ((nodeOf state) right).log.take rightIndex
-                <+: ((nodeOf state) left).log.take leftIndex
-
-/--
-A candidate which already has a winning quorum is ready for promotion: it
-contains every committed prefix belonging to a node in a lower term.
--/
-def WinningCandidateCompleteness (state : Model.State Node TxId) : Prop :=
-  forall candidate,
-    ((nodeOf state) candidate).role = .candidate
-    -> hasEffectiveElectionMajority (joined := joined) state candidate
-    -> forall node,
-        Not (candidate = node)
-        -> ((nodeOf state) candidate).currentTerm > ((nodeOf state) node).currentTerm
-        -> ((nodeOf state) node).committedLog <+: ((nodeOf state) candidate).log
-
-/--
 A candidate which can win has no entry from its election term anywhere yet.
 This is the arbitrary-term form of `CandidateTermNotInLogInv`.
 -/
@@ -1934,32 +1819,6 @@ def CandidateTermNotInLogs (state : Model.State Node TxId) : Prop :=
     -> forall node index entry,
         entryAt? ((nodeOf state) node).log index = some entry
         -> Not (entry.term = ((nodeOf state) candidate).currentTerm)
-
-/--
-An active leader contains the complete prefix through every entry carrying its
-term.  This prevents a later client append from colliding at an existing
-same-term index.
--/
-def LeaderTermDominance (state : Model.State Node TxId) : Prop :=
-  forall leader,
-    ((nodeOf state) leader).role = .leader
-    -> forall node index entry,
-        entryAt? ((nodeOf state) node).log index = some entry
-        -> entry.term = ((nodeOf state) leader).currentTerm
-        -> index <= ((nodeOf state) leader).log.length
-            /\ ((nodeOf state) node).log.take index = ((nodeOf state) leader).log.take index
-
-/--
-The current TLA state-local leader-completeness formula.  Leaders need contain
-the committed logs of strictly lower-term peers, not those of newer peers.
--/
-def LeaderCompleteness (state : Model.State Node TxId) : Prop :=
-  forall leader,
-    ((nodeOf state) leader).role = .leader
-    -> forall node,
-        Not (leader = node)
-        -> ((nodeOf state) leader).currentTerm > ((nodeOf state) node).currentTerm
-        -> ((nodeOf state) node).committedLog <+: ((nodeOf state) leader).log
 
 def LeadersHaveElectionWitness (state : Model.State Node TxId) : Prop :=
   forall leader,

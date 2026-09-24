@@ -22,47 +22,6 @@ variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /--
-The three configuration-qualified obligations introduced by one fresh timeout
-candidate. This is a proof-layer wrapper only; it is not stored in the
-inductive invariant.
--/
-structure TimeoutCandidatePackage
-    (state after : Model.State Node TxId)
-    (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
-    (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
-    (elections : ElectionHistory Node TxId)
-    (nodeEvidence : NodeCommitEvidence Node TxId)
-    (requestEvidence : RequestCommitEvidence Node TxId)
-    (candidate : Node)
-    (targetTerm : Nat)
-    : Prop where
-  potentialShared
-    : hasPotentialElectionMajority (joined := joinedNodes) after candidate
-      -> forall record,
-          elections targetTerm = some record
-          -> Exists
-              fun configuration =>
-                configuration ∈ record.ballotActive
-                /\ configuration ∈ activeConfigurations ((nodeOf after) candidate)
-  candidateBridge
-    : hasPotentialElectionMajority (joined := joinedNodes) after candidate
-      -> forall source index,
-          ((nodeOf after) source).role = .leader
-          -> termAt ((nodeOf after) source).log index = ((nodeOf after) source).currentTerm
-          -> isSignatureAt ((nodeOf after) source).log index = true
-          -> hasPotentialMajorityAt (joined := joinedNodes) after appendHistory responseHistory source index
-          -> ((nodeOf after) source).currentTerm < targetTerm
-          -> ((nodeOf after) source).log.take index <+: ((nodeOf after) candidate).log
-  evidenceBridge
-    : hasPotentialElectionMajority (joined := joinedNodes) after candidate
-      -> forall evidence supportedPrefix,
-          KnownCommitEvidence
-            state appendHistory nodeEvidence requestEvidence
-            evidence supportedPrefix
-          -> evidence.commitTerm < targetTerm
-          -> supportedPrefix <+: ((nodeOf after) candidate).log
-
-/--
 After a timeout, every potential voter for the fresh self-ballot was already a
 supporter for that exact future term in the pre-state.
 -/

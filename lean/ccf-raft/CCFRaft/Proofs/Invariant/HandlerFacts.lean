@@ -1617,17 +1617,6 @@ lemma handleAppendEntriesRequestLeaderUnchanged
     · contradiction
 
 
-lemma handleAppendEntriesRequest_successfulCurrentTerm
-    {self : Node} {before after : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
-    (handled : handleAppendEntriesRequest? self before request = some (after, response))
-    (success : response.success = true)
-    : request.term = before.currentTerm := by
-  by_cases stepping : request.term = before.currentTerm
-      ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)
-  · exact stepping.1
-  · exact (handleAppendEntriesRequestLocalPost stepping handled).successfulCurrentTerm success
-
 lemma acceptAppendEntriesRequest_conditions
     {self : Node} {before after : NodeState Node TxId}
     {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}

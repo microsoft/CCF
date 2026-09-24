@@ -24,17 +24,6 @@ private def withVotedFor
     : NodeState Node TxId × AppendEntriesResponse :=
   ({ result.1 with votedFor := votedFor }, result.2)
 
-omit [DecidableEq Node] [DecidableEq TxId] in
-lemma rejectAppendEntriesRequest_votedFor
-    (node : NodeState Node TxId)
-    (votedFor : Option Node)
-    (request : AppendEntriesRequest Node TxId)
-    : rejectAppendEntriesRequest? { node with votedFor := votedFor } request
-      = (rejectAppendEntriesRequest? node request).map (withVotedFor votedFor) := by
-  unfold rejectAppendEntriesRequest?
-  simp only [logOk]
-  split_ifs <;> simp_all [failureResponse, withVotedFor]
-
 lemma appendEntriesAlreadyDone_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
@@ -138,28 +127,6 @@ lemma acceptAppendEntriesRequest_votedFor
       simpa [logOk] using accepted
     rw [ite_eq_right rejectedChanged, ite_eq_right accepted]
     rfl
-
-lemma handleAppendEntriesRequest_votedFor
-    (node : NodeState Node TxId) (votedFor : Option Node)
-    (request : AppendEntriesRequest Node TxId)
-    : handleAppendEntriesRequest? self { node with votedFor } request
-      = (handleAppendEntriesRequest? self node request).map (withVotedFor votedFor) := by
-  have core (input : NodeState Node TxId) :
-      (match rejectAppendEntriesRequest? { input with votedFor } request with
-      | some result => some result
-      | none => acceptAppendEntriesRequest? self { input with votedFor } request)
-      = (match rejectAppendEntriesRequest? input request with
-        | some result => some result
-        | none => acceptAppendEntriesRequest? self input request).map (withVotedFor votedFor) := by
-    rw [rejectAppendEntriesRequest_votedFor]
-    cases rejectAppendEntriesRequest? input request <;>
-      simp [acceptAppendEntriesRequest_votedFor]
-  unfold handleAppendEntriesRequest?
-  by_cases stepping : request.term = node.currentTerm
-      ∧ (node.role = .candidate ∨ node.role = .preVoteCandidate)
-  · convert core { node with role := .follower, isNewFollower := true } using 1 <;>
-      simp [stepping] <;> split <;> simp_all
-  · convert core node using 1 <;> simp [stepping] <;> split <;> simp_all
 
 lemma canProduceAppendAckEventuallyAt_votedFor
     (node : NodeState Node TxId)
