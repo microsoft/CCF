@@ -12,6 +12,10 @@
 
 using namespace std;
 
+// Synthetic hashes do not need hardware entropy. Reuse the same input sequence
+// for every sample, without including fixture generation in the measured time.
+constexpr auto INPUT_SEED = 42;
+
 template <class A>
 inline void do_not_optimize(A const& value)
 {
@@ -27,7 +31,7 @@ static void append_retract(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<ccf::crypto::Sha256Hash> hashes;
-  std::random_device r;
+  std::mt19937 r(INPUT_SEED);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -60,7 +64,7 @@ static void append_flush(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<ccf::crypto::Sha256Hash> hashes;
-  std::random_device r;
+  std::mt19937 r(INPUT_SEED);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -90,7 +94,7 @@ static void append_get_proof_verify(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<ccf::crypto::Sha256Hash> hashes;
-  std::random_device r;
+  std::mt19937 r(INPUT_SEED);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -122,7 +126,7 @@ static void append_get_proof_verify_v(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<ccf::crypto::Sha256Hash> hashes;
-  std::random_device r;
+  std::mt19937 r(INPUT_SEED);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -154,7 +158,7 @@ static void append_get_proof_verify_v(picobench::state& s)
 static void serialise_deserialise(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
-  std::random_device r;
+  std::mt19937 r(INPUT_SEED);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -173,7 +177,7 @@ static void serialise_deserialise(picobench::state& s)
 static void serialised_size(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
-  std::random_device r;
+  std::mt19937 r(INPUT_SEED);
 
   for (int i = 0; i < s.iterations(); ++i)
   {

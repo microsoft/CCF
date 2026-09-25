@@ -75,6 +75,14 @@ jobs:
           cd python
           pytest
 
+      - name: "Run Locust orchestration tests"
+        shell: bash
+        run: |
+          set -ex
+          source env/bin/activate
+          uv pip install -q -r tests/requirements.txt
+          python tests/locust_benchmark_test.py -v
+
       - name: "Run Unit tests"
         run: |
           set -ex
