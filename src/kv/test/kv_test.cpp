@@ -2365,6 +2365,172 @@ TEST_CASE("Deserialising from other Store")
   REQUIRE(clone.deserialize(data)->apply() == ccf::kv::ApplyResult::PASS);
 }
 
+TEST_CASE("Transaction diffs")
+{
+  // Historical queries deserialise each ledger entry into a fresh store, and
+  // indexing strategies then read the changes made by that transaction through
+  // a TxDiff. Puts are reconstructed from the deserialised state and deletes
+  // from the change set, so each must be reported exactly once.
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+  store.set_consensus(consensus);
+
+  MapTypes::StringString map("public:map");
+  using Serialiser = ccf::kv::serialisers::JsonSerialiser<std::string>;
+
+  std::vector<uint8_t> initial_entry;
+  std::vector<uint8_t> mixed_entry;
+  std::vector<uint8_t> delete_only_entry;
+
+  {
+    auto tx = store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("kept", "v1");
+    handle->put("overwritten", "v1");
+    handle->put("removed", "v1");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    initial_entry = consensus->get_latest_data().value();
+  }
+
+  {
+    auto tx = store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("overwritten", "v2");
+    handle->put("added", "v2");
+    handle->remove("removed");
+    handle->remove("never_existed");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    mixed_entry = consensus->get_latest_data().value();
+  }
+
+  {
+    auto tx = store.create_tx();
+    auto handle = tx.rw(map);
+    handle->remove("kept");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    delete_only_entry = consensus->get_latest_data().value();
+  }
+
+  using DiffContents = std::map<std::string, std::optional<std::string>>;
+  auto collect = [](MapTypes::StringString::Diff* diff) {
+    DiffContents contents;
+    diff->foreach(
+      [&contents](const std::string& k, const std::optional<std::string>& v) {
+        REQUIRE(contents.find(k) == contents.end());
+        contents[k] = v;
+        return true;
+      });
+    return contents;
+  };
+
+  const DiffContents mixed_contents{
+    {"overwritten", "v2"},
+    {"added", "v2"},
+    {"removed", std::nullopt},
+    {"never_existed", std::nullopt}};
+
+  INFO("Diff of an entry applied to a fresh store");
+  {
+    ccf::kv::Store historical;
+    historical.set_encryptor(encryptor);
+    REQUIRE(
+      historical.deserialize(mixed_entry)->apply(true) ==
+      ccf::kv::ApplyResult::PASS);
+
+    auto tx_diff = historical.create_tx_diff();
+    auto* diff = tx_diff.diff(map);
+
+    REQUIRE(diff->has("overwritten"));
+    REQUIRE_FALSE(diff->is_deleted("overwritten"));
+    REQUIRE(diff->get("overwritten").value().value() == "v2");
+
+    // Deletes are visible, including of a key absent from the fresh store
+    REQUIRE_FALSE(diff->has("never_existed"));
+    REQUIRE(diff->is_deleted("never_existed"));
+
+    // Keys not touched by this transaction are absent from the diff
+    REQUIRE_FALSE(diff->has("kept"));
+    REQUIRE_FALSE(diff->is_deleted("kept"));
+    REQUIRE_FALSE(diff->get("kept").has_value());
+
+    REQUIRE(diff->size() == mixed_contents.size());
+    REQUIRE(collect(diff) == mixed_contents);
+
+    // The untyped diff distinguishes deleted keys from untouched keys
+    auto* untyped_diff = tx_diff.diff<MapTypes::UntypedMap>(map.get_name());
+    {
+      const auto removed =
+        untyped_diff->get(Serialiser::to_serialised("removed"));
+      REQUIRE(removed.has_value());
+      REQUIRE_FALSE(removed.value().has_value());
+
+      // Ranges are ordered by serialised key, and exclude the upper bound
+      std::vector<std::string> range_keys;
+      untyped_diff->range(
+        [&range_keys](
+          const ccf::kv::serialisers::SerialisedEntry& k,
+          const std::optional<ccf::kv::serialisers::SerialisedEntry>&) {
+          range_keys.push_back(Serialiser::from_serialised(k));
+        },
+        Serialiser::to_serialised("added"),
+        Serialiser::to_serialised("overwritten"));
+      REQUIRE(range_keys == std::vector<std::string>{"added", "never_existed"});
+    }
+  }
+
+  INFO("Delete-only entries are only visible when tracking deletes");
+  {
+    {
+      ccf::kv::Store historical;
+      historical.set_encryptor(encryptor);
+      REQUIRE(
+        historical.deserialize(delete_only_entry)->apply(true) ==
+        ccf::kv::ApplyResult::PASS);
+
+      auto tx_diff = historical.create_tx_diff();
+      auto* diff = tx_diff.diff(map);
+      REQUIRE(diff->size() == 1);
+      REQUIRE(collect(diff) == DiffContents{{"kept", std::nullopt}});
+    }
+
+    {
+      // Without tracking, deleting a key which is absent from the fresh store
+      // leaves no trace in the map
+      ccf::kv::Store historical;
+      historical.set_encryptor(encryptor);
+      REQUIRE(
+        historical.deserialize(delete_only_entry)->apply(false) ==
+        ccf::kv::ApplyResult::PASS);
+
+      auto tx_diff = historical.create_tx_diff();
+      REQUIRE(tx_diff.diff(map)->size() == 0);
+    }
+  }
+
+  INFO("Diff over a store with history only reports the latest commit");
+  {
+    ccf::kv::Store replayed;
+    replayed.set_encryptor(encryptor);
+    REQUIRE(
+      replayed.deserialize(initial_entry)->apply(true) ==
+      ccf::kv::ApplyResult::PASS);
+    REQUIRE(
+      replayed.deserialize(mixed_entry)->apply(true) ==
+      ccf::kv::ApplyResult::PASS);
+
+    auto tx_diff = replayed.create_tx_diff();
+    auto* diff = tx_diff.diff(map);
+
+    // "kept" is still present in the state, but was written by an earlier
+    // transaction, so it is not part of this diff
+    REQUIRE_FALSE(diff->has("kept"));
+    REQUIRE(diff->size() == mixed_contents.size());
+    REQUIRE(collect(diff) == mixed_contents);
+  }
+}
+
 TEST_CASE("Deserialise return status")
 {
   ccf::kv::Store store;
