@@ -701,7 +701,23 @@ namespace ccf::tls
           }
           X509_free(cert);
         }
-        LOG_TRACE_FMT("Connection {}: handshake complete", c.id);
+        const auto group_id = SSL_get_negotiated_group(c.ssl);
+        const auto* group_name = SSL_group_to_name(c.ssl, group_id);
+        auto negotiated_group = std::string("unknown");
+        if (group_name != nullptr)
+        {
+          negotiated_group = group_name;
+        }
+        else if (group_id != NID_undef)
+        {
+          negotiated_group = std::to_string(group_id);
+        }
+        LOG_INFO_FMT(
+          "TLS handshake completed: connection_id={}, negotiated_group={}, "
+          "hybrid_key_exchange={}",
+          c.id,
+          negotiated_group,
+          negotiated_group.find("MLKEM") != std::string::npos);
         return do_read(c, more_to_read) && do_write(c);
       }
 
