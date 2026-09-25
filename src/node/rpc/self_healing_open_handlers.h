@@ -21,48 +21,6 @@
 
 namespace ccf::node
 {
-#ifdef CCF_RECOVERY_TRACE
-  template <typename Input>
-  static void trace_recovery_decision_protocol_receive(
-    RecoveryDecisionProtocolSubsystem& protocol,
-    const nlohmann::json& params,
-    const Input& in,
-    std::optional<recovery_decision_protocol::StateMachine> pre,
-    const recovery_decision_protocol::AdvanceTrace& trace)
-  {
-    if constexpr (std::
-                    is_same_v<Input, recovery_decision_protocol::GossipRequest>)
-    {
-      protocol.record_trace_receive(
-        "gossip_accepted", params, in.info.location.name, in.txid, pre, trace);
-    }
-    else if constexpr (std::is_same_v<
-                         Input,
-                         recovery_decision_protocol::IAmOpenRequest>)
-    {
-      protocol.record_trace_receive(
-        "iamopen_accepted",
-        params,
-        in.info.location.name,
-        std::nullopt,
-        pre,
-        trace);
-    }
-    else
-    {
-      static_assert(
-        std::is_same_v<Input, recovery_decision_protocol::TaggedWithNodeInfo>);
-      protocol.record_trace_receive(
-        "vote_accepted",
-        params,
-        in.info.location.name,
-        std::nullopt,
-        pre,
-        trace);
-    }
-  }
-#endif
-
   template <typename Input>
   using RecoveryDecisionProtocolHandler =
     std::function<std::optional<ErrorDetails>(
@@ -162,14 +120,24 @@ namespace ccf::node
 
 #ifdef CCF_RECOVERY_TRACE
       auto& protocol = node_operation->recovery_decision_protocol();
-      // IAmOpen writes the phase before advance(), so trace the phase it reads
-      // first. The callback reads this key anyway, so no read is added.
+      const char* trace_kind = "vote_accepted";
+      std::optional<ccf::TxID> trace_txid = std::nullopt;
       std::optional<recovery_decision_protocol::StateMachine> trace_pre =
         std::nullopt;
       if constexpr (std::is_same_v<
                       Input,
-                      recovery_decision_protocol::IAmOpenRequest>)
+                      recovery_decision_protocol::GossipRequest>)
       {
+        trace_kind = "gossip_accepted";
+        trace_txid = in.txid;
+      }
+      else if constexpr (std::is_same_v<
+                           Input,
+                           recovery_decision_protocol::IAmOpenRequest>)
+      {
+        trace_kind = "iamopen_accepted";
+        // IAmOpen writes the phase before advance(), so trace the phase it
+        // reads first. The callback reads this key anyway, so no read is added.
         trace_pre = protocol.read_trace_phase(args.tx);
       }
 #endif
@@ -206,8 +174,12 @@ namespace ccf::node
       }
 
 #ifdef CCF_RECOVERY_TRACE
-      trace_recovery_decision_protocol_receive(
-        protocol, params, in, trace_pre, trace);
+      if (trace_pre.has_value())
+      {
+        trace.pre = trace_pre.value();
+      }
+      protocol.record_trace_step(
+        trace_kind, params, in.info.location.name, trace_txid, trace);
 #endif
       return make_success();
     };
@@ -435,7 +407,8 @@ namespace ccf::node
             e.what()));
       }
 #ifdef CCF_RECOVERY_TRACE
-      node_operation->recovery_decision_protocol().record_trace_timeout(trace);
+      node_operation->recovery_decision_protocol().record_trace_step(
+        "timeout", params, {}, std::nullopt, trace);
 #endif
       return make_success(
         "Recovery-decision-protocol timeout processed successfully");
