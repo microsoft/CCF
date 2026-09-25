@@ -188,7 +188,7 @@ def find_service_open_seqnos(node, from_seqno):
     return open_seqnos
 
 
-def recover_with_primary_dying(args, recovered_network):
+def recover_with_primary_dying(args, recovered_network, after_backups_recovered=False):
     # Force an election immediately after the final recovery share is accepted
     # and check recovery still completes and the service is opened exactly
     # once. Nodes run with ignore_first_sigterm=True, so SIGTERM'ing the
@@ -202,7 +202,8 @@ def recover_with_primary_dying(args, recovered_network):
     # commit, until it sees the successor's higher term. The orderings are:
     # - the primary steps down before opening, and the new primary opens;
     # - the primary writes the opening and steps down before it commits: the
-    #   new leader rolls it back if it had not replicated, and opens itself;
+    #   new leader rolls it back unless it holds a signature over it, and opens
+    #   the service itself, even if it completed private recovery as a backup;
     # - the opening commits before the primary steps down, so the election
     #   follows a completed recovery.
     # With a short private ledger the second ordering is the usual one. The
@@ -213,6 +214,13 @@ def recover_with_primary_dying(args, recovered_network):
     # is unit-tested in open_service_test; the check that only the primary
     # attempts to open lives in NodeState and is exercised here). The ordering
     # that occurred is logged.
+    #
+    # With after_backups_recovered, the second ordering is forced with a
+    # successor that has completed private recovery as a backup: every backup
+    # must be part of the network before the primary nominates a successor.
+    # The primary's opening can only commit after its next signature, so this
+    # relies on signatures being far enough apart (sig_ms_interval) for the
+    # election to happen first.
     recovered_network.consortium.activate(recovered_network.find_random_node())
     recovered_network.consortium.check_for_service(
         recovered_network.find_random_node(),
@@ -239,6 +247,15 @@ def recover_with_primary_dying(args, recovered_network):
     # authoritative: once it says the end of recovery is initiated, the private
     # ledger read has been triggered on it.
     recovered_network.consortium.recover_with_shares(retired_primary)
+
+    if after_backups_recovered:
+        for node in recovered_network.get_joined_nodes():
+            if node is not retired_primary:
+                recovered_network.wait_for_state(
+                    node,
+                    infra.node.State.PART_OF_NETWORK.value,
+                    timeout=args.ledger_recovery_timeout,
+                )
 
     # SIGTERM (not SIGKILL) the primary: thanks to ignore_first_sigterm it
     # stays up, treats this as a stop notice and immediately nominates a
@@ -294,6 +311,14 @@ def recover_with_primary_dying(args, recovered_network):
         ), f"Node {node.node_id} ledger opens the service at {open_seqnos}"
         assert open_seqno in (None, open_seqnos[0]), (open_seqno, open_seqnos)
         open_seqno = open_seqnos[0]
+
+    if after_backups_recovered:
+        # The service was opened in the successor's view, so any opening by the
+        # old primary was rolled back.
+        with primary.client() as c:
+            r = c.get(f"/node/tx?transaction_id={new_view}.{open_seqno}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.json()["status"] == "Committed", r.body.json()
 
     step_down_commit_seqno = get_step_down_commit_seqno(retired_primary)
     if step_down_commit_seqno is not None and step_down_commit_seqno < open_seqno:
@@ -552,6 +577,7 @@ def test_recover_service(
     force_election=False,
     snapshots_dir=None,
     isolate_latest_snapshot=False,
+    election_after_backups_recovered=False,
 ):
     if not from_snapshot and snapshots_dir is not None:
         raise ValueError("snapshots_dir requires from_snapshot=True")
@@ -592,6 +618,7 @@ def test_recover_service(
                 via_recovery_owner=via_recovery_owner,
                 force_election=force_election,
                 snapshots_dir=isolated_snapshots_dir,
+                election_after_backups_recovered=election_after_backups_recovered,
             )
 
     return _recover_service(
@@ -602,6 +629,7 @@ def test_recover_service(
         via_recovery_owner=via_recovery_owner,
         force_election=force_election,
         snapshots_dir=snapshots_dir,
+        election_after_backups_recovered=election_after_backups_recovered,
     )
 
 
@@ -629,6 +657,7 @@ def _recover_service(
     via_recovery_owner=False,
     force_election=False,
     snapshots_dir=None,
+    election_after_backups_recovered=False,
 ):
     network.save_service_identity(args)
     old_node_ids = {node.node_id for node in network.get_joined_nodes()}
@@ -740,7 +769,11 @@ def _recover_service(
             assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value, r
 
     if force_election:
-        recover_with_primary_dying(args, recovered_network)
+        recover_with_primary_dying(
+            args,
+            recovered_network,
+            after_backups_recovered=election_after_backups_recovered,
+        )
     else:
         recovered_network.recover(args, via_recovery_owner=via_recovery_owner)
 
@@ -2080,7 +2113,7 @@ def run_recover_snapshot_from_expired_node_certificate(args):
                 recovered_network.stop_all_nodes(skip_verification=True)
 
 
-def run_recovery_with_election(args):
+def run_recovery_with_election(args, after_backups_recovered=False):
     """
     Recover a service but force an election as the final recovery share is accepted.
     """
@@ -2096,7 +2129,12 @@ def run_recovery_with_election(args):
         txs=txs,
     ) as network:
         network.start_and_open(args)
-        recovered_network = test_recover_service(network, args, force_election=True)
+        recovered_network = test_recover_service(
+            network,
+            args,
+            force_election=True,
+            election_after_backups_recovered=after_backups_recovered,
+        )
         # Recovered nodes are a separate Network (not torn down by the context
         # manager) and run with ignore_first_sigterm=True; SIGKILL them so they
         # don't linger as orphans that ignore the first teardown SIGTERM. SIGKILL
@@ -2107,6 +2145,14 @@ def run_recovery_with_election(args):
                 node.remote.check_done()
             ), f"Recovered node {node.node_id} did not terminate after SIGKILL"
         return network
+
+
+def run_recovery_with_election_after_backups_recovered(args):
+    """
+    Recover a service but force an election once every backup has completed
+    private recovery, before the primary's opening of the service commits.
+    """
+    return run_recovery_with_election(args, after_backups_recovered=True)
 
 
 def run_recovery_with_incomplete_ledger(args):
@@ -3213,6 +3259,18 @@ checked. Note that the key for each logging message is unique (per table).
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=30,
+    )
+
+    cr.add(
+        "recovery_with_election_after_backups_recovered",
+        run_recovery_with_election_after_backups_recovered,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
+        # Node default: long enough for the forced election to happen before
+        # the primary's opening of the service is signed.
+        sig_ms_interval=1000,
     )
 
     cr.add(

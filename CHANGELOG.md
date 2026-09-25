@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Nodes no longer accept forwarded RPC requests and responses in the legacy v1 and v2 wire formats. All supported releases have emitted the v3 format since 4.0, so mixed-version networks are unaffected (#8426).
 
+### Fixed
+
+- A recovered service is now opened by the next primary if the primary's opening at the end of private recovery is rolled back by an election before it commits, including when the new primary completed private recovery as a backup. Previously, the service could remain in the `WaitingForRecoveryShares` state indefinitely. A node which completes private recovery as primary after the service is already open no longer fails.
+
 ## [7.0.17]
 
 [7.0.17]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.17
