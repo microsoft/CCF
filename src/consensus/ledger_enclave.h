@@ -69,12 +69,17 @@ namespace consensus
     }
 
   private:
-    ringbuffer::WriterPtr to_host;
+    std::shared_ptr<AbstractLedgerWriter> ledger;
 
   public:
-    LedgerEnclave(ringbuffer::AbstractWriterFactory& writer_factory_) :
-      to_host(writer_factory_.create_writer_to_outside())
-    {}
+    LedgerEnclave(std::shared_ptr<AbstractLedgerWriter> ledger_) :
+      ledger(std::move(ledger_))
+    {
+      if (ledger == nullptr)
+      {
+        throw std::logic_error("A ledger writer must be provided");
+      }
+    }
 
     /**
      * Put a single entry to be written to the ledger, when primary.
@@ -111,9 +116,11 @@ namespace consensus
       [[maybe_unused]] ccf::kv::Term term,
       [[maybe_unused]] ccf::kv::Version index)
     {
-      serializer::ByteRange byte_range = {data, size};
-      RINGBUFFER_WRITE_MESSAGE(
-        ::consensus::ledger_append, to_host, globally_committable, byte_range);
+      std::vector<uint8_t> entry(data, data + size);
+      if (!ledger->append(std::move(entry), globally_committable))
+      {
+        throw std::logic_error("Ledger rejected append");
+      }
     }
 
     /**
@@ -136,8 +143,10 @@ namespace consensus
      */
     void truncate(Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        ::consensus::ledger_truncate, to_host, idx, false /* no recovery */);
+      if (!ledger->truncate(idx, false /* no recovery */))
+      {
+        throw std::logic_error("Ledger rejected truncation");
+      }
     }
 
     /**
@@ -147,7 +156,10 @@ namespace consensus
      */
     void commit(Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_commit, to_host, idx);
+      if (!ledger->commit(idx))
+      {
+        throw std::logic_error("Ledger rejected commit");
+      }
     }
 
     /**
@@ -158,8 +170,10 @@ namespace consensus
      */
     void init(Index idx = 0, Index recovery_start_idx = 0)
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        ::consensus::ledger_init, to_host, idx, recovery_start_idx);
+      if (!ledger->init(idx, recovery_start_idx))
+      {
+        throw std::logic_error("Ledger rejected initialisation");
+      }
     }
   };
 }

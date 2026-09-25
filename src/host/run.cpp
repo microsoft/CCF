@@ -431,7 +431,7 @@ namespace ccf
     ccf::LoggerLevel log_level,
     ringbuffer::NotifyingWriterFactory& notifying_factory,
     ccf::AbstractRuntimeControl& runtime_control,
-    const std::shared_ptr<asynchost::ReadLedgerSubsystem>& ledger_subsystem)
+    const std::shared_ptr<asynchost::LedgerSubsystem>& ledger_subsystem)
   {
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;
@@ -607,10 +607,15 @@ namespace ccf
 
     asynchost::Ledger ledger(
       config.ledger.directory,
-      writer_factory,
       asynchost::ledger_max_read_cache_files_default,
       config.ledger.read_only_directories);
-    ledger.register_message_handlers(buffer_processor.get_dispatcher());
+
+    // Typed ledger access for the enclave. Only valid while the ledger above
+    // is alive, and shut down before it is destroyed.
+    auto ledger_subsystem = std::make_shared<asynchost::LedgerSubsystem>(
+      ledger,
+      config.memory.max_msg_size.count_bytes() -
+        ::consensus::ledger_range_response_metadata_size);
 
     if (config.snapshots.read_only_directory.has_value())
     {
@@ -634,17 +639,21 @@ namespace ccf
         config.files_cleanup.max_committed_ledger_chunks);
     }
 
-    // Setup node-to-node connections
+    // Setup node-to-node connections. Outbound messages are ordered behind
+    // the ledger mutations emitted before them, then written on the loop
+    // thread at the same cadence as the ringbuffer is drained.
     auto [node_host, node_port] =
       cli::validate_address(config.network.node_to_node_interface.bind_address);
     asynchost::NodeConnections node(
       buffer_processor.get_dispatcher(),
       ledger,
+      *ledger_subsystem,
       writer_factory,
       node_host,
       node_port,
       config.node_client_interface,
       config.client_connection_timeout);
+    const asynchost::FlushNodeOutbound flush_node_outbound(1ms, node);
     config.network.node_to_node_interface.bind_address =
       ccf::make_net_address(node_host, node_port);
     if (config.network.node_to_node_interface.published_address.empty())
@@ -796,10 +805,7 @@ namespace ccf
     // prior to the KV being updated
     startup_config.network.rpc_interfaces = config.network.rpc_interfaces;
 
-    // Create the enclave node. The read-only ledger view is installed as a
-    // node subsystem, and is only valid while the ledger above is alive.
-    auto ledger_subsystem =
-      std::make_shared<asynchost::ReadLedgerSubsystem>(ledger);
+    // Create the enclave node
     auto enclave_creation_result = create_enclave_node(
       config,
       buffer_processor,
@@ -824,6 +830,7 @@ namespace ccf
 
     // Run enclave threads and event loop
     run_enclave_threads(config, *runtime_control);
+    ledger_subsystem->shutdown();
 
     return std::nullopt;
   }

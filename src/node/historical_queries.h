@@ -115,7 +115,7 @@ namespace ccf::historical
   protected:
     ccf::kv::Store& source_store;
     std::shared_ptr<ccf::LedgerSecrets> source_ledger_secrets;
-    ringbuffer::WriterPtr to_host;
+    std::shared_ptr<::consensus::AbstractLedgerReader> ledger_reader;
 
     std::shared_ptr<ccf::LedgerSecrets> historical_ledger_secrets;
     std::shared_ptr<ccf::NodeEncryptor> historical_encryptor;
@@ -764,12 +764,32 @@ namespace ccf::historical
     {
       LOG_TRACE_FMT("fetch_entries_range({}, {})", from, to);
 
-      RINGBUFFER_WRITE_MESSAGE(
-        ::consensus::ledger_get_range,
-        to_host,
-        static_cast<::consensus::Index>(from),
-        static_cast<::consensus::Index>(to),
-        ::consensus::LedgerRequestPurpose::HistoricalQuery);
+      if (!ledger_reader->get_range(
+            static_cast<::consensus::Index>(from),
+            static_cast<::consensus::Index>(to),
+            [this](::consensus::LedgerRangeResult&& result) {
+              if (result.status == ::consensus::LedgerRangeStatus::NotFound)
+              {
+                handle_no_entry_range(result.from, result.to);
+              }
+              else if (
+                result.status == ::consensus::LedgerRangeStatus::TooLarge)
+              {
+                LOG_FAIL_FMT(
+                  "Ledger entry at {} exceeds the ledger range read budget "
+                  "(memory.max_msg_size minus response metadata)",
+                  result.from);
+                handle_no_entry_range(result.from, result.to);
+              }
+              else
+              {
+                handle_ledger_entries(result.from, result.to, result.entries);
+              }
+            }))
+      {
+        LOG_FAIL_FMT(
+          "Ledger rejected historical range read {} to {}", from, to);
+      }
     }
 
     std::optional<ccf::SeqNo> fetch_supporting_secret_if_needed(
@@ -1168,10 +1188,10 @@ namespace ccf::historical
     StateCacheImpl(
       ccf::kv::Store& store,
       const std::shared_ptr<ccf::LedgerSecrets>& secrets,
-      ringbuffer::WriterPtr host_writer) :
+      std::shared_ptr<::consensus::AbstractLedgerReader> ledger_reader_) :
       source_store(store),
       source_ledger_secrets(secrets),
-      to_host(std::move(host_writer)),
+      ledger_reader(std::move(ledger_reader_)),
       historical_ledger_secrets(std::make_shared<ccf::LedgerSecrets>()),
       historical_encryptor(
         std::make_shared<ccf::NodeEncryptor>(historical_ledger_secrets))

@@ -771,7 +771,7 @@ if(BUILD_TESTS)
       ledger_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
     )
-    target_link_libraries(ledger_test PRIVATE uv)
+    target_link_libraries(ledger_test PRIVATE ccf_tasks)
 
     add_unit_test(
       worker_shutdown_gate_test
@@ -799,7 +799,7 @@ if(BUILD_TESTS)
       node_connections_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/node_connections.cpp
     )
-    target_link_libraries(node_connections_test PRIVATE uv)
+    target_link_libraries(node_connections_test PRIVATE ccf_tasks uv)
 
     add_unit_test(
       tcp_test

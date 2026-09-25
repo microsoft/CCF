@@ -36,8 +36,7 @@ namespace ccf
     size_t num_worker_threads,
     const ccf::ds::WorkBeaconPtr& work_beacon,
     ccf::AbstractRuntimeControl& runtime_control,
-    const std::shared_ptr<AbstractReadLedgerSubsystemInterface>&
-      ledger_subsystem)
+    const std::shared_ptr<AbstractLedgerSubsystemInterface>& ledger_subsystem)
   {
     std::lock_guard<ccf::ds::Mutex> guard(create_lock);
 
