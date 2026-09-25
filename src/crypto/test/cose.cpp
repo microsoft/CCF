@@ -554,6 +554,261 @@ TEST_CASE("make_cose_verifier_any_cert with PEM and DER certificates")
   }
 }
 
+TEST_CASE("make_cose_verifier_from_der/pem_cert and verification failures")
+{
+  auto kp = ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+  auto cert_pem = kp->self_sign(
+    "CN=test", "20200101000000Z", "20301231235959Z", std::nullopt, true);
+  auto cert_der = ccf::crypto::cert_pem_to_der(cert_pem);
+
+  auto other_kp =
+    ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+  auto other_cert_pem = other_kp->self_sign(
+    "CN=other", "20200101000000Z", "20301231235959Z", std::nullopt, true);
+  auto other_cert_der = ccf::crypto::cert_pem_to_der(other_cert_pem);
+
+  auto priv_der = kp->private_key_der();
+  CoseBuffer key_err;
+  auto cose_key =
+    CoseKey::from_private(priv_der.data(), priv_der.size(), key_err);
+  REQUIRE(cose_key.is_set());
+
+  const std::string epoch_begin = "1.1";
+  const std::vector<uint8_t> payload = {0xCA, 0xFE};
+
+  CoseBuffer out;
+  CoseBuffer sign_err;
+  auto rc = cose_sign_endorsement(
+    cose_key,
+    1700000000,
+    reinterpret_cast<const uint8_t*>(epoch_begin.data()),
+    epoch_begin.size(),
+    nullptr,
+    0,
+    nullptr,
+    0,
+    payload.data(),
+    payload.size(),
+    out,
+    sign_err);
+  REQUIRE(rc == 0);
+  REQUIRE(out.is_set());
+  auto envelope = out.to_vector();
+
+  SUBCASE("from_der_cert verifies a genuine envelope")
+  {
+    auto verifier = ccf::crypto::make_cose_verifier_from_der_cert(cert_der);
+    std::span<uint8_t> authned;
+    CHECK(verifier->verify(envelope, authned));
+  }
+
+  SUBCASE("from_pem_cert verifies a genuine envelope")
+  {
+    auto verifier = ccf::crypto::make_cose_verifier_from_pem_cert(cert_pem);
+    std::span<uint8_t> authned;
+    CHECK(verifier->verify(envelope, authned));
+  }
+
+  SUBCASE("from_der_cert rejects a PEM certificate")
+  {
+    std::vector<uint8_t> pem_bytes(
+      cert_pem.data(), cert_pem.data() + cert_pem.size());
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_der_cert(pem_bytes),
+      std::invalid_argument);
+  }
+
+  SUBCASE("from_pem_cert rejects garbage")
+  {
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_pem_cert(
+        ccf::crypto::Pem("-----BEGIN CERTIFICATE-----\nAAAA\n-----END "
+                         "CERTIFICATE-----\n")),
+      std::invalid_argument);
+  }
+
+  SUBCASE("Verification fails with the wrong key")
+  {
+    auto wrong_verifier =
+      ccf::crypto::make_cose_verifier_from_der_cert(other_cert_der);
+    std::span<uint8_t> authned;
+    CHECK_FALSE(wrong_verifier->verify(envelope, authned));
+  }
+
+  SUBCASE("Verification fails with a tampered payload")
+  {
+    auto tampered = envelope;
+    // Flip a byte inside the embedded payload/signature portion, near the
+    // end of the envelope.
+    tampered[tampered.size() - 1] ^= 0xff;
+
+    auto verifier = ccf::crypto::make_cose_verifier_from_der_cert(cert_der);
+    std::span<uint8_t> authned;
+    CHECK_FALSE(verifier->verify(tampered, authned));
+  }
+
+  SUBCASE("verify_detached fails with a mismatched payload")
+  {
+    auto verifier = ccf::crypto::make_cose_verifier_from_der_cert(cert_der);
+    std::vector<uint8_t> mismatched_payload = {0xDE, 0xAD, 0xBE, 0xEF};
+    CHECK_FALSE(verifier->verify_detached(envelope, mismatched_payload));
+    // verify_detached recomputes the signature over the caller-supplied
+    // payload, independent of whether the envelope carries an embedded one,
+    // so it succeeds when given the actual payload that was signed.
+    CHECK(verifier->verify_detached(envelope, payload));
+  }
+}
+
+TEST_CASE(
+  "make_cose_verifier_from_key(Pem), verify_decomposed and malformed "
+  "inputs")
+{
+  auto kp = ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+  auto priv_der = kp->private_key_der();
+  CoseBuffer key_err;
+  auto cose_key =
+    CoseKey::from_private(priv_der.data(), priv_der.size(), key_err);
+  REQUIRE(cose_key.is_set());
+
+  const std::string epoch_begin = "1.1";
+  const std::vector<uint8_t> payload = {0xCA, 0xFE};
+
+  CoseBuffer out;
+  CoseBuffer sign_err;
+  auto rc = cose_sign_endorsement(
+    cose_key,
+    1700000000,
+    reinterpret_cast<const uint8_t*>(epoch_begin.data()),
+    epoch_begin.size(),
+    nullptr,
+    0,
+    nullptr,
+    0,
+    payload.data(),
+    payload.size(),
+    out,
+    sign_err);
+  REQUIRE(rc == 0);
+  REQUIRE(out.is_set());
+  auto envelope = out.to_vector();
+
+  auto der_pub = kp->public_key_der();
+  auto pub_key = ccf::crypto::make_ec_public_key(der_pub);
+  auto pem_pub = pub_key->public_key_pem();
+
+  SUBCASE("from_key(Pem) verifies a genuine envelope")
+  {
+    auto verifier = ccf::crypto::make_cose_verifier_from_key(pem_pub);
+    std::span<uint8_t> authned;
+    CHECK(verifier->verify(envelope, authned));
+  }
+
+  SUBCASE("from_key(Pem) rejects garbage PEM")
+  {
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_key(ccf::crypto::Pem(
+        "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n")),
+      std::runtime_error);
+  }
+
+  SUBCASE("from_key(span) rejects garbage DER")
+  {
+    std::vector<uint8_t> garbage = {0xDE, 0xAD, 0xBE, 0xEF};
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_key(
+        std::span<const uint8_t>(garbage)),
+      std::runtime_error);
+  }
+
+  SUBCASE("verify() on a detached envelope returns false")
+  {
+    // envelope_detached has no embedded payload, so verify() (which only
+    // handles embedded payloads) must report failure without throwing.
+    auto verifier = ccf::crypto::make_cose_verifier_from_key(pub_key_der);
+    std::span<uint8_t> authned;
+    CHECK_FALSE(verifier->verify(envelope_detached, authned));
+  }
+
+  SUBCASE("verify() and verify_detached() on malformed CBOR return false")
+  {
+    // Not valid CBOR at all: decompose_cose_sign1 throws, which is caught
+    // and turned into a false return rather than propagating.
+    std::vector<uint8_t> not_cbor = {0xff, 0xff, 0xff, 0xff};
+    auto verifier = ccf::crypto::make_cose_verifier_from_key(pub_key_der);
+    std::span<uint8_t> authned;
+    CHECK_FALSE(verifier->verify(not_cbor, authned));
+    CHECK_FALSE(verifier->verify_detached(not_cbor, payload));
+  }
+
+  SUBCASE("verify_decomposed succeeds and fails")
+  {
+    auto verifier = ccf::crypto::make_cose_verifier_from_key(pem_pub);
+
+    // Manually decompose the envelope's protected header/payload/signature.
+    // The CBOR layout of a COSE_Sign1 flat envelope is:
+    // tag(18) [ bstr(phdr), map(uhdr), bstr(payload), bstr(sig) ]
+    auto cbor = tav::cbor::nondet_parse(envelope);
+    auto sign1 = cbor.tag_at(18);
+    auto phdr = sign1.array_at(0).as_bytes();
+    auto envelope_payload = sign1.array_at(2).as_bytes();
+    auto sig = sign1.array_at(3).as_bytes();
+
+    auto phdr_val = tav::cbor::nondet_parse(phdr);
+    auto alg =
+      phdr_val.map_at(tav::cbor::make_signed(ccf::cose::header::iana::ALG))
+        .as_signed();
+
+    CHECK(verifier->verify_decomposed(phdr, envelope_payload, sig, alg));
+
+    // Wrong algorithm identifier is rejected.
+    CHECK_FALSE(
+      verifier->verify_decomposed(phdr, envelope_payload, sig, alg + 1));
+
+    // Tampered signature is rejected.
+    std::vector<uint8_t> tampered_sig(sig.begin(), sig.end());
+    tampered_sig.back() ^= 0xff;
+    CHECK_FALSE(
+      verifier->verify_decomposed(phdr, envelope_payload, tampered_sig, alg));
+  }
+}
+
+TEST_CASE("extract_cose_endorsement_validity")
+{
+  auto kp = ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+  auto priv_der = kp->private_key_der();
+  CoseBuffer key_err;
+  auto cose_key =
+    CoseKey::from_private(priv_der.data(), priv_der.size(), key_err);
+  REQUIRE(cose_key.is_set());
+
+  const std::string epoch_begin = "1.1";
+  const std::string epoch_end = "2.5";
+  const std::vector<uint8_t> payload = {0xCA, 0xFE};
+
+  CoseBuffer out;
+  CoseBuffer sign_err;
+  auto rc = cose_sign_endorsement(
+    cose_key,
+    1700000000,
+    reinterpret_cast<const uint8_t*>(epoch_begin.data()),
+    epoch_begin.size(),
+    reinterpret_cast<const uint8_t*>(epoch_end.data()),
+    epoch_end.size(),
+    nullptr,
+    0,
+    payload.data(),
+    payload.size(),
+    out,
+    sign_err);
+  REQUIRE(rc == 0);
+  REQUIRE(out.is_set());
+  auto envelope = out.to_vector();
+
+  auto validity = ccf::crypto::extract_cose_endorsement_validity(envelope);
+  CHECK(validity.from_txid == epoch_begin);
+  CHECK(validity.to_txid == epoch_end);
+}
+
 TEST_CASE("ECDSA algorithm identifiers")
 {
   // Deprecated ES identifiers.

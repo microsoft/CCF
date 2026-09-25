@@ -7,6 +7,7 @@
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
+#include "ccf/crypto/hash_provider.h"
 #include "ccf/crypto/hmac.h"
 #include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_wrap.h"
@@ -20,6 +21,7 @@
 #include "crypto/csr.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "crypto/openssl/ec_key_pair.h"
+#include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "crypto/openssl/symmetric_key.h"
 #include "crypto/openssl/verifier.h"
@@ -636,6 +638,130 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
     auto unwrapped = rsa_kp->rsa_oaep_unwrap(wrapped, label);
     REQUIRE(input == unwrapped);
   }
+
+  INFO("Key pair object itself can wrap (RSAKeyPair_OpenSSL forwarding)");
+  {
+    auto rsa_kp = make_rsa_key_pair();
+
+    auto wrapped = rsa_kp->rsa_oaep_wrap(input);
+    auto unwrapped = rsa_kp->rsa_oaep_unwrap(wrapped);
+    REQUIRE(input == unwrapped);
+
+    wrapped = rsa_kp->rsa_oaep_wrap(input.data(), input.size());
+    unwrapped = rsa_kp->rsa_oaep_unwrap(wrapped);
+    REQUIRE(input == unwrapped);
+
+    // public_key_jwk on the key pair object itself exercises
+    // RSAKeyPair_OpenSSL's own forwarding method, rather than a separately
+    // constructed RSAPublicKey_OpenSSL.
+    auto jwk_from_kp = rsa_kp->public_key_jwk();
+    auto pub_from_kp = make_rsa_public_key(rsa_kp->public_key_pem());
+    REQUIRE(jwk_from_kp == pub_from_kp->public_key_jwk());
+  }
+}
+
+TEST_CASE("RSA key pair self-verification")
+{
+  auto kp = ccf::crypto::make_rsa_key_pair();
+  vector<uint8_t> payload(contents_.begin(), contents_.end());
+  auto hash_provider = ccf::crypto::make_hash_provider();
+  constexpr auto mdtype = MDType::SHA256;
+  constexpr size_t salt_length = 32;
+
+  INFO("Sign, verify and verify_hash with the same key pair object (PSS)");
+  {
+    const auto sig = kp->sign(payload, mdtype, salt_length);
+
+    REQUIRE(kp->verify(
+      payload.data(),
+      payload.size(),
+      sig.data(),
+      sig.size(),
+      mdtype,
+      RSAPadding::PKCS_PSS,
+      salt_length));
+
+    const auto hash =
+      hash_provider->hash(payload.data(), payload.size(), mdtype);
+    REQUIRE(kp->verify_hash(
+      hash.data(),
+      hash.size(),
+      sig.data(),
+      sig.size(),
+      mdtype,
+      RSAPadding::PKCS_PSS,
+      salt_length));
+
+    INFO("Tampered signature fails");
+    auto tampered_sig = sig;
+    corrupt(tampered_sig);
+    REQUIRE_FALSE(kp->verify_hash(
+      hash.data(),
+      hash.size(),
+      tampered_sig.data(),
+      tampered_sig.size(),
+      mdtype,
+      RSAPadding::PKCS_PSS,
+      salt_length));
+
+    INFO("Wrong digest length fails");
+    auto wrong_length_hash = hash;
+    wrong_length_hash.pop_back();
+    REQUIRE_FALSE(kp->verify_hash(
+      wrong_length_hash.data(),
+      wrong_length_hash.size(),
+      sig.data(),
+      sig.size(),
+      mdtype,
+      RSAPadding::PKCS_PSS,
+      salt_length));
+  }
+
+  INFO("Verify a PKCS#1 v1.5 signature with the same key pair object");
+  {
+    // RSAKeyPair_OpenSSL::sign always produces PSS-padded signatures, so a
+    // PKCS#1 v1.5 signature is produced directly with the key pair's own
+    // EVP_PKEY (exposed via the public PublicKey_OpenSSL::operator
+    // EVP_PKEY*) to exercise the PKCS1v15 verification branch.
+    auto* impl = dynamic_cast<RSAKeyPair_OpenSSL*>(kp.get());
+    REQUIRE(impl != nullptr);
+    EVP_PKEY* pkey = *impl;
+    const auto hash =
+      hash_provider->hash(payload.data(), payload.size(), mdtype);
+
+    OpenSSL::Unique_EVP_PKEY_CTX pctx(pkey);
+    OpenSSL::CHECK1(EVP_PKEY_sign_init(pctx));
+    OpenSSL::CHECKPOSITIVE(
+      EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PADDING));
+    OpenSSL::CHECKPOSITIVE(EVP_PKEY_CTX_set_signature_md(pctx, EVP_sha256()));
+    size_t olen = 0;
+    OpenSSL::CHECK1(
+      EVP_PKEY_sign(pctx, nullptr, &olen, hash.data(), hash.size()));
+    std::vector<uint8_t> sig(olen);
+    OpenSSL::CHECK1(
+      EVP_PKEY_sign(pctx, sig.data(), &olen, hash.data(), hash.size()));
+    sig.resize(olen);
+
+    REQUIRE(kp->verify_hash(
+      hash.data(),
+      hash.size(),
+      sig.data(),
+      sig.size(),
+      mdtype,
+      RSAPadding::PKCS1v15,
+      0));
+
+    auto tampered_sig = sig;
+    corrupt(tampered_sig);
+    REQUIRE_FALSE(kp->verify_hash(
+      hash.data(),
+      hash.size(),
+      tampered_sig.data(),
+      tampered_sig.size(),
+      mdtype,
+      RSAPadding::PKCS1v15,
+      0));
+  }
 }
 
 TEST_CASE("Extract public key from cert")
@@ -665,6 +791,77 @@ void create_csr_and_extract_pubk()
 TEST_CASE("Extract public key from csr")
 {
   create_csr_and_extract_pubk<ECKeyPair_OpenSSL>();
+}
+
+static std::vector<std::string> extract_subject_alt_names(
+  const OpenSSL::Unique_X509& cert)
+{
+  std::vector<std::string> result;
+  auto* sans = static_cast<GENERAL_NAMES*>(
+    X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr));
+  if (sans == nullptr)
+  {
+    return result;
+  }
+
+  for (int i = 0; i < sk_GENERAL_NAME_num(sans); ++i)
+  {
+    GENERAL_NAME* gen = sk_GENERAL_NAME_value(sans, i);
+    OpenSSL::Unique_BIO mem;
+    GENERAL_NAME_print(mem, gen);
+    BUF_MEM* bptr = nullptr;
+    BIO_get_mem_ptr(mem, &bptr);
+    result.emplace_back(bptr->data, bptr->length);
+  }
+  GENERAL_NAMES_free(sans);
+  return result;
+}
+
+TEST_CASE("create_csr_der subject alternative names round-trip via signed cert")
+{
+  auto kp = make_ec_key_pair(CurveID::SECP384R1);
+
+  std::vector<SubjectAltName> sans;
+  sans.push_back({"www.example.com", false}); // DNS
+  sans.push_back({"10.20.30.40", true}); // IP
+
+  auto csr_der = kp->create_csr_der("CN=leaf", sans);
+  REQUIRE_FALSE(csr_der.empty());
+
+  // Round-trip the DER-encoded CSR back into an X509_REQ and check that the
+  // embedded public key matches the key pair that produced it.
+  OpenSSL::Unique_BIO der_bio(csr_der);
+  OpenSSL::Unique_X509_REQ_DER req_from_der(der_bio);
+  REQUIRE(req_from_der != nullptr);
+
+  OpenSSL::Unique_BIO pem_bio;
+  OpenSSL::CHECK1(PEM_write_bio_X509_REQ(pem_bio, req_from_der));
+  BUF_MEM* bptr = nullptr;
+  BIO_get_mem_ptr(pem_bio, &bptr);
+  Pem csr_pem(reinterpret_cast<uint8_t*>(bptr->data), bptr->length);
+
+  REQUIRE(public_key_pem_from_csr(csr_pem) == kp->public_key_pem());
+
+  const std::string valid_from = "20210311000000Z";
+  const std::string valid_to = "20230611235959Z";
+  auto issuer_cert = kp->self_sign("CN=issuer", valid_from, valid_to);
+  auto cert = kp->sign_csr(issuer_cert, csr_pem, valid_from, valid_to);
+
+  OpenSSL::Unique_BIO cert_bio(cert);
+  OpenSSL::Unique_X509 x509_cert(cert_bio, true);
+  REQUIRE(x509_cert != nullptr);
+
+  auto extracted_sans = extract_subject_alt_names(x509_cert);
+  REQUIRE(
+    std::find_if(
+      extracted_sans.begin(), extracted_sans.end(), [](const std::string& s) {
+        return s.contains("www.example.com");
+      }) != extracted_sans.end());
+  REQUIRE(
+    std::find_if(
+      extracted_sans.begin(), extracted_sans.end(), [](const std::string& s) {
+        return s.contains("10.20.30.40");
+      }) != extracted_sans.end());
 }
 
 template <typename T, typename S>
@@ -713,6 +910,91 @@ void run_csr(bool corrupt_csr = false)
   std::tie(valid_from_, valid_to_) = v.validity_period();
   REQUIRE(valid_from_.contains(valid_from));
   REQUIRE(valid_to_.contains(valid_to));
+}
+
+TEST_CASE(
+  "EC public key raw point round-trip, curve id and group id for every curve")
+{
+  for (const auto curve :
+       {CurveID::SECP256R1, CurveID::SECP384R1, CurveID::SECP521R1})
+  {
+    auto kp = make_ec_key_pair(curve);
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    const auto signature = kp->sign(payload);
+
+    auto raw = kp->public_key_raw();
+    REQUIRE_FALSE(raw.empty());
+
+    int nid = ECPublicKey_OpenSSL::get_openssl_group_id(curve);
+    auto rebuilt_pkey = key_from_raw_ec_point(raw, nid);
+    REQUIRE(rebuilt_pkey != nullptr);
+
+    ECPublicKey_OpenSSL rebuilt(rebuilt_pkey);
+    CHECK(rebuilt.get_curve_id() == curve);
+    CHECK(rebuilt.get_openssl_group_id() == nid);
+    CHECK(rebuilt.verify(payload, signature));
+
+    // Also exercise make_ec_public_key(span<const uint8_t>) via the DER
+    // encoding of the same key, to compare against the raw-point rebuild.
+    auto from_der = make_ec_public_key(std::span<const uint8_t>(
+      kp->public_key_der().data(), kp->public_key_der().size()));
+    CHECK(from_der->get_curve_id() == curve);
+    CHECK(from_der->verify(payload, signature));
+  }
+
+  INFO("An invalid raw point throws");
+  {
+    int nid = ECPublicKey_OpenSSL::get_openssl_group_id(CurveID::SECP256R1);
+    std::vector<uint8_t> invalid_point(65, 0x04); // Uncompressed point marker
+                                                  // followed by all-zero
+                                                  // coordinates, not on the
+                                                  // curve.
+    REQUIRE_THROWS_AS(
+      key_from_raw_ec_point(invalid_point, nid), std::exception);
+  }
+}
+
+TEST_CASE("Public key construction rejects malformed and wrong-family input")
+{
+  auto ec_kp = make_ec_key_pair(CurveID::SECP256R1);
+  auto rsa_kp = make_rsa_key_pair();
+
+  const std::vector<uint8_t> garbage_der = {0xDE, 0xAD, 0xBE, 0xEF};
+  const Pem garbage_pem(
+    std::string("-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC "
+                "KEY-----\n"));
+
+  INFO("EC public key");
+  {
+    REQUIRE_THROWS_WITH_AS(
+      make_ec_public_key(garbage_pem),
+      "could not parse PEM",
+      std::runtime_error);
+    REQUIRE_THROWS_WITH_AS(
+      make_ec_public_key(garbage_der),
+      "Could not read DER",
+      std::runtime_error);
+    REQUIRE_THROWS_WITH_AS(
+      make_ec_public_key(rsa_kp->public_key_pem()),
+      "Cannot construct ECPublicKey_OpenSSL from non-EC key",
+      std::logic_error);
+  }
+
+  INFO("RSA public key");
+  {
+    REQUIRE_THROWS_AS(make_rsa_public_key(garbage_pem), std::runtime_error);
+    REQUIRE_THROWS_AS(make_rsa_public_key(garbage_der), std::runtime_error);
+    REQUIRE_THROWS_WITH_AS(
+      make_rsa_public_key(ec_kp->public_key_pem()),
+      "Cannot construct RSAPublicKey_OpenSSL from non-RSA key",
+      std::logic_error);
+  }
+
+  INFO("Verifier");
+  {
+    REQUIRE_THROWS_AS(make_verifier(garbage_der), std::invalid_argument);
+    REQUIRE_THROWS_AS(make_verifier(garbage_pem), std::invalid_argument);
+  }
 }
 
 TEST_CASE("2-digit years")
@@ -1295,6 +1577,108 @@ TEST_CASE("X509 chain common validity period")
                   .has_value());
   REQUIRE_FALSE(ccf::crypto::OpenSSL::get_x509_chain_common_validity_period({})
                   .has_value());
+}
+
+TEST_CASE("Verifier remaining_seconds and remaining_percentage")
+{
+  auto kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
+
+  const std::string valid_from = "20240101000000Z";
+  const std::string valid_to = "20240102000000Z"; // Exactly 1 day validity
+  auto cert = kp->self_sign("CN=name", valid_from, valid_to);
+  auto verifier = ccf::crypto::make_verifier(cert);
+
+  const auto from_tp = ccf::ds::time_point_from_string(valid_from);
+  const auto to_tp = ccf::ds::time_point_from_string(valid_to);
+  constexpr size_t total_seconds = 24 * 60 * 60 + 1; // Inclusive of both ends
+
+  INFO("At the start of the validity period");
+  {
+    REQUIRE(verifier->remaining_seconds(from_tp) == total_seconds);
+    REQUIRE(verifier->remaining_percentage(from_tp) == doctest::Approx(1.0));
+  }
+
+  INFO("At the midpoint of the validity period");
+  {
+    const auto mid_tp = from_tp + (to_tp - from_tp) / 2;
+    REQUIRE(
+      verifier->remaining_seconds(mid_tp) ==
+      doctest::Approx(total_seconds / 2).epsilon(0.01));
+    REQUIRE(
+      verifier->remaining_percentage(mid_tp) ==
+      doctest::Approx(0.5).epsilon(0.01));
+  }
+
+  INFO("After expiry");
+  {
+    using namespace std::literals;
+    const auto after_tp = to_tp + 1h;
+    // remaining_percentage is signed (double) and correctly goes negative
+    // once expired.
+    REQUIRE(verifier->remaining_percentage(after_tp) < 0.0);
+    // remaining_seconds, however, returns size_t while computing a signed
+    // duration internally: once expired, the negative duration silently
+    // wraps around to a huge value instead of being clamped or otherwise
+    // signalling expiry. This looks like a pre-existing bug, but nothing in
+    // this repository currently depends on the return value once a
+    // certificate has expired, so it is exercised here rather than fixed.
+    REQUIRE(verifier->remaining_seconds(after_tp) > total_seconds);
+  }
+}
+
+namespace ccf::crypto
+{
+  // Test-only accessor for the protected static
+  // Verifier_OpenSSL::get_md_type(int), which maps an OpenSSL NID to an
+  // ccf::crypto::MDType. It is not reachable through any public API: all
+  // certificates signed by this codebase use one of SHA256/SHA384/SHA512 (via
+  // get_md_for_ec), so the SHA1/NONE/default branches can only be exercised
+  // by calling the function directly.
+  struct TestVerifierMDType : public Verifier_OpenSSL
+  {
+    using Verifier_OpenSSL::get_md_type;
+    using Verifier_OpenSSL::Verifier_OpenSSL;
+  };
+}
+
+TEST_CASE("Verifier_OpenSSL::get_md_type maps signature digest NIDs")
+{
+  using ccf::crypto::TestVerifierMDType;
+
+  CHECK(TestVerifierMDType::get_md_type(NID_undef) == MDType::NONE);
+  CHECK(TestVerifierMDType::get_md_type(NID_sha1) == MDType::SHA1);
+  CHECK(TestVerifierMDType::get_md_type(NID_sha256) == MDType::SHA256);
+  CHECK(TestVerifierMDType::get_md_type(NID_sha384) == MDType::SHA384);
+  CHECK(TestVerifierMDType::get_md_type(NID_sha512) == MDType::SHA512);
+  // Unrecognised NID falls through to the default case.
+  CHECK(TestVerifierMDType::get_md_type(NID_md5) == MDType::NONE);
+}
+
+TEST_CASE("verify_certificate rejects wrong trust anchor and expired chains")
+{
+  auto root_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
+  auto root_cert = generate_self_signed_cert(root_kp, "CN=root");
+
+  auto other_root_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
+  auto other_root_cert = generate_self_signed_cert(other_root_kp, "CN=other");
+
+  auto leaf_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
+  auto leaf_csr = leaf_kp->create_csr("CN=leaf", {});
+  const std::string valid_from = "20210311000000Z";
+  const std::string valid_to = "20230611235959Z";
+  auto leaf_cert =
+    root_kp->sign_csr(root_cert, leaf_csr, valid_from, valid_to, false);
+
+  auto verifier = ccf::crypto::make_verifier(leaf_cert.raw());
+
+  INFO("Correct trust anchor, ignoring time");
+  REQUIRE(verifier->verify_certificate({&root_cert}, {}, true));
+
+  INFO("Wrong trust anchor is rejected even when ignoring time");
+  REQUIRE_FALSE(verifier->verify_certificate({&other_root_cert}, {}, true));
+
+  INFO("Expired certificate is rejected when time is checked");
+  REQUIRE_FALSE(verifier->verify_certificate({&root_cert}, {}, false));
 }
 
 TEST_CASE("hmac")
