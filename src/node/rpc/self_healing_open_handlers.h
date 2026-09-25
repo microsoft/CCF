@@ -118,29 +118,6 @@ namespace ccf::node
 
       // ---- Run callback ----
 
-#ifdef CCF_RECOVERY_TRACE
-      auto& protocol = node_operation->recovery_decision_protocol();
-      const char* trace_kind = "vote_accepted";
-      std::optional<ccf::TxID> trace_txid = std::nullopt;
-      std::optional<recovery_decision_protocol::StateMachine> trace_pre =
-        std::nullopt;
-      if constexpr (std::is_same_v<
-                      Input,
-                      recovery_decision_protocol::GossipRequest>)
-      {
-        trace_kind = "gossip_accepted";
-        trace_txid = in.txid;
-      }
-      else if constexpr (std::is_same_v<
-                           Input,
-                           recovery_decision_protocol::IAmOpenRequest>)
-      {
-        trace_kind = "iamopen_accepted";
-        // IAmOpen writes the phase before advance(), so trace the phase it
-        // reads first. The callback reads this key anyway, so no read is added.
-        trace_pre = protocol.read_trace_phase(args.tx);
-      }
-#endif
       auto ret = cb(args, in);
       if (ret.has_value())
       {
@@ -156,7 +133,8 @@ namespace ccf::node
       try
       {
 #ifdef CCF_RECOVERY_TRACE
-        protocol.advance(args.tx, false, trace);
+        node_operation->recovery_decision_protocol().advance(
+          args.tx, false, trace);
 #else
         node_operation->recovery_decision_protocol().advance(args.tx, false);
 #endif
@@ -174,11 +152,22 @@ namespace ccf::node
       }
 
 #ifdef CCF_RECOVERY_TRACE
-      if (trace_pre.has_value())
+      const char* trace_kind = "vote_accepted";
+      std::optional<ccf::TxID> trace_txid = std::nullopt;
+      if constexpr (std::is_same_v<
+                      Input,
+                      recovery_decision_protocol::GossipRequest>)
       {
-        trace.pre = trace_pre.value();
+        trace_kind = "gossip_accepted";
+        trace_txid = in.txid;
       }
-      protocol.record_trace_step(
+      else if constexpr (std::is_same_v<
+                           Input,
+                           recovery_decision_protocol::IAmOpenRequest>)
+      {
+        trace_kind = "iamopen_accepted";
+      }
+      node_operation->recovery_decision_protocol().record_trace_step(
         trace_kind, params, in.info.location.name, trace_txid, trace);
 #endif
       return make_success();

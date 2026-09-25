@@ -84,14 +84,6 @@ namespace ccf
     std::optional<recovery_decision_protocol::IAmOpenRequest>
       iamopen_request_cache;
 
-#ifdef CCF_RECOVERY_TRACE
-    ds::Mutex trace_lock;
-    std::string trace_instance;
-    std::string trace_node;
-    std::vector<sealing_recovery::Name> trace_expected_locations;
-    uint64_t next_trace_sequence = 0;
-#endif
-
   public:
     RecoveryDecisionProtocolSubsystem(NodeState* node_state);
     void reset_state(ccf::kv::Tx& tx);
@@ -109,8 +101,6 @@ namespace ccf
       kv::ReadOnlyTx& tx);
 
 #ifdef CCF_RECOVERY_TRACE
-    std::optional<recovery_decision_protocol::StateMachine> read_trace_phase(
-      kv::ReadOnlyTx& tx) noexcept;
     void record_trace_step(
       const char* kind,
       const nlohmann::json& params,
@@ -141,7 +131,6 @@ namespace ccf
     ccf::TxID get_last_recovered_signed_txid();
 
 #ifdef CCF_RECOVERY_TRACE
-    void record_trace_start() noexcept;
     void record_trace_send(
       nlohmann::json& request,
       const char* message,

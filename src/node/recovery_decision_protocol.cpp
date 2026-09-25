@@ -37,6 +37,8 @@ namespace ccf
     std::atomic<uint64_t> next_trace_batch = 0;
     thread_local uint64_t current_trace_batch = 0;
 
+    std::atomic<uint64_t> next_trace_sequence = 0;
+
     // Tracing only observes the protocol, so trace failures are logged and
     // never propagated to the protocol code being traced
     template <typename F>
@@ -70,44 +72,18 @@ namespace ccf
   std::string RecoveryDecisionProtocolSubsystem::emit_trace(
     nlohmann::json&& record)
   {
-    std::lock_guard<ds::Mutex> guard(trace_lock);
-    const auto sequence = next_trace_sequence++;
-    record["instance"] = trace_instance;
-    record["expected_locations"] = trace_expected_locations;
-    record["node"] = trace_node;
+    const auto& node = get_location().name;
+    record["node"] = node;
+    auto& expected_locations = record["expected_locations"];
+    expected_locations = nlohmann::json::array();
+    for (const auto& location : get_config().expected_locations)
+    {
+      expected_locations.push_back(location.name);
+    }
+    const auto sequence = next_trace_sequence.fetch_add(1);
     record["sequence"] = sequence;
     LOG_INFO_FMT("{} {}", recovery_trace_marker, record.dump());
-    return fmt::format("{}:{}", trace_node, sequence);
-  }
-
-  void RecoveryDecisionProtocolSubsystem::record_trace_start() noexcept
-  {
-    trace_safely("start", [this]() {
-      std::vector<sealing_recovery::Name> expected_locations;
-      for (const auto& location : get_config().expected_locations)
-      {
-        expected_locations.push_back(location.name);
-      }
-
-      // Every node taking part in this recovery is configured with the same
-      // previous service identity, so it identifies the protocol instance
-      std::string instance;
-      const auto& previous_service_identity =
-        node_state->config.recover.previous_service_identity;
-      if (previous_service_identity.has_value())
-      {
-        instance = recovery_decision_protocol::service_fingerprint_from_pem(
-          ccf::crypto::Pem(previous_service_identity.value()));
-      }
-
-      {
-        std::lock_guard<ds::Mutex> guard(trace_lock);
-        trace_instance = std::move(instance);
-        trace_node = get_location().name;
-        trace_expected_locations = std::move(expected_locations);
-      }
-      emit_trace({{"kind", "start"}});
-    });
+    return fmt::format("{}:{}", node, sequence);
   }
 
   void RecoveryDecisionProtocolSubsystem::record_trace_send(
@@ -129,20 +105,6 @@ namespace ccf
       }
       request[trace_message_id_field] = emit_trace(std::move(record));
     });
-  }
-
-  std::optional<recovery_decision_protocol::StateMachine>
-  RecoveryDecisionProtocolSubsystem::read_trace_phase(
-    kv::ReadOnlyTx& tx) noexcept
-  {
-    std::optional<recovery_decision_protocol::StateMachine> phase =
-      std::nullopt;
-    trace_safely("phase", [&]() {
-      phase = tx.ro<recovery_decision_protocol::SMState>(
-                  Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE)
-                ->get();
-    });
-    return phase;
   }
 
   void RecoveryDecisionProtocolSubsystem::record_trace_step(
@@ -223,25 +185,19 @@ namespace ccf
     tx.rw<recovery_decision_protocol::TimeoutSMState>(
         Tables::RECOVERY_DECISION_PROTOCOL_TIMEOUT_SM_STATE)
       ->put(recovery_decision_protocol::StateMachine::GOSSIPING);
-#ifdef CCF_RECOVERY_TRACE
-    record_trace_start();
-#endif
 
     // Delay start of message retry and failover timers until after commit
     node_state->network.tables->set_global_hook(
       Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE,
       recovery_decision_protocol::SMState::wrap_commit_hook(
         [this](
-          [[maybe_unused]] ccf::kv::Version hook_version,
+          ccf::kv::Version /*hook_version*/,
           const recovery_decision_protocol::SMState::Write& w) {
 #ifdef CCF_RECOVERY_TRACE
           if (w.has_value())
           {
             trace_safely("commit", [&]() {
-              emit_trace(
-                {{"kind", "committed"},
-                 {"version", hook_version},
-                 {"post", w.value()}});
+              emit_trace({{"kind", "committed"}, {"post", w.value()}});
             });
           }
 #endif
