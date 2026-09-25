@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- A node which applied an opening of a recovered service that an election then rolled back could keep that opening's seqno, rather than the seqno of the opening which committed, as the version at which the last ledger secret before recovery is stored. That version is recorded in the recovery shares and sealed recovery shares information, and sent to joining nodes.
+- A node which applied an opening of a recovered service that an election then rolled back could keep that opening's seqno, rather than the seqno of the opening which committed, as the version at which the last ledger secret before recovery is stored. That version is recorded in the recovery shares and sealed recovery shares information, and sent to joining nodes (#8452).
 
 ## [7.0.17]
 
