@@ -24,24 +24,25 @@ The Copilot setup workflow runs `scripts/setup-ubuntu-ci-checks.sh` for Ubuntu f
 
 Each command below is under `scripts/`. This table is a routing guide; the scripts own exact file coverage, exclusions, tool versions, and options. When changing that coverage, update this guide too. Include cross-cutting checks (copyright, disallowed comments, ASCII) when applicable.
 
-| Script                    | Relevant changes                                             | Tool/check                                         | Supports auto-fix |
-| ------------------------- | ------------------------------------------------------------ | -------------------------------------------------- | ----------------- |
-| `cpp-format-checks.sh`    | C/C++ in `include/`, `src/`, `samples/`                      | clang-format                                       | `-f`              |
-| `lean-format-checks.sh`   | All tracked Lean files                                       | leanfmt                                            | `-f`              |
-| `python-format-checks.sh` | Python in `tests/`, `python/`, `scripts/`, `tla/`            | black                                              | `-f`              |
-| `python-lint-checks.sh`   | Python in `python/`, `tests/`                                | ruff                                               | `-f`              |
-| `python-types-checks.sh`  | Python SDK                                                   | mypy                                               | No                |
-| `prettier-checks.sh`      | TS, JS, Markdown, YAML, JSON (excluding `tests/sandbox/`)    | prettier                                           | `-f`              |
-| `cmake-format-checks.sh`  | CMake files                                                  | gersemi                                            | `-f`              |
-| `release-notes-checks.sh` | `CHANGELOG.md` (also run prettier)                           | extract-release-notes.py                           | `-f`              |
-| `shellcheck-checks.sh`    | Shell scripts outside `3rdparty/`                            | shellcheck                                         | No                |
-| `includes-checks.sh`      | Public C++ headers and their uses                            | Public/private include and exported-header checks  | No                |
-| `copyright-checks.sh`     | Source files                                                 | Copyright notices                                  | No                |
-| `openapi-checks.sh`       | JSON under `doc/schemas/`                                    | openapi-spec-validator                             | No                |
-| `todo-checks.sh`          | Tracked files                                                | Disallowed comments                                | No                |
-| `ascii-checks.sh`         | Source/config files and agent-instruction Markdown           | ASCII policy and grandfathered Unicode lines       | No                |
-| `ascii-policy-tests.sh`   | ASCII policy/checker changes                                 | ASCII policy regression tests                      | No                |
-| `test-buckets-checks.sh`  | CMake test registration, defaults, or `tests/ci-buckets.txt` | Fresh configure and CI bucket inventory comparison | No                |
+| Script                      | Relevant changes                                             | Tool/check                                         | Supports auto-fix |
+| --------------------------- | ------------------------------------------------------------ | -------------------------------------------------- | ----------------- |
+| `cpp-format-checks.sh`      | C/C++ in `include/`, `src/`, `samples/`                      | clang-format                                       | `-f`              |
+| `lean-format-checks.sh`     | All tracked Lean files                                       | leanfmt                                            | `-f`              |
+| `python-format-checks.sh`   | Python in `tests/`, `python/`, `scripts/`, `tla/`            | black                                              | `-f`              |
+| `python-lint-checks.sh`     | Python in `python/`, `tests/`                                | ruff                                               | `-f`              |
+| `python-types-checks.sh`    | Python SDK                                                   | mypy                                               | No                |
+| `prettier-checks.sh`        | TS, JS, Markdown, YAML, JSON (excluding `tests/sandbox/`)    | prettier                                           | `-f`              |
+| `cmake-format-checks.sh`    | CMake files                                                  | gersemi                                            | `-f`              |
+| `release-notes-checks.sh`   | `CHANGELOG.md` (also run prettier)                           | extract-release-notes.py                           | `-f`              |
+| `shellcheck-checks.sh`      | Shell scripts outside `3rdparty/`                            | shellcheck                                         | No                |
+| `includes-checks.sh`        | Public C++ headers and their uses                            | Public/private include and exported-header checks  | No                |
+| `copyright-checks.sh`       | Source files                                                 | Copyright notices                                  | No                |
+| `openapi-checks.sh`         | JSON under `doc/schemas/`                                    | openapi-spec-validator                             | No                |
+| `todo-checks.sh`            | Tracked files                                                | Disallowed comments                                | No                |
+| `ascii-checks.sh`           | Source/config files and agent-instruction Markdown           | ASCII policy and grandfathered Unicode lines       | No                |
+| `ascii-policy-tests.sh`     | ASCII policy/checker changes                                 | ASCII policy regression tests                      | No                |
+| `coverage-summary-tests.sh` | `scripts/coverage_summary.py` and its tests                  | Coverage summary unit tests                        | No                |
+| `test-buckets-checks.sh`    | CMake test registration, defaults, or `tests/ci-buckets.txt` | Fresh configure and CI bucket inventory comparison | No                |
 
 Some report-only scripts accept `-f` for interface compatibility without changing files. For Rust or other file types not covered by a formatter above, consult their existing build/CI configuration rather than introducing a new tool.
 
