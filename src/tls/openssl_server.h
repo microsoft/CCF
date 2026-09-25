@@ -57,6 +57,30 @@ namespace ccf::tls
       int error = 0;
     };
 
+    struct NegotiatedGroup
+    {
+      std::string name = "unknown";
+      bool hybrid_key_exchange = false;
+    };
+
+    inline NegotiatedGroup get_negotiated_group(SSL* ssl)
+    {
+      NegotiatedGroup group;
+      const auto group_id = SSL_get_negotiated_group(ssl);
+      const auto* group_name = SSL_group_to_name(ssl, group_id);
+      if (group_name != nullptr)
+      {
+        group.name = group_name;
+      }
+      else if (group_id != NID_undef)
+      {
+        group.name = std::to_string(group_id);
+      }
+      group.hybrid_key_exchange =
+        group.name.find("MLKEM") != std::string::npos;
+      return group;
+    }
+
     inline std::optional<SocketOptionError> configure_tcp_connection(int fd)
     {
       const auto set_option = [fd](
@@ -701,23 +725,13 @@ namespace ccf::tls
           }
           X509_free(cert);
         }
-        const auto group_id = SSL_get_negotiated_group(c.ssl);
-        const auto* group_name = SSL_group_to_name(c.ssl, group_id);
-        auto negotiated_group = std::string("unknown");
-        if (group_name != nullptr)
-        {
-          negotiated_group = group_name;
-        }
-        else if (group_id != NID_undef)
-        {
-          negotiated_group = std::to_string(group_id);
-        }
+        const auto negotiated_group = details::get_negotiated_group(c.ssl);
         LOG_INFO_FMT(
           "TLS handshake completed: connection_id={}, negotiated_group={}, "
           "hybrid_key_exchange={}",
           c.id,
-          negotiated_group,
-          negotiated_group.find("MLKEM") != std::string::npos);
+          negotiated_group.name,
+          negotiated_group.hybrid_key_exchange);
         return do_read(c, more_to_read) && do_write(c);
       }
 
