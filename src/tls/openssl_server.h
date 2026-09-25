@@ -57,28 +57,26 @@ namespace ccf::tls
       int error = 0;
     };
 
-    struct NegotiatedGroup
+    inline std::string get_negotiated_group(SSL* ssl)
     {
-      std::string name = "unknown";
-      bool hybrid_key_exchange = false;
-    };
+      if (SSL_is_init_finished(ssl) != 1)
+      {
+        return "unknown";
+      }
 
-    inline NegotiatedGroup get_negotiated_group(SSL* ssl)
-    {
-      NegotiatedGroup group;
       const auto group_id = SSL_get_negotiated_group(ssl);
+      if (group_id == NID_undef)
+      {
+        return "unknown";
+      }
+
       const auto* group_name = SSL_group_to_name(ssl, group_id);
       if (group_name != nullptr)
       {
-        group.name = group_name;
+        return group_name;
       }
-      else if (group_id != NID_undef)
-      {
-        group.name = std::to_string(group_id);
-      }
-      group.hybrid_key_exchange =
-        group.name.find("MLKEM") != std::string::npos;
-      return group;
+
+      return std::to_string(group_id);
     }
 
     inline std::optional<SocketOptionError> configure_tcp_connection(int fd)
@@ -725,13 +723,12 @@ namespace ccf::tls
           }
           X509_free(cert);
         }
-        const auto negotiated_group = details::get_negotiated_group(c.ssl);
+        // Only completed handshakes reach this point. Ready connections do
+        // not re-enter do_handshake(), so retries cannot duplicate this event.
         LOG_INFO_FMT(
-          "TLS handshake completed: connection_id={}, negotiated_group={}, "
-          "hybrid_key_exchange={}",
+          "TLS handshake completed: connection_id={}, negotiated_group={}",
           c.id,
-          negotiated_group.name,
-          negotiated_group.hybrid_key_exchange);
+          details::get_negotiated_group(c.ssl));
         return do_read(c, more_to_read) && do_write(c);
       }
 
