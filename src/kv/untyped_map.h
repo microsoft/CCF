@@ -717,9 +717,8 @@ namespace ccf::kv::untyped
       {
         if (current->version <= version)
         {
-          // Only the deletes need to be copied for a diff: MapDiff
-          // reconstructs the puts from the state, where they are the entries
-          // written at current->version, and only consults writes for deletes.
+          // Only deletes are copied: MapDiff reconstructs puts from the state
+          // (see untyped_map_diff.cpp).
           ccf::kv::untyped::Write writes;
           if (track_deletes_on_missing_keys)
           {

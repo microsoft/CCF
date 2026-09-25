@@ -16,12 +16,8 @@ namespace ccf::kv::untyped
   struct ChangeSet;
 
   /** Read-only view of the changes made to a single map by the transaction
-   * which committed at a given version.
-   *
-   * The diff is reconstructed from a change set created for it (see
-   * ccf::kv::TxDiff): puts are the entries of the state which were written at
-   * the change set's start version, and deletes are the keys listed in the
-   * change set's writes. Nothing else is copied out of the underlying map.
+   * which committed at a given version. See untyped_map_diff.cpp for how the
+   * diff is reconstructed from its change set.
    */
   class MapDiff : public ccf::kv::AbstractHandle
   {
