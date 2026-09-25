@@ -113,6 +113,7 @@ namespace ccf
         std::move(writer_factory),
         ccf_config.ledger_signatures.tx_count,
         ccf_config.ledger_signatures.delay.count_ms(),
+        enclave_config.tick_interval,
         ccf_config.ledger.chunk_size,
         ccf_config.ledger.max_transaction_size,
         ccf_config.consensus,

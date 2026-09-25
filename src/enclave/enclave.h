@@ -85,6 +85,7 @@ namespace ccf
       std::unique_ptr<oversized::WriterFactory> writer_factory_,
       size_t sig_tx_interval,
       size_t sig_ms_interval,
+      std::chrono::milliseconds tick_interval,
       size_t chunk_threshold,
       size_t max_transaction_size,
       const ccf::consensus::Configuration& consensus_config,
@@ -183,6 +184,7 @@ namespace ccf
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
 
       LOG_TRACE_FMT("Initialize node");
+      auto& job_board = ccf::tasks::get_main_job_board();
       node->initialize(
         consensus_config,
         rpc_map,
@@ -190,7 +192,11 @@ namespace ccf
         commit_callbacks,
         signature_cache,
         sig_tx_interval,
-        sig_ms_interval);
+        sig_ms_interval,
+        job_board,
+        tick_interval);
+
+      historical_state_cache->start_periodic_tick(job_board, tick_interval);
     }
 
     ~Enclave()
@@ -396,18 +402,6 @@ namespace ccf
               {
                 indexer->update_strategies(elapsed_ms, committed.value());
               }
-              historical_state_cache->tick(elapsed_ms);
-              ccf::tasks::tick(elapsed_ms);
-              // When recovering, no signature should be emitted while the
-              // public ledger is being read
-              if (!node->is_reading_public_ledger())
-              {
-                for (auto& [actor, frontend] : rpc_map->frontends())
-                {
-                  frontend->tick(elapsed_ms);
-                }
-              }
-              node->tick_end();
             }
           });
 

@@ -580,6 +580,43 @@ TEST_CASE("Frontend opens atomically")
   REQUIRE(registry.tick_count.load() == 1);
 }
 
+TEST_CASE("Frontend owns its periodic tick")
+{
+  using namespace std::chrono_literals;
+
+  NetworkState network;
+  prepare_callers(network);
+  ccf::StubNodeContext context;
+  std::latch init_started(1);
+  std::latch continue_init(1);
+  BlockingUserEndpointRegistry registry(context, init_started, continue_init);
+  auto frontend =
+    std::make_shared<RpcFrontend>(*network.tables, registry, context);
+  ccf::tasks::JobBoard job_board;
+
+  frontend->start_periodic_tick(job_board, 1ms);
+  job_board.tick(1ms);
+  auto tick = job_board.get_task();
+  REQUIRE(tick != nullptr);
+  tick->do_task();
+  REQUIRE(registry.tick_count.load() == 0);
+
+  std::thread opener([frontend]() { frontend->open(); });
+  init_started.wait();
+  continue_init.count_down();
+  opener.join();
+
+  job_board.tick(1ms);
+  tick = job_board.get_task();
+  REQUIRE(tick != nullptr);
+  tick->do_task();
+  REQUIRE(registry.tick_count.load() == 1);
+
+  frontend.reset();
+  job_board.tick(1ms);
+  REQUIRE(job_board.get_task() == nullptr);
+}
+
 TEST_CASE("Frontend state publication is thread-safe")
 {
   NetworkState network;

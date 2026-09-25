@@ -40,6 +40,7 @@
 #include "pal/quote_generation.h"
 #include "runtime_control.h"
 #include "sig_term.h"
+#include "task_ticker.h"
 #include "tcp.h"
 #include "ticker.h"
 
@@ -576,6 +577,8 @@ namespace ccf
     WriterFactories factories(circuit, enclave_config.writer_config);
     auto& writer_factory = factories.writer_factory;
 
+    const asynchost::TaskTicker task_ticker(config.tick_interval);
+
     // provide regular ticks to the enclave
     const asynchost::Ticker ticker(config.tick_interval, writer_factory);
 
@@ -1095,6 +1098,8 @@ namespace ccf
 
     {
       EnclaveConfig enclave_config;
+      enclave_config.tick_interval =
+        std::chrono::milliseconds(config.tick_interval);
       enclave_config.to_enclave_buffer_start = to_enclave_def.data;
       enclave_config.to_enclave_buffer_size = to_enclave_def.size;
       enclave_config.to_enclave_buffer_offsets = &to_enclave_offsets;

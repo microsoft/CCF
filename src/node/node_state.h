@@ -63,6 +63,7 @@
 #include "share_manager.h"
 #include "snapshots/fetch.h"
 #include "snapshots/filenames.h"
+#include "tasks/job_board.h"
 #include "uvm_endorsements.h"
 
 #include <arpa/inet.h>
@@ -844,7 +845,9 @@ namespace ccf
       std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks_,
       std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache_,
       size_t sig_tx_interval_,
-      size_t sig_ms_interval_)
+      size_t sig_ms_interval_,
+      ccf::tasks::JobBoard& job_board_,
+      std::chrono::milliseconds tick_interval_)
     {
       std::lock_guard<ds::Mutex> guard(lock);
       sm.expect(NodeStartupState::uninitialized);
@@ -869,6 +872,7 @@ namespace ccf
       {
         fe->set_sig_intervals(sig_tx_interval, sig_ms_interval);
         fe->set_cmd_forwarder(cmd_forwarder);
+        fe->start_periodic_tick(job_board_, tick_interval_);
       }
     }
 
@@ -2661,19 +2665,6 @@ namespace ccf
       consensus->periodic(elapsed);
 
       n2n_channels->tick(elapsed);
-    }
-
-    void tick_end()
-    {
-      if (
-        !sm.check(NodeStartupState::partOfNetwork) &&
-        !sm.check(NodeStartupState::partOfPublicNetwork) &&
-        !sm.check(NodeStartupState::readingPrivateLedger))
-      {
-        return;
-      }
-
-      consensus->periodic_end();
     }
 
     void stop_notice() override
