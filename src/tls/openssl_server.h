@@ -9,6 +9,7 @@
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/pem.h"
+#include "ccf/ds/locking.h"
 #include "ds/internal_logger.h"
 #include "tasks/ordered_tasks.h"
 #include "tasks/task_system.h"
@@ -27,7 +28,6 @@
 #include <fcntl.h>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -329,7 +329,7 @@ namespace ccf::tls
     // Node-wide inbound budget, shared with every other interface's transport.
     // Null disables the gate.
     std::shared_ptr<InboundAdmission> inbound_admission;
-    std::optional<size_t> admission_token;
+    std::optional<size_t> admission_token CCF_GUARDED_BY(lifecycle_mutex);
 
     [[nodiscard]] bool inbound_saturated() const
     {
@@ -350,8 +350,8 @@ namespace ccf::tls
 
     // Cross-thread outbound queue: send()/close_connection() append here from
     // any thread and wake the loop, which drains it on the libuv thread.
-    std::vector<OutItem> pending_out;
-    std::vector<DriveResult> completed_drives;
+    std::vector<OutItem> pending_out CCF_GUARDED_BY(out_mutex);
+    std::vector<DriveResult> completed_drives CCF_GUARDED_BY(out_mutex);
     // Loop-owned connections affected by commands or worker completions.
     std::vector<std::shared_ptr<Conn>> dirty_connections;
     // Remember resumption even if saturation clears between loop passes.
@@ -359,7 +359,8 @@ namespace ccf::tls
 
     // Cross-thread server-cert (re)load requests (deferred cert / rotation),
     // applied on the loop thread so `ctx` is only ever touched there.
-    std::vector<std::pair<std::string, std::string>> pending_certs;
+    std::vector<std::pair<std::string, std::string>> pending_certs
+      CCF_GUARDED_BY(out_mutex);
 
     // ALPN protocol advertised by the server (wire format, length-prefixed),
     // e.g. "\x02h2" or "\x08http/1.1". Empty disables ALPN.
@@ -368,13 +369,14 @@ namespace ccf::tls
     OnClose on_close;
     OnAccept on_accept;
 
-    std::mutex out_mutex;
-    std::mutex lifecycle_mutex;
-    std::condition_variable teardown_cv;
+    ccf::ds::Mutex out_mutex;
+    // Notifications share handle lifetime protection; teardown is exclusive.
+    ccf::ds::SharedMutex lifecycle_mutex;
+    std::condition_variable_any teardown_cv;
     std::unordered_map<int, std::shared_ptr<Conn>> conns;
     std::unordered_map<::tcp::ConnID, int> id_to_fd;
     // Owned by the loop once closed - see new_handle()/close_handle().
-    uv_async_t* wake_handle = nullptr;
+    uv_async_t* wake_handle CCF_GUARDED_BY(lifecycle_mutex) = nullptr;
     uv_timer_t* idle_timer = nullptr;
     uv_poll_t* listen_poll = nullptr;
     int listen_fd = -1;
@@ -386,13 +388,19 @@ namespace ccf::tls
     bool listening = false;
     // Plaintext (UNSECURED) interface: no TLS, raw socket I/O.
     bool plaintext = false;
-    bool started = false;
-    bool stopping = false;
+    bool started CCF_GUARDED_BY(lifecycle_mutex) = false;
+    // Writes require lifecycle_mutex; wake() can read before taking the lock.
+    std::atomic<bool> stopping{false};
     // Set once the teardown has run: every connection dropped, every handle
     // handed to uv_close(), and the listening socket closed. The handles may
     // not have been reclaimed by the loop yet, but nothing here refers to
     // them any more, so the server is safe to destroy.
-    bool torn_down = false;
+    bool torn_down CCF_GUARDED_BY(lifecycle_mutex) = false;
+
+    void set_stopping(bool value) CCF_REQUIRES(lifecycle_mutex)
+    {
+      stopping.store(value, std::memory_order_release);
+    }
 
     // Describe a failed SSL operation. SSL_get_error() only gives the
     // category: for SSL_ERROR_SSL the detail is in the (thread-local) error
@@ -917,9 +925,10 @@ namespace ccf::tls
 
     void complete_drive(
       std::shared_ptr<Conn> conn, bool alive, bool more_to_read)
+      CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
       {
-        std::lock_guard<std::mutex> guard(out_mutex);
+        ccf::ds::MutexGuard guard(out_mutex);
         completed_drives.push_back(
           {std::move(conn),
            alive,
@@ -929,11 +938,8 @@ namespace ccf::tls
       // Unlike wake(), this must signal even while stopping: shutdown only
       // completes once the loop has observed every outstanding completion and
       // closed the corresponding connection.
-      std::lock_guard<std::mutex> guard(lifecycle_mutex);
-      if (wake_handle != nullptr)
-      {
-        (void)uv_async_send(wake_handle);
-      }
+      ccf::ds::SharedMutexReadGuard guard(lifecycle_mutex);
+      notify_loop();
     }
 
     void drive_connection(std::shared_ptr<Conn> conn, DriveInput input)
@@ -1258,12 +1264,24 @@ namespace ccf::tls
       self->on_conn_event(conn->fd, events);
     }
 
-    void wake()
+    void notify_loop() CCF_REQUIRES_SHARED(lifecycle_mutex)
     {
-      std::lock_guard<std::mutex> guard(lifecycle_mutex);
-      if (wake_handle != nullptr && !stopping)
+      if (wake_handle != nullptr)
       {
         (void)uv_async_send(wake_handle);
+      }
+    }
+
+    void wake() CCF_EXCLUDES(lifecycle_mutex)
+    {
+      if (stopping.load(std::memory_order_acquire))
+      {
+        return;
+      }
+      ccf::ds::SharedMutexReadGuard guard(lifecycle_mutex);
+      if (!stopping.load(std::memory_order_relaxed))
+      {
+        notify_loop();
       }
     }
 
@@ -1301,7 +1319,7 @@ namespace ccf::tls
     }
 
     // Apply worker completions and cross-thread commands on the libuv thread.
-    void drain_pending_out()
+    void drain_pending_out() CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
       const bool recheck_all =
         recheck_read_interest.exchange(false, std::memory_order_acq_rel);
@@ -1309,7 +1327,7 @@ namespace ccf::tls
       std::vector<DriveResult> completions;
       std::vector<std::pair<std::string, std::string>> certs;
       {
-        std::lock_guard<std::mutex> g(out_mutex);
+        ccf::ds::MutexGuard g(out_mutex);
         std::swap(items, pending_out);
         std::swap(completions, completed_drives);
         std::swap(certs, pending_certs);
@@ -1444,8 +1462,8 @@ namespace ccf::tls
 
       bool shutting_down = false;
       {
-        std::lock_guard<std::mutex> guard(lifecycle_mutex);
-        shutting_down = stopping && !torn_down;
+        ccf::ds::SharedMutexReadGuard guard(lifecycle_mutex);
+        shutting_down = stopping.load(std::memory_order_relaxed) && !torn_down;
       }
       if (shutting_down)
       {
@@ -1513,6 +1531,15 @@ namespace ccf::tls
       self->sweep_idle();
     }
 
+    void finish_teardown() CCF_REQUIRES(lifecycle_mutex)
+    {
+      auto* wake = wake_handle;
+      wake_handle = nullptr;
+      close_handle(wake);
+      torn_down = true;
+      teardown_cv.notify_all();
+    }
+
     // Begin, or resume, shutdown on the loop thread.
     //
     // The listener closes immediately and every live connection is marked for
@@ -1530,15 +1557,15 @@ namespace ccf::tls
     // (see new_handle()), so once torn_down is set nothing refers to them any
     // more and the server is safe to destroy, whether or not the loop ever
     // runs again.
-    void tear_down_on_loop()
+    void tear_down_on_loop() CCF_EXCLUDES(lifecycle_mutex)
     {
       {
-        std::lock_guard<std::mutex> guard(lifecycle_mutex);
+        ccf::ds::SharedMutexExclusiveGuard guard(lifecycle_mutex);
         if (torn_down)
         {
           return;
         }
-        stopping = true;
+        set_stopping(true);
       }
 
       if (listen_poll != nullptr)
@@ -1583,13 +1610,8 @@ namespace ccf::tls
         // complete_drive() consult it from other threads. Clearing it before
         // the uv_close() means no other thread can observe the handle as
         // usable once it is closing.
-        std::lock_guard<std::mutex> guard(lifecycle_mutex);
-        auto* wake = wake_handle;
-        wake_handle = nullptr;
-        close_handle(wake);
-
-        torn_down = true;
-        teardown_cv.notify_all();
+        ccf::ds::SharedMutexExclusiveGuard guard(lifecycle_mutex);
+        finish_teardown();
       }
     }
 
@@ -1597,13 +1619,13 @@ namespace ccf::tls
     // server's own queues need servicing - no libuv work is required, and no
     // other thread can be inside the loop - so this never runs the loop
     // itself.
-    void tear_down_without_loop()
+    void tear_down_without_loop() CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
       for (;;)
       {
         tear_down_on_loop();
         {
-          std::lock_guard<std::mutex> guard(lifecycle_mutex);
+          ccf::ds::SharedMutexExclusiveGuard guard(lifecycle_mutex);
           if (torn_down)
           {
             return;
@@ -1761,9 +1783,9 @@ namespace ccf::tls
       return bound_port;
     }
 
-    void start()
+    void start() CCF_EXCLUDES(lifecycle_mutex)
     {
-      std::lock_guard<std::mutex> guard(lifecycle_mutex);
+      ccf::ds::SharedMutexExclusiveGuard guard(lifecycle_mutex);
       if (started)
       {
         return;
@@ -1774,7 +1796,7 @@ namespace ccf::tls
       // registered with the loop and must be closed, and stop() is a no-op
       // unless `started` is set.
       torn_down = false;
-      stopping = false;
+      set_stopping(false);
       started = true;
       listening = false;
 
@@ -1862,8 +1884,9 @@ namespace ccf::tls
     // without waiting: the handles own themselves, so their close callbacks
     // simply never run.
     void stop(LoopState loop_state = LoopState::NotRunning)
+      CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
-      std::unique_lock<std::mutex> lock(lifecycle_mutex);
+      ccf::ds::SharedMutexExclusiveGuard lock(lifecycle_mutex);
       if (!started || torn_down)
       {
         return;
@@ -1882,15 +1905,12 @@ namespace ccf::tls
         return;
       }
 
-      if (!stopping)
+      if (!stopping.load(std::memory_order_relaxed))
       {
-        stopping = true;
+        set_stopping(true);
         // tear_down_on_loop() clears wake_handle under this same lock before
         // closing it, so this cannot signal a handle which is already closing.
-        if (wake_handle != nullptr)
-        {
-          (void)uv_async_send(wake_handle);
-        }
+        notify_loop();
       }
 
       // The loop performs the teardown. Keep servicing the task board while
@@ -1917,9 +1937,10 @@ namespace ccf::tls
     // The buffer is taken rather than copied, so a response of any size crosses
     // this boundary without another allocation.
     void send(::tcp::ConnID conn_id, std::vector<uint8_t>&& data)
+      CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
       {
-        std::lock_guard<std::mutex> g(out_mutex);
+        ccf::ds::MutexGuard g(out_mutex);
         pending_out.push_back({conn_id, std::move(data), false});
       }
       wake();
@@ -1928,15 +1949,17 @@ namespace ccf::tls
     // Thread-safe. Queue a copy of plaintext to be encrypted and written to
     // `conn_id`.
     void send(::tcp::ConnID conn_id, const uint8_t* data, size_t len)
+      CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
       send(conn_id, std::vector<uint8_t>(data, data + len));
     }
 
     // Thread-safe. Request that `conn_id` be torn down.
     void close_connection(::tcp::ConnID conn_id)
+      CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
       {
-        std::lock_guard<std::mutex> g(out_mutex);
+        ccf::ds::MutexGuard g(out_mutex);
         pending_out.push_back({conn_id, {}, true});
       }
       wake();
@@ -1947,9 +1970,10 @@ namespace ccf::tls
     // to connections accepted after it takes effect on the loop thread.
     void set_server_cert(
       const std::string& cert_pem, const std::string& key_pem)
+      CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
       {
-        std::lock_guard<std::mutex> g(out_mutex);
+        ccf::ds::MutexGuard g(out_mutex);
         pending_certs.emplace_back(cert_pem, key_pem);
       }
       wake();
