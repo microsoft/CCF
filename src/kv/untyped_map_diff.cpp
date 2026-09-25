@@ -9,9 +9,9 @@
 namespace ccf::kv::untyped
 {
   // A change set created for a diff (see Map::create_change_set) holds the
-  // state as of its start version, and lists in writes the keys deleted by the
-  // commit at that version. Puts are the entries of the state whose version is
-  // the start version, so writes are only ever consulted for deletes.
+  // state as of its start version, and its writes contain exactly the keys
+  // deleted by the commit at that version, all mapped to nullopt. Puts are the
+  // entries of the state whose version is the start version.
 
   namespace
   {
@@ -32,14 +32,9 @@ namespace ccf::kv::untyped
 
   void MapDiff::foreach_(const MapDiff::ElementVisitorWithEarlyOut& f)
   {
-    for (const auto& [key, maybe_value] : change_set.writes)
+    for (const auto& [key, deleted] : change_set.writes)
     {
-      if (maybe_value.has_value())
-      {
-        continue;
-      }
-
-      if (!f(key, maybe_value))
+      if (!f(key, deleted))
       {
         return;
       }
@@ -68,8 +63,7 @@ namespace ccf::kv::untyped
   {
     using MaybeValue = std::optional<ValueType>;
 
-    const auto write = change_set.writes.find(key);
-    if (write != change_set.writes.end() && !write->second.has_value())
+    if (change_set.writes.contains(key))
     {
       LOG_TRACE_FMT("KV[{}]::get({}) - deleted", map_name, key);
       return std::optional<MaybeValue>(std::in_place, std::nullopt);
@@ -98,9 +92,7 @@ namespace ccf::kv::untyped
 
   bool MapDiff::is_deleted(const MapDiff::KeyType& key)
   {
-    const auto write = change_set.writes.find(key);
-    const bool deleted =
-      write != change_set.writes.end() && !write->second.has_value();
+    const bool deleted = change_set.writes.contains(key);
 
     LOG_TRACE_FMT(
       "KV[{}]::deleted({}) - {}deleted", map_name, key, deleted ? "" : "not ");
