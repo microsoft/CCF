@@ -578,6 +578,7 @@ def test_recover_service(
     snapshots_dir=None,
     isolate_latest_snapshot=False,
     election_after_backups_recovered=False,
+    recovered_networks=None,
 ):
     if not from_snapshot and snapshots_dir is not None:
         raise ValueError("snapshots_dir requires from_snapshot=True")
@@ -619,6 +620,7 @@ def test_recover_service(
                 force_election=force_election,
                 snapshots_dir=isolated_snapshots_dir,
                 election_after_backups_recovered=election_after_backups_recovered,
+                recovered_networks=recovered_networks,
             )
 
     return _recover_service(
@@ -630,6 +632,7 @@ def test_recover_service(
         force_election=force_election,
         snapshots_dir=snapshots_dir,
         election_after_backups_recovered=election_after_backups_recovered,
+        recovered_networks=recovered_networks,
     )
 
 
@@ -658,6 +661,7 @@ def _recover_service(
     force_election=False,
     snapshots_dir=None,
     election_after_backups_recovered=False,
+    recovered_networks=None,
 ):
     network.save_service_identity(args)
     old_node_ids = {node.node_id for node in network.get_joined_nodes()}
@@ -718,6 +722,9 @@ def _recover_service(
             existing_network=network,
             node_data_json_file=node_data_tf.name,
         )
+        if recovered_networks is not None:
+            # Lets the caller clean up the recovered nodes, even if this fails
+            recovered_networks.append(recovered_network)
 
         with tempfile.NamedTemporaryFile(mode="w+") as ntf:
             service_data = {"this is a": "recovery service"}
@@ -2121,6 +2128,7 @@ def run_recovery_with_election(args, after_backups_recovered=False):
         return
 
     txs = app.LoggingTxs("user0")
+    recovered_networks = []
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -2129,21 +2137,31 @@ def run_recovery_with_election(args, after_backups_recovered=False):
         txs=txs,
     ) as network:
         network.start_and_open(args)
-        recovered_network = test_recover_service(
-            network,
-            args,
-            force_election=True,
-            election_after_backups_recovered=after_backups_recovered,
-        )
-        # Recovered nodes are a separate Network (not torn down by the context
-        # manager) and run with ignore_first_sigterm=True; SIGKILL them so they
-        # don't linger as orphans that ignore the first teardown SIGTERM. SIGKILL
-        # is asynchronous, so confirm each one is gone (which also reaps it).
-        for node in recovered_network.get_joined_nodes():
-            node.sigkill()
-            assert (
-                node.remote.check_done()
-            ), f"Recovered node {node.node_id} did not terminate after SIGKILL"
+        try:
+            test_recover_service(
+                network,
+                args,
+                force_election=True,
+                election_after_backups_recovered=after_backups_recovered,
+                recovered_networks=recovered_networks,
+            )
+        finally:
+            # Recovered nodes are a separate Network (not torn down by the
+            # context manager) and run with ignore_first_sigterm=True; SIGKILL
+            # them, even if the test failed, so they don't linger as orphans
+            # that ignore the first teardown SIGTERM. SIGKILL is asynchronous,
+            # so confirm each one is gone (which also reaps it).
+            recovered_nodes = [
+                node
+                for recovered_network in recovered_networks
+                for node in recovered_network.get_joined_nodes()
+            ]
+            for node in recovered_nodes:
+                node.sigkill()
+            for node in recovered_nodes:
+                assert (
+                    node.remote.check_done()
+                ), f"Recovered node {node.node_id} did not terminate after SIGKILL"
         return network
 
 
