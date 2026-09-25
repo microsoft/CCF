@@ -322,27 +322,11 @@ namespace
     return v;
   }
 
-  std::string negotiated_group_name(SSL* ssl)
-  {
-    const auto group_id = SSL_get_negotiated_group(ssl);
-    if (group_id == NID_undef)
-    {
-      return {};
-    }
-
-    const auto* group_name = SSL_group_to_name(ssl, group_id);
-    if (group_name != nullptr)
-    {
-      return group_name;
-    }
-
-    return std::to_string(group_id);
-  }
-
   struct HandshakeResult
   {
     bool succeeded = false;
     std::string group;
+    bool hybrid_key_exchange = false;
     std::string cipher;
   };
 
@@ -385,7 +369,10 @@ namespace
     result.succeeded = SSL_connect(ssl) == 1;
     if (result.succeeded)
     {
-      result.group = negotiated_group_name(ssl);
+      const auto negotiated_group =
+        ccf::tls::details::get_negotiated_group(ssl);
+      result.group = negotiated_group.name;
+      result.hybrid_key_exchange = negotiated_group.hybrid_key_exchange;
       const auto* cipher = SSL_get_current_cipher(ssl);
       if (cipher != nullptr)
       {
@@ -2314,6 +2301,7 @@ TEST_CASE("Server restricts key exchange groups to the configured list")
     const auto r = handshake_and_inspect(s.port(), "P-256");
     REQUIRE(r.succeeded);
     REQUIRE(r.group == "secp256r1");
+    REQUIRE_FALSE(r.hybrid_key_exchange);
   }
 
   SUBCASE("the client order decides among approved groups")
@@ -2337,6 +2325,7 @@ TEST_CASE("Server restricts key exchange groups to the configured list")
     const auto r = handshake_and_inspect(s.port(), "X448:P-384");
     REQUIRE(r.succeeded);
     REQUIRE(r.group == "secp384r1");
+    REQUIRE_FALSE(r.hybrid_key_exchange);
   }
 }
 
@@ -2357,6 +2346,7 @@ TEST_CASE("Server prefers the strongest hybrid post-quantum group")
       "SecP384r1MLKEM1024:SecP256r1MLKEM768:X25519MLKEM768:P-521:P-384:P-256");
     REQUIRE(r.succeeded);
     REQUIRE(r.group == "SecP384r1MLKEM1024");
+    REQUIRE(r.hybrid_key_exchange);
   }
 
   SUBCASE("each configured hybrid group can be negotiated")
@@ -2367,6 +2357,7 @@ TEST_CASE("Server prefers the strongest hybrid post-quantum group")
       const auto r = handshake_and_inspect(s.port(), group);
       REQUIRE(r.succeeded);
       REQUIRE(r.group == group);
+      REQUIRE(r.hybrid_key_exchange);
     }
   }
 }
