@@ -13,15 +13,21 @@ namespace ccf::kv::untyped
   // commit at that version. Puts are the entries of the state whose version is
   // the start version, so writes are only ever consulted for deletes.
 
-  const MapDiff::ValueType* MapDiff::written_value(const MapDiff::KeyType& key)
+  namespace
   {
-    const auto* const search = change_set.state.getp(key);
-    if (search == nullptr || search->version != change_set.start_version)
+    // Returns the value written at the change set's start version if key was
+    // put by that commit, else nullptr. The pointer is owned by change_set.
+    const MapDiff::ValueType* written_value(
+      const ChangeSet& change_set, const MapDiff::KeyType& key)
     {
-      return nullptr;
-    }
+      const auto* const search = change_set.state.getp(key);
+      if (search == nullptr || search->version != change_set.start_version)
+      {
+        return nullptr;
+      }
 
-    return &search->value;
+      return &search->value;
+    }
   }
 
   void MapDiff::foreach_(const MapDiff::ElementVisitorWithEarlyOut& f)
@@ -69,7 +75,7 @@ namespace ccf::kv::untyped
       return std::optional<MaybeValue>(std::in_place, std::nullopt);
     }
 
-    const auto* value_p = written_value(key);
+    const auto* value_p = written_value(change_set, key);
     if (value_p != nullptr)
     {
       LOG_TRACE_FMT("KV[{}]::get({}) - found", map_name, key);
@@ -83,7 +89,7 @@ namespace ccf::kv::untyped
 
   bool MapDiff::has(const MapDiff::KeyType& key)
   {
-    const bool found = written_value(key) != nullptr;
+    const bool found = written_value(change_set, key) != nullptr;
 
     LOG_TRACE_FMT(
       "KV[{}]::has({}) - {}found", map_name, key, found ? "" : "not ");

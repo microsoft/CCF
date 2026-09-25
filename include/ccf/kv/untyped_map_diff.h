@@ -39,12 +39,6 @@ namespace ccf::kv::untyped
     ccf::kv::untyped::ChangeSet& change_set;
     std::string map_name;
 
-    /** Get pointer to the value written at this diff's version if this key was
-     * written, else nullptr if it was deleted or not written. If non-null,
-     * points to something owned by change_set.
-     */
-    const ValueType* written_value(const KeyType& key);
-
     void foreach_(const ElementVisitorWithEarlyOut& fn);
 
   public:
