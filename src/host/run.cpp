@@ -8,8 +8,7 @@
 #include "ccf/ds/logger_level.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/ds/unit_strings.h"
-#include "ccf/ds/x509_time_fmt.h"
-#include "ccf/node/startup_config.h"
+#include "ccf/node/configuration.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/platform.h"
@@ -20,7 +19,6 @@
 #include "common/configuration.h"
 #include "common/enclave_interface_types.h"
 #include "config_schema.h"
-#include "configuration.h"
 #include "consensus/ledger_enclave_types.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
@@ -31,7 +29,6 @@
 #include "ds/time_bound_logger.h"
 #include "enclave/entry_points.h"
 #include "handle_ring_buffer.h"
-#include "host/env.h"
 #include "host/files_cleanup_timer.h"
 #include "host/ledger_subsystem.h"
 #include "http_client/curl.h"
@@ -93,7 +90,7 @@ static constexpr size_t retry_interval_ms = 100;
 
 namespace ccf
 {
-  void validate_ledger_transaction_size(const host::HostConfig& config)
+  void validate_ledger_transaction_size(const ccf::CCFConfig& config)
   {
     const auto max_message_size = config.memory.max_msg_size.count_bytes();
     const auto max_transaction_size =
@@ -115,7 +112,7 @@ namespace ccf
     }
   }
 
-  void validate_and_coerce_worker_threads(host::HostConfig& config)
+  void validate_and_coerce_worker_threads(ccf::CCFConfig& config)
   {
     // Replace the task execution capacity of the dispatch thread, which no
     // longer executes tasks itself, without requiring configuration changes.
@@ -128,7 +125,7 @@ namespace ccf
     ++config.worker_threads;
   }
 
-  void validate_and_adjust_recovery_threshold(host::HostConfig& config)
+  void validate_and_adjust_recovery_threshold(ccf::CCFConfig& config)
   {
     if (config.command.type != StartType::Start)
     {
@@ -222,209 +219,11 @@ namespace ccf
     {}
   };
 
-  void configure_snp_attestation(ccf::StartupConfig& startup_config)
-  {
-    if (ccf::pal::platform != ccf::pal::Platform::SNP)
-    {
-      return;
-    }
-
-    if (startup_config.attestation.snp_security_policy_file.has_value())
-    {
-      auto security_policy_file =
-        startup_config.attestation.snp_security_policy_file.value();
-      LOG_DEBUG_FMT(
-        "Resolving snp_security_policy_file: {}", security_policy_file);
-      security_policy_file =
-        ccf::env::expand_envvars_in_path(security_policy_file);
-      LOG_DEBUG_FMT(
-        "Resolved snp_security_policy_file: {}", security_policy_file);
-
-      startup_config.attestation.environment.security_policy =
-        files::try_slurp_string(security_policy_file);
-      if (!startup_config.attestation.environment.security_policy.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Could not read snp_security_policy from {}", security_policy_file);
-      }
-    }
-
-    if (startup_config.attestation.snp_uvm_endorsements_file.has_value())
-    {
-      auto snp_uvm_endorsements_file =
-        startup_config.attestation.snp_uvm_endorsements_file.value();
-      LOG_DEBUG_FMT(
-        "Resolving snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
-      snp_uvm_endorsements_file =
-        ccf::env::expand_envvars_in_path(snp_uvm_endorsements_file);
-      LOG_DEBUG_FMT(
-        "Resolved snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
-
-      startup_config.attestation.environment.uvm_endorsements =
-        files::try_slurp_string(snp_uvm_endorsements_file);
-      if (!startup_config.attestation.environment.uvm_endorsements.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Could not read snp_uvm_endorsements from {}",
-          snp_uvm_endorsements_file);
-      }
-    }
-
-    for (auto& server : startup_config.attestation.snp_endorsements_servers)
-    {
-      auto& url = server.url;
-      if (url.has_value())
-      {
-        LOG_DEBUG_FMT("Resolving snp_endorsements_server url: {}", url.value());
-        auto pos = url->find(':');
-        if (pos == std::string::npos)
-        {
-          url = ccf::env::expand_envvar(url.value());
-        }
-        else
-        {
-          url = fmt::format(
-            "{}:{}",
-            ccf::env::expand_envvar(url->substr(0, pos)),
-            ccf::env::expand_envvar(url->substr(pos + 1)));
-        }
-        LOG_DEBUG_FMT("Resolved snp_endorsements_server url: {}", url.value());
-      }
-    }
-
-    if (startup_config.attestation.snp_endorsements_file.has_value())
-    {
-      auto snp_endorsements_file =
-        startup_config.attestation.snp_endorsements_file.value();
-      LOG_DEBUG_FMT(
-        "Resolving snp_endorsements_file: {}", snp_endorsements_file);
-      snp_endorsements_file =
-        ccf::env::expand_envvars_in_path(snp_endorsements_file);
-      LOG_DEBUG_FMT(
-        "Resolved snp_endorsements_file: {}", snp_endorsements_file);
-
-      startup_config.attestation.environment.snp_endorsements =
-        files::try_slurp_string(snp_endorsements_file);
-
-      if (!startup_config.attestation.environment.snp_endorsements.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Could not read snp_endorsements from {}", snp_endorsements_file);
-      }
-    }
-  }
-
-  void populate_config_for_start(
-    const host::HostConfig& config, ccf::StartupConfig& startup_config)
-  {
-    for (auto const& member : config.command.start.members)
-    {
-      std::optional<ccf::crypto::Pem> public_encryption_key = std::nullopt;
-      std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
-      if (
-        member.encryption_public_key_file.has_value() &&
-        !member.encryption_public_key_file.value().empty())
-      {
-        public_encryption_key = ccf::crypto::Pem(
-          files::slurp(member.encryption_public_key_file.value()));
-        recovery_role = member.recovery_role;
-      }
-
-      nlohmann::json member_data = nullptr;
-      if (
-        member.data_json_file.has_value() &&
-        !member.data_json_file.value().empty())
-      {
-        member_data =
-          nlohmann::json::parse(files::slurp(member.data_json_file.value()));
-      }
-
-      startup_config.start.members.emplace_back(
-        ccf::crypto::Pem(files::slurp(member.certificate_file)),
-        public_encryption_key,
-        member_data,
-        recovery_role);
-    }
-
-    startup_config.start.constitution = "";
-    for (const auto& constitution_path :
-         config.command.start.constitution_files)
-    {
-      // Separate with single newlines
-      if (!startup_config.start.constitution.empty())
-      {
-        startup_config.start.constitution += '\n';
-      }
-
-      startup_config.start.constitution +=
-        files::slurp_string(constitution_path);
-    }
-
-    startup_config.start.service_configuration =
-      config.command.start.service_configuration;
-    startup_config.start.service_configuration.recovery_threshold =
-      config.command.start.service_configuration.recovery_threshold;
-    startup_config.initial_service_certificate_validity_days =
-      config.command.start.initial_service_certificate_validity_days;
-    startup_config.service_subject_name =
-      config.command.start.service_subject_name;
-    startup_config.cose_signatures = config.command.start.cose_signatures;
-
-    LOG_INFO_FMT(
-      "Creating new node: new network (with {} initial member(s) and {} "
-      "member(s) required for recovery)",
-      config.command.start.members.size(),
-      config.command.start.service_configuration.recovery_threshold);
-  }
-
-  void populate_config_for_join(
-    const host::HostConfig& config, ccf::StartupConfig& startup_config)
-  {
-    LOG_INFO_FMT(
-      "Creating new node - join existing network at {}",
-      config.command.join.target_rpc_address);
-    startup_config.join.target_rpc_address =
-      config.command.join.target_rpc_address;
-    startup_config.join.retry_timeout = config.command.join.retry_timeout;
-    startup_config.join.service_cert =
-      files::slurp(config.command.service_certificate_file);
-    startup_config.join.follow_redirect = config.command.join.follow_redirect;
-    startup_config.join.fetch_recent_snapshot =
-      config.command.join.fetch_recent_snapshot;
-    startup_config.join.fetch_snapshot_max_attempts =
-      config.command.join.fetch_snapshot_max_attempts;
-    startup_config.join.fetch_snapshot_retry_interval =
-      config.command.join.fetch_snapshot_retry_interval;
-    startup_config.join.fetch_snapshot_max_size =
-      config.command.join.fetch_snapshot_max_size;
-    startup_config.join.host_data_transparent_statement_path =
-      config.command.join.host_data_transparent_statement_path;
-  }
-
-  void populate_config_for_recover(
-    const host::HostConfig& config, ccf::StartupConfig& startup_config)
-  {
-    LOG_INFO_FMT("Creating new node - recover");
-    startup_config.initial_service_certificate_validity_days =
-      config.command.recover.initial_service_certificate_validity_days;
-    auto idf = config.command.recover.previous_service_identity_file;
-    if (!files::exists(idf))
-    {
-      throw std::logic_error(fmt::format(
-        "Recovery requires a previous service identity certificate; cannot "
-        "open '{}'",
-        idf));
-    }
-    LOG_INFO_FMT("Reading previous service identity from {}", idf);
-    startup_config.recover.previous_service_identity = files::slurp(idf);
-  }
-
   std::optional<size_t> create_enclave_node(
-    const host::HostConfig& config,
+    const ccf::CCFConfig& config,
     messaging::BufferProcessor& buffer_processor,
     ringbuffer::Circuit& circuit,
     EnclaveConfig& enclave_config,
-    ccf::StartupConfig& startup_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
     std::vector<uint8_t>& rpc_addresses,
@@ -447,7 +246,7 @@ namespace ccf
     std::thread flusher_thread(flush_outbound);
     auto create_status = enclave_create_node(
       enclave_config,
-      startup_config,
+      config,
       node_cert,
       service_cert,
       rpc_addresses,
@@ -493,7 +292,7 @@ namespace ccf
   }
 
   void write_certificates_to_disk(
-    const host::HostConfig& config,
+    const ccf::CCFConfig& config,
     const std::vector<uint8_t>& node_cert,
     const std::vector<uint8_t>& service_cert)
   {
@@ -515,7 +314,7 @@ namespace ccf
   }
 
   void run_enclave_threads(
-    const host::HostConfig& config,
+    const ccf::CCFConfig& config,
     asynchost::RuntimeControlImpl& runtime_control)
   {
     auto enclave_thread_start = [&](threading::ThreadID thread_id) {
@@ -566,7 +365,7 @@ namespace ccf
   }
 
   std::optional<size_t> run_main_loop(
-    host::HostConfig& config,
+    ccf::CCFConfig& config,
     messaging::BufferProcessor& buffer_processor,
     ringbuffer::Circuit& circuit,
     EnclaveConfig& enclave_config,
@@ -701,51 +500,9 @@ namespace ccf
     std::vector<uint8_t> service_cert(certificate_size);
     std::vector<uint8_t> rpc_addresses;
 
-    ccf::StartupConfig startup_config(config);
-
-    // Configure SNP attestation if on SNP platform
-    configure_snp_attestation(startup_config);
-
     if (ccf::pal::platform == ccf::pal::Platform::Virtual)
     {
       ccf::pal::emit_virtual_measurement();
-    }
-
-    if (config.node_data_json_file.has_value())
-    {
-      startup_config.node_data =
-        files::slurp_json(config.node_data_json_file.value());
-      LOG_TRACE_FMT("Read node_data: {}", startup_config.node_data.dump());
-    }
-
-    if (config.service_data_json_file.has_value())
-    {
-      if (
-        config.command.type == StartType::Start ||
-        config.command.type == StartType::Recover)
-      {
-        startup_config.service_data =
-          files::slurp_json(config.service_data_json_file.value());
-      }
-      else
-      {
-        LOG_FAIL_FMT(
-          "Service data is ignored for start type {}", config.command.type);
-      }
-    }
-
-    auto startup_host_time = std::chrono::system_clock::now();
-    LOG_INFO_FMT("Startup host time: {}", startup_host_time);
-
-    startup_config.startup_host_time =
-      ccf::ds::to_x509_time_string(startup_host_time);
-
-    startup_config.sealing_recovery = config.sealing_recovery;
-    if (config.sealing_recovery.has_value())
-    {
-      CCF_ASSERT_FMT(
-        ccf::pal::platform == ccf::pal::Platform::SNP,
-        "Sealing ledger secrets is only supported on SEV-SNP platforms");
     }
 
     // Configure startup based on command type
@@ -775,26 +532,14 @@ namespace ccf
           return static_cast<int>(CLI::ExitCodes::ValidationError);
         }
       }
-
-      populate_config_for_start(config, startup_config);
     }
-    else if (config.command.type == StartType::Join)
-    {
-      populate_config_for_join(config, startup_config);
-    }
-    else if (config.command.type == StartType::Recover)
-    {
-      populate_config_for_recover(config, startup_config);
-    }
-    else
+    else if (
+      config.command.type != StartType::Join &&
+      config.command.type != StartType::Recover)
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
-
-    // Used by GET /node/network/nodes/self to return rpc interfaces
-    // prior to the KV being updated
-    startup_config.network.rpc_interfaces = config.network.rpc_interfaces;
 
     // Create the enclave node. The read-only ledger view is installed as a
     // node subsystem, and is only valid while the ledger above is alive.
@@ -805,7 +550,6 @@ namespace ccf
       buffer_processor,
       circuit,
       enclave_config,
-      startup_config,
       node_cert,
       service_cert,
       rpc_addresses,
@@ -955,9 +699,9 @@ namespace ccf
         schema_error_msg.value()));
     }
 
-    host::HostConfig config = config_json;
+    ccf::CCFConfig config = config_json;
 
-    if (config.logging.format == host::LogFormat::JSON)
+    if (config.logging.format == ccf::LogFormat::JSON)
     {
       ccf::logger::config::add_json_console_logger();
     }

@@ -15,7 +15,7 @@
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "host/env.h"
+#include "node/env.h"
 #include "node/uvm_endorsements.h"
 #include "pal/quote_generation.h"
 

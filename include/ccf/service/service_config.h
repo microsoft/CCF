@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json.h"
 #include "ccf/service/consensus_type.h"
 #include "ccf/service/reconfiguration_type.h"
 
@@ -46,4 +47,13 @@ namespace ccf
     }
   };
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration);
+  DECLARE_JSON_REQUIRED_FIELDS(ServiceConfiguration, recovery_threshold);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    ServiceConfiguration,
+    consensus,
+    reconfiguration_type,
+    maximum_node_certificate_validity_days,
+    maximum_service_certificate_validity_days,
+    recent_cose_proposals_window_size);
 }
