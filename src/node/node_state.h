@@ -491,9 +491,11 @@ namespace ccf
     // private recovery as a backup. So from when this node begins private
     // recovery until it sees an opening commit, a node which has completed
     // private recovery also tries to open the service in each view in which it
-    // is primary (see tick()). Committed is final: global hooks run in table
-    // order, so the opening may be seen to commit before private recovery
-    // begins.
+    // is primary (see tick()). Committed is final, and may be set before
+    // private recovery begins, since global hooks run in table order. The
+    // service hook only acts on openings of this node's service identity,
+    // which is new on recovery, so the only opening a recovering node can see
+    // commit is the recovered service's.
     enum class RecoveredServiceOpening : uint8_t
     {
       NotRecovering,
