@@ -9,20 +9,26 @@ import dataclasses
 import math
 import os
 import subprocess
+import tempfile
+import time
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Any
 
 from loguru import logger as LOG
 
 import infra.bencher
 import infra.interfaces
-import infra.net
 import infra.network
 import infra.proc
 
 CSV_PREFIX = "locust"
 AGGREGATED_ROW_NAME = "Aggregated"
 RUN_TIME_MARGIN_S = 60
+STARTUP_TIMEOUT_S = 60
+SHUTDOWN_TIMEOUT_S = 10
+MASTER_HOST = "127.0.0.1"
+MASTER_READY_ENVIRONMENT_VARIABLE = "CCF_LOCUST_MASTER_READY"
 MIN_MEASURED_FRACTION = 0.9
 JWT_ENVIRONMENT_VARIABLE = "CCF_LOCUST_JWT"
 
@@ -85,7 +91,7 @@ def add_cli_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--locust-processes",
-        help="Number of Locust worker processes to fork",
+        help="Number of Locust workers (0 for local mode, -1 for one per CPU)",
         type=int,
         default=10,
     )
@@ -103,6 +109,39 @@ def locust_file_path(file_name: str) -> str:
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), file_name)
 
 
+def wait_for_master(process: subprocess.Popen, ready_path: Path) -> int:
+    deadline = time.monotonic() + STARTUP_TIMEOUT_S
+    while time.monotonic() < deadline:
+        exit_code = process.poll()
+        if exit_code is not None:
+            if exit_code != 0:
+                raise subprocess.CalledProcessError(exit_code, process.args)
+            raise RuntimeError("Locust master exited before publishing its bound port")
+        if ready_path.exists():
+            port = int(ready_path.read_text(encoding="ascii"))
+            if not 0 < port < 65536:
+                raise RuntimeError(f"Invalid Locust master port: {port}")
+            return port
+        time.sleep(0.05)
+    raise subprocess.TimeoutExpired(process.args, STARTUP_TIMEOUT_S)
+
+
+def stop_processes(processes: list[subprocess.Popen]) -> None:
+    # Signal every child before waiting, so cleanup is bounded for the whole run
+    # rather than paying a full grace period for each unresponsive worker.
+    for process in processes:
+        if process.poll() is None:
+            process.terminate()
+    deadline = time.monotonic() + SHUTDOWN_TIMEOUT_S
+    for process in processes:
+        try:
+            process.wait(timeout=max(0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            process.kill()
+    for process in processes:
+        process.wait()
+
+
 def run_locust(
     args: argparse.Namespace, network: Any, default_target: Any, workload: Workload
 ) -> dict[str, str]:
@@ -113,7 +152,7 @@ def run_locust(
         target.get_public_rpc_host(), target.get_public_rpc_port()
     )
 
-    cmd = [
+    common_cmd = [
         "locust",
         "--headless",
         "--locustfile",
@@ -128,42 +167,82 @@ def run_locust(
         str(args.spawn_rate),
         "--measure-time-s",
         str(args.measure_time_s),
+        # Reset worker statistics too, not just the master's aggregate.
+        "--reset-stats",
     ]
 
     # The locustfile ends the run after a full measurement window following the
     # ramp. Locust's own deadline is only a generous backstop for a stuck ramp.
     spawn_time_s = math.ceil(args.users / args.spawn_rate)
     run_time_ceiling_s = spawn_time_s + args.measure_time_s + RUN_TIME_MARGIN_S
-    cmd += ["--run-time", f"{run_time_ceiling_s}s"]
+    cmd = [*common_cmd, "--run-time", f"{run_time_ceiling_s}s", "--csv", csv_prefix]
 
-    # Fork workers so the single-threaded client is not the bottleneck.
-    cmd += ["--processes", str(args.locust_processes)]
+    worker_count = args.locust_processes
+    if worker_count == -1:
+        worker_count = os.cpu_count() or 1
+    if worker_count < 0:
+        raise ValueError("Invalid Locust worker count")
 
-    # Avoid colliding with another Locust master on its default port.
-    # Match the IPv4 port probe and workers, without resolving localhost to IPv6.
-    master_host = "127.0.0.1"
-    master_port = infra.net.probably_free_local_port(master_host)
-    cmd += [
-        "--master-bind-host",
-        master_host,
-        "--master-bind-port",
-        str(master_port),
-        "--master-port",
-        str(master_port),
-    ]
-
-    # Report only steady state, at the full user count.
-    cmd += ["--reset-stats", "--csv", csv_prefix]
-
-    # Last, because a locustfile may take a subcommand, and argparse gives every
-    # subsequent argument to the subparser.
-    cmd.extend(workload.arguments)
-
-    LOG.info(f"Starting Locust: {' '.join(cmd)}")
     process_environment = os.environ.copy()
     process_environment.update(workload.environment)
-    # Locust exits non-zero if any request failed, which should fail the test.
-    subprocess.run(cmd, check=True, env=process_environment)
+    process_environment.pop(MASTER_READY_ENVIRONMENT_VARIABLE, None)
+    processes = []
+    with tempfile.TemporaryDirectory(
+        prefix="locust-", dir=os.path.abspath(network.common_dir)
+    ) as ready_dir:
+        try:
+            master_environment = process_environment.copy()
+            if worker_count:
+                ready_path = Path(ready_dir) / "master.port"
+                master_environment[MASTER_READY_ENVIRONMENT_VARIABLE] = str(ready_path)
+                cmd += [
+                    "--master",
+                    "--master-bind-host",
+                    MASTER_HOST,
+                    "--master-bind-port",
+                    "0",
+                    "--expect-workers",
+                    str(worker_count),
+                    "--expect-workers-max-wait",
+                    str(STARTUP_TIMEOUT_S),
+                ]
+            # Last: a locustfile subparser consumes all subsequent arguments.
+            cmd.extend(workload.arguments)
+            LOG.info(f"Starting Locust: {' '.join(cmd)}")
+            master = subprocess.Popen(cmd, env=master_environment)
+            processes.append(master)
+            if worker_count:
+                # The master owns its bound socket before any worker can
+                # connect. A probe-and-close reservation can race, including
+                # with a worker's own ephemeral source port.
+                master_port = wait_for_master(master, ready_path)
+                worker_cmd = [
+                    *common_cmd,
+                    "--worker",
+                    "--master-host",
+                    MASTER_HOST,
+                    "--master-port",
+                    str(master_port),
+                    *workload.arguments,
+                ]
+                for _ in range(worker_count):
+                    processes.append(
+                        subprocess.Popen(worker_cmd, env=process_environment)
+                    )
+            exit_code = master.wait(
+                timeout=STARTUP_TIMEOUT_S + run_time_ceiling_s + SHUTDOWN_TIMEOUT_S
+            )
+            # Locust exits non-zero if any request failed. Preserve that result
+            # even if the workers subsequently need to be terminated.
+            if exit_code != 0:
+                raise subprocess.CalledProcessError(exit_code, master.args)
+            deadline = time.monotonic() + SHUTDOWN_TIMEOUT_S
+            for worker in processes[1:]:
+                exit_code = worker.wait(timeout=max(0, deadline - time.monotonic()))
+                if exit_code != 0:
+                    raise subprocess.CalledProcessError(exit_code, worker.args)
+        finally:
+            stop_processes(processes)
 
     return read_stats(f"{csv_prefix}_stats.csv", workload.statistics_name)
 
