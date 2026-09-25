@@ -966,6 +966,7 @@ if(BUILD_TESTS)
       node_inbound_message_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_inbound_message.cpp
     )
+    target_link_libraries(node_inbound_message_test PRIVATE ccf_tasks)
 
     add_unit_test(
       indexing_test

@@ -3,8 +3,8 @@
 
 #include "host/node_connections.h"
 
-#include "ds/messaging.h"
-#include "ds/ring_buffer.h"
+#include "consensus/consensus_types.h"
+#include "kv/serialised_entry_format.h"
 #include "tasks/job_board.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -30,7 +30,7 @@ REGISTER_EXCEPTION_TRANSLATOR(const std::exception& e)
 
 namespace
 {
-  constexpr size_t buffer_size = 1 << 20;
+  constexpr size_t default_max_frame_size = 1 << 20;
 
   // Node IDs are hex-encoded public key hashes. The two chosen here sit at
   // opposite ends of the ordering, so that any tie-break which depends on
@@ -143,6 +143,14 @@ namespace
         p->peer = nullptr;
         if (net->deliver_close && p->behaviour != nullptr)
         {
+          // As with TCP, bytes written before the close are read before the
+          // far end observes it
+          if (!p->rx.empty())
+          {
+            auto data = std::exchange(p->rx, {});
+            uint8_t* ptr = data.data();
+            p->behaviour->on_read(data.size(), ptr, {});
+          }
           p->behaviour->on_disconnect();
         }
       }
@@ -319,37 +327,46 @@ namespace
     return found;
   }
 
+  // Stands in for the node: records every inbound frame the transport
+  // delivers, with the owned payload it was given.
+  struct RecordingInbound : public ccf::NodeInboundHandler
+  {
+    struct Frame
+    {
+      ccf::NodeMsgType type;
+      ccf::NodeId from;
+      std::vector<uint8_t> payload;
+    };
+
+    std::vector<Frame> frames;
+
+    void recv_node_inbound(
+      ccf::NodeMsgType type,
+      const ccf::NodeId& from,
+      std::vector<uint8_t>&& payload) override
+    {
+      frames.push_back({type, from, std::move(payload)});
+    }
+  };
+
   struct TestNode
   {
-    ringbuffer::TestBuffer to_enclave;
-    ringbuffer::TestBuffer to_host;
-    ringbuffer::Circuit circuit;
-    ringbuffer::WriterFactory wf;
-
-    // Processes messages the enclave sent to the host
-    messaging::BufferProcessor host_bp;
-    // Processes messages the host sent to the enclave
-    messaging::BufferProcessor enclave_bp;
-
     std::filesystem::path ledger_dir;
     std::unique_ptr<asynchost::Ledger> ledger;
     ccf::tasks::JobBoard job_board;
     std::unique_ptr<asynchost::LedgerSubsystem> ledger_subsystem;
-    std::unique_ptr<asynchost::NodeConnectionsImpl<MockSocket>> connections;
-
-    ringbuffer::WriterPtr enclave_writer;
+    std::shared_ptr<asynchost::NodeConnectionsImpl<MockSocket>> connections;
+    std::shared_ptr<RecordingInbound> inbound =
+      std::make_shared<RecordingInbound>();
 
     std::string host;
     std::string port;
     size_t received = 0;
 
-    TestNode(const std::string& name, std::string host_) :
-      to_enclave(buffer_size),
-      to_host(buffer_size),
-      circuit(to_enclave.bd, to_host.bd),
-      wf(circuit),
-      host_bp("node_host"),
-      enclave_bp("node_enclave"),
+    TestNode(
+      const std::string& name,
+      std::string host_,
+      size_t max_frame_size = default_max_frame_size) :
       ledger_dir(
         std::filesystem::temp_directory_path() / ("nc_test_ledger_" + name)),
       host(std::move(host_)),
@@ -360,29 +377,15 @@ namespace
       ledger_subsystem =
         std::make_unique<asynchost::LedgerSubsystem>(*ledger, 1024, job_board);
       connections =
-        std::make_unique<asynchost::NodeConnectionsImpl<MockSocket>>(
-          host_bp.get_dispatcher(),
+        std::make_shared<asynchost::NodeConnectionsImpl<MockSocket>>(
           *ledger,
           *ledger_subsystem,
-          wf,
           host,
           port,
+          max_frame_size,
           std::nullopt,
           2s);
-
-      enclave_writer = wf.create_writer_to_outside();
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        enclave_bp,
-        ccf::node_inbound,
-        [this](const uint8_t* data, size_t size) {
-          auto [msg_type, from, payload] =
-            ringbuffer::read_message<ccf::node_inbound>(data, size);
-          (void)msg_type;
-          (void)from;
-          (void)payload;
-          ++received;
-        });
+      connections->set_inbound_handler(inbound);
     }
 
     ~TestNode()
@@ -393,11 +396,10 @@ namespace
       std::filesystem::remove_all(ledger_dir);
     }
 
-    // Mirrors production: drain the ringbuffer, run the ledger lane, then
-    // apply the results on the (here, only) thread that owns the sockets.
+    // Mirrors production: run the ledger lane, then apply the results on the
+    // (here, only) thread that owns the sockets.
     void drain_to_host()
     {
-      host_bp.read_all(circuit.read_from_inside());
       while (auto task = job_board.get_task())
       {
         task->do_task();
@@ -405,20 +407,19 @@ namespace
       connections->flush_outbound();
     }
 
+    // Inbound frames are delivered synchronously to the handler
     void drain_to_enclave()
     {
-      enclave_bp.read_all(circuit.read_from_outside());
+      received = inbound->frames.size();
     }
 
     void send_to(const std::string& peer_id, const std::vector<uint8_t>& body)
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        ccf::node_outbound,
-        enclave_writer,
+      connections->send(
         peer_id,
         ccf::NodeMsgType::consensus_msg,
         self_id,
-        body);
+        std::vector<uint8_t>(body));
     }
 
     void learn_address(
@@ -426,16 +427,53 @@ namespace
       const std::string& peer_host,
       const std::string& peer_port)
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        ccf::associate_node_address,
-        enclave_writer,
-        peer_id,
-        peer_host,
-        peer_port);
+      connections->associate_node_address(peer_id, peer_host, peer_port);
     }
 
     std::string self_id;
   };
+
+  // A connection opened directly by the test, so that it can write arbitrary
+  // (including malformed) bytes to a node.
+  struct RawBehaviour : public asynchost::SocketBehaviour<MockSocket>
+  {
+    RawBehaviour() : asynchost::SocketBehaviour<MockSocket>("Raw", "TCP") {}
+  };
+
+  MockSocket connect_raw(const TestNode& target)
+  {
+    auto raw = MockSocket(true, std::nullopt);
+    raw->set_behaviour(std::make_unique<RawBehaviour>());
+    raw->connect(target.host, target.port);
+    complete_connects();
+    return raw;
+  }
+
+  std::vector<uint8_t> make_ledger_entry(uint8_t fill, size_t size)
+  {
+    std::vector<uint8_t> entry(ccf::kv::serialised_entry_header_size + size);
+    auto* data = entry.data();
+    auto remaining = entry.size();
+    ccf::kv::SerialisedEntryHeader header;
+    header.set_size(size);
+    serialized::write(data, remaining, header);
+    std::fill(data, data + remaining, fill);
+    return entry;
+  }
+
+  // The prefix of an AppendEntries covering (prev_idx, idx], as far as the host
+  // inspects it, followed by some bytes standing in for the rest of the
+  // authenticated message.
+  std::vector<uint8_t> make_append_entries(
+    ::consensus::Index prev_idx, ::consensus::Index idx)
+  {
+    const auto type = static_cast<aft::Node2NodeMsg>(aft::raft_append_entries);
+    const ::consensus::AppendEntriesIndex ae{.idx = idx, .prev_idx = prev_idx};
+    std::vector<uint8_t> m(sizeof(type) + sizeof(ae) + 16, 0xab);
+    std::memcpy(m.data(), &type, sizeof(type));
+    std::memcpy(m.data() + sizeof(type), &ae, sizeof(ae));
+    return m;
+  }
 }
 
 // Regression test for the node-to-node channel stall investigated in #8232.
@@ -566,6 +604,266 @@ TEST_CASE("A later incoming connection is accepted, so a peer can repair")
     a.drain_to_enclave();
 
     CHECK(a.received > a_before);
+  }
+
+  net = nullptr;
+}
+
+// The host reads the entries an AppendEntries names from the ledger when it
+// frames the message. Those appends are submitted before the send, and the
+// frame must carry exactly (prev_idx, idx].
+TEST_CASE("AppendEntries frames carry exactly the ledger entries they name")
+{
+  MockNet mock_net;
+  net = &mock_net;
+
+  {
+    TestNode a("a", "10.0.0.1");
+    TestNode b("b", "10.0.0.2");
+    a.self_id = node_a_id;
+    b.self_id = node_b_id;
+
+    a.learn_address(node_b_id, b.host, b.port);
+
+    std::vector<std::vector<uint8_t>> entries;
+    for (uint8_t i = 1; i <= 4; ++i)
+    {
+      entries.push_back(make_ledger_entry(i, 8 * i));
+      auto entry = entries.back();
+      REQUIRE(a.ledger_subsystem->append(std::move(entry), true));
+    }
+
+    // Queued behind the appends, and only run once they have been applied
+    const auto ae = make_append_entries(1, 3);
+    a.send_to(node_b_id, ae);
+    a.drain_to_host();
+    complete_connects();
+    pump();
+
+    REQUIRE(b.inbound->frames.size() == 1);
+    const auto& frame = b.inbound->frames[0];
+    REQUIRE(frame.type == ccf::NodeMsgType::consensus_msg);
+    REQUIRE(frame.from == ccf::NodeId(node_a_id));
+
+    std::vector<uint8_t> expected = ae;
+    expected.insert(expected.end(), entries[1].begin(), entries[1].end());
+    expected.insert(expected.end(), entries[2].begin(), entries[2].end());
+    REQUIRE(frame.payload == expected);
+  }
+
+  net = nullptr;
+}
+
+TEST_CASE("Sends to a peer arrive in order, including across a close")
+{
+  MockNet mock_net;
+  net = &mock_net;
+
+  {
+    TestNode a("a", "10.0.0.1");
+    TestNode b("b", "10.0.0.2");
+    a.self_id = node_a_id;
+    b.self_id = node_b_id;
+
+    a.learn_address(node_b_id, b.host, b.port);
+    auto message = [](uint8_t i) {
+      auto m = make_pre_vote();
+      m.back() = i;
+      return m;
+    };
+
+    a.send_to(node_b_id, message(1));
+    a.send_to(node_b_id, message(2));
+    a.drain_to_host();
+    complete_connects();
+    pump();
+    REQUIRE(b.inbound->frames.size() == 2);
+    REQUIRE(mock_net.pending_connects.empty());
+
+    // Close is applied after the sends before it, and a later send opens a
+    // fresh connection using the retained address
+    a.send_to(node_b_id, message(3));
+    a.connections->close(node_b_id);
+    a.send_to(node_b_id, message(4));
+    a.drain_to_host();
+    REQUIRE(mock_net.pending_connects.size() == 1);
+    complete_connects();
+    pump();
+
+    REQUIRE(b.inbound->frames.size() == 4);
+    for (uint8_t i = 0; i < 4; ++i)
+    {
+      REQUIRE(b.inbound->frames[i].payload == message(i + 1));
+    }
+  }
+
+  net = nullptr;
+}
+
+TEST_CASE("Sends to an unknown peer are dropped")
+{
+  MockNet mock_net;
+  net = &mock_net;
+
+  {
+    TestNode a("a", "10.0.0.1");
+    a.self_id = node_a_id;
+
+    a.send_to(node_b_id, make_pre_vote());
+    a.drain_to_host();
+    REQUIRE(mock_net.pending_connects.empty());
+  }
+
+  net = nullptr;
+}
+
+TEST_CASE("Frames above the size limit close the connection unbuffered")
+{
+  MockNet mock_net;
+  net = &mock_net;
+
+  {
+    constexpr size_t max_frame_size = 256;
+    TestNode a("a", "10.0.0.1", max_frame_size);
+    a.self_id = node_a_id;
+
+    auto raw = connect_raw(a);
+    REQUIRE(raw->peer != nullptr);
+
+    // Only the size prefix is sent: the declared size alone is rejected,
+    // without waiting for (or buffering) the body
+    const uint32_t declared = max_frame_size + 1;
+    raw->write(
+      sizeof(declared), reinterpret_cast<const uint8_t*>(&declared), {});
+    pump();
+
+    REQUIRE(raw->peer == nullptr);
+    REQUIRE(a.inbound->frames.empty());
+
+    // A frame at the limit is accepted
+    TestNode b("b", "10.0.0.2");
+    b.self_id = node_b_id;
+    b.learn_address(node_a_id, a.host, a.port);
+    const auto header_size =
+      sizeof(ccf::NodeMsgType) + sizeof(size_t) + node_b_id.size();
+    std::vector<uint8_t> body(max_frame_size - header_size, 0x11);
+    b.send_to(node_a_id, body);
+    b.drain_to_host();
+    complete_connects();
+    pump();
+    REQUIRE(a.inbound->frames.size() == 1);
+    REQUIRE(a.inbound->frames[0].payload == body);
+  }
+
+  net = nullptr;
+}
+
+TEST_CASE("Malformed frames close the connection")
+{
+  MockNet mock_net;
+  net = &mock_net;
+
+  {
+    TestNode a("a", "10.0.0.1");
+    a.self_id = node_a_id;
+
+    SUBCASE("Frame too small for its headers")
+    {
+      auto raw = connect_raw(a);
+      std::vector<uint8_t> frame(sizeof(uint32_t) + 4, 0);
+      const uint32_t declared = 4;
+      std::memcpy(frame.data(), &declared, sizeof(declared));
+      raw->write(frame.size(), frame.data(), {});
+      pump();
+      REQUIRE(raw->peer == nullptr);
+    }
+
+    SUBCASE("Sender ID longer than the frame")
+    {
+      auto raw = connect_raw(a);
+      std::vector<uint8_t> frame(
+        sizeof(uint32_t) + sizeof(ccf::NodeMsgType) + sizeof(size_t), 0);
+      auto* data = frame.data();
+      auto size = frame.size();
+      serialized::write(data, size, static_cast<uint32_t>(16));
+      serialized::write(data, size, ccf::NodeMsgType::consensus_msg);
+      serialized::write(data, size, static_cast<size_t>(1 << 20));
+      raw->write(frame.size(), frame.data(), {});
+      pump();
+      REQUIRE(raw->peer == nullptr);
+    }
+
+    REQUIRE(a.inbound->frames.empty());
+  }
+
+  net = nullptr;
+}
+
+TEST_CASE("Frames are dropped until an inbound handler is set")
+{
+  MockNet mock_net;
+  net = &mock_net;
+
+  {
+    TestNode a("a", "10.0.0.1");
+    TestNode b("b", "10.0.0.2");
+    a.self_id = node_a_id;
+    b.self_id = node_b_id;
+    b.connections->set_inbound_handler(nullptr);
+
+    a.learn_address(node_b_id, b.host, b.port);
+    a.send_to(node_b_id, make_pre_vote());
+    a.drain_to_host();
+    complete_connects();
+    pump();
+    REQUIRE(b.inbound->frames.empty());
+
+    b.connections->set_inbound_handler(b.inbound);
+    a.send_to(node_b_id, make_pre_vote());
+    a.drain_to_host();
+    pump();
+    REQUIRE(b.inbound->frames.size() == 1);
+  }
+
+  net = nullptr;
+}
+
+// The node retains the transport until process exit, so the host must close
+// its sockets explicitly before closing the event loop.
+TEST_CASE("Shutdown closes every socket and ignores later sends")
+{
+  MockNet mock_net;
+  net = &mock_net;
+
+  {
+    TestNode a("a", "10.0.0.1");
+    TestNode b("b", "10.0.0.2");
+    a.self_id = node_a_id;
+    b.self_id = node_b_id;
+
+    a.learn_address(node_b_id, b.host, b.port);
+    a.send_to(node_b_id, make_pre_vote());
+    a.drain_to_host();
+    complete_connects();
+    pump();
+    REQUIRE(b.inbound->frames.size() == 1);
+
+    auto* a_listener = mock_net.listeners.at(MockNet::key(a.host, a.port));
+    const auto live_before = mock_net.live_sockets.size();
+
+    // Keeping another owner alive, as the enclave does
+    auto retained = a.connections;
+    a.connections->shutdown();
+
+    // A's listener and outgoing socket are gone, and B saw the close
+    REQUIRE(mock_net.live_sockets.count(a_listener) == 0);
+    REQUIRE(mock_net.live_sockets.size() == live_before - 3);
+
+    a.send_to(node_b_id, make_pre_vote());
+    a.drain_to_host();
+    REQUIRE(mock_net.pending_connects.empty());
+    pump();
+    REQUIRE(b.inbound->frames.size() == 1);
   }
 
   net = nullptr;

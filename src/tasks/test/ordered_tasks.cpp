@@ -600,3 +600,37 @@ TEST_CASE(
   REQUIRE(miscounted == 0);
   REQUIRE(board.get_task() == nullptr);
 }
+
+TEST_CASE(
+  "OrderedTasks keep their task class when rescheduled" *
+  doctest::test_suite("ordered_tasks"))
+{
+  ccf::tasks::JobBoard job_board;
+  auto tasks = ccf::tasks::OrderedTasks::create(
+    job_board, "Critical lane", ccf::tasks::TaskClass::Critical);
+  REQUIRE(tasks->get_task_class() == ccf::tasks::TaskClass::Critical);
+
+  std::vector<size_t> ran;
+  ccf::tasks::Resumable resumable;
+  tasks->add_action(ccf::tasks::make_basic_action([&]() {
+    ran.push_back(1);
+    resumable = ccf::tasks::pause_current_task();
+  }));
+  tasks->add_action(ccf::tasks::make_basic_action([&]() { ran.push_back(2); }));
+
+  // Only ever visible to critical-only executors
+  auto task = job_board.get_critical_task();
+  REQUIRE(task == tasks);
+  task->do_task();
+  REQUIRE(ran == std::vector<size_t>{1});
+  REQUIRE(job_board.get_critical_task() == nullptr);
+
+  ccf::tasks::resume_task(std::move(resumable));
+  task = job_board.get_critical_task();
+  REQUIRE(task == tasks);
+  task->do_task();
+  REQUIRE(ran == std::vector<size_t>{1, 2});
+
+  tasks->add_action(ccf::tasks::make_basic_action([&]() { ran.push_back(3); }));
+  REQUIRE(job_board.get_critical_task() == tasks);
+}

@@ -17,7 +17,7 @@ Implementation
 Configuration
 ~~~~~~~~~~~~~
 
-The ``worker_threads`` configuration option controls the number of worker threads when starting a CCF node. CCF starts one more worker thread than configured, in addition to the dispatch thread. The extra worker preserves task execution capacity now that the dispatch thread no longer executes tasks. This option defaults to ``1``, which starts two workers; a configured value of ``0`` starts one worker and logs a warning. Positive values are incremented silently.
+The ``worker_threads`` configuration option controls the number of worker threads when starting a CCF node. CCF starts one more worker thread than configured, in addition to the dispatch thread. The extra worker preserves task execution capacity now that the dispatch thread executes only critical tasks. This option defaults to ``1``, which starts two workers; a configured value of ``0`` starts one worker and logs a warning. Positive values are incremented silently.
 
 It is strongly recommended that all CCF nodes run the same number of worker threads.
 
@@ -27,6 +27,14 @@ Programming Model
 To ensure session consistency, commands that originate from the same connection are executed in order through a per-session task queue.
 It is strongly advised that during the execution of a command the application does not mutate any global state outside of the key-value store.
 Any inter-command communication must be performed via the key-value store, to ensure that CCF can rollback commands or change the primary as required.
+
+Critical Tasks
+~~~~~~~~~~~~~~
+
+Node-to-node ingress (inbound messages from other nodes, consensus ticks and stop notices) executes in order on a single critical ``OrderedTasks`` lane.
+Every worker thread runs ready critical tasks before general tasks, and the dispatch thread runs only critical tasks.
+This reserves execution capacity for consensus, so that general tasks which block (for example, outbound HTTP requests or file access) cannot delay elections or replication.
+Critical tasks must not block.
 
 Task Shutdown
 ~~~~~~~~~~~~~
