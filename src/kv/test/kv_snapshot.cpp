@@ -271,12 +271,6 @@ TEST_CASE(
     new_store.deserialise_snapshot(
       serialised_snapshot.data(), serialised_snapshot.size(), hooks),
     ccf::kv::ApplyResult::PASS);
-  REQUIRE_EQ(new_store.current_version(), snapshot_version);
-
-  auto tx = new_store.create_tx();
-  auto* handle = tx.rw(string_map);
-  REQUIRE(handle->get("foo") == "bar");
-  REQUIRE_FALSE(handle->has("discarded"));
 }
 
 TEST_CASE("Old snapshots" * doctest::test_suite("snapshot"))

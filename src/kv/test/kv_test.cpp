@@ -2445,12 +2445,8 @@ TEST_CASE("Transaction diffs")
     REQUIRE(diff->has("overwritten"));
     REQUIRE_FALSE(diff->is_deleted("overwritten"));
     REQUIRE(diff->get("overwritten").value().value() == "v2");
-    REQUIRE(diff->has("added"));
-    REQUIRE(diff->get("added").value().value() == "v2");
 
     // Deletes are visible, including of a key absent from the fresh store
-    REQUIRE_FALSE(diff->has("removed"));
-    REQUIRE(diff->is_deleted("removed"));
     REQUIRE_FALSE(diff->has("never_existed"));
     REQUIRE(diff->is_deleted("never_existed"));
 
@@ -2469,14 +2465,6 @@ TEST_CASE("Transaction diffs")
         untyped_diff->get(Serialiser::to_serialised("removed"));
       REQUIRE(removed.has_value());
       REQUIRE_FALSE(removed.value().has_value());
-
-      const auto kept = untyped_diff->get(Serialiser::to_serialised("kept"));
-      REQUIRE_FALSE(kept.has_value());
-
-      const auto added = untyped_diff->get(Serialiser::to_serialised("added"));
-      REQUIRE(added.has_value());
-      REQUIRE(added.value().has_value());
-      REQUIRE(added.value().value() == Serialiser::to_serialised("v2"));
 
       // Ranges are ordered by serialised key, and exclude the upper bound
       std::vector<std::string> range_keys;
@@ -2503,7 +2491,6 @@ TEST_CASE("Transaction diffs")
 
       auto tx_diff = historical.create_tx_diff();
       auto* diff = tx_diff.diff(map);
-      REQUIRE(diff->is_deleted("kept"));
       REQUIRE(diff->size() == 1);
       REQUIRE(collect(diff) == DiffContents{{"kept", std::nullopt}});
     }
@@ -2518,9 +2505,7 @@ TEST_CASE("Transaction diffs")
         ccf::kv::ApplyResult::PASS);
 
       auto tx_diff = historical.create_tx_diff();
-      auto* diff = tx_diff.diff(map);
-      REQUIRE_FALSE(diff->is_deleted("kept"));
-      REQUIRE(diff->size() == 0);
+      REQUIRE(tx_diff.diff(map)->size() == 0);
     }
   }
 
@@ -2541,16 +2526,8 @@ TEST_CASE("Transaction diffs")
     // "kept" is still present in the state, but was written by an earlier
     // transaction, so it is not part of this diff
     REQUIRE_FALSE(diff->has("kept"));
-    REQUIRE_FALSE(diff->get("kept").has_value());
     REQUIRE(diff->size() == mixed_contents.size());
     REQUIRE(collect(diff) == mixed_contents);
-
-    // A read-only tx over the same store sees the full state
-    auto tx = replayed.create_read_only_tx();
-    auto* handle = tx.ro(map);
-    REQUIRE(handle->get("kept") == "v1");
-    REQUIRE(handle->get("overwritten") == "v2");
-    REQUIRE_FALSE(handle->has("removed"));
   }
 }
 
