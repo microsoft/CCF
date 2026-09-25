@@ -75,7 +75,32 @@ namespace aft
 
     static std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
-      const auto entry_size = serialized::read<size_t>(data, size);
+      // Mirror the bounds-checking done by the real ledger
+      // (consensus::LedgerEnclave::get_entry_size): malformed or truncated
+      // entries must produce a std::logic_error, rather than reading out of
+      // bounds, so that callers can distinguish this from a transport-level
+      // truncation (serialized::InsufficientSpaceException).
+      if (size < sizeof(size_t))
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot read ledger entry size: buffer contains {} bytes, but {} "
+          "are required",
+          size,
+          sizeof(size_t)));
+      }
+
+      const auto entry_size = serialized::peek<size_t>(data, size);
+      const auto available_size = size - sizeof(size_t);
+      if (entry_size > available_size)
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot read ledger entry of size {} bytes from buffer containing "
+          "{} bytes after the size prefix",
+          entry_size,
+          available_size));
+      }
+
+      serialized::skip(data, size, sizeof(size_t));
       std::vector<uint8_t> entry(data, data + entry_size);
       serialized::skip(data, size, entry_size);
       return entry;
@@ -366,6 +391,11 @@ namespace aft
       return ccf::kv::NoVersion;
     }
 
+    // If set, deserialize() returns nullptr for this index, simulating a
+    // real store failing to construct an execution wrapper for an entry
+    // (e.g. because the entry could not be parsed at all).
+    std::optional<ccf::kv::Version> deserialize_fails_at = std::nullopt;
+
     class ExecutionWrapper : public ccf::kv::AbstractExecutionWrapper
     {
     private:
@@ -447,6 +477,13 @@ namespace aft
       bool public_only = false,
       const std::optional<ccf::TxID>& expected_txid = std::nullopt)
     {
+      if (
+        expected_txid.has_value() && deserialize_fails_at.has_value() &&
+        expected_txid->seqno == deserialize_fails_at.value())
+      {
+        return nullptr;
+      }
+
       ccf::kv::ConsensusHookPtrs hooks = {};
       return std::make_unique<ExecutionWrapper>(
         data, expected_txid, std::move(hooks));
