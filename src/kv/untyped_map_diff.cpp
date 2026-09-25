@@ -106,12 +106,15 @@ namespace ccf::kv::untyped
 
   size_t MapDiff::size()
   {
-    size_t size_ = 0;
+    // Counted directly rather than via foreach, which would copy every value
+    size_t size_ = change_set.writes.size();
 
-    foreach([&size_](const auto&, const auto&) {
-      ++size_;
-      return true;
-    });
+    const auto version = change_set.start_version;
+    change_set.state.foreach(
+      [&size_, version](const KeyType&, const VersionV& v) {
+        size_ += (v.version == version) ? 1 : 0;
+        return true;
+      });
 
     return size_;
   }
