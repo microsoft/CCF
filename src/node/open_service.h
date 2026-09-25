@@ -7,7 +7,9 @@
 #include "ccf/tx.h"
 #include "kv/committable_tx.h"
 #include "node/internal_tables_access.h"
+#include "node/ledger_secrets.h"
 #include "node/share_manager.h"
+#include "service/tables/shares.h"
 
 #include <fmt/format.h>
 #include <stdexcept>
@@ -90,5 +92,37 @@ namespace ccf
     {
       throw std::logic_error("Service could not be opened");
     }
+  }
+
+  // Returns the hook, set on the historical encrypted ledger secret table when
+  // private recovery begins, which points the ledger secret created at the end
+  // of public recovery at the version at which the last ledger secret before
+  // recovery is stored. That is the version of the opening of the recovered
+  // service, which issues the recovery shares for the new ledger secret and is
+  // the only write to that table which sets next_version (a rekey leaves it to
+  // be inferred). An election can roll back an opening before it commits, and
+  // a later primary write it again at another seqno, so every opening adjusts
+  // the version, not only the first.
+  inline ccf::kv::untyped::MapHook make_recovered_opening_secret_hook(
+    std::shared_ptr<LedgerSecrets> ledger_secrets)
+  {
+    return EncryptedLedgerSecretsInfo::wrap_map_hook(
+      [ledger_secrets = std::move(ledger_secrets)](
+        ccf::kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
+        -> ccf::kv::ConsensusHookPtr {
+        if (!w.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Unexpected removal from {} table",
+            Tables::ENCRYPTED_PAST_LEDGER_SECRET));
+        }
+
+        if (w->next_version.has_value())
+        {
+          ledger_secrets->adjust_previous_secret_stored_version(version);
+        }
+
+        return {nullptr};
+      });
   }
 }
