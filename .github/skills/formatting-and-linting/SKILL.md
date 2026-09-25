@@ -28,8 +28,8 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | ------------------------- | ------------------------------------------------------------ | -------------------------------------------------- | ----------------- |
 | `cpp-format-checks.sh`    | C/C++ in `include/`, `src/`, `samples/`                      | clang-format                                       | `-f`              |
 | `lean-format-checks.sh`   | All tracked Lean files                                       | leanfmt                                            | `-f`              |
-| `python-format-checks.sh` | Python in `tests/`, `python/`, `scripts/`, `tla/`            | black                                              | `-f`              |
-| `python-lint-checks.sh`   | Python in `python/`, `tests/`                                | ruff                                               | `-f`              |
+| `python-format-checks.sh` | Python in `tests/`, `python/`, `scripts/`, `tla/`, `lean/`   | black                                              | `-f`              |
+| `python-lint-checks.sh`   | Python in `python/`, `tests/`, `lean/`                       | ruff                                               | `-f`              |
 | `python-types-checks.sh`  | Python SDK                                                   | mypy                                               | No                |
 | `prettier-checks.sh`      | TS, JS, Markdown, YAML, JSON (excluding `tests/sandbox/`)    | prettier                                           | `-f`              |
 | `cmake-format-checks.sh`  | CMake files                                                  | gersemi                                            | `-f`              |

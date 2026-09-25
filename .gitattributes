@@ -12,3 +12,5 @@ src/crypto/test/cbor_fuzz_corpus/* binary
 
 lean/disaster-recovery/DisasterRecovery/Proofs/**/*.lean linguist-generated=true
 lean/disaster-recovery/DisasterRecovery.lean text eol=lf
+lean/ccf-raft/CCFRaft/Proofs/**/*.lean linguist-generated=true
+lean/ccf-raft/CCFRaft.lean text eol=lf
