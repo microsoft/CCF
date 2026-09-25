@@ -185,6 +185,56 @@ TEST_CASE("Opening a recovered service happens at most once")
   }
 }
 
+TEST_CASE("The ledger secret created on recovery points at the opening")
+{
+  // The ledger secret created at the end of public recovery must point at the
+  // version at which the last ledger secret before recovery is stored, which
+  // the opening of the recovered service writes. An election can roll back an
+  // opening, and a later primary write it again at another seqno.
+  auto ts =
+    make_recovering_state(ccf::ServiceStatus::WAITING_FOR_RECOVERY_SHARES);
+  ccf::ShareManager share_manager(ts.ledger_secrets);
+  ts.store->set_map_hook(
+    ccf::Tables::ENCRYPTED_PAST_LEDGER_SECRET,
+    ccf::make_recovered_opening_secret_hook(ts.ledger_secrets));
+
+  const auto open = [&]() {
+    auto tx = ts.store->create_tx();
+    ccf::open_recovered_service(tx, share_manager, *ts.service_key);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    return tx.commit_version();
+  };
+  const auto previous_secret_stored_version = [&]() {
+    auto tx = ts.store->create_read_only_tx();
+    return ts.ledger_secrets->get_latest(tx)
+      .second->previous_secret_stored_version;
+  };
+
+  const auto before_opening = ts.store->current_txid();
+  const auto rolled_back_opening = open();
+  REQUIRE(previous_secret_stored_version() == rolled_back_opening);
+
+  INFO("An opening which is rolled back is superseded by the next one");
+  ts.store->rollback(before_opening, before_opening.view + 1);
+  {
+    // So that the next opening is at another seqno
+    auto tx = ts.store->create_tx();
+    tx.rw<ccf::Configuration>(ccf::Tables::CONFIGURATION)->put({1});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto opening = open();
+  REQUIRE(opening != rolled_back_opening);
+  REQUIRE(previous_secret_stored_version() == opening);
+
+  INFO("A rekey does not move it");
+  {
+    auto tx = ts.store->create_tx();
+    share_manager.issue_recovery_shares(tx, ccf::make_ledger_secret());
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(previous_secret_stored_version() == opening);
+}
+
 int main(int argc, char** argv)
 {
   doctest::Context context;
