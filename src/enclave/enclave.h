@@ -400,7 +400,6 @@ namespace ccf
                   frontend->tick(elapsed_ms);
                 }
               }
-              node->tick_end();
             }
           });
 
