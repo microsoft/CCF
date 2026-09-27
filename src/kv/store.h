@@ -555,7 +555,6 @@ namespace ccf::kv
           hooks,
           new_maps,
           std::nullopt,
-          false,
           track_deletes_on_missing_keys);
         if (!r.has_value())
         {
