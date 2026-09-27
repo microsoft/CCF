@@ -29,8 +29,7 @@ namespace ccf::kv
       ccf::kv::OrderedChanges& changes,
       ccf::kv::MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
-      std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest,
-      bool ignore_strict_versions = false) = 0;
+      std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest) = 0;
 
     virtual bool commit_deserialised(
       ccf::kv::OrderedChanges& changes,
@@ -98,8 +97,7 @@ namespace ccf::kv
             changes,
             new_maps,
             claims_digest,
-            commit_evidence_digest,
-            true))
+            commit_evidence_digest))
       {
         return ApplyResult::FAIL;
       }

@@ -44,7 +44,6 @@ namespace ccf::kv
 
     ccf::ds::Mutex version_lock;
     std::atomic<Version> version = 0;
-    Version last_new_map = ccf::kv::NoVersion;
     std::atomic<Version> compacted = 0;
 
     // Calls to Store::commit are made atomic by taking this lock.
@@ -79,7 +78,6 @@ namespace ccf::kv
       pending_txs.clear();
 
       version = 0;
-      last_new_map = ccf::kv::NoVersion;
       compacted = 0;
       term_of_next_version = 0;
       term_of_last_version = 0;
@@ -108,13 +106,6 @@ namespace ccf::kv
     SnapshotterPtr snapshotter = nullptr;
     size_t max_transaction_size = max_serialised_entry_size;
 
-    // Generally we will only accept deserialised views if they are contiguous -
-    // at Version N we reject everything but N+1. The exception is when a Store
-    // is used for historical queries, where it may deserialise arbitrary
-    // transactions. In this case the Store is a useful container for a set of
-    // Tables, but its versioning invariants are ignored.
-    const bool strict_versions = true;
-
     // If true, use historical ledger secrets to deserialise entries
     const bool is_historical = false;
 
@@ -141,7 +132,7 @@ namespace ccf::kv
 
       auto c = apply_changes(
         changes,
-        [v](bool) { return std::make_tuple(v, v - 1); },
+        [v]() { return v; },
         hooks,
         new_maps,
         std::nullopt,
@@ -186,10 +177,7 @@ namespace ccf::kv
     }
 
   public:
-    Store(bool strict_versions_ = true, bool is_historical_ = false) :
-      strict_versions(strict_versions_),
-      is_historical(is_historical_)
-    {}
+    Store(bool is_historical_ = false) : is_historical(is_historical_) {}
 
     Store(const Store& that) = delete;
 
@@ -551,7 +539,7 @@ namespace ccf::kv
         bool track_deletes_on_missing_keys = false;
         auto r = apply_changes(
           changes,
-          [](bool) { return std::make_tuple(NoVersion, NoVersion); },
+          []() { return NoVersion; },
           hooks,
           new_maps,
           std::nullopt,
@@ -780,14 +768,8 @@ namespace ccf::kv
       OrderedChanges& changes,
       MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
-      std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest,
-      bool ignore_strict_versions = false) override
+      std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest) override
     {
-      // This will return FAILED if the serialised transaction is being
-      // applied out of order.
-      // Processing transactions locally and also deserialising to the
-      // same store will result in a store version mismatch and
-      // deserialisation will then fail.
       auto e = get_encryptor();
 
       auto d = RawKvStoreDeserialiser(
@@ -821,18 +803,6 @@ namespace ccf::kv
       // Throw away any local commits that have not propagated via the
       // consensus.
       rollback({term_of_last_version, v - 1}, term_of_next_version);
-
-      if (strict_versions && !ignore_strict_versions)
-      {
-        // Make sure this is the next transaction.
-        auto cv = current_version();
-        if (cv != (v - 1))
-        {
-          LOG_FAIL_FMT(
-            "Tried to deserialise {} but current_version is {}", v, cv);
-          return false;
-        }
-      }
 
       // Deserialised transactions express read dependencies as versions,
       // rather than with the actual value read. As a result, they don't
@@ -1178,8 +1148,8 @@ namespace ccf::kv
       return rollback_count == count;
     }
 
-    std::optional<std::tuple<Version, Version, Version>> next_version(
-      bool commit_new_map, Term expected_commit_term) override
+    std::optional<std::tuple<Version, Version>> next_version(
+      Term expected_commit_term) override
     {
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       // If rollback updates the term before this lock is acquired, reject the
@@ -1197,13 +1167,7 @@ namespace ccf::kv
 
       Version v = next_version_unsafe();
 
-      auto previous_last_new_map = last_new_map;
-      if (commit_new_map)
-      {
-        last_new_map = v;
-      }
-
-      return std::make_tuple(v, previous_last_new_map, rollback_count);
+      return std::make_tuple(v, rollback_count);
     }
 
     TxID next_txid() override

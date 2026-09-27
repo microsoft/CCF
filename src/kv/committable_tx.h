@@ -243,21 +243,17 @@ namespace ccf::kv
         MapSetLockGuard map_set_guard(*pimpl->store, maps_created);
         c = apply_changes(
           all_changes,
-          [&](bool has_new_map) {
-            auto resolution =
-              pimpl->store->next_version(has_new_map, pimpl->commit_view);
+          [&]() {
+            auto resolution = pimpl->store->next_version(pimpl->commit_view);
             commit_term_changed = !resolution.has_value();
             if (!resolution.has_value())
             {
-              return std::optional<VersionResolution>{};
+              return std::optional<Version>{};
             }
 
-            const auto
-              [resolved_version, previous_last_new_map, rollback_count] =
-                resolution.value();
+            const auto [resolved_version, rollback_count] = resolution.value();
             expected_rollback_count = rollback_count;
-            return std::optional<VersionResolution>(
-              std::in_place, resolved_version, previous_last_new_map);
+            return std::optional<Version>(resolved_version);
           },
           hooks,
           pimpl->created_maps,
@@ -527,7 +523,7 @@ namespace ccf::kv
         MapSetLockGuard map_set_guard(*pimpl->store, maps_created);
         c = apply_changes(
           all_changes,
-          [this](bool) { return std::make_tuple(version, version - 1); },
+          [this]() { return version; },
           hooks,
           pimpl->created_maps,
           version,
