@@ -18,6 +18,7 @@
 #include "ds/oversized.h"
 #include "service/tables/config.h"
 
+#include <chrono>
 #include <optional>
 #include <string>
 #include <vector>
@@ -30,6 +31,7 @@ DECLARE_JSON_ENUM(
 
 struct EnclaveConfig
 {
+  std::chrono::milliseconds tick_interval = {};
   uint8_t* to_enclave_buffer_start = nullptr;
   size_t to_enclave_buffer_size = 0;
   ringbuffer::Offsets* to_enclave_buffer_offsets = nullptr;

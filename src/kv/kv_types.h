@@ -461,7 +461,6 @@ namespace ccf::kv
       const NodeId& from, const uint8_t* data, size_t size) = 0;
 
     virtual void periodic(std::chrono::milliseconds /*elapsed*/) {}
-    virtual void periodic_end() {}
 
     virtual void enable_all_domains() {}
 
