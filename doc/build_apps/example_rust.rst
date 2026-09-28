@@ -1,99 +1,124 @@
 Example app (Rust)
 ==================
 
-.. warning:: The Rust interface is **experimental**. It is not a stable or production-supported SDK, and it is not covered by the API stability commitments in :doc:`release_policy`. Its Rust API, C ABI, and build integration may change incompatibly in any release.
+.. warning:: The Rust interface is **experimental** and is not covered by the API stability commitments in :doc:`release_policy`. Its Rust API, C ABI and build integration may change incompatibly in any release, so use the SDK, CCF libraries and documentation from the same CCF revision.
 
-CCF provides an initial Rust interface for native applications. It deliberately
-exposes a small subset of the public application API:
-
-- read-write and read-only HTTP endpoints;
-- user-certificate authentication or no authentication;
-- request bodies, raw queries, decoded path parameters, and named headers;
-- response status, headers, body, and OData errors; and
-- raw-byte KV ``get``, ``has``, ``put``, and ``remove`` operations.
-
-Advanced endpoint configuration, custom authentication, historical queries,
-indexing, and commit callbacks are not currently exposed.
+The Rust SDK, the ``ccf-app`` crate, exposes a small subset of the native application API: read-only and read-write endpoints, user-certificate or no authentication, request and response access, OData errors, and raw-byte KV ``get``, ``has``, ``put`` and ``remove``.
+API schemas, custom authentication, caller identity, historical queries, indexing, logging, crypto helpers and commit callbacks are not exposed.
+See the :doc:`API reference <rust_api>` for details.
 
 Build
 -----
 
-Rust 1.90 and Cargo are required. A Rust application is a ``staticlib`` crate
-which depends on the source-tree ``src/rust/ccf-app`` crate or the installed
-``share/ccf/src/rust/ccf-app`` crate. Its CMake file registers the crate with
-``add_ccf_rust_app``:
+Install the :doc:`build dependencies </contribute/build_setup>` and Rust 1.90, then build the sample from the repository root:
 
-.. code-block:: cmake
+.. code-block:: bash
 
-    add_ccf_rust_app(
-      my_app
-      MANIFEST_PATH ${CMAKE_CURRENT_LIST_DIR}/Cargo.toml
-      PACKAGE my-app
-    )
+    cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug
+    cmake --build build --target basic_rust
 
-The helper maps CMake ``Debug`` builds to Cargo's development profile and all
-other build types to Cargo's release profile. It also links the generic C++ ABI
-bridge, launcher, and CCF libraries. Cargo is invoked on every build and decides
-whether the crate is up to date, so Rust source edits do not require CMake to be
-reconfigured. ``LIB_NAME`` defaults to the package name with dashes replaced by
-underscores; set it explicitly when the crate's ``[lib] name`` differs from its
-package name. The application should commit ``Cargo.lock`` and pin a Rust
-toolchain for reproducible builds.
+This produces the executable ``build/samples/apps/basic_rust/basic_rust``.
+The application is a ``staticlib`` crate that depends on the SDK:
 
-The bridge is framework-owned scaffolding, built by CCF against its internal
-APIs and distributed as a precompiled object. Applications extend it only
-through the C ABI in ``ccf/rust_ffi.h`` and do not compile the bridge or depend
-on CCF's private C++ headers.
+.. literalinclude:: ../../samples/apps/basic_rust/Cargo.toml
+    :language: toml
 
-CCF's existing Rust components remain in its prebuilt ``libccf_rs.a``; their
-Rust implementation symbols are internal and do not collide with the
-application's Rust runtime. Building an application therefore compiles only the
-application crate, ``ccf-app``, and the application's other Cargo dependencies.
-Additional Rust code should be included as Cargo dependencies, not linked as
-separate Rust ``staticlib`` archives, which may export duplicate runtime
-symbols.
+``add_ccf_rust_app`` builds the crate and links it with CCF's C++ bridge and launcher:
 
-The complete records example is in :ccf_repo:`samples/apps/basic_rust`. It
-exports a registration function with ``ccf_app::export_app!`` and registers
-handlers through ``Registry::read_write`` and ``Registry::read_only``.
+.. literalinclude:: ../../samples/apps/basic_rust/CMakeLists.txt
+    :language: cmake
+    :start-at: cmake_minimum_required
 
-Endpoint execution
-------------------
+Cargo runs on every build with ``--locked``, so commit ``Cargo.lock``.
+CMake ``Debug`` builds use Cargo's ``dev`` profile, and other build types use ``release``.
+``LIB_NAME`` must match the crate's ``[lib] name``, and defaults to ``PACKAGE`` with dashes replaced by underscores.
+Add other Rust code as Cargo dependencies, not as separate ``staticlib`` archives, which may export duplicate runtime symbols.
+For a quick type check without linking, run ``cargo check --locked --lib`` in the crate directory.
 
-Handlers may run concurrently and must implement ``Send`` and ``Sync``. CCF may also
-retry a read-write handler when a transaction conflicts, so handlers should be
-deterministic and should not perform non-transactional side effects.
+Write the application
+---------------------
 
-Request and response contexts, transactions, and map handles borrow the callback
-context and cannot be retained. Values returned by KV ``get`` are owned copies.
-The SDK requires Rust's ``unwind`` panic strategy so that panics are caught at
-the ABI boundary and become HTTP 500 errors. Builds using ``panic = "abort"``
-are rejected. C++ exceptions are also contained by the bridge. When a handler
-returns an ``EndpointError`` with a status that is not a known HTTP error
-status, the host bridge emits HTTP 500 while preserving the error code and
-message.
+:ccf_repo:`samples/apps/basic_rust/src/lib.rs` defines ``fn register(registry: &mut Registry) -> Result<(), BridgeError>``, which installs handlers on the :rustdoc:`Registry <struct.Registry.html>`, and exports it with :rustdoc:`export_app! <macro.export_app.html>`:
 
-Panic messages may contain request or KV data, and node output is visible to
-the host. ``export_app!`` therefore installs a panic hook which does not report
-panics raised by the application's registration function, handlers, or handler
-destructors. Other panics are passed to the previously installed hook.
-Applications that install their own panic hook must not write confidential data
-to node output.
+.. literalinclude:: ../../samples/apps/basic_rust/src/lib.rs
+    :language: rust
+    :start-at: ccf_app::export_app!
 
-KV values and keys
-------------------
+This read-write handler stores the request body under the ``key`` path parameter:
 
-The initial API treats keys and values as byte strings. Applications may layer
-their own serializers on these operations; the ``Codec`` trait provides a
-common interface without prescribing a wire format.
+.. literalinclude:: ../../samples/apps/basic_rust/src/lib.rs
+    :language: rust
+    :start-after: SNIPPET_START: rust_put_record
+    :end-before: SNIPPET_END: rust_put_record
+    :dedent: 4
 
-Map names retain the standard CCF security semantics. Names beginning with
-``public:`` are written to the ledger in plaintext. All other application map
-names, such as the sample's ``records`` map, are private and encrypted. Like
-native C++ applications, native Rust applications are trusted code: raw map
-access does not enforce the namespace restrictions applied to JavaScript
-applications for reserved governance and internal maps.
+Paths exclude the ``/app`` prefix, and ``Auth::UserCert`` accepts only certificates registered as CCF users.
+The body is borrowed from the context, so it is copied before ``path_param``, which takes ``&mut self``.
+``?`` turns any :rustdoc:`BridgeError <enum.BridgeError.html>` into HTTP 500, so client errors are returned explicitly as an :rustdoc:`EndpointError <struct.EndpointError.html>`, as the sample's ``required_key`` helper does for a missing key.
 
-Read-only handlers receive only ``ReadOnlyMap``, so write operations are
-not available at compile time. Errors returned by a handler use the normal CCF
-transaction semantics: unsuccessful responses discard writes.
+This read-only handler returns the stored value, or HTTP 404 if there is none:
+
+.. literalinclude:: ../../samples/apps/basic_rust/src/lib.rs
+    :language: rust
+    :start-after: SNIPPET_START: rust_get_record
+    :end-before: SNIPPET_END: rust_get_record
+    :dedent: 4
+
+The sample's other endpoints exist only for CCF's end-to-end tests, and several are unauthenticated, so remove them from any copy.
+
+Run the sample
+--------------
+
+Start a :doc:`sandbox network <run_app>`:
+
+.. code-block:: bash
+
+    cd build
+    ../tests/sandbox/sandbox.sh --package samples/apps/basic_rust/basic_rust
+
+From another terminal in the same directory, write and read a record as ``user0``:
+
+.. code-block:: bash
+
+    export CCF_URL=https://127.0.0.1:8000 # As printed by the sandbox
+    export CCF_COMMON=workspace/sandbox_common
+    curl --cacert "$CCF_COMMON/service_cert.pem" \
+      --cert "$CCF_COMMON/user0_cert.pem" --key "$CCF_COMMON/user0_privk.pem" \
+      -i -X PUT "$CCF_URL/app/records/example" \
+      -H "content-type: application/octet-stream" --data-binary 'hello Rust'
+    curl --cacert "$CCF_COMMON/service_cert.pem" \
+      --cert "$CCF_COMMON/user0_cert.pem" --key "$CCF_COMMON/user0_privk.pem" \
+      -i "$CCF_URL/app/records/example"
+
+The PUT returns HTTP 204, and the GET returns HTTP 200 with the body ``hello Rust``.
+A missing key returns HTTP 404, and a request without the user certificate returns HTTP 401.
+A successful response does not mean that the write is committed; see :doc:`/use_apps/verify_tx`.
+These requests are also covered by the ``e2e_basic_rust`` test in :ccf_repo:`tests/basic_rust.py`.
+
+Use an installed SDK
+--------------------
+
+To build outside the CCF source tree, :doc:`install CCF <install_bin>`, copy the sample project without its test-only endpoints, and point its ``ccf-app`` dependency at the installed SDK:
+
+.. code-block:: toml
+
+    ccf-app = { path = "/opt/ccf/share/ccf/src/rust/ccf-app" }
+
+Then build and run it with the same installation:
+
+.. code-block:: bash
+
+    cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/opt/ccf
+    cmake --build build --target basic_rust
+    /opt/ccf/bin/sandbox.sh --package "$PWD/build/basic_rust"
+
+Handler rules
+-------------
+
+- CCF may run handlers concurrently, and re-execute them after a transaction conflict, so any side effects outside the KV must be safe to repeat. Handlers must implement the :rustdoc:`RetrySafeHandler <trait.RetrySafeHandler.html>` marker trait, which every ``Send + Sync`` type does, and be ``'static``.
+- Contexts and map handles are only valid during one handler call. Values returned by ``get`` are owned copies.
+- KV writes are applied only if the response status is 2xx.
+- An :rustdoc:`EndpointError <struct.EndpointError.html>` whose status is not a known HTTP error status is sent as HTTP 500, with its code and message.
+- Panics are caught and sent as HTTP 500, which requires ``panic = "unwind"``. ``export_app!`` keeps panic messages from application code out of node output, which is visible to the host, and custom panic hooks must not print confidential data either.
+- Keys and values are raw bytes; maps never apply a :rustdoc:`Codec <trait.Codec.html>` implicitly, and the chosen encoding is part of the application's ledger format.
+- Maps whose names start with ``public:`` are stored in the ledger in plaintext, and all other maps are encrypted. Like C++ applications, Rust applications are trusted code and are not prevented from accessing governance or internal maps.
