@@ -61,22 +61,17 @@ namespace ccf::tls
     {
       if (SSL_is_init_finished(ssl) != 1)
       {
-        return "unknown";
+        throw std::logic_error(
+          "Cannot query negotiated TLS group before handshake completion");
       }
 
-      const auto group_id = SSL_get_negotiated_group(ssl);
-      if (group_id == NID_undef)
+      const auto* group_name = SSL_get0_group_name(ssl);
+      if (group_name == nullptr)
       {
-        return "unknown";
+        throw std::runtime_error("Failed to get negotiated TLS group name");
       }
 
-      const auto* group_name = SSL_group_to_name(ssl, group_id);
-      if (group_name != nullptr)
-      {
-        return group_name;
-      }
-
-      return std::to_string(group_id);
+      return group_name;
     }
 
     inline std::optional<SocketOptionError> configure_tcp_connection(int fd)

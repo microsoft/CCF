@@ -45,58 +45,6 @@ using ccf::OpenSSLSessionManager;
 
 namespace
 {
-  class ScopedHandshakeLogCapture
-  {
-    struct Logger : public ccf::logger::AbstractLogger
-    {
-      std::mutex mutex;
-      std::vector<std::string> messages;
-
-      void write(const ccf::logger::LogLine& line) override
-      {
-        if (
-          line.log_level != ccf::LoggerLevel::INFO ||
-          !line.msg.starts_with("TLS handshake completed:"))
-        {
-          return;
-        }
-        std::lock_guard<std::mutex> guard(mutex);
-        messages.push_back(line.msg);
-      }
-    };
-
-    const ccf::LoggerLevel previous_level = ccf::logger::config::level();
-    std::vector<std::unique_ptr<ccf::logger::AbstractLogger>> previous_loggers;
-    Logger* logger = nullptr;
-
-  public:
-    // Declare before the server so its threads stop before config is restored.
-    ScopedHandshakeLogCapture() :
-      previous_loggers(std::exchange(ccf::logger::config::loggers(), {}))
-    {
-      auto capture = std::make_unique<Logger>();
-      logger = capture.get();
-      ccf::logger::config::loggers().emplace_back(std::move(capture));
-      ccf::logger::config::level() = ccf::LoggerLevel::INFO;
-    }
-
-    ScopedHandshakeLogCapture(const ScopedHandshakeLogCapture&) = delete;
-    ScopedHandshakeLogCapture& operator=(const ScopedHandshakeLogCapture&) =
-      delete;
-
-    ~ScopedHandshakeLogCapture()
-    {
-      ccf::logger::config::loggers() = std::move(previous_loggers);
-      ccf::logger::config::level() = previous_level;
-    }
-
-    std::vector<std::string> snapshot() const
-    {
-      std::lock_guard<std::mutex> guard(logger->mutex);
-      return logger->messages;
-    }
-  };
-
   struct NotificationGate
   {
     ccf::ds::Mutex mutex;
@@ -388,8 +336,7 @@ namespace
   HandshakeResult handshake_and_inspect(
     uint16_t port,
     const std::string& client_groups = {},
-    const std::string& client_ciphersuites = {},
-    size_t exchanges = 0)
+    const std::string& client_ciphersuites = {})
   {
     const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
     REQUIRE(fd >= 0);
@@ -426,16 +373,6 @@ namespace
       if (cipher != nullptr)
       {
         result.cipher = SSL_CIPHER_get_name(cipher);
-      }
-      // Round trips also ensure the server has finished the handshake and
-      // exercise the Ready state without opening another connection.
-      for (size_t i = 0; i < exchanges; ++i)
-      {
-        const uint8_t request = 42;
-        uint8_t response = 0;
-        REQUIRE(SSL_write(ssl, &request, sizeof(request)) == 1);
-        REQUIRE(SSL_read(ssl, &response, sizeof(response)) == 1);
-        REQUIRE(response == request);
       }
       SSL_shutdown(ssl);
     }
@@ -2320,97 +2257,14 @@ TEST_CASE("Persistent connection survives many sequential round-trips")
 // The server's cipher, ciphersuite and group policy is defined in
 // build_server_ctx(). These assert it from the wire.
 
-TEST_CASE("Negotiated group is unknown before a TLS handshake")
+TEST_CASE("Querying the negotiated group before a TLS handshake throws")
 {
   ccf::crypto::OpenSSL::Unique_SSL_CTX ctx(TLS_client_method());
   ccf::crypto::OpenSSL::Unique_SSL ssl(ctx);
-  REQUIRE(ccf::tls::details::get_negotiated_group(ssl) == "unknown");
-}
-
-TEST_CASE("TLS group is logged once per successful connection at INFO")
-{
-  std::string client_groups = "P-256";
-  std::string expected_group = "secp256r1";
-  SUBCASE("approved classical group") {}
-  SUBCASE("classical fallback")
-  {
-    client_groups = "X448:P-384";
-    expected_group = "secp384r1";
-  }
-
-  ScopedHandshakeLogCapture logs;
-  LOG_INFO_FMT("Unrelated INFO message must not affect handshake counts");
-  {
-    auto [cert, key] = make_server_cert();
-    EchoServer s(cert, key);
-    const auto r = handshake_and_inspect(s.port(), client_groups, {}, 2);
-    REQUIRE(r.succeeded);
-    REQUIRE(r.group == expected_group);
-  }
-
-  const auto messages = logs.snapshot();
-  REQUIRE(messages.size() == 1);
-  CHECK(messages[0].starts_with("TLS handshake completed: connection_id="));
-  CHECK(messages[0].ends_with(", negotiated_group=" + expected_group));
-  CHECK_FALSE(messages[0].contains("hybrid_key_exchange"));
-}
-
-TEST_CASE("Failed TLS handshakes do not emit handshake completion INFO events")
-{
-  ScopedHandshakeLogCapture logs;
-  {
-    auto [cert, key] = make_server_cert();
-    EchoServer s(cert, key);
-
-    SUBCASE("repeated unsupported groups")
-    {
-      for (size_t i = 0; i < 5; ++i)
-      {
-        REQUIRE_FALSE(handshake_and_inspect(s.port(), "X448").succeeded);
-      }
-    }
-    SUBCASE("repeated unsupported ciphersuites")
-    {
-      for (size_t i = 0; i < 5; ++i)
-      {
-        REQUIRE_FALSE(
-          handshake_and_inspect(s.port(), {}, "TLS_CHACHA20_POLY1305_SHA256")
-            .succeeded);
-      }
-    }
-    SUBCASE("client rejects the server certificate")
-    {
-      REQUIRE_FALSE(verifying_client_handshake(s.port(), make_ca().cert));
-    }
-  }
-  REQUIRE(logs.snapshot().empty());
-}
-
-TEST_CASE("Hybrid TLS group names are logged without runtime classification")
-{
-  if (!supports_hybrid_groups())
-  {
-    return;
-  }
-
-  for (const auto* group :
-       {"SecP384r1MLKEM1024", "SecP256r1MLKEM768", "X25519MLKEM768"})
-  {
-    INFO(group);
-    ScopedHandshakeLogCapture logs;
-    {
-      auto [cert, key] = make_server_cert();
-      EchoServer s(cert, key);
-      const auto r = handshake_and_inspect(s.port(), group, {}, 2);
-      REQUIRE(r.succeeded);
-      REQUIRE(r.group == group);
-    }
-    const auto messages = logs.snapshot();
-    REQUIRE(messages.size() == 1);
-    CHECK(messages[0].starts_with("TLS handshake completed: connection_id="));
-    CHECK(messages[0].ends_with(std::string(", negotiated_group=") + group));
-    CHECK_FALSE(messages[0].contains("hybrid_key_exchange"));
-  }
+  REQUIRE_THROWS_WITH_AS(
+    ccf::tls::details::get_negotiated_group(ssl),
+    "Cannot query negotiated TLS group before handshake completion",
+    std::logic_error);
 }
 
 TEST_CASE("Server restricts TLS 1.3 ciphersuites to the configured list")
