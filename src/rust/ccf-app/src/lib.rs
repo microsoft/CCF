@@ -1,11 +1,21 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-//! Minimal Rust API for native CCF applications.
+//! Experimental Rust API for native CCF applications.
 //!
-//! Endpoint handlers may execute concurrently and must therefore be `Send` and
-//! `Sync`. Request, response, transaction, and map objects are borrowed for one
-//! callback invocation and cannot be retained.
+//! A registration function installs endpoint handlers on a [`Registry`], and
+//! [`export_app!`] exports it to CCF. Each handler call receives a
+//! [`ReadOnlyContext`] or [`WriteContext`], which gives access to the request,
+//! the response and raw-byte KV maps in the call's transaction. See
+//! `samples/apps/basic_rust` in the CCF repository for a complete application.
+//!
+//! Handlers may run concurrently, and may be re-executed after a transaction
+//! conflict (see [`RetrySafeHandler`]). KV writes are applied only if the
+//! response status is 2xx. A handler returns an [`EndpointError`] to send an
+//! error response, and `?` on a [`BridgeResult`] sends HTTP 500. Panics are
+//! caught and also sent as HTTP 500, which requires `panic = "unwind"`.
+
+#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 
 #[cfg(not(panic = "unwind"))]
 compile_error!(
@@ -20,13 +30,16 @@ use std::ptr::NonNull;
 use std::slice;
 use std::sync::Once;
 
+#[doc(hidden)]
 pub const ABI_VERSION: u32 = 1;
 
+#[doc(hidden)]
 #[repr(C)]
 pub struct RawRegistry {
     _private: [u8; 0],
 }
 
+#[doc(hidden)]
 #[repr(C)]
 pub struct RawEndpointContext {
     _private: [u8; 0],
@@ -201,20 +214,38 @@ unsafe fn borrowed_slice<'a>(value: RawSlice) -> &'a [u8] {
     }
 }
 
+/// Failure of an SDK call into CCF.
+///
+/// Conversion to [`EndpointError`], as by `?` in a handler, always gives
+/// HTTP 500.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BridgeError {
+    /// A value was not found. Lookups report this as `None` or `false` instead.
     NotFound,
+    /// CCF rejected an argument, such as an empty map name, an unknown status
+    /// or an invalid header.
     InvalidArgument,
+    /// A write was attempted in a read-only transaction.
     ReadOnly,
+    /// CCF failed the operation, or returned invalid UTF-8 where a string was
+    /// expected.
     Internal,
+    /// The SDK and CCF were built with different ABI versions.
     AbiMismatch,
 }
 
+/// Result of an SDK call into CCF.
 pub type BridgeResult<T> = Result<T, BridgeError>;
 
+/// Authentication policy for an endpoint.
+///
+/// Handlers cannot access the authenticated identity.
 #[derive(Clone, Copy, Debug)]
 pub enum Auth {
+    /// No authentication.
     None,
+    /// Require a client certificate that is registered as a CCF user and within
+    /// its validity period.
     UserCert,
 }
 
@@ -227,14 +258,30 @@ impl Auth {
     }
 }
 
+/// Error response returned by a handler.
+///
+/// CCF sends an OData JSON error with this code and message, which are visible
+/// to the client and may be empty. A status that is not a known HTTP status of
+/// 400 or above is sent as HTTP 500.
+///
+/// ```
+/// use ccf_app::EndpointError;
+///
+/// let error = EndpointError::new(404, "ResourceNotFound", "No such key");
+/// assert_eq!(error.status, 404);
+/// ```
 #[derive(Clone, Debug)]
 pub struct EndpointError {
+    /// HTTP status.
     pub status: u16,
+    /// Error code, such as `"ResourceNotFound"`.
     pub code: String,
+    /// Error message.
     pub message: String,
 }
 
 impl EndpointError {
+    /// Create an error. The status is only checked when the response is sent.
     pub fn new(status: u16, code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             status,
@@ -243,23 +290,64 @@ impl EndpointError {
         }
     }
 
+    /// Create an HTTP 500 error with code `"InternalError"`.
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new(500, "InternalError", message)
     }
 }
 
+/// Convert to an HTTP 500 `InternalError`, so that `?` can be used in handlers.
+///
+/// ```
+/// use ccf_app::{BridgeError, EndpointError};
+///
+/// let error = EndpointError::from(BridgeError::InvalidArgument);
+/// assert_eq!(error.status, 500);
+/// assert_eq!(error.message, "CCF bridge error: InvalidArgument");
+/// ```
 impl From<BridgeError> for EndpointError {
     fn from(error: BridgeError) -> Self {
         Self::internal(format!("CCF bridge error: {error:?}"))
     }
 }
 
+/// Result of a handler: `Ok` keeps the response set by the handler, and `Err`
+/// replaces it with an error response.
 pub type EndpointResult = Result<(), EndpointError>;
 
+/// Optional conversion between application values and KV bytes.
+///
+/// Maps never apply a codec implicitly. The encoding is part of the
+/// application's ledger format.
+///
+/// ```
+/// use ccf_app::Codec;
+///
+/// struct BigEndianU32;
+///
+/// impl Codec<u32> for BigEndianU32 {
+///     type Error = std::array::TryFromSliceError;
+///
+///     fn encode(value: &u32) -> Result<Vec<u8>, Self::Error> {
+///         Ok(value.to_be_bytes().to_vec())
+///     }
+///
+///     fn decode(bytes: &[u8]) -> Result<u32, Self::Error> {
+///         Ok(u32::from_be_bytes(bytes.try_into()?))
+///     }
+/// }
+///
+/// let bytes = BigEndianU32::encode(&42).unwrap();
+/// assert_eq!(BigEndianU32::decode(&bytes).unwrap(), 42);
+/// assert!(BigEndianU32::decode(&[42]).is_err());
+/// ```
 pub trait Codec<T> {
+    /// Encoding or decoding error.
     type Error;
 
+    /// Encode a value as bytes.
     fn encode(value: &T) -> Result<Vec<u8>, Self::Error>;
+    /// Decode a value from bytes.
     fn decode(value: &[u8]) -> Result<T, Self::Error>;
 }
 
@@ -409,37 +497,64 @@ impl Context<'_> {
     }
 }
 
+/// Request, response and read-only KV access for one call of a
+/// [`Registry::read_only`] handler.
+///
+/// Maps cannot be written:
+///
+/// ```compile_fail,E0599
+/// use ccf_app::{EndpointResult, ReadOnlyContext};
+///
+/// fn write_in_read_only_handler(context: &mut ReadOnlyContext<'_>) -> EndpointResult {
+///     context.map("records").put(b"key", b"value")?;
+///     Ok(())
+/// }
+/// ```
 pub struct ReadOnlyContext<'a>(Context<'a>);
 
 impl<'ctx> ReadOnlyContext<'ctx> {
+    /// Borrow the raw request body. Copy it before calling a `&mut self` method
+    /// if it is still needed.
     pub fn body(&self) -> BridgeResult<&[u8]> {
         self.0.body()
     }
 
+    /// Borrow the raw query string, without the leading `?` and not
+    /// percent-decoded.
     pub fn query(&self) -> BridgeResult<&str> {
         self.0.query()
     }
 
+    /// Copy the decoded path parameter `name`, such as `"key"` for
+    /// `/records/{key}`, or `None` if it is absent.
     pub fn path_param(&mut self, name: &str) -> BridgeResult<Option<String>> {
         self.0.path_param(name)
     }
 
+    /// Copy the raw value of the request header `name`, which must be
+    /// lowercase, or `None` if it is absent.
     pub fn header(&mut self, name: &str) -> BridgeResult<Option<Vec<u8>>> {
         self.0.header(name)
     }
 
+    /// Set the response status. Unknown statuses are rejected with
+    /// [`BridgeError::InvalidArgument`].
     pub fn set_status(&mut self, status: u16) -> BridgeResult<()> {
         self.0.set_status(status)
     }
 
+    /// Set a response header. Invalid names and values, including any
+    /// containing CR or LF, are rejected with [`BridgeError::InvalidArgument`].
     pub fn set_header(&mut self, name: &str, value: &str) -> BridgeResult<()> {
         self.0.set_header(name, value)
     }
 
+    /// Set the raw response body.
     pub fn set_body(&mut self, body: &[u8]) -> BridgeResult<()> {
         self.0.set_body(body)
     }
 
+    /// Access the map `name` in this call's transaction.
     pub fn map<'a>(&'a mut self, name: &'a str) -> ReadOnlyMap<'a, 'ctx> {
         ReadOnlyMap {
             context: &mut self.0,
@@ -448,37 +563,74 @@ impl<'ctx> ReadOnlyContext<'ctx> {
     }
 }
 
+/// Request, response and read-write KV access for one call of a
+/// [`Registry::read_write`] handler.
+///
+/// Borrowed request data must be copied before calling a `&mut self` method,
+/// and cannot outlive the context:
+///
+/// ```compile_fail,E0502
+/// use ccf_app::{EndpointResult, WriteContext};
+///
+/// fn echo(context: &mut WriteContext<'_>) -> EndpointResult {
+///     let body = context.body()?;
+///     context.set_body(body)?;
+///     Ok(())
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use ccf_app::WriteContext;
+///
+/// fn retain_body(context: &WriteContext<'_>) -> &'static [u8] {
+///     context.body().unwrap()
+/// }
+/// ```
 pub struct WriteContext<'a>(Context<'a>);
 
 impl<'ctx> WriteContext<'ctx> {
+    /// Borrow the raw request body. Copy it before calling a `&mut self` method
+    /// if it is still needed.
     pub fn body(&self) -> BridgeResult<&[u8]> {
         self.0.body()
     }
 
+    /// Borrow the raw query string, without the leading `?` and not
+    /// percent-decoded.
     pub fn query(&self) -> BridgeResult<&str> {
         self.0.query()
     }
 
+    /// Copy the decoded path parameter `name`, such as `"key"` for
+    /// `/records/{key}`, or `None` if it is absent.
     pub fn path_param(&mut self, name: &str) -> BridgeResult<Option<String>> {
         self.0.path_param(name)
     }
 
+    /// Copy the raw value of the request header `name`, which must be
+    /// lowercase, or `None` if it is absent.
     pub fn header(&mut self, name: &str) -> BridgeResult<Option<Vec<u8>>> {
         self.0.header(name)
     }
 
+    /// Set the response status. Unknown statuses are rejected with
+    /// [`BridgeError::InvalidArgument`].
     pub fn set_status(&mut self, status: u16) -> BridgeResult<()> {
         self.0.set_status(status)
     }
 
+    /// Set a response header. Invalid names and values, including any
+    /// containing CR or LF, are rejected with [`BridgeError::InvalidArgument`].
     pub fn set_header(&mut self, name: &str, value: &str) -> BridgeResult<()> {
         self.0.set_header(name, value)
     }
 
+    /// Set the raw response body.
     pub fn set_body(&mut self, body: &[u8]) -> BridgeResult<()> {
         self.0.set_body(body)
     }
 
+    /// Access the map `name` in this call's transaction.
     pub fn map<'a>(&'a mut self, name: &'a str) -> Map<'a, 'ctx> {
         Map {
             context: &mut self.0,
@@ -487,49 +639,62 @@ impl<'ctx> WriteContext<'ctx> {
     }
 }
 
+/// Read-only access to a raw-byte KV map, from [`ReadOnlyContext::map`].
 pub struct ReadOnlyMap<'a, 'ctx> {
     context: &'a mut Context<'ctx>,
     name: &'a str,
 }
 
 impl ReadOnlyMap<'_, '_> {
+    /// Copy the value of `key`, or `None` if it is absent.
     pub fn get(&mut self, key: &[u8]) -> BridgeResult<Option<Vec<u8>>> {
         self.context.get(self.name, key)
     }
 
+    /// Check whether `key` is present.
     pub fn has(&mut self, key: &[u8]) -> BridgeResult<bool> {
         self.context.has(self.name, key)
     }
 }
 
+/// Read-write access to a raw-byte KV map, from [`WriteContext::map`].
+///
+/// Writes are visible to later reads in the same transaction, and are applied
+/// only if the response status is 2xx.
 pub struct Map<'a, 'ctx> {
     context: &'a mut Context<'ctx>,
     name: &'a str,
 }
 
 impl Map<'_, '_> {
+    /// Copy the value of `key`, or `None` if it is absent.
     pub fn get(&mut self, key: &[u8]) -> BridgeResult<Option<Vec<u8>>> {
         self.context.get(self.name, key)
     }
 
+    /// Check whether `key` is present.
     pub fn has(&mut self, key: &[u8]) -> BridgeResult<bool> {
         self.context.has(self.name, key)
     }
 
+    /// Write `value` to `key`.
     pub fn put(&mut self, key: &[u8], value: &[u8]) -> BridgeResult<()> {
         self.context.put(self.name, key, value)
     }
 
+    /// Remove `key`, if it is present.
     pub fn remove(&mut self, key: &[u8]) -> BridgeResult<()> {
         self.context.remove(self.name, key)
     }
 }
 
-/// Marker trait for endpoint handlers that may be invoked repeatedly.
+/// Marker trait for endpoint handlers, which CCF may re-execute.
 ///
-/// CCF may discard a transaction and invoke the handler again when transaction
-/// execution conflicts. Handlers must not perform non-transactional side
-/// effects that are unsafe to repeat.
+/// Handlers may run concurrently, and CCF may discard a transaction and
+/// re-execute its handler after a conflict. The transaction's KV changes and
+/// response are discarded, so any other side effects must be safe to repeat.
+/// This trait is implemented for all `Send + Sync` types, so the compiler
+/// cannot check this.
 pub trait RetrySafeHandler: Send + Sync {}
 
 impl<T> RetrySafeHandler for T where T: Send + Sync {}
@@ -652,11 +817,13 @@ unsafe extern "C" fn drop_handler(user_data: *mut c_void) {
     }
 }
 
+/// Endpoint registry, passed to the function exported with [`export_app!`].
 pub struct Registry {
     raw: NonNull<RawRegistry>,
 }
 
 impl Registry {
+    #[doc(hidden)]
     /// # Safety
     ///
     /// `raw` must point to the live C++ registry passed to
@@ -670,6 +837,12 @@ impl Registry {
             .ok_or(BridgeError::InvalidArgument)
     }
 
+    /// Register a handler with read-only KV access.
+    ///
+    /// `path` excludes the `/app` prefix and may contain parameters, such as
+    /// `/records/{key}`. `method` is an HTTP method, such as `"GET"`. Returns
+    /// [`BridgeError::InvalidArgument`] if either is empty, or
+    /// [`BridgeError::Internal`] if CCF rejects the endpoint.
     pub fn read_only<F>(
         &mut self,
         path: &str,
@@ -683,6 +856,9 @@ impl Registry {
         self.register(path, method, auth, Handler::Read(Box::new(handler)))
     }
 
+    /// Register a handler with read-write KV access.
+    ///
+    /// Arguments and errors are as for [`read_only`](Self::read_only).
     pub fn read_write<F>(
         &mut self,
         path: &str,
@@ -751,14 +927,23 @@ where
     }
 }
 
+/// Export `register`, a `fn(&mut Registry) -> BridgeResult<()>`, as the
+/// application's entry point.
+///
+/// Invoke once in the application crate, as `ccf_app::export_app!(register);`.
+/// If `register` returns an error or panics, CCF fails to initialize the
+/// application. The macro also keeps panic messages from application code,
+/// which may contain confidential data, out of node output.
 #[macro_export]
 macro_rules! export_app {
     ($register:path) => {
+        #[doc(hidden)]
         #[unsafe(no_mangle)]
         pub extern "C" fn ccf_rust_app_abi_version() -> u32 {
             $crate::ABI_VERSION
         }
 
+        #[doc(hidden)]
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn ccf_rust_app_register(
             raw_registry: *mut $crate::RawRegistry,
