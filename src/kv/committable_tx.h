@@ -504,7 +504,9 @@ namespace ccf::kv
         throw std::logic_error("Transaction already committed");
       }
 
-      if (all_changes.empty())
+      // A reserved transaction must fill its version with a ledger entry, so
+      // one which only reads would leave a hole at that version.
+      if (!has_writes())
       {
         throw std::logic_error("Reserved transaction cannot be empty");
       }

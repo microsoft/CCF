@@ -642,9 +642,6 @@ namespace ccf::kv
     virtual void unlock() = 0;
     virtual SecurityDomain get_security_domain() = 0;
     virtual void clear() = 0;
-
-    virtual AbstractMap* clone(AbstractStore* store) = 0;
-    virtual void swap(AbstractMap* map) = 0;
   };
 
   class Tx;

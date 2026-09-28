@@ -297,24 +297,16 @@ namespace ccf::kv::untyped
     using Handle = ccf::kv::untyped::MapHandle;
     using Diff = ccf::kv::untyped::MapDiff;
 
-    Map(
-      AbstractStore* store_,
-      const std::string& name_,
-      SecurityDomain security_domain_) :
+    Map(AbstractStore* store_, const std::string& name_) :
       AbstractMap(name_),
       store(store_),
       roll{std::make_unique<LocalCommits>(), 0, {}},
-      security_domain(security_domain_)
+      security_domain(ccf::kv::get_security_domain(name_))
     {
       roll.reset_commits();
     }
 
     Map(const Map& that) = delete;
-
-    AbstractMap* clone(AbstractStore* other) override
-    {
-      return static_cast<AbstractMap*>(new Map(other, name, security_domain));
-    }
 
     void serialise_changes(
       const AbstractChangeSet* changes, KvStoreSerialiser& s) override
@@ -685,17 +677,11 @@ namespace ccf::kv::untyped
       sl.unlock();
     }
 
-    // NOLINTNEXTLINE(bugprone-exception-escape)
-    void swap(AbstractMap* map_) override
+    // Exchanges the entire state of this map with that of other. The caller
+    // must hold the locks of both maps.
+    void swap(Map& other) noexcept
     {
-      auto* map = dynamic_cast<Map*>(map_);
-      if (map == nullptr)
-      {
-        throw std::logic_error(
-          "Attempted to swap maps with incompatible types");
-      }
-
-      std::swap(roll, map->roll);
+      std::swap(roll, other.roll);
     }
 
     ChangeSetPtr create_change_set(

@@ -116,6 +116,34 @@ namespace ccf::kv
 
     std::atomic<StoreReadiness> readiness = StoreReadiness::Ready;
 
+    // Holds the lock of every map in a collection for its lifetime, releasing
+    // them on every exit path. The collection must not change while held.
+    class ScopedMapLocks
+    {
+    private:
+      Maps& maps;
+
+    public:
+      explicit ScopedMapLocks(Maps& maps_) : maps(maps_)
+      {
+        for (auto& [_, entry] : maps)
+        {
+          entry.second->lock();
+        }
+      }
+
+      ~ScopedMapLocks()
+      {
+        for (auto& [_, entry] : maps)
+        {
+          entry.second->unlock();
+        }
+      }
+
+      ScopedMapLocks(const ScopedMapLocks&) = delete;
+      ScopedMapLocks& operator=(const ScopedMapLocks&) = delete;
+    };
+
     bool commit_deserialised(
       OrderedChanges& changes,
       Version v,
@@ -177,7 +205,8 @@ namespace ccf::kv
     }
 
   public:
-    Store(bool is_historical_ = false) : is_historical(is_historical_) {}
+    explicit Store(bool is_historical_ = false) : is_historical(is_historical_)
+    {}
 
     Store(const Store& that) = delete;
 
@@ -458,79 +487,66 @@ namespace ccf::kv
       {
         std::lock_guard<ccf::ds::Mutex> mguard(maps_lock);
 
-        for (auto& it : maps)
-        {
-          auto& [_, map] = it.second;
-          map->lock();
-        }
-
-        h = get_history();
-        if (h)
-        {
-          hash_at_snapshot = d.deserialise_raw();
-        }
-
-        if (view_history != nullptr)
-        {
-          view_history_ = d.deserialise_view_history();
-        }
-
         OrderedChanges changes;
         MapCollection new_maps;
 
-        for (auto r = d.start_map(); r.has_value(); r = d.start_map())
         {
-          const auto map_name = r.value();
+          // Existing maps are locked while the snapshot is parsed, and released
+          // however parsing ends, including on failure
+          ScopedMapLocks map_locks(maps);
 
-          std::shared_ptr<ccf::kv::untyped::Map> map = nullptr;
-
-          auto search = maps.find(map_name);
-          if (search == maps.end())
+          h = get_history();
+          if (h)
           {
-            map = std::make_shared<ccf::kv::untyped::Map>(
-              this, map_name, get_security_domain(map_name));
-            new_maps[map_name] = map;
-            LOG_DEBUG_FMT(
-              "Creating map {} while deserialising snapshot at version {}",
-              map_name,
-              v);
-          }
-          else
-          {
-            map = search->second.second;
+            hash_at_snapshot = d.deserialise_raw();
           }
 
-          auto changes_search = changes.find(map_name);
-          if (changes_search != changes.end())
+          if (view_history != nullptr)
           {
-            LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
-            LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
-            return ApplyResult::FAIL;
+            view_history_ = d.deserialise_view_history();
           }
 
-          auto deserialised_snapshot_changes =
-            map->deserialise_snapshot_changes(d);
+          for (auto r = d.start_map(); r.has_value(); r = d.start_map())
+          {
+            const auto map_name = r.value();
 
-          // Take ownership of the produced change set, store it to be committed
-          // later
-          changes.emplace_hint(
-            changes_search,
-            std::piecewise_construct,
-            std::forward_as_tuple(map_name),
-            std::forward_as_tuple(
-              map, std::move(deserialised_snapshot_changes)));
-        }
+            std::shared_ptr<ccf::kv::untyped::Map> map = nullptr;
 
-        for (auto& it : maps)
-        {
-          auto& [_, map] = it.second;
-          map->unlock();
-        }
+            auto search = maps.find(map_name);
+            if (search == maps.end())
+            {
+              map = std::make_shared<ccf::kv::untyped::Map>(this, map_name);
+              new_maps[map_name] = map;
+              LOG_DEBUG_FMT(
+                "Creating map {} while deserialising snapshot at version {}",
+                map_name,
+                v);
+            }
+            else
+            {
+              map = search->second.second;
+            }
 
-        if (!d.end())
-        {
-          LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
-          return ApplyResult::FAIL;
+            auto changes_search = changes.find(map_name);
+            if (changes_search != changes.end())
+            {
+              LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
+              LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
+              return ApplyResult::FAIL;
+            }
+
+            auto deserialised_snapshot_changes =
+              map->deserialise_snapshot_changes(d);
+
+            // Take ownership of the produced change set, store it to be
+            // committed later
+            changes.emplace_hint(
+              changes_search,
+              std::piecewise_construct,
+              std::forward_as_tuple(map_name),
+              std::forward_as_tuple(
+                map, std::move(deserialised_snapshot_changes)));
+          }
         }
 
         // Each map is committed at a different version, independently of the
@@ -816,8 +832,8 @@ namespace ccf::kv
         auto map = get_map_internal(v, map_name);
         if (map == nullptr)
         {
-          auto new_map = std::make_shared<ccf::kv::untyped::Map>(
-            this, map_name, get_security_domain(map_name));
+          auto new_map =
+            std::make_shared<ccf::kv::untyped::Map>(this, map_name);
           map = new_map;
           new_maps[map_name] = new_map;
           LOG_DEBUG_FMT(
@@ -843,12 +859,6 @@ namespace ccf::kv
           std::piecewise_construct,
           std::forward_as_tuple(map_name),
           std::forward_as_tuple(map, std::move(deserialised_changes)));
-      }
-
-      if (!d.end())
-      {
-        LOG_FAIL_FMT("Unexpected content in transaction at version {}", v);
-        return false;
       }
 
       return true;
@@ -1194,6 +1204,12 @@ namespace ccf::kv
      * compacted until the next compact() however). So it is important to
      * make sure that the private state being swapped in is fully compacted
      * before the swap.
+     *
+     * Each of source's private maps is paired with the map of the same name
+     * in *this, which is created if it does not exist yet. Since a map's
+     * security domain is derived from its name, both maps of each pair are
+     * private. This pairing is done before any map is locked, and the swaps
+     * themselves cannot throw, so an exception never leaves a map locked.
      **/
     void swap_private_maps(Store& store)
     {
@@ -1213,66 +1229,52 @@ namespace ccf::kv
       std::scoped_lock<ccf::ds::Mutex, ccf::ds::Mutex> guard_both_store_maps(
         maps_lock, store.maps_lock);
 
-      // Each entry is (Name, MyMap, TheirMap)
-      using MapEntry = std::tuple<std::string, AbstractMap*, AbstractMap*>;
-      std::vector<MapEntry> entries;
-
-      // Get the list of private maps from the source store
+      // Each entry is (MyMap, TheirMap)
+      std::vector<std::pair<untyped::Map*, untyped::Map*>> entries;
       for (auto& [name, pair] : store.maps)
       {
-        auto& [_, map] = pair;
-        if (map->get_security_domain() == SecurityDomain::PRIVATE)
+        auto& [_, their_map] = pair;
+        if (their_map->get_security_domain() != SecurityDomain::PRIVATE)
         {
-          map->lock();
-          entries.emplace_back(name, nullptr, map.get());
+          continue;
         }
-      }
 
-      // For each source map, either create it or, where it already exists,
-      // confirm it is PRIVATE. Lock it and store it in entries
-      auto entry = entries.begin();
-      while (entry != entries.end())
-      {
-        const auto& [name, _, their_map] = *entry;
-        std::shared_ptr<AbstractMap> map = nullptr;
-        const auto it = maps.find(name);
+        auto it = maps.find(name);
         if (it == maps.end())
         {
           // NB: We lose the creation version from the original map, but assume
           // it is irrelevant - its creation should no longer be at risk of
           // rollback
-          auto new_map = std::make_pair(
-            NoVersion,
-            std::make_shared<ccf::kv::untyped::Map>(
-              this, name, SecurityDomain::PRIVATE));
-          maps[name] = new_map;
-          map = new_map.second;
-        }
-        else
-        {
-          map = it->second.second;
-          if (map->get_security_domain() != SecurityDomain::PRIVATE)
-          {
-            throw std::logic_error(fmt::format(
-              "Swap mismatch - map {} is private in source but not in target",
-              name));
-          }
+          it = maps
+                 .emplace(
+                   name,
+                   std::make_pair(
+                     NoVersion, std::make_shared<untyped::Map>(this, name)))
+                 .first;
         }
 
-        std::get<1>(*entry) = map.get();
-        map->lock();
-        ++entry;
+        entries.emplace_back(it->second.second.get(), their_map.get());
       }
 
-      for (auto& [name, lhs, rhs] : entries)
+      for (auto& [my_map, their_map] : entries)
       {
-        lhs->swap(rhs);
+        their_map->lock();
       }
 
-      for (auto& [name, lhs, rhs] : entries)
+      for (auto& [my_map, their_map] : entries)
       {
-        lhs->unlock();
-        rhs->unlock();
+        my_map->lock();
+      }
+
+      for (auto& [my_map, their_map] : entries)
+      {
+        my_map->swap(*their_map);
+      }
+
+      for (auto& [my_map, their_map] : entries)
+      {
+        my_map->unlock();
+        their_map->unlock();
       }
     }
 
