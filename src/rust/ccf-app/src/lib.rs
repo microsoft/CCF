@@ -689,12 +689,12 @@ impl Map<'_, '_> {
     }
 }
 
-/// Requirements for endpoint handlers, implemented for all `Send + Sync` types.
+/// Marker trait for endpoint handlers that may be invoked repeatedly.
 ///
-/// Handlers may run concurrently, and CCF may discard a transaction and call
-/// its handler again after a conflict. Only KV changes are discarded, so
-/// handlers must not have other side effects that are unsafe to repeat. The
-/// compiler cannot check this.
+/// Handlers may run concurrently, and CCF may discard a transaction and invoke
+/// its handler again after a conflict. Only KV changes are discarded, so any
+/// other side effects must be safe to repeat. This trait is implemented for all
+/// `Send + Sync` types, so the compiler cannot check this.
 pub trait RetrySafeHandler: Send + Sync {}
 
 impl<T> RetrySafeHandler for T where T: Send + Sync {}

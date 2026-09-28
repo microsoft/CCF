@@ -117,8 +117,7 @@ Then build and run it with the same installation:
 Handler rules
 -------------
 
-- Handlers may run concurrently, and must be ``Send``, ``Sync`` and ``'static``.
-- CCF may re-execute a handler after a transaction conflict, so any side effects outside the KV must be safe to repeat.
+- CCF may run handlers concurrently, and re-execute them after a transaction conflict, so any side effects outside the KV must be safe to repeat. Handlers must implement the :rustdoc:`RetrySafeHandler <trait.RetrySafeHandler.html>` marker trait, which every ``Send + Sync`` type does, and be ``'static``.
 - Contexts and map handles are only valid during one handler call. Values returned by ``get`` are owned copies.
 - KV writes are applied only if the response status is 2xx.
 - An :rustdoc:`EndpointError <struct.EndpointError.html>` whose status is not a known HTTP error status is sent as HTTP 500, with its code and message.
