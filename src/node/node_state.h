@@ -1343,10 +1343,13 @@ namespace ccf
         case StartType::Recover:
         {
           LOG_INFO_FMT("Creating new node - recover");
+          // Already enforced by resolve_startup_inputs(); kept as a guard for
+          // the dereference below, with the same message.
           if (!startup_inputs.previous_service_identity.has_value())
           {
             throw std::logic_error(
-              "No previous service identity is configured");
+              "Recovery requires the certificate of the previous service "
+              "identity");
           }
           ccf::crypto::Pem previous_service_identity_cert(
             startup_inputs.previous_service_identity.value());
