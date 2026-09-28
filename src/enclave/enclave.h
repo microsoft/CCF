@@ -3,6 +3,8 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/js/core/context.h"
+#include "ccf/node/configuration.h"
+#include "ccf/node/start_type.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
 #include "crypto/openssl/hash.h"
@@ -207,7 +209,7 @@ namespace ccf
 
     CreateNodeStatus create_new_node(
       StartType start_type_,
-      ccf::StartupConfig ccf_config_,
+      ccf::CCFConfig ccf_config_,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& service_cert,
       std::vector<uint8_t>& rpc_addresses)
