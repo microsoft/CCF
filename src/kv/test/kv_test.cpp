@@ -2798,11 +2798,6 @@ namespace
     }
 
     void clear() override {}
-
-    ccf::kv::AbstractMap* clone(ccf::kv::AbstractStore*) override
-    {
-      return nullptr;
-    }
   };
 }
 

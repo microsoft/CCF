@@ -313,11 +313,6 @@ namespace ccf::kv::untyped
 
     Map(const Map& that) = delete;
 
-    AbstractMap* clone(AbstractStore* other) override
-    {
-      return static_cast<AbstractMap*>(new Map(other, name));
-    }
-
     void serialise_changes(
       const AbstractChangeSet* changes, KvStoreSerialiser& s) override
     {
