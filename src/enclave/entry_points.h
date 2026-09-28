@@ -31,4 +31,7 @@ namespace ccf
   bool enclave_run();
   bool enclave_request_stop();
   bool enclave_request_stop_notice();
+
+  // Terminal cleanup after transports have stopped and enclave threads joined.
+  void enclave_shutdown_tasks();
 }

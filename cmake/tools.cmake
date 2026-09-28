@@ -121,9 +121,13 @@ function(enable_coverage name)
       PRIVATE -fprofile-instr-generate -fcoverage-mapping
     )
     get_target_property(target_type ${name} TYPE)
-    if(target_type STREQUAL "STATIC_LIBRARY")
+    if(
+      target_type STREQUAL "STATIC_LIBRARY"
+      OR target_type STREQUAL "OBJECT_LIBRARY"
+    )
       # Consumers need the runtime even if their own sources are not
-      # instrumented. This also applies to installed instrumented archives.
+      # instrumented. This also applies to installed instrumented objects and
+      # archives.
       target_link_options(${name} INTERFACE -fprofile-instr-generate)
     else()
       target_link_options(${name} PRIVATE -fprofile-instr-generate)

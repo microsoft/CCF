@@ -6,7 +6,7 @@ Application Development using CCF Overview
 
 -  :ref:`What is Confidential Consortium Framework (CCF) <overview/what_is_ccf:What is CCF?>`
 -  Read the :doc:`CCF overview </overview/index>` and get familiar with :ref:`overview/what_is_ccf:Core Concepts` and `Azure confidential computing <https://learn.microsoft.com/en-us/azure/confidential-computing/>`__
--  :doc:`Build new CCF applications </build_apps/index>` in TypeScript/JavaScript or C++
+-  :doc:`Build new CCF applications </build_apps/index>` in TypeScript/JavaScript, C++, or Rust (experimental)
 -  CCF `JavaScript module API reference <https://ccf.dev/main/js/ccf-app/>`__
 -  CCF application get started repos `CCF application template <https://github.com/microsoft/ccf-app-template>`__ and  `CCF application samples <https://github.com/microsoft/ccf-app-samples>`__
 
@@ -22,8 +22,7 @@ Development environment
 CCF apps can be written in JavaScript/Typescript. To test a JS/TS CCF application you need go through the following steps:
 
 -  :doc:`Start a CCF Network with at least one node </operations/start_network>`
--  Initialise the CCF network with at least one active member and one user :ref:`governance/open_network:Opening a Network`,
-   this can be done through :ref:`Proposals <governance/proposals:Summary>`.
+-  Initialise the CCF network with at least one active member and one user :ref:`governance/open_network:Opening a Network`, this can be done through :ref:`Proposals <governance/proposals:Summary>`.
 -  Create an application :ref:`deployment proposal <build_apps/js_app_bundle:Deployment>`
 -  Submit the app deployment proposal to the network and all members accept it through voting. This is a part of :ref:`Network Governance <governance/proposals:Submitting a New Proposal>`.
 -  :doc:`Open the CCF network for users </governance/open_network>`
@@ -91,6 +90,13 @@ Packaging your C++ app
 
 To create distributable packages for your CCF application, create a ``cpack.cmake`` file that includes CCF's packaging configuration and add it to your ``CMakeLists.txt``. See :ccf_repo:`tests/ccfapp/CMakeLists.txt` and :ccf_repo:`tests/ccfapp/cpack.cmake` for a complete working example.
 
+Rust Applications
+-----------------
+
+Rust applications are native CCF executables with the same deployment model as
+C++ applications. The Rust interface is experimental; see :doc:`example_rust`
+for its support status, the supported API, and build instructions.
+
 Network Governance
 ------------------
 
@@ -113,8 +119,7 @@ Adding network users
 ~~~~~~~~~~~~~~~~~~~~
 
 Users directly interact with the application running in CCF. Their public identities should be voted in by members before they are allowed to issue requests. 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to Users. First, the identities of trusted users should be generated,
-see :ref:`Generating Member Keys and Certificates <governance/adding_member:Generating Member Keys and Certificates>` and :ref:`Adding Users docs <governance/open_network:Adding Users>`
+Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to Users. First, the identities of trusted users should be generated, see :ref:`Generating Member Keys and Certificates <governance/adding_member:Generating Member Keys and Certificates>` and :ref:`Adding Users docs <governance/open_network:Adding Users>`
 
 :ref:`New user proposal sample <governance/open_network:Adding Users>`
 

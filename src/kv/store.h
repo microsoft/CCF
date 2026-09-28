@@ -554,7 +554,6 @@ namespace ccf::kv
           hooks,
           new_maps,
           std::nullopt,
-          false,
           track_deletes_on_missing_keys);
         if (!r.has_value())
         {
@@ -892,44 +891,6 @@ namespace ccf::kv
       auto exec = std::make_unique<CFTExecutionWrapper>(
         this, get_history(), get_chunker(), data, public_only, expected_txid);
       return exec;
-    }
-
-    bool operator==(const Store& that) const
-    {
-      // Only used for debugging, not thread safe.
-      if (version != that.version)
-      {
-        return false;
-      }
-
-      if (maps.size() != that.maps.size())
-      {
-        return false;
-      }
-
-      return std::ranges::all_of(maps, [&that](const auto& entry) {
-        const auto& [map_name, map_pair] = entry;
-        auto search = that.maps.find(map_name);
-
-        if (search == that.maps.end())
-        {
-          return false;
-        }
-
-        const auto& [this_v, this_map] = map_pair;
-        const auto& [that_v, that_map] = search->second;
-
-        if (this_v != that_v)
-        {
-          return false;
-        }
-
-        if (*this_map != *that_map)
-        {
-          return false;
-        }
-        return true;
-      });
     }
 
     Version current_version() override

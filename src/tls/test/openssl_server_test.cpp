@@ -45,6 +45,60 @@ using ccf::OpenSSLSessionManager;
 
 namespace
 {
+  struct NotificationGate
+  {
+    ccf::ds::Mutex mutex;
+    ccf::ds::ConditionVariable cv;
+    size_t calls CCF_GUARDED_BY(mutex) = 0;
+    bool released CCF_GUARDED_BY(mutex) = false;
+
+    size_t call_count() CCF_EXCLUDES(mutex)
+    {
+      ccf::ds::MutexGuard lock(mutex);
+      return calls;
+    }
+
+    bool wait_for_calls(size_t count) CCF_EXCLUDES(mutex)
+    {
+      ccf::ds::MutexGuard lock(mutex);
+      return cv.wait_for(
+        lock, std::chrono::seconds(5), [&]() CCF_REQUIRES(mutex) {
+          return calls >= count;
+        });
+    }
+
+    void release() CCF_EXCLUDES(mutex)
+    {
+      ccf::ds::MutexGuard lock(mutex);
+      released = true;
+      cv.notify_all();
+    }
+  };
+
+  // Installed only while the test owns all threads using the gate.
+  std::atomic<NotificationGate*> notification_gate = nullptr;
+}
+
+extern "C" int __real_uv_async_send(uv_async_t* handle);
+
+extern "C" int __wrap_uv_async_send(uv_async_t* handle)
+{
+  if (auto* gate = notification_gate.load())
+  {
+    ccf::ds::MutexGuard lock(gate->mutex);
+    const auto call = ++gate->calls;
+    gate->cv.notify_all();
+    if (call == 1)
+    {
+      gate->cv.wait(
+        lock, [&]() CCF_REQUIRES(gate->mutex) { return gate->released; });
+    }
+  }
+  return __real_uv_async_send(handle);
+}
+
+namespace
+{
   // The host process ignores SIGPIPE (see src/host/run.cpp), so writes to a
   // socket the peer has already closed return EPIPE rather than killing it.
   // Tests must do the same to reproduce production behaviour.
@@ -664,6 +718,139 @@ TEST_CASE("Transports stop and are destroyed before the libuv loop ever runs")
     ++iterations;
   }
   REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
+}
+
+TEST_CASE("Concurrent notifications retain the wake handle until they return")
+{
+  auto server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{.host = "127.0.0.1", .plaintext = true},
+    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
+    });
+  server->start();
+  NotificationGate gate;
+  notification_gate.store(&gate);
+
+  // No connection is needed: send() queues its command before waking the loop.
+  std::thread first([&]() { server->send(0, {}); });
+  const bool first_entered = gate.wait_for_calls(1);
+  std::thread second([&]() { server->send(0, {}); });
+  const bool second_entered = gate.wait_for_calls(2);
+
+  std::promise<void> stopping;
+  std::promise<void> stopped;
+  auto stopping_future = stopping.get_future();
+  auto stopped_future = stopped.get_future();
+  std::thread stopper([&]() {
+    stopping.set_value();
+    server->stop();
+    stopped.set_value();
+  });
+  stopping_future.wait();
+  const bool waited_for_notification =
+    stopped_future.wait_for(std::chrono::milliseconds(100)) ==
+    std::future_status::timeout;
+
+  // Release before asserting so a failed regression cannot strand a thread.
+  gate.release();
+  first.join();
+  second.join();
+  stopper.join();
+  const auto calls_before = gate.call_count();
+  server->send(0, {});
+  const auto calls_after = gate.call_count();
+  notification_gate.store(nullptr);
+  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+
+  CHECK(first_entered);
+  CHECK(second_entered);
+  CHECK(waited_for_notification);
+  CHECK(calls_before == 2);
+  CHECK(calls_after == calls_before);
+  CHECK(uv_loop_alive(uv_default_loop()) == 0);
+}
+
+TEST_CASE("Published shutdown skips notification lifecycle locking")
+{
+  auto server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{.host = "127.0.0.1", .plaintext = true},
+    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
+    });
+  UVLoopRunner loop;
+  server->start();
+  loop.start();
+  NotificationGate gate;
+  notification_gate.store(&gate);
+
+  std::thread stopper(
+    [&]() { server->stop(OpenSSLServer::LoopState::Running); });
+  // stop() has published stopping but holds the exclusive lifecycle lock
+  // until its notification returns.
+  const bool stop_notifying = gate.wait_for_calls(1);
+  auto producer = std::async(std::launch::async, [&]() {
+    server->send(0, {});
+    server->close_connection(0);
+  });
+  const bool skipped_lock =
+    producer.wait_for(std::chrono::seconds(1)) == std::future_status::ready;
+  const auto calls_while_stopping = gate.call_count();
+
+  // Release before waiting or asserting, including when the producer blocks.
+  gate.release();
+  producer.get();
+  stopper.join();
+  loop.thread.join();
+  notification_gate.store(nullptr);
+
+  CHECK(stop_notifying);
+  CHECK(skipped_lock);
+  CHECK(calls_while_stopping == 1);
+  CHECK(uv_loop_alive(uv_default_loop()) == 0);
+}
+
+TEST_CASE("Shutdown completes under concurrent notification load")
+{
+  auto server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{.host = "127.0.0.1", .plaintext = true},
+    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
+    });
+  UVLoopRunner loop;
+  server->start();
+  loop.start();
+  std::atomic<bool> finish = false;
+  std::atomic<size_t> notifications = 0;
+  std::vector<std::thread> producers;
+  for (size_t i = 0; i < 4; ++i)
+  {
+    producers.emplace_back([&]() {
+      while (!finish.load())
+      {
+        server->send(0, {});
+        ++notifications;
+      }
+    });
+  }
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (notifications.load() < 1000 &&
+         std::chrono::steady_clock::now() < deadline)
+  {
+    std::this_thread::yield();
+  }
+  auto stopped = std::async(std::launch::async, [&]() {
+    server->stop(OpenSSLServer::LoopState::Running);
+  });
+  const bool stopped_under_load =
+    stopped.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+  finish.store(true);
+  for (auto& producer : producers)
+  {
+    producer.join();
+  }
+  stopped.get();
+  loop.thread.join();
+  CHECK(notifications.load() >= 1000);
+  CHECK(stopped_under_load);
+  CHECK(uv_loop_alive(uv_default_loop()) == 0);
 }
 
 TEST_CASE("Transport shutdown drains TLS tasks with no background workers")
@@ -1300,6 +1487,72 @@ TEST_CASE("Coalesced pipelined HTTP responses are preserved")
   }
 
   server->stop(OpenSSLServer::LoopState::Running);
+}
+
+TEST_CASE("Coalesced concurrent notifications deliver every queued response")
+{
+  auto [cert, key] = make_server_cert();
+  constexpr size_t producers = 4;
+  constexpr size_t responses_per_producer = 64;
+  std::shared_ptr<OpenSSLServer> server;
+  server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1", .cert_pem = cert, .key_pem = key},
+    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
+    },
+    OpenSSLServer::OnClose{},
+    [&](::tcp::ConnID id) -> std::optional<bool> {
+      // on_accept runs on the loop. Join the producers here so all their
+      // notifications coalesce before the loop can run the async callback.
+      std::vector<std::thread> threads;
+      for (size_t producer = 0; producer < producers; ++producer)
+      {
+        threads.emplace_back([&, producer]() {
+          for (size_t i = 0; i < responses_per_producer; ++i)
+          {
+            const auto body =
+              std::to_string(producer * responses_per_producer + i);
+            const auto response = "HTTP/1.1 200 OK\r\nContent-Length: " +
+              std::to_string(body.size()) + "\r\n\r\n" + body;
+            server->send(
+              id, std::vector<uint8_t>(response.begin(), response.end()));
+          }
+        });
+      }
+      for (auto& thread : threads)
+      {
+        thread.join();
+      }
+      return false;
+    });
+  UVLoopRunner loop;
+  server->start();
+  loop.start();
+  struct StopOnExit
+  {
+    std::shared_ptr<OpenSSLServer> server;
+    ~StopOnExit()
+    {
+      server->stop(OpenSSLServer::LoopState::Running);
+    }
+  } stop_on_exit{server};
+  const auto responses = tls_collect_http_responses(
+    server->port(), {}, producers * responses_per_producer);
+  server->stop(OpenSSLServer::LoopState::Running);
+  loop.thread.join();
+
+  std::set<std::string> bodies;
+  for (const auto& response : responses)
+  {
+    CHECK(response.status == HTTP_STATUS_OK);
+    bodies.insert(response.body);
+  }
+  CHECK(responses.size() == producers * responses_per_producer);
+  CHECK(bodies.size() == producers * responses_per_producer);
+  for (size_t i = 0; i < producers * responses_per_producer; ++i)
+  {
+    CHECK(bodies.contains(std::to_string(i)));
+  }
 }
 
 TEST_CASE("TLS processing runs off the libuv thread")

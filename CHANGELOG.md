@@ -5,22 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.18]
+
+[7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
+
+### Removed
+
+- Nodes no longer accept forwarded RPC requests and responses in the legacy v1 and v2 wire formats. All supported releases have emitted the v3 format since 4.0, so mixed-version networks are unaffected (#8426).
+
+### Fixed
+
+- `MapDiff::get()` (the typed wrapper over a transaction's key-value diff) now correctly returns an engaged `std::optional` holding `std::nullopt` for keys that were deleted, distinguishing them from untouched keys (which still return a disengaged `std::optional`), matching its documented contract. Previously both cases collapsed to a disengaged `std::optional`, so callers could not tell a deletion from no change (#8429).
+- A recovered service is now opened by the next primary if the primary's opening at the end of private recovery is rolled back by an election before it commits, including when the new primary completed private recovery as a backup. Previously, the service could remain in the `WaitingForRecoveryShares` state indefinitely. A node which completes private recovery as primary after the service is already open no longer fails (#8450).
+
 ## [7.0.17]
 
 [7.0.17]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.17
 
 ### Added
 
+- Native CCF applications can now be written in Rust through a minimal, experimental API for registering endpoints and accessing raw-byte KV maps. Unsupported endpoint error status codes are emitted as HTTP 500 responses, panic messages from application callbacks are not written to node output, and applications link against CCF's prebuilt Rust components without rebuilding their dependencies (#8200).
 - ML-DSA-44/65/87 key-pair and public-key APIs for key generation, PKCS#8/SPKI PEM and DER import/export, and pure ML-DSA signing and verification with optional context strings. These APIs are compiled only with OpenSSL 3.5 or newer (#8378).
 
 ### Changed
 
 - The `worker_threads` configuration option now defaults to `1`. CCF starts one more worker thread than configured, in addition to the dispatch thread, preserving task execution capacity now that the dispatch thread no longer executes tasks. A configured value of `0` starts one worker and logs a warning; positive values are incremented silently (#8404, #8411).
 - Adding or resetting a member no longer eagerly records a state digest for them to acknowledge. Members must call the state digest `:update` endpoint before acknowledging the current service state; until then, the state digest `GET` endpoint returns HTTP 404 (#8407).
+- Proposal creation requests are now recorded in `public:ccf.gov.cose_history` as COSE Sign1 envelopes with a detached (`nil`) payload, since the signed proposal body is already stored in `public:ccf.gov.proposals` in the same transaction. Auditors verifying these entries must supply that proposal body as the detached payload. Ballots and withdrawals continue to embed their payload. A new `ccf::cose::edit::detach_payload` API is available to detach the payload of a COSE Sign1 message (#8424).
 
 ### Fixed
 
-- `MapDiff::get()` (the typed wrapper over a transaction's key-value diff) now correctly returns an engaged `std::optional` holding `std::nullopt` for keys that were deleted, distinguishing them from untouched keys (which still return a disengaged `std::optional`), matching its documented contract. Previously both cases collapsed to a disengaged `std::optional`, so callers could not tell a deletion from no change (#8429).
+- Release queued task ownership cycles during node shutdown, including paused session queues which are no longer on the task board (#8420).
 - JS registry tables and their configured namespace (`public:custom_endpoints.*` by default) are now read-only to JS endpoints. The governance-driven registry uses `public:ccf.gov.*` and leaves application namespaces unchanged. Apps requiring writes can opt out with `set_js_kv_namespace_restriction(restriction, false)`; platform permissions still apply (#8359).
 - Fixed `set_member` failures on services which have only ever emitted COSE ledger signatures (#8407).
 

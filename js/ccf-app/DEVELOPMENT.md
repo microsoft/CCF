@@ -13,8 +13,7 @@ npm install
 **Relative imports**:
 Every relative import of another TypeScript module **must** end with `.js` (yes, not `.ts`).
 The extension is the **target** extension and all TypeScript-related tooling understands this.
-Omitting extensions will lead to omitted extensions in the transpiled `.js` files
-which may cause import issues depending on the module loader used in the consuming environment.
+Omitting extensions will lead to omitted extensions in the transpiled `.js` files which may cause import issues depending on the module loader used in the consuming environment.
 
 ## Tests
 
@@ -47,8 +46,7 @@ npm run docs
 npm run docs:watch
 ```
 
-TypeDoc and its supported TypeScript 6 compiler are isolated in `doc/package.json`,
-while application builds use the TypeScript version in the root `package.json`.
+TypeDoc and its supported TypeScript 6 compiler are isolated in `doc/package.json`, while application builds use the TypeScript version in the root `package.json`.
 The documentation toolchain is installed automatically by the commands above.
 
 TypeDoc's default theme is extended in `doc/theme` to add a backlink to CCF's main docs and add a version selector.
