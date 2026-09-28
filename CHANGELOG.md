@@ -9,8 +9,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
 
+### Changed
+
+- `ccf::NodeConfigurationState::node_config` now exposes the operator configuration as `ccf::CCFConfig`, declared in `ccf/node/configuration.h`. It is the type parsed from the operator JSON configuration, so command-specific settings are under `command.start`, `command.join`, and `command.recover`, and file paths are exposed as configured. File-backed inputs are read once by the node when it is created, rather than being resolved by the host into a second startup configuration type. A missing or malformed input file now fails node creation with an error naming that file, rather than exiting the host process. The operator JSON format and the node-to-node genesis format are unchanged. `StartType` is now declared in `ccf/node/start_type.h` in the `ccf` namespace (#8309, #7565).
+- Resolved node data is now available to applications as `ccf::NodeConfigurationState::node_data`, alongside `node_config` (#8309).
+- A node joining a service no longer reads `service_data_json_file`, which is only used when starting or recovering a service. Previously a missing file failed a joining node at startup; it now starts and logs that the setting is ignored (#8309).
+
 ### Removed
 
+- The public header `ccf/node/startup_config.h` and the type `ccf::StartupConfig` have been removed, along with the resolved startup inputs it exposed through `ccf::NodeConfigurationState::node_config`: `node_data`, `service_data`, `startup_host_time`, `start`, `join`, and `recover`. Applications using `ccf::NodeConfigurationInterface` must include `ccf/node/configuration.h`, read node data from `ccf::NodeConfigurationState::node_data`, and read command settings from `ccf::CCFConfig::command` (#8309, #7565).
 - Nodes no longer accept forwarded RPC requests and responses in the legacy v1 and v2 wire formats. All supported releases have emitted the v3 format since 4.0, so mixed-version networks are unaffected (#8426).
 
 ### Fixed
