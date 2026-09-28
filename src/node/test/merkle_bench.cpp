@@ -250,7 +250,7 @@ int main(int argc, char* argv[])
   {
     rng_seed = std::random_device{}();
   }
-  std::cout << fmt::format("RNG seed: {} (set RNG_SEED to reproduce)", rng_seed)
+  std::cerr << fmt::format("RNG seed: {} (set RNG_SEED to reproduce)", rng_seed)
             << std::endl;
 
   picobench::runner runner;
