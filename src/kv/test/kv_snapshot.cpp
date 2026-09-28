@@ -640,3 +640,57 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     }
   }
 }
+
+TEST_CASE(
+  "Apply snapshot to a store which has rolled back" *
+  doctest::test_suite("snapshot"))
+{
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
+
+  ccf::kv::Version snapshot_version = ccf::kv::NoVersion;
+  {
+    auto tx = store.create_tx();
+    tx.rw(string_map)->put("foo", "bar");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    snapshot_version = tx.commit_version();
+  }
+
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
+  {
+    ccf::kv::ScopedStoreMapsLock maps_lock(&store);
+    snapshot = store.snapshot_unsafe_maps(snapshot_version);
+  }
+  auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
+
+  ccf::kv::Store new_store;
+  new_store.set_encryptor(encryptor);
+
+  INFO("Roll back a transaction on the target store");
+  {
+    const auto txid_before = new_store.current_txid();
+
+    auto tx = new_store.create_tx();
+    tx.rw(num_map)->put(42, 100);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    new_store.rollback(txid_before, new_store.commit_view());
+    REQUIRE(new_store.check_rollback_count(1));
+  }
+
+  INFO("Apply snapshot to the rolled back target store");
+  {
+    ccf::kv::ConsensusHookPtrs hooks;
+    REQUIRE_EQ(
+      new_store.deserialise_snapshot(
+        serialised_snapshot.data(), serialised_snapshot.size(), hooks),
+      ccf::kv::ApplyResult::PASS);
+    REQUIRE_EQ(new_store.current_version(), snapshot_version);
+
+    auto tx = new_store.create_read_only_tx();
+    const auto v = tx.ro(string_map)->get("foo");
+    REQUIRE(v.has_value());
+    REQUIRE_EQ(v.value(), "bar");
+  }
+}
