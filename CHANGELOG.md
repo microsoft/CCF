@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
 
+### Changed
+
+- `ccf::NodeConfigurationState::node_config` now exposes the operator configuration as `ccf::CCFConfig` in `ccf/node/configuration.h`, replacing `ccf::StartupConfig` and the private host configuration type. Command-specific settings are under `command.start`, `command.join`, and `command.recover`; file-backed inputs are loaded by the node when needed, rather than converted into a second startup configuration. Resolved node data is available as `ccf::NodeConfigurationState::node_data`. The operator JSON format and node-to-node genesis format are unchanged. `StartType` is now declared in `ccf/node/start_type.h` in the `ccf` namespace (#8309, #7565).
+
 ### Removed
 
 - Nodes no longer accept forwarded RPC requests and responses in the legacy v1 and v2 wire formats. All supported releases have emitted the v3 format since 4.0, so mixed-version networks are unaffected (#8426).
@@ -67,7 +71,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - SNP attestation reports are now parsed and verified through TAV. Decode a report with `ccf::pal::snp::parse_attestation_report_unverified()`, which returns `ccf::pal::snp::AttestationReport`, an owning smart pointer, and verify it against TAV and CCF's policy with `ccf::pal::verify_snp_attestation_report_and_get()`. Field accessors borrow the report's storage, so destroying or replacing the owner invalidates them. The packed `ccf::pal::snp::Attestation` wire-layout type and its accessors still work, but are deprecated (#8083).
 - `ccf::pal::snp::get_attestation()` in `ccf/pal/snp_ioctl.h` is unchanged, but its `get()` accessor is deprecated. Call `get_raw()` instead for the unverified report bytes, then decode them with `parse_attestation_report_unverified()` (#8083).
-- `ccf::NodeConfigurationState::node_config` now exposes the operator configuration as `ccf::CCFConfig` in `ccf/node/configuration.h`, replacing `ccf::StartupConfig` and the private host configuration type. Command-specific settings are under `command.start`, `command.join`, and `command.recover`; file-backed inputs are loaded by the node when needed, rather than converted into a second startup configuration. Resolved node data is available as `ccf::NodeConfigurationState::node_data`. The operator JSON format and node-to-node genesis format are unchanged. `StartType` is now declared in `ccf/node/start_type.h` in the `ccf` namespace (#8309, #7565).
 
 ## [7.0.15]
 

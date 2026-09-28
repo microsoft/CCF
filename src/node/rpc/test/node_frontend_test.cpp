@@ -79,7 +79,8 @@ class StubNodeConfiguration : public NodeConfigurationInterface
 {
 public:
   CCFConfig config = {};
-  NodeConfigurationState state = {config, {}, {}, true};
+  nlohmann::json node_data = nullptr;
+  NodeConfigurationState state = {config, node_data, {}, true};
 
   const NodeConfigurationState& get() override
   {
