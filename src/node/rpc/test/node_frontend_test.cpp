@@ -13,8 +13,12 @@
 #include "node/internal_tables_access.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/self_cert_auth.h"
+#include "node/startup_inputs.h"
 #include "node_stub.h"
 
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <latch>
 #include <limits>
 #include <thread>
@@ -211,6 +215,110 @@ TEST_CASE("Genesis request retains resolved data on the wire")
   CHECK(
     encoded["service_configuration"] == json(genesis.service_configuration));
   CHECK(encoded.get<CreateNetworkNodeToNode::GenesisInfo>() == genesis);
+}
+
+TEST_CASE("Startup inputs are read from files")
+{
+  struct ScopedDir
+  {
+    std::filesystem::path path;
+
+    ScopedDir()
+    {
+      auto pattern =
+        (std::filesystem::temp_directory_path() / "ccf_startup_inputs_XXXXXX")
+          .string();
+      REQUIRE(mkdtemp(pattern.data()) != nullptr);
+      path = pattern;
+    }
+
+    ~ScopedDir()
+    {
+      std::error_code ec;
+      std::filesystem::remove_all(path, ec);
+    }
+  };
+  const ScopedDir dir;
+
+  const auto write_file =
+    [&dir](const std::string& name, const std::string& contents) {
+      const auto path = (dir.path / name).string();
+      std::ofstream f(path, std::ios::binary);
+      f << contents;
+      return path;
+    };
+
+  const auto encryption_key =
+    ccf::crypto::make_rsa_key_pair()->public_key_pem();
+
+  CCFConfig::Command::Start start;
+  start.members.push_back(
+    {write_file("member0_cert.pem", member_cert.str()),
+     write_file("member0_enc_pubk.pem", encryption_key.str()),
+     write_file("member0_data.json", R"({"is_operator": true})"),
+     MemberRecoveryRole::Owner});
+  start.members.push_back({write_file("member1_cert.pem", member_cert.str())});
+  start.constitution_files = {
+    write_file("first.js", "first"), write_file("second.js", "second")};
+  start.service_configuration.recovery_threshold = 1;
+
+  const auto genesis = resolve_genesis_info(start);
+  REQUIRE(genesis.members.size() == 2);
+  CHECK(genesis.members[0].cert == member_cert);
+  CHECK(genesis.members[0].encryption_pub_key == encryption_key);
+  CHECK(genesis.members[0].member_data == json{{"is_operator", true}});
+  CHECK(genesis.members[0].recovery_role == MemberRecoveryRole::Owner);
+  CHECK(genesis.members[1].cert == member_cert);
+  CHECK_FALSE(genesis.members[1].encryption_pub_key.has_value());
+  CHECK(genesis.members[1].member_data.is_null());
+  CHECK_FALSE(genesis.members[1].recovery_role.has_value());
+  CHECK(genesis.constitution == "first\nsecond");
+  CHECK(genesis.service_configuration == start.service_configuration);
+
+  INFO("Empty member data is rejected, empty node or service data is null");
+  // This file is built with DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS,
+  // which compiles out the CHECK_THROWS assertions, so catch explicitly.
+  const auto logic_error_message = [](const auto& f) -> std::string {
+    try
+    {
+      f();
+    }
+    catch (const std::logic_error& e)
+    {
+      return e.what();
+    }
+    return "";
+  };
+
+  const auto empty_file = write_file("empty.json", "");
+  CHECK(read_startup_json(empty_file, "service data", true).is_null());
+  start.members[0].data_json_file = empty_file;
+  CHECK(logic_error_message([&]() { resolve_genesis_info(start); })
+          .starts_with(
+            fmt::format("Could not parse member data from {}:", empty_file)));
+
+  INFO("Malformed JSON names the input");
+  const auto malformed_file = write_file("malformed.json", "{");
+  CHECK(logic_error_message(
+          [&]() { read_startup_json(malformed_file, "node data", true); })
+          .starts_with(
+            fmt::format("Could not parse node data from {}:", malformed_file)));
+
+  INFO("Missing or unreadable files name the input");
+  const auto missing_file = (dir.path / "missing.pem").string();
+  CHECK(
+    logic_error_message(
+      [&]() { read_startup_file(missing_file, "service certificate"); }) ==
+    fmt::format("Could not read service certificate from {}", missing_file));
+  CHECK(
+    logic_error_message(
+      [&]() { read_startup_file(dir.path.string(), "constitution"); }) ==
+    fmt::format("Could not read constitution from {}", dir.path.string()));
+  start.members[0].data_json_file = std::nullopt;
+  start.constitution_files.push_back(missing_file);
+  CHECK(logic_error_message([&]() {
+          resolve_genesis_info(start);
+        }) == fmt::format("Could not read constitution from {}", missing_file));
 }
 
 TEST_CASE("Self certificate authentication")

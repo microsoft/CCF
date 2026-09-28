@@ -2103,6 +2103,61 @@ def run_recover_snapshot_alone(args):
         return network
 
 
+def run_recovery_with_missing_service_data(args):
+    """
+    Recovery nodes read their file-backed inputs when they are created, so a
+    missing service data file fails node creation, rather than failing once
+    the public ledger has been recovered.
+    """
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
+        network.save_service_identity(args)
+        primary, _ = network.find_primary()
+        network.stop_all_nodes()
+        current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+
+        missing_service_data = os.path.join(
+            network.common_dir, "missing_service_data.json"
+        )
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            pdb=args.pdb,
+            existing_network=network,
+            skip_verify_chunking=True,
+            check_file_invariants=False,
+        ) as recovered_network:
+            recovered_network.ignore_errors_on_shutdown()
+            try:
+                recovered_network.start_in_recovery(
+                    args,
+                    ledger_dir=current_ledger_dir,
+                    committed_ledger_dirs=committed_ledger_dirs,
+                    service_data_json_file=missing_service_data,
+                )
+            except Exception as e:
+                LOG.info(f"Recovery node failed to start, as expected: {e}")
+            else:
+                raise AssertionError(
+                    "Recovery node started with a missing service data file"
+                )
+
+            out_path, _ = recovered_network.nodes[0].get_logs()
+            with open(out_path, "r", encoding="utf-8") as f:
+                logs = f.read()
+            expected = f"Error starting node: Could not read service data from {missing_service_data}"
+            assert expected in logs, f"Expected '{expected}' in {out_path}"
+            assert (
+                "End of public ledger recovery" not in logs
+            ), "Node should have failed before recovering the public ledger"
+
+
 def run_recover_snapshot_from_expired_node_certificate(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -3304,6 +3359,13 @@ checked. Note that the key for each logging message is unique (per table).
         run_recover_via_added_recovery_owner,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_with_missing_service_data",
+        run_recovery_with_missing_service_data,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
 
     cr.add(

@@ -55,6 +55,7 @@
 #include "node/runtime_control.h"
 #include "node/signature_cache_subsystem.h"
 #include "node/snapshotter.h"
+#include "node/startup_inputs.h"
 #include "node_to_node.h"
 #include "pal/quote_generation.h"
 #include "quote_endorsements_client.h"
@@ -436,9 +437,13 @@ namespace ccf
     std::optional<pal::snp::TcbVersionRaw> snp_tcb_version = std::nullopt;
     ccf::CCFConfig config;
     std::string startup_time;
+    // File-backed inputs, read once by resolve_startup_inputs()
     nlohmann::json node_data = nullptr;
+    nlohmann::json service_data = nullptr;
+    std::optional<CreateNetworkNodeToNode::GenesisInfo> genesis_info =
+      std::nullopt;
     std::optional<std::vector<uint8_t>> previous_service_identity;
-    std::optional<std::vector<uint8_t>> join_service_cert;
+    std::vector<uint8_t> join_service_cert;
     std::optional<pal::UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
@@ -1251,6 +1256,69 @@ namespace ccf
         config.attestation.snp_endorsements_servers);
     }
 
+    // Reads every file-backed input required by this start type (except the
+    // join transparent statement, which is read per join attempt) so that a
+    // missing or malformed file fails node creation. Each file is read once,
+    // and the retained contents are used thereafter.
+    void resolve_startup_inputs()
+    {
+      if (config.node_data_json_file.has_value())
+      {
+        node_data = read_startup_json(
+          config.node_data_json_file.value(),
+          "node data",
+          true /* allow_empty */);
+        LOG_TRACE_FMT("Read node_data: {}", node_data.dump());
+      }
+
+      if (
+        config.service_data_json_file.has_value() &&
+        start_type != StartType::Join)
+      {
+        service_data = read_startup_json(
+          config.service_data_json_file.value(),
+          "service data",
+          true /* allow_empty */);
+      }
+
+      switch (start_type)
+      {
+        case StartType::Start:
+        {
+          genesis_info = resolve_genesis_info(config.command.start);
+          break;
+        }
+        case StartType::Join:
+        {
+          join_service_cert = read_startup_file(
+            config.command.service_certificate_file, "service certificate");
+          break;
+        }
+        case StartType::Recover:
+        {
+          const auto& identity_file =
+            config.command.recover.previous_service_identity_file;
+          if (identity_file.empty())
+          {
+            throw std::logic_error(
+              "Recovery requires the certificate of the previous service "
+              "identity");
+          }
+
+          LOG_INFO_FMT(
+            "Reading previous service identity from {}", identity_file);
+          previous_service_identity =
+            read_startup_file(identity_file, "previous service identity");
+          break;
+        }
+        default:
+        {
+          // Unknown start types are rejected by create()
+          break;
+        }
+      }
+    }
+
     NodeCreateInfo create(StartType start_type_, const ccf::CCFConfig& config_)
     {
       std::lock_guard<ds::Mutex> guard(lock);
@@ -1258,11 +1326,7 @@ namespace ccf
       start_type = start_type_;
 
       config = config_;
-      if (config.node_data_json_file.has_value())
-      {
-        node_data = files::slurp_json(config.node_data_json_file.value());
-        LOG_TRACE_FMT("Read node_data: {}", node_data.dump());
-      }
+      resolve_startup_inputs();
       if (config.sealing_recovery.has_value())
       {
         CCF_ASSERT_FMT(
@@ -1347,18 +1411,11 @@ namespace ccf
         case StartType::Recover:
         {
           LOG_INFO_FMT("Creating new node - recover");
-          const auto& identity_file =
-            config.command.recover.previous_service_identity_file;
-          if (identity_file.empty())
+          if (!previous_service_identity.has_value())
           {
             throw std::logic_error(
-              "Recovery requires the certificate of the previous service "
-              "identity");
+              "No previous service identity is configured");
           }
-
-          LOG_INFO_FMT(
-            "Reading previous service identity from {}", identity_file);
-          previous_service_identity = files::slurp(identity_file);
           ccf::crypto::Pem previous_service_identity_cert(
             previous_service_identity.value());
 
@@ -1460,14 +1517,10 @@ namespace ccf
       curl_handle.set_opt(CURLOPT_SSL_VERIFYPEER, 1L);
       curl_handle.set_opt(CURLOPT_SSL_VERIFYHOST, 2L);
       curl_handle.set_opt(CURLOPT_PROTOCOLS_STR, "https");
-      if (!join_service_cert.has_value())
-      {
-        join_service_cert =
-          files::slurp(config.command.service_certificate_file);
-      }
-      const auto& service_cert = join_service_cert.value();
       curl_handle.set_blob_opt(
-        CURLOPT_CAINFO_BLOB, service_cert.data(), service_cert.size());
+        CURLOPT_CAINFO_BLOB,
+        join_service_cert.data(),
+        join_service_cert.size());
       curl_handle.set_opt(CURLOPT_CAPATH, nullptr);
 
       // Bound each attempt so a stalled connection is eventually abandoned,
@@ -1686,7 +1739,7 @@ namespace ccf
                   {
                     snapshot_fetch_task = std::make_shared<FetchSnapshot>(
                       config.command.join,
-                      join_service_cert.value(),
+                      join_service_cert,
                       config.snapshots,
                       this);
                     ccf::tasks::add_task(snapshot_fetch_task);
@@ -3175,46 +3228,7 @@ namespace ccf
       // ledger
       if (create_consortium)
       {
-        auto& genesis = create_params.genesis_info.emplace();
-        genesis.service_configuration =
-          config.command.start.service_configuration;
-        for (const auto& member : config.command.start.members)
-        {
-          std::optional<ccf::crypto::Pem> public_encryption_key = std::nullopt;
-          std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
-          if (
-            member.encryption_public_key_file.has_value() &&
-            !member.encryption_public_key_file.value().empty())
-          {
-            public_encryption_key = ccf::crypto::Pem(
-              files::slurp(member.encryption_public_key_file.value()));
-            recovery_role = member.recovery_role;
-          }
-
-          nlohmann::json member_data = nullptr;
-          if (
-            member.data_json_file.has_value() &&
-            !member.data_json_file.value().empty())
-          {
-            member_data = files::slurp_json(member.data_json_file.value());
-          }
-
-          genesis.members.emplace_back(
-            ccf::crypto::Pem(files::slurp(member.certificate_file)),
-            public_encryption_key,
-            member_data,
-            recovery_role);
-        }
-
-        for (const auto& path : config.command.start.constitution_files)
-        {
-          // Separate with single newlines
-          if (!genesis.constitution.empty())
-          {
-            genesis.constitution += '\n';
-          }
-          genesis.constitution += files::slurp_string(path);
-        }
+        create_params.genesis_info = genesis_info;
       }
 
       create_params.node_id = self;
@@ -3244,11 +3258,7 @@ namespace ccf
 
       create_params.node_info_network = config.network;
       create_params.node_data = node_data;
-      if (config.service_data_json_file.has_value())
-      {
-        create_params.service_data =
-          files::slurp_json(config.service_data_json_file.value());
-      }
+      create_params.service_data = service_data;
       create_params.create_txid = {create_view, last_recovered_signed_idx + 1};
 
       if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
