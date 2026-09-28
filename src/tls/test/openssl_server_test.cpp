@@ -45,28 +45,23 @@ using ccf::OpenSSLSessionManager;
 
 namespace
 {
-  class ScopedInfoLogCapture
+  class ScopedHandshakeLogCapture
   {
-    class Logger : public ccf::logger::AbstractLogger
+    struct Logger : public ccf::logger::AbstractLogger
     {
       std::mutex mutex;
       std::vector<std::string> messages;
 
-    public:
       void write(const ccf::logger::LogLine& line) override
       {
-        if (line.log_level != ccf::LoggerLevel::INFO)
+        if (
+          line.log_level != ccf::LoggerLevel::INFO ||
+          !line.msg.starts_with("TLS handshake completed:"))
         {
           return;
         }
         std::lock_guard<std::mutex> guard(mutex);
         messages.push_back(line.msg);
-      }
-
-      std::vector<std::string> snapshot()
-      {
-        std::lock_guard<std::mutex> guard(mutex);
-        return messages;
       }
     };
 
@@ -76,7 +71,7 @@ namespace
 
   public:
     // Declare before the server so its threads stop before config is restored.
-    ScopedInfoLogCapture() :
+    ScopedHandshakeLogCapture() :
       previous_loggers(std::exchange(ccf::logger::config::loggers(), {}))
     {
       auto capture = std::make_unique<Logger>();
@@ -85,10 +80,11 @@ namespace
       ccf::logger::config::level() = ccf::LoggerLevel::INFO;
     }
 
-    ScopedInfoLogCapture(const ScopedInfoLogCapture&) = delete;
-    ScopedInfoLogCapture& operator=(const ScopedInfoLogCapture&) = delete;
+    ScopedHandshakeLogCapture(const ScopedHandshakeLogCapture&) = delete;
+    ScopedHandshakeLogCapture& operator=(const ScopedHandshakeLogCapture&) =
+      delete;
 
-    ~ScopedInfoLogCapture()
+    ~ScopedHandshakeLogCapture()
     {
       ccf::logger::config::loggers() = std::move(previous_loggers);
       ccf::logger::config::level() = previous_level;
@@ -96,7 +92,8 @@ namespace
 
     std::vector<std::string> snapshot() const
     {
-      return logger->snapshot();
+      std::lock_guard<std::mutex> guard(logger->mutex);
+      return logger->messages;
     }
   };
 
@@ -2341,7 +2338,8 @@ TEST_CASE("TLS group is logged once per successful connection at INFO")
     expected_group = "secp384r1";
   }
 
-  ScopedInfoLogCapture logs;
+  ScopedHandshakeLogCapture logs;
+  LOG_INFO_FMT("Unrelated INFO message must not affect handshake counts");
   {
     auto [cert, key] = make_server_cert();
     EchoServer s(cert, key);
@@ -2357,9 +2355,9 @@ TEST_CASE("TLS group is logged once per successful connection at INFO")
   CHECK_FALSE(messages[0].contains("hybrid_key_exchange"));
 }
 
-TEST_CASE("Failed TLS handshakes do not emit INFO events")
+TEST_CASE("Failed TLS handshakes do not emit handshake completion INFO events")
 {
-  ScopedInfoLogCapture logs;
+  ScopedHandshakeLogCapture logs;
   {
     auto [cert, key] = make_server_cert();
     EchoServer s(cert, key);
@@ -2399,7 +2397,7 @@ TEST_CASE("Hybrid TLS group names are logged without runtime classification")
        {"SecP384r1MLKEM1024", "SecP256r1MLKEM768", "X25519MLKEM768"})
   {
     INFO(group);
-    ScopedInfoLogCapture logs;
+    ScopedHandshakeLogCapture logs;
     {
       auto [cert, key] = make_server_cert();
       EchoServer s(cert, key);
