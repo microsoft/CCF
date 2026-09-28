@@ -4,11 +4,16 @@
 #include "ccf/crypto/cose.h"
 
 #include "ccf/crypto/ec_key_pair.h"
+#include "ccf/crypto/ecdsa.h"
+#include "ccf/crypto/eddsa_key_pair.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
-#include "cose/cose_rs_ffi.h"
 #include "crypto/cbor_helpers.h"
+#include "crypto/certs.h"
+#include "crypto/cose.h"
 #include "crypto/openssl/cose_verifier.h"
+#include "crypto/openssl/ec_key_pair.h"
 #include "crypto/test/cbor_printer.h"
 #include "node/cose_common.h"
 
@@ -16,9 +21,12 @@
 #include <array>
 #include <cstdint>
 #include <doctest/doctest.h>
+#include <exception>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include <tav/cbor.hpp>
+#include <tuple>
 #include <vector>
 
 // Hardcoded test vectors signed with pycose / Python cryptography (P-384).
@@ -35,7 +43,7 @@ static const std::vector<uint8_t> detached_payload = {
 // CBOR: [1, [2, 3]]
 static const auto nested_payload = ccf::ds::from_hex("8201820203");
 
-// COSE_Sign1 with detached payload (cose_sign_ledger)
+// COSE_Sign1 with detached payload (sign_ledger)
 static const auto envelope_detached = ccf::ds::from_hex(
   "d2845830a501382204436b696419018b020fa3061a6553f100"
   "01636973730263737562666363662e7631a164747869646332"
@@ -45,7 +53,7 @@ static const auto envelope_detached = ccf::ds::from_hex(
   "8ee9b29486e5245502cfe021983e065354a4bbaa82c9fec55c"
   "0a41");
 
-// COSE_Sign1 with embedded flat payload (cose_sign_endorsement)
+// COSE_Sign1 with embedded flat payload (sign_endorsement)
 static const auto envelope_flat = ccf::ds::from_hex(
   "d2845829a30138220fa1061a6553f100666363662e7631a170"
   "65706f63682e73746172742e7478696463322e31a047706179"
@@ -55,7 +63,7 @@ static const auto envelope_flat = ccf::ds::from_hex(
   "e0b08de5d05149a6a1c1822fe9956c3edff0dcf80079fbb803"
   "ac14");
 
-// COSE_Sign1 with embedded CBOR payload (cose_sign_endorsement)
+// COSE_Sign1 with embedded CBOR payload (sign_endorsement)
 static const auto envelope_nested = ccf::ds::from_hex(
   "d2845829a30138220fa1061a6553f100666363662e7631a170"
   "65706f63682e73746172742e7478696463322e31a045820182"
@@ -109,6 +117,320 @@ static void verify_envelope(
       authned_content.begin(), authned_content.end());
     REQUIRE(payload == payload_copy);
   }
+}
+
+TEST_CASE("COSE Sign1 TBS encoding")
+{
+  // {alg: ES256}, with label 1 encoded as 18 01 rather than 01.
+  // The TBS must preserve these header bytes, not canonicalize them.
+  const auto noncanonical_phdr = ccf::ds::from_hex("a1180126");
+  const auto payload = ccf::ds::from_hex("0001ff");
+  CHECK(
+    ccf::cose::make_cose_sign1_tbs(noncanonical_phdr, payload) ==
+    ccf::ds::from_hex("846a5369676e61747572653144a118012640430001ff"));
+  CHECK(
+    ccf::cose::make_cose_sign1_tbs({}, {}) ==
+    ccf::ds::from_hex("846a5369676e617475726531404040"));
+}
+
+TEST_CASE("COSE Sign1 envelope encoding")
+{
+  // Non-minimal alg label (18 01): the envelope must retain exactly
+  // the protected header bytes that were signed.
+  const auto noncanonical_phdr = ccf::ds::from_hex("a1180126");
+  const auto payload = ccf::ds::from_hex("0001ff");
+  const auto signature = ccf::ds::from_hex("aabbcc");
+  CHECK(
+    ccf::cose::make_cose_sign1_envelope(
+      noncanonical_phdr, payload, signature, false) ==
+    ccf::ds::from_hex("d28444a1180126a0430001ff43aabbcc"));
+  CHECK(
+    ccf::cose::make_cose_sign1_envelope(
+      noncanonical_phdr, payload, signature, true) ==
+    ccf::ds::from_hex("d28444a1180126a0f643aabbcc"));
+  CHECK(
+    ccf::cose::make_cose_sign1_envelope({}, {}, {}, false) ==
+    ccf::ds::from_hex("d28440a04040"));
+  CHECK(
+    ccf::cose::make_cose_sign1_envelope({}, {}, {}, true) ==
+    ccf::ds::from_hex("d28440a0f640"));
+}
+
+TEST_CASE("COSE Sign1 signing with empty payloads")
+{
+  using namespace tav::cbor;
+  const auto key =
+    ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+  const auto verifier =
+    ccf::crypto::make_cose_verifier_from_key(key->public_key_der());
+
+  for (const bool detached : {false, true})
+  {
+    CAPTURE(detached);
+    const auto envelope = detached ?
+      ccf::cose::sign_ledger(*key, "kid", 1700000000, "iss", "sub", "2.1", {}) :
+      ccf::cose::sign_endorsement(*key, 1700000000, "2.1", {}, {}, {});
+    const auto fields =
+      nondet_parse(envelope).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    REQUIRE(fields.size() == 4);
+    CHECK(fields.array_at(1).det_serialize() == ccf::ds::from_hex("a0"));
+    if (detached)
+    {
+      CHECK(fields.array_at(2).as_simple() == SimpleValue::Null);
+      CHECK(verifier->verify_detached(envelope, {}));
+    }
+    else
+    {
+      CHECK(fields.array_at(2).as_bytes().empty());
+      std::span<uint8_t> authenticated;
+      REQUIRE(verifier->verify(envelope, authenticated));
+      CHECK(authenticated.empty());
+    }
+  }
+}
+
+TEST_CASE("COSE Sign1 signing failures")
+{
+  using ccf::crypto::CurveID;
+
+  struct FailingKey : ccf::crypto::ECKeyPair_OpenSSL
+  {
+    using ccf::crypto::ECKeyPair_OpenSSL::ECKeyPair_OpenSSL;
+    CurveID curve = CurveID::SECP384R1;
+    std::exception_ptr error;
+    std::vector<uint8_t> signature;
+
+    CurveID get_curve_id() const override
+    {
+      return curve;
+    }
+
+    std::vector<uint8_t> sign(
+      std::span<const uint8_t>, ccf::crypto::MDType) const override
+    {
+      if (error)
+      {
+        std::rethrow_exception(error);
+      }
+      return signature;
+    }
+  };
+
+  FailingKey key(ccf::crypto::CurveID::SECP384R1);
+  CHECK_THROWS_WITH_AS(
+    ccf::cose::sign_endorsement(key, 1700000000, "2.1", {}, {}, {}),
+    "COSE signing returned an empty signature",
+    ccf::cose::COSEError);
+
+  key.signature = {0xff};
+  CHECK_THROWS_AS(
+    ccf::cose::sign_endorsement(key, 1700000000, "2.1", {}, {}, {}),
+    ccf::cose::COSEError);
+
+  for (const auto& error :
+       {std::make_exception_ptr(std::runtime_error("signing failed")),
+        std::make_exception_ptr(std::logic_error("signing failed"))})
+  {
+    key.error = error;
+    CHECK_THROWS_WITH_AS(
+      ccf::cose::sign_ledger(key, "kid", 1700000000, "iss", "sub", "2.1", {}),
+      "signing failed",
+      ccf::cose::COSEError);
+    CHECK_THROWS_WITH_AS(
+      ccf::cose::sign_endorsement(key, 1700000000, "2.1", {}, {}, {}),
+      "signing failed",
+      ccf::cose::COSEError);
+  }
+
+  for (const auto curve : {CurveID::NONE, CurveID::CURVE25519, CurveID::X25519})
+  {
+    key.curve = curve;
+    CHECK_THROWS_WITH_AS(
+      ccf::cose::sign_ledger(key, "kid", 1700000000, "iss", "sub", "2.1", {}),
+      "Unsupported COSE signing curve",
+      ccf::cose::COSEError);
+    CHECK_THROWS_WITH_AS(
+      ccf::cose::sign_endorsement(key, 1700000000, "2.1", {}, {}, {}),
+      "Unsupported COSE signing curve",
+      ccf::cose::COSEError);
+  }
+}
+
+TEST_CASE("COSE signing rethrows CBOR encoding failures")
+{
+  const auto key =
+    ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+  const std::string invalid_utf8 = "\xff";
+  CHECK_THROWS_AS(
+    ccf::cose::sign_ledger(
+      *key, "kid", 1700000000, invalid_utf8, "sub", "2.1", {}),
+    ccf::cose::COSEError);
+  CHECK_THROWS_AS(
+    ccf::cose::sign_endorsement(*key, 1700000000, invalid_utf8, {}, {}, {}),
+    ccf::cose::COSEError);
+}
+
+TEST_CASE("COSE ECDSA round trips and algorithm binding")
+{
+  using namespace tav::cbor;
+  using ccf::cose::header::iana::ALG;
+  using ccf::crypto::CurveID;
+  struct Curve
+  {
+    CurveID id;
+    int64_t es;
+    int64_t esp;
+    size_t signature_size;
+  };
+  constexpr std::array curves = {
+    Curve{CurveID::SECP256R1, -7, -9, 64},
+    Curve{CurveID::SECP384R1, -35, -51, 96},
+    Curve{CurveID::SECP521R1, -36, -52, 132}};
+
+  for (const auto& curve : curves)
+  {
+    CAPTURE(curve.es);
+    const auto key = ccf::crypto::make_ec_key_pair(curve.id);
+    const auto verifier =
+      ccf::crypto::make_cose_verifier_from_key(key->public_key_der());
+    const auto envelope = ccf::cose::sign_endorsement(
+      *key, 1700000000, "2.1", {}, {}, detached_payload);
+    const auto fields =
+      nondet_parse(envelope).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    const auto phdr_bytes = fields.array_at(0).as_bytes();
+    const auto phdr = nondet_parse(phdr_bytes);
+    const auto sig = fields.array_at(3).as_bytes();
+    CHECK(phdr.map_at(make_signed(ALG)).as_signed() == curve.es);
+    REQUIRE(sig.size() == curve.signature_size);
+    std::span<uint8_t> authenticated;
+    REQUIRE(verifier->verify(envelope, authenticated));
+    CHECK(std::ranges::equal(authenticated, detached_payload));
+
+    for (const auto& candidate : curves)
+    {
+      for (const auto alg : {candidate.es, candidate.esp})
+      {
+        CAPTURE(alg);
+        CHECK(
+          verifier->verify_decomposed(phdr_bytes, detached_payload, sig, alg) ==
+          (candidate.id == curve.id));
+      }
+    }
+    for (const auto alg : {0, -37})
+    {
+      CAPTURE(alg);
+      CHECK_FALSE(
+        verifier->verify_decomposed(phdr_bytes, detached_payload, sig, alg));
+    }
+
+    auto wrong_payload = detached_payload;
+    wrong_payload.back() ^= 0xff;
+    CHECK_FALSE(
+      verifier->verify_decomposed(phdr_bytes, wrong_payload, sig, curve.es));
+    CHECK_FALSE(ccf::crypto::make_cose_verifier_from_key(
+                  ccf::crypto::make_ec_key_pair(curve.id)->public_key_der())
+                  ->verify(envelope, authenticated));
+    for (const auto size : {size_t{0}, sig.size() - 1, sig.size() + 1})
+    {
+      CAPTURE(size);
+      std::vector<uint8_t> malformed_sig(sig.begin(), sig.end());
+      malformed_sig.resize(size);
+      CHECK_FALSE(verifier->verify_decomposed(
+        phdr_bytes, detached_payload, malformed_sig, curve.es));
+    }
+
+    const auto esp_phdr =
+      ccf::cbor::with_entry(phdr, ALG, make_signed(curve.esp)).det_serialize();
+    const auto esp_tbs =
+      ccf::cose::make_cose_sign1_tbs(esp_phdr, detached_payload);
+    const auto esp_sig =
+      ccf::crypto::ecdsa_sig_der_to_p1363(key->sign(esp_tbs), curve.id);
+    const auto esp_fields =
+      ccf::cbor::with_element(fields, 0, make_bytes(esp_phdr));
+    const auto esp_envelope =
+      make_tagged(
+        ccf::cbor::tag::COSE_SIGN_1,
+        ccf::cbor::with_element(esp_fields, 3, make_bytes(esp_sig)))
+        .det_serialize();
+    REQUIRE(verifier->verify(esp_envelope, authenticated));
+    CHECK(std::ranges::equal(authenticated, detached_payload));
+  }
+}
+
+TEST_CASE("COSE signing protected header bytes")
+{
+  // Must stay byte-identical to headers already written to existing ledgers.
+  const auto key =
+    ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+  const auto phdr = [](const std::vector<uint8_t>& envelope) {
+    const auto bytes = tav::cbor::nondet_parse(envelope)
+                         .tag_at(ccf::cbor::tag::COSE_SIGN_1)
+                         .array_at(0)
+                         .as_bytes();
+    return std::vector<uint8_t>(bytes.begin(), bytes.end());
+  };
+  CHECK(
+    phdr(ccf::cose::sign_ledger(
+      *key, "kid", 1700000000, "iss", "sub", "2.1", {})) ==
+    ccf::ds::from_hex(
+      "a501382204436b69640fa301636973730263737562061a6553f10019018b0266"
+      "6363662e7631a1647478696463322e31"));
+  const std::vector<uint8_t> root = {0xaa, 0xbb};
+  CHECK(
+    phdr(
+      ccf::cose::sign_endorsement(*key, 1700000000, "2.1", "3.4", root, {})) ==
+    ccf::ds::from_hex(
+      "a30138220fa1061a6553f100666363662e7631a36e65706f63682e656e642e74"
+      "78696463332e347065706f63682e73746172742e7478696463322e317565706f"
+      "63682e656e642e6d65726b6c652e726f6f7442aabb"));
+}
+
+TEST_CASE("COSE RSA-PSS verification")
+{
+  using ccf::crypto::MDType;
+  const auto key = ccf::crypto::make_rsa_key_pair();
+  const auto issuer =
+    ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+  const auto cert = ccf::crypto::create_endorsed_cert(
+    key->public_key_pem(),
+    "CN=rsa",
+    {},
+    "20200101000000Z",
+    "20301231235959Z",
+    issuer->private_key_pem(),
+    issuer->self_sign("CN=issuer", "20200101000000Z", "20301231235959Z"));
+  const std::array verifiers = {
+    ccf::crypto::make_cose_verifier_from_key(key->public_key_der()),
+    ccf::crypto::make_cose_verifier_from_pem_cert(cert)};
+  const auto phdr = ccf::ds::from_hex("a0");
+  const auto tbs = ccf::cose::make_cose_sign1_tbs(phdr, detached_payload);
+
+  for (const auto& [alg, md, salt] :
+       {std::tuple{-37, MDType::SHA256, 32},
+        std::tuple{-38, MDType::SHA384, 48},
+        std::tuple{-39, MDType::SHA512, 64}})
+  {
+    CAPTURE(alg);
+    const auto sig = key->sign(tbs, md, salt);
+    // RFC 8230 requires the PSS salt length to equal the hash length.
+    const auto unsalted_sig = key->sign(tbs, md, 0);
+    for (const auto& verifier : verifiers)
+    {
+      CHECK(verifier->verify_decomposed(phdr, detached_payload, sig, alg));
+      CHECK_FALSE(
+        verifier->verify_decomposed(phdr, detached_payload, unsalted_sig, alg));
+      CHECK_FALSE(verifier->verify_decomposed(phdr, detached_payload, sig, -7));
+    }
+  }
+}
+
+TEST_CASE("COSE verifier returns false for malformed messages")
+{
+  const std::vector<uint8_t> malformed = {0xff};
+  const auto verifier = ccf::crypto::make_cose_verifier_from_key(pub_key_der);
+  std::span<uint8_t> authenticated;
+  CHECK_FALSE(verifier->verify(malformed, authenticated));
+  CHECK_FALSE(verifier->verify_detached(malformed, detached_payload));
 }
 
 TEST_CASE("Verification and payload invariant")
@@ -494,7 +816,7 @@ TEST_CASE("Decode CCF COSE receipt")
   }
 }
 
-TEST_CASE("make_cose_verifier_any_cert with PEM and DER certificates")
+TEST_CASE("COSE verifier imports public keys and certificates")
 {
   // Generate a fresh key pair and self-signed certificate.
   auto kp = ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
@@ -502,34 +824,18 @@ TEST_CASE("make_cose_verifier_any_cert with PEM and DER certificates")
     "CN=test", "20200101000000Z", "20301231235959Z", std::nullopt, true);
   auto cert_der = ccf::crypto::cert_pem_to_der(cert_pem);
 
-  // Sign an endorsement using the FFI so we have a real COSE_Sign1 envelope.
-  auto priv_der = kp->private_key_der();
-  CoseBuffer key_err;
-  auto cose_key =
-    CoseKey::from_private(priv_der.data(), priv_der.size(), key_err);
-  REQUIRE(cose_key.is_set());
-
   const std::string epoch_begin = "1.1";
   const std::vector<uint8_t> payload = {0xCA, 0xFE};
+  const auto envelope =
+    ccf::cose::sign_endorsement(*kp, 1700000000, epoch_begin, {}, {}, payload);
 
-  CoseBuffer out;
-  CoseBuffer sign_err;
-  auto rc = cose_sign_endorsement(
-    cose_key,
-    1700000000,
-    reinterpret_cast<const uint8_t*>(epoch_begin.data()),
-    epoch_begin.size(),
-    nullptr,
-    0,
-    nullptr,
-    0,
-    payload.data(),
-    payload.size(),
-    out,
-    sign_err);
-  REQUIRE(rc == 0);
-  REQUIRE(out.is_set());
-  auto envelope = out.to_vector();
+  SUBCASE("PEM public key")
+  {
+    auto verifier =
+      ccf::crypto::make_cose_verifier_from_key(kp->public_key_pem());
+    std::span<uint8_t> authned;
+    CHECK(verifier->verify(envelope, authned));
+  }
 
   SUBCASE("PEM certificate bytes")
   {
@@ -538,6 +844,11 @@ TEST_CASE("make_cose_verifier_any_cert with PEM and DER certificates")
     auto verifier = ccf::crypto::make_cose_verifier_any_cert(pem_bytes);
     std::span<uint8_t> authned;
     CHECK(verifier->verify(envelope, authned));
+    verifier = ccf::crypto::make_cose_verifier_from_pem_cert(cert_pem);
+    CHECK(verifier->verify(envelope, authned));
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_der_cert(pem_bytes),
+      ccf::cose::COSEError);
   }
 
   SUBCASE("DER certificate bytes")
@@ -545,12 +856,90 @@ TEST_CASE("make_cose_verifier_any_cert with PEM and DER certificates")
     auto verifier = ccf::crypto::make_cose_verifier_any_cert(cert_der);
     std::span<uint8_t> authned;
     CHECK(verifier->verify(envelope, authned));
+    verifier = ccf::crypto::make_cose_verifier_from_der_cert(cert_der);
+    CHECK(verifier->verify(envelope, authned));
+  }
+
+  SUBCASE("unsupported certificate key type")
+  {
+    // Test-only key on a valid EC curve that COSE verification rejects.
+    const ccf::crypto::Pem secp256k1_key(
+      "-----BEGIN PUBLIC KEY-----\n"
+      "MFYwEAYHKoZIzj0CAQYFK4EEAAoDQgAEgg35KU1dh2JezYWNWE1uGkQLG+NiLfje\n"
+      "WJQtjC/UjQHVQVWvlfifZuz2jYYl9SehNLb7dMeVjcK6zloSMJz1Uw==\n"
+      "-----END PUBLIC KEY-----\n");
+    for (const auto& subject_key :
+         {ccf::crypto::make_eddsa_key_pair()->public_key_pem(), secp256k1_key})
+    {
+      const auto unsupported_cert = ccf::crypto::create_endorsed_cert(
+        subject_key,
+        "CN=unsupported COSE key",
+        {},
+        "20200101000000Z",
+        "20301231235959Z",
+        kp->private_key_pem(),
+        cert_pem);
+      CHECK_THROWS_AS(
+        ccf::crypto::make_cose_verifier_any_cert(unsupported_cert.raw()),
+        ccf::cose::COSEError);
+      CHECK_THROWS_AS(
+        ccf::crypto::make_cose_verifier_from_pem_cert(unsupported_cert),
+        ccf::cose::COSEError);
+      CHECK_THROWS_AS(
+        ccf::crypto::make_cose_verifier_from_key(subject_key),
+        ccf::cose::COSEError);
+    }
+  }
+
+  SUBCASE("invalid certificate public key")
+  {
+    auto invalid_der = cert_der;
+    const auto public_key = kp->public_key_der();
+    auto key_in_cert = std::search(
+      invalid_der.begin(),
+      invalid_der.end(),
+      public_key.begin(),
+      public_key.end());
+    REQUIRE(key_in_cert != invalid_der.end());
+    // Keep the certificate parseable but move its EC point off the curve.
+    *(key_in_cert + public_key.size() - 1) ^= 0xff;
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_der_cert(invalid_der),
+      ccf::cose::COSEError);
   }
 
   SUBCASE("garbage bytes fail")
   {
     std::vector<uint8_t> garbage = {0xDE, 0xAD, 0xBE, 0xEF};
-    CHECK_THROWS(ccf::crypto::make_cose_verifier_any_cert(garbage));
+    CHECK_THROWS_WITH_AS(
+      ccf::crypto::make_cose_verifier_from_key(std::span<const uint8_t>{}),
+      "Invalid public key size",
+      ccf::cose::COSEError);
+    CHECK_THROWS_WITH_AS(
+      ccf::crypto::make_cose_verifier_any_cert({}),
+      "Invalid certificate size",
+      ccf::cose::COSEError);
+    CHECK_THROWS_WITH_AS(
+      ccf::crypto::make_cose_verifier_from_der_cert({}),
+      "Invalid certificate size",
+      ccf::cose::COSEError);
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_any_cert(garbage), ccf::cose::COSEError);
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_der_cert(garbage),
+      ccf::cose::COSEError);
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_key(garbage), ccf::cose::COSEError);
+    const ccf::crypto::Pem invalid_key(
+      "-----BEGIN PUBLIC KEY-----\ninvalid\n-----END PUBLIC KEY-----");
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_key(invalid_key),
+      ccf::cose::COSEError);
+    const ccf::crypto::Pem invalid_cert(
+      "-----BEGIN CERTIFICATE-----\ninvalid\n-----END CERTIFICATE-----");
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_pem_cert(invalid_cert),
+      ccf::cose::COSEError);
   }
 }
 

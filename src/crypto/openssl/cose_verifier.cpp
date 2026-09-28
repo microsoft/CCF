@@ -3,16 +3,64 @@
 
 #include "crypto/openssl/cose_verifier.h"
 
-#include "cose/cose_rs_ffi.h"
-#include "crypto/cbor_helpers.h"
+#include "ccf/crypto/ecdsa.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/ec_public_key.h"
+#include "crypto/openssl/rsa_public_key.h"
 #include "ds/internal_logger.h"
 
+#include <climits>
 #include <crypto/cbor_tags.h>
 #include <crypto/cose.h>
+#include <openssl/sha.h>
+#include <stdexcept>
 #include <tav/cbor.hpp>
+#include <type_traits>
 
 namespace
 {
+  using namespace ccf::crypto;
+
+  constexpr size_t P256_COORDINATE_SIZE = 32;
+  constexpr size_t P384_COORDINATE_SIZE = 48;
+  constexpr size_t P521_COORDINATE_SIZE = 66;
+
+  struct Algorithm
+  {
+    MDType digest;
+    CurveID curve;
+    size_t signature_size;
+    size_t salt_length;
+  };
+
+  Algorithm algorithm_parameters(int64_t alg)
+  {
+    switch (alg)
+    {
+      case ccf::cose::alg::ES256:
+      case ccf::cose::alg::ESP256:
+        return {
+          MDType::SHA256, CurveID::SECP256R1, 2 * P256_COORDINATE_SIZE, 0};
+      case ccf::cose::alg::ES384:
+      case ccf::cose::alg::ESP384:
+        return {
+          MDType::SHA384, CurveID::SECP384R1, 2 * P384_COORDINATE_SIZE, 0};
+      case ccf::cose::alg::ES512:
+      case ccf::cose::alg::ESP512:
+        return {
+          MDType::SHA512, CurveID::SECP521R1, 2 * P521_COORDINATE_SIZE, 0};
+      case ccf::cose::alg::PS256:
+        return {MDType::SHA256, CurveID::NONE, 0, SHA256_DIGEST_LENGTH};
+      case ccf::cose::alg::PS384:
+        return {MDType::SHA384, CurveID::NONE, 0, SHA384_DIGEST_LENGTH};
+      case ccf::cose::alg::PS512:
+        return {MDType::SHA512, CurveID::NONE, 0, SHA512_DIGEST_LENGTH};
+      default:
+        throw ccf::cose::COSEError(
+          fmt::format("Unsupported COSE signature algorithm {}", alg));
+    }
+  }
+
   using CoseSign1Components = std::tuple<
     std::span<const uint8_t>, // phdr
     std::optional<std::span<const uint8_t>>, // payload (nullopt if detached)
@@ -41,7 +89,7 @@ namespace
       {
         payload = payload_item.as_bytes();
       }
-      catch (const DecodeError&)
+      catch (const tav::cbor::DecodeError&)
       {
         // as_bytes() fails when payload is CBOR null (detached)
         if (payload_item.as_simple() != tav::cbor::SimpleValue::Null)
@@ -66,30 +114,71 @@ namespace
     return phdr.map_at(alg_key).as_signed();
   }
 
-  CoseKey cose_key_from_pem(const ccf::crypto::Pem& pem)
+  CoseKey cose_key_from_pkey(OpenSSL::Unique_PKEY key)
   {
-    CoseBuffer key_err;
-    auto key = CoseKey::from_pem_public(pem.data(), pem.size(), key_err);
-    if (!key.is_set())
+    switch (EVP_PKEY_get_base_id(key))
     {
-      throw std::runtime_error(fmt::format(
-        "Failed to create COSE verification key: {}",
-        key_err.is_set() ? key_err.to_string() : "unknown error"));
+      case EVP_PKEY_EC:
+      {
+        ECPublicKeyPtr ec_key(new ECPublicKey_OpenSSL(key.release()));
+        // Throws for curves that COSE verification does not support.
+        (void)ec_key->get_curve_id();
+        return ec_key;
+      }
+      case EVP_PKEY_RSA:
+        return RSAPublicKeyPtr(new RSAPublicKey_OpenSSL(key.release()));
+      default:
+        throw ccf::cose::COSEError("Unsupported COSE public key type");
     }
-    return key;
   }
 
-  CoseKey cose_key_from_der(std::span<const uint8_t> der)
+  CoseKey cose_key_from_bytes(std::span<const uint8_t> encoded, bool pem)
   {
-    CoseBuffer key_err;
-    auto key = CoseKey::from_public(der.data(), der.size(), key_err);
-    if (!key.is_set())
-    {
-      throw std::runtime_error(fmt::format(
-        "Failed to create COSE verification key: {}",
-        key_err.is_set() ? key_err.to_string() : "unknown error"));
-    }
-    return key;
+    return ccf::cose::rethrow_as_cose_error([&]() {
+      if (encoded.empty() || encoded.size() > INT_MAX)
+      {
+        throw ccf::cose::COSEError("Invalid public key size");
+      }
+      OpenSSL::Unique_BIO bio(encoded);
+      OpenSSL::Unique_PKEY key(
+        pem ? PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr) :
+              d2i_PUBKEY_bio(bio, nullptr),
+        EVP_PKEY_free);
+      return cose_key_from_pkey(std::move(key));
+    });
+  }
+
+  enum class CertificateFormat : uint8_t
+  {
+    AUTO,
+    PEM,
+    DER
+  };
+
+  CoseKey cose_key_from_certificate(
+    std::span<const uint8_t> encoded, CertificateFormat format)
+  {
+    return ccf::cose::rethrow_as_cose_error([&]() {
+      if (encoded.empty() || encoded.size() > INT_MAX)
+      {
+        throw ccf::cose::COSEError("Invalid certificate size");
+      }
+      OpenSSL::Unique_BIO bio(encoded);
+      OpenSSL::Unique_X509 cert(bio, format != CertificateFormat::DER);
+      if (cert == nullptr && format == CertificateFormat::AUTO)
+      {
+        OpenSSL::CHECK1(BIO_reset(bio));
+        cert = OpenSSL::Unique_X509(bio, false);
+      }
+      if (cert == nullptr)
+      {
+        throw ccf::cose::COSEError(fmt::format(
+          "Failed to parse certificate: {}",
+          OpenSSL::error_string(ERR_get_error())));
+      }
+      OpenSSL::Unique_PKEY key(X509_get_pubkey(cert), EVP_PKEY_free);
+      return cose_key_from_pkey(std::move(key));
+    });
   }
 }
 
@@ -98,64 +187,34 @@ namespace ccf::crypto
   std::unique_ptr<COSECertVerifier_OpenSSL> COSECertVerifier_OpenSSL::from_any(
     const std::vector<uint8_t>& certificate)
   {
-    // Try PEM first, then DER.
-    CoseBuffer pem_err;
-    auto key =
-      CoseKey::from_pem_cert(certificate.data(), certificate.size(), pem_err);
-    if (!key.is_set())
-    {
-      CoseBuffer der_err;
-      key =
-        CoseKey::from_der_cert(certificate.data(), certificate.size(), der_err);
-      if (!key.is_set())
-      {
-        throw std::invalid_argument(fmt::format(
-          "Failed to parse certificate (PEM: {}, DER: {})",
-          pem_err.is_set() ? pem_err.to_string() : "unknown error",
-          der_err.is_set() ? der_err.to_string() : "unknown error"));
-      }
-    }
     return std::unique_ptr<COSECertVerifier_OpenSSL>(
-      new COSECertVerifier_OpenSSL(std::move(key)));
+      new COSECertVerifier_OpenSSL(
+        cose_key_from_certificate(certificate, CertificateFormat::AUTO)));
   }
 
   std::unique_ptr<COSECertVerifier_OpenSSL> COSECertVerifier_OpenSSL::from_pem(
     const Pem& pem)
   {
-    CoseBuffer key_err;
-    auto key = CoseKey::from_pem_cert(pem.data(), pem.size(), key_err);
-    if (!key.is_set())
-    {
-      throw std::invalid_argument(fmt::format(
-        "Failed to parse PEM certificate: {}",
-        key_err.is_set() ? key_err.to_string() : "unknown error"));
-    }
     return std::unique_ptr<COSECertVerifier_OpenSSL>(
-      new COSECertVerifier_OpenSSL(std::move(key)));
+      new COSECertVerifier_OpenSSL(
+        cose_key_from_certificate(pem.raw(), CertificateFormat::PEM)));
   }
 
   std::unique_ptr<COSECertVerifier_OpenSSL> COSECertVerifier_OpenSSL::from_der(
     const std::vector<uint8_t>& der)
   {
-    CoseBuffer key_err;
-    auto key = CoseKey::from_der_cert(der.data(), der.size(), key_err);
-    if (!key.is_set())
-    {
-      throw std::invalid_argument(fmt::format(
-        "Failed to parse DER certificate: {}",
-        key_err.is_set() ? key_err.to_string() : "unknown error"));
-    }
     return std::unique_ptr<COSECertVerifier_OpenSSL>(
-      new COSECertVerifier_OpenSSL(std::move(key)));
+      new COSECertVerifier_OpenSSL(
+        cose_key_from_certificate(der, CertificateFormat::DER)));
   }
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_) :
-    COSEVerifier_OpenSSL(cose_key_from_pem(public_key_))
+    COSEVerifier_OpenSSL(cose_key_from_bytes(public_key_.raw(), true))
   {}
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(
     std::span<const uint8_t> public_key_der_) :
-    COSEVerifier_OpenSSL(cose_key_from_der(public_key_der_))
+    COSEVerifier_OpenSSL(cose_key_from_bytes(public_key_der_, false))
   {}
 
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
@@ -174,28 +233,12 @@ namespace ccf::crypto
         return false;
       }
 
-      auto alg = extract_alg(phdr);
-      CoseBuffer verify_err;
-      auto rc = cose_verify1(
-        verify_key,
-        alg,
-        phdr.data(),
-        phdr.size(),
-        payload->data(),
-        payload->size(),
-        sig.data(),
-        sig.size(),
-        verify_err);
-      if (rc == 0)
+      if (verify_decomposed(phdr, *payload, sig, extract_alg(phdr)))
       {
         authned_content = {
           const_cast<uint8_t*>(payload->data()), payload->size()};
         return true;
       }
-
-      LOG_DEBUG_FMT(
-        "COSE Sign1 verification failed: {}",
-        verify_err.is_set() ? verify_err.to_string() : "unknown error");
     }
     catch (const std::exception& e)
     {
@@ -211,26 +254,7 @@ namespace ccf::crypto
     {
       auto [phdr, _payload, sig] = decompose_cose_sign1(envelope);
 
-      auto alg = extract_alg(phdr);
-      CoseBuffer verify_err;
-      auto rc = cose_verify1(
-        verify_key,
-        alg,
-        phdr.data(),
-        phdr.size(),
-        payload.data(),
-        payload.size(),
-        sig.data(),
-        sig.size(),
-        verify_err);
-      if (rc == 0)
-      {
-        return true;
-      }
-
-      LOG_DEBUG_FMT(
-        "COSE Sign1 verification failed: {}",
-        verify_err.is_set() ? verify_err.to_string() : "unknown error");
+      return verify_decomposed(phdr, payload, sig, extract_alg(phdr));
     }
     catch (const std::exception& e)
     {
@@ -247,25 +271,55 @@ namespace ccf::crypto
   {
     try
     {
-      CoseBuffer verify_err;
-      auto rc = cose_verify1(
-        verify_key,
-        alg,
-        phdr.data(),
-        phdr.size(),
-        payload.data(),
-        payload.size(),
-        sig.data(),
-        sig.size(),
-        verify_err);
-      if (rc == 0)
+      const auto parameters = algorithm_parameters(alg);
+      const auto tbs = cose::make_cose_sign1_tbs(phdr, payload);
+      const bool verified = std::visit(
+        [&](const auto& key) {
+          if constexpr (std::is_same_v<
+                          std::remove_cvref_t<decltype(key)>,
+                          RSAPublicKeyPtr>)
+          {
+            if (parameters.curve != CurveID::NONE)
+            {
+              throw cose::COSEError("COSE algorithm does not match RSA key");
+            }
+            return key->verify(
+              tbs.data(),
+              tbs.size(),
+              sig.data(),
+              sig.size(),
+              parameters.digest,
+              RSAPadding::PKCS_PSS,
+              parameters.salt_length);
+          }
+          else
+          {
+            if (parameters.curve != key->get_curve_id())
+            {
+              throw cose::COSEError("COSE algorithm does not match EC key");
+            }
+            if (sig.size() != parameters.signature_size)
+            {
+              throw cose::COSEError(fmt::format(
+                "Expected {} byte COSE ECDSA signature, got {}",
+                parameters.signature_size,
+                sig.size()));
+            }
+            const auto der = ecdsa_sig_p1363_to_der(sig);
+            return key->verify(
+              tbs.data(),
+              tbs.size(),
+              der.data(),
+              der.size(),
+              parameters.digest);
+          }
+        },
+        verify_key);
+      if (!verified)
       {
-        return true;
+        LOG_DEBUG_FMT("COSE Sign1 verification failed: signature mismatch");
       }
-
-      LOG_DEBUG_FMT(
-        "COSE Sign1 verification failed: {}",
-        verify_err.is_set() ? verify_err.to_string() : "unknown error");
+      return verified;
     }
     catch (const std::exception& e)
     {

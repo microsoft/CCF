@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
 
+### Changed
+
+- `ccf::crypto::make_cose_verifier_*()` now validate keys and certificates strictly and throw `ccf::cose::COSEError` (a `std::runtime_error`; certificate errors were previously `std::invalid_argument`) on failure (#8459).
+
 ### Removed
 
 - Nodes no longer accept forwarded RPC requests and responses in the legacy v1 and v2 wire formats. All supported releases have emitted the v3 format since 4.0, so mixed-version networks are unaffected (#8426).
