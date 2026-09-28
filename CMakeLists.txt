@@ -590,7 +590,6 @@ add_subdirectory(${CCF_DIR}/samples)
 add_test_bin(
   verify_uvm_attestation_and_endorsements
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/verify_uvm_attestation_and_endorsements.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/node/env.cpp
 )
 target_link_libraries(
   verify_uvm_attestation_and_endorsements
@@ -675,7 +674,7 @@ if(BUILD_TESTS)
 
     add_unit_test(
       env_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/env.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/env.cpp
       ${CCF_DIR}/src/node/env.cpp
     )
 

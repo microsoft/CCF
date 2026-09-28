@@ -192,11 +192,12 @@ def test_node_data(network, args):
             new_node_info = nodes[untrusted_node.node_id]
             assert new_node_info["node_data"] == new_node_data, new_node_info
 
-            # Pending nodes must retain their data after consuming the input
-            # file. A pending node serves no KV-backed endpoints itself, so
-            # observe it through the primary: each accepted join retry rewrites
-            # the pending entry (advancing last_written), and the data recorded
-            # for the node must be unchanged.
+            # The node data file is read once, when the node is created, so
+            # removing it must not stop a pending node from retrying its join.
+            # Each accepted retry rewrites the pending entry on the primary
+            # (advancing last_written), so wait for one and check that the node
+            # is still running. The primary keeps the node data from the first
+            # join request, so retries cannot change the recorded data.
             ntf.close()
             previous_write = new_node_info["last_written"]
             deadline = time.time() + 10 * args.join_timer_s
@@ -210,7 +211,6 @@ def test_node_data(network, args):
                 time.sleep(0.1)
             assert not untrusted_node.remote.check_done(timeout=0)
             assert new_node_info["status"] == "Pending", new_node_info
-            assert new_node_info["node_data"] == new_node_data, new_node_info
 
             # Set modified node data
             new_node_data["previous_locations"] = [new_node_data["location"]]

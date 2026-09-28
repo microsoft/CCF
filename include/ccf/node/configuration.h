@@ -266,12 +266,6 @@ namespace ccf
     Command command = {};
   };
 
-  DECLARE_JSON_ENUM(
-    StartType,
-    {{StartType::Start, "Start"},
-     {StartType::Join, "Join"},
-     {StartType::Recover, "Recover"}});
-
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::NodeCertificateInfo);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::NodeCertificateInfo);
   DECLARE_JSON_OPTIONAL_FIELDS(
