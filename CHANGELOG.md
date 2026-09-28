@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `MapDiff::get()` (the typed wrapper over a transaction's key-value diff) now correctly returns an engaged `std::optional` holding `std::nullopt` for keys that were deleted, distinguishing them from untouched keys (which still return a disengaged `std::optional`), matching its documented contract. Previously both cases collapsed to a disengaged `std::optional`, so callers could not tell a deletion from no change. `MapDiff::foreach_key()` and `MapDiff::foreach_value()`, which failed to compile when used, now visit each changed key and each changed value (`std::nullopt` for deletions) respectively (#8429).
 - A recovered service is now opened by the next primary if the primary's opening at the end of private recovery is rolled back by an election before it commits, including when the new primary completed private recovery as a backup. Previously, the service could remain in the `WaitingForRecoveryShares` state indefinitely. A node which completes private recovery as primary after the service is already open no longer fails (#8450).
 - A node which applied an opening of a recovered service that an election then rolled back could keep that opening's seqno, rather than the seqno of the opening which committed, as the version at which the last ledger secret before recovery is stored. That version is recorded in the recovery shares and sealed recovery shares information, and sent to joining nodes (#8452).
 
