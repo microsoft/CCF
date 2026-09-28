@@ -1,8 +1,8 @@
 Rust API reference
 ==================
 
-The :rustdoc:`ccf_app crate reference <index.html>` is generated from the SDK in this documentation version.
-The interface is experimental; see :doc:`example_rust` for a walkthrough and its limitations.
+The :rustdoc:`ccf_app <index.html>` crate reference is generated from the SDK in the same CCF version as this documentation.
+The Rust interface is experimental; see :doc:`example_rust` for a walkthrough and a list of unsupported features.
 
 - Endpoints: :rustdoc:`Registry <struct.Registry.html>`, :rustdoc:`export_app! <macro.export_app.html>`, :rustdoc:`Auth <enum.Auth.html>`, :rustdoc:`RetrySafeHandler <trait.RetrySafeHandler.html>`
 - Requests and responses: :rustdoc:`ReadOnlyContext <struct.ReadOnlyContext.html>`, :rustdoc:`WriteContext <struct.WriteContext.html>`

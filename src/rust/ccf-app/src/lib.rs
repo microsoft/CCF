@@ -216,12 +216,11 @@ unsafe fn borrowed_slice<'a>(value: RawSlice) -> &'a [u8] {
 
 /// Failure of an SDK call into CCF.
 ///
-/// Lookups return `Ok(None)` or `Ok(false)` for missing values, rather than
-/// [`NotFound`](Self::NotFound). Conversion to [`EndpointError`], as by `?` in
-/// a handler, always gives HTTP 500.
+/// Conversion to [`EndpointError`], as by `?` in a handler, always gives
+/// HTTP 500.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BridgeError {
-    /// The requested value does not exist.
+    /// A value was not found. Lookups report this as `None` or `false` instead.
     NotFound,
     /// CCF rejected an argument, such as an empty map name, an unknown status
     /// or an invalid header.
@@ -263,7 +262,7 @@ impl Auth {
 ///
 /// CCF sends an OData JSON error with this code and message, which are visible
 /// to the client and may be empty. A status that is not a known HTTP status of
-/// 400 or above is sent as 500.
+/// 400 or above is sent as HTTP 500.
 ///
 /// ```
 /// use ccf_app::EndpointError;
@@ -273,7 +272,7 @@ impl Auth {
 /// ```
 #[derive(Clone, Debug)]
 pub struct EndpointError {
-    /// HTTP status, sent as 500 unless it is a known error status.
+    /// HTTP status.
     pub status: u16,
     /// Error code, such as `"ResourceNotFound"`.
     pub code: String,
@@ -661,7 +660,7 @@ impl ReadOnlyMap<'_, '_> {
 /// Read-write access to a raw-byte KV map, from [`WriteContext::map`].
 ///
 /// Writes are visible to later reads in the same transaction, and are applied
-/// only if the transaction succeeds.
+/// only if the response status is 2xx.
 pub struct Map<'a, 'ctx> {
     context: &'a mut Context<'ctx>,
     name: &'a str,
@@ -689,12 +688,13 @@ impl Map<'_, '_> {
     }
 }
 
-/// Marker trait for endpoint handlers that may be invoked repeatedly.
+/// Marker trait for endpoint handlers, which CCF may re-execute.
 ///
-/// Handlers may run concurrently, and CCF may discard a transaction and invoke
-/// its handler again after a conflict. Only KV changes are discarded, so any
-/// other side effects must be safe to repeat. This trait is implemented for all
-/// `Send + Sync` types, so the compiler cannot check this.
+/// Handlers may run concurrently, and CCF may discard a transaction and
+/// re-execute its handler after a conflict. The transaction's KV changes and
+/// response are discarded, so any other side effects must be safe to repeat.
+/// This trait is implemented for all `Send + Sync` types, so the compiler
+/// cannot check this.
 pub trait RetrySafeHandler: Send + Sync {}
 
 impl<T> RetrySafeHandler for T where T: Send + Sync {}

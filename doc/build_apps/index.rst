@@ -101,7 +101,7 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     :fa:`terminal` :doc:`rust_api`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Rust SDK API reference.
+    Rust API reference (experimental).
 
     ---
 
