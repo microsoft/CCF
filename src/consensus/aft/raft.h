@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/ds/locking.h"
-#include "ccf/service/reconfiguration_type.h"
+#include "ccf/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
 #include "consensus/aft/raft_types.h"

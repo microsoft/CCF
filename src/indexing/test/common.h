@@ -6,7 +6,7 @@
 #include "kv/test/stub_consensus.h"
 
 // Needed by TestTransactionFetcher
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 
 using MapA = ccf::kv::Map<std::string, std::string>;
 static MapA map_a("public:map_a");

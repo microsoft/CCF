@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/ec_key_pair.h"
-#include "ccf/node/cose_signatures_config.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "ds/internal_logger.h"
 #include "kv/kv_types.h"

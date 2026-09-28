@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/service/map.h"
+#include "kv/internal_table_names.h"
 
 #include <map>
 #include <optional>
@@ -120,7 +121,5 @@ namespace ccf
   namespace Tables
   {
     static constexpr auto SHARES = "public:ccf.internal.recovery_shares";
-    static constexpr auto ENCRYPTED_PAST_LEDGER_SECRET =
-      "public:ccf.internal.historical_encrypted_ledger_secret";
   }
 }

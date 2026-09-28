@@ -11,8 +11,8 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
+#include "kv/null_encryptor.h"
 #include "kv/store.h"
-#include "kv/test/null_encryptor.h"
 #include "node/hooks.h"
 #include "node/internal_tables_access.h"
 

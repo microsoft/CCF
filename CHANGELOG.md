@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf::NodeConfigurationState::node_config` now exposes the operator configuration as `ccf::CCFConfig`, declared in `ccf/node/configuration.h`. It is the type parsed from the operator JSON configuration, so command-specific settings are under `command.start`, `command.join`, and `command.recover`, and file paths are exposed as configured. File-backed inputs are read once by the node when it is created, rather than being resolved by the host into a second startup configuration type. A missing or malformed input file now fails node creation with an error naming that file, rather than exiting the host process. The operator JSON format and the node-to-node genesis format are unchanged. `StartType` is now declared in `ccf/node/start_type.h` in the `ccf` namespace (#8309, #7565).
 - Resolved node data is now available to applications as `ccf::NodeConfigurationState::node_data`, alongside `node_config` (#8309).
 - A node joining a service no longer reads `service_data_json_file`, which is only used when starting or recovering a service. Previously a missing file failed a joining node at startup; it now starts and logs that the setting is ignored (#8309).
+- `ccf::make_net_address()` and `ccf::split_net_address()` are now declared in the new public header `ccf/ds/net_address.h`. `ccf/service/node_info_network.h` still includes it, so existing includers are unaffected.
+- `ccf::COSESignaturesConfig` and `ccf::ReconfigurationType` are unchanged, but are now declared in the new public headers `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively.
+
+### Deprecated
+
+- The public headers `ccf/node/cose_signatures_config.h` and `ccf/service/reconfiguration_type.h` are deprecated, and will be removed in 8.0. They are kept for source compatibility only, include `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively, and emit a compiler warning when included. Applications should include the new headers instead.
 
 ### Removed
 
