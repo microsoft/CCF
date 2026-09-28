@@ -8,7 +8,6 @@
 #include "ccf/node/ledger_sign_mode.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
-#include "common/configuration.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/hash.h"
