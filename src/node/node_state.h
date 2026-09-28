@@ -2509,34 +2509,11 @@ namespace ccf
       }));
     }
 
-    void setup_one_off_secret_hook()
+    void setup_recovered_opening_secret_hook()
     {
-      // This hook is necessary to adjust the version at which the last ledger
-      // secret before recovery is recorded in the store. This can only be
-      // fired once, after the recovery shares for the post-recovery ledger
-      // secret are issued.
       network.tables->set_map_hook(
         network.encrypted_ledger_secrets.get_name(),
-        EncryptedLedgerSecretsInfo::wrap_map_hook(
-          [this](
-            ccf::kv::Version version,
-            const EncryptedLedgerSecretsInfo::Write& w)
-            -> ccf::kv::ConsensusHookPtr {
-            if (!w.has_value())
-            {
-              throw std::logic_error(fmt::format(
-                "Unexpected removal from {} table",
-                network.encrypted_ledger_secrets.get_name()));
-            }
-
-            network.ledger_secrets->adjust_previous_secret_stored_version(
-              version);
-
-            network.tables->unset_map_hook(
-              network.encrypted_ledger_secrets.get_name());
-
-            return {nullptr};
-          }));
+        make_recovered_opening_secret_hook(network.ledger_secrets));
     }
 
     //
@@ -3293,7 +3270,7 @@ namespace ccf
       setup_private_recovery_store();
 
       reset_recovery_hook();
-      setup_one_off_secret_hook();
+      setup_recovered_opening_secret_hook();
 
       auto opening = RecoveredServiceOpening::NotRecovering;
       recovered_service_opening.compare_exchange_strong(
