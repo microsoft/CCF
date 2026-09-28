@@ -27,7 +27,9 @@ static void append_retract(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<ccf::crypto::Sha256Hash> hashes;
-  std::random_device r;
+  // Synthetic hashes do not need entropy. Reset the PRNG for each sample so
+  // fixture generation is reproducible and does not depend on hardware RNG.
+  std::mt19937 r(0xC0FFEE);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -60,7 +62,7 @@ static void append_flush(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<ccf::crypto::Sha256Hash> hashes;
-  std::random_device r;
+  std::mt19937 r(0xC0FFEE);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -90,7 +92,7 @@ static void append_get_proof_verify(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<ccf::crypto::Sha256Hash> hashes;
-  std::random_device r;
+  std::mt19937 r(0xC0FFEE);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -122,7 +124,7 @@ static void append_get_proof_verify_v(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<ccf::crypto::Sha256Hash> hashes;
-  std::random_device r;
+  std::mt19937 r(0xC0FFEE);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -154,7 +156,7 @@ static void append_get_proof_verify_v(picobench::state& s)
 static void serialise_deserialise(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
-  std::random_device r;
+  std::mt19937 r(0xC0FFEE);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
@@ -173,7 +175,7 @@ static void serialise_deserialise(picobench::state& s)
 static void serialised_size(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
-  std::random_device r;
+  std::mt19937 r(0xC0FFEE);
 
   for (int i = 0; i < s.iterations(); ++i)
   {
