@@ -25,8 +25,7 @@ namespace ccf
     size_t num_worker_thread,
     const ccf::ds::WorkBeaconPtr& work_beacon,
     ccf::AbstractRuntimeControl& runtime_control,
-    const std::shared_ptr<AbstractReadLedgerSubsystemInterface>&
-      ledger_subsystem);
+    const std::shared_ptr<AbstractLedgerSubsystemInterface>& ledger_subsystem);
 
   bool enclave_run();
   bool enclave_request_stop();

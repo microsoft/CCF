@@ -2,66 +2,54 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/ring_buffer_types.h"
-
-#include <span>
+#include <cstdint>
+#include <functional>
+#include <vector>
 
 namespace consensus
 {
+  // Retained so the ledger range read budget stays equal to the previous
+  // ringbuffer-derived value (memory.max_msg_size minus this allowance) until
+  // the memory configuration is removed.
   static constexpr size_t ledger_range_response_metadata_size = 2048;
 
   using Index = uint64_t;
 
-  enum LedgerRequestPurpose : uint8_t
+  enum class LedgerRangeStatus : uint8_t
   {
-    Recovery,
-    HistoricalQuery,
+    Found,
+    NotFound,
+    TooLarge,
   };
 
-  /// Consensus-related ringbuffer messages
-  enum : ringbuffer::Message
+  struct LedgerRangeResult
   {
-    /// Request range of ledger entries. Enclave -> Host
-    DEFINE_RINGBUFFER_MSG_TYPE(ledger_get_range),
+    Index from = 0;
+    Index to = 0;
+    LedgerRangeStatus status = LedgerRangeStatus::NotFound;
+    std::vector<uint8_t> entries;
+  };
 
-    /// Respond to ledger_get_range. Host -> Enclave
-    DEFINE_RINGBUFFER_MSG_TYPE(ledger_entry_range),
-    DEFINE_RINGBUFFER_MSG_TYPE(ledger_no_entry_range),
+  using LedgerRangeCallback = std::function<void(LedgerRangeResult&&)>;
 
-    /// Modify the local ledger. Enclave -> Host
-    DEFINE_RINGBUFFER_MSG_TYPE(ledger_append),
-    DEFINE_RINGBUFFER_MSG_TYPE(ledger_truncate),
-    DEFINE_RINGBUFFER_MSG_TYPE(ledger_commit),
-    DEFINE_RINGBUFFER_MSG_TYPE(ledger_init),
-    DEFINE_RINGBUFFER_MSG_TYPE(ledger_open),
+  class AbstractLedgerWriter
+  {
+  public:
+    virtual ~AbstractLedgerWriter() = default;
+
+    virtual bool init(Index idx, Index recovery_start_idx) = 0;
+    virtual bool append(std::vector<uint8_t>&& entry, bool committable) = 0;
+    virtual bool truncate(Index idx, bool recovery_mode) = 0;
+    virtual bool commit(Index idx) = 0;
+    virtual bool open() = 0;
+  };
+
+  class AbstractLedgerReader
+  {
+  public:
+    virtual ~AbstractLedgerReader() = default;
+
+    virtual bool get_range(
+      Index from, Index to, LedgerRangeCallback&& callback) = 0;
   };
 }
-
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ::consensus::ledger_get_range,
-  ::consensus::Index,
-  ::consensus::Index,
-  ::consensus::LedgerRequestPurpose);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ::consensus::ledger_entry_range,
-  ::consensus::Index,
-  ::consensus::Index,
-  ::consensus::LedgerRequestPurpose,
-  std::vector<uint8_t>);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ::consensus::ledger_no_entry_range,
-  ::consensus::Index,
-  ::consensus::Index,
-  ::consensus::LedgerRequestPurpose);
-
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ::consensus::ledger_init,
-  ::consensus::Index /* start idx */,
-  ::consensus::Index /* recovery start idx */);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ::consensus::ledger_append, bool /* committable */, std::vector<uint8_t>);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ::consensus::ledger_truncate, ::consensus::Index, bool /* recovery mode */);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ::consensus::ledger_commit, ::consensus::Index);
-DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(::consensus::ledger_open);
