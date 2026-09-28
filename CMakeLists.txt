@@ -186,25 +186,27 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 install(
-  DIRECTORY ${CCF_DIR}/src/rust/
-  DESTINATION share/ccf/src/rust
+  DIRECTORY ${CCF_DIR}/src/rust/ccf-app/
+  DESTINATION share/ccf/src/rust/ccf-app
   PATTERN target EXCLUDE
 )
-install(
-  DIRECTORY ${CCF_DIR}/src/cose/cose_rs/
-  DESTINATION share/ccf/src/cose/cose_rs
-  PATTERN target EXCLUDE
-)
-install(
-  DIRECTORY ${CCF_DIR}/3rdparty/internal/cose-openssl/
-  DESTINATION share/ccf/3rdparty/internal/cose-openssl
-  PATTERN target EXCLUDE
-)
-install(FILES ${CCF_DIR}/src/rust/app_bridge.cpp DESTINATION share/ccf/rust)
 install(
   FILES ${CCF_DIR}/samples/apps/main.cpp
   DESTINATION share/ccf/rust
   RENAME app_main.cpp
+)
+
+add_library(ccf_rust_app_bridge OBJECT ${CCF_DIR}/src/rust/app_bridge.cpp)
+set_property(TARGET ccf_rust_app_bridge PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_san(ccf_rust_app_bridge)
+add_hardening(ccf_rust_app_bridge)
+add_tidy(ccf_rust_app_bridge)
+add_warning_checks(ccf_rust_app_bridge)
+enable_coverage(ccf_rust_app_bridge)
+install(
+  TARGETS ccf_rust_app_bridge
+  EXPORT ccf
+  OBJECTS DESTINATION lib/ccf/objects
 )
 
 # Copy and install CCF utilities
@@ -792,12 +794,21 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/openssl_server_test.cpp
     )
     target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
-
+    target_link_options(
+      openssl_server_test
+      PRIVATE "LINKER:--wrap=uv_async_send"
+    )
     add_unit_test(
       node_connections_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/node_connections.cpp
     )
     target_link_libraries(node_connections_test PRIVATE uv)
+
+    add_unit_test(
+      tcp_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/tcp_test.cpp
+    )
+    target_link_libraries(tcp_test PRIVATE uv)
 
     add_unit_test(
       raft_test

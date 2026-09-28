@@ -4,13 +4,14 @@
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/http_status.h"
-#include "ccf/kv/compacted_version_conflict.h"
 #include "ccf/kv/map.h"
 #include "ccf/odata_error.h"
 #include "ccf/rust_ffi.h"
+#include "kv/compacted_version_conflict.h"
 
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -372,9 +373,15 @@ namespace
       const std::shared_ptr<CallbackState>& state)
     {
       ccf::AuthnPolicies policies;
-      if (auth == CCF_RUST_AUTH_USER_CERT)
+      switch (auth)
       {
-        policies = {ccf::user_cert_auth_policy};
+        case CCF_RUST_AUTH_NONE:
+          break;
+        case CCF_RUST_AUTH_USER_CERT:
+          policies = {ccf::user_cert_auth_policy};
+          break;
+        default:
+          throw std::logic_error("Unsupported Rust authentication policy");
       }
 
       if (read_only)
@@ -558,9 +565,7 @@ extern "C"
     ccf_rust_slice code,
     ccf_rust_slice message)
   {
-    if (
-      ctx == nullptr || !is_valid_utf8(code) || code.len == 0 ||
-      !is_valid_utf8(message))
+    if (ctx == nullptr || !is_valid_utf8(code) || !is_valid_utf8(message))
     {
       return CCF_RUST_INVALID_ARGUMENT;
     }

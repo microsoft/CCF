@@ -1,11 +1,7 @@
 Example app (Rust)
 ==================
 
-.. note::
-
-    The Rust application interface is experimental, not a stable or
-    production-supported SDK. Use the SDK, CCF libraries and documentation from
-    the same CCF revision. Older releases may not contain this interface.
+.. warning:: The Rust interface is **experimental**. It is not a stable or production-supported SDK, and it is not covered by the API stability commitments in :doc:`release_policy`. Its Rust API, C ABI, and build integration may change incompatibly in any release. Use the SDK, CCF libraries and documentation from the same CCF revision.
 
 CCF provides an initial Rust interface for native applications. It deliberately
 exposes a small subset of the public application API:
@@ -61,6 +57,19 @@ reconfigured. ``LIB_NAME`` defaults to the package name with dashes replaced by
 underscores; set it explicitly when the crate's ``[lib] name`` differs from its
 package name. The application should commit ``Cargo.lock`` and pin a Rust
 toolchain for reproducible builds.
+
+The bridge is framework-owned scaffolding, built by CCF against its internal
+APIs and distributed as a precompiled object. Applications extend it only
+through the C ABI in ``ccf/rust_ffi.h`` and do not compile the bridge or depend
+on CCF's private C++ headers.
+
+CCF's existing Rust components remain in its prebuilt ``libccf_rs.a``; their
+Rust implementation symbols are internal and do not collide with the
+application's Rust runtime. Building an application therefore compiles only the
+application crate, ``ccf-app``, and the application's other Cargo dependencies.
+Additional Rust code should be included as Cargo dependencies, not linked as
+separate Rust ``staticlib`` archives, which may export duplicate runtime
+symbols.
 
 Write the application
 ---------------------
@@ -183,7 +192,7 @@ From that application directory:
     cmake --build build --target basic_rust
     /opt/ccf/bin/sandbox.sh --package ./build/basic_rust
 
-The CMake helper selects the installed bridge sources automatically. Adjust
+The CMake helper links the installed precompiled bridge and launcher. Adjust
 ``/opt/ccf`` for a different install prefix, and keep this installation paired
 with the SDK used to compile the application.
 
@@ -202,6 +211,13 @@ are rejected. C++ exceptions are also contained by the bridge. When a handler
 returns an ``EndpointError`` with a status that is not a known HTTP error
 status, the host bridge emits HTTP 500 while preserving the error code and
 message.
+
+Panic messages may contain request or KV data, and node output is visible to
+the host. ``export_app!`` therefore installs a panic hook which does not report
+panics raised by the application's registration function, handlers, or handler
+destructors. Other panics are passed to the previously installed hook.
+Applications that install their own panic hook must not write confidential data
+to node output.
 
 KV values and keys
 ------------------

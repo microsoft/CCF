@@ -1,109 +1,87 @@
 # Lean disaster recovery model
 
-This package contains the canonical Lean model of CCF's C++ recovery decision
-protocol and its permanent safety proofs.
+This package contains a Lean model of CCF's recovery decision protocol
+(`src/node/recovery_decision_protocol.cpp`), its safety properties, and
+machine-checked proofs of those properties. [The Lean module guide](../AGENT.md)
+describes the module layout.
+
+## Contents
+
+| Purpose                               | Location                                                |
+| ------------------------------------- | ------------------------------------------------------- |
+| Property statements                   | `DisasterRecovery/Properties.lean`                      |
+| Proof of each property                | `DisasterRecovery/Proof.lean`, one theorem per property |
+| Single-node protocol                  | `DisasterRecovery/Model/Local.lean`                     |
+| Network composition                   | `DisasterRecovery/Model.lean`, `Shared/`                |
+| Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`                |
+| Proof implementations                 | `DisasterRecovery/Proofs/`                              |
+| Executable checks and concrete traces | `DisasterRecovery/Tests/`                               |
+
+Human review covers the model, the property statements, the definitions they
+use, and the theorem links in `Proof.lean`. The proof implementations under
+`Proofs/` are verified by the build and the axiom audit and are marked
+`linguist-generated` in `.gitattributes`.
 
 ## Model
 
-`DisasterRecovery.Protocol.Model` models one protocol node. Its state machine
-covers Gossiping, Voting, Opening, Joining, and Open, including the separate
-timeout lane, retries, duplicate receives, strict-majority voting, failover,
-restart, and completion.
+`Model/Local.lean` defines one node. Its phases are gossiping, voting, opening,
+joining, and open. It also models a timeout lane, retries, failover, and
+restart. `Local.step` returns `none` for a disabled event. For an enabled event
+it returns the next state and invokes the host's `send` and `notify` callbacks.
+A rejected receive is an enabled step that emits a notification.
+`Validation.accepted` and `Validation.rejected` represent the results of the
+C++ quote and certificate checks. The model does not define that cryptography.
 
-`DisasterRecovery.Protocol.Global` lifts the local transition function to a
-system with active nodes, in-flight messages, immutable send history, and
-terminal effects. Deliveries consume previously sent envelopes, so receives
-cannot appear without a modeled send.
+`Shared/MultiNodeTransitionSystem.lean` composes copies of one local protocol
+into a message-passing network. Each step executes one node once, collects its
+outputs with `Capabilities.record`, and appends its sends to the queue.
+Delivery consumes any queued envelope, not only the first. Notifications are
+not stored in the global state.
 
-The model follows the current C++ behavior in which a successfully validated
-location is not rejected merely because it is absent from
-`expectedLocations`. In particular, an accepted gossip from an unexpected
-location can satisfy a size threshold. `CanonicalTests.lean` checks this
-intentional accepted-unexpected-location behavior so that the implementation
-discrepancy remains explicit.
+`Model.lean` supplies each node's recovered TxID and adds `Config.Valid` to the
+initial-state predicate. The model records no history. The proofs reconstruct
+sends and notifications by re-executing local steps.
 
-`Validation.accepted` and `Validation.rejected` are the boundary at which the
-model receives the result of C++ quote and certificate validation. The model
-does not formalize or prove the cryptography that produces that result.
+## Properties
 
-## Review guide
+The local properties are invariants of `Local.step`. They hold for every node
+state, not only reachable ones. Each quantifies a `LocalStep` record and
+assumes `ValidStep`: re-executing the step yields exactly the recorded
+after-state and outputs.
 
-Start with `DisasterRecovery/Properties.lean`: it exposes 9 system-level
-`theorem` statements, each with an explicit application of its checked proof.
-Review those statements and every definition or assumption they use in
-`DisasterRecovery/Protocol/`. Machine checking does not establish that the
-model matches the C++ implementation or that its assumptions describe a real
-deployment.
+The global properties quantify a `GlobalTrace`, a list of states beginning
+with the initial state. `trace.Valid` requires an initial first state and an
+enabled action between each adjacent pair. `Trace.NotificationAt` states that
+a step by `node` between states `i` and `i + 1` emitted a given notification.
 
-The 124 supporting declarations are `lemma`s in
-`DisasterRecovery/Proofs/`. Their implementations can normally be omitted from
-line-by-line human review once the build and axiom audit pass. Mathlib's
-`lemma` is a synonym for `theorem`, not a weaker form of checking. The public
-statements remain explicitly linked to these lemmas rather than being detached
-specifications.
+`QuorumOpenerUnique` states that all `opening quorum` notifications in a trace
+originate from one node.
 
-Declaration namespaces follow the module paths. Model definitions live under
-`DisasterRecovery.Protocol.<Module>`, supporting lemmas under
-`DisasterRecovery.Proofs.<Module>`, and the 9 reviewed theorems under
-`DisasterRecovery.Properties`. For example,
-`DisasterRecovery.Properties.gossip_freezes_after_choice` explicitly applies
-`DisasterRecovery.Proofs.Model.gossip_freezes_after_choice` from
-`DisasterRecovery/Proofs/Model.lean`. Local and global properties share the
-`DisasterRecovery.Properties` namespace; their `Config` types come from the
-corresponding protocol modules.
+`QuorumOpenPreservesCommit` and `FullGossipPreservesCommit` conclude that the
+opener satisfies Raft's vote freshness check against a strict majority of the
+recovered ledgers. `LogUpToDate` is that check, comparing view and then
+sequence number, as in `recv_request_vote` in `src/consensus/aft/raft.h`. The
+first property requires each voter to have received its own gossip; without
+this premise, `Tests/QuorumCommit.lean` exhibits a stale node opening by
+quorum. The second requires a state in which every node's gossip equals
+`config.recovered`, and it also covers failover openings.
 
-Only the Lean files under `DisasterRecovery/Proofs/` are marked
-`linguist-generated` in the repository's `.gitattributes`, so GitHub can collapse
-them without collapsing the review-required model and properties. Changes to imports, the review boundary,
-the toolchain, dependencies, or checking machinery still require human review.
-`DisasterRecovery.lean`, `CanonicalTests.lean`, the Lake configuration and lockfile,
-and the CI workflow are part of that review surface.
+Each property has a `Witness` claim asserting that some valid trace or step
+satisfies its premises. `Proofs/Witnesses.lean` proves all seven witnesses using
+concrete executions. The full-gossip witness includes a failover opening.
+`Tests/Witnesses.lean` applies each witness to its corresponding property,
+and `Tests/ProofCoverage.lean` requires an exported theorem for every claim.
 
-## Proof coverage and limits
-
-`DisasterRecovery.Proofs.Model` proves local transition-safety properties.
-
-`DisasterRecovery.Proofs.Invariants` proves global well-formedness,
-message provenance, locality of transitions, append-only send history, and
-monotonic terminal histories for reachable states.
-
-`DisasterRecovery.Proofs.Quorum` proves that votes are unique and backed by
-prior sends, strict-majority quorums intersect, and any two quorum openings in
-a reachable execution select the same opener. This safety result is independent
-of scheduling assumptions.
-
-`DisasterRecovery.Proofs.Committed` proves TxID maximum properties and
-committed-prefix preservation under two explicit premises:
-
-- `DurableCommit` requires at least one configured recovered ledger to cover
-  the committed TxID.
-- `FullGossipSelection` requires a real sent vote whose selection snapshot
-  contains exactly the configured recovered TxIDs.
-
-A quorum opening alone does not imply `FullGossipSelection`, because voting may
-begin after a gossip timeout. The committed-prefix result deliberately does not
-derive or hide either durability or full-gossip evidence.
-
-Liveness, fairness, progress, and termination properties are out of scope at
-this stage.
-
-## Files
-
-| File                                        | Review role     | Purpose                                              |
-| ------------------------------------------- | --------------- | ---------------------------------------------------- |
-| `DisasterRecovery/Properties.lean`          | Human           | Selected system properties and checked proof links   |
-| `DisasterRecovery/Protocol/Model.lean`      | Human           | C++-aligned local transition model                   |
-| `DisasterRecovery/Protocol/Global.lean`     | Human           | Distributed transitions and reachability             |
-| `DisasterRecovery/Protocol/Invariants.lean` | Human           | Well-formedness and message-provenance predicates    |
-| `DisasterRecovery/Protocol/Quorum.lean`     | Human           | Vote and quorum-opening predicates                   |
-| `DisasterRecovery/Protocol/Committed.lean`  | Human           | Prefix ordering, durability and full-gossip premises |
-| `DisasterRecovery/Proofs/*.lean`            | Machine-checked | Supporting lemmas and proof implementations          |
-| `DisasterRecovery.lean`                     | Human           | Complete library import and audit root               |
-| `CanonicalTests.lean`                       | Human           | Executable canonical behavior checks                 |
+Freshness is a necessary condition for election, not a definition of Raft
+commitment. `update_commit` additionally requires a current-term signature
+replicated on a majority, and the Raft safety specification
+(`tla/consensus/ccfraft.tla`) is stated on log prefixes. The model stores only
+the last signed TxID of each ledger, so this package does not prove
+committed-prefix preservation. Liveness properties are out of scope.
 
 ## Validation
 
-Run from this directory:
+Run the following commands from this directory:
 
 ```console
 lake exe cache get
@@ -113,20 +91,32 @@ lake lint
 lake exe canonical-checks
 ```
 
-`lake build --wfail` treats build warnings, including uses of `sorry` and
-`admit`, as errors. `lake lint` runs
-[`axiom-audit`](https://github.com/leanprover-community/axiom-audit) over the
-`DisasterRecovery` library's transitive axiom dependencies. Only `propext`,
-`Classical.choice`, and `Quot.sound` are allowed, so `sorryAx`, user-defined
-axioms, and `native_decide` dependencies are rejected.
+`--wfail` treats `sorry` as an error. `lake lint` runs
+[axiom-audit](https://github.com/leanprover-community/axiom-audit); only
+`propext`, `Classical.choice`, and `Quot.sound` are permitted.
+`Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof
+module or if a removed name is reintroduced. See [Formatting](#formatting) for
+the [leanfmt](https://github.com/duckki/leanfmt) check.
+To update a tool dependency without changing the toolchain, run
+`lake update --keep-toolchain <package>`.
 
-The build compiles the reviewed statements and their proof implementations;
-`lake exe canonical-checks` separately exercises the transition model.
-`mk_all --check` verifies that `DisasterRecovery.lean` imports every library
-module, preventing newly added proofs from being silently omitted from the
-build and audit. Run `lake exe mk_all --lib DisasterRecovery` to refresh the
-import root when adding a module.
+## Formatting
 
-When refreshing the auditor dependency, use
-`lake --keep-toolchain update axiomAudit` to retain the package's pinned
-Lean and Mathlib versions.
+Install Lean via [elan](https://lean-lang.org/install/) and run
+`lake exe cache get` from this directory before the first formatting check.
+From the repository root, check every tracked `.lean` file:
+
+```console
+scripts/lean-format-checks.sh
+```
+
+To apply formatting fixes, run:
+
+```console
+scripts/lean-format-checks.sh -f
+```
+
+The script builds the model's imported modules and runs the pinned leanfmt
+dependency. The Lean CI workflow runs the same check after the proof checks.
+Files outside `lean/` are included; untracked files and downloaded dependencies
+are excluded. Add new Lean files to Git before running the check.
