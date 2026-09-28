@@ -485,6 +485,28 @@ namespace ccf
     ::consensus::Index last_recovered_idx = 0;
     static const size_t recovery_batch_size = 100;
 
+    // Only a node which is primary when it completes private recovery opens
+    // the recovered service then, and that opening can be rolled back by an
+    // election before it commits, including one won by a node which completed
+    // private recovery as a backup. So from when this node begins private
+    // recovery until it sees an opening commit, a node which has completed
+    // private recovery also tries to open the service in each view in which it
+    // is primary (see tick()). Committed is final, and may be set before
+    // private recovery begins, since global hooks run in table order. The
+    // service hook only acts on openings of this node's service identity,
+    // which is new on recovery, so the only opening a recovering node can see
+    // commit is the recovered service's.
+    enum class RecoveredServiceOpening : uint8_t
+    {
+      NotRecovering,
+      Pending,
+      Committed
+    };
+    std::atomic<RecoveredServiceOpening> recovered_service_opening =
+      RecoveredServiceOpening::NotRecovering;
+    // View of this node's latest attempt to open the recovered service
+    std::atomic<ccf::View> recovered_service_open_view = VIEW_UNKNOWN;
+
     //
     // JWT key auto-refresh
     //
@@ -2297,21 +2319,19 @@ namespace ccf
       // Snapshots are only generated after recovery is complete
       snapshotter->set_snapshot_generation(true);
 
-      // Open the service
+      // Open the service if this node is primary. Otherwise, or if this
+      // opening does not commit, a later primary opens it (see tick()).
       if (consensus->can_replicate())
       {
         LOG_INFO_FMT(
           "Try end private recovery at {}. Trigger service opening",
           recovery_v);
 
-        auto tx = network.tables->create_tx();
-        open_recovered_service(
-          tx, share_manager, *network.identity->get_key_pair());
-
-        if (tx.commit() != ccf::kv::CommitResult::SUCCESS)
+        recovered_service_open_view = consensus->get_view();
+        if (!open_recovered_service_if_waiting())
         {
-          throw std::logic_error(
-            "Could not commit transaction when finishing network recovery");
+          // Retried on tick() while this node is primary
+          recovered_service_open_view = VIEW_UNKNOWN;
         }
       }
       {
@@ -2321,6 +2341,79 @@ namespace ccf
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
       sm.advance(NodeStartupState::partOfNetwork);
+    }
+
+    // Opens the recovered service, from a node which has completed private
+    // recovery and is primary. Does nothing if the service is already open in
+    // this node's store: that opening is then in this primary's log, and
+    // commits in its view. Returns false if the opening could not be
+    // committed, but may be retried.
+    bool open_recovered_service_if_waiting()
+    {
+      try
+      {
+        auto tx = network.tables->create_tx();
+        const auto service_info = tx.ro<Service>(Tables::SERVICE)->get();
+        if (
+          service_info.has_value() &&
+          service_info->status == ServiceStatus::OPEN)
+        {
+          LOG_INFO_FMT("Recovered service is already open");
+          return true;
+        }
+
+        open_recovered_service(
+          tx, share_manager, *network.identity->get_key_pair());
+        const auto result = tx.commit();
+        if (result != ccf::kv::CommitResult::SUCCESS)
+        {
+          LOG_FAIL_FMT(
+            "Could not commit opening of recovered service: {}",
+            static_cast<int>(result));
+          return false;
+        }
+        return true;
+      }
+      catch (const ccf::kv::CompactedVersionConflict& e)
+      {
+        LOG_DEBUG_FMT(
+          "Opening of recovered service conflicted with compaction: {}",
+          e.what());
+        return false;
+      }
+    }
+
+    // Tries to open the recovered service, at most once per view in which this
+    // node is primary, until it sees the opening commit
+    void open_recovered_service_if_primary()
+    {
+      if (
+        recovered_service_opening.load() != RecoveredServiceOpening::Pending ||
+        !sm.check(NodeStartupState::partOfNetwork) ||
+        !consensus->can_replicate())
+      {
+        return;
+      }
+
+      const auto view = consensus->get_view();
+      if (recovered_service_open_view.exchange(view) == view)
+      {
+        return;
+      }
+
+      LOG_INFO_FMT(
+        "Primary in view {}: trying to open recovered service", view);
+      ccf::tasks::add_task(ccf::tasks::make_basic_task([this, view]() {
+        if (consensus->can_replicate() && open_recovered_service_if_waiting())
+        {
+          return;
+        }
+
+        // Allow another attempt in this view, if this node is still primary
+        auto expected = view;
+        recovered_service_open_view.compare_exchange_strong(
+          expected, VIEW_UNKNOWN);
+      }));
     }
 
     void setup_one_off_secret_hook()
@@ -2659,6 +2752,8 @@ namespace ccf
       consensus->periodic(elapsed);
 
       n2n_channels->tick(elapsed);
+
+      open_recovered_service_if_primary();
     }
 
     void tick_end()
@@ -3107,6 +3202,10 @@ namespace ccf
       reset_recovery_hook();
       setup_one_off_secret_hook();
 
+      auto opening = RecoveredServiceOpening::NotRecovering;
+      recovered_service_opening.compare_exchange_strong(
+        opening, RecoveredServiceOpening::Pending);
+
       // Start reading private security domain of ledger
       sm.advance(NodeStartupState::readingPrivateLedger);
       last_recovered_idx = recovery_store->current_version();
@@ -3434,6 +3533,7 @@ namespace ccf
             network.identity->set_certificate(w->cert);
             if (w->status == ServiceStatus::OPEN)
             {
+              recovered_service_opening = RecoveredServiceOpening::Committed;
               open_frontend_async(ActorsType::users);
 
               RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_open, to_host);
