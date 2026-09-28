@@ -22,8 +22,8 @@ import re
 
 from docutils import nodes
 
-# To import generate_config_rst
-sys.path.insert(0, os.path.abspath("."))
+# Import local documentation helpers, also when using multiversion sources.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import generate_config_rst
 
@@ -65,6 +65,7 @@ extensions = [
     "sphinx_panels",
     "sphinx.ext.extlinks",
     "sphinx_inline_tabs",
+    "rustdoc",
 ]
 
 autosectionlabel_prefix_document = True
@@ -105,6 +106,8 @@ linkcheck_ignore = [
     r"https://github.com/.*#",
     r"../js/ccf-app.*",
     r"../doxygen/index.html",
+    # The rustdoc role checks generated pages and anchors during HTML builds.
+    r"(?:\.\./)*rust/ccf_app/.*",
     r"https://nghttp2.org/.*",
     r"https://www.w3.org/Protocols/rfc2616/.*",
 ]

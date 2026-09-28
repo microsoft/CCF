@@ -5,6 +5,7 @@ import json
 import os
 import random
 import tempfile
+import time
 from datetime import datetime, timezone
 from hashlib import sha256
 
@@ -190,6 +191,26 @@ def test_node_data(network, args):
             assert untrusted_node.node_id in nodes, nodes
             new_node_info = nodes[untrusted_node.node_id]
             assert new_node_info["node_data"] == new_node_data, new_node_info
+
+            # The node data file is read once, when the node is created, so
+            # removing it must not stop a pending node from retrying its join.
+            # Each accepted retry rewrites the pending entry on the primary
+            # (advancing last_written), so wait for one and check that the node
+            # is still running. The primary keeps the node data from the first
+            # join request, so retries cannot change the recorded data.
+            ntf.close()
+            previous_write = new_node_info["last_written"]
+            deadline = time.time() + 10 * args.join_timer_s
+            while True:
+                nodes = get_nodes()
+                assert untrusted_node.node_id in nodes, nodes
+                new_node_info = nodes[untrusted_node.node_id]
+                if new_node_info["last_written"] > previous_write:
+                    break
+                assert time.time() < deadline, new_node_info
+                time.sleep(0.1)
+            assert not untrusted_node.remote.check_done(timeout=0)
+            assert new_node_info["status"] == "Pending", new_node_info
 
             # Set modified node data
             new_node_data["previous_locations"] = [new_node_data["location"]]
@@ -616,7 +637,7 @@ def single_node(args):
     def test_desc(s):
         LOG.info(f"Test: {s}")
 
-    test_desc("Node data on start node")
+    test_desc("File-backed node, service, and constitution data on start node")
     with tempfile.NamedTemporaryFile(mode="w+") as ntf:
         start_node_data = {"on_start": "some_node_data"}
         json.dump(start_node_data, ntf)
@@ -629,7 +650,7 @@ def single_node(args):
             pdb=args.pdb,
             node_data_json_file=ntf.name,
         ) as network:
-            network.start_and_open(args)
+            network.start_and_open(args, service_data_json_file=ntf.name)
             primary, _ = network.find_primary()
             with primary.client() as c:
                 r = c.get("/node/network/nodes")
@@ -637,6 +658,18 @@ def single_node(args):
                 assert (
                     r.body.json()["nodes"][0]["node_data"] == start_node_data
                 ), r.body.json()["nodes"][0]["node_data"]
+                r = c.get("/node/network")
+                assert r.status_code == http.HTTPStatus.OK, r
+                assert r.body.json()["service_data"] == start_node_data
+
+            constitution_parts = []
+            for path in args.constitution:
+                with open(path, encoding="utf-8") as f:
+                    constitution_parts.append(f.read())
+            with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+                r = c.get("/gov/service/constitution")
+                assert r.status_code == http.HTTPStatus.OK, r
+                assert r.body.text() == "\n".join(constitution_parts)
 
             test_desc("Logging levels of governance operations")
             consortium = network.consortium

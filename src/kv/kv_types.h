@@ -12,8 +12,8 @@
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
 #include "ccf/kv/version.h"
+#include "ccf/node/configuration.h"
 #include "ccf/node/cose_signatures_config.h"
-#include "ccf/node/startup_config.h"
 #include "ccf/service/consensus_type.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
@@ -461,7 +461,6 @@ namespace ccf::kv
       const NodeId& from, const uint8_t* data, size_t size) = 0;
 
     virtual void periodic(std::chrono::milliseconds /*elapsed*/) {}
-    virtual void periodic_end() {}
 
     virtual void enable_all_domains() {}
 
@@ -643,9 +642,6 @@ namespace ccf::kv
     virtual void unlock() = 0;
     virtual SecurityDomain get_security_domain() = 0;
     virtual void clear() = 0;
-
-    virtual AbstractMap* clone(AbstractStore* store) = 0;
-    virtual void swap(AbstractMap* map) = 0;
   };
 
   class Tx;
@@ -682,8 +678,8 @@ namespace ccf::kv
     virtual void lock_map_set() = 0;
     virtual void unlock_map_set() = 0;
 
-    virtual std::optional<std::tuple<Version, Version, Version>> next_version(
-      bool commit_new_map, Term expected_commit_term) = 0;
+    virtual std::optional<std::tuple<Version, Version>> next_version(
+      Term expected_commit_term) = 0;
     virtual ccf::TxID next_txid() = 0;
 
     virtual Version current_version() = 0;
