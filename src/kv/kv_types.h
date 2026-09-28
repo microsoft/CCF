@@ -461,7 +461,6 @@ namespace ccf::kv
       const NodeId& from, const uint8_t* data, size_t size) = 0;
 
     virtual void periodic(std::chrono::milliseconds /*elapsed*/) {}
-    virtual void periodic_end() {}
 
     virtual void enable_all_domains() {}
 
@@ -679,8 +678,8 @@ namespace ccf::kv
     virtual void lock_map_set() = 0;
     virtual void unlock_map_set() = 0;
 
-    virtual std::optional<std::tuple<Version, Version, Version>> next_version(
-      bool commit_new_map, Term expected_commit_term) = 0;
+    virtual std::optional<std::tuple<Version, Version>> next_version(
+      Term expected_commit_term) = 0;
     virtual ccf::TxID next_txid() = 0;
 
     virtual Version current_version() = 0;

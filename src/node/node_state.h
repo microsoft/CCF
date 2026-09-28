@@ -2828,19 +2828,6 @@ namespace ccf
       open_recovered_service_if_primary();
     }
 
-    void tick_end()
-    {
-      if (
-        !sm.check(NodeStartupState::partOfNetwork) &&
-        !sm.check(NodeStartupState::partOfPublicNetwork) &&
-        !sm.check(NodeStartupState::readingPrivateLedger))
-      {
-        return;
-      }
-
-      consensus->periodic_end();
-    }
-
     void stop_notice() override
     {
       consensus->nominate_successor();

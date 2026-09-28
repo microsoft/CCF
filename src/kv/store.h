@@ -44,7 +44,6 @@ namespace ccf::kv
 
     ccf::ds::Mutex version_lock;
     std::atomic<Version> version = 0;
-    Version last_new_map = ccf::kv::NoVersion;
     std::atomic<Version> compacted = 0;
 
     // Calls to Store::commit are made atomic by taking this lock.
@@ -79,7 +78,6 @@ namespace ccf::kv
       pending_txs.clear();
 
       version = 0;
-      last_new_map = ccf::kv::NoVersion;
       compacted = 0;
       term_of_next_version = 0;
       term_of_last_version = 0;
@@ -162,7 +160,7 @@ namespace ccf::kv
 
       auto c = apply_changes(
         changes,
-        [v](bool) { return std::make_tuple(v, v - 1); },
+        [v]() { return v; },
         hooks,
         new_maps,
         std::nullopt,
@@ -557,7 +555,7 @@ namespace ccf::kv
         bool track_deletes_on_missing_keys = false;
         auto r = apply_changes(
           changes,
-          [](bool) { return std::make_tuple(NoVersion, NoVersion); },
+          []() { return NoVersion; },
           hooks,
           new_maps,
           std::nullopt,
@@ -1159,8 +1157,8 @@ namespace ccf::kv
       return rollback_count == count;
     }
 
-    std::optional<std::tuple<Version, Version, Version>> next_version(
-      bool commit_new_map, Term expected_commit_term) override
+    std::optional<std::tuple<Version, Version>> next_version(
+      Term expected_commit_term) override
     {
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       // If rollback updates the term before this lock is acquired, reject the
@@ -1178,13 +1176,7 @@ namespace ccf::kv
 
       Version v = next_version_unsafe();
 
-      auto previous_last_new_map = last_new_map;
-      if (commit_new_map)
-      {
-        last_new_map = v;
-      }
-
-      return std::make_tuple(v, previous_last_new_map, rollback_count);
+      return std::make_tuple(v, rollback_count);
     }
 
     TxID next_txid() override

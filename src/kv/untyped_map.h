@@ -130,7 +130,6 @@ namespace ccf::kv::untyped
       Version commit_version = NoVersion;
 
       bool changes = false;
-      bool committed_writes = false;
 
     public:
       HandleCommitter(Map& m, ChangeSet& change_set_) :
@@ -141,7 +140,7 @@ namespace ccf::kv::untyped
       // Commit-related methods
       bool has_writes() override
       {
-        return committed_writes || change_set.has_writes();
+        return change_set.has_writes();
       }
 
       bool prepare() override
@@ -168,12 +167,12 @@ namespace ccf::kv::untyped
         }
 
         // Check each key in our read set.
-        for (const auto& [key, value] : change_set.reads)
+        for (const auto& [key, version] : change_set.reads)
         {
           // Get the value from the current state.
           auto search = current->state.get(key);
 
-          if (std::get<0>(value) == NoVersion)
+          if (version == NoVersion)
           {
             // If we depend on the key not existing, it must be absent.
             if (search.has_value())
@@ -185,11 +184,8 @@ namespace ccf::kv::untyped
           else
           {
             // If the transaction depends on the key existing, it must be
-            // present and have the the expected version. If also tracking
-            // conflicts then ensure that the read versions also match.
-            if (
-              !search.has_value() ||
-              std::get<0>(value) != search.value().version)
+            // present and have the expected version.
+            if (!search.has_value() || version != search.value().version)
             {
               LOG_DEBUG_FMT("Read depends on invalid version of entry");
               return false;
@@ -213,7 +209,6 @@ namespace ccf::kv::untyped
 
         // Record our commit time.
         commit_version = v;
-        committed_writes = true;
 
         for (const auto& [key, maybe_value] : change_set.writes)
         {
@@ -222,7 +217,7 @@ namespace ccf::kv::untyped
             // Write the new value with the global version.
             changes = true;
             // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-            state = state.put(key, VersionV{v, v, maybe_value.value()});
+            state = state.put(key, VersionV{v, maybe_value.value()});
           }
           else
           {
@@ -465,8 +460,7 @@ namespace ccf::kv::untyped
       for (size_t i = 0; i < ctr; ++i)
       {
         auto r = d.deserialise_read();
-        change_set.reads[std::get<0>(r)] =
-          std::make_tuple(std::get<1>(r), NoVersion);
+        change_set.reads[std::get<0>(r)] = std::get<1>(r);
       }
 
       ctr = d.deserialise_write_header();
