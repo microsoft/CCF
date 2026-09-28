@@ -311,74 +311,112 @@ TEST_CASE("Malformed snapshots are rejected" * doctest::test_suite("snapshot"))
 {
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
+  // The target already has maps, which deserialise_snapshot() locks while it
+  // parses a snapshot, and must release however that ends
+  ccf::kv::Store target;
+  target.set_encryptor(encryptor);
+  MapTypes::StringString private_map("private_map");
+  {
+    auto tx = target.create_tx();
+    tx.rw(string_map)->put("public", "before");
+    tx.rw(private_map)->put("private", "before");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  // Serialises a snapshot containing an empty map snapshot for each of
+  // map_names in turn
+  auto serialise_snapshot =
+    [&encryptor](const std::vector<std::string>& map_names) {
+      ccf::kv::RawKvStoreSerialiser serialiser(
+        encryptor, ccf::TxID{0, 1}, ccf::kv::EntryType::Snapshot, 0);
+      for (const auto& map_name : map_names)
+      {
+        serialiser.start_map(map_name, ccf::kv::SecurityDomain::PUBLIC);
+        serialiser.serialise_entry_version(0);
+        serialiser.serialise_raw({});
+      }
+      return serialiser.get_raw_data();
+    };
+
   SUBCASE("Duplicate writes for the same map")
   {
-    // Build a snapshot with two segments for the same map name, using the
-    // same low-level serialiser Store uses internally. The deserialiser
-    // detects the repeated name as soon as it starts the second segment, so
-    // the payload of the second (duplicate) segment need not be valid.
-    ccf::kv::RawKvStoreSerialiser serialiser(
-      encryptor, ccf::TxID{0, 1}, ccf::kv::EntryType::Snapshot, 0);
-    serialiser.start_map("public:dup", ccf::kv::SecurityDomain::PUBLIC);
-    serialiser.serialise_entry_version(0);
-    serialiser.serialise_raw({});
-    serialiser.start_map("public:dup", ccf::kv::SecurityDomain::PUBLIC);
-    auto data = serialiser.get_raw_data();
-
-    ccf::kv::Store new_store;
-    new_store.set_encryptor(encryptor);
+    auto data =
+      serialise_snapshot({string_map.get_name(), string_map.get_name()});
 
     ccf::kv::ConsensusHookPtrs hooks;
     REQUIRE_EQ(
-      new_store.deserialise_snapshot(data.data(), data.size(), hooks),
+      target.deserialise_snapshot(data.data(), data.size(), hooks),
       ccf::kv::ApplyResult::FAIL);
   }
 
   SUBCASE("Trailing content after the last map")
   {
-    // Corrupt an otherwise-valid single-map snapshot by truncating it, so
-    // that a partial (empty) map name remains to be read after the real map
-    // segment. This is inconsistent, and rejected as malformed - either by
-    // returning ApplyResult::FAIL, or by throwing while attempting to parse
-    // the truncated trailing content.
-    ccf::kv::RawKvStoreSerialiser serialiser(
-      encryptor, ccf::TxID{0, 1}, ccf::kv::EntryType::Snapshot, 0);
-    serialiser.start_map("public:trailing", ccf::kv::SecurityDomain::PUBLIC);
-    serialiser.serialise_entry_version(0);
-    serialiser.serialise_raw({});
-    auto data = serialiser.get_raw_data();
+    auto data = serialise_snapshot({string_map.get_name()});
 
-    // Append trailing bytes which do not form another valid map segment.
-    data.push_back(0xAA);
-    data.push_back(0xBB);
-    data.push_back(0xCC);
-    data.push_back(0xDD);
-
-    // The entry header's reported size must match the entry's actual size,
-    // or deserialisation fails before even reaching the map-parsing loop.
-    // Reinterpret and rewrite the fixed-size header to include the appended
-    // bytes, exactly as GenericSerialiseWrapper::serialise_domains would if
-    // it had serialised this same, deliberately-corrupted content.
+    // Append bytes which do not form another map. The header records the
+    // entry's size, so it is rewritten to cover them too.
+    const std::vector<uint8_t> trailing = {0xAA, 0xBB, 0xCC, 0xDD};
+    data.insert(data.end(), trailing.begin(), trailing.end());
     ccf::kv::SerialisedEntryHeader header;
     std::memcpy(&header, data.data(), sizeof(header));
-    header.set_size(header.size + 4);
+    header.set_size(header.size + trailing.size());
     std::memcpy(data.data(), &header, sizeof(header));
 
-    ccf::kv::Store new_store;
-    new_store.set_encryptor(encryptor);
+    // The trailing bytes are read as the size prefix of another map's name,
+    // and rejected as too short to be one
+    ccf::kv::ConsensusHookPtrs hooks;
+    REQUIRE_THROWS_WITH_AS(
+      target.deserialise_snapshot(data.data(), data.size(), hooks),
+      "Expected 8 bytes for fixed-size entry, found only 4",
+      std::runtime_error);
+  }
+
+  INFO("The failed snapshot left the target unchanged");
+  REQUIRE_EQ(target.current_version(), 1);
+  {
+    auto tx = target.create_read_only_tx();
+    REQUIRE_EQ(tx.ro(string_map)->get("public"), "before");
+    REQUIRE_EQ(tx.ro(private_map)->get("private"), "before");
+  }
+
+  INFO("The target's maps are not left locked");
+  {
+    auto tx = target.create_tx();
+    tx.rw(string_map)->put("public", "after");
+    tx.rw(private_map)->put("private", "after");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  INFO("A valid snapshot can still be applied to the target");
+  {
+    ccf::kv::Store source;
+    source.set_encryptor(encryptor);
+    for (const auto* value : {"first", "second", "third"})
+    {
+      auto tx = source.create_tx();
+      tx.rw(string_map)->put("public", value);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot =
+      nullptr;
+    {
+      ccf::kv::ScopedStoreMapsLock maps_lock(&source);
+      snapshot = source.snapshot_unsafe_maps(source.current_version());
+    }
+    const auto serialised_snapshot =
+      source.serialise_snapshot(std::move(snapshot));
 
     ccf::kv::ConsensusHookPtrs hooks;
-    bool failed = false;
-    try
-    {
-      failed = new_store.deserialise_snapshot(
-                 data.data(), data.size(), hooks) == ccf::kv::ApplyResult::FAIL;
-    }
-    catch (const std::exception&)
-    {
-      failed = true;
-    }
-    REQUIRE(failed);
+    REQUIRE_EQ(
+      target.deserialise_snapshot(
+        serialised_snapshot.data(), serialised_snapshot.size(), hooks),
+      ccf::kv::ApplyResult::PASS);
+    REQUIRE_EQ(target.current_version(), source.current_version());
+
+    auto tx = target.create_read_only_tx();
+    REQUIRE_EQ(tx.ro(string_map)->get("public"), "third");
+    REQUIRE_EQ(tx.ro(private_map)->get("private"), "after");
   }
 }
 

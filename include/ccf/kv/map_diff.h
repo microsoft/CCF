@@ -119,7 +119,7 @@ namespace ccf::kv
     {
       auto g = [&](
                  const ccf::kv::serialisers::SerialisedEntry& k_rep,
-                 const ccf::kv::serialisers::SerialisedEntry&) {
+                 const std::optional<ccf::kv::serialisers::SerialisedEntry>&) {
         return f(KSerialiser::from_serialised(k_rep));
       };
       map_diff.foreach(g);
@@ -138,13 +138,17 @@ namespace ccf::kv
       auto g =
         [&](
           const ccf::kv::serialisers::SerialisedEntry&,
-          const std::optional<ccf::kv::serialisers::SerialisedEntry>& v_rep) {
-          if (v_rep.has_value())
-          {
-            return f(VSerialiser::from_serialised(v_rep));
-          }
-          return f(std::nullopt);
-        };
+          const std::optional<ccf::kv::serialisers::SerialisedEntry>& v_rep)
+        -> bool {
+        if (v_rep.has_value())
+        {
+          const std::optional<V> v =
+            VSerialiser::from_serialised(v_rep.value());
+          return f(v);
+        }
+        const std::optional<V> v = std::nullopt;
+        return f(v);
+      };
       map_diff.foreach(g);
     }
 

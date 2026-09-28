@@ -645,7 +645,6 @@ namespace ccf::kv
     virtual void clear() = 0;
 
     virtual AbstractMap* clone(AbstractStore* store) = 0;
-    virtual void swap(AbstractMap* map) = 0;
   };
 
   class Tx;

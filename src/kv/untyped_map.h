@@ -688,17 +688,11 @@ namespace ccf::kv::untyped
       sl.unlock();
     }
 
-    // NOLINTNEXTLINE(bugprone-exception-escape)
-    void swap(AbstractMap* map_) override
+    // Exchanges the entire state of this map with that of other. The caller
+    // must hold the locks of both maps.
+    void swap(Map& other) noexcept
     {
-      auto* map = dynamic_cast<Map*>(map_);
-      if (map == nullptr)
-      {
-        throw std::logic_error(
-          "Attempted to swap maps with incompatible types");
-      }
-
-      std::swap(roll, map->roll);
+      std::swap(roll, other.roll);
     }
 
     ChangeSetPtr create_change_set(
