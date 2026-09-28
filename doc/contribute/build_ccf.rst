@@ -76,41 +76,23 @@ or if there are no Doxygen changes
 
     $ SKIP_DOXYGEN=ON ./livehtml.sh
 
-Rust application documentation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Rust API documentation
+~~~~~~~~~~~~~~~~~~~~~~
 
-The HTML build generates the :doc:`Rust API reference </build_apps/rust_api>`
-with ``cargo doc --locked --lib --no-deps`` for ``src/rust/ccf-app`` only.
-It uses the source version selected by Sphinx and publishes the complete
-rustdoc output below that version's ``rust/`` directory. It does not compile
-the C++ bridge or a CCF node. Cargo runs from the SDK directory, so rustup
-installations use the repository's Rust toolchain file.
-
-Write API contracts and examples as rustdoc comments in the SDK, and use
-``literalinclude`` for tutorial snippets from the sample application. The
-``rustdoc`` role links to pages and anchors within the current version, for
-example:
+HTML builds generate the :doc:`Rust API reference </build_apps/rust_api>` by running ``cargo doc`` on ``src/rust/ccf-app``, without building CCF, and publish it in each version's ``rust/`` directory.
+Versions without the SDK are skipped.
+Document the SDK in rustdoc comments, and link to its pages from RST with the ``rustdoc`` role:
 
 .. code-block:: rst
 
     :rustdoc:`Registry <struct.Registry.html>`
 
-HTML builds fail if these targets are missing or rustdoc emits warnings.
-Versions predating the SDK skip
-generation. ``SKIP_RUSTDOC=ON`` is available for local previews only; it skips
-both generation and link validation and must not be used for publishing.
-
-From the repository root, in the documentation Python environment, run:
+Builds fail on rustdoc warnings and broken ``rustdoc`` links.
+``SKIP_RUSTDOC=ON`` skips generation and these checks, for local previews only.
+Doctests are linked without CCF, so examples that call into CCF cannot link, even with ``no_run``.
+To test the documentation helpers and the SDK doctests:
 
 .. code-block:: bash
 
     python -m unittest discover -s doc -p 'test_*.py'
-    sphinx-build --fail-on-warning -b html doc doc/html
-    cd src/rust/ccf-app
-    cargo test --locked --doc
-
-The Rust unit-test registration also runs the SDK doctests in CI. Pure Rust
-examples can run without CCF; examples using host FFI calls cannot generally
-link as standalone doctests, even with ``no_run``. Type-check the sample with
-``cargo check --locked --lib`` in ``samples/apps/basic_rust`` and use the
-existing ``e2e_basic_rust`` integration test for network behaviour.
+    cd src/rust/ccf-app && cargo test --locked --doc

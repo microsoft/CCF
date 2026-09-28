@@ -95,8 +95,7 @@ Rust Applications
 
 Rust applications are native CCF executables with the same deployment model as
 C++ applications. The Rust interface is experimental; see :doc:`example_rust`
-for its support status and a build/run walkthrough, and :doc:`rust_api` for the
-generated SDK reference.
+and the :doc:`API reference <rust_api>`.
 
 Network Governance
 ------------------
