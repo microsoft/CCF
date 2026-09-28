@@ -64,7 +64,7 @@ This read-only handler returns the stored value, or HTTP 404 if there is none:
     :end-before: SNIPPET_END: rust_get_record
     :dedent: 4
 
-The sample's other endpoints exist only for CCF's end-to-end tests.
+The sample's other endpoints exist only for CCF's end-to-end tests, and several are unauthenticated, so remove them from any copy.
 
 Run the sample
 --------------
@@ -98,7 +98,7 @@ These requests are also covered by the ``e2e_basic_rust`` test in :ccf_repo:`tes
 Use an installed SDK
 --------------------
 
-To build outside the CCF source tree, :doc:`install CCF <install_bin>`, copy the sample project, and point its ``ccf-app`` dependency at the installed SDK:
+To build outside the CCF source tree, :doc:`install CCF <install_bin>`, copy the sample project without its test-only endpoints, and point its ``ccf-app`` dependency at the installed SDK:
 
 .. code-block:: toml
 
