@@ -5,6 +5,8 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/json.h"
 #include "ccf/node/configuration.h"
+#include "ccf/node/start_type.h"
+#include "ds/internal_logger.h"
 #include "node/rpc/node_call_types.h"
 
 #include <filesystem>
@@ -115,5 +117,89 @@ namespace ccf
     }
 
     return genesis;
+  }
+
+  // File-backed inputs from the operator configuration, other than the SNP
+  // attestation files (read during quote generation) and the join transparent
+  // statement (read on each join attempt).
+  struct StartupInputs
+  {
+    nlohmann::json node_data = nullptr;
+    // Start and Recover only
+    nlohmann::json service_data = nullptr;
+    // Start only
+    std::optional<CreateNetworkNodeToNode::GenesisInfo> genesis_info =
+      std::nullopt;
+    // Join only
+    std::vector<uint8_t> join_service_cert;
+    // Recover only
+    std::optional<std::vector<uint8_t>> previous_service_identity =
+      std::nullopt;
+  };
+
+  // Reads each input required by start_type exactly once, throwing if any
+  // cannot be read, so that such failures happen when the node is created.
+  inline StartupInputs resolve_startup_inputs(
+    const CCFConfig& config, StartType start_type)
+  {
+    StartupInputs inputs;
+
+    if (config.node_data_json_file.has_value())
+    {
+      inputs.node_data = read_startup_json(
+        config.node_data_json_file.value(),
+        "node data",
+        true /* allow_empty */);
+      LOG_TRACE_FMT("Read node_data: {}", inputs.node_data.dump());
+    }
+
+    if (
+      config.service_data_json_file.has_value() &&
+      start_type != StartType::Join)
+    {
+      inputs.service_data = read_startup_json(
+        config.service_data_json_file.value(),
+        "service data",
+        true /* allow_empty */);
+    }
+
+    switch (start_type)
+    {
+      case StartType::Start:
+      {
+        inputs.genesis_info = resolve_genesis_info(config.command.start);
+        break;
+      }
+      case StartType::Join:
+      {
+        inputs.join_service_cert = read_startup_file(
+          config.command.service_certificate_file, "service certificate");
+        break;
+      }
+      case StartType::Recover:
+      {
+        const auto& identity_file =
+          config.command.recover.previous_service_identity_file;
+        if (identity_file.empty())
+        {
+          throw std::logic_error(
+            "Recovery requires the certificate of the previous service "
+            "identity");
+        }
+
+        LOG_INFO_FMT(
+          "Reading previous service identity from {}", identity_file);
+        inputs.previous_service_identity =
+          read_startup_file(identity_file, "previous service identity");
+        break;
+      }
+      default:
+      {
+        // Unknown start types are rejected by NodeState::create()
+        break;
+      }
+    }
+
+    return inputs;
   }
 }

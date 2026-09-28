@@ -217,13 +217,13 @@ TEST_CASE("Genesis request retains resolved data on the wire")
   CHECK(encoded.get<CreateNetworkNodeToNode::GenesisInfo>() == genesis);
 }
 
-TEST_CASE("Startup inputs are read from files")
+namespace
 {
-  struct ScopedDir
+  struct ScopedTempDir
   {
     std::filesystem::path path;
 
-    ScopedDir()
+    ScopedTempDir()
     {
       auto pattern =
         (std::filesystem::temp_directory_path() / "ccf_startup_inputs_XXXXXX")
@@ -232,34 +232,60 @@ TEST_CASE("Startup inputs are read from files")
       path = pattern;
     }
 
-    ~ScopedDir()
+    ~ScopedTempDir()
     {
       std::error_code ec;
       std::filesystem::remove_all(path, ec);
     }
   };
-  const ScopedDir dir;
 
-  const auto write_file =
-    [&dir](const std::string& name, const std::string& contents) {
-      const auto path = (dir.path / name).string();
-      std::ofstream f(path, std::ios::binary);
-      f << contents;
-      return path;
-    };
+  std::string write_test_file(
+    const ScopedTempDir& dir,
+    const std::string& name,
+    const std::string& contents)
+  {
+    const auto path = (dir.path / name).string();
+    std::ofstream f(path, std::ios::binary);
+    f << contents;
+    f.close();
+    REQUIRE(f.good());
+    return path;
+  }
 
+  // This file is built with DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS,
+  // which compiles out the CHECK_THROWS assertions, so catch explicitly.
+  template <typename F>
+  std::string logic_error_message(const F& f)
+  {
+    try
+    {
+      f();
+    }
+    catch (const std::logic_error& e)
+    {
+      return e.what();
+    }
+    return "";
+  }
+}
+
+TEST_CASE("Startup inputs are read from files")
+{
+  const ScopedTempDir dir;
   const auto encryption_key =
     ccf::crypto::make_rsa_key_pair()->public_key_pem();
 
   CCFConfig::Command::Start start;
   start.members.push_back(
-    {write_file("member0_cert.pem", member_cert.str()),
-     write_file("member0_enc_pubk.pem", encryption_key.str()),
-     write_file("member0_data.json", R"({"is_operator": true})"),
+    {write_test_file(dir, "member0_cert.pem", member_cert.str()),
+     write_test_file(dir, "member0_enc_pubk.pem", encryption_key.str()),
+     write_test_file(dir, "member0_data.json", R"({"is_operator": true})"),
      MemberRecoveryRole::Owner});
-  start.members.push_back({write_file("member1_cert.pem", member_cert.str())});
+  start.members.push_back(
+    {write_test_file(dir, "member1_cert.pem", member_cert.str())});
   start.constitution_files = {
-    write_file("first.js", "first"), write_file("second.js", "second")};
+    write_test_file(dir, "first.js", "first"),
+    write_test_file(dir, "second.js", "second")};
   start.service_configuration.recovery_threshold = 1;
 
   const auto genesis = resolve_genesis_info(start);
@@ -275,50 +301,149 @@ TEST_CASE("Startup inputs are read from files")
   CHECK(genesis.constitution == "first\nsecond");
   CHECK(genesis.service_configuration == start.service_configuration);
 
-  INFO("Empty member data is rejected, empty node or service data is null");
-  // This file is built with DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS,
-  // which compiles out the CHECK_THROWS assertions, so catch explicitly.
-  const auto logic_error_message = [](const auto& f) -> std::string {
-    try
-    {
-      f();
-    }
-    catch (const std::logic_error& e)
-    {
-      return e.what();
-    }
-    return "";
+  {
+    INFO("Empty member data is rejected, empty node or service data is null");
+    const auto empty_file = write_test_file(dir, "empty.json", "");
+    CHECK(read_startup_json(empty_file, "service data", true).is_null());
+    auto empty_member_data = start;
+    empty_member_data.members[0].data_json_file = empty_file;
+    CHECK(
+      logic_error_message([&]() { resolve_genesis_info(empty_member_data); })
+        .starts_with(
+          fmt::format("Could not parse member data from {}:", empty_file)));
+  }
+
+  {
+    INFO("Malformed JSON names the input");
+    const auto malformed_file = write_test_file(dir, "malformed.json", "{");
+    CHECK(logic_error_message(
+            [&]() { read_startup_json(malformed_file, "node data", true); })
+            .starts_with(fmt::format(
+              "Could not parse node data from {}:", malformed_file)));
+  }
+
+  {
+    INFO("Missing or unreadable files name the input");
+    const auto missing_file = (dir.path / "missing.pem").string();
+    CHECK(
+      logic_error_message(
+        [&]() { read_startup_file(missing_file, "service certificate"); }) ==
+      fmt::format("Could not read service certificate from {}", missing_file));
+    CHECK(
+      logic_error_message(
+        [&]() { read_startup_file(dir.path.string(), "constitution"); }) ==
+      fmt::format("Could not read constitution from {}", dir.path.string()));
+    auto missing_constitution = start;
+    missing_constitution.constitution_files.push_back(missing_file);
+    CHECK(
+      logic_error_message([&]() {
+        resolve_genesis_info(missing_constitution);
+      }) == fmt::format("Could not read constitution from {}", missing_file));
+  }
+}
+
+TEST_CASE("Startup inputs are resolved by start type")
+{
+  const ScopedTempDir dir;
+  const auto missing_file = (dir.path / "missing").string();
+  const auto bytes = [](const std::string& s) {
+    return std::vector<uint8_t>(s.begin(), s.end());
+  };
+  const auto resolve = [](const CCFConfig& config, StartType type) {
+    StartupInputs inputs;
+    const auto error = logic_error_message(
+      [&]() { inputs = resolve_startup_inputs(config, type); });
+    CHECK(error == "");
+    return inputs;
   };
 
-  const auto empty_file = write_file("empty.json", "");
-  CHECK(read_startup_json(empty_file, "service data", true).is_null());
-  start.members[0].data_json_file = empty_file;
-  CHECK(logic_error_message([&]() { resolve_genesis_info(start); })
-          .starts_with(
-            fmt::format("Could not parse member data from {}:", empty_file)));
+  CCFConfig config;
+  config.node_data_json_file =
+    write_test_file(dir, "node_data.json", R"({"node": 1})");
+  config.service_data_json_file =
+    write_test_file(dir, "service_data.json", R"({"service": 2})");
+  config.command.service_certificate_file =
+    write_test_file(dir, "service_cert.pem", "service certificate");
+  config.command.start.members.push_back(
+    {write_test_file(dir, "member_cert.pem", member_cert.str())});
+  config.command.start.constitution_files = {
+    write_test_file(dir, "constitution.js", "constitution")};
+  config.command.recover.previous_service_identity_file =
+    write_test_file(dir, "previous_identity.pem", "previous identity");
 
-  INFO("Malformed JSON names the input");
-  const auto malformed_file = write_file("malformed.json", "{");
-  CHECK(logic_error_message(
-          [&]() { read_startup_json(malformed_file, "node data", true); })
-          .starts_with(
-            fmt::format("Could not parse node data from {}:", malformed_file)));
+  {
+    INFO("Start reads node data, service data and genesis inputs");
+    const auto inputs = resolve(config, StartType::Start);
+    CHECK(inputs.node_data == json{{"node", 1}});
+    CHECK(inputs.service_data == json{{"service", 2}});
+    REQUIRE(inputs.genesis_info.has_value());
+    CHECK(inputs.genesis_info->members.size() == 1);
+    CHECK(inputs.genesis_info->constitution == "constitution");
+    CHECK(inputs.join_service_cert.empty());
+    CHECK_FALSE(inputs.previous_service_identity.has_value());
+  }
 
-  INFO("Missing or unreadable files name the input");
-  const auto missing_file = (dir.path / "missing.pem").string();
-  CHECK(
-    logic_error_message(
-      [&]() { read_startup_file(missing_file, "service certificate"); }) ==
-    fmt::format("Could not read service certificate from {}", missing_file));
-  CHECK(
-    logic_error_message(
-      [&]() { read_startup_file(dir.path.string(), "constitution"); }) ==
-    fmt::format("Could not read constitution from {}", dir.path.string()));
-  start.members[0].data_json_file = std::nullopt;
-  start.constitution_files.push_back(missing_file);
-  CHECK(logic_error_message([&]() {
-          resolve_genesis_info(start);
-        }) == fmt::format("Could not read constitution from {}", missing_file));
+  {
+    INFO("Recover reads node data, service data and the previous identity");
+    const auto inputs = resolve(config, StartType::Recover);
+    CHECK(inputs.node_data == json{{"node", 1}});
+    CHECK(inputs.service_data == json{{"service", 2}});
+    CHECK_FALSE(inputs.genesis_info.has_value());
+    CHECK(inputs.join_service_cert.empty());
+    CHECK(inputs.previous_service_identity == bytes("previous identity"));
+  }
+
+  {
+    INFO("Join reads node data and the service certificate only");
+    auto join_config = config;
+    join_config.service_data_json_file = missing_file;
+    join_config.command.start.constitution_files = {missing_file};
+    join_config.command.recover.previous_service_identity_file = missing_file;
+    const auto inputs = resolve(join_config, StartType::Join);
+    CHECK(inputs.node_data == json{{"node", 1}});
+    CHECK(inputs.service_data.is_null());
+    CHECK_FALSE(inputs.genesis_info.has_value());
+    CHECK(inputs.join_service_cert == bytes("service certificate"));
+    CHECK_FALSE(inputs.previous_service_identity.has_value());
+  }
+
+  {
+    INFO("Inputs required by the start type must be readable");
+    auto no_identity = config;
+    no_identity.command.recover.previous_service_identity_file = "";
+    CHECK(
+      logic_error_message(
+        [&]() { resolve_startup_inputs(no_identity, StartType::Recover); }) ==
+      "Recovery requires the certificate of the previous service identity");
+
+    auto no_service_cert = config;
+    no_service_cert.command.service_certificate_file = missing_file;
+    CHECK(
+      logic_error_message(
+        [&]() { resolve_startup_inputs(no_service_cert, StartType::Join); }) ==
+      fmt::format("Could not read service certificate from {}", missing_file));
+
+    auto no_service_data = config;
+    no_service_data.service_data_json_file = missing_file;
+    for (const auto type : {StartType::Start, StartType::Recover})
+    {
+      CHECK(
+        logic_error_message([&]() {
+          resolve_startup_inputs(no_service_data, type);
+        }) == fmt::format("Could not read service data from {}", missing_file));
+    }
+
+    auto no_node_data = config;
+    no_node_data.node_data_json_file = missing_file;
+    for (const auto type :
+         {StartType::Start, StartType::Join, StartType::Recover})
+    {
+      CHECK(
+        logic_error_message([&]() {
+          resolve_startup_inputs(no_node_data, type);
+        }) == fmt::format("Could not read node data from {}", missing_file));
+    }
+  }
 }
 
 TEST_CASE("Self certificate authentication")
