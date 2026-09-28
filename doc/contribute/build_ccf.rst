@@ -89,10 +89,5 @@ Document the SDK in rustdoc comments, and link to its pages from RST with the ``
 
 Builds fail on rustdoc warnings and broken ``rustdoc`` links.
 ``SKIP_RUSTDOC=ON`` skips generation and these checks, for local previews only.
+Run the SDK doctests with ``cargo test --locked --doc`` in ``src/rust/ccf-app``.
 Doctests are linked without CCF, so examples that call into CCF cannot link, even with ``no_run``.
-To test the documentation helpers and the SDK doctests:
-
-.. code-block:: bash
-
-    python -m unittest discover -s doc -p 'test_*.py'
-    cd src/rust/ccf-app && cargo test --locked --doc
