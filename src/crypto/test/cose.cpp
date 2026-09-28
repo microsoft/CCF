@@ -12,6 +12,7 @@
 #include "crypto/test/cbor_printer.h"
 #include "node/cose_common.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <doctest/doctest.h>
@@ -220,6 +221,116 @@ TEST_CASE("Check unprotected header")
       REQUIRE_EQ(
         ccf::cbor::test::to_string(ref_map), ccf::cbor::test::to_string(uhdr));
     }
+  }
+}
+
+TEST_CASE("Detach payload")
+{
+  using namespace tav::cbor;
+
+  for (auto& [envelope, payload, detached] : test_envelopes())
+  {
+    const auto detached_envelope = ccf::cose::edit::detach_payload(envelope);
+
+    // Still verifies against the original payload, but no longer as an
+    // envelope with an embedded payload
+    verify_envelope(detached_envelope, payload, true);
+    {
+      auto verifier = ccf::crypto::make_cose_verifier_from_key(pub_key_der);
+      std::span<uint8_t> authned_content;
+      REQUIRE_FALSE(verifier->verify(detached_envelope, authned_content));
+    }
+
+    // Payload is nil, protected header and signature are preserved
+    {
+      const auto original =
+        nondet_parse(envelope).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+      const auto edited =
+        nondet_parse(detached_envelope).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+      REQUIRE(edited.size() == 4);
+
+      const auto payload_item = edited.array_at(2);
+      REQUIRE_EQ(payload_item.kind(), Kind::SIMPLE);
+      REQUIRE_EQ(payload_item.as_simple(), SimpleValue::Null);
+
+      const auto original_phdr = original.array_at(0).as_bytes();
+      const auto edited_phdr = edited.array_at(0).as_bytes();
+      REQUIRE(std::ranges::equal(original_phdr, edited_phdr));
+
+      const auto original_sig = original.array_at(3).as_bytes();
+      const auto edited_sig = edited.array_at(3).as_bytes();
+      REQUIRE(std::ranges::equal(original_sig, edited_sig));
+
+      REQUIRE_EQ(
+        ccf::cbor::test::to_string(original.array_at(1)),
+        ccf::cbor::test::to_string(edited.array_at(1)));
+    }
+
+    // Idempotent
+    REQUIRE_EQ(
+      ccf::cose::edit::detach_payload(detached_envelope), detached_envelope);
+
+    // Composes with unprotected header edits
+    for (const auto& position : positions)
+    {
+      ccf::cose::edit::desc::Value desc{position, keys.front(), value};
+      const auto edited =
+        ccf::cose::edit::set_unprotected_header(detached_envelope, desc);
+      verify_envelope(edited, payload, true);
+      REQUIRE_EQ(
+        ccf::cose::edit::detach_payload(edited),
+        ccf::cose::edit::detach_payload(
+          ccf::cose::edit::set_unprotected_header(envelope, desc)));
+    }
+  }
+
+  // Malformed inputs are rejected rather than rewritten
+  {
+    const std::vector<uint8_t> garbage = {0xDE, 0xAD, 0xBE, 0xEF};
+    REQUIRE_THROWS_AS(
+      ccf::cose::edit::detach_payload(garbage), tav::cbor::DecodeError);
+
+    // Untagged COSE_Sign1 structure
+    const auto untagged = nondet_parse(envelope_flat)
+                            .tag_at(ccf::cbor::tag::COSE_SIGN_1)
+                            .nondet_serialize();
+    REQUIRE_THROWS_AS(
+      ccf::cose::edit::detach_payload(untagged), tav::cbor::DecodeError);
+
+    // Payload which is neither a byte string nor nil
+    const auto structure =
+      nondet_parse(envelope_flat).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    const Value with_int_payload = make_tagged(
+      ccf::cbor::tag::COSE_SIGN_1,
+      ccf::cbor::with_element(structure, 2, make_signed(42)));
+    REQUIRE_THROWS_AS(
+      ccf::cose::edit::detach_payload(with_int_payload.nondet_serialize()),
+      tav::cbor::DecodeError);
+
+    // Missing signature
+    std::vector<Value> truncated;
+    truncated.push_back(structure.array_at(0));
+    truncated.push_back(structure.array_at(1));
+    truncated.push_back(structure.array_at(2));
+    const Value without_signature = make_tagged(
+      ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(truncated)));
+    REQUIRE_THROWS_AS(
+      ccf::cose::edit::detach_payload(without_signature.nondet_serialize()),
+      tav::cbor::DecodeError);
+
+    // Extra element beyond the four of COSE_Sign1 must not be silently
+    // dropped, even though the first four elements are well-formed
+    std::vector<Value> extended;
+    for (size_t i = 0; i < structure.size(); ++i)
+    {
+      extended.push_back(structure.array_at(i));
+    }
+    extended.push_back(make_bytes(value));
+    const Value with_extra_element =
+      make_tagged(ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(extended)));
+    REQUIRE_THROWS_AS(
+      ccf::cose::edit::detach_payload(with_extra_element.nondet_serialize()),
+      tav::cbor::DecodeError);
   }
 }
 

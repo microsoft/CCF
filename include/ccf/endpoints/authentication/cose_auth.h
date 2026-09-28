@@ -35,8 +35,10 @@ namespace ccf
 
     /** COSE Envelope
      *
-     * This contains the payload at the moment, but that will be removed
-     * in later versions to be an envelope with detached content.
+     * The complete COSE_Sign1 message as received, including the payload.
+     * Use ccf::cose::edit::detach_payload to obtain a copy with the payload
+     * detached, for instance to store it alongside a payload which is
+     * already recorded elsewhere.
      */
     std::span<const uint8_t> envelope;
 

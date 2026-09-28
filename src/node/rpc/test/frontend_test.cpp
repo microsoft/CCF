@@ -14,7 +14,6 @@
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "node/history.h"
 #include "node/internal_tables_access.h"
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"
@@ -476,11 +475,12 @@ MemberId invalid_member_id;
 class TestNodeConfiguration : public NodeConfigurationInterface
 {
 private:
-  StartupConfig config;
+  CCFConfig config;
+  const nlohmann::json node_data = nullptr;
   NodeConfigurationState state;
 
 public:
-  TestNodeConfiguration() : state{config, {}, true}
+  TestNodeConfiguration() : state{config, node_data, {}, true}
   {
     NodeInfoNetwork_v2::NetInterface interface;
     interface.redirections = NodeInfoNetwork_v2::NetInterface::Redirections{};

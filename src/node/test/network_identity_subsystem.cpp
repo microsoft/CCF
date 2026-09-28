@@ -6,7 +6,10 @@
 #include "ccf/ds/locking.h"
 #include "cose/cose_rs_ffi.h"
 #include "crypto/openssl/ec_key_pair.h"
+#include "kv/test/null_encryptor.h"
+#include "kv/test/stub_consensus.h"
 #include "node/rpc/network_identity_accessors.h"
+#include "node/rpc/network_identity_accessors_impl.h"
 #include "node/rpc/network_identity_chain_helpers.h"
 #include "node/snapshot_serdes.h"
 
@@ -67,6 +70,63 @@ namespace
     ccf::CurrentServiceIdentity get_current_service_identity() override
     {
       return {current_service_from, topmost};
+    }
+  };
+
+  // Serves the current service identity from a real KV store, through the
+  // same read_current_service_identity that NodeStateAccessor uses. Only
+  // is_part_of_network, which NodeStateAccessor forwards unchanged from the
+  // node state, is faked.
+  class StoreNodeStateAccessor : public ccf::INodeStateAccessor
+  {
+  public:
+    std::shared_ptr<ccf::kv::Store> store;
+    // Unused by the reader, but a service record must have one.
+    ccf::crypto::Pem service_cert;
+
+    StoreNodeStateAccessor()
+    {
+      store = std::make_shared<ccf::kv::Store>();
+      store->set_consensus(std::make_shared<ccf::kv::test::StubConsensus>());
+      store->set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+      store->initialise_term(2);
+      service_cert =
+        ccf::crypto::ECKeyPair_OpenSSL(ccf::crypto::CurveID::SECP384R1)
+          .self_sign("CN=Test Service", "20240101000000Z", "20250101000000Z");
+    }
+
+    [[nodiscard]] bool is_part_of_network() const override
+    {
+      return true;
+    }
+
+    ccf::CurrentServiceIdentity get_current_service_identity() override
+    {
+      auto tx = store->create_read_only_tx();
+      return ccf::read_current_service_identity(tx);
+    }
+
+    // Commit a service record and, optionally, a new previous-identity
+    // endorsement in one transaction, as the transactions that create and
+    // open a service do.
+    void commit_service(
+      ccf::ServiceStatus status,
+      ccf::TxID create_txid,
+      const std::optional<ccf::CoseEndorsement>& endorsement = std::nullopt)
+    {
+      auto tx = store->create_tx();
+      ccf::ServiceInfo info;
+      info.cert = service_cert;
+      info.status = status;
+      info.current_service_create_txid = create_txid;
+      tx.rw<ccf::Service>(ccf::Tables::SERVICE)->put(info);
+      if (endorsement.has_value())
+      {
+        tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+            ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+          ->put(ccf::IdentityType::CLASSICAL, endorsement.value());
+      }
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
   };
 
@@ -741,6 +801,95 @@ TEST_CASE(
 
   REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
   REQUIRE(sub->get_trusted_keys().size() == 3);
+}
+
+TEST_CASE("read_current_service_identity reports a create txid only when open")
+{
+  StoreNodeStateAccessor node_state;
+  ChainBuilder cb;
+  cb.add_self({2, 1});
+  const ccf::TxID create_txid{2, 1};
+
+  INFO("An empty store has no current service identity");
+  auto empty = node_state.get_current_service_identity();
+  REQUIRE_FALSE(empty.create_txid.has_value());
+  REQUIRE_FALSE(empty.endorsement.has_value());
+
+  for (const auto status :
+       {ccf::ServiceStatus::OPENING,
+        ccf::ServiceStatus::RECOVERING,
+        ccf::ServiceStatus::WAITING_FOR_RECOVERY_SHARES})
+  {
+    CAPTURE(status);
+    node_state.commit_service(status, create_txid, cb.topmost_entry());
+    auto current = node_state.get_current_service_identity();
+    REQUIRE_FALSE(current.create_txid.has_value());
+    REQUIRE(current.endorsement.has_value());
+  }
+
+  node_state.commit_service(ccf::ServiceStatus::OPEN, create_txid);
+  auto open = node_state.get_current_service_identity();
+  REQUIRE(open.create_txid == create_txid);
+  REQUIRE(open.endorsement.has_value());
+  REQUIRE(open.endorsement->endorsing_key == cb.current_pkey_der());
+}
+
+TEST_CASE(
+  "Joiner replaying a recovery from a pre-recovery snapshot retries until the "
+  "recovered identity is in its KV")
+{
+  // The joiner's KV starts from a snapshot of the service before a recovery,
+  // while its network identity is the recovered one, received on join. It
+  // then replays the recovery's transactions. Each stage is committed to a
+  // real store and read through read_current_service_identity.
+  SubsystemFixture f;
+  ChainBuilder cb;
+  const ccf::TxID genesis{2, 1};
+  const ccf::TxID last_before_recovery{2, 200};
+  cb.add_self(genesis).add_next(genesis, last_before_recovery);
+  const auto recovered_create_txid = cb.synthesised_current_service_from();
+  const auto& original_endorsement = cb.entries.at(0);
+  const auto& recovery_endorsement = cb.entries.at(1);
+  f.use_identity_key(cb.current_key_pair());
+  f.historical->entries = cb.historical_entries();
+
+  auto node_state = std::make_shared<StoreNodeStateAccessor>();
+
+  INFO("The snapshot has the original service open, self-endorsed");
+  node_state->commit_service(
+    ccf::ServiceStatus::OPEN, genesis, original_endorsement);
+  auto stale = node_state->get_current_service_identity();
+  REQUIRE(stale.create_txid == genesis);
+  REQUIRE(stale.endorsement.has_value());
+  REQUIRE(stale.endorsement->endorsing_key != cb.current_pkey_der());
+
+  auto sub = std::make_unique<ccf::NetworkIdentitySubsystem>(
+    node_state, f.historical, f.identity, f.scheduler);
+  sub->start_with_config(SubsystemFixture::default_config());
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
+  REQUIRE(f.scheduler->pending_delayed_count() == 1);
+
+  INFO("Replay reaches the recovered service, created but not yet open");
+  for (const auto status :
+       {ccf::ServiceStatus::RECOVERING,
+        ccf::ServiceStatus::WAITING_FOR_RECOVERY_SHARES})
+  {
+    CAPTURE(status);
+    node_state->commit_service(status, recovered_create_txid);
+    f.scheduler->fire_delayed_once();
+    REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Retry);
+    REQUIRE(f.scheduler->pending_delayed_count() == 1);
+  }
+
+  INFO("Replay reaches the opening, which endorses the original identity");
+  node_state->commit_service(
+    ccf::ServiceStatus::OPEN, recovered_create_txid, recovery_endorsement);
+  f.scheduler->fire_delayed_once();
+  f.scheduler->run_to_completion();
+
+  REQUIRE(sub->endorsements_fetching_status() == ccf::FetchStatus::Done);
+  const auto keys = sub->get_trusted_keys();
+  REQUIRE(keys.size() == 2);
 }
 
 TEST_CASE("Failed: bad signature on topmost detected during bootstrap")

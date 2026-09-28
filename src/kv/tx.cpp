@@ -77,8 +77,8 @@ namespace ccf::kv
 
       // NB: The created maps are always untyped. Only the handles over them
       // are typed
-      auto new_map = std::make_shared<ccf::kv::untyped::Map>(
-        pimpl->store, map_name, ccf::kv::get_security_domain(map_name));
+      auto new_map =
+        std::make_shared<ccf::kv::untyped::Map>(pimpl->store, map_name);
       pimpl->created_maps[map_name] = new_map;
 
       abstract_map = new_map;

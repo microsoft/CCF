@@ -7,6 +7,7 @@ set(CCF_RS_PACKAGE "ccf-rs")
 set(CCF_RS_LIB "libccf_rs.a")
 set(CCF_RS_LIB_BUILD_PATH "${CMAKE_BINARY_DIR}/${CCF_RS_LIB}")
 set(CCF_RS_CARGO_TARGET_DIR "${CMAKE_BINARY_DIR}/cargo/build")
+set(CCF_RS_COMBINED_OBJECT "${CCF_RS_CARGO_TARGET_DIR}/ccf_rs_combined.o")
 
 find_program(CARGO NAMES cargo REQUIRED)
 find_program(RUSTC NAMES rustc REQUIRED)
@@ -56,7 +57,7 @@ set(
 
 add_custom_target(
   cargo-build_ccf_rs
-  BYPRODUCTS "${CCF_RS_LIB_BUILD_PATH}"
+  BYPRODUCTS "${CCF_RS_LIB_BUILD_PATH}" "${CCF_RS_COMBINED_OBJECT}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CCF_RS_CARGO_TARGET_DIR}"
   COMMAND
     "${CMAKE_COMMAND}" -E env --unset=CARGO_BUILD_TARGET
@@ -66,8 +67,22 @@ add_custom_target(
     "${CCF_RS_PACKAGE}" --manifest-path "${CCF_RS_MANIFEST_PATH}" --target-dir
     "${CCF_RS_CARGO_TARGET_DIR}" ${CCF_RS_CARGO_PROFILE_FLAG} --locked
   COMMAND
-    "${CMAKE_COMMAND}" -E copy_if_different "${CCF_RS_CARGO_LIB_PATH}"
-    "${CMAKE_BINARY_DIR}"
+    "${CMAKE_CXX_COMPILER}" -r -nostdlib -Wl,--whole-archive
+    "${CCF_RS_CARGO_LIB_PATH}" -Wl,--no-whole-archive -o
+    "${CCF_RS_COMBINED_OBJECT}"
+  # Rust static libraries each contain the Rust runtime. Combine ccf-rs into a
+  # single object, then keep only its C ABI symbols global so a Rust application
+  # can link its own runtime without duplicate symbols.
+  COMMAND
+    "${CMAKE_OBJCOPY}" --wildcard "--keep-global-symbol=cose_*"
+    "--keep-global-symbol=tav_*" "${CCF_RS_COMBINED_OBJECT}"
+  COMMAND
+    "${CMAKE_COMMAND}" "-DNM=${CMAKE_NM}" "-DOBJECT=${CCF_RS_COMBINED_OBJECT}"
+    -P "${CCF_DIR}/cmake/verify_ccf_rs_exports.cmake"
+  COMMAND "${CMAKE_COMMAND}" -E rm -f "${CCF_RS_LIB_BUILD_PATH}"
+  COMMAND
+    "${CMAKE_AR}" qc "${CCF_RS_LIB_BUILD_PATH}" "${CCF_RS_COMBINED_OBJECT}"
+  COMMAND "${CMAKE_RANLIB}" "${CCF_RS_LIB_BUILD_PATH}"
   WORKING_DIRECTORY "${CCF_RS_DIR}"
   DEPENDS
     "${CCF_RS_MANIFEST_PATH}"

@@ -362,8 +362,7 @@ QuickJS runtime options, used to configure runtimes created by CCF.
 
 ``interpreter.flush``
 ~~~~~~~~~~~~~~~~~~~~~~
-Used by transactions that set the JS application to signal to the interpreter cache system
-that existing instances need to be flushed.
+Used by transactions that set the JS application to signal to the interpreter cache system that existing instances need to be flushed.
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
@@ -458,7 +457,9 @@ Governance history of the service, captures all COSE Sign 1 governance requests 
 
 **Key** Member ID: SHA-256 fingerprint of the member certificate, represented as a hex-encoded string.
 
-**Value** COSE Sign1
+**Value** COSE Sign1. For proposal creation requests (``ccf.gov.msg.type`` set to ``proposal`` in the protected header), the payload is detached (``nil``) since the signed proposal body is already stored in the ``proposals`` table, written in the same transaction. Ballots and withdrawals embed their payload.
+
+To verify a detached entry, supply the proposal body from the ``proposals`` table as the detached payload when verifying the COSE Sign1 signature. Entries written by older versions of CCF embed the proposal payload as well, so auditors reading historical ledgers should accept both forms.
 
 ``cose_recent_proposals``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -558,8 +559,7 @@ Status information recorded when a primary produces a snapshot.
 ~~~~~~~~~~~~~~~~~~~
 
 Durability marker written when a snapshot is explicitly requested via the operator endpoint.
-This ensures the request is recorded as a real transaction even when it would otherwise
-carry only a transaction flag.
+This ensures the request is recorded as a real transaction even when it would otherwise carry only a transaction flag.
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 

@@ -32,6 +32,11 @@ namespace ccf
         data(std::move(d)),
         self(std::move(s))
       {}
+
+      void on_shutdown() noexcept override
+      {
+        self.reset();
+      }
     };
 
     struct HandleIncomingDataTask : public SessionDataTask
