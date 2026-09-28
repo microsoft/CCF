@@ -21,42 +21,55 @@ namespace
 {
   using namespace ccf::crypto;
 
-  constexpr size_t P256_COORDINATE_SIZE = 32;
-  constexpr size_t P384_COORDINATE_SIZE = 48;
-  constexpr size_t P521_COORDINATE_SIZE = 66;
+  // COSE ECDSA signatures are r || s, each the size of a curve coordinate
+  // (32, 48 and 66 bytes for P-256, P-384 and P-521).
+  size_t expected_signature_size(CurveID curve)
+  {
+    switch (curve)
+    {
+      case CurveID::SECP256R1:
+        return 64;
+      case CurveID::SECP384R1:
+        return 96;
+      case CurveID::SECP521R1:
+        return 132;
+      case CurveID::NONE:
+      case CurveID::CURVE25519:
+      case CurveID::X25519:
+      default:
+        throw std::logic_error(
+          fmt::format("Unsupported COSE ECDSA curve {}", curve));
+    }
+  }
 
-  struct Algorithm
+  struct AlgorithmParameters
   {
     MDType digest;
     CurveID curve;
-    size_t signature_size;
     size_t salt_length;
   };
 
-  Algorithm algorithm_parameters(int64_t alg)
+  AlgorithmParameters algorithm_parameters(int64_t alg)
   {
     switch (alg)
     {
       case ccf::cose::alg::ES256:
       case ccf::cose::alg::ESP256:
-        return {
-          MDType::SHA256, CurveID::SECP256R1, 2 * P256_COORDINATE_SIZE, 0};
+        return {MDType::SHA256, CurveID::SECP256R1, 0};
       case ccf::cose::alg::ES384:
       case ccf::cose::alg::ESP384:
-        return {
-          MDType::SHA384, CurveID::SECP384R1, 2 * P384_COORDINATE_SIZE, 0};
+        return {MDType::SHA384, CurveID::SECP384R1, 0};
       case ccf::cose::alg::ES512:
       case ccf::cose::alg::ESP512:
-        return {
-          MDType::SHA512, CurveID::SECP521R1, 2 * P521_COORDINATE_SIZE, 0};
+        return {MDType::SHA512, CurveID::SECP521R1, 0};
       case ccf::cose::alg::PS256:
-        return {MDType::SHA256, CurveID::NONE, 0, SHA256_DIGEST_LENGTH};
+        return {MDType::SHA256, CurveID::NONE, SHA256_DIGEST_LENGTH};
       case ccf::cose::alg::PS384:
-        return {MDType::SHA384, CurveID::NONE, 0, SHA384_DIGEST_LENGTH};
+        return {MDType::SHA384, CurveID::NONE, SHA384_DIGEST_LENGTH};
       case ccf::cose::alg::PS512:
-        return {MDType::SHA512, CurveID::NONE, 0, SHA512_DIGEST_LENGTH};
+        return {MDType::SHA512, CurveID::NONE, SHA512_DIGEST_LENGTH};
       default:
-        throw ccf::cose::COSEError(
+        throw std::runtime_error(
           fmt::format("Unsupported COSE signature algorithm {}", alg));
     }
   }
@@ -120,32 +133,36 @@ namespace
     {
       case EVP_PKEY_EC:
       {
-        ECPublicKeyPtr ec_key(new ECPublicKey_OpenSSL(key.release()));
+        auto ec_key = std::make_shared<ECPublicKey_OpenSSL>(std::move(key));
         // Throws for curves that COSE verification does not support.
         (void)ec_key->get_curve_id();
         return ec_key;
       }
       case EVP_PKEY_RSA:
-        return RSAPublicKeyPtr(new RSAPublicKey_OpenSSL(key.release()));
+        return std::make_shared<RSAPublicKey_OpenSSL>(std::move(key));
       default:
-        throw ccf::cose::COSEError("Unsupported COSE public key type");
+        throw std::runtime_error("Unsupported COSE public key type");
     }
   }
 
   CoseKey cose_key_from_bytes(std::span<const uint8_t> encoded, bool pem)
   {
-    return ccf::cose::rethrow_as_cose_error([&]() {
-      if (encoded.empty() || encoded.size() > INT_MAX)
-      {
-        throw ccf::cose::COSEError("Invalid public key size");
-      }
-      OpenSSL::Unique_BIO bio(encoded);
-      OpenSSL::Unique_PKEY key(
-        pem ? PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr) :
-              d2i_PUBKEY_bio(bio, nullptr),
-        EVP_PKEY_free);
-      return cose_key_from_pkey(std::move(key));
-    });
+    if (encoded.empty() || encoded.size() > INT_MAX)
+    {
+      throw std::runtime_error("Invalid public key size");
+    }
+    OpenSSL::Unique_BIO bio(encoded);
+    EVP_PKEY* parsed = pem ?
+      PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr) :
+      d2i_PUBKEY_bio(bio, nullptr);
+    if (parsed == nullptr)
+    {
+      throw std::runtime_error(fmt::format(
+        "Failed to parse public key: {}",
+        OpenSSL::error_string(ERR_get_error())));
+    }
+    OpenSSL::Unique_PKEY key(parsed, EVP_PKEY_free);
+    return cose_key_from_pkey(std::move(key));
   }
 
   enum class CertificateFormat : uint8_t
@@ -155,30 +172,44 @@ namespace
     DER
   };
 
+  // Certificate import errors are std::invalid_argument, as in
+  // Verifier_OpenSSL.
   CoseKey cose_key_from_certificate(
     std::span<const uint8_t> encoded, CertificateFormat format)
   {
-    return ccf::cose::rethrow_as_cose_error([&]() {
-      if (encoded.empty() || encoded.size() > INT_MAX)
-      {
-        throw ccf::cose::COSEError("Invalid certificate size");
-      }
-      OpenSSL::Unique_BIO bio(encoded);
-      OpenSSL::Unique_X509 cert(bio, format != CertificateFormat::DER);
-      if (cert == nullptr && format == CertificateFormat::AUTO)
-      {
-        OpenSSL::CHECK1(BIO_reset(bio));
-        cert = OpenSSL::Unique_X509(bio, false);
-      }
-      if (cert == nullptr)
-      {
-        throw ccf::cose::COSEError(fmt::format(
-          "Failed to parse certificate: {}",
-          OpenSSL::error_string(ERR_get_error())));
-      }
-      OpenSSL::Unique_PKEY key(X509_get_pubkey(cert), EVP_PKEY_free);
+    if (encoded.empty() || encoded.size() > INT_MAX)
+    {
+      throw std::invalid_argument("Invalid certificate size");
+    }
+    OpenSSL::Unique_BIO bio(encoded);
+    OpenSSL::Unique_X509 cert(bio, format != CertificateFormat::DER);
+    if (cert == nullptr && format == CertificateFormat::AUTO)
+    {
+      OpenSSL::CHECK1(BIO_reset(bio));
+      cert = OpenSSL::Unique_X509(bio, false);
+    }
+    if (cert == nullptr)
+    {
+      throw std::invalid_argument(fmt::format(
+        "Failed to parse certificate: {}",
+        OpenSSL::error_string(ERR_get_error())));
+    }
+    EVP_PKEY* public_key = X509_get_pubkey(cert);
+    if (public_key == nullptr)
+    {
+      throw std::invalid_argument(fmt::format(
+        "Failed to get certificate public key: {}",
+        OpenSSL::error_string(ERR_get_error())));
+    }
+    OpenSSL::Unique_PKEY key(public_key, EVP_PKEY_free);
+    try
+    {
       return cose_key_from_pkey(std::move(key));
-    });
+    }
+    catch (const std::runtime_error& error)
+    {
+      throw std::invalid_argument(error.what());
+    }
   }
 }
 
@@ -281,7 +312,7 @@ namespace ccf::crypto
           {
             if (parameters.curve != CurveID::NONE)
             {
-              throw cose::COSEError("COSE algorithm does not match RSA key");
+              throw std::runtime_error("COSE algorithm does not match RSA key");
             }
             return key->verify(
               tbs.data(),
@@ -296,13 +327,15 @@ namespace ccf::crypto
           {
             if (parameters.curve != key->get_curve_id())
             {
-              throw cose::COSEError("COSE algorithm does not match EC key");
+              throw std::runtime_error("COSE algorithm does not match EC key");
             }
-            if (sig.size() != parameters.signature_size)
+            const auto signature_size =
+              expected_signature_size(parameters.curve);
+            if (sig.size() != signature_size)
             {
-              throw cose::COSEError(fmt::format(
+              throw std::runtime_error(fmt::format(
                 "Expected {} byte COSE ECDSA signature, got {}",
-                parameters.signature_size,
+                signature_size,
                 sig.size()));
             }
             const auto der = ecdsa_sig_p1363_to_der(sig);

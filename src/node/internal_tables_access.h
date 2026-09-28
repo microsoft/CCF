@@ -541,7 +541,7 @@ namespace ccf
           previous_root,
           key_to_endorse);
       }
-      catch (const cose::COSEError& error)
+      catch (const std::exception& error)
       {
         LOG_FAIL_FMT(
           "Failed to sign previous service identity: {}", error.what());

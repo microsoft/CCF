@@ -4,18 +4,8 @@
 
 #include <cstdint>
 #include <span>
-#include <stdexcept>
 #include <variant>
 #include <vector>
-
-namespace ccf::cose
-{
-  /// Common COSE exception.
-  struct COSEError : public std::runtime_error
-  {
-    using std::runtime_error::runtime_error;
-  };
-}
 
 namespace ccf::cose::edit
 {

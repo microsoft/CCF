@@ -3,10 +3,7 @@
 
 #pragma once
 
-#include "ccf/crypto/cose.h"
-
 #include <cstdint>
-#include <exception>
 #include <span>
 #include <string>
 #include <string_view>
@@ -21,22 +18,6 @@ namespace ccf
 {
   namespace cose
   {
-    decltype(auto) rethrow_as_cose_error(auto&& f)
-    {
-      try
-      {
-        return f();
-      }
-      catch (const COSEError&)
-      {
-        throw;
-      }
-      catch (const std::exception& error)
-      {
-        throw COSEError(error.what());
-      }
-    }
-
     std::vector<uint8_t> make_cose_sign1_tbs(
       std::span<const uint8_t> protected_header,
       std::span<const uint8_t> payload);
@@ -47,7 +28,8 @@ namespace ccf
       std::span<const uint8_t> signature,
       bool detached);
 
-    /// @throws COSEError if header construction, signing, or encoding fails.
+    /// @throws std::runtime_error if header construction, signing, or
+    /// encoding fails.
     std::vector<uint8_t> sign_ledger(
       const crypto::ECKeyPair& key,
       std::string_view kid,
@@ -57,7 +39,8 @@ namespace ccf
       std::string_view txid,
       std::span<const uint8_t> payload);
 
-    /// @throws COSEError if header construction, signing, or encoding fails.
+    /// @throws std::runtime_error if header construction, signing, or
+    /// encoding fails.
     std::vector<uint8_t> sign_endorsement(
       const crypto::ECKeyPair& key,
       int64_t iat,

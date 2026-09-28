@@ -220,26 +220,24 @@ TEST_CASE("COSE Sign1 signing failures")
   CHECK_THROWS_WITH_AS(
     ccf::cose::sign_endorsement(key, 1700000000, "2.1", {}, {}, {}),
     "COSE signing returned an empty signature",
-    ccf::cose::COSEError);
+    std::runtime_error);
 
   key.signature = {0xff};
   CHECK_THROWS_AS(
     ccf::cose::sign_endorsement(key, 1700000000, "2.1", {}, {}, {}),
-    ccf::cose::COSEError);
+    std::runtime_error);
 
   for (const auto& error :
        {std::make_exception_ptr(std::runtime_error("signing failed")),
         std::make_exception_ptr(std::logic_error("signing failed"))})
   {
     key.error = error;
-    CHECK_THROWS_WITH_AS(
+    CHECK_THROWS_WITH(
       ccf::cose::sign_ledger(key, "kid", 1700000000, "iss", "sub", "2.1", {}),
-      "signing failed",
-      ccf::cose::COSEError);
-    CHECK_THROWS_WITH_AS(
+      "signing failed");
+    CHECK_THROWS_WITH(
       ccf::cose::sign_endorsement(key, 1700000000, "2.1", {}, {}, {}),
-      "signing failed",
-      ccf::cose::COSEError);
+      "signing failed");
   }
 
   for (const auto curve : {CurveID::NONE, CurveID::CURVE25519, CurveID::X25519})
@@ -248,15 +246,15 @@ TEST_CASE("COSE Sign1 signing failures")
     CHECK_THROWS_WITH_AS(
       ccf::cose::sign_ledger(key, "kid", 1700000000, "iss", "sub", "2.1", {}),
       "Unsupported COSE signing curve",
-      ccf::cose::COSEError);
+      std::runtime_error);
     CHECK_THROWS_WITH_AS(
       ccf::cose::sign_endorsement(key, 1700000000, "2.1", {}, {}, {}),
       "Unsupported COSE signing curve",
-      ccf::cose::COSEError);
+      std::runtime_error);
   }
 }
 
-TEST_CASE("COSE signing rethrows CBOR encoding failures")
+TEST_CASE("COSE signing propagates CBOR encoding failures")
 {
   const auto key =
     ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
@@ -264,10 +262,10 @@ TEST_CASE("COSE signing rethrows CBOR encoding failures")
   CHECK_THROWS_AS(
     ccf::cose::sign_ledger(
       *key, "kid", 1700000000, invalid_utf8, "sub", "2.1", {}),
-    ccf::cose::COSEError);
+    tav::cbor::EncodeError);
   CHECK_THROWS_AS(
     ccf::cose::sign_endorsement(*key, 1700000000, invalid_utf8, {}, {}, {}),
-    ccf::cose::COSEError);
+    tav::cbor::EncodeError);
 }
 
 TEST_CASE("COSE ECDSA round trips and algorithm binding")
@@ -848,7 +846,7 @@ TEST_CASE("COSE verifier imports public keys and certificates")
     CHECK(verifier->verify(envelope, authned));
     CHECK_THROWS_AS(
       ccf::crypto::make_cose_verifier_from_der_cert(pem_bytes),
-      ccf::cose::COSEError);
+      std::invalid_argument);
   }
 
   SUBCASE("DER certificate bytes")
@@ -881,13 +879,13 @@ TEST_CASE("COSE verifier imports public keys and certificates")
         cert_pem);
       CHECK_THROWS_AS(
         ccf::crypto::make_cose_verifier_any_cert(unsupported_cert.raw()),
-        ccf::cose::COSEError);
+        std::invalid_argument);
       CHECK_THROWS_AS(
         ccf::crypto::make_cose_verifier_from_pem_cert(unsupported_cert),
-        ccf::cose::COSEError);
+        std::invalid_argument);
       CHECK_THROWS_AS(
         ccf::crypto::make_cose_verifier_from_key(subject_key),
-        ccf::cose::COSEError);
+        std::runtime_error);
     }
   }
 
@@ -903,9 +901,10 @@ TEST_CASE("COSE verifier imports public keys and certificates")
     REQUIRE(key_in_cert != invalid_der.end());
     // Keep the certificate parseable but move its EC point off the curve.
     *(key_in_cert + public_key.size() - 1) ^= 0xff;
-    CHECK_THROWS_AS(
+    CHECK_THROWS_WITH_AS(
       ccf::crypto::make_cose_verifier_from_der_cert(invalid_der),
-      ccf::cose::COSEError);
+      doctest::Contains("Failed to get certificate public key"),
+      std::invalid_argument);
   }
 
   SUBCASE("garbage bytes fail")
@@ -914,32 +913,35 @@ TEST_CASE("COSE verifier imports public keys and certificates")
     CHECK_THROWS_WITH_AS(
       ccf::crypto::make_cose_verifier_from_key(std::span<const uint8_t>{}),
       "Invalid public key size",
-      ccf::cose::COSEError);
+      std::runtime_error);
     CHECK_THROWS_WITH_AS(
       ccf::crypto::make_cose_verifier_any_cert({}),
       "Invalid certificate size",
-      ccf::cose::COSEError);
+      std::invalid_argument);
     CHECK_THROWS_WITH_AS(
       ccf::crypto::make_cose_verifier_from_der_cert({}),
       "Invalid certificate size",
-      ccf::cose::COSEError);
+      std::invalid_argument);
     CHECK_THROWS_AS(
-      ccf::crypto::make_cose_verifier_any_cert(garbage), ccf::cose::COSEError);
+      ccf::crypto::make_cose_verifier_any_cert(garbage), std::invalid_argument);
     CHECK_THROWS_AS(
       ccf::crypto::make_cose_verifier_from_der_cert(garbage),
-      ccf::cose::COSEError);
-    CHECK_THROWS_AS(
-      ccf::crypto::make_cose_verifier_from_key(garbage), ccf::cose::COSEError);
+      std::invalid_argument);
+    CHECK_THROWS_WITH_AS(
+      ccf::crypto::make_cose_verifier_from_key(garbage),
+      doctest::Contains("Failed to parse public key"),
+      std::runtime_error);
     const ccf::crypto::Pem invalid_key(
       "-----BEGIN PUBLIC KEY-----\ninvalid\n-----END PUBLIC KEY-----");
-    CHECK_THROWS_AS(
+    CHECK_THROWS_WITH_AS(
       ccf::crypto::make_cose_verifier_from_key(invalid_key),
-      ccf::cose::COSEError);
+      doctest::Contains("Failed to parse public key"),
+      std::runtime_error);
     const ccf::crypto::Pem invalid_cert(
       "-----BEGIN CERTIFICATE-----\ninvalid\n-----END CERTIFICATE-----");
     CHECK_THROWS_AS(
       ccf::crypto::make_cose_verifier_from_pem_cert(invalid_cert),
-      ccf::cose::COSEError);
+      std::invalid_argument);
   }
 }
 

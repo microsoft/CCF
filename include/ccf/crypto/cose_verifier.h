@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/cose.h"
 #include "ccf/crypto/verifier.h"
 
 #include <chrono>
@@ -30,17 +29,12 @@ namespace ccf::crypto
 
   /// Create a verifier from a certificate in either PEM or DER format.
   /// Tries PEM first, then DER.
-  /// @throws cose::COSEError if the certificate cannot be imported.
   COSEVerifierUniquePtr make_cose_verifier_any_cert(
     const std::vector<uint8_t>& cert);
-  /// @throws cose::COSEError if the PEM certificate cannot be imported.
   COSEVerifierUniquePtr make_cose_verifier_from_pem_cert(const Pem& pem);
-  /// @throws cose::COSEError if the DER certificate cannot be imported.
   COSEVerifierUniquePtr make_cose_verifier_from_der_cert(
     const std::vector<uint8_t>& der);
-  /// @throws cose::COSEError if the PEM public key cannot be imported.
   COSEVerifierUniquePtr make_cose_verifier_from_key(const Pem& public_key);
-  /// @throws cose::COSEError if the DER public key cannot be imported.
   COSEVerifierUniquePtr make_cose_verifier_from_key(
     std::span<const uint8_t> public_key);
 

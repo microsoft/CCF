@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- `ccf::crypto::make_cose_verifier_*()` now validate keys and certificates strictly and throw `ccf::cose::COSEError` (a `std::runtime_error`; certificate errors were previously `std::invalid_argument`) on failure (#8459).
+- `ccf::crypto::make_cose_verifier_from_pem_cert()` and `ccf::crypto::make_cose_verifier_any_cert()` now require PEM certificates to start with `-----BEGIN CERTIFICATE-----`; leading text is no longer skipped (#8459).
 
 ### Removed
 

@@ -62,7 +62,7 @@ namespace ccf::cose
       const auto der_signature = key.sign(tbs, md);
       if (der_signature.empty())
       {
-        throw COSEError("COSE signing returned an empty signature");
+        throw std::runtime_error("COSE signing returned an empty signature");
       }
       const auto signature =
         crypto::ecdsa_sig_der_to_p1363(der_signature, key.get_curve_id());
@@ -91,7 +91,7 @@ namespace ccf::cose
         case crypto::CurveID::CURVE25519:
         case crypto::CurveID::X25519:
         default:
-          throw COSEError("Unsupported COSE signing curve");
+          throw std::runtime_error("Unsupported COSE signing curve");
       }
     }
   }
@@ -105,34 +105,31 @@ namespace ccf::cose
     std::string_view txid,
     std::span<const uint8_t> payload)
   {
-    return rethrow_as_cose_error([&]() {
-      using namespace tav::cbor;
-      const auto algorithm = algorithm_for_curve(key.get_curve_id());
-      std::vector<MapItem> cwt_entries;
-      cwt_entries.emplace_back(
-        make_signed(cwt::header::iana::IAT), make_signed(iat));
-      cwt_entries.emplace_back(
-        make_signed(cwt::header::iana::ISS), make_string(issuer));
-      cwt_entries.emplace_back(
-        make_signed(cwt::header::iana::SUB), make_string(subject));
-      std::vector<MapItem> ccf_entries;
-      ccf_entries.emplace_back(
-        make_string(header::custom::TX_ID), make_string(txid));
-      std::vector<MapItem> phdr;
-      phdr.emplace_back(
-        make_signed(header::iana::ALG), make_signed(algorithm.alg));
-      phdr.emplace_back(
-        make_signed(header::iana::KID),
-        make_bytes({reinterpret_cast<const uint8_t*>(kid.data()), kid.size()}));
-      phdr.emplace_back(
-        make_signed(header::iana::VDS), make_signed(value::CCF_LEDGER_SHA256));
-      phdr.emplace_back(
-        make_signed(header::iana::CWT_CLAIMS),
-        make_map(std::move(cwt_entries)));
-      phdr.emplace_back(
-        make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
-      return sign1(key, algorithm.md, make_map(std::move(phdr)), payload, true);
-    });
+    using namespace tav::cbor;
+    const auto algorithm = algorithm_for_curve(key.get_curve_id());
+    std::vector<MapItem> cwt_entries;
+    cwt_entries.emplace_back(
+      make_signed(cwt::header::iana::IAT), make_signed(iat));
+    cwt_entries.emplace_back(
+      make_signed(cwt::header::iana::ISS), make_string(issuer));
+    cwt_entries.emplace_back(
+      make_signed(cwt::header::iana::SUB), make_string(subject));
+    std::vector<MapItem> ccf_entries;
+    ccf_entries.emplace_back(
+      make_string(header::custom::TX_ID), make_string(txid));
+    std::vector<MapItem> phdr;
+    phdr.emplace_back(
+      make_signed(header::iana::ALG), make_signed(algorithm.alg));
+    phdr.emplace_back(
+      make_signed(header::iana::KID),
+      make_bytes({reinterpret_cast<const uint8_t*>(kid.data()), kid.size()}));
+    phdr.emplace_back(
+      make_signed(header::iana::VDS), make_signed(value::CCF_LEDGER_SHA256));
+    phdr.emplace_back(
+      make_signed(header::iana::CWT_CLAIMS), make_map(std::move(cwt_entries)));
+    phdr.emplace_back(
+      make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
+    return sign1(key, algorithm.md, make_map(std::move(phdr)), payload, true);
   }
 
   std::vector<uint8_t> sign_endorsement(
@@ -143,37 +140,33 @@ namespace ccf::cose
     std::span<const uint8_t> previous_merkle_root,
     std::span<const uint8_t> payload)
   {
-    return rethrow_as_cose_error([&]() {
-      using namespace tav::cbor;
-      const auto algorithm = algorithm_for_curve(key.get_curve_id());
-      std::vector<MapItem> cwt_entries;
-      cwt_entries.emplace_back(
-        make_signed(cwt::header::iana::IAT), make_signed(iat));
-      std::vector<MapItem> ccf_entries;
+    using namespace tav::cbor;
+    const auto algorithm = algorithm_for_curve(key.get_curve_id());
+    std::vector<MapItem> cwt_entries;
+    cwt_entries.emplace_back(
+      make_signed(cwt::header::iana::IAT), make_signed(iat));
+    std::vector<MapItem> ccf_entries;
+    ccf_entries.emplace_back(
+      make_string(header::custom::TX_RANGE_BEGIN), make_string(epoch_begin));
+    if (!epoch_end.empty())
+    {
       ccf_entries.emplace_back(
-        make_string(header::custom::TX_RANGE_BEGIN), make_string(epoch_begin));
-      if (!epoch_end.empty())
-      {
-        ccf_entries.emplace_back(
-          make_string(header::custom::TX_RANGE_END), make_string(epoch_end));
-      }
-      if (!previous_merkle_root.empty())
-      {
-        ccf_entries.emplace_back(
-          make_string(header::custom::EPOCH_LAST_MERKLE_ROOT),
-          make_bytes(previous_merkle_root));
-      }
-      std::vector<MapItem> phdr;
-      phdr.emplace_back(
-        make_signed(header::iana::ALG), make_signed(algorithm.alg));
-      phdr.emplace_back(
-        make_signed(header::iana::CWT_CLAIMS),
-        make_map(std::move(cwt_entries)));
-      phdr.emplace_back(
-        make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
-      return sign1(
-        key, algorithm.md, make_map(std::move(phdr)), payload, false);
-    });
+        make_string(header::custom::TX_RANGE_END), make_string(epoch_end));
+    }
+    if (!previous_merkle_root.empty())
+    {
+      ccf_entries.emplace_back(
+        make_string(header::custom::EPOCH_LAST_MERKLE_ROOT),
+        make_bytes(previous_merkle_root));
+    }
+    std::vector<MapItem> phdr;
+    phdr.emplace_back(
+      make_signed(header::iana::ALG), make_signed(algorithm.alg));
+    phdr.emplace_back(
+      make_signed(header::iana::CWT_CLAIMS), make_map(std::move(cwt_entries)));
+    phdr.emplace_back(
+      make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
+    return sign1(key, algorithm.md, make_map(std::move(phdr)), payload, false);
   }
 }
 
