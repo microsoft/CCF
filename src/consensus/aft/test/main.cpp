@@ -1138,259 +1138,777 @@ DOCTEST_TEST_CASE(
     1);
 }
 
-DOCTEST_TEST_CASE(
-  "Recv append entries with malformed or undeserialisable entries" *
-  doctest::test_suite("multiple"))
+template <typename T>
+static T read_msg(const std::vector<uint8_t>& msg)
 {
-  ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
-  ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
+  const uint8_t* data = msg.data();
+  size_t size = msg.size();
+  return serialized::read<T>(data, size);
+}
 
-  auto kv_store0 = std::make_shared<Store>(node_id0);
-  auto kv_store1 = std::make_shared<Store>(node_id1);
+template <typename T>
+static std::vector<uint8_t> as_bytes(const T& msg)
+{
+  const auto* data = reinterpret_cast<const uint8_t*>(&msg);
+  return {data, data + sizeof(T)};
+}
 
-  TRaft r0(
-    raft_settings,
-    std::make_unique<Adaptor>(kv_store0),
-    std::make_unique<aft::LedgerStubProxy>(node_id0),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::State>(node_id0),
-    nullptr);
-  TRaft r1(
-    raft_settings,
-    std::make_unique<Adaptor>(kv_store1),
-    std::make_unique<aft::LedgerStubProxy>(node_id1),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::State>(node_id1),
-    nullptr);
+static void require_ack(
+  const std::optional<aft::AppendEntriesResponse>& response,
+  aft::Index last_log_idx)
+{
+  DOCTEST_REQUIRE(response.has_value());
+  DOCTEST_REQUIRE(response->success == aft::AppendEntriesResponseType::OK);
+  DOCTEST_REQUIRE(response->last_log_idx == last_log_idx);
+}
 
-  aft::Configuration::Nodes config;
-  config[node_id0] = {};
-  config[node_id1] = {};
-  r0.add_configuration(0, config);
-  r1.add_configuration(0, config);
+static void require_nack(
+  const std::optional<aft::AppendEntriesResponse>& response,
+  aft::Index last_log_idx)
+{
+  DOCTEST_REQUIRE(response.has_value());
+  DOCTEST_REQUIRE(response->success == aft::AppendEntriesResponseType::FAIL);
+  DOCTEST_REQUIRE(response->last_log_idx == last_log_idx);
+}
 
+struct TestNodeOptions
+{
+  ccf::consensus::Configuration settings = raft_settings;
+  std::shared_ptr<Store> kv = nullptr;
+  bool pre_vote_enabled = true;
+  std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
+  bool public_only = false;
+};
+
+// A node's consensus, and the store it deserialises entries into. aft::Adaptor
+// only holds a weak_ptr to the store, so the two are kept together.
+struct TestNode
+{
+  std::shared_ptr<Store> kv;
+  TRaft raft;
+
+  explicit TestNode(const ccf::NodeId& id, TestNodeOptions options = {}) :
+    kv(
+      options.kv != nullptr ? std::move(options.kv) :
+                              std::make_shared<Store>(id)),
+    raft(
+      options.settings,
+      std::make_unique<Adaptor>(kv),
+      std::make_unique<aft::LedgerStubProxy>(id),
+      std::make_shared<aft::ChannelStubProxy>(),
+      std::make_shared<aft::State>(id, options.pre_vote_enabled),
+      nullptr,
+      std::move(options.commit_callbacks),
+      options.public_only)
+  {}
+};
+
+// A primary (node 0) and a backup (node 1) sharing a single configuration. The
+// primary has been elected in view 1, and the backup has acknowledged its
+// initial heartbeat.
+struct PrimaryAndBackup
+{
+  const ccf::NodeId id0 = ccf::kv::test::PrimaryNodeId;
+  const ccf::NodeId id1 = ccf::kv::test::FirstBackupNodeId;
+  TestNode node0;
+  TestNode node1;
+  TRaft& r0;
+  TRaft& r1;
+  aft::ChannelStubProxy* c0;
+  aft::ChannelStubProxy* c1;
   std::map<ccf::NodeId, TRaft*> nodes;
-  nodes[node_id0] = &r0;
-  nodes[node_id1] = &r1;
 
-  auto r0c = channel_stub_proxy(r0);
-  auto r1c = channel_stub_proxy(r1);
-
-  r0.start_ticking();
-  r0.periodic(election_timeout * 2);
-
-  DOCTEST_INFO("Initial election");
+  PrimaryAndBackup(
+    TestNodeOptions primary_options = {}, TestNodeOptions backup_options = {}) :
+    node0(id0, std::move(primary_options)),
+    node1(id1, std::move(backup_options)),
+    r0(node0.raft),
+    r1(node1.raft),
+    c0(channel_stub_proxy(r0)),
+    c1(channel_stub_proxy(r1)),
+    nodes{{id0, &r0}, {id1, &r1}}
   {
-    // Pre-vote
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
-    // Vote
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
+    aft::Configuration::Nodes config;
+    config[id0] = {};
+    config[id1] = {};
+    r0.add_configuration(0, config);
+    r1.add_configuration(0, config);
 
+    r0.start_ticking();
+    r0.periodic(election_timeout * 2);
+
+    // Pre-vote, vote, then the initial heartbeat, and each response
+    for (size_t round = 0; round < 3; ++round)
+    {
+      DOCTEST_REQUIRE(1 == dispatch_all(nodes, id0));
+      DOCTEST_REQUIRE(1 == dispatch_all(nodes, id1));
+    }
     DOCTEST_REQUIRE(r0.is_primary());
-    // Initial (empty) heartbeat AppendEntries
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
-    // Drop the follower's resulting ACK; it is not relevant to this test.
-    r1c->messages.clear();
+    DOCTEST_REQUIRE(r0.get_view() == 1);
   }
 
-  std::vector<uint8_t> first_entry = {1, 1, 1};
-  auto data = std::make_shared<std::vector<uint8_t>>(first_entry);
-  DOCTEST_REQUIRE(
-    r0.replicate(ccf::kv::BatchVector{{1, data, true, hooks}}, 1));
-  r0.periodic(request_timeout);
-  DOCTEST_REQUIRE(r0c->messages.size() == 1);
-
-  auto header = r0c->messages.front().second;
-  r0c->messages.pop_front();
-
-  DOCTEST_SUBCASE("Truncated / malformed entry payload")
+  // Replicates entries [first, last] on the primary, in its current view
+  void replicate(aft::Index first, aft::Index last, bool committable = true)
   {
-    // Claim an entry body far larger than the (empty) space available after
-    // the size prefix, causing the ledger entry parser to throw
-    // std::logic_error rather than reading out of bounds.
-    std::vector<uint8_t> corrupt_payload(sizeof(size_t));
+    for (auto idx = first; idx <= last; ++idx)
     {
-      uint8_t* p = corrupt_payload.data();
-      size_t s = corrupt_payload.size();
-      serialized::write<size_t>(p, s, 1'000'000);
+      auto data =
+        std::make_shared<std::vector<uint8_t>>(3, static_cast<uint8_t>(idx));
+      DOCTEST_REQUIRE(r0.replicate(
+        ccf::kv::BatchVector{{idx, data, committable, hooks}}, r0.get_view()));
+    }
+  }
+
+  // Removes the primary's next AppendEntries to the backup from its outbox,
+  // without the ledger entries the host appends to it
+  std::vector<uint8_t> take_append_entries_header()
+  {
+    auto msg = c0->pop_first(aft::raft_append_entries, id1);
+    DOCTEST_REQUIRE(msg.has_value());
+    return msg.value();
+  }
+
+  // Appends the primary's ledger entries for this AppendEntries, as the host
+  // does when sending it
+  std::vector<uint8_t> with_payload(std::vector<uint8_t> header)
+  {
+    const auto ae = read_msg<aft::AppendEntries>(header);
+    const auto payload = r0.ledger->get_append_entries_payload(ae);
+    DOCTEST_REQUIRE(payload.has_value());
+    header.insert(header.end(), payload->begin(), payload->end());
+    return header;
+  }
+
+  // Delivers msg from the primary to the backup, and returns the backup's
+  // response, if it sent one
+  std::optional<aft::AppendEntriesResponse> backup_receives(
+    const std::vector<uint8_t>& msg)
+  {
+    r1.recv_message(id0, msg.data(), msg.size());
+    auto response = c1->pop_first(aft::raft_append_entries_response, id0);
+    DOCTEST_REQUIRE(c1->messages.empty());
+    if (!response.has_value())
+    {
+      return std::nullopt;
+    }
+    return read_msg<aft::AppendEntriesResponse>(response.value());
+  }
+
+  void primary_receives(const aft::AppendEntriesResponse& response)
+  {
+    const auto msg = as_bytes(response);
+    r0.recv_message(id1, msg.data(), msg.size());
+  }
+};
+
+DOCTEST_TEST_CASE(
+  "Backup NACKs AppendEntries whose entries cannot be read or deserialised" *
+  doctest::test_suite("multiple"))
+{
+  PrimaryAndBackup n;
+  n.replicate(1, 1);
+  n.r0.periodic(request_timeout);
+  const auto header = n.take_append_entries_header();
+
+  DOCTEST_SUBCASE("Entry is missing or truncated")
+  {
+    // The ledger entry parser throws std::logic_error both for a missing size
+    // prefix, and for a size prefix claiming more bytes than are present
+    std::vector<uint8_t> oversized_prefix(sizeof(size_t));
+    {
+      uint8_t* data = oversized_prefix.data();
+      size_t size = oversized_prefix.size();
+      serialized::write<size_t>(data, size, 1'000'000);
     }
 
-    std::vector<uint8_t> msg = header;
-    msg.insert(msg.end(), corrupt_payload.begin(), corrupt_payload.end());
-
-    r1.recv_message(node_id0, msg.data(), msg.size());
-
-    DOCTEST_REQUIRE(r1.get_last_idx() == 0);
-    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 0);
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
-        nodes, node_id1, r1c->messages, [](const auto& msg) {
-          DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::FAIL);
-        }));
+    for (const auto& payload : {std::vector<uint8_t>{}, oversized_prefix})
+    {
+      auto msg = header;
+      msg.insert(msg.end(), payload.begin(), payload.end());
+      require_nack(n.backup_receives(msg), 0);
+      DOCTEST_REQUIRE(n.r1.get_last_idx() == 0);
+      DOCTEST_REQUIRE(n.r1.ledger->ledger.empty());
+    }
   }
 
-  DOCTEST_SUBCASE("Entry deserialises to nullptr")
+  DOCTEST_SUBCASE("Entry the backup already holds is missing")
   {
-    // Instruct the follower's store to fail to construct an execution
-    // wrapper for this entry, as though it could not be parsed at all.
-    kv_store1->deserialize_fails_at = 1;
+    require_ack(n.backup_receives(n.with_payload(header)), 1);
 
-    auto ae = *(aft::AppendEntries*)header.data();
-    const auto payload_opt = r0.ledger->get_append_entries_payload(ae);
-    DOCTEST_REQUIRE(payload_opt.has_value());
+    // The same AppendEntries arrives again (for instance, duplicated in
+    // transit), this time without its entry. The backup skips entries it
+    // already holds, but must still parse them to do so.
+    require_nack(n.backup_receives(header), 1);
+    DOCTEST_REQUIRE(n.r1.get_last_idx() == 1);
+    DOCTEST_REQUIRE(n.r1.ledger->ledger == n.r0.ledger->ledger);
+  }
 
-    std::vector<uint8_t> msg = header;
-    msg.insert(msg.end(), payload_opt->begin(), payload_opt->end());
-
-    r1.recv_message(node_id0, msg.data(), msg.size());
-
-    DOCTEST_REQUIRE(r1.get_last_idx() == 0);
-    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 0);
-    DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
-        nodes, node_id1, r1c->messages, [](const auto& msg) {
-          DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::FAIL);
-        }));
+  DOCTEST_SUBCASE("Store has been destroyed")
+  {
+    // aft::Adaptor holds only a weak_ptr to the store, and its deserialize()
+    // returns nullptr once the store is gone (for instance, during shutdown)
+    n.node1.kv.reset();
+    require_nack(n.backup_receives(n.with_payload(header)), 0);
+    DOCTEST_REQUIRE(n.r1.get_last_idx() == 0);
+    DOCTEST_REQUIRE(n.r1.ledger->ledger.empty());
   }
 }
 
 DOCTEST_TEST_CASE(
-  "Recv append entries claiming prev_idx beyond the follower's log" *
+  "New backup does not acknowledge an AppendEntries starting beyond its log" *
   doctest::test_suite("multiple"))
 {
   ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
   ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
 
-  auto kv_store1 = std::make_shared<Store>(node_id1);
-  TRaft r1(
-    raft_settings,
-    std::make_unique<Adaptor>(kv_store1),
-    std::make_unique<aft::LedgerStubProxy>(node_id1),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::State>(node_id1),
-    nullptr);
+  TestNode node0(node_id0);
+  TestNode node1(node_id1);
+  auto& r0 = node0.raft;
+  auto& r1 = node1.raft;
+  auto* r0c = channel_stub_proxy(r0);
+  auto* r1c = channel_stub_proxy(r1);
 
-  aft::Configuration::Nodes config;
-  config[node_id0] = {};
-  config[node_id1] = {};
-  r1.add_configuration(0, config);
+  aft::Configuration::Nodes config0;
+  config0[node_id0] = {};
+  r0.add_configuration(0, config0);
+  r0.start_ticking();
+  r0.periodic(election_timeout * 2);
+  DOCTEST_REQUIRE(r0.is_primary());
 
-  auto r1c = channel_stub_proxy(r1);
+  auto data = std::make_shared<std::vector<uint8_t>>(3, 1);
+  for (aft::Index idx = 1; idx <= 2; ++idx)
+  {
+    DOCTEST_REQUIRE(r0.replicate(
+      ccf::kv::BatchVector{{idx, data, true, hooks}}, r0.get_view()));
+  }
 
+  DOCTEST_INFO("The primary's first send to a newly added backup fails");
+  // A new node's sent_idx starts beyond the primary's log, and is only
+  // corrected by a successful send
+  r0c->fail_sends = true;
+  aft::Configuration::Nodes config1 = config0;
+  config1[node_id1] = {};
+  r0.add_configuration(0, config1);
+  r0c->fail_sends = false;
+
+  DOCTEST_INFO(
+    "So its next AppendEntries starts beyond its own log, from prev_term "
+    "VIEW_UNKNOWN");
+  r0.periodic(request_timeout);
+  const auto msg = r0c->pop_first(aft::raft_append_entries, node_id1);
+  DOCTEST_REQUIRE(msg.has_value());
+  const auto ae = read_msg<aft::AppendEntries>(msg.value());
+  DOCTEST_REQUIRE(ae.prev_idx == r0.get_last_idx() + 1);
+  DOCTEST_REQUIRE(ae.prev_term == ccf::VIEW_UNKNOWN);
+  DOCTEST_REQUIRE(ae.idx == r0.get_last_idx());
+
+  // get_term_internal() returns VIEW_UNKNOWN beyond the backup's log too, so
+  // this passes the prev_term check. The backup must not acknowledge entries
+  // it does not hold.
+  receive_message(r0, r1, msg.value());
+  DOCTEST_REQUIRE(r1c->messages.empty());
   DOCTEST_REQUIRE(r1.get_last_idx() == 0);
 
-  aft::AppendEntries ae{};
-  ae.idx = 5;
-  ae.prev_idx = 5;
-  ae.term = r1.get_view();
-  ae.prev_term = r1.get_view() + 1; // Deliberately not VIEW_UNKNOWN
-  ae.leader_commit_idx = 0;
-  ae.term_of_idx = r1.get_view();
-
-  r1.recv_message(node_id0, reinterpret_cast<const uint8_t*>(&ae), sizeof(ae));
-
-  DOCTEST_REQUIRE(r1.get_last_idx() == 0);
-  auto response = r1c->pop_first(aft::raft_append_entries_response, node_id0);
-  DOCTEST_REQUIRE(response.has_value());
-  auto aer = *(aft::AppendEntriesResponse*)response->data();
-  DOCTEST_REQUIRE(aer.success == aft::AppendEntriesResponseType::FAIL);
+  DOCTEST_INFO("Replication then proceeds as usual");
+  std::map<ccf::NodeId, TRaft*> nodes{{node_id0, &r0}, {node_id1, &r1}};
+  // A heartbeat, which the backup NACKs, then the entries, which it ACKs
+  for (size_t round = 0; round < 2; ++round)
+  {
+    r0.periodic(request_timeout);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1));
+  }
+  DOCTEST_REQUIRE(r1.ledger->ledger == r0.ledger->ledger);
 }
 
 DOCTEST_TEST_CASE(
-  "Recv truncated or unknown Raft messages" * doctest::test_suite("multiple"))
+  "Raft messages that cannot be parsed or authenticated are ignored" *
+  doctest::test_suite("multiple"))
 {
   ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
   ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
 
-  auto kv_store1 = std::make_shared<Store>(node_id1);
-  TRaft r1(
-    raft_settings,
-    std::make_unique<Adaptor>(kv_store1),
-    std::make_unique<aft::LedgerStubProxy>(node_id1),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::State>(node_id1),
-    nullptr);
+  TestNode node1(node_id1);
+  auto& r1 = node1.raft;
+  auto r1c = channel_stub_proxy(r1);
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
   config[node_id1] = {};
   r1.add_configuration(0, config);
 
-  auto r1c = channel_stub_proxy(r1);
-
-  const std::vector<aft::RaftMsgType> handled_types = {
-    aft::raft_append_entries,
-    aft::raft_append_entries_response,
-    aft::raft_request_pre_vote,
-    aft::raft_request_vote,
-    aft::raft_request_pre_vote_response,
-    aft::raft_request_vote_response,
-    aft::raft_propose_request_vote,
+  const auto require_unchanged = [&]() {
+    DOCTEST_REQUIRE(r1c->messages.empty());
+    DOCTEST_REQUIRE(r1.get_view() == 0);
+    DOCTEST_REQUIRE(r1.get_last_idx() == 0);
+    DOCTEST_REQUIRE(
+      r1.get_details().leadership_state == ccf::kv::LeadershipState::None);
   };
 
-  for (const auto type : handled_types)
+  DOCTEST_SUBCASE("Truncated message of each handled type")
   {
-    DOCTEST_INFO("Truncated message of type ", (size_t)type);
+    const std::vector<aft::RaftMsgType> handled_types = {
+      aft::raft_append_entries,
+      aft::raft_append_entries_response,
+      aft::raft_request_pre_vote,
+      aft::raft_request_vote,
+      aft::raft_request_pre_vote_response,
+      aft::raft_request_vote_response,
+      aft::raft_propose_request_vote,
+    };
 
-    // A buffer containing only the message type tag, too short for any of
-    // the actual message structs, exercises the per-type size check in
-    // recv_message via serialized::overlay<T>.
-    std::vector<uint8_t> msg(sizeof(aft::RaftMsgType));
+    for (const auto type : handled_types)
     {
-      uint8_t* p = msg.data();
-      size_t s = msg.size();
-      serialized::write<aft::RaftMsgType>(p, s, type);
+      DOCTEST_INFO("Truncated message of type ", (size_t)type);
+
+      // Only the message type tag, too short for any message struct
+      std::vector<uint8_t> msg(sizeof(aft::RaftMsgType));
+      {
+        uint8_t* data = msg.data();
+        size_t size = msg.size();
+        serialized::write<aft::RaftMsgType>(data, size, type);
+      }
+
+      r1.recv_message(node_id0, msg.data(), msg.size());
+      require_unchanged();
     }
+  }
 
+  DOCTEST_SUBCASE("Known but unhandled message type")
+  {
+    const auto msg =
+      as_bytes(aft::RaftHeader<aft::raft_append_entries_signed_response>{});
     r1.recv_message(node_id0, msg.data(), msg.size());
-    DOCTEST_REQUIRE(r1c->messages.empty());
+    require_unchanged();
   }
 
-  DOCTEST_SUBCASE("Unhandled but known message type")
+  DOCTEST_SUBCASE("Unknown message type")
   {
-    aft::RaftHeader<aft::raft_append_entries_signed_response> msg{};
-    r1.recv_message(
-      node_id0, reinterpret_cast<const uint8_t*>(&msg), sizeof(msg));
-    DOCTEST_REQUIRE(r1c->messages.empty());
+    const auto msg = as_bytes(static_cast<aft::RaftMsgType>(0xDEADBEEF));
+    r1.recv_message(node_id0, msg.data(), msg.size());
+    require_unchanged();
   }
 
-  DOCTEST_SUBCASE("Entirely unknown message type")
+  DOCTEST_SUBCASE("Message failing authentication")
   {
-    auto type = static_cast<aft::RaftMsgType>(0xDEADBEEF);
-    r1.recv_message(
-      node_id0, reinterpret_cast<const uint8_t*>(&type), sizeof(type));
-    DOCTEST_REQUIRE(r1c->messages.empty());
+    const auto msg = as_bytes(aft::RequestVote{
+      .term = 5, .last_committable_idx = 0, .term_of_last_committable_idx = 0});
+
+    r1c->fail_recv_authentication = true;
+    r1.recv_message(node_id0, msg.data(), msg.size());
+    require_unchanged();
+
+    DOCTEST_INFO("The same message is acted on once it is authenticated");
+    r1c->fail_recv_authentication = false;
+    r1.recv_message(node_id0, msg.data(), msg.size());
+    DOCTEST_REQUIRE(r1.get_view() == 5);
+    DOCTEST_REQUIRE(
+      r1c->count_messages_with_type(aft::raft_request_vote_response) == 1);
   }
 }
 
 DOCTEST_TEST_CASE(
-  "Execute append entries ApplyResult::FAIL on follower" *
+  "Backup keeps the entries before one which fails to apply" *
+  doctest::test_suite("multiple"))
+{
+  PrimaryAndBackup n;
+  n.replicate(1, 2);
+  n.r0.periodic(request_timeout);
+  const auto header = n.take_append_entries_header();
+  const auto ae = read_msg<aft::AppendEntries>(header);
+  DOCTEST_REQUIRE(ae.prev_idx == 0);
+  DOCTEST_REQUIRE(ae.idx == 2);
+
+  // As in "Recv append entries logic", the host corrupts the primary's
+  // ledger: entry 2 now claims a different view, so no longer matches the
+  // TxID the AppendEntries gives it. The backup's store reports
+  // ApplyResult::FAIL for it, after applying entry 1.
+  const auto original_entry_2 = n.r0.ledger->ledger[1];
+  {
+    uint8_t* data = n.r0.ledger->ledger[1].data() + sizeof(size_t) +
+      sizeof(bool) /* committable */;
+    size_t size = sizeof(aft::Term);
+    serialized::write<aft::Term>(data, size, ae.term_of_idx + 1);
+  }
+  const auto response = n.backup_receives(n.with_payload(header));
+  n.r0.ledger->ledger[1] = original_entry_2;
+
+  require_nack(response, 1);
+  DOCTEST_REQUIRE(n.r1.get_last_idx() == 1);
+  DOCTEST_REQUIRE(n.r1.ledger->ledger.size() == 1);
+  DOCTEST_REQUIRE(n.r1.ledger->ledger[0] == n.r0.ledger->ledger[0]);
+
+  DOCTEST_INFO("The primary resends only the rejected entry");
+  n.primary_receives(response.value());
+  n.r0.periodic(request_timeout);
+  const auto retry = n.take_append_entries_header();
+  DOCTEST_REQUIRE(read_msg<aft::AppendEntries>(retry).prev_idx == 1);
+  require_ack(n.backup_receives(n.with_payload(retry)), 2);
+  DOCTEST_REQUIRE(n.r1.ledger->ledger == n.r0.ledger->ledger);
+}
+
+DOCTEST_TEST_CASE(
+  "Backup ignores a delayed AppendEntries from before its commit index" *
+  doctest::test_suite("multiple"))
+{
+  PrimaryAndBackup n;
+  n.replicate(1, 2);
+  n.r0.periodic(request_timeout);
+  const auto first_ae = n.with_payload(n.take_append_entries_header());
+  const auto ack = n.backup_receives(first_ae);
+  require_ack(ack, 2);
+  n.primary_receives(ack.value());
+  DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 2);
+
+  // The next heartbeat carries the primary's commit index to the backup
+  n.r0.periodic(request_timeout);
+  require_ack(
+    n.backup_receives(n.with_payload(n.take_append_entries_header())), 2);
+  DOCTEST_REQUIRE(n.r1.get_committed_seqno() == 2);
+
+  // A duplicate of the first AppendEntries arrives late. Unlike a duplicate
+  // of uncommitted entries (see "Recv append entries logic"), its entries are
+  // not examined, and no response is sent.
+  n.r1.ledger->reset_skip_count();
+  DOCTEST_REQUIRE_FALSE(n.backup_receives(first_ae).has_value());
+  DOCTEST_REQUIRE(n.r1.ledger->skip_count == 0);
+  DOCTEST_REQUIRE(n.r1.get_last_idx() == 2);
+  DOCTEST_REQUIRE(n.r1.get_committed_seqno() == 2);
+}
+
+DOCTEST_TEST_CASE(
+  "Primary ignores stale responses from a backup" *
+  doctest::test_suite("multiple"))
+{
+  PrimaryAndBackup n;
+  n.replicate(1, 1);
+  n.r0.periodic(request_timeout);
+  const auto ack_1 =
+    n.backup_receives(n.with_payload(n.take_append_entries_header()));
+  require_ack(ack_1, 1);
+
+  n.replicate(2, 2);
+  n.r0.periodic(request_timeout);
+  const auto ack_2 =
+    n.backup_receives(n.with_payload(n.take_append_entries_header()));
+  require_ack(ack_2, 2);
+
+  DOCTEST_INFO("The acknowledgements arrive out of order");
+  n.primary_receives(ack_2.value());
+  DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 2);
+  n.primary_receives(ack_1.value());
+  DOCTEST_REQUIRE(n.r0.get_details().acks.at(n.id1).seqno == 2);
+  DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 2);
+
+  DOCTEST_INFO(
+    "A late NACK below the acknowledged index does not make the primary "
+    "resend acknowledged entries");
+  auto nack = ack_1.value();
+  nack.success = aft::AppendEntriesResponseType::FAIL;
+  n.primary_receives(nack);
+  DOCTEST_REQUIRE(n.r0.get_details().acks.at(n.id1).seqno == 2);
+  n.replicate(3, 3);
+  n.r0.periodic(request_timeout);
+  DOCTEST_REQUIRE(
+    read_msg<aft::AppendEntries>(n.take_append_entries_header()).prev_idx == 2);
+}
+
+DOCTEST_TEST_CASE(
+  "Primary resends entries whose AppendEntries could not be sent" *
+  doctest::test_suite("multiple"))
+{
+  PrimaryAndBackup n;
+  n.replicate(1, 1);
+
+  n.c0->fail_sends = true;
+  n.r0.periodic(request_timeout);
+  DOCTEST_REQUIRE(n.c0->messages.empty());
+
+  // The failed send was not recorded as sent, so the next AppendEntries
+  // starts from entry 1 again, rather than being a heartbeat after it
+  n.c0->fail_sends = false;
+  n.r0.periodic(request_timeout);
+  const auto header = n.take_append_entries_header();
+  const auto ae = read_msg<aft::AppendEntries>(header);
+  DOCTEST_REQUIRE(ae.prev_idx == 0);
+  DOCTEST_REQUIRE(ae.idx == 1);
+  require_ack(n.backup_receives(n.with_payload(header)), 1);
+}
+
+DOCTEST_TEST_CASE(
+  "Primary does not commit beyond its log when a quorum over-acknowledges" *
+  doctest::test_suite("multiple"))
+{
+  ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = ccf::kv::test::SecondBackupNodeId;
+
+  TestNode node0(node_id0);
+  auto& r0 = node0.raft;
+
+  aft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {};
+  config[node_id2] = {};
+  r0.add_configuration(0, config);
+  r0.force_become_primary();
+
+  auto data = std::make_shared<std::vector<uint8_t>>(3, 1);
+  DOCTEST_REQUIRE(
+    r0.replicate(ccf::kv::BatchVector{{1, data, true, hooks}}, r0.get_view()));
+
+  // Both backups, a quorum, claim to hold entries the primary has not
+  // produced. The first claim alone commits entry 1, which the primary and
+  // that backup then both (claim to) hold.
+  const auto over_ack = as_bytes(aft::AppendEntriesResponse{
+    .term = r0.get_view(),
+    .last_log_idx = 10,
+    .success = aft::AppendEntriesResponseType::OK});
+  for (const auto& backup : {node_id1, node_id2})
+  {
+    r0.recv_message(backup, over_ack.data(), over_ack.size());
+    DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
+  }
+
+  DOCTEST_INFO(
+    "Their claims now put the agreed index beyond the primary's log, so it "
+    "no longer commits on their word, even entries it does hold");
+  DOCTEST_REQUIRE(
+    r0.replicate(ccf::kv::BatchVector{{2, data, true, hooks}}, r0.get_view()));
+  r0.recv_message(node_id1, over_ack.data(), over_ack.size());
+  DOCTEST_REQUIRE(r0.get_last_idx() == 2);
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
+  DOCTEST_REQUIRE(r0.is_primary());
+}
+
+DOCTEST_TEST_CASE(
+  "Candidate ignores a pre-vote response carrying its new view" *
+  doctest::test_suite("multiple"))
+{
+  ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = ccf::kv::test::SecondBackupNodeId;
+
+  TestNode node0(node_id0);
+  TestNode node1(node_id1);
+  TestNode node2(node_id2);
+  auto& r0 = node0.raft;
+  auto& r1 = node1.raft;
+  auto& r2 = node2.raft;
+
+  aft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {};
+  config[node_id2] = {};
+  for (auto* r : {&r0, &r1, &r2})
+  {
+    r->add_configuration(0, config);
+  }
+
+  // Delivers the first message of the given type from one node to another
+  const auto deliver = [](TRaft& from, TRaft& to, aft::RaftMsgType type) {
+    auto msg = channel_stub_proxy(from)->pop_first(type, to.id());
+    DOCTEST_REQUIRE(msg.has_value());
+    to.recv_message(from.id(), msg->data(), msg->size());
+  };
+
+  DOCTEST_INFO("Nodes 0 and 1 both become pre-vote candidates in view 0");
+  for (auto* r : {&r0, &r1})
+  {
+    r->start_ticking();
+    r->periodic(election_timeout * 2);
+    DOCTEST_REQUIRE(
+      r->get_details().leadership_state ==
+      ccf::kv::LeadershipState::PreVoteCandidate);
+  }
+
+  DOCTEST_INFO("Node 1 grants node 0 a pre-vote");
+  deliver(r0, r1, aft::raft_request_pre_vote);
+
+  DOCTEST_INFO("With node 2's pre-vote, node 1 becomes a candidate in view 1");
+  deliver(r1, r2, aft::raft_request_pre_vote);
+  deliver(r2, r1, aft::raft_request_pre_vote_response);
+  DOCTEST_REQUIRE(r1.is_candidate());
+  DOCTEST_REQUIRE(r1.get_view() == 1);
+
+  DOCTEST_INFO(
+    "Node 2 votes for node 1, moving to view 1, so refuses node 0's pre-vote");
+  deliver(r1, r2, aft::raft_request_vote);
+  deliver(r0, r2, aft::raft_request_pre_vote);
+  DOCTEST_REQUIRE(r2.get_view() == 1);
+
+  DOCTEST_INFO("With node 1's pre-vote, node 0 becomes a candidate in view 1");
+  deliver(r1, r0, aft::raft_request_pre_vote_response);
+  DOCTEST_REQUIRE(r0.is_candidate());
+  DOCTEST_REQUIRE(r0.get_view() == 1);
+  channel_stub_proxy(r0)->messages.clear();
+
+  DOCTEST_INFO(
+    "Node 2's refusal carries node 0's new view, but node 0's pre-vote is "
+    "over, so the refusal is ignored");
+  deliver(r2, r0, aft::raft_request_pre_vote_response);
+  DOCTEST_REQUIRE(r0.is_candidate());
+  DOCTEST_REQUIRE(r0.get_view() == 1);
+  DOCTEST_REQUIRE(channel_stub_proxy(r0)->messages.empty());
+
+  DOCTEST_INFO(
+    "A pre-vote grant in node 0's new view, which no correct node sends, is "
+    "not counted as a vote either");
+  const auto grant = as_bytes(
+    aft::RequestPreVoteResponse{.term = r0.get_view(), .vote_granted = true});
+  r0.recv_message(node_id2, grant.data(), grant.size());
+  DOCTEST_REQUIRE(r0.is_candidate());
+  DOCTEST_REQUIRE_FALSE(r0.is_primary());
+}
+
+DOCTEST_TEST_CASE(
+  "Late joiner catching up only commits at a signature it holds" *
+  doctest::test_suite("multiple"))
+{
+  ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = ccf::kv::test::SecondBackupNodeId;
+
+  TestNode node0(node_id0);
+  TestNode node1(node_id1);
+  TestNode node2(node_id2);
+  auto& r0 = node0.raft;
+  auto& r1 = node1.raft;
+  auto& r2 = node2.raft;
+
+  aft::Configuration::Nodes config0;
+  config0[node_id0] = {};
+  config0[node_id1] = {};
+  r0.add_configuration(0, config0);
+  r1.add_configuration(0, config0);
+
+  std::map<ccf::NodeId, TRaft*> nodes;
+  nodes[node_id0] = &r0;
+  nodes[node_id1] = &r1;
+
+  r0.start_ticking();
+  r0.periodic(election_timeout * 2);
+  // Pre-vote, vote, then the initial heartbeat, and each response
+  for (size_t round = 0; round < 3; ++round)
+  {
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1));
+  }
+  DOCTEST_REQUIRE(r0.is_primary());
+
+  // Each entry is as large as an AppendEntries, so is sent on its own. Entry
+  // 1 is not a signature, entry 2 is.
+  DOCTEST_REQUIRE(r0.replicate(
+    ccf::kv::BatchVector{{1, make_ledger_entry(1, 1), false, hooks}}, 1));
+  DOCTEST_REQUIRE(r0.replicate(
+    ccf::kv::BatchVector{{2, make_ledger_entry(1, 2), true, hooks}}, 1));
+  DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_id0));
+  DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_id1));
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 2);
+
+  DOCTEST_INFO("Node 2 joins, and asks to be sent the entries it lacks");
+  aft::Configuration::Nodes config1 = config0;
+  config1[node_id2] = {};
+  for (auto* r : {&r0, &r1, &r2})
+  {
+    r->add_configuration(0, config1);
+  }
+  nodes[node_id2] = &r2;
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id2));
+  r0.periodic(request_timeout);
+
+  auto* r0c = channel_stub_proxy(r0);
+  const auto first = r0c->pop_first(aft::raft_append_entries, node_id2);
+  DOCTEST_REQUIRE(first.has_value());
+  const auto first_ae = read_msg<aft::AppendEntries>(first.value());
+  DOCTEST_REQUIRE(first_ae.idx == 1);
+  DOCTEST_REQUIRE(first_ae.leader_commit_idx == 2);
+  receive_message(r0, r2, first.value());
+
+  // Node 2 holds entry 1, which the primary has committed, but must not commit
+  // it until it holds the signature after it
+  DOCTEST_REQUIRE(r2.get_last_idx() == 1);
+  DOCTEST_REQUIRE(r2.get_committed_seqno() == 0);
+
+  const auto second = r0c->pop_first(aft::raft_append_entries, node_id2);
+  DOCTEST_REQUIRE(second.has_value());
+  receive_message(r0, r2, second.value());
+  DOCTEST_REQUIRE(r2.get_last_idx() == 2);
+  DOCTEST_REQUIRE(r2.get_committed_seqno() == 2);
+}
+
+DOCTEST_TEST_CASE(
+  "Node without a configuration replicates and commits but does not tick" *
+  doctest::test_suite("multiple"))
+{
+  // As for a joining node, which is in the primary's configuration, but has
+  // not yet received the ledger entries which add it
+  ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
+
+  TestNode node0(node_id0);
+  TestNode node1(node_id1);
+  auto& r0 = node0.raft;
+  auto& r1 = node1.raft;
+
+  aft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {};
+  r0.add_configuration(0, config);
+
+  std::map<ccf::NodeId, TRaft*> nodes;
+  nodes[node_id0] = &r0;
+  nodes[node_id1] = &r1;
+
+  r0.start_ticking();
+  r0.periodic(election_timeout * 2);
+  // Pre-vote, vote, then the initial heartbeat, and each response
+  for (size_t round = 0; round < 3; ++round)
+  {
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1));
+  }
+  DOCTEST_REQUIRE(r0.is_primary());
+
+  auto data = std::make_shared<std::vector<uint8_t>>(3, 1);
+  DOCTEST_REQUIRE(
+    r0.replicate(ccf::kv::BatchVector{{1, data, true, hooks}}, 1));
+  // Entry 1, then a heartbeat carrying its commit, and each response
+  for (size_t round = 0; round < 2; ++round)
+  {
+    r0.periodic(request_timeout);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1));
+  }
+  DOCTEST_REQUIRE(r1.get_committed_seqno() == 1);
+
+  const auto details = r1.get_details();
+  DOCTEST_REQUIRE(details.configs.empty());
+  DOCTEST_REQUIRE_FALSE(details.ticking);
+
+  DOCTEST_INFO(
+    "It does not start an election, even when nudged by a retiring primary");
+  auto r1c = channel_stub_proxy(r1);
+  r1.periodic(election_timeout * 2);
+  DOCTEST_REQUIRE(r1c->messages.empty());
+  const auto msg = as_bytes(aft::ProposeRequestVote{.term = r1.get_view()});
+  r1.recv_message(node_id0, msg.data(), msg.size());
+  DOCTEST_REQUIRE(r1c->messages.empty());
+  DOCTEST_REQUIRE(r1.is_backup());
+}
+
+DOCTEST_TEST_CASE(
+  "Recovered primary and snapshot-resumed backup continue the ledger" *
   doctest::test_suite("multiple"))
 {
   ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
   ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
 
-  auto kv_store0 = std::make_shared<Store>(node_id0);
-  auto kv_store1 = std::make_shared<Store>(node_id1);
-
-  TRaft r0(
-    raft_settings,
-    std::make_unique<Adaptor>(kv_store0),
-    std::make_unique<aft::LedgerStubProxy>(node_id0),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::State>(node_id0),
-    nullptr);
-  TRaft r1(
-    raft_settings,
-    std::make_unique<Adaptor>(kv_store1),
-    std::make_unique<aft::LedgerStubProxy>(node_id1),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::State>(node_id1),
-    nullptr);
+  TestNode node0(node_id0);
+  TestNode node1(node_id1);
+  auto& r0 = node0.raft;
+  auto& r1 = node1.raft;
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -1402,74 +1920,307 @@ DOCTEST_TEST_CASE(
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
+  // Both nodes resume at seqno 7 in view 3, where views 1, 2 and 3 started at
+  // seqnos 1, 4 and 6
+  const aft::Index recovered_idx = 7;
+  const aft::Term recovered_view = 3;
+  const std::vector<aft::Index> view_history = {1, 4, 6};
+
+  // As in node_state.h, a recovered primary's commit index is the last
+  // recovered seqno
+  r0.force_become_primary(
+    recovered_idx, recovered_view, view_history, recovered_idx);
+  // As for a joiner resuming from a snapshot at that seqno
+  r1.init_as_backup(recovered_idx, recovered_view, view_history);
+
+  DOCTEST_REQUIRE(r0.is_primary());
+  DOCTEST_REQUIRE(r0.get_view() == recovered_view + aft::starting_view_change);
+  DOCTEST_REQUIRE(r1.is_backup());
+  DOCTEST_REQUIRE(r1.get_view() == recovered_view);
+  for (auto* r : {&r0, &r1})
+  {
+    DOCTEST_REQUIRE(r->get_last_idx() == recovered_idx);
+    DOCTEST_REQUIRE(
+      r->get_committed_txid() == std::make_pair(recovered_view, recovered_idx));
+    DOCTEST_REQUIRE(r->get_view(3) == 1);
+    DOCTEST_REQUIRE(r->get_view(4) == 2);
+    DOCTEST_REQUIRE(r->get_view(recovered_idx) == 3);
+    DOCTEST_REQUIRE(
+      r->get_view_history_since(2) == std::vector<aft::Index>{4, 6});
+  }
+
+  DOCTEST_INFO(
+    "The primary's initial heartbeat brings the backup into its view");
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1));
+  const auto new_view = r0.get_view();
+  DOCTEST_REQUIRE(r1.get_view() == new_view);
+
+  DOCTEST_INFO("Both commit the next signature, in the new view");
+  const auto next_idx = recovered_idx + 1;
+  auto data = std::make_shared<std::vector<uint8_t>>(3, 1);
+  DOCTEST_REQUIRE(r0.replicate(
+    ccf::kv::BatchVector{{next_idx, data, true, hooks}}, new_view));
+  // The signature, then a heartbeat carrying its commit, and each response
+  for (size_t round = 0; round < 2; ++round)
+  {
+    r0.periodic(request_timeout);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1));
+  }
+  for (auto* r : {&r0, &r1})
+  {
+    DOCTEST_REQUIRE(r->get_committed_seqno() == next_idx);
+    DOCTEST_REQUIRE(r->get_view(next_idx) == new_view);
+    DOCTEST_REQUIRE(r->get_view(recovered_idx) == recovered_view);
+  }
+
+  DOCTEST_INFO("Leadership cannot be forced once a leader is known");
+  DOCTEST_REQUIRE_THROWS_AS(r0.force_become_primary(), std::logic_error);
+  DOCTEST_REQUIRE_THROWS_AS(
+    r1.force_become_primary(
+      recovered_idx, recovered_view, view_history, recovered_idx),
+    std::logic_error);
+}
+
+DOCTEST_TEST_CASE(
+  "Election attempts without a configuration are ignored" *
+  doctest::test_suite("single"))
+{
+  ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
+
+  bool pre_vote_enabled = true;
+  DOCTEST_SUBCASE("Pre-vote enabled")
+  {
+    pre_vote_enabled = true;
+  }
+  DOCTEST_SUBCASE("Pre-vote disabled")
+  {
+    pre_vote_enabled = false;
+  }
+
+  TestNode node(node_id, {.pre_vote_enabled = pre_vote_enabled});
+  auto& r0 = node.raft;
   auto r0c = channel_stub_proxy(r0);
-  auto r1c = channel_stub_proxy(r1);
 
   r0.start_ticking();
   r0.periodic(election_timeout * 2);
 
-  // Pre-vote
-  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
-  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
-  // Vote
-  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
-  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
+  const auto details = r0.get_details();
+  DOCTEST_REQUIRE(details.leadership_state == ccf::kv::LeadershipState::None);
+  DOCTEST_REQUIRE(details.current_view == 0);
+  DOCTEST_REQUIRE(r0c->messages.empty());
+
+  DOCTEST_INFO("Once it has a configuration, the same timeout elects it");
+  aft::Configuration::Nodes config;
+  config[node_id] = {};
+  r0.add_configuration(0, config);
+  r0.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(r0.is_primary());
-  // Initial (empty) heartbeat AppendEntries
-  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
-  // Drop the follower's resulting ACK; it is not relevant to this test.
-  r1c->messages.clear();
+  DOCTEST_REQUIRE(r0.get_view() == 1);
+}
 
-  std::vector<uint8_t> first_entry = {1, 1, 1};
-  auto data = std::make_shared<std::vector<uint8_t>>(first_entry);
+DOCTEST_TEST_CASE(
+  "Adding a configuration identical to the latest is a no-op" *
+  doctest::test_suite("single"))
+{
+  ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
+
+  TestNode node(node_id0);
+  auto& r0 = node.raft;
+
+  aft::Configuration::Nodes config0;
+  config0[node_id0] = {};
+  r0.add_configuration(0, config0);
+  DOCTEST_REQUIRE(r0.get_latest_configuration() == config0);
+
+  // For instance, after a write to the nodes table which does not change
+  // membership
+  r0.add_configuration(2, config0);
+  DOCTEST_REQUIRE(r0.get_details().configs.size() == 1);
+  DOCTEST_REQUIRE(r0.get_details().configs.front().idx == 0);
+
+  aft::Configuration::Nodes config1 = config0;
+  config1[node_id1] = {};
+  r0.add_configuration(3, config1);
+  DOCTEST_REQUIRE(r0.get_details().configs.size() == 2);
+  DOCTEST_REQUIRE(r0.get_latest_configuration() == config1);
+}
+
+DOCTEST_TEST_CASE(
+  "Newly elected primary should sign until it replicates a signature" *
+  doctest::test_suite("multiple"))
+{
+  PrimaryAndBackup n;
+
+  DOCTEST_INFO("A backup can neither replicate nor sign");
+  DOCTEST_REQUIRE_FALSE(n.r1.can_replicate());
   DOCTEST_REQUIRE(
-    r0.replicate(ccf::kv::BatchVector{{1, data, true, hooks}}, 1));
-  r0.periodic(request_timeout);
-  DOCTEST_REQUIRE(r0c->messages.size() == 1);
+    n.r1.get_signature_disposition() ==
+    ccf::kv::Consensus::SignatureDisposition::CANT_REPLICATE);
 
-  auto header_bytes = r0c->messages.front().second;
-  r0c->messages.pop_front();
-
-  // Tamper with the leader's claimed term_of_idx, so the follower's expected
-  // TxID for this entry no longer matches the term embedded when the entry
-  // was serialised. The stub store's ExecutionWrapper then reports
-  // ApplyResult::FAIL, as a real store would for a genuinely conflicting
-  // entry.
-  auto ae = *(aft::AppendEntries*)header_bytes.data();
-  ae.term_of_idx = ae.term_of_idx + 1;
-  std::memcpy(header_bytes.data(), &ae, sizeof(ae));
-
-  const auto payload_opt = r0.ledger->get_append_entries_payload(ae);
-  DOCTEST_REQUIRE(payload_opt.has_value());
-  std::vector<uint8_t> msg = header_bytes;
-  msg.insert(msg.end(), payload_opt->begin(), payload_opt->end());
-
-  r1.recv_message(node_id0, msg.data(), msg.size());
-
-  DOCTEST_INFO("Follower rejected the entry and rolled back its ledger");
-  DOCTEST_REQUIRE(r1.get_last_idx() == 0);
-  DOCTEST_REQUIRE(r1.ledger->ledger.size() == 0);
+  DOCTEST_INFO("A newly elected primary should sign");
+  DOCTEST_REQUIRE(n.r0.can_replicate());
   DOCTEST_REQUIRE(
-    1 ==
-    dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
-      nodes, node_id1, r1c->messages, [](const auto& msg) {
-        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::FAIL);
-      }));
+    n.r0.get_signature_disposition() ==
+    ccf::kv::Consensus::SignatureDisposition::SHOULD_SIGN);
+
+  DOCTEST_INFO("An entry which is not committable does not change that");
+  n.replicate(1, 1, false);
+  DOCTEST_REQUIRE(
+    n.r0.get_signature_disposition() ==
+    ccf::kv::Consensus::SignatureDisposition::SHOULD_SIGN);
+
+  DOCTEST_INFO("A committable entry does");
+  n.replicate(2, 2, true);
+  DOCTEST_REQUIRE(
+    n.r0.get_signature_disposition() ==
+    ccf::kv::Consensus::SignatureDisposition::CAN_SIGN);
+
+  DOCTEST_INFO("A primary which steps down (CheckQuorum) can no longer sign");
+  n.r0.periodic(election_timeout);
+  DOCTEST_REQUIRE_FALSE(n.r0.is_primary());
+  DOCTEST_REQUIRE_FALSE(n.r0.can_replicate());
+  DOCTEST_REQUIRE(
+    n.r0.get_signature_disposition() ==
+    ccf::kv::Consensus::SignatureDisposition::CANT_REPLICATE);
+}
+
+DOCTEST_TEST_CASE(
+  "Primary is at max capacity while too many entries are uncommitted" *
+  doctest::test_suite("multiple"))
+{
+  DOCTEST_SUBCASE("A limit of 0 is no limit")
+  {
+    PrimaryAndBackup n;
+    n.replicate(1, 5);
+    DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 0);
+    DOCTEST_REQUIRE_FALSE(n.r0.is_at_max_capacity());
+  }
+
+  DOCTEST_SUBCASE("With a limit")
+  {
+    const size_t max_uncommitted_tx_count = 2;
+    const ccf::consensus::Configuration settings{
+      request_timeout_, election_timeout_, max_uncommitted_tx_count};
+    PrimaryAndBackup n({.settings = settings}, {.settings = settings});
+
+    n.replicate(1, 1);
+    DOCTEST_REQUIRE_FALSE(n.r0.is_at_max_capacity());
+    n.replicate(2, 2);
+    DOCTEST_REQUIRE(n.r0.is_at_max_capacity());
+    DOCTEST_REQUIRE_FALSE(n.r1.is_at_max_capacity());
+
+    DOCTEST_INFO("Until the backup acknowledges the entries, and they commit");
+    n.r0.periodic(request_timeout);
+    const auto response =
+      n.backup_receives(n.with_payload(n.take_append_entries_header()));
+    require_ack(response, 2);
+    n.primary_receives(response.value());
+    DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE_FALSE(n.r0.is_at_max_capacity());
+  }
+}
+
+// Records whether each call to deserialize() was for public domains only
+class DomainRecordingStore : public Store
+{
+public:
+  using Store::Store;
+
+  std::vector<bool> public_only_requests;
+
+  std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
+    const std::vector<uint8_t>& data,
+    bool public_only = false,
+    const std::optional<ccf::TxID>& expected_txid = std::nullopt) override
+  {
+    public_only_requests.push_back(public_only);
+    return Store::deserialize(data, public_only, expected_txid);
+  }
+};
+
+DOCTEST_TEST_CASE(
+  "Public-only consensus deserialises all domains after enable_all_domains" *
+  doctest::test_suite("multiple"))
+{
+  // As for a node set up during recovery, which deserialises only public
+  // domains until the private ledger has been recovered
+  auto kv1 =
+    std::make_shared<DomainRecordingStore>(ccf::kv::test::FirstBackupNodeId);
+  PrimaryAndBackup n({}, {.kv = kv1, .public_only = true});
+
+  n.replicate(1, 1);
+  n.r0.periodic(request_timeout);
+  auto response =
+    n.backup_receives(n.with_payload(n.take_append_entries_header()));
+  require_ack(response, 1);
+  n.primary_receives(response.value());
+
+  n.r1.enable_all_domains();
+
+  n.replicate(2, 2);
+  n.r0.periodic(request_timeout);
+  response = n.backup_receives(n.with_payload(n.take_append_entries_header()));
+  require_ack(response, 2);
+
+  DOCTEST_REQUIRE(kv1->public_only_requests == std::vector<bool>{true, false});
+}
+
+DOCTEST_TEST_CASE(
+  "Commit callbacks are invoked as entries commit" *
+  doctest::test_suite("single"))
+{
+  ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
+  auto commit_callbacks = std::make_shared<ccf::CommitCallbackSubsystem>();
+  TestNode node(node_id, {.commit_callbacks = commit_callbacks});
+  auto& r0 = node.raft;
+
+  aft::Configuration::Nodes config;
+  config[node_id] = {};
+  r0.add_configuration(0, config);
+  r0.start_ticking();
+  r0.periodic(election_timeout * 2);
+  DOCTEST_REQUIRE(r0.is_primary());
+  const auto view = r0.get_view();
+
+  std::vector<std::pair<ccf::TxID, ccf::FinalTxStatus>> results;
+  const auto record = [&results](ccf::TxID tx_id, ccf::FinalTxStatus status) {
+    results.emplace_back(tx_id, status);
+  };
+
+  const ccf::TxID tx_1{view, 1};
+  // Seqno 1 will be committed in view, so cannot also be in a later view
+  const ccf::TxID tx_1_later_view{view + 1, 1};
+  const ccf::TxID tx_2{view, 2};
+  commit_callbacks->add_callback(tx_1, record);
+  commit_callbacks->add_callback(tx_1_later_view, record);
+  commit_callbacks->add_callback(tx_2, record);
+
+  // A single node commits each committable entry as soon as it replicates it
+  auto data = std::make_shared<std::vector<uint8_t>>(3, 1);
+  DOCTEST_REQUIRE(
+    r0.replicate(ccf::kv::BatchVector{{1, data, true, hooks}}, view));
+  DOCTEST_REQUIRE(results.size() == 2);
+  DOCTEST_REQUIRE(results[0].first == tx_1);
+  DOCTEST_REQUIRE(results[0].second == ccf::FinalTxStatus::Committed);
+  DOCTEST_REQUIRE(results[1].first == tx_1_later_view);
+  DOCTEST_REQUIRE(results[1].second == ccf::FinalTxStatus::Invalid);
+
+  DOCTEST_REQUIRE(
+    r0.replicate(ccf::kv::BatchVector{{2, data, true, hooks}}, view));
+  DOCTEST_REQUIRE(results.size() == 3);
+  DOCTEST_REQUIRE(results[2].first == tx_2);
+  DOCTEST_REQUIRE(results[2].second == ccf::FinalTxStatus::Committed);
 }
 
 DOCTEST_TEST_CASE(
   "Rollback below commit_idx is ignored" * doctest::test_suite("single"))
 {
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
-  auto kv_store = std::make_shared<Store>(node_id);
-
-  TRaft r0(
-    raft_settings,
-    std::make_unique<Adaptor>(kv_store),
-    std::make_unique<aft::LedgerStubProxy>(node_id),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::State>(node_id),
-    nullptr);
+  TestNode node(node_id);
+  auto& r0 = node.raft;
 
   aft::Configuration::Nodes config;
   config[node_id] = {};
@@ -1501,15 +2252,8 @@ DOCTEST_TEST_CASE(
   "Replicate rejects a non-consecutive index" * doctest::test_suite("single"))
 {
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
-  auto kv_store = std::make_shared<Store>(node_id);
-
-  TRaft r0(
-    raft_settings,
-    std::make_unique<Adaptor>(kv_store),
-    std::make_unique<aft::LedgerStubProxy>(node_id),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::State>(node_id),
-    nullptr);
+  TestNode node(node_id);
+  auto& r0 = node.raft;
 
   aft::Configuration::Nodes config;
   config[node_id] = {};
@@ -1537,189 +2281,6 @@ DOCTEST_TEST_CASE(
     r0.replicate(ccf::kv::BatchVector{{3, entry, true, hooks}}, 1));
   DOCTEST_REQUIRE(r0.get_last_idx() == 1);
   DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
-}
-
-DOCTEST_TEST_CASE("Force become primary" * doctest::test_suite("single"))
-{
-  ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
-  auto kv_store = std::make_shared<Store>(node_id);
-
-  TRaft r0(
-    raft_settings,
-    std::make_unique<Adaptor>(kv_store),
-    std::make_unique<aft::LedgerStubProxy>(node_id),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::State>(node_id),
-    nullptr);
-
-  DOCTEST_REQUIRE(!r0.is_primary());
-  DOCTEST_REQUIRE(r0.get_view() == 0);
-
-  DOCTEST_INFO("The recovery overload restores index, term and commit_idx");
-  const aft::Index index = 42;
-  const aft::Term term = 5;
-  const std::vector<aft::Index> term_history = {1, 1, 1};
-  const aft::Index commit_idx = 10;
-  r0.force_become_primary(index, term, term_history, commit_idx);
-
-  DOCTEST_REQUIRE(r0.is_primary());
-  // become_leader() rolls back to the last committable index, which is
-  // commit_idx here since no committable index above it was recorded by
-  // this recovery path.
-  DOCTEST_REQUIRE(r0.get_last_idx() == commit_idx);
-  DOCTEST_REQUIRE(r0.get_committed_seqno() == commit_idx);
-  // The term is bumped by starting_view_change (2) beyond the given term, to
-  // ensure this node's term is fresher than any previous leader's.
-  DOCTEST_REQUIRE(r0.get_view() == term + 2);
-
-  DOCTEST_INFO(
-    "Forcing leadership again fails, since this node already knows of a "
-    "leader (itself)");
-  DOCTEST_REQUIRE_THROWS_AS(r0.force_become_primary(), std::logic_error);
-  DOCTEST_REQUIRE_THROWS_AS(
-    r0.force_become_primary(index, term, term_history, commit_idx),
-    std::logic_error);
-}
-
-DOCTEST_TEST_CASE(
-  "Election attempts without a configuration are ignored" *
-  doctest::test_suite("single"))
-{
-  ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
-
-  DOCTEST_SUBCASE("Pre-vote enabled (default)")
-  {
-    auto kv_store = std::make_shared<Store>(node_id);
-    TRaft r0(
-      raft_settings,
-      std::make_unique<Adaptor>(kv_store),
-      std::make_unique<aft::LedgerStubProxy>(node_id),
-      std::make_shared<aft::ChannelStubProxy>(),
-      std::make_shared<aft::State>(node_id),
-      nullptr);
-    auto r0c = channel_stub_proxy(r0);
-
-    r0.start_ticking();
-    r0.periodic(election_timeout * 2);
-
-    DOCTEST_REQUIRE(r0c->messages.empty());
-    DOCTEST_REQUIRE(!r0.is_primary());
-  }
-
-  DOCTEST_SUBCASE("Pre-vote disabled")
-  {
-    auto kv_store = std::make_shared<Store>(node_id);
-    TRaft r0(
-      raft_settings,
-      std::make_unique<Adaptor>(kv_store),
-      std::make_unique<aft::LedgerStubProxy>(node_id),
-      std::make_shared<aft::ChannelStubProxy>(),
-      std::make_shared<aft::State>(node_id, false),
-      nullptr);
-    auto r0c = channel_stub_proxy(r0);
-
-    r0.start_ticking();
-    r0.periodic(election_timeout * 2);
-
-    DOCTEST_REQUIRE(r0c->messages.empty());
-    DOCTEST_REQUIRE(!r0.is_primary());
-  }
-}
-
-DOCTEST_TEST_CASE("Simple public API accessors" * doctest::test_suite("single"))
-{
-  ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
-  auto kv_store = std::make_shared<Store>(node_id);
-
-  // Use a non-zero max_uncommitted_tx_count to exercise both branches of
-  // is_at_max_capacity().
-  const size_t max_uncommitted_tx_count = 1;
-  const ccf::consensus::Configuration settings{
-    request_timeout_, election_timeout_, max_uncommitted_tx_count};
-
-  TRaft r0(
-    settings,
-    std::make_unique<Adaptor>(kv_store),
-    std::make_unique<aft::LedgerStubProxy>(node_id),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::State>(node_id),
-    nullptr);
-  ccf::kv::Configuration::Nodes configuration;
-  configuration.try_emplace(node_id);
-  r0.add_configuration(0, configuration);
-
-  // Not yet primary: can't replicate, at max capacity is trivially false, and
-  // the signature disposition reports that replication is not possible.
-  DOCTEST_REQUIRE(!r0.can_replicate());
-  DOCTEST_REQUIRE(!r0.is_at_max_capacity());
-  DOCTEST_REQUIRE(
-    r0.get_signature_disposition() ==
-    ccf::kv::Consensus::SignatureDisposition::CANT_REPLICATE);
-
-  r0.force_become_primary();
-  DOCTEST_REQUIRE(r0.is_primary());
-  DOCTEST_REQUIRE(r0.can_replicate());
-
-  // Immediately after becoming leader, should_sign is set, so a signature is
-  // requested even though nothing has been replicated yet.
-  DOCTEST_REQUIRE(
-    r0.get_signature_disposition() ==
-    ccf::kv::Consensus::SignatureDisposition::SHOULD_SIGN);
-
-  DOCTEST_REQUIRE(!r0.is_at_max_capacity());
-
-  auto data = std::make_shared<std::vector<uint8_t>>(1, 42);
-  DOCTEST_REQUIRE(
-    r0.replicate(ccf::kv::BatchVector{{1, data, true, hooks}}, r0.get_view()));
-
-  // A committable entry has now been replicated, so a fresh signature is no
-  // longer required, but the node can still sign.
-  DOCTEST_REQUIRE(
-    r0.get_signature_disposition() ==
-    ccf::kv::Consensus::SignatureDisposition::CAN_SIGN);
-
-  // last_idx (1) == commit_idx (1) here: for a single-node configuration,
-  // replication commits immediately, so max capacity is never reached.
-  DOCTEST_REQUIRE(!r0.is_at_max_capacity());
-
-  auto [term, committed_idx] = r0.get_committed_txid();
-  DOCTEST_REQUIRE(committed_idx == 1);
-  DOCTEST_REQUIRE(term == r0.get_view());
-
-  DOCTEST_REQUIRE(
-    r0.get_view_history_since(1) == std::vector<aft::Index>{1, 1});
-
-  DOCTEST_REQUIRE(r0.get_latest_configuration().size() == 1);
-
-  // enable_all_domains() only toggles internal state; simply confirm it can
-  // be called without effect on the externally-visible state.
-  r0.enable_all_domains();
-  DOCTEST_REQUIRE(r0.is_primary());
-}
-
-DOCTEST_TEST_CASE(
-  "init_as_backup restores state" * doctest::test_suite("single"))
-{
-  ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
-  auto kv_store = std::make_shared<Store>(node_id);
-
-  TRaft r0(
-    raft_settings,
-    std::make_unique<Adaptor>(kv_store),
-    std::make_unique<aft::LedgerStubProxy>(node_id),
-    std::make_shared<aft::ChannelStubProxy>(),
-    std::make_shared<aft::State>(node_id),
-    nullptr);
-
-  const aft::Index index = 7;
-  const aft::Term term = 3;
-  const std::vector<aft::Index> term_history = {1, 1, 1, 1, 1, 1, 1};
-  r0.init_as_backup(index, term, term_history);
-
-  DOCTEST_REQUIRE(r0.get_last_idx() == index);
-  DOCTEST_REQUIRE(r0.get_committed_seqno() == index);
-  DOCTEST_REQUIRE(r0.get_view() == term);
-  DOCTEST_REQUIRE(!r0.is_primary());
 }
 
 int main(int argc, char** argv)
