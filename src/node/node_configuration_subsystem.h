@@ -18,7 +18,8 @@ namespace ccf
   public:
     NodeConfigurationSubsystem(AbstractNodeState& node_state_) :
       node_state(node_state_),
-      node_config_state({node_state_.get_node_config(), {}, false})
+      node_config_state(
+        {node_state_.get_node_config(), node_state_.get_node_data(), {}, false})
     {}
 
     ~NodeConfigurationSubsystem() override = default;
