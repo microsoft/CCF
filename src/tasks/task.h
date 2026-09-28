@@ -5,12 +5,22 @@
 #include "tasks/resumable.h"
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
 
 namespace ccf::tasks
 {
+  // Critical tasks are latency-sensitive and must not block. Every worker
+  // prefers them, and reserved executors run only them, so opaque or
+  // blocking general tasks cannot exhaust the capacity they need.
+  enum class TaskClass : uint8_t
+  {
+    General,
+    Critical
+  };
+
   struct BaseTask
   {
   private:
@@ -30,6 +40,11 @@ namespace ccf::tasks
     void do_task();
 
     [[nodiscard]] virtual const std::string& get_name() const = 0;
+
+    [[nodiscard]] virtual TaskClass get_task_class() const
+    {
+      return TaskClass::General;
+    }
 
     void cancel_task();
     bool is_cancelled();

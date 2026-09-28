@@ -432,7 +432,8 @@ namespace ccf
     ccf::LoggerLevel log_level,
     ringbuffer::NotifyingWriterFactory& notifying_factory,
     ccf::AbstractRuntimeControl& runtime_control,
-    const std::shared_ptr<asynchost::LedgerSubsystem>& ledger_subsystem)
+    const std::shared_ptr<asynchost::LedgerSubsystem>& ledger_subsystem,
+    const std::shared_ptr<asynchost::NodeConnections>& node_connections)
   {
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;
@@ -457,7 +458,8 @@ namespace ccf
       config.worker_threads,
       notifying_factory.get_inbound_work_beacon(),
       runtime_control,
-      ledger_subsystem);
+      ledger_subsystem,
+      node_connections);
     ecall_completed.store(true);
     flusher_thread.join();
 
@@ -642,21 +644,21 @@ namespace ccf
         config.files_cleanup.max_committed_ledger_chunks);
     }
 
-    // Setup node-to-node connections. Outbound messages are ordered behind
-    // the ledger mutations emitted before them, then written on the loop
-    // thread at the same cadence as the ringbuffer is drained.
+    // Setup node-to-node connections, which the node uses as its typed
+    // transport. Outbound messages are ordered behind the ledger mutations
+    // submitted before them, then written on the loop thread by a 1ms flush
+    // timer. Inbound frames keep the previous ringbuffer message size limit.
     auto [node_host, node_port] =
       cli::validate_address(config.network.node_to_node_interface.bind_address);
-    asynchost::NodeConnections node(
-      buffer_processor.get_dispatcher(),
+    auto node = std::make_shared<asynchost::NodeConnections>(
       ledger,
       *ledger_subsystem,
-      writer_factory,
       node_host,
       node_port,
+      config.memory.max_msg_size.count_bytes(),
       config.node_client_interface,
       config.client_connection_timeout);
-    const asynchost::FlushNodeOutbound flush_node_outbound(1ms, node);
+    const asynchost::FlushNodeOutbound flush_node_outbound(1ms, *node);
     config.network.node_to_node_interface.bind_address =
       ccf::make_net_address(node_host, node_port);
     if (config.network.node_to_node_interface.published_address.empty())
@@ -821,7 +823,8 @@ namespace ccf
       log_level,
       factories.notifying_factory,
       *runtime_control,
-      ledger_subsystem);
+      ledger_subsystem,
+      node);
 
     if (enclave_creation_result.has_value())
     {
@@ -834,6 +837,9 @@ namespace ccf
     // Run enclave threads and event loop
     run_enclave_threads(config, *runtime_control);
     ledger_subsystem->shutdown();
+    // The enclave retains the transport, so close its sockets explicitly
+    // before the loop is closed
+    node->shutdown();
 
     return std::nullopt;
   }

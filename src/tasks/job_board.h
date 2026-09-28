@@ -54,10 +54,20 @@ namespace ccf::tasks
 
     void set_work_beacon(ccf::ds::WorkBeaconPtr work_beacon);
 
-    void add_task(Task t);
-    Task get_task();
+    // Notified when a critical task is queued because no idle worker could
+    // take it, for a reserved executor that polls get_critical_task().
+    void set_critical_work_beacon(ccf::ds::WorkBeaconPtr work_beacon);
 
+    // Tasks are routed by BaseTask::get_task_class().
+    void add_task(Task t);
+
+    // Return a critical task if one is ready, otherwise a general task.
+    Task get_task();
     Task wait_for_task(const std::chrono::milliseconds& timeout);
+
+    // Never returns a general task. For reserved critical-only executors.
+    Task get_critical_task();
+
     void stop_waiters();
 
     struct Summary
