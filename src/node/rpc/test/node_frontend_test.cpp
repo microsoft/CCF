@@ -13,8 +13,12 @@
 #include "node/internal_tables_access.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/self_cert_auth.h"
+#include "node/startup_inputs.h"
 #include "node_stub.h"
 
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <latch>
 #include <limits>
 #include <thread>
@@ -78,8 +82,9 @@ public:
 class StubNodeConfiguration : public NodeConfigurationInterface
 {
 public:
-  StartupConfig config = {};
-  NodeConfigurationState state = {config, {}, true};
+  CCFConfig config = {};
+  nlohmann::json node_data = nullptr;
+  NodeConfigurationState state = {config, node_data, {}, true};
 
   const NodeConfigurationState& get() override
   {
@@ -96,6 +101,349 @@ void require_ledger_secrets_equal(
     first.end(),
     second.begin(),
     [](const auto& a, const auto& b) { return (*a.second == *b.second); }));
+}
+
+TEST_CASE("Node configuration retains operator file paths")
+{
+  const json input = {
+    {"network", CCFConfig{}.network},
+    {"node_data_json_file", "not-loaded/node.json"},
+    {"service_data_json_file", "not-loaded/service.json"},
+    {"tick_interval", "25ms"},
+    {"memory", {{"max_msg_size", "128MB"}}},
+    {"snapshots", {{"tx_count", 42}}},
+    {"command",
+     {{"type", "Start"},
+      {"service_certificate_file", "not-loaded/service.pem"},
+      {"start",
+       {{"members",
+         {{{"certificate_file", "not-loaded/member.pem"},
+           {"encryption_public_key_file", "not-loaded/member_enc.pem"},
+           {"data_json_file", "not-loaded/member.json"},
+           {"recovery_role", MemberRecoveryRole::Owner}}}},
+        {"constitution_files", {"not-loaded/first.js", "not-loaded/second.js"}},
+        {"initial_service_certificate_validity_days", 7},
+        {"service_subject_name", "CN=Configured Service"}}},
+      {"join",
+       {{"target_rpc_address", "localhost:1234"},
+        {"retry_timeout", "2s"},
+        {"follow_redirect", false},
+        {"fetch_recent_snapshot", false},
+        {"fetch_snapshot_max_attempts", 5},
+        {"fetch_snapshot_retry_interval", "3s"},
+        {"fetch_snapshot_max_size", "20MB"},
+        {"host_data_transparent_statement_path", "not-loaded/statement.cose"}}},
+      {"recover",
+       {{"previous_service_identity_file", "not-loaded/previous.pem"},
+        {"initial_service_certificate_validity_days", 13}}}}}};
+
+  auto config = input.get<CCFConfig>();
+  CHECK(config.command.type == StartType::Start);
+  CHECK(
+    config.command.start.members.front().certificate_file ==
+    "not-loaded/member.pem");
+  CHECK(
+    config.command.start.members.front().recovery_role ==
+    MemberRecoveryRole::Owner);
+  CHECK(config.command.start.initial_service_certificate_validity_days == 7);
+  CHECK(config.command.start.service_subject_name == "CN=Configured Service");
+  CHECK(config.snapshots.tx_count == 42);
+  CHECK(config.memory.max_msg_size.count_bytes() == 128 * 1024 * 1024);
+  CHECK(config.tick_interval.count_ms() == 25);
+
+  const json runtime_node_data = {{"name", "runtime node data"}};
+  const NodeConfigurationState state{config, runtime_node_data, {}, false};
+  CHECK(state.node_data == runtime_node_data);
+  CHECK(state.node_config.node_data_json_file == "not-loaded/node.json");
+  CHECK(state.node_config.service_data_json_file == "not-loaded/service.json");
+
+  for (const auto type :
+       {StartType::Start, StartType::Join, StartType::Recover})
+  {
+    config.command.type = type;
+    const auto encoded = json(config);
+    const auto decoded = encoded.get<CCFConfig>();
+    CHECK(decoded.command.type == type);
+    CHECK(decoded.command.start == config.command.start);
+    CHECK(decoded.command.join == config.command.join);
+    CHECK(decoded.command.recover == config.command.recover);
+    CHECK(json(decoded) == encoded);
+    CHECK_FALSE(encoded.contains("startup_host_time"));
+    CHECK_FALSE(encoded.contains("start"));
+    CHECK_FALSE(encoded.contains("node_data"));
+  }
+
+  CHECK(config.command.join.target_rpc_address == "localhost:1234");
+  CHECK(config.command.join.retry_timeout.count_ms() == 2000);
+  CHECK_FALSE(config.command.join.follow_redirect);
+  CHECK_FALSE(config.command.join.fetch_recent_snapshot);
+  CHECK(config.command.join.fetch_snapshot_max_attempts == 5);
+  CHECK(config.command.join.fetch_snapshot_retry_interval.count_ms() == 3000);
+  CHECK(
+    config.command.join.fetch_snapshot_max_size.count_bytes() ==
+    20 * 1024 * 1024);
+  CHECK(
+    config.command.join.host_data_transparent_statement_path ==
+    "not-loaded/statement.cose");
+  CHECK(
+    config.command.recover.previous_service_identity_file ==
+    "not-loaded/previous.pem");
+  CHECK(config.command.recover.initial_service_certificate_validity_days == 13);
+
+  const auto defaults = json{
+    {"network", CCFConfig{}.network},
+    {"command",
+     {{"type", "Join"}}}}.get<CCFConfig>();
+  CHECK(defaults.command.join.retry_timeout.count_ms() == 1000);
+  CHECK(defaults.command.join.follow_redirect);
+  CHECK(defaults.command.join.fetch_recent_snapshot);
+  CHECK(
+    defaults.command.recover.initial_service_certificate_validity_days == 1);
+}
+
+TEST_CASE("Genesis request retains resolved data on the wire")
+{
+  CreateNetworkNodeToNode::GenesisInfo genesis;
+  genesis.members.emplace_back(member_cert);
+  genesis.constitution = "export function validate() { return true; }";
+  genesis.service_configuration.recovery_threshold = 1;
+
+  const json encoded = genesis;
+  CHECK(encoded.size() == 3);
+  CHECK(encoded["members"] == json(genesis.members));
+  CHECK(encoded["constitution"] == genesis.constitution);
+  CHECK(
+    encoded["service_configuration"] == json(genesis.service_configuration));
+  CHECK(encoded.get<CreateNetworkNodeToNode::GenesisInfo>() == genesis);
+}
+
+namespace
+{
+  struct ScopedTempDir
+  {
+    std::filesystem::path path;
+
+    ScopedTempDir()
+    {
+      auto pattern =
+        (std::filesystem::temp_directory_path() / "ccf_startup_inputs_XXXXXX")
+          .string();
+      REQUIRE(mkdtemp(pattern.data()) != nullptr);
+      path = pattern;
+    }
+
+    ~ScopedTempDir()
+    {
+      std::error_code ec;
+      std::filesystem::remove_all(path, ec);
+    }
+  };
+
+  std::string write_test_file(
+    const ScopedTempDir& dir,
+    const std::string& name,
+    const std::string& contents)
+  {
+    const auto path = (dir.path / name).string();
+    std::ofstream f(path, std::ios::binary);
+    f << contents;
+    f.close();
+    REQUIRE(f.good());
+    return path;
+  }
+
+  // This file is built with DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS,
+  // which compiles out the CHECK_THROWS assertions, so catch explicitly.
+  template <typename F>
+  std::string logic_error_message(const F& f)
+  {
+    try
+    {
+      f();
+    }
+    catch (const std::logic_error& e)
+    {
+      return e.what();
+    }
+    return "";
+  }
+}
+
+TEST_CASE("Startup inputs are read from files")
+{
+  const ScopedTempDir dir;
+  const auto encryption_key =
+    ccf::crypto::make_rsa_key_pair()->public_key_pem();
+
+  CCFConfig::Command::Start start;
+  start.members.push_back(
+    {write_test_file(dir, "member0_cert.pem", member_cert.str()),
+     write_test_file(dir, "member0_enc_pubk.pem", encryption_key.str()),
+     write_test_file(dir, "member0_data.json", R"({"is_operator": true})"),
+     MemberRecoveryRole::Owner});
+  start.members.push_back(
+    {write_test_file(dir, "member1_cert.pem", member_cert.str())});
+  start.constitution_files = {
+    write_test_file(dir, "first.js", "first"),
+    write_test_file(dir, "second.js", "second")};
+  start.service_configuration.recovery_threshold = 1;
+
+  const auto genesis = resolve_genesis_info(start);
+  REQUIRE(genesis.members.size() == 2);
+  CHECK(genesis.members[0].cert == member_cert);
+  CHECK(genesis.members[0].encryption_pub_key == encryption_key);
+  CHECK(genesis.members[0].member_data == json{{"is_operator", true}});
+  CHECK(genesis.members[0].recovery_role == MemberRecoveryRole::Owner);
+  CHECK(genesis.members[1].cert == member_cert);
+  CHECK_FALSE(genesis.members[1].encryption_pub_key.has_value());
+  CHECK(genesis.members[1].member_data.is_null());
+  CHECK_FALSE(genesis.members[1].recovery_role.has_value());
+  CHECK(genesis.constitution == "first\nsecond");
+  CHECK(genesis.service_configuration == start.service_configuration);
+
+  {
+    INFO("Empty member data is rejected, empty node or service data is null");
+    const auto empty_file = write_test_file(dir, "empty.json", "");
+    CHECK(read_startup_json(empty_file, "service data", true).is_null());
+    auto empty_member_data = start;
+    empty_member_data.members[0].data_json_file = empty_file;
+    CHECK(
+      logic_error_message([&]() { resolve_genesis_info(empty_member_data); })
+        .starts_with(
+          fmt::format("Could not parse member data from {}:", empty_file)));
+  }
+
+  {
+    INFO("Malformed JSON names the input");
+    const auto malformed_file = write_test_file(dir, "malformed.json", "{");
+    CHECK(logic_error_message(
+            [&]() { read_startup_json(malformed_file, "node data", true); })
+            .starts_with(fmt::format(
+              "Could not parse node data from {}:", malformed_file)));
+  }
+
+  {
+    INFO("Missing or unreadable files name the input");
+    const auto missing_file = (dir.path / "missing.pem").string();
+    CHECK(
+      logic_error_message(
+        [&]() { read_startup_file(missing_file, "service certificate"); }) ==
+      fmt::format("Could not read service certificate from {}", missing_file));
+    CHECK(
+      logic_error_message(
+        [&]() { read_startup_file(dir.path.string(), "constitution"); }) ==
+      fmt::format("Could not read constitution from {}", dir.path.string()));
+    auto missing_constitution = start;
+    missing_constitution.constitution_files.push_back(missing_file);
+    CHECK(
+      logic_error_message([&]() {
+        resolve_genesis_info(missing_constitution);
+      }) == fmt::format("Could not read constitution from {}", missing_file));
+  }
+}
+
+TEST_CASE("Startup inputs are resolved by start type")
+{
+  const ScopedTempDir dir;
+  const auto missing_file = (dir.path / "missing").string();
+  const auto bytes = [](const std::string& s) {
+    return std::vector<uint8_t>(s.begin(), s.end());
+  };
+  const auto resolve = [](const CCFConfig& config, StartType type) {
+    StartupInputs inputs;
+    const auto error = logic_error_message(
+      [&]() { inputs = resolve_startup_inputs(config, type); });
+    CHECK(error == "");
+    return inputs;
+  };
+
+  CCFConfig config;
+  config.node_data_json_file =
+    write_test_file(dir, "node_data.json", R"({"node": 1})");
+  config.service_data_json_file =
+    write_test_file(dir, "service_data.json", R"({"service": 2})");
+  config.command.service_certificate_file =
+    write_test_file(dir, "service_cert.pem", "service certificate");
+  config.command.start.members.push_back(
+    {write_test_file(dir, "member_cert.pem", member_cert.str())});
+  config.command.start.constitution_files = {
+    write_test_file(dir, "constitution.js", "constitution")};
+  config.command.recover.previous_service_identity_file =
+    write_test_file(dir, "previous_identity.pem", "previous identity");
+
+  {
+    INFO("Start reads node data, service data and genesis inputs");
+    const auto inputs = resolve(config, StartType::Start);
+    CHECK(inputs.node_data == json{{"node", 1}});
+    CHECK(inputs.service_data == json{{"service", 2}});
+    REQUIRE(inputs.genesis_info.has_value());
+    CHECK(inputs.genesis_info->members.size() == 1);
+    CHECK(inputs.genesis_info->constitution == "constitution");
+    CHECK(inputs.join_service_cert.empty());
+    CHECK_FALSE(inputs.previous_service_identity.has_value());
+  }
+
+  {
+    INFO("Recover reads node data, service data and the previous identity");
+    const auto inputs = resolve(config, StartType::Recover);
+    CHECK(inputs.node_data == json{{"node", 1}});
+    CHECK(inputs.service_data == json{{"service", 2}});
+    CHECK_FALSE(inputs.genesis_info.has_value());
+    CHECK(inputs.join_service_cert.empty());
+    CHECK(inputs.previous_service_identity == bytes("previous identity"));
+  }
+
+  {
+    INFO("Join reads node data and the service certificate only");
+    auto join_config = config;
+    join_config.service_data_json_file = missing_file;
+    join_config.command.start.constitution_files = {missing_file};
+    join_config.command.recover.previous_service_identity_file = missing_file;
+    const auto inputs = resolve(join_config, StartType::Join);
+    CHECK(inputs.node_data == json{{"node", 1}});
+    CHECK(inputs.service_data.is_null());
+    CHECK_FALSE(inputs.genesis_info.has_value());
+    CHECK(inputs.join_service_cert == bytes("service certificate"));
+    CHECK_FALSE(inputs.previous_service_identity.has_value());
+  }
+
+  {
+    INFO("Inputs required by the start type must be readable");
+    auto no_identity = config;
+    no_identity.command.recover.previous_service_identity_file = "";
+    CHECK(
+      logic_error_message(
+        [&]() { resolve_startup_inputs(no_identity, StartType::Recover); }) ==
+      "Recovery requires the certificate of the previous service identity");
+
+    auto no_service_cert = config;
+    no_service_cert.command.service_certificate_file = missing_file;
+    CHECK(
+      logic_error_message(
+        [&]() { resolve_startup_inputs(no_service_cert, StartType::Join); }) ==
+      fmt::format("Could not read service certificate from {}", missing_file));
+
+    auto no_service_data = config;
+    no_service_data.service_data_json_file = missing_file;
+    for (const auto type : {StartType::Start, StartType::Recover})
+    {
+      CHECK(
+        logic_error_message([&]() {
+          resolve_startup_inputs(no_service_data, type);
+        }) == fmt::format("Could not read service data from {}", missing_file));
+    }
+
+    auto no_node_data = config;
+    no_node_data.node_data_json_file = missing_file;
+    for (const auto type :
+         {StartType::Start, StartType::Join, StartType::Recover})
+    {
+      CHECK(
+        logic_error_message([&]() {
+          resolve_startup_inputs(no_node_data, type);
+        }) == fmt::format("Could not read node data from {}", missing_file));
+    }
+  }
 }
 
 TEST_CASE("Self certificate authentication")
@@ -537,7 +885,7 @@ TEST_CASE("Add a node to an open service")
     context.node_id = ccf::compute_node_id_from_kp(self_kp);
 
     CHECK(
-      std::chrono::milliseconds(StartupConfig{}.pending_node_timeout) ==
+      std::chrono::milliseconds(CCFConfig{}.pending_node_timeout) ==
       std::chrono::hours(1));
 
     ccf::crypto::ECKeyPairPtr expired_node_kp = ccf::crypto::make_ec_key_pair();
