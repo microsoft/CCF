@@ -50,6 +50,9 @@ namespace ccf::crypto
         "Cannot construct RSAPublicKey_OpenSSL from non-RSA key");
     }
   }
+  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(Unique_PKEY&& pkey) :
+    RSAPublicKey_OpenSSL(pkey.release())
+  {}
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);

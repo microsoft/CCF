@@ -24,6 +24,7 @@ namespace ccf::crypto
 
   public:
     ECPublicKey_OpenSSL(EVP_PKEY* key);
+    ECPublicKey_OpenSSL(OpenSSL::Unique_PKEY&& pkey);
     ECPublicKey_OpenSSL(const Pem& pem);
     ECPublicKey_OpenSSL(ECPublicKey_OpenSSL&& key) = default;
     ECPublicKey_OpenSSL(std::span<const uint8_t> der);

@@ -3,18 +3,20 @@
 #pragma once
 
 #include "ccf/crypto/cose_verifier.h"
-#include "cose/cose_rs_ffi.h"
 
 #include <chrono>
+#include <variant>
 
 namespace ccf::crypto
 {
+  using CoseKey = std::variant<RSAPublicKeyPtr, ECPublicKeyPtr>;
+
   class COSEVerifier_OpenSSL : public COSEVerifier
   {
   protected:
     CoseKey verify_key;
 
-    explicit COSEVerifier_OpenSSL(CoseKey&& key) : verify_key(std::move(key)) {}
+    explicit COSEVerifier_OpenSSL(CoseKey key) : verify_key(std::move(key)) {}
 
   public:
     ~COSEVerifier_OpenSSL() override;
