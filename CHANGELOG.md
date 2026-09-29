@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf::crypto::make_cose_verifier_from_pem_cert()` and `ccf::crypto::make_cose_verifier_any_cert()` now require PEM certificates to start with `-----BEGIN CERTIFICATE-----`; leading text is no longer skipped (#8459).
 - `ccf::make_net_address()` and `ccf::split_net_address()` are now declared in the new public header `ccf/ds/net_address.h`. `ccf/service/node_info_network.h` still includes it, so existing includers are unaffected (#8463).
 - `ccf::COSESignaturesConfig` and `ccf::ReconfigurationType` are unchanged, but are now declared in the new public headers `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively (#8463).
+- On recovery, the minimum SNP TCB version for the recovering node's CPUID in `public:ccf.gov.nodes.snp.tcb_versions` is now set to the component-wise minimum of the previously stored value and the TCB version reported in the node's startup attestation, so recovery no longer raises a previously set minimum. If no value was stored for that CPUID, the reported TCB version is used, as before. On start, the behaviour is unchanged.
 
 ### Deprecated
 

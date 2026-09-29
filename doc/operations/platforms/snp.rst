@@ -194,6 +194,8 @@ To set the minimum TCB version for a specific CPU model, you can use the followi
 
 The parsed TCB version mapped to that cpuid in the :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` table, which is used to validate the TCB version of joining nodes.
 
+When a service is started, the TCB version reported in the attestation of the first node is set as the minimum for its CPUID. When a service is recovered, the minimum for the CPUID of the recovering node is set to the component-wise minimum of the existing value, if any, and the TCB version reported in that node's attestation, so that recovery never raises a previously set minimum.
+
 .. note::
   `Milan <https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dcasv5-series>`__
   and `Genoa <https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dcasv6-series>`__

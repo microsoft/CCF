@@ -2648,6 +2648,35 @@ def run_initial_tcb_version_checks(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         primary, _ = network.find_primary()
+
+        LOG.info("Fetch current join policy to get the minimum TCB version")
+        with primary.api_versioned_client(api_version=args.gov_api_version) as uc:
+            r = uc.get("/gov/service/join-policy")
+            assert r.status_code == http.HTTPStatus.OK, r
+            tcb_versions = r.body.json()["snp"]["tcbVersions"]
+            assert len(tcb_versions) == 1, tcb_versions
+            cpuid, node_tcb = next(iter(tcb_versions.items()))
+            LOG.info(f"Current minimum TCB version for {cpuid}: {node_tcb}")
+
+        # Lower microcode and raise boot_loader, so that recovery must take the
+        # component-wise minimum of this and the node's TCB version
+        assert node_tcb["microcode"] > 0, node_tcb
+        tcb_before_recovery = {k: v for k, v in node_tcb.items() if k != "hexstring"}
+        tcb_before_recovery["microcode"] -= 1
+        tcb_before_recovery["boot_loader"] += 1
+        LOG.info(f"Proposing minimum TCB version for {cpuid}: {tcb_before_recovery}")
+        network.consortium.set_snp_minimum_tcb_version(
+            primary, cpuid, tcb_before_recovery
+        )
+
+        expected_recovery_tcb = dict(node_tcb)
+        expected_recovery_tcb["microcode"] -= 1
+        # Microcode is the most significant byte of the TCB version on all
+        # supported products
+        expected_recovery_tcb["hexstring"] = (
+            f"{expected_recovery_tcb['microcode']:02x}{node_tcb['hexstring'][2:]}"
+        )
+
         network_service_identity_file, _ = network.save_service_identity_to_file()
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
@@ -2713,6 +2742,10 @@ def run_initial_tcb_version_checks(const_args):
                         LOG.info(
                             f"Recovery TCB_version found in ledger: {tcb_versions}"
                         )
+                        recovery_tcb = json.loads(tcb_versions[cpuid.encode()])
+                        assert (
+                            recovery_tcb == expected_recovery_tcb
+                        ), f"Expected minimum TCB version {expected_recovery_tcb} after recovery, got {recovery_tcb}"
                         return
             assert False, "No TCB_version found in recovery ledger"
 
