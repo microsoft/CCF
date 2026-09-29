@@ -51,6 +51,10 @@ def main (args : List String) : IO UInt32 := do
           IO.eprintln s!"replay failed: {message}"
           return 1
       | .ok result =>
-          IO.println
+          let summary :=
             s!"replayed {result.actions} actions and {result.observations} observations of {reduced.header.participants.length} participants"
+          if let some failure := reduced.scenario then
+            IO.eprintln s!"{summary}, but the scenario failed: {failure}"
+            return 1
+          IO.println summary
           return 0
