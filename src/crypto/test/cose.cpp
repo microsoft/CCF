@@ -429,6 +429,9 @@ TEST_CASE("COSE verifier returns false for malformed messages")
   std::span<uint8_t> authenticated;
   CHECK_FALSE(verifier->verify(malformed, authenticated));
   CHECK_FALSE(verifier->verify_detached(malformed, detached_payload));
+  // COSE_Sign1 [h'', {}, true, h'']: the payload is neither a bstr nor nil
+  const auto bad_payload = ccf::ds::from_hex("d28440a0f540");
+  CHECK_FALSE(verifier->verify(bad_payload, authenticated));
 }
 
 TEST_CASE("Verification and payload invariant")
