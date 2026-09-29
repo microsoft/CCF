@@ -64,6 +64,8 @@ Text and HTML reports include only framework sources under `src/` and `include/`
 
 For a baseline, use a fresh coverage build/profile directory and record the source revision, build options and exact test selection. Targeted tests do not establish a full-suite baseline. Reports predating library instrumentation have a different denominator and are not directly comparable; including previously invisible code can lower the headline percentage.
 
+`coverage.sh` prints two summaries: llvm-cov's own per-function summary (a `TOTAL` row), and a corrected "distinct lines" summary (a `TOTAL-DISTINCT` row, from `scripts/coverage_lines.py`). Treat the distinct-line summary as the headline. llvm-cov's per-function summary merges function template instantiations with `max()` rather than union, so lines (and branches) covered only by _different_ instantiations of the same template never add up even though every line executed; it also counts each lambda's body lines both for the lambda and for its enclosing function, inflating totals for code such as CCF's endpoint handlers, which are lambdas registered inside `init_handlers()`. The distinct-line summary instead counts each physical source line and branch region once, derived from `llvm-cov export -format=lcov`'s per-line `DA:`/`BRDA:` records rather than its own (equally distorted) `LF`/`LH`/`BRF`/`BRH` totals. The HTML report's index still uses the per-function summary; each file's own source view is unaffected, since it already shows every line once.
+
 ## End-to-end test infrastructure
 
 E2e tests use the infrastructure in `tests/infra/`. The key classes are:

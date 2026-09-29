@@ -51,6 +51,7 @@ CHECKS=(
   "Python lint:python-lint-checks.sh"
   "Python types:python-types-checks.sh"
   "CI test buckets:test-buckets-checks.sh"
+  "Coverage line counting:coverage-lines-tests.sh"
 )
 
 declare -A PID_TO_IDX
