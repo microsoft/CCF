@@ -13,14 +13,17 @@ reports and renders Mermaid xychart trend charts, including the current run.
 ``scripts/coverage.sh`` prints two summaries: llvm-cov's own per-function
 summary (a "TOTAL" row, covering both lines and branches), and a corrected
 "distinct lines" summary (a "TOTAL-DISTINCT" row, from
-``scripts/coverage_lines.py``) that counts each physical source line once
-instead of double-counting template instantiations and lambda bodies. There
-is deliberately no distinct-branch metric (see ``coverage_lines.py`` for why
-counting branch records the same way over-counts them for macro- and
-template-heavy code). This script therefore takes line coverage from
-"TOTAL-DISTINCT" when present, falling back to the legacy "TOTAL" row for
-logs from before this distinction existed, tagging each point with which
-metric it used so the trend can show the one-off step rather than silently
+``scripts/coverage_lines.py``) that counts each physical source line once,
+fixing two distinct per-function line distortions: template instantiations
+are merged with max() rather than union, under-counting lines only covered
+by other instantiations, and lambda bodies are double-counted against their
+enclosing function. There is deliberately no distinct-branch metric (see
+``coverage_lines.py`` for why counting branch records the same way
+over-counts them for macro- and template-heavy code). This script therefore
+takes line coverage from "TOTAL-DISTINCT" when present, falling back to the
+legacy "TOTAL" row for logs from before this distinction existed, tagging
+each point with which metric it used so the trend can show that the metric
+changed (and the two are not directly comparable) rather than silently
 mixing the two; branch coverage always comes from the "TOTAL" row.
 """
 
@@ -66,11 +69,12 @@ _BRANCH_COVERAGE_COLOR = "#0000ff"
 
 # Coverage metric a point's LINE coverage was computed with. "distinct"
 # counts each physical source line once (scripts/coverage_lines.py);
-# "legacy" is llvm-cov's own per-function summary, which double-counts lines
-# shared by template instantiations and lines inside lambdas. Logs from
-# before the distinct-line summary existed only have the legacy metric.
-# Branch coverage always uses llvm-cov's own per-function summary, regardless
-# of this tag.
+# "legacy" is llvm-cov's own per-function summary, which under-counts lines
+# only covered by other template instantiations (max()-merged rather than
+# unioned) and double-counts lines inside lambdas against their enclosing
+# function. Logs from before the distinct-line summary existed only have the
+# legacy metric. Branch coverage always uses llvm-cov's own per-function
+# summary, regardless of this tag.
 METRIC_DISTINCT = "distinct"
 METRIC_LEGACY = "legacy"
 
@@ -226,11 +230,13 @@ def render_trend(points: List[CoveragePoint]) -> str:
         lines += [
             "> [!NOTE]",
             "> Runs marked `*` below used llvm-cov's older per-function summary "
-            "metric, which double-counts lines shared by multiple template "
-            "instantiations and lines inside lambdas. Later runs use a "
-            "corrected distinct-line count (see `scripts/coverage_lines.py`). "
-            "The step between the two is a one-off change in how coverage is "
-            "measured, not a real change in tested code.",
+            "metric, which under-counts lines only covered by other template "
+            "instantiations (merged with max() rather than union) and "
+            "double-counts lines inside lambdas against their enclosing "
+            "function. Later runs use a corrected distinct-line count (see "
+            "`scripts/coverage_lines.py`). The step between the two reflects "
+            "a change in how coverage is measured, not only in what is "
+            "tested, so the two metrics are not directly comparable.",
             "",
         ]
     lines += _render_chart(
