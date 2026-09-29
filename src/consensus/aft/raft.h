@@ -414,7 +414,7 @@ namespace aft
 
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       state->current_view += starting_view_change;
-      become_leader(true);
+      become_leader();
     }
 
     void force_become_primary(
@@ -438,7 +438,7 @@ namespace aft
       state->view_history.initialise(terms);
       state->view_history.update(index, term);
       state->current_view += starting_view_change;
-      become_leader(true);
+      become_leader();
     }
 
     void init_as_backup(
@@ -2194,7 +2194,7 @@ namespace aft
       }
     }
 
-    void become_leader(bool /*force_become_leader*/ = false)
+    void become_leader()
     {
       if (is_retired_committed())
       {
