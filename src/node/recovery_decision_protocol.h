@@ -4,6 +4,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/locking.h"
+#include "ccf/kv/version.h"
 #include "ccf/node/configuration.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
@@ -47,6 +48,8 @@ namespace ccf::recovery_decision_protocol
     StateMachine pre_timeout = StateMachine::GOSSIPING;
     StateMachine post = StateMachine::GOSSIPING;
     StateMachine post_timeout = StateMachine::GOSSIPING;
+    std::optional<ccf::kv::Version> pre_version = std::nullopt;
+    std::optional<ccf::kv::Version> pre_timeout_version = std::nullopt;
     std::optional<std::map<sealing_recovery::Name, ccf::TxID>> gossips =
       std::nullopt;
     std::optional<std::set<sealing_recovery::Name>> votes = std::nullopt;
@@ -58,7 +61,14 @@ namespace ccf::recovery_decision_protocol
   DECLARE_JSON_REQUIRED_FIELDS(
     AdvanceTrace, pre, pre_timeout, post, post_timeout);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    AdvanceTrace, gossips, votes, chosen, open_kind, restart);
+    AdvanceTrace,
+    pre_version,
+    pre_timeout_version,
+    gossips,
+    votes,
+    chosen,
+    open_kind,
+    restart);
 }
 
 namespace ccf
