@@ -31,7 +31,15 @@ namespace aft
 
     virtual ~LedgerStubProxy() = default;
 
-    virtual void init(Index, Index) {}
+    virtual void init(Index idx, Index /* recovery_start_idx */)
+    {
+      ccf::ds::MutexGuard lock(ledger_access);
+
+      // Entries up to idx were recovered from a snapshot, so are not held
+      // here. Pad with empty entries so that later entries are stored at their
+      // (1-based) index, as put_entry() expects.
+      ledger.resize(idx);
+    }
 
     virtual void put_entry(
       const std::vector<uint8_t>& original,
@@ -75,7 +83,32 @@ namespace aft
 
     static std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
-      const auto entry_size = serialized::read<size_t>(data, size);
+      // Mirror the bounds-checking done by the real ledger
+      // (consensus::LedgerEnclave::get_entry_size): malformed or truncated
+      // entries must produce a std::logic_error, rather than reading out of
+      // bounds, so that callers can distinguish this from a transport-level
+      // truncation (serialized::InsufficientSpaceException).
+      if (size < sizeof(size_t))
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot read ledger entry size: buffer contains {} bytes, but {} "
+          "are required",
+          size,
+          sizeof(size_t)));
+      }
+
+      const auto entry_size = serialized::peek<size_t>(data, size);
+      const auto available_size = size - sizeof(size_t);
+      if (entry_size > available_size)
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot read ledger entry of size {} bytes from buffer containing "
+          "{} bytes after the size prefix",
+          entry_size,
+          available_size));
+      }
+
+      serialized::skip(data, size, sizeof(size_t));
       std::vector<uint8_t> entry(data, data + entry_size);
       serialized::skip(data, size, entry_size);
       return entry;
@@ -152,6 +185,14 @@ namespace aft
     MessageList messages;
     std::map<ccf::NodeId, std::pair<std::string, std::string>> node_addresses;
 
+    // When set, send_authenticated() reports failure (as NodeToNode permits)
+    // and the message is not captured.
+    bool fail_sends = false;
+
+    // When set, recv_authenticated() reports that a message failed
+    // authentication, as a real channel does for a message it cannot verify.
+    bool fail_recv_authentication = false;
+
     ChannelStubProxy() {}
 
     size_t count_messages_with_type(RaftMsgType type)
@@ -216,6 +257,11 @@ namespace aft
       const uint8_t* data,
       size_t size) override
     {
+      if (fail_sends)
+      {
+        return false;
+      }
+
       std::vector<uint8_t> m(data, data + size);
       messages.emplace_back(to, std::move(m));
       return true;
@@ -227,7 +273,7 @@ namespace aft
       const uint8_t*& data,
       size_t& size) override
     {
-      return true;
+      return !fail_recv_authentication;
     }
 
     bool recv_channel_message(

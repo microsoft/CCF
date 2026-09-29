@@ -23,8 +23,8 @@
   ],
   "allowed_internal_dependencies": {
     "apps": ["ccf-api", "js"],
-    "cose": [],
-    "crypto": ["cose", "ds"],
+    "common": ["crypto", "ds", "service"],
+    "crypto": ["ds"],
     "ds": [],
     "msgpack": [],
     "pal": ["crypto", "ds"],

@@ -56,13 +56,11 @@ namespace ringbuffer
   private:
     AbstractWriterFactory& factory_impl;
 
-    ccf::ds::WorkBeaconPtr outbound_work_beacon;
     ccf::ds::WorkBeaconPtr inbound_work_beacon;
 
   public:
     NotifyingWriterFactory(AbstractWriterFactory& impl) :
       factory_impl(impl),
-      outbound_work_beacon(std::make_shared<ccf::ds::WorkBeacon>()),
       inbound_work_beacon(std::make_shared<ccf::ds::WorkBeacon>())
     {}
 
@@ -71,22 +69,17 @@ namespace ringbuffer
       return inbound_work_beacon;
     }
 
-    std::shared_ptr<NotifyingWriter> create_notifying_writer_to_outside()
-    {
-      return std::make_shared<NotifyingWriter>(
-        factory_impl.create_writer_to_outside(), outbound_work_beacon);
-    }
-
     std::shared_ptr<NotifyingWriter> create_notifying_writer_to_inside()
     {
       return std::make_shared<NotifyingWriter>(
         factory_impl.create_writer_to_inside(), inbound_work_beacon);
     }
 
+    // Nothing waits for outbound work, so outbound writers are not wrapped
     std::shared_ptr<ringbuffer::AbstractWriter> create_writer_to_outside()
       override
     {
-      return create_notifying_writer_to_outside();
+      return factory_impl.create_writer_to_outside();
     }
 
     std::shared_ptr<ringbuffer::AbstractWriter> create_writer_to_inside()

@@ -8,8 +8,6 @@
 #include "ccf/node/ledger_sign_mode.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
-#include "common/configuration.h"
-#include "cose/cose_rs_ffi.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/hash.h"
@@ -81,155 +79,6 @@ namespace ccf
   {
     LOG_TRACE_FMT("History [{}] {}", flag, h);
   }
-
-  class NullTxHistoryPendingTx : public ccf::kv::PendingTx
-  {
-    ccf::TxID txid;
-    ccf::kv::Store& store;
-    NodeId id;
-
-  public:
-    NullTxHistoryPendingTx(
-      ccf::TxID txid_, ccf::kv::Store& store_, NodeId id_) :
-      txid(txid_),
-      store(store_),
-      id(std::move(id_))
-    {}
-
-    ccf::kv::PendingTxInfo call() override
-    {
-      auto sig = store.create_reserved_tx(txid);
-      auto* signatures =
-        sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto* cose_signatures =
-        sig.template wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
-
-      auto* serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
-        ccf::Tables::SERIALISED_MERKLE_TREE);
-      PrimarySignature sig_value(id, txid.seqno);
-      signatures->put(sig_value);
-      cose_signatures->put(ccf::IdentityType::CLASSICAL, ccf::CoseSignature{});
-      serialised_tree->put({});
-      return sig.commit_reserved();
-    }
-  };
-
-  class NullTxHistory : public ccf::kv::TxHistory
-  {
-    ccf::kv::Store& store;
-    NodeId id;
-
-  protected:
-    ccf::kv::Version version = 0;
-    ccf::kv::Term term_of_last_version = 0;
-    ccf::kv::Term term_of_next_version = 0;
-
-  public:
-    NullTxHistory(
-      ccf::kv::Store& store_, NodeId id_, ccf::crypto::ECKeyPair& /*unused*/) :
-      store(store_),
-      id(std::move(id_))
-    {}
-
-    void append(const std::vector<uint8_t>& /*data*/) override
-    {
-      version++;
-    }
-
-    void append_entry(
-      const ccf::crypto::Sha256Hash& /*digest*/,
-      std::optional<ccf::kv::Term> /*term_of_next_version_*/ =
-        std::nullopt) override
-    {
-      version++;
-    }
-
-    bool verify_root_signatures(ccf::kv::Version /*v*/) override
-    {
-      return true;
-    }
-
-    void set_term(ccf::kv::Term t) override
-    {
-      term_of_last_version = t;
-      term_of_next_version = t;
-    }
-
-    void rollback(const ccf::TxID& tx_id, ccf::kv::Term commit_term_) override
-    {
-      version = tx_id.seqno;
-      term_of_last_version = tx_id.view;
-      term_of_next_version = commit_term_;
-    }
-
-    void compact(ccf::kv::Version /*v*/) override {}
-
-    bool init_from_snapshot(
-      const std::vector<uint8_t>& /*hash_at_snapshot*/) override
-    {
-      return true;
-    }
-
-    std::vector<uint8_t> get_raw_leaf(uint64_t /*index*/) override
-    {
-      return {};
-    }
-
-    void emit_signature() override
-    {
-      auto txid = store.next_txid();
-      LOG_DEBUG_FMT("Issuing signature at {}.{}", txid.view, txid.seqno);
-      store.commit(
-        txid, std::make_unique<NullTxHistoryPendingTx>(txid, store, id), true);
-    }
-
-    void try_emit_signature() override {}
-
-    void start_signature_emit_timer() override {}
-
-    void set_service_signing_identity(
-      std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp_,
-      const ccf::COSESignaturesConfig& /*cose_signatures*/) override
-    {
-      std::ignore = service_kp_;
-    }
-
-    const ccf::COSESignaturesConfig& get_cose_signatures_config() override
-    {
-      throw std::logic_error("Unimplemented");
-    }
-
-    ccf::crypto::Sha256Hash get_replicated_state_root() override
-    {
-      return ccf::crypto::Sha256Hash(std::to_string(version));
-    }
-
-    std::tuple<ccf::TxID, ccf::crypto::Sha256Hash, ccf::kv::Term>
-    get_replicated_state_txid_and_root() override
-    {
-      return {
-        {term_of_last_version, version},
-        ccf::crypto::Sha256Hash(std::to_string(version)),
-        term_of_next_version};
-    }
-
-    std::vector<uint8_t> get_proof(ccf::kv::Version /*v*/) override
-    {
-      return {};
-    }
-
-    bool verify_proof(const std::vector<uint8_t>& /*proof*/) override
-    {
-      return true;
-    }
-
-    std::vector<uint8_t> serialise_tree(size_t /*to*/) override
-    {
-      return {};
-    }
-
-    void set_endorsed_certificate(const ccf::crypto::Pem& cert) override {}
-  };
 
   // Use optimised CCF openssl_sha256 function to avoid performance regression
   // on OpenSSL 3.x
@@ -319,7 +168,6 @@ namespace ccf
     std::shared_ptr<const ccf::crypto::Pem> endorsed_cert;
     const ccf::COSESignaturesConfig& cose_signatures_config;
     const ccf::LedgerSignMode ledger_sign_mode;
-    std::unordered_map<std::string, CoseKey>& cose_key_cache;
 
   public:
     MerkleTreeHistoryPendingTx(
@@ -331,8 +179,7 @@ namespace ccf
       ccf::crypto::ECKeyPair_OpenSSL& service_kp_,
       std::shared_ptr<const ccf::crypto::Pem> endorsed_cert_,
       const ccf::COSESignaturesConfig& cose_signatures_config_,
-      ccf::LedgerSignMode ledger_sign_mode_,
-      std::unordered_map<std::string, CoseKey>& cose_key_cache_) :
+      ccf::LedgerSignMode ledger_sign_mode_) :
       txid(txid_),
       store(store_),
       history(history_),
@@ -341,8 +188,7 @@ namespace ccf
       service_kp(service_kp_),
       endorsed_cert(std::move(endorsed_cert_)),
       cose_signatures_config(cose_signatures_config_),
-      ledger_sign_mode(ledger_sign_mode_),
-      cose_key_cache(cose_key_cache_)
+      ledger_sign_mode(ledger_sign_mode_)
     {}
 
     ccf::kv::PendingTxInfo call() override
@@ -383,47 +229,14 @@ namespace ccf
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
-      auto it = cose_key_cache.find(kid);
-      if (it == cose_key_cache.end())
-      {
-        auto key_der = service_kp.private_key_der();
-        CoseBuffer key_err;
-        auto cose_key =
-          CoseKey::from_private(key_der.data(), key_der.size(), key_err);
-        if (!cose_key.is_set())
-        {
-          throw std::runtime_error(fmt::format(
-            "cose_key_from_der_private failed: {}",
-            key_err.is_set() ? key_err.to_string() : "unknown error"));
-        }
-        auto [inserted, _] = cose_key_cache.emplace(kid, std::move(cose_key));
-        it = inserted;
-      }
-
-      CoseBuffer cose_buf;
-      CoseBuffer cose_err;
-      auto rc = cose_sign_ledger(
-        it->second,
-        reinterpret_cast<const uint8_t*>(kid.data()),
-        kid.size(),
+      auto cose_sign = cose::sign_ledger(
+        service_kp,
+        kid,
         time_since_epoch,
-        reinterpret_cast<const uint8_t*>(cose_signatures_config.issuer.data()),
-        cose_signatures_config.issuer.size(),
-        reinterpret_cast<const uint8_t*>(cose_signatures_config.subject.data()),
-        cose_signatures_config.subject.size(),
-        reinterpret_cast<const uint8_t*>(tx_id.data()),
-        tx_id.size(),
-        root_hash.data(),
-        root_hash.size(),
-        cose_buf,
-        cose_err);
-      if (rc != 0 || !cose_buf.is_set())
-      {
-        throw std::runtime_error(fmt::format(
-          "cose_sign_ledger failed: {}",
-          cose_err.is_set() ? cose_err.to_string() : "unknown error"));
-      }
-      std::vector<uint8_t> cose_sign(cose_buf.to_vector());
+        cose_signatures_config.issuer,
+        cose_signatures_config.subject,
+        tx_id,
+        root_hash);
 
       cose_signatures->put(ccf::IdentityType::CLASSICAL, cose_sign);
 
@@ -591,8 +404,6 @@ namespace ccf
     };
 
     std::optional<ServiceSigningIdentity> signing_identity = std::nullopt;
-
-    std::unordered_map<std::string, CoseKey> cose_key_cache;
 
   public:
     HashedTxHistory(
@@ -965,8 +776,7 @@ namespace ccf
           *signing_identity->service_kp,
           std::move(endorsed_cert_),
           signing_identity->cose_signatures_config,
-          signing_identity->ledger_sign_mode,
-          cose_key_cache),
+          signing_identity->ledger_sign_mode),
         true);
     }
 
