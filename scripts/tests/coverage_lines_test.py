@@ -5,11 +5,16 @@
 """Unit tests for scripts/coverage_lines.py and the distinct-line handling in
 scripts/coverage_summary.py.
 
-Covers the two llvm-cov distortions that motivate the distinct-line count:
-function template instantiations merged with max() rather than union, and
-lines inside lambdas counted once for the lambda and again for the enclosing
-function. Synthetic LCOV inputs below reproduce both, based on real
-'llvm-cov export -format=lcov' output observed for equivalent C++ sources.
+Covers the two llvm-cov line-count distortions that motivate the
+distinct-line count: function template instantiations merged with max()
+rather than union, and lines inside lambdas counted once for the lambda and
+again for the enclosing function. Also covers macro line semantics (a
+macro's definition line gets one aggregate DA: record on top of one per
+expansion site), and confirms that the same "count each record once"
+approach must NOT be applied to branches, because BRDA: records (unlike
+DA:) are not deduplicated the same way across macro/template expansions.
+Synthetic LCOV inputs below are based on real 'llvm-cov export -format=lcov'
+output observed for equivalent C++ sources compiled with clang 21.1.8.
 """
 
 import importlib.util
@@ -39,7 +44,7 @@ coverage_summary = _load("coverage_summary", "coverage_summary.py")
 # per-function summary merges the two instantiations with max(), reporting
 # only 16 of 21 lines hit even though every line is covered by some
 # instantiation, and only 1 of 2 branches hit even though both were taken.
-# The DA/BRDA records themselves are correctly unioned (no DA with count 0),
+# The DA records themselves are correctly unioned (no DA with count 0),
 # matching real 'llvm-cov export -format=lcov' output for this case.
 TEMPLATE_LCOV = """\
 SF:/src/template.cpp
@@ -118,6 +123,51 @@ LH:20
 end_of_record
 """
 
+# Reproduces a two-line branching macro (LOG_DEBUG(x), lines 3-7, with a
+# never-taken 'if (level <= 0)' body at lines 6-7) invoked twice (lines 9 and
+# 10) inside g(), never taken since level is statically 1. This is real
+# 'llvm-cov export -format=lcov' output for:
+#   #define LOG_DEBUG(x) if (level <= 0) { std::printf("%d\\n", x); }
+#   int g(int x) { LOG_DEBUG(1); LOG_DEBUG(2); return x; }
+#
+# llvm-cov report correctly says 4 branches, 2 missed (2 expansions x 2
+# outcomes each). Counting BRDA: records directly (as this module does for
+# DA:) would instead give 6 branches, 3 missed: the macro definition line
+# (4) gets its own aggregate BRDA: record on top of the two per-expansion
+# BRDA: records at lines 9 and 10, all describing the same two branches.
+# scripts/coverage_lines.py therefore does not recompute branch coverage at
+# all; only the DA:/line-count behaviour is exercised by this fixture here.
+MACRO_LCOV = """\
+SF:/src/macro.cpp
+FN:8,_Z1gi
+FN:13,main
+FNDA:1,_Z1gi
+FNDA:1,main
+FNF:2
+FNH:2
+DA:4,2
+DA:5,2
+DA:6,0
+DA:7,0
+DA:8,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:12,1
+DA:13,1
+BRDA:4,0,0,0
+BRDA:4,0,1,2
+BRDA:9,0,0,0
+BRDA:9,0,1,1
+BRDA:10,0,0,0
+BRDA:10,0,1,1
+BRF:4
+BRH:2
+LF:6
+LH:6
+end_of_record
+"""
+
 
 class ParseLcovTests(unittest.TestCase):
     def test_template_instantiations_are_unioned_not_maxed(self):
@@ -126,9 +176,8 @@ class ParseLcovTests(unittest.TestCase):
         # All 21 DA records are hit; llvm-cov's own summary says only 16.
         self.assertEqual(cov.lines_found, 21)
         self.assertEqual(cov.lines_hit, 21)
-        # Both branch records are hit; llvm-cov's own summary says only 1.
-        self.assertEqual(cov.branches_found, 2)
-        self.assertEqual(cov.branches_hit, 2)
+        # coverage_lines.py deliberately does not compute branch coverage.
+        self.assertNotIn("branches_found", cov._fields)
 
     def test_lambda_lines_are_not_double_counted(self):
         files = coverage_lines.parse_lcov(LAMBDA_LCOV)
@@ -137,25 +186,31 @@ class ParseLcovTests(unittest.TestCase):
         self.assertEqual(cov.lines_found, 14)
         self.assertEqual(cov.lines_hit, 14)
 
-    def test_partially_covered_branch(self):
-        text = (
-            "SF:/src/partial.cpp\n"
-            "DA:1,1\n"
-            "DA:2,0\n"
-            "BRDA:1,0,0,1\n"
-            "BRDA:1,0,1,-\n"
-            "BRDA:1,0,2,0\n"
-            "LF:2\n"
-            "LH:1\n"
-            "end_of_record\n"
-        )
+    def test_macro_definition_line_counted_once_and_separately_from_expansions(self):
+        files = coverage_lines.parse_lcov(MACRO_LCOV)
+        cov = files["/src/macro.cpp"]
+        # 10 distinct physical lines (4-13), matching llvm-cov show's source
+        # view. This differs from llvm-cov's own LF:6/LH:6, because it
+        # additionally counts the macro definition's never-taken body (lines
+        # 6-7) as uncovered lines, on top of (not merged with) the two call
+        # sites at lines 9 and 10.
+        self.assertEqual(cov.lines_found, 10)
+        self.assertEqual(cov.lines_hit, 8)
+        # The definition (4-7) and the two expansion sites (9, 10) are
+        # different physical lines, so none of them double-count each other:
+        # 10 DA: records for 10 distinct line numbers.
+        da_lines = [
+            int(line[len("DA:") :].split(",")[0])
+            for line in MACRO_LCOV.splitlines()
+            if line.startswith("DA:")
+        ]
+        self.assertEqual(len(da_lines), len(set(da_lines)))
+
+    def test_partially_covered_line(self):
+        text = "SF:/src/partial.cpp\nDA:1,1\nDA:2,0\nLF:2\nLH:1\nend_of_record\n"
         files = coverage_lines.parse_lcov(text)
         cov = files["/src/partial.cpp"]
         self.assertEqual((cov.lines_found, cov.lines_hit), (2, 1))
-        # Only the branch with a positive count is hit; '-' means the
-        # containing line never executed, and 0 means it executed but this
-        # branch outcome was not taken.
-        self.assertEqual((cov.branches_found, cov.branches_hit), (3, 1))
 
     def test_multiple_files_and_aggregate(self):
         files = coverage_lines.parse_lcov(TEMPLATE_LCOV + LAMBDA_LCOV)
@@ -163,8 +218,6 @@ class ParseLcovTests(unittest.TestCase):
         total = coverage_lines.aggregate(files)
         self.assertEqual(total.lines_found, 21 + 14)
         self.assertEqual(total.lines_hit, 21 + 14)
-        self.assertEqual(total.branches_found, 2)
-        self.assertEqual(total.branches_hit, 2)
 
     def test_empty_input_yields_no_files(self):
         self.assertEqual(coverage_lines.parse_lcov(""), {})
@@ -185,25 +238,27 @@ class RenderReportTests(unittest.TestCase):
         self.assertIn("21", distinct_line)
         self.assertIn("100.00%", distinct_line)
 
-    def test_zero_branches_render_as_dash(self):
-        files = coverage_lines.parse_lcov(LAMBDA_LCOV)
+    def test_no_branch_column(self):
+        files = coverage_lines.parse_lcov(MACRO_LCOV)
         total = coverage_lines.aggregate(files)
         report = coverage_lines.render_report(files, total)
-        self.assertIn("-", report)
+        self.assertNotIn("Branch", report)
 
 
 class ExtractCoverageMetricTests(unittest.TestCase):
-    def test_prefers_total_distinct_over_legacy_total(self):
+    def test_prefers_distinct_lines_but_branches_always_come_from_total(self):
         text = (
             "=== Coverage Summary (llvm-cov per-function summary) ===\n"
             "TOTAL 100 20 80.00% 50 10 80.00% 200 40 80.00% 20 5 75.00%\n"
             "=== Coverage Summary (distinct lines) ===\n"
-            "TOTAL-DISTINCT 190 30 84.21% 20 5 75.00%\n"
+            "TOTAL-DISTINCT 190 30 84.21%\n"
         )
         result = coverage_summary.extract_coverage(text)
         self.assertIsNotNone(result)
         line_coverage, branch_coverage, metric = result
         self.assertEqual(line_coverage, 84.21)
+        # Branch coverage is not recomputed: it always comes from llvm-cov's
+        # own TOTAL row, even though line coverage used TOTAL-DISTINCT.
         self.assertEqual(branch_coverage, 75.0)
         self.assertEqual(metric, coverage_summary.METRIC_DISTINCT)
 
