@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/reconfiguration_type.h"
 #include "ccf/service/consensus_type.h"
-#include "ccf/service/reconfiguration_type.h"
 #include "ccf/service/service_config.h"
 
 namespace ccf

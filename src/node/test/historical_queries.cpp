@@ -16,7 +16,7 @@
 #include "crypto/test/cbor_printer.h"
 #include "ds/messaging.h"
 #include "ds/test/stub_writer.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
 #include "node/share_manager.h"

@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Resolved node data is now available to applications as `ccf::NodeConfigurationState::node_data`, alongside `node_config` (#8309).
 - A node joining a service no longer reads `service_data_json_file`, which is only used when starting or recovering a service. Previously a missing file failed a joining node at startup; it now starts and logs that the setting is ignored (#8309).
 - `ccf::crypto::make_cose_verifier_from_pem_cert()` and `ccf::crypto::make_cose_verifier_any_cert()` now require PEM certificates to start with `-----BEGIN CERTIFICATE-----`; leading text is no longer skipped (#8459).
+- `ccf::make_net_address()` and `ccf::split_net_address()` are now declared in the new public header `ccf/ds/net_address.h`. `ccf/service/node_info_network.h` still includes it, so existing includers are unaffected (#8463).
+- `ccf::COSESignaturesConfig` and `ccf::ReconfigurationType` are unchanged, but are now declared in the new public headers `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively (#8463).
+
+### Deprecated
+
+- The public headers `ccf/node/cose_signatures_config.h` and `ccf/service/reconfiguration_type.h` are deprecated, and will be removed in 8.0. They are kept for source compatibility only, include `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively, and emit a compiler warning when included. Applications should include the new headers instead (#8463).
 
 ### Removed
 
