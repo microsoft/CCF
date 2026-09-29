@@ -117,6 +117,12 @@ jobs:
         run: |
           set -exo pipefail
           cd build
+          snp_clang=$(cat coverage_snp_genoa.clang-version)
+          local_clang=$(clang++ -dumpversion)
+          if [[ "${snp_clang}" != "${local_clang}" ]]; then
+            echo "::error::SNP Genoa coverage was built with clang ${snp_clang} rather than ${local_clang}, so it cannot be merged"
+            exit 1
+          fi
           ../scripts/coverage.sh --html coverage_html \
             --add-profile coverage_snp_genoa.profdata | tee coverage_report.txt
         shell: bash
@@ -234,13 +240,18 @@ jobs:
           set -ex
           cd build
           ../scripts/coverage.sh --merge-only -o coverage_snp_genoa.profdata
+          # Checked by Coverage Virtual, since profiles only match binaries built
+          # by the same compiler
+          clang++ -dumpversion > coverage_snp_genoa.clang-version
         shell: bash
 
       - name: "Upload coverage data"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-snp-genoa-profdata
-          path: build/coverage_snp_genoa.profdata
+          path: |
+            build/coverage_snp_genoa.profdata
+            build/coverage_snp_genoa.clang-version
           if-no-files-found: error
 
       - name: "Capture dmesg"
