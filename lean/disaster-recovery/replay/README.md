@@ -66,7 +66,7 @@ order explains, which fail. The replay checks everything else.
 | `participation` | A node's first `committed` record is for Gossiping, and its version is the initial version of both `sm_state` and `timeout_sm_state`                                                     |
 | `rolled-back`   | Of the executions with one `caused_by`, only the last can have committed; the others are not replayed                                                                                    |
 | `segment`       | The version pairs that executions read, `(pre_version, pre_timeout_version)`, form one chain from the initial pair, in which each pair writes one or both keys at a new version          |
-| `writer`        | Exactly one final execution that read a pair writes the keys that change at the next pair, and is replayed after the pair's other executions; other executions that write did not commit |
+| `writer`        | One final execution that read a pair, up to identical copies, writes the keys changing at the next pair, and is replayed after the pair's other executions; other writers did not commit |
 | `set-chain`     | In Gossiping and Voting, executions follow the insert of the gossips or votes they read; an insert whose set is not on the committed chain did not commit                                |
 | `retry`         | A retry runs where the `sm_state` version it read is first read                                                                                                                          |
 | `scenario`      | Each participant ends Opening or Open with the expected open kind, or Joining after a restart request, and one opens                                                                     |
@@ -110,16 +110,26 @@ how many actions and observations replayed.
   set has a higher sequence than the insert that wrote it. Walking back from
   the set the writer read, the lowest-sequence insert that recorded each set
   therefore added its last location. A final insert off that chain conflicted
-  with the writer, and its retry was rejected. A reader off it read no
+  with the writer, and its re-execution was rejected. A reader off it read no
   committed state, so the trace fails.
 - A retry reads one snapshot, and its messages depend only on the phase and
   chosen node, which are written together. A receive of its messages reads a
   later snapshot, so running the retry where its version is first read puts it
   before them.
 
-The reduction does not choose between candidates: several writers of one pair,
-several largest sets when the writer read none, a retry from a version that no
-execution read, or pairs that no single write links, fail.
+The reduction does not choose between candidates. Identical copies of a writer,
+with the same action and recorded fields, are the exception: they are
+concurrent executions of the same message, or of timeout requests that found
+the same state. The model replays any of them alike, since it delivers any
+queued copy of an envelope, so the lowest sequence is replayed. Otherwise
+several different writers of one pair, several largest sets when the writer
+read none, a retry from a version that no execution read or wrote, or pairs
+that no single write links, fail. Different writers can still write the same
+keys from one pair when the loser's re-execution is rejected rather than
+traced. For example, in Gossiping an IAmOpen and a gossip that completes the
+gossips both read one pair, and if the IAmOpen commits, the gossip's
+re-execution finds a chosen node and fails before `advance()`. Such traces fail
+as invalid, or as incomplete when no later record shows the next versions.
 
 A successful replay shows that one model execution explains every replayed
 record: each action is enabled, and each observation matches. It does not

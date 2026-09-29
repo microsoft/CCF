@@ -84,12 +84,10 @@ lowest-sequence insert that recorded a state added its last element.
 private def chain (base : List Location) (inserts : Array (Location × List Location))
     : List Location → Nat → Option (List (List Location))
   | last, 0 => if last == base then some [last] else none
-  | last, fuel + 1 =>
-      if last == base then
-        some [last]
-      else do
-        let (source, _) ← inserts.find? (·.2 == last)
-        return (← chain base inserts (last.erase source) fuel) ++ [last]
+  | last, fuel + 1 => do
+      if last == base then return [last]
+      let (source, _) ← inserts.find? (·.2 == last)
+      return (← chain base inserts (last.erase source) fuel) ++ [last]
 
 /-- One node's items in commit order, and the phase and open kind it ends in. -/
 private def reduceNode (node : Location) (records : Array TraceEvent)
@@ -145,10 +143,12 @@ private def reduceNode (node : Location) (records : Array TraceEvent)
           | none => later.isEmpty || (writes e x).1
     let witnessed := next.isSome || !later.isEmpty
     let writer := matching[0]?
-    unless matching.size <= 1 && (writer.isSome || !witnessed) do
+    -- Writers with the same action and recorded fields replay alike, so they are one.
+    let distinct := (matching.toList.map (·.1.execution?)).eraseDups.length
+    unless distinct == 1 || (distinct == 0 && !witnessed) do
       throw
         ((if witnessed then Failure.invalid else .incomplete)
-          s!"node {node}: {matching.size} final executions that read {(pre, preTimeout)} match the next versions")
+          s!"node {node}: {distinct} different final executions that read {(pre, preTimeout)} could have written the next versions")
     -- set-chain: readers of the gossips or votes follow the insert of the state they read.
     let mut placed := others
     if let some

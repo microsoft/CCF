@@ -98,7 +98,7 @@ structure Execution where
   chosen : Option Location
   openKind : Option OpenKind
   restart : Bool
-deriving Inhabited
+deriving Inhabited, BEq
 
 inductive Body where
   | committed (post : Phase) (version : Nat)
