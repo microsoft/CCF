@@ -19,26 +19,6 @@ namespace ccf::crypto
 {
   using namespace OpenSSL;
 
-  MDType Verifier_OpenSSL::get_md_type(int mdt)
-  {
-    switch (mdt)
-    {
-      case NID_undef:
-        return MDType::NONE;
-      case NID_sha1:
-        return MDType::SHA1;
-      case NID_sha256:
-        return MDType::SHA256;
-      case NID_sha384:
-        return MDType::SHA384;
-      case NID_sha512:
-        return MDType::SHA512;
-      default:
-        return MDType::NONE;
-    }
-    return MDType::NONE;
-  }
-
   Verifier_OpenSSL::Verifier_OpenSSL(const std::vector<uint8_t>& c)
   {
     Unique_BIO certbio(c);
@@ -220,9 +200,9 @@ namespace ccf::crypto
   {
     auto [from, to] = validity_period();
     auto tp_to = ccf::ds::time_point_from_string(to);
-    return std::chrono::duration_cast<std::chrono::seconds>(tp_to - now)
-             .count() +
-      1;
+    const auto remaining =
+      std::chrono::duration_cast<std::chrono::seconds>(tp_to - now).count() + 1;
+    return remaining > 0 ? static_cast<size_t>(remaining) : 0;
   }
 
   double Verifier_OpenSSL::remaining_percentage(
