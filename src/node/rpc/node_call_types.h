@@ -2,12 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/cose_signatures_config.h"
 #include "ccf/ds/json_schema.h"
-#include "ccf/node/cose_signatures_config.h"
 #include "ccf/node/ledger_sign_mode.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/service/local_sealing.h"
 #include "ccf/service/node_info_network.h"
+#include "ccf/service/service_config.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"

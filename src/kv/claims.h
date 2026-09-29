@@ -3,16 +3,20 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
-#include "ds/internal_logger.h"
+#include "ccf/crypto/sha256_hash.h"
+
+#include <cstdint>
+#include <optional>
+#include <vector>
 
 namespace ccf
 {
-  static ClaimsDigest no_claims()
+  inline ClaimsDigest no_claims()
   {
     return {};
   }
 
-  static ccf::crypto::Sha256Hash entry_leaf(
+  inline ccf::crypto::Sha256Hash entry_leaf(
     const std::vector<uint8_t>& write_set,
     const std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest,
     const ClaimsDigest& claims_digest)

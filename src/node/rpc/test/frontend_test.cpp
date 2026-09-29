@@ -12,7 +12,7 @@
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "frontend_test_infra.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/internal_tables_access.h"
 #include "node/network_state.h"

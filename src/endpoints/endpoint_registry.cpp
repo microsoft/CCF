@@ -9,7 +9,6 @@
 #include "ds/nonstd.h"
 #include "endpoint_utils.h"
 #include "http/http_parser.h"
-#include "node/rpc/claims.h"
 #include "node/rpc_context_impl.h"
 #include "node/signature_cache_interface.h"
 #include "node/tx_receipt_impl.h"

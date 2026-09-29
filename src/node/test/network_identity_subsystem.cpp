@@ -6,7 +6,7 @@
 #include "ccf/ds/locking.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/network_identity_accessors_impl.h"

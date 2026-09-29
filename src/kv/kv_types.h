@@ -3,19 +3,19 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/hex.h"
+#include "ccf/ds/json.h"
+#include "ccf/ds/net_address.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
 #include "ccf/kv/get_name.h"
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
 #include "ccf/kv/version.h"
-#include "ccf/node/configuration.h"
-#include "ccf/node/cose_signatures_config.h"
-#include "ccf/service/consensus_type.h"
-#include "ccf/service/reconfiguration_type.h"
+#include "ccf/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
 #include "crypto/openssl/ec_key_pair.h"
@@ -24,15 +24,18 @@
 
 #include <array>
 #include <chrono>
+#include <cstring>
 #include <functional>
 #include <limits>
 #include <list>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 

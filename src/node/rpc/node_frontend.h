@@ -14,7 +14,7 @@
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
-#include "ccf/service/reconfiguration_type.h"
+#include "ccf/reconfiguration_type.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
