@@ -31,9 +31,12 @@ namespace ccf
     constexpr auto trace_message_id_field = "trace_message_id";
 
     // Sends are only made by the retry task. Each invocation tags its sends
-    // with a new batch, so that concurrent invocations can be told apart.
+    // with a new batch, so that concurrent invocations can be told apart, and
+    // with the version of the sm_state value it read.
     std::atomic<uint64_t> next_trace_batch = 0;
     thread_local uint64_t current_trace_batch = 0;
+    thread_local std::optional<ccf::kv::Version> current_trace_pre_version =
+      std::nullopt;
 
     std::atomic<uint64_t> next_trace_sequence = 0;
 
@@ -112,6 +115,10 @@ namespace ccf
         {"kind", "send"},
         {"batch", current_trace_batch},
         {"send", fmt::format("{}:{}", message, target)}};
+      if (current_trace_pre_version.has_value())
+      {
+        record["pre_version"] = current_trace_pre_version.value();
+      }
       if (txid.has_value())
       {
         record["txid"] = txid.value();
@@ -203,12 +210,15 @@ namespace ccf
       Tables::RECOVERY_DECISION_PROTOCOL_SM_STATE,
       recovery_decision_protocol::SMState::wrap_commit_hook(
         [this](
-          ccf::kv::Version /*hook_version*/,
+          ccf::kv::Version hook_version,
           const recovery_decision_protocol::SMState::Write& w) {
           if (w.has_value())
           {
             trace_safely("commit", [&]() {
-              emit_trace({{"kind", "committed"}, {"post", w.value()}});
+              emit_trace(
+                {{"kind", "committed"},
+                 {"post", w.value()},
+                 {"version", hook_version}});
             });
           }
           if (
@@ -247,6 +257,15 @@ namespace ccf
     trace.pre_timeout = timeout_state;
     trace.post = sm_state;
     trace.post_timeout = timeout_state;
+    // Both keys have been read from the snapshot before any write to them: by
+    // the gets above or, for sm_state, by IAmOpen before it writes Joining. So
+    // unlike on a key that this transaction has only written, reading their
+    // versions adds no read dependency.
+    trace_safely("versions", [&]() {
+      trace.pre_version = sm_state_handle->get_version_of_previous_write();
+      trace.pre_timeout_version =
+        timeout_state_handle->get_version_of_previous_write();
+    });
 
     bool valid_timeout = timeout && sm_state == timeout_state;
 
@@ -487,6 +506,12 @@ namespace ccf
         }
         auto& sm_state = sm_state_opt.value();
         current_trace_batch = next_trace_batch.fetch_add(1);
+        trace_safely("batch", [&]() {
+          // A batch whose version could not be read carries none
+          current_trace_pre_version.reset();
+          current_trace_pre_version =
+            sm_state_handle->get_version_of_previous_write();
+        });
 
         // Stop if recovery-decision-protocol is complete
         if (sm_state == recovery_decision_protocol::StateMachine::OPEN)
@@ -616,12 +641,23 @@ namespace ccf
         http_client::UniqueSlist headers;
         headers.append("Content-Type: application/json");
 
+        // When tracing, the request names its timeout_request record, so that
+        // the handler executions it causes can be linked to it. Otherwise it
+        // has no body.
+        std::unique_ptr<http_client::RequestBody> body = nullptr;
+        trace_safely("timeout_request", [&]() {
+          nlohmann::json request = nlohmann::json::object();
+          request[trace_message_id_field] =
+            emit_trace({{"kind", "timeout_request"}});
+          body = std::make_unique<http_client::RequestBody>(request);
+        });
+
         auto curl_request = std::make_unique<http_client::CurlRequest>(
           std::move(curl_handle),
           HTTP_PUT,
           std::move(url),
           std::move(headers),
-          nullptr,
+          std::move(body),
           nullptr,
           std::nullopt);
         http_client::CurlmLibuvContextSingleton::get_instance()->attach_request(
