@@ -4,6 +4,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/eddsa_key_pair.h"
 #include "crypto/openssl/hash.h"
+#include "ds/internal_logger.h"
 
 namespace ccf::crypto
 {
@@ -15,7 +16,8 @@ namespace ccf::crypto
     key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
     if (key == nullptr)
     {
-      throw std::runtime_error("could not parse PEM");
+      throw std::runtime_error(
+        fmt::format("could not parse PEM: {}", OpenSSL::drain_error_queue()));
     }
   }
 
@@ -49,7 +51,9 @@ namespace ccf::crypto
       EVP_PKEY_new_raw_public_key(curve, nullptr, x_raw.data(), x_raw.size());
     if (key == nullptr)
     {
-      throw std::logic_error("Error constructing EdDSA public key from JWK");
+      throw std::logic_error(fmt::format(
+        "Error constructing EdDSA public key from JWK: {}",
+        OpenSSL::drain_error_queue()));
     }
   }
 
@@ -83,8 +87,15 @@ namespace ccf::crypto
 
     OpenSSL::CHECK1(EVP_DigestVerifyInit(ctx, &pkctx, nullptr, nullptr, key));
 
-    return 1 ==
+    const auto rc =
       EVP_DigestVerify(ctx, signature, signature_size, contents, contents_size);
+    if (rc != 1)
+    {
+      const auto errors = OpenSSL::drain_error_queue();
+      LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", errors);
+      return false;
+    }
+    return true;
   }
 
   int EdDSAPublicKey_OpenSSL::get_openssl_group_id(CurveID gid)

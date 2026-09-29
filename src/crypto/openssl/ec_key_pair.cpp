@@ -53,15 +53,18 @@ namespace ccf::crypto
       EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pkctx, curve_nid) <= 0 ||
       EVP_PKEY_CTX_set_ec_param_enc(pkctx, OPENSSL_EC_NAMED_CURVE) <= 0)
     {
-      throw std::runtime_error("could not initialize PK context");
+      throw std::runtime_error(fmt::format(
+        "could not initialize PK context: {}", OpenSSL::drain_error_queue()));
     }
     EVP_PKEY* generated = nullptr;
     const auto keygen_rc = EVP_PKEY_keygen(pkctx, &generated);
     key.reset(generated);
     if (keygen_rc <= 0)
     {
-      throw std::runtime_error(
-        fmt::format("could not generate new EC key: {}", keygen_rc));
+      throw std::runtime_error(fmt::format(
+        "could not generate new EC key (rc={}): {}",
+        keygen_rc,
+        OpenSSL::drain_error_queue()));
     }
   }
 
@@ -71,7 +74,8 @@ namespace ccf::crypto
     key.reset(PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr));
     if (key == nullptr)
     {
-      throw std::runtime_error("could not parse PEM");
+      throw std::runtime_error(
+        fmt::format("could not parse PEM: {}", OpenSSL::drain_error_queue()));
     }
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {

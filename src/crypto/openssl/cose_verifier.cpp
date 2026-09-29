@@ -158,8 +158,7 @@ namespace
     if (parsed == nullptr)
     {
       throw std::runtime_error(fmt::format(
-        "Failed to parse public key: {}",
-        OpenSSL::error_string(ERR_get_error())));
+        "Failed to parse public key: {}", OpenSSL::drain_error_queue()));
     }
     OpenSSL::Unique_PKEY key(parsed, EVP_PKEY_free);
     return cose_key_from_pkey(std::move(key));
@@ -191,15 +190,14 @@ namespace
     if (cert == nullptr)
     {
       throw std::invalid_argument(fmt::format(
-        "Failed to parse certificate: {}",
-        OpenSSL::error_string(ERR_get_error())));
+        "Failed to parse certificate: {}", OpenSSL::drain_error_queue()));
     }
     EVP_PKEY* public_key = X509_get_pubkey(cert);
     if (public_key == nullptr)
     {
       throw std::invalid_argument(fmt::format(
         "Failed to get certificate public key: {}",
-        OpenSSL::error_string(ERR_get_error())));
+        OpenSSL::drain_error_queue()));
     }
     OpenSSL::Unique_PKEY key(public_key, EVP_PKEY_free);
     try

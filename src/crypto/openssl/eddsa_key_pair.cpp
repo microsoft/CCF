@@ -22,7 +22,8 @@ namespace ccf::crypto
     key = PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr);
     if (key == nullptr)
     {
-      throw std::runtime_error("could not parse PEM");
+      throw std::runtime_error(
+        fmt::format("could not parse PEM: {}", OpenSSL::drain_error_queue()));
     }
   }
 

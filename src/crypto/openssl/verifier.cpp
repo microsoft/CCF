@@ -29,8 +29,8 @@ namespace ccf::crypto
       cert = Unique_X509(certbio, false);
       if (cert == nullptr)
       {
-        throw std::invalid_argument(fmt::format(
-          "OpenSSL error: {}", OpenSSL::error_string(ERR_get_error())));
+        throw std::invalid_argument(
+          fmt::format("OpenSSL error: {}", OpenSSL::drain_error_queue()));
       }
     }
 
@@ -39,7 +39,7 @@ namespace ccf::crypto
     {
       throw std::invalid_argument(fmt::format(
         "OpenSSL error loading certificate public key: {}",
-        OpenSSL::error_string(ERR_get_error())));
+        OpenSSL::drain_error_queue()));
     }
 
     // The constructed public key takes ownership of pk, so it is only freed

@@ -22,7 +22,8 @@ namespace ccf::crypto
     auto* decoded = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
     if (decoded == nullptr)
     {
-      throw std::invalid_argument("Malformed ML-DSA public key PEM");
+      throw std::invalid_argument(fmt::format(
+        "Malformed ML-DSA public key PEM: {}", OpenSSL::drain_error_queue()));
     }
     key.reset(decoded);
     mldsa::parameter_set(key, expected);
@@ -36,7 +37,8 @@ namespace ccf::crypto
     auto* decoded = d2i_PUBKEY(nullptr, &cursor, static_cast<long>(der.size()));
     if (decoded == nullptr)
     {
-      throw std::invalid_argument("Malformed ML-DSA public key DER");
+      throw std::invalid_argument(fmt::format(
+        "Malformed ML-DSA public key DER: {}", OpenSSL::drain_error_queue()));
     }
     key.reset(decoded);
     if (cursor != der.data() + der.size())
@@ -104,11 +106,14 @@ namespace ccf::crypto
     }
     if (rc == 0)
     {
-      LOG_TRACE_FMT("ML-DSA signature verification failed");
+      const auto errors = OpenSSL::drain_error_queue();
+      LOG_TRACE_FMT("ML-DSA signature verification failed: {}", errors);
       return false;
     }
-    throw std::runtime_error(
-      fmt::format("ML-DSA provider failed verification (rc={})", rc));
+    throw std::runtime_error(fmt::format(
+      "ML-DSA provider failed verification (rc={}): {}",
+      rc,
+      OpenSSL::drain_error_queue()));
   }
 
   MLDSAPublicKeyPtr make_mldsa_public_key(const Pem& pem)

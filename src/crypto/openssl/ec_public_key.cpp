@@ -43,7 +43,8 @@ namespace ccf::crypto
     key.reset(PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr));
     if (key == nullptr)
     {
-      throw std::runtime_error("could not parse PEM");
+      throw std::runtime_error(
+        fmt::format("could not parse PEM: {}", OpenSSL::drain_error_queue()));
     }
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
@@ -60,7 +61,8 @@ namespace ccf::crypto
     key.reset(d2i_PUBKEY_bio(buf, nullptr));
     if (key == nullptr)
     {
-      throw std::runtime_error("Could not read DER");
+      throw std::runtime_error(
+        fmt::format("Could not read DER: {}", OpenSSL::drain_error_queue()));
     }
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
@@ -232,10 +234,8 @@ namespace ccf::crypto
     bool ok = rc == 1;
     if (!ok)
     {
-      int ec = ERR_get_error();
-      LOG_DEBUG_FMT(
-        "OpenSSL signature verification failure: {}",
-        OpenSSL::error_string(ec));
+      const auto errors = OpenSSL::drain_error_queue();
+      LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", errors);
     }
 
     return ok;
@@ -306,7 +306,7 @@ namespace ccf::crypto
       throw std::logic_error(fmt::format(
         "Error loading public key. Curve: {}, err: {}",
         curve_name,
-        OpenSSL::error_string(ERR_get_error())));
+        OpenSSL::drain_error_queue()));
     }
 
     Unique_PKEY pk(pkey);
