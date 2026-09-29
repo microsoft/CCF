@@ -17,6 +17,9 @@ import DisasterRecovery.Proofs.Trace
 import DisasterRecovery.Proofs.Witnesses
 import DisasterRecovery.Properties
 import DisasterRecovery.Properties.Utils
+import DisasterRecovery.Replay
+import DisasterRecovery.Replay.Records
+import DisasterRecovery.Replay.Reduction
 import DisasterRecovery.Shared.Capabilities
 import DisasterRecovery.Shared.Execution
 import DisasterRecovery.Shared.MultiNodeTransitionSystem

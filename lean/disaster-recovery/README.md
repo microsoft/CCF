@@ -1,8 +1,9 @@
 # Lean disaster recovery model
 
 This package contains a Lean model of CCF's recovery decision protocol
-(`src/node/recovery_decision_protocol.cpp`), its safety properties, and
-machine-checked proofs of those properties. [The Lean module guide](../AGENT.md)
+(`src/node/recovery_decision_protocol.cpp`), its safety properties,
+machine-checked proofs of those properties, and a replayer that checks
+recorded C++ runs against the model. [The Lean module guide](../AGENT.md)
 describes the module layout.
 
 ## Contents
@@ -16,6 +17,7 @@ describes the module layout.
 | Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`                |
 | Proof implementations                 | `DisasterRecovery/Proofs/`                              |
 | Executable checks and concrete traces | `DisasterRecovery/Tests/`                               |
+| Trace replay                          | `DisasterRecovery/Replay.lean`, `Replay/`, `replay/`    |
 
 Human review covers the model, the property statements, the definitions they
 use, and the theorem links in `Proof.lean`. The proof implementations under
@@ -78,6 +80,14 @@ replicated on a majority, and the Raft safety specification
 (`tla/consensus/ccfraft.tla`) is stated on log prefixes. The model stores only
 the last signed TxID of each ledger, so this package does not prove
 committed-prefix preservation. Liveness properties are out of scope.
+
+## Trace validation
+
+`DisasterRecovery/Replay.lean` and the modules in `DisasterRecovery/Replay/`
+check C++ runs recorded with `-DCCF_RECOVERY_TRACE=ON` against
+`Model.transitionSystem`. [`replay/README.md`](replay/README.md) describes the
+records, the reduction rules, where CI runs it, and what a successful replay
+does and does not show.
 
 ## Validation
 
