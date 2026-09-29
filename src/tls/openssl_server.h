@@ -57,6 +57,23 @@ namespace ccf::tls
       int error = 0;
     };
 
+    inline std::string get_negotiated_group(SSL* ssl)
+    {
+      if (SSL_is_init_finished(ssl) != 1)
+      {
+        throw std::logic_error(
+          "Cannot query negotiated TLS group before handshake completion");
+      }
+
+      const auto* group_name = SSL_get0_group_name(ssl);
+      if (group_name == nullptr)
+      {
+        throw std::runtime_error("Failed to get negotiated TLS group name");
+      }
+
+      return group_name;
+    }
+
     inline std::optional<SocketOptionError> configure_tcp_connection(int fd)
     {
       const auto set_option = [fd](
@@ -701,7 +718,12 @@ namespace ccf::tls
           }
           X509_free(cert);
         }
-        LOG_TRACE_FMT("Connection {}: handshake complete", c.id);
+        // Only completed handshakes reach this point. Ready connections do
+        // not re-enter do_handshake(), so retries cannot duplicate this event.
+        LOG_INFO_FMT(
+          "TLS handshake completed: connection_id={}, negotiated_group={}",
+          c.id,
+          details::get_negotiated_group(c.ssl));
         return do_read(c, more_to_read) && do_write(c);
       }
 

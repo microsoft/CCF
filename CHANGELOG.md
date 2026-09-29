@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf::NodeConfigurationState::node_config` now exposes the operator configuration as `ccf::CCFConfig`, declared in `ccf/node/configuration.h`. It is the type parsed from the operator JSON configuration, so command-specific settings are under `command.start`, `command.join`, and `command.recover`, and file paths are exposed as configured. File-backed inputs are read once by the node when it is created, rather than being resolved by the host into a second startup configuration type. A missing or malformed input file now fails node creation with an error naming that file, rather than exiting the host process. The operator JSON format and the node-to-node genesis format are unchanged. `StartType` is now declared in `ccf/node/start_type.h` in the `ccf` namespace (#8309, #7565).
 - Resolved node data is now available to applications as `ccf::NodeConfigurationState::node_data`, alongside `node_config` (#8309).
 - A node joining a service no longer reads `service_data_json_file`, which is only used when starting or recovering a service. Previously a missing file failed a joining node at startup; it now starts and logs that the setting is ignored (#8309).
+- `ccf::crypto::make_cose_verifier_from_pem_cert()` and `ccf::crypto::make_cose_verifier_any_cert()` now require PEM certificates to start with `-----BEGIN CERTIFICATE-----`; leading text is no longer skipped (#8459).
 
 ### Removed
 
