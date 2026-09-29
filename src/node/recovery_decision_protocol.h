@@ -10,11 +10,9 @@
 #include "ccf/tx_id.h"
 #include "tasks/task.h"
 
-#ifdef CCF_RECOVERY_TRACE
-#  include <map>
-#  include <set>
-#  include <string_view>
-#endif
+#include <map>
+#include <set>
+#include <string_view>
 
 namespace ccf::recovery_decision_protocol
 {
@@ -42,7 +40,6 @@ namespace ccf::recovery_decision_protocol
   DECLARE_JSON_TYPE_WITH_BASE(IAmOpenRequest, TaggedWithNodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(IAmOpenRequest, prev_service_fingerprint, txid);
 
-#ifdef CCF_RECOVERY_TRACE
   // What one execution of advance() read, wrote and requested. Trace only.
   struct AdvanceTrace
   {
@@ -62,7 +59,6 @@ namespace ccf::recovery_decision_protocol
     AdvanceTrace, pre, pre_timeout, post, post_timeout);
   DECLARE_JSON_OPTIONAL_FIELDS(
     AdvanceTrace, gossips, votes, chosen, open_kind, restart);
-#endif
 }
 
 namespace ccf
@@ -90,24 +86,18 @@ namespace ccf
     void try_start(ccf::kv::Tx& tx, bool recovering);
     void advance(
       ccf::kv::Tx& tx,
-      bool timeout
-#ifdef CCF_RECOVERY_TRACE
-      ,
-      recovery_decision_protocol::AdvanceTrace& trace
-#endif
-    );
+      bool timeout,
+      recovery_decision_protocol::AdvanceTrace& trace);
 
     recovery_decision_protocol::IAmOpenRequest& get_iamopen_request(
       kv::ReadOnlyTx& tx);
 
-#ifdef CCF_RECOVERY_TRACE
     void record_trace_step(
       const char* kind,
       const nlohmann::json& params,
       std::string_view source,
       std::optional<ccf::TxID> txid,
       const recovery_decision_protocol::AdvanceTrace& trace) noexcept;
-#endif
 
   private:
     // Start path
@@ -130,13 +120,11 @@ namespace ccf
     sealing_recovery::Location& get_location();
     ccf::TxID get_last_recovered_signed_txid();
 
-#ifdef CCF_RECOVERY_TRACE
     void record_trace_send(
       nlohmann::json& request,
       const char* message,
       const sealing_recovery::Name& target,
       std::optional<ccf::TxID> txid) noexcept;
     std::string emit_trace(nlohmann::json&& record);
-#endif
   };
 }
