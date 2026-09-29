@@ -206,8 +206,7 @@ namespace ccf::crypto
     OpenSSL::CHECK1(EVP_PKEY_sign(pctx, nullptr, &written, hash, hash_size));
 
     std::vector<uint8_t> sig(written);
-    OpenSSL::CHECK1(
-      EVP_PKEY_sign(pctx, sig.data(), &written, hash, hash_size));
+    OpenSSL::CHECK1(EVP_PKEY_sign(pctx, sig.data(), &written, hash, hash_size));
 
     sig.resize(written);
     return sig;

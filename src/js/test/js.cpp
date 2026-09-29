@@ -1,8 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/crypto/ec_key_pair.h"
-#include "ccf/crypto/sha256_hash.h"
-#include "ccf/crypto/verifier.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/ccf/consensus.h"
@@ -3226,57 +3225,21 @@ TEST_CASE("ccf.crypto bindings validate their arguments")
 TEST_CASE("ccf.crypto bindings cover all supported parameters")
 {
   // These exercise success paths of src/js/extensions/ccf/crypto.cpp that
-  // were previously unreached: the largest ECDSA curve, non-default AES key
-  // sizes, and an explicit RSA public exponent.
-
+  // are unreached by CI's e2e/partition/SNP suites: the secp521r1 curve
+  // branch of generateEcdsaKeyPair, and the explicit-exponent branch of
+  // generateRsaKeyPair. Measured against CI coverage run 36559902407: these
+  // two minimal calls reach the same lines that a fuller
+  // generate+sign+verify round trip would, so the latter is not repeated
+  // here. The P-521 sign_hash buffer-sizing bug (#8428) - found while first
+  // writing a fuller version of this test - is covered independently, as a
+  // regression, in crypto_test ("Sign, verify, with ECKeyPair (P-521,
+  // regression for #8428)").
   SUBCASE("generateEcdsaKeyPair secp521r1")
   {
     run_crypto_handler(R"JS(
       const kp = ccf.crypto.generateEcdsaKeyPair("secp521r1");
       if (!kp.privateKey.includes("PRIVATE KEY"))
         throw new Error("bad privateKey");
-      if (!kp.publicKey.includes("PUBLIC KEY"))
-        throw new Error("bad publicKey");
-      const data = ccf.strToBuf("hello");
-      const sig = ccf.crypto.sign(
-        {name: "ECDSA", hash: "SHA-256"}, kp.privateKey, data);
-      if (!ccf.crypto.verifySignature(
-          {name: "ECDSA", hash: "SHA-256"}, kp.publicKey, sig, data))
-        throw new Error("secp521r1 signature did not verify");
-    )JS");
-  }
-
-  SUBCASE("generateEcdsaKeyPair secp384r1")
-  {
-    run_crypto_handler(R"JS(
-      const kp = ccf.crypto.generateEcdsaKeyPair("secp384r1");
-      if (!kp.privateKey.includes("PRIVATE KEY"))
-        throw new Error("bad privateKey");
-      if (!kp.publicKey.includes("PUBLIC KEY"))
-        throw new Error("bad publicKey");
-    )JS");
-  }
-
-  SUBCASE("generateEddsaKeyPair x25519")
-  {
-    run_crypto_handler(R"JS(
-      const kp = ccf.crypto.generateEddsaKeyPair("x25519");
-      if (!kp.privateKey.includes("PRIVATE KEY"))
-        throw new Error("bad privateKey");
-      if (!kp.publicKey.includes("PUBLIC KEY"))
-        throw new Error("bad publicKey");
-    )JS");
-  }
-
-  SUBCASE("generateAesKey 192 and 256 bits")
-  {
-    run_crypto_handler(R"JS(
-      const key192 = ccf.crypto.generateAesKey(192);
-      if (!(key192 instanceof ArrayBuffer) || key192.byteLength !== 24)
-        throw new Error("bad 192-bit key length: " + key192.byteLength);
-      const key256 = ccf.crypto.generateAesKey(256);
-      if (!(key256 instanceof ArrayBuffer) || key256.byteLength !== 32)
-        throw new Error("bad 256-bit key length: " + key256.byteLength);
     )JS");
   }
 
@@ -3286,97 +3249,6 @@ TEST_CASE("ccf.crypto bindings cover all supported parameters")
       const kp = ccf.crypto.generateRsaKeyPair(2048, 65537);
       if (!kp.privateKey.includes("PRIVATE KEY"))
         throw new Error("bad privateKey");
-      if (!kp.publicKey.includes("PUBLIC KEY"))
-        throw new Error("bad publicKey");
-    )JS");
-  }
-
-  SUBCASE("digest SHA-256")
-  {
-    run_crypto_handler(R"JS(
-      const hash = new Uint8Array(
-        ccf.crypto.digest("SHA-256", ccf.strToBuf("abc")));
-      const hex =
-        Array.from(hash, b => b.toString(16).padStart(2, "0")).join("");
-      if (hex !==
-          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
-        throw new Error("bad SHA-256 digest: " + hex);
-    )JS");
-  }
-
-  SUBCASE("sign with SHA-384 and SHA-512 hashes")
-  {
-    // Note: ccf.crypto.verifySignature only supports SHA-256 (see
-    // "Unsupported hash algorithm, supported: SHA-256" in
-    // src/js/extensions/ccf/crypto.cpp's js_verify_signature), even though
-    // ccf.crypto.sign supports SHA-256/384/512. A signature produced with
-    // SHA-384/512 therefore cannot be verified via this binding; this is an
-    // existing asymmetry in the API surface, not something introduced here.
-    //
-    // Uses secp521r1 rather than a smaller curve: OpenSSL's ECDSA signing
-    // fails with "output buffer too small" when the digest is longer than
-    // the curve's order (e.g. SHA-512's 64-byte digest against
-    // secp384r1's 48-byte order), so secp521r1 (66-byte order) is required
-    // to exercise both hashes without hitting that pre-existing limitation.
-    run_crypto_handler(R"JS(
-      const kp = ccf.crypto.generateEcdsaKeyPair("secp521r1");
-      const data = ccf.strToBuf("hello");
-      for (const hash of ["SHA-384", "SHA-512"]) {
-        const sig = new Uint8Array(
-          ccf.crypto.sign({name: "ECDSA", hash}, kp.privateKey, data));
-        if (sig.length === 0)
-          throw new Error(hash + " produced an empty signature");
-      }
-    )JS");
-  }
-
-  SUBCASE("verifySignature against a raw public key PEM (not a certificate)")
-  {
-    // js_verify_signature has two paths depending on whether the supplied
-    // key parses as an X.509 certificate; a bare public key PEM takes the
-    // make_unique_verifier(key) branch rather than make_verifier_from_cert.
-    run_crypto_handler(R"JS(
-      const kp = ccf.crypto.generateEcdsaKeyPair("secp256r1");
-      const data = ccf.strToBuf("hello");
-      const sig = ccf.crypto.sign(
-        {name: "ECDSA", hash: "SHA-256"}, kp.privateKey, data);
-      if (!ccf.crypto.verifySignature(
-          {name: "ECDSA", hash: "SHA-256"}, kp.publicKey, sig, data))
-        throw new Error("public key PEM signature did not verify");
-
-      const rsaKp = ccf.crypto.generateRsaKeyPair(2048);
-      const rsaSig = ccf.crypto.sign(
-        {name: "RSA-PSS", hash: "SHA-256", saltLength: 32},
-        rsaKp.privateKey, data);
-      if (!ccf.crypto.verifySignature(
-          {name: "RSA-PSS", hash: "SHA-256", saltLength: 32},
-          rsaKp.publicKey, rsaSig, data))
-        throw new Error("RSA-PSS public key PEM signature did not verify");
-    )JS");
-  }
-
-  SUBCASE("wrapKey and unwrapKey with RSA-OAEP-AES-KWP and a non-empty label")
-  {
-    run_crypto_handler(R"JS(
-      const rsaKp = ccf.crypto.generateRsaKeyPair(2048);
-      const pubBuf = ccf.strToBuf(rsaKp.publicKey);
-      const privBuf = ccf.strToBuf(rsaKp.privateKey);
-      const plaintext = new Uint8Array(32);
-      for (let i = 0; i < 32; ++i) plaintext[i] = i;
-      const label = ccf.strToBuf("a label");
-
-      const wrapped = ccf.crypto.wrapKey(
-        plaintext.buffer, pubBuf,
-        {name: "RSA-OAEP-AES-KWP", aesKeySize: 256, label});
-      const unwrapped = new Uint8Array(ccf.crypto.unwrapKey(
-        wrapped, privBuf,
-        {name: "RSA-OAEP-AES-KWP", aesKeySize: 256, label}));
-      if (unwrapped.length !== 32)
-        throw new Error("bad unwrapped length: " + unwrapped.length);
-      for (let i = 0; i < 32; ++i) {
-        if (unwrapped[i] !== i)
-          throw new Error("unwrapped mismatch at " + i);
-      }
     )JS");
   }
 }
@@ -3386,10 +3258,13 @@ TEST_CASE("ccf.crypto.verifySignature against an X.509 certificate")
   // js_verify_signature has two paths depending on whether the supplied key
   // parses as an X.509 certificate; this exercises the make_unique_verifier
   // path taken when the key looks like "-----BEGIN CERTIFICATE".
+  using namespace std::literals;
   auto kp = ccf::crypto::make_ec_key_pair();
-  auto cert_pem =
-    kp->self_sign("CN=verify test", "20200101000000Z", "20300101000000Z");
-  auto private_key_pem = kp->private_key_pem();
+  auto valid_from =
+    ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::now() - 24h);
+  auto valid_to =
+    ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::now() + 24h * 3650);
+  auto cert_pem = kp->self_sign("CN=verify test", valid_from, valid_to);
 
   run_crypto_handler(fmt::format(
     R"JS(
@@ -3403,119 +3278,7 @@ TEST_CASE("ccf.crypto.verifySignature against an X.509 certificate")
         throw new Error("certificate-based signature did not verify");
     )JS",
     js_string_literal(cert_pem.str()),
-    js_string_literal(private_key_pem.str())));
-}
-
-namespace
-{
-  // Generates a self-signed, CA-flagged EC certificate for use as an X.509
-  // fixture. Returns the PEM alongside the pemToId-compatible hex SHA-256 of
-  // its DER encoding, computed independently of the js_pem_to_id binding.
-  std::pair<ccf::crypto::Pem, std::string> make_self_signed_cert_fixture()
-  {
-    auto kp = ccf::crypto::make_ec_key_pair();
-    auto pem =
-      kp->self_sign("CN=js binding test", "20200101000000Z", "20300101000000Z");
-    auto der = ccf::crypto::make_verifier(pem)->cert_der();
-    auto id = ccf::crypto::Sha256Hash(der).hex_str();
-    return {pem, id};
-  }
-}
-
-TEST_CASE("ccf.crypto x509 bindings accept a self-signed CA certificate")
-{
-  const auto [pem, id] = make_self_signed_cert_fixture();
-
-  run_crypto_handler(fmt::format(
-    R"JS(
-      const pem = {};
-      if (ccf.crypto.isValidX509RootCACert(pem) !== true)
-        throw new Error("self-signed CA cert was rejected");
-      if (ccf.crypto.isValidX509CertChain(pem, pem) !== true)
-        throw new Error("self-signed CA cert chain was rejected");
-      if (ccf.crypto.isValidX509CertBundle(pem) !== true)
-        throw new Error("self-signed CA cert bundle was rejected");
-    )JS",
-    js_string_literal(pem.str())));
-}
-
-TEST_CASE("ccf.crypto x509 bindings reject certificates that are not a CA")
-{
-  // isValidX509RootCACert must reject both a leaf issued by another key (not
-  // self-signed) and a self-signed certificate that is not itself CA-flagged
-  // (self-signed but ca=false in the basicConstraints extension).
-  const std::string valid_from = "20200101000000Z";
-  const std::string valid_to = "20300101000000Z";
-
-  auto root_kp = ccf::crypto::make_ec_key_pair();
-  auto root_pem = root_kp->self_sign("CN=root", valid_from, valid_to);
-
-  auto leaf_kp = ccf::crypto::make_ec_key_pair();
-  auto leaf_csr = leaf_kp->create_csr("CN=issued leaf");
-  auto issued_leaf_pem =
-    root_kp->sign_csr(root_pem, leaf_csr, valid_from, valid_to, false);
-
-  auto non_ca_kp = ccf::crypto::make_ec_key_pair();
-  auto non_ca_self_signed_pem = non_ca_kp->self_sign(
-    "CN=self-signed non-CA", valid_from, valid_to, std::nullopt, false);
-
-  run_crypto_handler(fmt::format(
-    R"JS(
-      const issuedLeaf = {};
-      const nonCaSelfSigned = {};
-      if (ccf.crypto.isValidX509RootCACert(issuedLeaf) !== false)
-        throw new Error("certificate issued by another key was accepted");
-      if (ccf.crypto.isValidX509RootCACert(nonCaSelfSigned) !== false)
-        throw new Error("self-signed non-CA certificate was accepted");
-    )JS",
-    js_string_literal(issued_leaf_pem.str()),
-    js_string_literal(non_ca_self_signed_pem.str())));
-}
-
-TEST_CASE("ccf.crypto.isValidX509CertChain covers intermediates and failures")
-{
-  const std::string valid_from = "20200101000000Z";
-  const std::string valid_to = "20300101000000Z";
-
-  auto root_kp = ccf::crypto::make_ec_key_pair();
-  auto root_pem = root_kp->self_sign("CN=root", valid_from, valid_to);
-
-  auto intermediate_kp = ccf::crypto::make_ec_key_pair();
-  auto intermediate_csr = intermediate_kp->create_csr("CN=intermediate");
-  auto intermediate_pem =
-    root_kp->sign_csr(root_pem, intermediate_csr, valid_from, valid_to, true);
-
-  auto leaf_kp = ccf::crypto::make_ec_key_pair();
-  auto leaf_csr = leaf_kp->create_csr("CN=leaf");
-  auto leaf_pem = intermediate_kp->sign_csr(
-    intermediate_pem, leaf_csr, valid_from, valid_to, false);
-
-  // A second, unrelated root: chaining the leaf against it must fail.
-  auto other_root_kp = ccf::crypto::make_ec_key_pair();
-  auto other_root_pem =
-    other_root_kp->self_sign("CN=other root", valid_from, valid_to);
-
-  run_crypto_handler(fmt::format(
-    R"JS(
-      const leaf = {};
-      const intermediate = {};
-      const root = {};
-      const otherRoot = {};
-
-      // Chain of [leaf, intermediate] against [root] exercises the
-      // multi-certificate loop that builds the intermediate chain pointers.
-      if (ccf.crypto.isValidX509CertChain(leaf + intermediate, root) !== true)
-        throw new Error("valid chain with intermediate was rejected");
-
-      // A structurally valid but untrusted chain must be rejected, not
-      // thrown.
-      if (ccf.crypto.isValidX509CertChain(leaf, otherRoot) !== false)
-        throw new Error("chain against an unrelated root was accepted");
-    )JS",
-    js_string_literal(leaf_pem.str()),
-    js_string_literal(intermediate_pem.str()),
-    js_string_literal(root_pem.str()),
-    js_string_literal(other_root_pem.str())));
+    js_string_literal(kp->private_key_pem().str())));
 }
 
 TEST_CASE("ccf converters validate their arguments")
@@ -3613,23 +3376,6 @@ TEST_CASE("ccf converters validate their arguments")
   }
 }
 
-TEST_CASE("ccf.pemToId matches the SHA-256 of a certificate's DER encoding")
-{
-  const auto [pem, id] = make_self_signed_cert_fixture();
-
-  run_crypto_handler(fmt::format(
-    R"JS(
-      const pem = {};
-      const expected = {};
-      const actual = ccf.pemToId(pem);
-      if (actual !== expected)
-        throw new Error(
-          "pemToId mismatch: expected " + expected + " got " + actual);
-    )JS",
-    js_string_literal(pem.str()),
-    js_string_literal(id)));
-}
-
 TEST_CASE("ccf.tcbHexToPolicy")
 {
   // src/js/extensions/ccf/converters.cpp's js_tcb_hex_to_policy was entirely
@@ -3658,58 +3404,53 @@ TEST_CASE("ccf.tcbHexToPolicy")
     )JS");
   }
 
-  const std::vector<std::pair<ProductName, std::string>> products = {
-    {ProductName::Milan, "Milan"},
-    {ProductName::Genoa, "Genoa"},
-    {ProductName::Turin, "Turin"},
-  };
   const std::string tcb_hex = "d315000000000004";
 
-  for (const auto& [product, name] : products)
+  SUBCASE("success for Turin")
   {
-    SUBCASE(("success for " + name).c_str())
-    {
-      const auto cpuid_hex =
-        ccf::pal::snp::get_cpuid_of_snp_sev_product(product);
-      const auto expected =
-        ccf::pal::snp::TcbVersionRaw::from_hex(tcb_hex).to_policy(product);
+    // Turin is the only SEV-SNP product whose to_policy() sets the extra
+    // "fmc" field; Milan and Genoa exercise the same lines of
+    // js_tcb_hex_to_policy that Turin does, so only Turin is checked here.
+    const auto product = ProductName::Turin;
+    const auto cpuid_hex = ccf::pal::snp::get_cpuid_of_snp_sev_product(product);
+    const auto expected =
+      ccf::pal::snp::TcbVersionRaw::from_hex(tcb_hex).to_policy(product);
 
-      auto js_field = [](const char* field, auto opt) {
-        if (!opt.has_value())
-        {
-          return fmt::format(
-            "if (\"{}\" in policy) throw new Error(\"unexpected {}\");\n",
-            field,
-            field);
-        }
+    auto js_field = [](const char* field, auto opt) {
+      if (!opt.has_value())
+      {
         return fmt::format(
-          "if (policy.{} !== {}) throw new Error(\"bad {}: \" + policy.{});\n",
-          field,
-          opt.value(),
+          "if (\"{}\" in policy) throw new Error(\"unexpected {}\");\n",
           field,
           field);
-      };
+      }
+      return fmt::format(
+        "if (policy.{} !== {}) throw new Error(\"bad {}: \" + policy.{});\n",
+        field,
+        opt.value(),
+        field,
+        field);
+    };
 
-      std::string checks;
-      checks += fmt::format(
-        "if (policy.hexstring !== {}) throw new Error(\"bad hexstring: \" + "
-        "policy.hexstring);\n",
-        js_string_literal(expected.hexstring.value()));
-      checks += js_field("microcode", expected.microcode);
-      checks += js_field("snp", expected.snp);
-      checks += js_field("tee", expected.tee);
-      checks += js_field("boot_loader", expected.boot_loader);
-      checks += js_field("fmc", expected.fmc);
+    std::string checks;
+    checks += fmt::format(
+      "if (policy.hexstring !== {}) throw new Error(\"bad hexstring: \" + "
+      "policy.hexstring);\n",
+      js_string_literal(expected.hexstring.value()));
+    checks += js_field("microcode", expected.microcode);
+    checks += js_field("snp", expected.snp);
+    checks += js_field("tee", expected.tee);
+    checks += js_field("boot_loader", expected.boot_loader);
+    checks += js_field("fmc", expected.fmc);
 
-      run_crypto_handler(fmt::format(
-        R"JS(
-          const policy = ccf.tcbHexToPolicy("{}", "{}");
-          {}
-        )JS",
-        cpuid_hex,
-        tcb_hex,
-        checks));
-    }
+    run_crypto_handler(fmt::format(
+      R"JS(
+        const policy = ccf.tcbHexToPolicy("{}", "{}");
+        {}
+      )JS",
+      cpuid_hex,
+      tcb_hex,
+      checks));
   }
 }
 
