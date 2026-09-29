@@ -844,11 +844,15 @@ namespace ccf
           tav_snp_attestation_report_cpuid_mod_id(attestation.get()),
           tav_snp_attestation_report_cpuid_step(attestation.get())));
       }
+      auto product = pal::snp::get_sev_snp_product(cpuid);
       const uint8_t* data = nullptr;
       size_t size = 0;
       tav_snp_attestation_report_reported_tcb(attestation.get(), &data, &size);
       trust_node_snp_tcb_version(
-        tx, cpuid, pal::snp::TcbVersionRaw({data, size}), recovering);
+        tx,
+        cpuid.hex_str(),
+        pal::snp::TcbVersionRaw({data, size}).to_policy(product),
+        recovering);
     }
 
     // On recovery, the minimum TCB version for the CPUID is set to the
@@ -856,98 +860,52 @@ namespace ccf
     // TCB version, so that recovery never raises a previously set minimum.
     static void trust_node_snp_tcb_version(
       ccf::kv::Tx& tx,
-      const pal::snp::CPUID& cpuid,
-      const pal::snp::TcbVersionRaw& reported_tcb,
+      const std::string& cpuid,
+      pal::snp::TcbVersionPolicy tcb_version,
       bool recovering)
     {
       auto* tcb_versions =
         tx.rw<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
-      const auto cpuid_hex = cpuid.hex_str();
-      const auto product = pal::snp::get_sev_snp_product(cpuid);
-      auto reported_policy = reported_tcb.to_policy(product);
-
-      if (!recovering)
+      auto existing = recovering ? tcb_versions->get(cpuid) : std::nullopt;
+      if (existing.has_value())
       {
-        tcb_versions->put(cpuid_hex, reported_policy);
-        LOG_INFO_FMT(
-          "SNP minimum TCB version for CPUID {} set to {}",
-          cpuid_hex,
-          nlohmann::json(reported_policy).dump());
-        return;
-      }
+        // Already no higher than the reported TCB version in any component
+        if (pal::snp::TcbVersionPolicy::is_valid(existing.value(), tcb_version))
+        {
+          LOG_INFO_FMT(
+            "SNP minimum TCB version for CPUID {} unchanged on recovery: {}",
+            cpuid,
+            nlohmann::json(existing.value()).dump());
+          return;
+        }
 
-      auto existing_policy = tcb_versions->get(cpuid_hex);
-      if (!existing_policy.has_value())
-      {
-        tcb_versions->put(cpuid_hex, reported_policy);
-        LOG_INFO_FMT(
-          "SNP minimum TCB version for CPUID {} set to {} (no pre-existing "
-          "entry for CPUID)",
-          cpuid_hex,
-          nlohmann::json(reported_policy).dump());
-        return;
-      }
-
-      // If the existing minimum admits the reported TCB version, it is already
-      // no higher than it in any component
-      if (pal::snp::TcbVersionPolicy::is_valid(
-            existing_policy.value(), reported_policy))
-      {
-        LOG_INFO_FMT(
-          "SNP minimum TCB version for CPUID {} unchanged: {} (reported TCB "
-          "version is not lower: {})",
-          cpuid_hex,
-          nlohmann::json(existing_policy.value()).dump(),
-          nlohmann::json(reported_policy).dump());
-        return;
-      }
-
-      // A component missing from the existing minimum admits no TCB version,
-      // so the reported value is kept for it
-      auto lower_to_existing =
-        [](uint8_t& component, const std::optional<uint32_t>& existing) {
-          if (existing.has_value() && existing.value() < component)
+        // Lower each reported component to its existing value, if lower. The
+        // result has the same components as the reported TCB version, so that
+        // it admits it.
+        auto lower = [&tcb_version](
+                       std::optional<uint32_t>& component,
+                       const std::optional<uint32_t>& existing_component) {
+          if (
+            component.has_value() && existing_component.has_value() &&
+            existing_component.value() < component.value())
           {
-            component = static_cast<uint8_t>(existing.value());
+            component = existing_component;
+            // The reported hex string no longer describes the result
+            tcb_version.hexstring = std::nullopt;
           }
         };
-      auto min_tcb = reported_tcb;
-      switch (product)
-      {
-        case pal::snp::ProductName::Milan:
-        case pal::snp::ProductName::Genoa:
-        {
-          auto* tcb = min_tcb.as_milan_genoa();
-          lower_to_existing(tcb->boot_loader, existing_policy->boot_loader);
-          lower_to_existing(tcb->tee, existing_policy->tee);
-          lower_to_existing(tcb->snp, existing_policy->snp);
-          lower_to_existing(tcb->microcode, existing_policy->microcode);
-          break;
-        }
-        case pal::snp::ProductName::Turin:
-        {
-          auto* tcb = min_tcb.as_turin();
-          lower_to_existing(tcb->fmc, existing_policy->fmc);
-          lower_to_existing(tcb->boot_loader, existing_policy->boot_loader);
-          lower_to_existing(tcb->tee, existing_policy->tee);
-          lower_to_existing(tcb->snp, existing_policy->snp);
-          lower_to_existing(tcb->microcode, existing_policy->microcode);
-          break;
-        }
-        default:
-        {
-          throw std::logic_error(fmt::format(
-            "Unsupported SEV-SNP product for TCB version policy: {}", product));
-        }
+        lower(tcb_version.microcode, existing->microcode);
+        lower(tcb_version.snp, existing->snp);
+        lower(tcb_version.tee, existing->tee);
+        lower(tcb_version.boot_loader, existing->boot_loader);
+        lower(tcb_version.fmc, existing->fmc);
+        LOG_INFO_FMT(
+          "SNP minimum TCB version for CPUID {} set to {} on recovery (was {})",
+          cpuid,
+          nlohmann::json(tcb_version).dump(),
+          nlohmann::json(existing.value()).dump());
       }
-
-      auto min_policy = min_tcb.to_policy(product);
-      tcb_versions->put(cpuid_hex, min_policy);
-      LOG_INFO_FMT(
-        "SNP minimum TCB version for CPUID {} set to {} (from {})",
-        cpuid_hex,
-        nlohmann::json(min_policy).dump(),
-        nlohmann::json(existing_policy.value()).dump());
+      tcb_versions->put(cpuid, tcb_version);
     }
 
     static void init_configuration(

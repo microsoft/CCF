@@ -59,13 +59,7 @@ namespace
     }
   };
 
-  pal::snp::CPUID get_snp_cpuid(pal::snp::ProductName product)
-  {
-    return pal::snp::cpuid_from_hex(
-      pal::snp::get_cpuid_of_snp_sev_product(product));
-  }
-
-  pal::snp::TcbVersionPolicy make_tcb_policy(
+  pal::snp::TcbVersionPolicy tcb_from_hex(
     pal::snp::ProductName product, const std::string& tcb_hex)
   {
     return pal::snp::TcbVersionRaw::from_hex(tcb_hex).to_policy(product);
@@ -73,43 +67,38 @@ namespace
 
   void set_min_tcb_version(
     ccf::kv::Store& kv_store,
-    pal::snp::ProductName product,
-    const pal::snp::TcbVersionPolicy& policy)
+    const std::string& cpuid,
+    const pal::snp::TcbVersionPolicy& tcb_version)
   {
     auto tx = kv_store.create_tx();
-    tx.wo<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS)
-      ->put(get_snp_cpuid(product).hex_str(), policy);
+    tx.wo<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS)->put(cpuid, tcb_version);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
-  void trust_reported_tcb_version(
+  void trust_tcb_version(
     ccf::kv::Store& kv_store,
-    pal::snp::ProductName product,
-    const std::string& reported_tcb_hex,
+    const std::string& cpuid,
+    const pal::snp::TcbVersionPolicy& tcb_version,
     bool recovering)
   {
     auto tx = kv_store.create_tx();
     InternalTablesAccess::trust_node_snp_tcb_version(
-      tx,
-      get_snp_cpuid(product),
-      pal::snp::TcbVersionRaw::from_hex(reported_tcb_hex),
-      recovering);
+      tx, cpuid, tcb_version, recovering);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
-  // Returns the stored minimum TCB version as JSON, to compare all its fields,
-  // and the version at which it was last written
+  // Returns the minimum TCB version for the CPUID as JSON, to compare all its
+  // fields, and the version at which it was last written
   std::pair<nlohmann::json, ccf::kv::Version> get_min_tcb_version(
-    ccf::kv::Store& kv_store, pal::snp::ProductName product)
+    ccf::kv::Store& kv_store, const std::string& cpuid)
   {
     auto tx = kv_store.create_read_only_tx();
     auto* handle = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
-    const auto cpuid_hex = get_snp_cpuid(product).hex_str();
-    const auto policy = handle->get(cpuid_hex);
-    REQUIRE(policy.has_value());
-    const auto version = handle->get_version_of_previous_write(cpuid_hex);
+    const auto tcb_version = handle->get(cpuid);
+    REQUIRE(tcb_version.has_value());
+    const auto version = handle->get_version_of_previous_write(cpuid);
     REQUIRE(version.has_value());
-    return {nlohmann::json(policy.value()), version.value()};
+    return {nlohmann::json(tcb_version.value()), version.value()};
   }
 }
 
@@ -180,22 +169,21 @@ TEST_CASE("trust_node_snp_tcb_version - not recovering")
   kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
 
   const auto milan = pal::snp::ProductName::Milan;
-  const std::string reported_tcb = "db18000000000004";
+  const auto cpuid = pal::snp::get_cpuid_of_snp_sev_product(milan);
+  const auto reported = tcb_from_hex(milan, "db18000000000004");
 
   SUBCASE("Empty map") {}
 
   SUBCASE("Existing lower value")
   {
     set_min_tcb_version(
-      kv_store, milan, make_tcb_policy(milan, "0000000000000000"));
+      kv_store, cpuid, tcb_from_hex(milan, "0000000000000000"));
   }
 
-  trust_reported_tcb_version(
-    kv_store, milan, reported_tcb, false /* recovering */);
+  trust_tcb_version(kv_store, cpuid, reported, false /* recovering */);
 
   REQUIRE(
-    get_min_tcb_version(kv_store, milan).first ==
-    nlohmann::json(make_tcb_policy(milan, reported_tcb)));
+    get_min_tcb_version(kv_store, cpuid).first == nlohmann::json(reported));
 }
 
 TEST_CASE("trust_node_snp_tcb_version - recovering")
@@ -204,22 +192,22 @@ TEST_CASE("trust_node_snp_tcb_version - recovering")
   kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
 
   const auto milan = pal::snp::ProductName::Milan;
+  const auto cpuid = pal::snp::get_cpuid_of_snp_sev_product(milan);
   // boot_loader 4, tee 0, snp 24, microcode 219
-  const std::string reported_tcb = "db18000000000004";
+  const auto reported = tcb_from_hex(milan, "db18000000000004");
 
   // Entries for other CPUIDs are left untouched
   const auto genoa = pal::snp::ProductName::Genoa;
+  const auto genoa_cpuid = pal::snp::get_cpuid_of_snp_sev_product(genoa);
   set_min_tcb_version(
-    kv_store, genoa, make_tcb_policy(genoa, "541700000000000a"));
-  const auto genoa_entry = get_min_tcb_version(kv_store, genoa);
+    kv_store, genoa_cpuid, tcb_from_hex(genoa, "541700000000000a"));
+  const auto genoa_entry = get_min_tcb_version(kv_store, genoa_cpuid);
 
   SUBCASE("No existing value for CPUID")
   {
-    trust_reported_tcb_version(
-      kv_store, milan, reported_tcb, true /* recovering */);
+    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
     REQUIRE(
-      get_min_tcb_version(kv_store, milan).first ==
-      nlohmann::json(make_tcb_policy(milan, reported_tcb)));
+      get_min_tcb_version(kv_store, cpuid).first == nlohmann::json(reported));
   }
 
   SUBCASE("Existing value is not higher in any component")
@@ -227,55 +215,68 @@ TEST_CASE("trust_node_snp_tcb_version - recovering")
     pal::snp::TcbVersionPolicy existing;
     SUBCASE("Equal")
     {
-      existing = make_tcb_policy(milan, reported_tcb);
+      existing = reported;
     }
     SUBCASE("Lower")
     {
       // boot_loader 4, tee 0, snp 21, microcode 211
-      existing = make_tcb_policy(milan, "d315000000000004");
+      existing = tcb_from_hex(milan, "d315000000000004");
     }
     SUBCASE("Lower, set without hexstring")
     {
-      existing = pal::snp::TcbVersionPolicy{
-        .microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0};
+      existing = {.microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0};
     }
-    set_min_tcb_version(kv_store, milan, existing);
-    const auto existing_entry = get_min_tcb_version(kv_store, milan);
-    REQUIRE(existing_entry.first == nlohmann::json(existing));
+    set_min_tcb_version(kv_store, cpuid, existing);
+    const auto existing_entry = get_min_tcb_version(kv_store, cpuid);
 
-    trust_reported_tcb_version(
-      kv_store, milan, reported_tcb, true /* recovering */);
+    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
 
     // Neither modified nor re-written
-    REQUIRE(get_min_tcb_version(kv_store, milan) == existing_entry);
+    REQUIRE(get_min_tcb_version(kv_store, cpuid) == existing_entry);
   }
 
   SUBCASE("Existing value is higher in every component")
   {
-    // boot_loader 5, tee 1, snp 25, microcode 220
     set_min_tcb_version(
-      kv_store, milan, make_tcb_policy(milan, "dc19000000000105"));
-    trust_reported_tcb_version(
-      kv_store, milan, reported_tcb, true /* recovering */);
+      kv_store,
+      cpuid,
+      {.microcode = 220, .snp = 25, .tee = 1, .boot_loader = 5});
+    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
+    // Including the reported hexstring
     REQUIRE(
-      get_min_tcb_version(kv_store, milan).first ==
-      nlohmann::json(make_tcb_policy(milan, reported_tcb)));
+      get_min_tcb_version(kv_store, cpuid).first == nlohmann::json(reported));
   }
 
   SUBCASE("Existing value is higher in some components and lower in others")
   {
-    // boot_loader 5, tee 0, snp 28, microcode 211
     set_min_tcb_version(
-      kv_store, milan, make_tcb_policy(milan, "d31c000000000005"));
-    trust_reported_tcb_version(
-      kv_store, milan, reported_tcb, true /* recovering */);
-    // boot_loader 4, tee 0, snp 24, microcode 211
+      kv_store,
+      cpuid,
+      {.microcode = 211, .snp = 28, .tee = 0, .boot_loader = 5});
+    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
+    // Without the reported hexstring, which no longer applies
     REQUIRE(
-      get_min_tcb_version(kv_store, milan).first ==
-      nlohmann::json(make_tcb_policy(milan, "d318000000000004")));
+      get_min_tcb_version(kv_store, cpuid).first ==
+      nlohmann::json(pal::snp::TcbVersionPolicy{
+        .microcode = 211, .snp = 24, .tee = 0, .boot_loader = 4}));
   }
 
-  REQUIRE(get_min_tcb_version(kv_store, genoa) == genoa_entry);
+  SUBCASE("Existing value has a component that Milan does not")
+  {
+    // Such a minimum admits no Milan TCB version, and the result must admit
+    // the reported one, so fmc is dropped
+    set_min_tcb_version(
+      kv_store,
+      cpuid,
+      {.microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0, .fmc = 0});
+    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
+    REQUIRE(
+      get_min_tcb_version(kv_store, cpuid).first ==
+      nlohmann::json(pal::snp::TcbVersionPolicy{
+        .microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0}));
+  }
+
+  REQUIRE(get_min_tcb_version(kv_store, genoa_cpuid) == genoa_entry);
 }
 
 TEST_CASE("trust_node_snp_tcb_version - recovering, Turin")
@@ -284,20 +285,21 @@ TEST_CASE("trust_node_snp_tcb_version - recovering, Turin")
   kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
 
   const auto turin = pal::snp::ProductName::Turin;
+  const auto cpuid = pal::snp::get_cpuid_of_snp_sev_product(turin);
   // fmc 85, boot_loader 68, tee 51, snp 34, microcode 17
-  const std::string reported_tcb = "1100000022334455";
+  const auto reported = tcb_from_hex(turin, "1100000022334455");
 
   SUBCASE("Existing value is higher in some components and lower in others")
   {
-    // fmc 80, boot_loader 64, tee 64, snp 16, microcode 32
     set_min_tcb_version(
-      kv_store, turin, make_tcb_policy(turin, "2000000010404050"));
-    trust_reported_tcb_version(
-      kv_store, turin, reported_tcb, true /* recovering */);
-    // fmc 80, boot_loader 64, tee 51, snp 16, microcode 17
+      kv_store,
+      cpuid,
+      {.microcode = 32, .snp = 16, .tee = 64, .boot_loader = 64, .fmc = 80});
+    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
     REQUIRE(
-      get_min_tcb_version(kv_store, turin).first ==
-      nlohmann::json(make_tcb_policy(turin, "1100000010334050")));
+      get_min_tcb_version(kv_store, cpuid).first ==
+      nlohmann::json(pal::snp::TcbVersionPolicy{
+        .microcode = 17, .snp = 16, .tee = 51, .boot_loader = 64, .fmc = 80}));
   }
 
   SUBCASE("Existing value has no fmc")
@@ -305,16 +307,12 @@ TEST_CASE("trust_node_snp_tcb_version - recovering, Turin")
     // As set_snp_minimum_tcb_version allows. Such a minimum admits no Turin
     // TCB version, so the reported fmc is kept.
     set_min_tcb_version(
-      kv_store,
-      turin,
-      pal::snp::TcbVersionPolicy{
-        .microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0});
-    trust_reported_tcb_version(
-      kv_store, turin, reported_tcb, true /* recovering */);
-    // fmc 85, boot_loader 0, tee 0, snp 0, microcode 0
+      kv_store, cpuid, {.microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0});
+    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
     REQUIRE(
-      get_min_tcb_version(kv_store, turin).first ==
-      nlohmann::json(make_tcb_policy(turin, "0000000000000055")));
+      get_min_tcb_version(kv_store, cpuid).first ==
+      nlohmann::json(pal::snp::TcbVersionPolicy{
+        .microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0, .fmc = 85}));
   }
 }
 

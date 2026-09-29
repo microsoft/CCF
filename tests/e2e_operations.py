@@ -2668,13 +2668,8 @@ def run_initial_tcb_version_checks(const_args):
         network.consortium.set_snp_minimum_tcb_version(
             primary, cpuid, tcb_before_recovery
         )
-
-        expected_recovery_tcb = dict(node_tcb)
-        expected_recovery_tcb["microcode"] -= 1
-        # Microcode is the most significant byte of the TCB version on all
-        # supported products
-        expected_recovery_tcb["hexstring"] = (
-            f"{expected_recovery_tcb['microcode']:02x}{node_tcb['hexstring'][2:]}"
+        expected_recovery_tcb = dict(
+            tcb_before_recovery, boot_loader=node_tcb["boot_loader"]
         )
 
         network_service_identity_file, _ = network.save_service_identity_to_file()
