@@ -22,13 +22,16 @@ action or observation mismatch fails it immediately. Each instruction names
 the log line and the reduction rule it comes from, so a failure points back to
 both.
 
-The SNP Genoa CI job builds CCF with `-DCCF_RECOVERY_TRACE=ON`, and
-`tests/infra/recovery_trace.py` runs the replayer for the quorum, failover and
-multiple-timeout scenarios in `tests/e2e_operations.py`.
+The SNP Genoa CI job runs its tests with `CCF_RECOVERY_TRACE=1`, which
+`tests/infra/remote.py` passes on to the nodes, so the recovery decision
+protocol scenarios only run traced there. After the quorum, failover and
+multiple-timeout scenarios in `tests/e2e_operations.py`,
+`tests/infra/recovery_trace.py` runs the replayer on the nodes' logs.
 
 ## Records
 
-With `-DCCF_RECOVERY_TRACE=ON`, `src/node/recovery_decision_protocol.cpp` logs
+When the `CCF_RECOVERY_TRACE` environment variable is set to a non-empty
+value, `src/node/recovery_decision_protocol.cpp` logs
 `RDP_TRACE` followed by one JSON object. Every record has `node`,
 `expected_locations`, `sequence`, a per-node counter from 0, and `kind`:
 

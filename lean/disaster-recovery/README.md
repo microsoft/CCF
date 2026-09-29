@@ -84,10 +84,10 @@ committed-prefix preservation. Liveness properties are out of scope.
 ## Trace validation
 
 `DisasterRecovery/Replay.lean` and the modules in `DisasterRecovery/Replay/`
-check C++ runs recorded with `-DCCF_RECOVERY_TRACE=ON` against
-`Model.transitionSystem`. [`replay/README.md`](replay/README.md) describes the
-records, the reduction rules, where CI runs it, and what a successful replay
-does and does not show.
+check C++ runs recorded with the `CCF_RECOVERY_TRACE` environment variable set
+against `Model.transitionSystem`. [`replay/README.md`](replay/README.md)
+describes the records, the reduction rules, where CI runs it, and what a
+successful replay does and does not show.
 
 ## Validation
 
