@@ -1365,8 +1365,8 @@ DOCTEST_TEST_CASE(
   TestNode node1(node_id1);
   auto& r0 = node0.raft;
   auto& r1 = node1.raft;
-  auto* r0c = channel_stub_proxy(r0);
-  auto* r1c = channel_stub_proxy(r1);
+  auto r0c = channel_stub_proxy(r0);
+  auto r1c = channel_stub_proxy(r1);
 
   aft::Configuration::Nodes config0;
   config0[node_id0] = {};
@@ -1636,7 +1636,7 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
-  "Primary does not commit beyond its log when a quorum over-acknowledges" *
+  "Primary stops committing when a quorum acknowledges beyond its log" *
   doctest::test_suite("multiple"))
 {
   ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
@@ -1818,7 +1818,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id2));
   r0.periodic(request_timeout);
 
-  auto* r0c = channel_stub_proxy(r0);
+  auto r0c = channel_stub_proxy(r0);
   const auto first = r0c->pop_first(aft::raft_append_entries, node_id2);
   DOCTEST_REQUIRE(first.has_value());
   const auto first_ae = read_msg<aft::AppendEntries>(first.value());
