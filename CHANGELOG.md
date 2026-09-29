@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Deprecated
 
 - The public headers `ccf/node/cose_signatures_config.h` and `ccf/service/reconfiguration_type.h` are deprecated, and will be removed in 8.0. They are kept for source compatibility only, include `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively, and emit a compiler warning when included. Applications should include the new headers instead (#8463).
+- `ccf::crypto::make_cose_verifier_from_pem_cert()` and `ccf::crypto::make_cose_verifier_any_cert()` now require PEM certificates to start with `-----BEGIN CERTIFICATE-----`; leading text is no longer skipped (#8459).
 
 ### Removed
 
