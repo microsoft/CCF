@@ -542,8 +542,15 @@ install(
 )
 
 install(
-  FILES ${TAV_INCLUDE_DIR}/tav/snp.h ${TAV_INCLUDE_DIR}/tav/utils.h
+  FILES
+    ${TAV_INCLUDE_DIR}/tav/cbor.hpp
+    ${TAV_INCLUDE_DIR}/tav/snp.h
+    ${TAV_INCLUDE_DIR}/tav/utils.h
   DESTINATION include/3rdparty/tav
+)
+install(
+  FILES ${TAV_INCLUDE_DIR}/tav/internal/cbor_abi.h
+  DESTINATION include/3rdparty/tav/internal
 )
 
 # Install all private CCF headers, which may still be needed
