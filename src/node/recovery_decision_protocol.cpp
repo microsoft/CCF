@@ -14,21 +14,19 @@
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
+#include <atomic>
+#include <cstdlib>
 #include <stdexcept>
+#include <string_view>
 #include <tuple>
-#ifdef CCF_RECOVERY_TRACE
-#  include <atomic>
-#  include <string_view>
-#endif
 
 namespace ccf
 {
-#ifdef CCF_RECOVERY_TRACE
   namespace
   {
     constexpr auto recovery_trace_marker = "RDP_TRACE";
 
-    // Traced builds add this field to the protocol messages they send, so that
+    // When tracing is enabled, sent protocol messages carry this field, so that
     // receives can be linked to sends. It is only ever logged.
     constexpr auto trace_message_id_field = "trace_message_id";
 
@@ -39,11 +37,28 @@ namespace ccf
 
     std::atomic<uint64_t> next_trace_sequence = 0;
 
-    // Tracing only observes the protocol, so trace failures are logged and
-    // never propagated to the protocol code being traced
+    // Tracing is enabled by setting the CCF_RECOVERY_TRACE environment variable
+    // to a non-empty value. It is read once, on first use.
+    bool tracing_enabled()
+    {
+      static const bool enabled = []() {
+        // NOLINTNEXTLINE(concurrency-mt-unsafe)
+        const char* value = std::getenv("CCF_RECOVERY_TRACE");
+        return value != nullptr && !std::string_view(value).empty();
+      }();
+      return enabled;
+    }
+
+    // All trace work runs through here, so that it is skipped unless tracing
+    // is enabled. Tracing only observes the protocol, so trace failures are
+    // logged and never propagated to the protocol code being traced
     template <typename F>
     void trace_safely(std::string_view action, F&& f) noexcept
     {
+      if (!tracing_enabled())
+      {
+        return;
+      }
       try
       {
         std::forward<F>(f)();
@@ -61,14 +76,12 @@ namespace ccf
       }
     }
   }
-#endif
 
   RecoveryDecisionProtocolSubsystem::RecoveryDecisionProtocolSubsystem(
     NodeState* node_state_) :
     node_state(node_state_)
   {}
 
-#ifdef CCF_RECOVERY_TRACE
   std::string RecoveryDecisionProtocolSubsystem::emit_trace(
     nlohmann::json&& record)
   {
@@ -133,7 +146,6 @@ namespace ccf
       emit_trace(std::move(record));
     });
   }
-#endif
 
   void RecoveryDecisionProtocolSubsystem::reset_state(ccf::kv::Tx& tx)
   {
@@ -193,14 +205,12 @@ namespace ccf
         [this](
           ccf::kv::Version /*hook_version*/,
           const recovery_decision_protocol::SMState::Write& w) {
-#ifdef CCF_RECOVERY_TRACE
           if (w.has_value())
           {
             trace_safely("commit", [&]() {
               emit_trace({{"kind", "committed"}, {"post", w.value()}});
             });
           }
-#endif
           if (
             w.has_value() &&
             w.value() == recovery_decision_protocol::StateMachine::GOSSIPING)
@@ -213,12 +223,8 @@ namespace ccf
 
   void RecoveryDecisionProtocolSubsystem::advance(
     ccf::kv::Tx& tx,
-    bool timeout
-#ifdef CCF_RECOVERY_TRACE
-    ,
-    recovery_decision_protocol::AdvanceTrace& trace
-#endif
-  )
+    bool timeout,
+    recovery_decision_protocol::AdvanceTrace& trace)
   {
     auto& config = get_config();
 
@@ -237,12 +243,10 @@ namespace ccf
     }
     auto& sm_state = sm_state_opt.value();
     auto& timeout_state = timeout_state_opt.value();
-#ifdef CCF_RECOVERY_TRACE
     trace.pre = sm_state;
     trace.pre_timeout = timeout_state;
     trace.post = sm_state;
     trace.post_timeout = timeout_state;
-#endif
 
     bool valid_timeout = timeout && sm_state == timeout_state;
 
@@ -254,7 +258,6 @@ namespace ccf
         auto* gossip_handle = tx.ro<recovery_decision_protocol::Gossips>(
           Tables::RECOVERY_DECISION_PROTOCOL_GOSSIPS);
         auto quorum_size = config.expected_locations.size();
-#ifdef CCF_RECOVERY_TRACE
         // Iterating adds the same whole-map read dependency as size() below
         trace_safely("gossips", [&]() {
           auto& gossips = trace.gossips.emplace();
@@ -263,7 +266,6 @@ namespace ccf
             return true;
           });
         });
-#endif
         if (gossip_handle->size() >= quorum_size || valid_timeout)
         {
           if (gossip_handle->size() == 0)
@@ -293,11 +295,9 @@ namespace ccf
 
           sm_state_handle->put(
             recovery_decision_protocol::StateMachine::VOTING);
-#ifdef CCF_RECOVERY_TRACE
           trace.post = recovery_decision_protocol::StateMachine::VOTING;
           trace_safely(
             "chosen", [&]() { trace.chosen = std::get<2>(maximum.value()); });
-#endif
         }
         break;
       }
@@ -305,7 +305,6 @@ namespace ccf
       {
         auto* votes = tx.rw<recovery_decision_protocol::Votes>(
           Tables::RECOVERY_DECISION_PROTOCOL_VOTES);
-#ifdef CCF_RECOVERY_TRACE
         // Iterating adds the same whole-map read dependency as size() below
         trace_safely("votes", [&]() {
           auto& observed = trace.votes.emplace();
@@ -314,7 +313,6 @@ namespace ccf
             return true;
           });
         });
-#endif
 
         auto sufficient_quorum =
           votes->size() >= config.expected_locations.size() / 2 + 1;
@@ -338,9 +336,7 @@ namespace ccf
             tx.rw<recovery_decision_protocol::OpenKind>(
                 Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
               ->put(recovery_decision_protocol::OpenKinds::FAILOVER);
-#ifdef CCF_RECOVERY_TRACE
             trace.open_kind = recovery_decision_protocol::OpenKinds::FAILOVER;
-#endif
             LOG_INFO_FMT(
               "Recovery-decision-protocol succeeded on the failover path");
           }
@@ -349,9 +345,7 @@ namespace ccf
             tx.rw<recovery_decision_protocol::OpenKind>(
                 Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
               ->put(recovery_decision_protocol::OpenKinds::QUORUM);
-#ifdef CCF_RECOVERY_TRACE
             trace.open_kind = recovery_decision_protocol::OpenKinds::QUORUM;
-#endif
             LOG_INFO_FMT(
               "Recovery-decision-protocol succeeded on the quorum path");
           }
@@ -372,9 +366,7 @@ namespace ccf
 
           sm_state_handle->put(
             recovery_decision_protocol::StateMachine::OPENING);
-#ifdef CCF_RECOVERY_TRACE
           trace.post = recovery_decision_protocol::StateMachine::OPENING;
-#endif
 
           node_state->transition_service_to_open(tx, identities);
         }
@@ -411,10 +403,8 @@ namespace ccf
           ccf::crypto::cert_der_to_pem(node_config->service_cert_der);
         LOG_INFO_FMT("{}", service_cert.str());
 
-#ifdef CCF_RECOVERY_TRACE
         trace.restart = true;
         trace_safely("chosen", [&]() { trace.chosen = chosen_replica; });
-#endif
         node_state->request_restart();
       }
       case recovery_decision_protocol::StateMachine::OPENING:
@@ -422,9 +412,7 @@ namespace ccf
         if (valid_timeout)
         {
           sm_state_handle->put(recovery_decision_protocol::StateMachine::OPEN);
-#ifdef CCF_RECOVERY_TRACE
           trace.post = recovery_decision_protocol::StateMachine::OPEN;
-#endif
         }
         break;
       }
@@ -448,18 +436,14 @@ namespace ccf
           LOG_TRACE_FMT("Advancing timeout SM to VOTING");
           timeout_state_handle->put(
             recovery_decision_protocol::StateMachine::VOTING);
-#ifdef CCF_RECOVERY_TRACE
           trace.post_timeout = recovery_decision_protocol::StateMachine::VOTING;
-#endif
           break;
         case recovery_decision_protocol::StateMachine::VOTING:
           LOG_TRACE_FMT("Advancing timeout SM to OPENING");
           timeout_state_handle->put(
             recovery_decision_protocol::StateMachine::OPENING);
-#ifdef CCF_RECOVERY_TRACE
           trace.post_timeout =
             recovery_decision_protocol::StateMachine::OPENING;
-#endif
           break;
         case recovery_decision_protocol::StateMachine::OPENING:
         case recovery_decision_protocol::StateMachine::JOINING:
@@ -502,9 +486,7 @@ namespace ccf
             "Recovery-decision-protocol state not set, cannot retry protocol");
         }
         auto& sm_state = sm_state_opt.value();
-#ifdef CCF_RECOVERY_TRACE
         current_trace_batch = next_trace_batch.fetch_add(1);
-#endif
 
         // Stop if recovery-decision-protocol is complete
         if (sm_state == recovery_decision_protocol::StateMachine::OPEN)
@@ -780,9 +762,7 @@ namespace ccf
     for (auto& target : config.expected_locations)
     {
       auto target_address = target.address;
-#ifdef CCF_RECOVERY_TRACE
       record_trace_send(request_json, "gossip", target.name, request.txid);
-#endif
       dispatch_authenticated_message(
         request_json,
         target_address,
@@ -806,10 +786,8 @@ namespace ccf
     const auto self_signed_node_cert =
       node_state->get_self_signed_certificate();
 
-#ifdef CCF_RECOVERY_TRACE
     record_trace_send(
       request_json, "vote", node_info.location.name, std::nullopt);
-#endif
     dispatch_authenticated_message(
       request_json,
       node_info.location.address,
@@ -875,9 +853,7 @@ namespace ccf
         // Don't send to self
         continue;
       }
-#ifdef CCF_RECOVERY_TRACE
       record_trace_send(request_json, "iamopen", target.name, std::nullopt);
-#endif
       dispatch_authenticated_message(
         request_json,
         target.address,

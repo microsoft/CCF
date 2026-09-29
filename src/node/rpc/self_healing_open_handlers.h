@@ -15,9 +15,7 @@
 #include "node/recovery_decision_protocol.h"
 #include "node/rpc/node_frontend_utils.h"
 
-#ifdef CCF_RECOVERY_TRACE
-#  include <type_traits>
-#endif
+#include <type_traits>
 
 namespace ccf::node
 {
@@ -127,17 +125,11 @@ namespace ccf::node
 
       // ---- Advance state machine ----
 
-#ifdef CCF_RECOVERY_TRACE
       recovery_decision_protocol::AdvanceTrace trace;
-#endif
       try
       {
-#ifdef CCF_RECOVERY_TRACE
         node_operation->recovery_decision_protocol().advance(
           args.tx, false, trace);
-#else
-        node_operation->recovery_decision_protocol().advance(args.tx, false);
-#endif
       }
       catch (const std::logic_error& e)
       {
@@ -151,7 +143,6 @@ namespace ccf::node
             e.what()));
       }
 
-#ifdef CCF_RECOVERY_TRACE
       const char* trace_kind = "vote_accepted";
       std::optional<ccf::TxID> trace_txid = std::nullopt;
       if constexpr (std::is_same_v<
@@ -169,7 +160,6 @@ namespace ccf::node
       }
       node_operation->recovery_decision_protocol().record_trace_step(
         trace_kind, params, in.info.location.name, trace_txid, trace);
-#endif
       return make_success();
     };
   }
@@ -372,17 +362,11 @@ namespace ccf::node
           "Request does not originate from primary.");
       }
 
-#ifdef CCF_RECOVERY_TRACE
       recovery_decision_protocol::AdvanceTrace trace;
-#endif
       try
       {
-#ifdef CCF_RECOVERY_TRACE
         node_operation->recovery_decision_protocol().advance(
           args.tx, true, trace);
-#else
-        node_operation->recovery_decision_protocol().advance(args.tx, true);
-#endif
       }
       catch (const std::logic_error& e)
       {
@@ -395,10 +379,8 @@ namespace ccf::node
             "Failed to advance recovery-decision-protocol state: {}",
             e.what()));
       }
-#ifdef CCF_RECOVERY_TRACE
       node_operation->recovery_decision_protocol().record_trace_step(
         "timeout", params, {}, std::nullopt, trace);
-#endif
       return make_success(
         "Recovery-decision-protocol timeout processed successfully");
     };
