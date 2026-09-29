@@ -322,23 +322,6 @@ namespace
     return v;
   }
 
-  std::string negotiated_group_name(SSL* ssl)
-  {
-    const auto group_id = SSL_get_negotiated_group(ssl);
-    if (group_id == NID_undef)
-    {
-      return {};
-    }
-
-    const auto* group_name = SSL_group_to_name(ssl, group_id);
-    if (group_name != nullptr)
-    {
-      return group_name;
-    }
-
-    return std::to_string(group_id);
-  }
-
   struct HandshakeResult
   {
     bool succeeded = false;
@@ -385,7 +368,7 @@ namespace
     result.succeeded = SSL_connect(ssl) == 1;
     if (result.succeeded)
     {
-      result.group = negotiated_group_name(ssl);
+      result.group = ccf::tls::details::get_negotiated_group(ssl);
       const auto* cipher = SSL_get_current_cipher(ssl);
       if (cipher != nullptr)
       {
@@ -2273,6 +2256,16 @@ TEST_CASE("Persistent connection survives many sequential round-trips")
 
 // The server's cipher, ciphersuite and group policy is defined in
 // build_server_ctx(). These assert it from the wire.
+
+TEST_CASE("Querying the negotiated group before a TLS handshake throws")
+{
+  ccf::crypto::OpenSSL::Unique_SSL_CTX ctx(TLS_client_method());
+  ccf::crypto::OpenSSL::Unique_SSL ssl(ctx);
+  REQUIRE_THROWS_WITH_AS(
+    ccf::tls::details::get_negotiated_group(ssl),
+    "Cannot query negotiated TLS group before handshake completion",
+    std::logic_error);
+}
 
 TEST_CASE("Server restricts TLS 1.3 ciphersuites to the configured list")
 {

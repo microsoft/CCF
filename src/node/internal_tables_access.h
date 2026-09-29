@@ -16,7 +16,7 @@
 #include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
-#include "cose/cose_rs_ffi.h"
+#include "crypto/cose.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
@@ -532,39 +532,22 @@ namespace ccf
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
-      auto key_der = service_key.private_key_der();
-      CoseBuffer key_err;
-      auto cose_key =
-        CoseKey::from_private(key_der.data(), key_der.size(), key_err);
-      if (key_err.is_set())
+      try
       {
-        LOG_FAIL_FMT("Failed to create signing key: {}", key_err.to_string());
-        return false;
+        endorsement.endorsement = cose::sign_endorsement(
+          service_key,
+          time_since_epoch,
+          from_txid,
+          to_txid,
+          previous_root,
+          key_to_endorse);
       }
-
-      CoseBuffer cose_buf;
-      CoseBuffer cose_err;
-      auto rc = cose_sign_endorsement(
-        cose_key,
-        time_since_epoch,
-        reinterpret_cast<const uint8_t*>(from_txid.data()),
-        from_txid.size(),
-        reinterpret_cast<const uint8_t*>(to_txid.data()),
-        to_txid.size(),
-        previous_root.data(),
-        previous_root.size(),
-        key_to_endorse.data(),
-        key_to_endorse.size(),
-        cose_buf,
-        cose_err);
-      if (rc != 0 || !cose_buf.is_set())
+      catch (const std::exception& error)
       {
         LOG_FAIL_FMT(
-          "Failed to sign previous service identity: {}",
-          cose_err.is_set() ? cose_err.to_string() : "unknown error");
+          "Failed to sign previous service identity: {}", error.what());
         return false;
       }
-      endorsement.endorsement = cose_buf.to_vector();
 
       previous_identity_endorsement->put(IdentityType::CLASSICAL, endorsement);
       return true;

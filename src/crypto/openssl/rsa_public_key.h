@@ -21,6 +21,7 @@ namespace ccf::crypto
 
   public:
     RSAPublicKey_OpenSSL(EVP_PKEY* key);
+    RSAPublicKey_OpenSSL(OpenSSL::Unique_PKEY&& pkey);
     RSAPublicKey_OpenSSL(const Pem& pem);
     RSAPublicKey_OpenSSL(RSAPublicKey_OpenSSL&& key) = default;
     RSAPublicKey_OpenSSL(std::span<const uint8_t> der);
