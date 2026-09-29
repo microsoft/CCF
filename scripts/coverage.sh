@@ -19,6 +19,11 @@ then call this script from the build directory.
 Options:
   -d <dir>          Directory to search for .profraw files (default: .)
   -o <file>         Output merged profile file (default: <dir>/coverage.profdata)
+  --add-profile <file>
+                    Also merge <file>, a .profraw or .profdata file such as one
+                    produced with --merge-only on another machine (repeatable)
+  --merge-only      Only merge profiles into the output file, without reading
+                    binaries or producing reports
   --html <dir>      Generate an HTML coverage report in <dir>
   --show-uncovered  Print files and line numbers with zero coverage
   -h, --help        Show this help
@@ -42,10 +47,19 @@ Examples:
   # Specify binaries explicitly:
   ../scripts/coverage.sh map_test crypto_test
 
+  # Combine with coverage collected in another build directory, for example
+  # on another machine or platform:
+  ../scripts/coverage.sh --merge-only -o other.profdata  # in that directory
+  ../scripts/coverage.sh --add-profile other.profdata    # in this directory
+
 Notes:
   - Tests must be built and run with -DCOVERAGE=ON. The build system
     automatically sets LLVM_PROFILE_FILE so each test writes its own
     uniquely-named .profraw file.
+  - Profiles added with --add-profile should come from builds of the same
+    source revision, compiler and compile options. llvm-cov reports
+    functions compiled differently as having mismatched data, and excludes
+    them from reports.
   - Reports include framework code under src/ and include/, excluding tests
     and performance code.
   - Requires llvm-profdata and llvm-cov (any of -18 / -15 suffixed variants
@@ -56,6 +70,8 @@ EOF
 
 PROFRAW_DIR="."
 OUTPUT_FILE=""
+ADDITIONAL_PROFILES=()
+MERGE_ONLY=0
 HTML_DIR=""
 SHOW_UNCOVERED=0
 BINARIES=()
@@ -66,6 +82,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -d) PROFRAW_DIR="$2"; shift 2 ;;
     -o) OUTPUT_FILE="$2"; shift 2 ;;
+    --add-profile) ADDITIONAL_PROFILES+=("$2"); shift 2 ;;
+    --merge-only) MERGE_ONLY=1; shift ;;
     --html) HTML_DIR="$2"; shift 2 ;;
     --show-uncovered) SHOW_UNCOVERED=1; shift ;;
     -h|--help) usage ;;
@@ -77,6 +95,12 @@ done
 
 if [[ -z "${OUTPUT_FILE}" ]]; then
   OUTPUT_FILE="${PROFRAW_DIR}/coverage.profdata"
+fi
+
+if [[ "${MERGE_ONLY}" -eq 1 ]] &&
+  [[ -n "${HTML_DIR}" || "${SHOW_UNCOVERED}" -eq 1 || ${#BINARIES[@]} -gt 0 ]]; then
+  echo "Error: --merge-only cannot be combined with binaries or report options." >&2
+  exit 1
 fi
 
 # ---------------------------------------------------------------------------
@@ -95,12 +119,14 @@ find_tool() {
 }
 
 LLVM_PROFDATA=$(find_tool llvm-profdata)
-LLVM_COV=$(find_tool llvm-cov)
+if [[ "${MERGE_ONLY}" -eq 0 ]]; then
+  LLVM_COV=$(find_tool llvm-cov)
+fi
 
 # ---------------------------------------------------------------------------
 # Auto-discover binaries from coverage_binaries.txt if none given explicitly
 # ---------------------------------------------------------------------------
-if [[ ${#BINARIES[@]} -eq 0 ]]; then
+if [[ "${MERGE_ONLY}" -eq 0 && ${#BINARIES[@]} -eq 0 ]]; then
   BINARIES_FILE="${PROFRAW_DIR}/coverage_binaries.txt"
   if [[ ! -f "${BINARIES_FILE}" ]]; then
     echo "Error: no binaries specified and '${BINARIES_FILE}' not found." >&2
@@ -112,7 +138,7 @@ if [[ ${#BINARIES[@]} -eq 0 ]]; then
   readarray -t BINARIES < <(printf '%s\n' "${BINARIES[@]}" | grep -v '^[[:space:]]*$')
 fi
 
-if [[ ${#BINARIES[@]} -eq 0 ]]; then
+if [[ "${MERGE_ONLY}" -eq 0 && ${#BINARIES[@]} -eq 0 ]]; then
   echo "Error: no instrumented binaries found." >&2
   exit 1
 fi
@@ -133,8 +159,17 @@ echo "Found ${#PROFRAW_FILES[@]} .profraw file(s) in '${PROFRAW_DIR}'"
 # ---------------------------------------------------------------------------
 # Merge profile data
 # ---------------------------------------------------------------------------
+for profile in "${ADDITIONAL_PROFILES[@]}"; do
+  echo "Including additional profile '${profile}'"
+done
+
 echo "Merging coverage data into '${OUTPUT_FILE}'..."
-"${LLVM_PROFDATA}" merge -sparse "${PROFRAW_FILES[@]}" -o "${OUTPUT_FILE}"
+"${LLVM_PROFDATA}" merge -sparse "${PROFRAW_FILES[@]}" "${ADDITIONAL_PROFILES[@]}" \
+  -o "${OUTPUT_FILE}"
+
+if [[ "${MERGE_ONLY}" -eq 1 ]]; then
+  exit 0
+fi
 
 # ---------------------------------------------------------------------------
 # Detect -ffile-prefix-map and compute -compilation-dir for llvm-cov.

@@ -9,14 +9,14 @@
 #include "ccf/service/tables/nodes.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
+#include "kv/claims.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
 #include "kv/ledger_chunker.h"
+#include "kv/null_encryptor.h"
 #include "kv/store.h"
-#include "kv/test/null_encryptor.h"
 #include "kv/test/null_tx_history.h"
 #include "kv/test/stub_consensus.h"
-#include "node/rpc/claims.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>

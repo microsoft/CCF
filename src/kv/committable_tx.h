@@ -9,7 +9,6 @@
 #include "kv/tx_pimpl.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "node/rpc/claims.h"
 
 #include <list>
 

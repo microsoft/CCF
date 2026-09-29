@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
@@ -12,14 +13,13 @@
 #include "ccf/entity_id.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node/configuration.h"
-#include "ccf/node/cose_signatures_config.h"
 #include "ccf/node/start_type.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/platform.h"
 #include "ccf/pal/snp_ioctl.h"
 #include "ccf/pal/uvm_endorsements.h"
+#include "ccf/reconfiguration_type.h"
 #include "ccf/service/node_info_network.h"
-#include "ccf/service/reconfiguration_type.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/tx.h"
@@ -73,7 +73,7 @@
 #include <optional>
 
 #ifdef USE_NULL_ENCRYPTOR
-#  include "kv/test/null_encryptor.h"
+#  include "kv/null_encryptor.h"
 #endif
 
 #include <algorithm>
