@@ -272,13 +272,28 @@ jobs:
           python3 tests/infra/platform_detection.py snp genoa
         shell: bash
 
+      - name: "Build Lean recovery trace replayer"
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
+            -o /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          rm /tmp/elan-init.sh
+          export PATH="${HOME}/.elan/bin:${PATH}"
+          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+          cd lean/disaster-recovery
+          # The replayer imports no Mathlib module, so no cache is needed.
+          lake build disaster-recovery-replay
+        shell: bash
+
       - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 ..
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DWORKER_THREADS=1 -DCCF_RECOVERY_TRACE=ON ..
           ninja snp code_update_test ledger_bench
         shell: bash
 
@@ -295,6 +310,7 @@ jobs:
         env:
           CCF_TEST_SYNC_AFTER_SETUP: 1
           CCF_RECOVERY_TRACE: 1
+          CCF_LEAN_TRACE_REPLAYER: ${{ github.workspace }}/lean/disaster-recovery/.lake/build/bin/disaster-recovery-replay
           ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
