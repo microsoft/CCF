@@ -314,7 +314,6 @@ namespace ccf
 
           sm_state_handle->put(
             recovery_decision_protocol::StateMachine::VOTING);
-          trace.post = recovery_decision_protocol::StateMachine::VOTING;
           trace_safely(
             "chosen", [&]() { trace.chosen = std::get<2>(maximum.value()); });
         }
@@ -385,7 +384,6 @@ namespace ccf
 
           sm_state_handle->put(
             recovery_decision_protocol::StateMachine::OPENING);
-          trace.post = recovery_decision_protocol::StateMachine::OPENING;
 
           node_state->transition_service_to_open(tx, identities);
         }
@@ -431,7 +429,6 @@ namespace ccf
         if (valid_timeout)
         {
           sm_state_handle->put(recovery_decision_protocol::StateMachine::OPEN);
-          trace.post = recovery_decision_protocol::StateMachine::OPEN;
         }
         break;
       }
@@ -455,14 +452,11 @@ namespace ccf
           LOG_TRACE_FMT("Advancing timeout SM to VOTING");
           timeout_state_handle->put(
             recovery_decision_protocol::StateMachine::VOTING);
-          trace.post_timeout = recovery_decision_protocol::StateMachine::VOTING;
           break;
         case recovery_decision_protocol::StateMachine::VOTING:
           LOG_TRACE_FMT("Advancing timeout SM to OPENING");
           timeout_state_handle->put(
             recovery_decision_protocol::StateMachine::OPENING);
-          trace.post_timeout =
-            recovery_decision_protocol::StateMachine::OPENING;
           break;
         case recovery_decision_protocol::StateMachine::OPENING:
         case recovery_decision_protocol::StateMachine::JOINING:
@@ -471,6 +465,12 @@ namespace ccf
           LOG_TRACE_FMT("Timeout SM complete");
       }
     }
+
+    // Adds no read dependency: get() returns own writes, else values read above
+    trace_safely("post", [&]() {
+      trace.post = sm_state_handle->get().value_or(sm_state);
+      trace.post_timeout = timeout_state_handle->get().value_or(timeout_state);
+    });
   }
 
   void RecoveryDecisionProtocolSubsystem::start_message_retry_timers()
@@ -505,8 +505,8 @@ namespace ccf
             "Recovery-decision-protocol state not set, cannot retry protocol");
         }
         auto& sm_state = sm_state_opt.value();
-        current_trace_batch = next_trace_batch.fetch_add(1);
         trace_safely("batch", [&]() {
+          current_trace_batch = next_trace_batch.fetch_add(1);
           // A batch whose version could not be read carries none
           current_trace_pre_version.reset();
           current_trace_pre_version =
