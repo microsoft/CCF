@@ -7,7 +7,7 @@
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 #include "frontend_test_infra.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "nlohmann/json.hpp"
 #include "node/http_node_client.h"
 #include "node/internal_tables_access.h"

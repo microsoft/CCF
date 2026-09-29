@@ -4,12 +4,11 @@
 
 #include "apply_changes.h"
 #include "ds/internal_logger.h"
+#include "kv/claims.h"
 #include "kv/committable_tx.h"
+#include "kv/internal_table_names.h"
 #include "kv/ledger_chunker_interface.h"
 #include "kv_types.h"
-#include "service/tables/shares.h"
-#include "service/tables/signatures.h"
-#include "service/tables/snapshot_evidence.h"
 
 #include <vector>
 

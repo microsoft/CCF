@@ -5,7 +5,7 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/ledger_secrets.h"

@@ -6,8 +6,8 @@
 // that Store::commit(), Raft::replicate() and Raft::rollback() interleave as
 // they do in production. Adapted from the harness in PR #8209.
 
+#include "kv/null_encryptor.h"
 #include "kv/store.h"
-#include "kv/test/null_encryptor.h"
 #include "test_common.h"
 
 #include <chrono>

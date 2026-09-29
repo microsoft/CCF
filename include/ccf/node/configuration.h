@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/curve.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/entity_id.h"
-#include "ccf/node/cose_signatures_config.h"
 #include "ccf/node/start_type.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/consensus_config.h"

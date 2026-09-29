@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/verifier.h"
-#include "ccf/node/cose_signatures_config.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/ec_key_pair.h"
 
