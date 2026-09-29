@@ -346,6 +346,7 @@ jobs:
           ninja -v
           ./ccfapp > out.txt
           grep "I'm a CCF test app" out.txt
+          grep "Exported headers are usable" out.txt
           /opt/ccf/bin/ensure-snmalloc.sh ccfapp
 
   reproduce_rpm:
