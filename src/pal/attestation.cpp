@@ -52,8 +52,6 @@ namespace ccf::pal
     }
   }
 
-  using Unique_ASN1_OBJECT = ccf::crypto::OpenSSL::
-    Unique_SSL_OBJECT<ASN1_OBJECT, ASN1_OBJECT_new, ASN1_OBJECT_free>;
   using Unique_ASN1_INTEGER = ccf::crypto::OpenSSL::
     Unique_SSL_OBJECT<ASN1_INTEGER, ASN1_INTEGER_new, ASN1_INTEGER_free>;
 
@@ -74,7 +72,8 @@ namespace ccf::pal
   std::optional<long> get_integer_from_cert_extensions(
     const ccf::crypto::OpenSSL::Unique_X509& x509, const std::string& oid)
   {
-    Unique_ASN1_OBJECT target(OBJ_txt2obj(oid.c_str(), 1), ASN1_OBJECT_free);
+    ccf::crypto::OpenSSL::Unique_ASN1_OBJECT target(
+      OBJ_txt2obj(oid.c_str(), 1));
 
     size_t ext_loc = X509_get_ext_by_OBJ(x509, target, -1);
     if (ext_loc < 0)
@@ -214,8 +213,8 @@ namespace ccf::pal
 
     const std::string chip_id_oid = "1.3.6.1.4.1.3704.1.4";
 
-    Unique_ASN1_OBJECT chip_id_obj(
-      OBJ_txt2obj(chip_id_oid.c_str(), 1), ASN1_OBJECT_free);
+    ccf::crypto::OpenSSL::Unique_ASN1_OBJECT chip_id_obj(
+      OBJ_txt2obj(chip_id_oid.c_str(), 1));
 
     int ext_index = X509_get_ext_by_OBJ(x509, chip_id_obj, -1);
     if (ext_index < 0)

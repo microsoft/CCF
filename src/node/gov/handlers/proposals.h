@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/crypto/cose.h"
 #include "ccf/ds/json.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/extensions/ccf/gov.h"
@@ -646,8 +647,15 @@ namespace ccf::gov::endpoints
 
               proposal_info_handle->put(proposal_id, proposal_info);
 
+              // The signed payload is the proposal body, which has just been
+              // written to the proposals table, so the governance history
+              // only records the envelope with the payload detached (nil), to
+              // avoid storing every proposal twice. Auditors verify this
+              // entry against the proposal stored in the same transaction.
               detail::record_cose_governance_history(
-                ctx.tx, cose_ident.member_id, cose_ident.envelope);
+                ctx.tx,
+                cose_ident.member_id,
+                ccf::cose::edit::detach_payload(cose_ident.envelope));
             }
           }
 

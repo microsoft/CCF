@@ -29,14 +29,12 @@ namespace ccf::kv::untyped
     const auto* const search = tx_changes.state.getp(key);
     if (search == nullptr)
     {
-      tx_changes.reads.insert(
-        std::make_pair(key, std::make_tuple(NoVersion, NoVersion)));
+      tx_changes.reads.insert(std::make_pair(key, NoVersion));
       return nullptr;
     }
 
     // Record the version that we depend on.
-    tx_changes.reads.insert(std::make_pair(
-      key, std::make_tuple(search->version, search->read_version)));
+    tx_changes.reads.insert(std::make_pair(key, search->version));
 
     // Return the value.
     return &search->value;
@@ -117,14 +115,12 @@ namespace ccf::kv::untyped
     const auto* const search = tx_changes.state.getp(key);
     if (search == nullptr)
     {
-      tx_changes.reads.insert(
-        std::make_pair(key, std::make_tuple(NoVersion, NoVersion)));
+      tx_changes.reads.insert(std::make_pair(key, NoVersion));
       return std::nullopt;
     }
 
     // Record the version that we depend on.
-    tx_changes.reads.insert(std::make_pair(
-      key, std::make_tuple(search->version, search->read_version)));
+    tx_changes.reads.insert(std::make_pair(key, search->version));
 
     return search->version;
   }

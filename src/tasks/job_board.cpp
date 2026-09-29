@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <map>
+#include <unordered_map>
 
 namespace ccf::tasks
 {
@@ -51,6 +52,15 @@ namespace ccf::tasks
     std::chrono::milliseconds total_elapsed CCF_GUARDED_BY(tasks_mutex) =
       std::chrono::milliseconds(0);
     DelayedTasksByTime tasks CCF_GUARDED_BY(tasks_mutex);
+    bool shut_down CCF_GUARDED_BY(tasks_mutex) = false;
+  };
+
+  struct JobBoard::Registry
+  {
+    ccf::ds::Mutex mutex;
+    std::unordered_map<BaseTask*, std::weak_ptr<BaseTask>> tasks
+      CCF_GUARDED_BY(mutex);
+    bool shut_down CCF_GUARDED_BY(mutex) = false;
   };
 
   struct JobBoard::PImpl
@@ -72,6 +82,8 @@ namespace ccf::tasks
 
     ccf::ds::WorkBeaconPtr work_beacon CCF_GUARDED_BY(mutex) = nullptr;
     bool stopping CCF_GUARDED_BY(mutex) = false;
+    bool shut_down CCF_GUARDED_BY(mutex) = false;
+    std::shared_ptr<Registry> registry = std::make_shared<Registry>();
 
     // Collection of delayed tasks, that may be ready for execution on a future
     // tick
@@ -95,38 +107,51 @@ namespace ccf::tasks
       }
     }
 
-    void add_task(Task&& task)
+    // May run shutdown hooks, so callers must not hold board locks.
+    void add_task(Task&& task) CCF_EXCLUDES(mutex, delayed.tasks_mutex)
     {
       ccf::ds::WorkBeaconPtr beacon;
+      Task abandoned;
       {
         // Under lock
         ccf::ds::MutexGuard lock(mutex);
-
-        // First check if there is an idle worker waiting for a task
-        for (WorkerThreadPtr& worker : *waiting_worker_threads)
+        if (!shut_down)
         {
-          // NB: Although waiting_worker_threads is modified under lock, it is
-          // possible that a second call to add_task arrives before the notified
-          // thread wakes up and removes itself from this collection. In this
-          // case we must avoid overwriting a previously-assigned task.
-          if (worker->assigned_task == nullptr)
+          // First check if there is an idle worker waiting for a task
+          for (WorkerThreadPtr& worker : *waiting_worker_threads)
           {
-            worker->assigned_task = std::move(task);
-            worker->cv.notify_one();
-            return;
+            // NB: Although waiting_worker_threads is modified under lock, it is
+            // possible that a second call to add_task arrives before the
+            // notified thread wakes up and removes itself from this collection.
+            // In this case we must avoid overwriting a previously-assigned
+            // task.
+            if (worker->assigned_task == nullptr)
+            {
+              worker->assigned_task = std::move(task);
+              worker->cv.notify_one();
+              return;
+            }
           }
-        }
 
-        // There are no waiting_worker_threads currently, or none waiting for a
-        // task, so enqueue this task for later execution. Wake the external
-        // consumer only when the pending queue becomes non-empty.
-        if (pending_tasks.empty())
-        {
-          beacon = work_beacon;
+          // There are no waiting_worker_threads currently, or none waiting for
+          // a task, so enqueue this task for later execution. Wake the external
+          // consumer only when the pending queue becomes non-empty.
+          if (pending_tasks.empty())
+          {
+            beacon = work_beacon;
+          }
+          pending_tasks.emplace(std::move(task));
         }
-        pending_tasks.emplace(std::move(task));
+        else
+        {
+          abandoned = std::move(task);
+        }
       }
 
+      if (abandoned != nullptr)
+      {
+        abandoned->shutdown();
+      }
       if (beacon != nullptr)
       {
         beacon->notify_work_available_coalesced();
@@ -204,19 +229,30 @@ namespace ccf::tasks
       }
     }
 
+    // May run shutdown hooks, so callers must not hold board locks.
     void add_timed_task(
       Task task,
       std::chrono::milliseconds initial_delay,
       std::optional<std::chrono::milliseconds> periodic_delay)
+      CCF_EXCLUDES(mutex, delayed.tasks_mutex)
     {
-      ccf::ds::MutexGuard lock(delayed.tasks_mutex);
-
-      const auto trigger_time = delayed.total_elapsed + initial_delay;
-      delayed.tasks[trigger_time].emplace_back(task, periodic_delay);
+      {
+        ccf::ds::MutexGuard lock(delayed.tasks_mutex);
+        if (!delayed.shut_down)
+        {
+          const auto trigger_time = delayed.total_elapsed + initial_delay;
+          delayed.tasks[trigger_time].emplace_back(
+            std::move(task), periodic_delay);
+          return;
+        }
+      }
+      task->shutdown();
     }
 
     void tick(std::chrono::milliseconds elapsed)
+      CCF_EXCLUDES(mutex, delayed.tasks_mutex)
     {
+      std::vector<Task> ready_tasks;
       {
         ccf::ds::MutexGuard lock(delayed.tasks_mutex);
         elapsed += delayed.total_elapsed;
@@ -238,8 +274,7 @@ namespace ccf::tasks
               continue;
             }
 
-            Task task_copy(delayed_task.task);
-            add_task(std::move(task_copy));
+            ready_tasks.push_back(delayed_task.task);
             if (delayed_task.repeat.has_value())
             {
               repeats[elapsed + delayed_task.repeat.value()].emplace_back(
@@ -260,6 +295,12 @@ namespace ccf::tasks
             repeated_tasks.end());
         }
       }
+
+      // Submit after releasing tasks_mutex, since add_task may run hooks
+      for (auto& task : ready_tasks)
+      {
+        add_task(std::move(task));
+      }
     }
   };
 
@@ -273,7 +314,98 @@ namespace ccf::tasks
 
   JobBoard::JobBoard() : pimpl(std::make_unique<PImpl>()) {}
 
-  JobBoard::~JobBoard() = default;
+  JobBoard::~JobBoard()
+  {
+    shutdown();
+  }
+
+  JobBoard::Registration::Registration(
+    const std::shared_ptr<Registry>& registry_, BaseTask* task_) :
+    registry(registry_),
+    task(task_)
+  {}
+
+  JobBoard::Registration::~Registration()
+  {
+    if (auto live_registry = registry.lock())
+    {
+      ccf::ds::MutexGuard lock(live_registry->mutex);
+      live_registry->tasks.erase(task);
+    }
+  }
+
+  std::unique_ptr<JobBoard::Registration> JobBoard::register_task(
+    const Task& task)
+  {
+    auto& registry = pimpl->registry;
+    auto registration =
+      std::unique_ptr<Registration>(new Registration(registry, task.get()));
+    {
+      ccf::ds::MutexGuard lock(registry->mutex);
+      if (!registry->shut_down)
+      {
+        registry->tasks.emplace(task.get(), task);
+        return registration;
+      }
+    }
+    task->shutdown();
+    return nullptr;
+  }
+
+  void JobBoard::shutdown()
+  {
+    std::queue<Task> pending;
+    Delayed::DelayedTasksByTime delayed;
+    decltype(Registry::tasks) registered;
+    {
+      ccf::ds::MutexGuard lock(pimpl->mutex);
+      if (pimpl->shut_down)
+      {
+        return;
+      }
+      pimpl->shut_down = true;
+      pimpl->stopping = true;
+      pending.swap(pimpl->pending_tasks);
+    }
+    {
+      ccf::ds::MutexGuard lock(pimpl->delayed.tasks_mutex);
+      pimpl->delayed.shut_down = true;
+      delayed.swap(pimpl->delayed.tasks);
+    }
+    {
+      ccf::ds::MutexGuard lock(pimpl->registry->mutex);
+      pimpl->registry->shut_down = true;
+      registered.swap(pimpl->registry->tasks);
+    }
+
+    // No locks are held: releasing a capture may destroy a registered task,
+    // cancel another task, or submit more work to this board.
+    std::vector<Task> live_tasks;
+    live_tasks.reserve(registered.size());
+    for (const auto& [_, weak_task] : registered)
+    {
+      if (auto task = weak_task.lock())
+      {
+        live_tasks.push_back(std::move(task));
+      }
+    }
+    for (const auto& task : live_tasks)
+    {
+      task->shutdown();
+    }
+    while (!pending.empty())
+    {
+      pending.front()->shutdown();
+      pending.pop();
+    }
+    for (const auto& [_, tasks] : delayed)
+    {
+      for (const auto& entry : tasks)
+      {
+        entry.task->shutdown();
+      }
+    }
+  }
 
   void JobBoard::set_work_beacon(ccf::ds::WorkBeaconPtr work_beacon)
   {
@@ -307,6 +439,10 @@ namespace ccf::tasks
       ccf::ds::MutexGuard lock(pimpl->mutex);
       summary.pending_tasks = pimpl->pending_tasks.size();
       summary.idle_workers = pimpl->waiting_worker_threads->size();
+    }
+    {
+      ccf::ds::MutexGuard lock(pimpl->registry->mutex);
+      summary.registered_tasks = pimpl->registry->tasks.size();
     }
     return summary;
   }

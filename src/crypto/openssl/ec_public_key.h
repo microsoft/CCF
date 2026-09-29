@@ -4,7 +4,6 @@
 
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
-#include "crypto/openssl/public_key.h"
 
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -13,9 +12,11 @@
 
 namespace ccf::crypto
 {
-  class ECPublicKey_OpenSSL : public ECPublicKey, public PublicKey_OpenSSL
+  class ECPublicKey_OpenSSL : public ECPublicKey
   {
   protected:
+    OpenSSL::Unique_PKEY key{nullptr, EVP_PKEY_free, false};
+
     ECPublicKey_OpenSSL();
 
     static std::vector<uint8_t> ec_point_public_from_jwk(
@@ -23,6 +24,7 @@ namespace ccf::crypto
 
   public:
     ECPublicKey_OpenSSL(EVP_PKEY* key);
+    ECPublicKey_OpenSSL(OpenSSL::Unique_PKEY&& pkey);
     ECPublicKey_OpenSSL(const Pem& pem);
     ECPublicKey_OpenSSL(ECPublicKey_OpenSSL&& key) = default;
     ECPublicKey_OpenSSL(std::span<const uint8_t> der);

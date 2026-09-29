@@ -8,6 +8,7 @@
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/constitution.h"
+#include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/snp_measurements.h"
@@ -16,10 +17,11 @@
 #include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
-#include "cose/cose_rs_ffi.h"
+#include "crypto/cose.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
+#include "service/tables/config.h"
 #include "service/tables/governance_history.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
@@ -119,40 +121,6 @@ namespace ccf
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
       return member_encryption_public_keys->get(member_id).has_value();
-    }
-
-    static bool is_recovery_participant(
-      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
-    {
-      return is_recovery_participant_or_owner(tx, member_id) &&
-        !is_recovery_owner(tx, member_id);
-    }
-
-    static bool is_recovery_owner(
-      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
-    {
-      auto* member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto mi = member_info->get(member_id);
-      if (!mi.has_value())
-      {
-        return false;
-      }
-
-      return mi->recovery_role.has_value() &&
-        mi->recovery_role.value() == MemberRecoveryRole::Owner;
-    }
-
-    static bool is_active_member(
-      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
-    {
-      auto* member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto mi = member_info->get(member_id);
-      if (!mi.has_value())
-      {
-        return false;
-      }
-
-      return mi->status == MemberStatus::ACTIVE;
     }
 
     static std::map<MemberId, ccf::crypto::Pem>
@@ -302,112 +270,6 @@ namespace ccf
       member_info->put(member_id, member.value());
 
       return newly_active;
-    }
-
-    static bool remove_member(ccf::kv::Tx& tx, const MemberId& member_id)
-    {
-      auto* member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
-      auto* member_encryption_public_keys =
-        tx.rw<ccf::MemberPublicEncryptionKeys>(
-          Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
-      auto* member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
-      auto* member_acks = tx.rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
-      auto* member_gov_history =
-        tx.rw<ccf::GovernanceHistory>(Tables::GOV_HISTORY);
-
-      auto member_to_remove = member_info->get(member_id);
-      if (!member_to_remove.has_value())
-      {
-        // The remove member proposal is idempotent so if the member does not
-        // exist, the proposal should succeed with no effect
-        LOG_FAIL_FMT(
-          "Could not remove member {}: member does not exist", member_id);
-        return true;
-      }
-
-      // If the member was active and had a recovery share, check that
-      // the new number of active members is still sufficient for
-      // recovery
-      if (member_to_remove->status == MemberStatus::ACTIVE)
-      {
-        if (is_recovery_participant(tx, member_id))
-        {
-          size_t active_recovery_participants_count_after =
-            get_active_recovery_participants(tx).size() - 1;
-          auto recovery_threshold = get_recovery_threshold(tx);
-          auto active_recovery_owners_count =
-            get_active_recovery_owners(tx).size();
-          if (
-            active_recovery_participants_count_after == 0 &&
-            active_recovery_owners_count > 0 && recovery_threshold == 1)
-          {
-            // Its fine to remove all active recovery particiants as long as
-            // recover owner(s) exist with a threshold of 1.
-            LOG_INFO_FMT(
-              "Allowing last active recovery participant member {}: to "
-              "be removed as active recovery owner members ({}) are present "
-              "with recovery threshold ({}).",
-              member_id,
-              active_recovery_owners_count,
-              recovery_threshold);
-          }
-          else if (
-            active_recovery_participants_count_after < recovery_threshold)
-          {
-            // Because the member to remove is active, there is at least one
-            // active member (i.e. active_recovery_participants_count_after >=
-            // 0)
-            LOG_FAIL_FMT(
-              "Failed to remove recovery member {}: number of active recovery "
-              "participant members ({}) would be less than recovery threshold "
-              "({})",
-              member_id,
-              active_recovery_participants_count_after,
-              recovery_threshold);
-            return false;
-          }
-        }
-        else if (is_recovery_owner(tx, member_id))
-        {
-          size_t active_recovery_owners_count_after =
-            get_active_recovery_owners(tx).size() - 1;
-          auto recovery_threshold = get_recovery_threshold(tx);
-          auto active_recovery_participants_count =
-            get_active_recovery_participants(tx).size();
-          if (active_recovery_owners_count_after == 0)
-          {
-            if (active_recovery_participants_count > 0)
-            {
-              LOG_INFO_FMT(
-                "Allowing last active recovery owner member {}: to "
-                "be removed as active recovery owner participants ({}) are "
-                "present with recovery threshold ({}).",
-                member_id,
-                active_recovery_participants_count,
-                recovery_threshold);
-            }
-            else
-            {
-              LOG_FAIL_FMT(
-                "Failed to remove last active recovery owner member {}: number "
-                "of active recovery participant members ({}) would be less "
-                "than recovery threshold ({})",
-                member_id,
-                active_recovery_participants_count,
-                recovery_threshold);
-              return false;
-            }
-          }
-        }
-      }
-
-      member_info->remove(member_id);
-      member_encryption_public_keys->remove(member_id);
-      member_certs->remove(member_id);
-      member_acks->remove(member_id);
-      member_gov_history->remove(member_id);
-
-      return true;
     }
 
     static UserId add_user(ccf::kv::Tx& tx, const NewUser& new_user)
@@ -671,39 +533,22 @@ namespace ccf
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
-      auto key_der = service_key.private_key_der();
-      CoseBuffer key_err;
-      auto cose_key =
-        CoseKey::from_private(key_der.data(), key_der.size(), key_err);
-      if (key_err.is_set())
+      try
       {
-        LOG_FAIL_FMT("Failed to create signing key: {}", key_err.to_string());
-        return false;
+        endorsement.endorsement = cose::sign_endorsement(
+          service_key,
+          time_since_epoch,
+          from_txid,
+          to_txid,
+          previous_root,
+          key_to_endorse);
       }
-
-      CoseBuffer cose_buf;
-      CoseBuffer cose_err;
-      auto rc = cose_sign_endorsement(
-        cose_key,
-        time_since_epoch,
-        reinterpret_cast<const uint8_t*>(from_txid.data()),
-        from_txid.size(),
-        reinterpret_cast<const uint8_t*>(to_txid.data()),
-        to_txid.size(),
-        previous_root.data(),
-        previous_root.size(),
-        key_to_endorse.data(),
-        key_to_endorse.size(),
-        cose_buf,
-        cose_err);
-      if (rc != 0 || !cose_buf.is_set())
+      catch (const std::exception& error)
       {
         LOG_FAIL_FMT(
-          "Failed to sign previous service identity: {}",
-          cose_err.is_set() ? cose_err.to_string() : "unknown error");
+          "Failed to sign previous service identity: {}", error.what());
         return false;
       }
-      endorsement.endorsement = cose_buf.to_vector();
 
       previous_identity_endorsement->put(IdentityType::CLASSICAL, endorsement);
       return true;
@@ -1019,78 +864,6 @@ namespace ccf
       }
 
       config->put(configuration);
-    }
-
-    static bool set_recovery_threshold(ccf::kv::Tx& tx, size_t threshold)
-    {
-      auto* config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
-
-      if (threshold == 0)
-      {
-        LOG_FAIL_FMT("Cannot set recovery threshold to 0");
-        return false;
-      }
-
-      auto service_status = get_service_status(tx);
-      if (!service_status.has_value())
-      {
-        LOG_FAIL_FMT("Failed to get active service");
-        return false;
-      }
-
-      if (
-        service_status.value() == ServiceStatus::RECOVERING ||
-        service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
-      {
-        // During recovery, the recovery threshold cannot be modified.
-        // Otherwise, the threshold could be passed without triggering the end
-        // of recovery procedure.
-        LOG_FAIL_FMT(
-          "Cannot set recovery threshold: service is currently recovering");
-        return false;
-      }
-      if (service_status.value() == ServiceStatus::OPEN)
-      {
-        auto active_recovery_participants_count =
-          get_active_recovery_participants(tx).size();
-        auto active_recovery_owners_count =
-          get_active_recovery_owners(tx).size();
-
-        if (
-          active_recovery_owners_count != 0 &&
-          active_recovery_participants_count == 0)
-        {
-          if (threshold > 1)
-          {
-            LOG_FAIL_FMT(
-              "Cannot set recovery threshold to {} when only "
-              "active consortium members ({}) that are of type recovery owner "
-              "exist.",
-              threshold,
-              active_recovery_owners_count);
-            return false;
-          }
-        }
-        else if (threshold > active_recovery_participants_count)
-        {
-          LOG_FAIL_FMT(
-            "Cannot set recovery threshold to {} as it is greater than the "
-            "number of active recovery participant members ({})",
-            threshold,
-            active_recovery_participants_count);
-          return false;
-        }
-      }
-
-      auto current_config = config->get();
-      if (!current_config.has_value())
-      {
-        throw std::logic_error("Configuration should already be set");
-      }
-
-      current_config->recovery_threshold = threshold;
-      config->put(current_config.value());
-      return true;
     }
 
     static size_t get_recovery_threshold(ccf::kv::ReadOnlyTx& tx)

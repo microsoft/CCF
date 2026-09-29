@@ -623,6 +623,12 @@ def test_multi_auth(network, args):
             assert r.body.text().startswith("User TLS cert"), r.body.text()
             require_new_response(r)
 
+        LOG.info("Authenticate via TLS cert without verifying the service CA")
+        with primary.client(user.local_id, verify_ca=False) as c:
+            unverified = c.post("/app/multi_auth")
+            assert unverified.status_code == http.HTTPStatus.OK, unverified
+            assert unverified.body.text() == r.body.text(), unverified.body.text()
+
         LOG.info("Authenticate as same user, now with user data")
         network.consortium.set_user_data(
             primary, user.service_id, {"some": ["interesting", "data", 42]}
@@ -1505,12 +1511,12 @@ def escaped_query_tests(c, endpoint):
         {"this": "that", "other": "with spaces"},
         {"this with spaces": "with spaces"},
         {"arg": 'This has many@many many \\% " AWKWARD :;-=?!& characters %20%20'},
+        {"reserved +#%": "literal + # % ? & = /"},
     ]
     for query in samples:
         unescaped_query = "&".join([f"{k}={v}" for k, v in query.items()])
-        query_to_send = unescaped_query
-        if os.getenv("CURL_CLIENT"):
-            query_to_send = urllib.parse.urlencode(query)
+        # Encode literal percent escapes and reserved characters before sending.
+        query_to_send = urllib.parse.urlencode(query)
         r = c.get(f"/app/log/{endpoint}?{query_to_send}")
         assert r.body.text() == unescaped_query, (
             r.body.text(),

@@ -188,6 +188,9 @@ COSE
 .. doxygenfunction:: ccf::cose::edit::set_unprotected_header
    :project: CCF
 
+.. doxygenfunction:: ccf::cose::edit::detach_payload
+   :project: CCF
+
 Network Identity
 ----------------
 

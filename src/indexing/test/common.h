@@ -6,7 +6,7 @@
 #include "kv/test/stub_consensus.h"
 
 // Needed by TestTransactionFetcher
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 
 using MapA = ccf::kv::Map<std::string, std::string>;
 static MapA map_a("public:map_a");
@@ -35,7 +35,6 @@ public:
     ccf::SeqNo seqno, const uint8_t* data, size_t size)
   {
     auto store = std::make_shared<ccf::kv::Store>(
-      false /* Do not start from very first seqno */,
       true /* Make use of historical secrets */);
 
     store->set_encryptor(encryptor);

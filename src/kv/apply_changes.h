@@ -17,13 +17,9 @@ namespace ccf::kv
 
   // Atomically checks for conflicts then applies the writes in the given change
   // sets to their underlying Maps. Calls f() at most once, iff the writes are
-  // applied, to retrieve a unique Version for the write set and return the max
-  // version which can have a conflict with the transaction.
+  // applied, to retrieve a unique Version for the write set.
 
-  using VersionLastNewMap = Version;
-  using VersionResolution = std::tuple<Version, VersionLastNewMap>;
-  using VersionResolver =
-    std::function<std::optional<VersionResolution>(bool tx_contains_new_map)>;
+  using VersionResolver = std::function<std::optional<Version>()>;
 
   static inline std::optional<Version> apply_changes(
     OrderedChanges& changes,
@@ -118,11 +114,10 @@ namespace ccf::kv
     if (ok && has_writes)
     {
       // Get the version number to be used for this commit.
-      ccf::kv::Version version_last_new_map = 0;
-      const auto version_resolution = version_resolver_fn(!new_maps.empty());
-      if (version_resolution.has_value())
+      const auto resolved_version = version_resolver_fn();
+      if (resolved_version.has_value())
       {
-        std::tie(version, version_last_new_map) = version_resolution.value();
+        version = resolved_version.value();
       }
       else
       {

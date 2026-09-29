@@ -28,8 +28,7 @@ namespace http2
     nghttp2_session* session = nullptr;
 
   public:
-    Parser(
-      ccf::http::ParserConfiguration configuration_, bool is_client = false) :
+    Parser(ccf::http::ParserConfiguration configuration_) :
       configuration(std::move(configuration_))
     {
       LOG_TRACE_FMT("Creating HTTP2 parser");
@@ -54,19 +53,9 @@ namespace http2
       nghttp2_session_callbacks_set_on_data_chunk_recv_callback(
         callbacks, on_data_callback);
 
-      if (is_client)
+      if (nghttp2_session_server_new(&session, callbacks, this) != 0)
       {
-        if (nghttp2_session_client_new(&session, callbacks, this) != 0)
-        {
-          throw std::logic_error("Could not create new HTTP/2 client session");
-        }
-      }
-      else
-      {
-        if (nghttp2_session_server_new(&session, callbacks, this) != 0)
-        {
-          throw std::logic_error("Could not create new HTTP/2 server session");
-        }
+        throw std::logic_error("Could not create new HTTP/2 server session");
       }
 
       // Submit initial settings
@@ -164,26 +153,7 @@ namespace http2
       auto it = streams.find(stream_id);
       if (it != streams.end())
       {
-        // Erase _before_ calling close callback as `destroy_stream()` may be
-        // called multiple times (once when the client closes the stream, and
-        // when the server sends the final trailers)
-        auto stream_data = it->second;
-        it = streams.erase(it);
-        LOG_TRACE_FMT("Deleted stream {}", stream_id);
-        if (
-          stream_data->close_callback != nullptr &&
-          stream_data->outgoing.state != http2::StreamResponseState::Closing)
-        {
-          // Close callback is supplied by app so handle eventual exceptions
-          try
-          {
-            stream_data->close_callback();
-          }
-          catch (const std::exception& e)
-          {
-            LOG_DEBUG_FMT("Error closing callback: {}", e.what());
-          }
-        }
+        streams.erase(it);
         LOG_TRACE_FMT("Successfully destroyed stream {}", stream_id);
       }
       else
@@ -303,24 +273,9 @@ namespace http2
     ServerParser(
       http::RequestProcessor& proc_,
       const ccf::http::ParserConfiguration& configuration_) :
-      Parser(configuration_, false),
+      Parser(configuration_),
       proc(proc_)
     {}
-
-    void set_on_stream_close_callback(StreamId stream_id, StreamCloseCB cb)
-    {
-      LOG_TRACE_FMT(
-        "http2::set_on_stream_close_callback: stream {}", stream_id);
-
-      auto* stream_data = get_stream_data(session, stream_id);
-      if (stream_data == nullptr)
-      {
-        throw std::logic_error(
-          fmt::format("Stream {} no longer exists", stream_id));
-      }
-
-      stream_data->close_callback = cb;
-    }
 
     void respond(
       StreamId stream_id,
@@ -344,9 +299,6 @@ namespace http2
           fmt::format("Stream {} no longer exists", stream_id));
       }
 
-      bool should_submit_response =
-        stream_data->outgoing.state != StreamResponseState::Streaming;
-
       stream_data->outgoing.state = StreamResponseState::Closing;
 
       ccf::http::HeaderMap extra_headers = {};
@@ -361,98 +313,11 @@ namespace http2
       stream_data->outgoing.body = DataSource(std::move(body));
       stream_data->outgoing.has_trailers = !trailers.empty();
 
-      if (should_submit_response)
-      {
-        submit_response(stream_id, status, std::move(headers), extra_headers);
-        send_all_submitted();
-      }
+      submit_response(stream_id, status, std::move(headers), extra_headers);
+      send_all_submitted();
 
       submit_trailers(stream_id, std::move(trailers));
       send_all_submitted();
-    }
-
-    void start_stream(
-      StreamId stream_id,
-      ccf::http_status status,
-      ccf::http::HeaderMap&& headers)
-    {
-      LOG_TRACE_FMT(
-        "http2::start_stream: stream {} - {} headers",
-        stream_id,
-        headers.size());
-
-      auto* stream_data = get_stream_data(session, stream_id);
-      if (stream_data == nullptr)
-      {
-        throw std::logic_error(
-          fmt::format("Stream {} no longer exists", stream_id));
-      }
-
-      if (stream_data->outgoing.state != StreamResponseState::Uninitialised)
-      {
-        throw std::logic_error(fmt::format(
-          "Stream {} should be uninitialised to start stream", stream_id));
-      }
-
-      stream_data->outgoing.state = StreamResponseState::Streaming;
-
-      submit_response(stream_id, status, std::move(headers));
-      send_all_submitted();
-    }
-
-    void send_data(StreamId stream_id, std::vector<uint8_t>&& data)
-    {
-      LOG_TRACE_FMT(
-        "http2::send_data: stream {} - {} bytes", stream_id, data.size());
-
-      auto* stream_data = get_stream_data(session, stream_id);
-      if (stream_data == nullptr)
-      {
-        throw std::logic_error(
-          fmt::format("Stream {} no longer exists", stream_id));
-      }
-
-      if (stream_data->outgoing.state != StreamResponseState::Streaming)
-      {
-        throw std::logic_error(
-          fmt::format("Stream {} should be streaming to send data", stream_id));
-      }
-
-      stream_data->outgoing.body = DataSource(std::move(data));
-
-      int rv = nghttp2_session_resume_data(session, stream_id);
-      if (rv < 0)
-      {
-        throw std::logic_error(fmt::format(
-          "nghttp2_session_resume_data error: {}", nghttp2_strerror(rv)));
-      }
-
-      send_all_submitted();
-    }
-
-    void close_stream(StreamId stream_id, ccf::http::HeaderMap&& trailers)
-    {
-      LOG_TRACE_FMT(
-        "http2::close: stream {} - {} trailers ", stream_id, trailers.size());
-
-      auto* stream_data = get_stream_data(session, stream_id);
-      if (stream_data == nullptr)
-      {
-        throw std::logic_error(
-          fmt::format("Stream {} no longer exists", stream_id));
-      }
-
-      auto it = streams.find(stream_id);
-      if (it != streams.end())
-      {
-        stream_data->outgoing.state = StreamResponseState::Closing;
-        stream_data->outgoing.has_trailers = !trailers.empty();
-
-        submit_trailers(stream_id, std::move(trailers));
-        send_all_submitted();
-      }
-      // else this stream was already closed by client, and we shouldn't send
-      // trailers
     }
 
     void handle_completed(StreamId stream_id, StreamData* stream_data) override
@@ -491,86 +356,6 @@ namespace http2
         std::move(stream_data->incoming.headers),
         std::move(stream_data->incoming.body),
         stream_id);
-    }
-  };
-
-  class ClientParser : public Parser
-  {
-  private:
-    ::http::ResponseProcessor& proc;
-
-  public:
-    ClientParser(::http::ResponseProcessor& proc_) :
-      Parser(ccf::http::ParserConfiguration{}, true),
-      proc(proc_)
-    {}
-
-    void send_structured_request(
-      llhttp_method method,
-      const std::string& route,
-      const ccf::http::HeaderMap& headers,
-      std::vector<uint8_t>&& body)
-    {
-      std::vector<nghttp2_nv> hdrs;
-      hdrs.emplace_back(
-        make_nv(ccf::http2::headers::METHOD, llhttp_method_name(method)));
-      hdrs.emplace_back(make_nv(ccf::http2::headers::PATH, route.data()));
-      hdrs.emplace_back(make_nv(":scheme", "https"));
-      hdrs.emplace_back(make_nv(":authority", "localhost:8080"));
-      for (auto const& [k, v] : headers)
-      {
-        hdrs.emplace_back(make_nv(k.data(), v.data()));
-      }
-
-      auto stream_data = std::make_shared<StreamData>();
-      stream_data->outgoing.body = DataSource(std::move(body));
-
-      nghttp2_data_provider prov;
-      prov.read_callback = read_outgoing_callback;
-
-      stream_data->outgoing.state = StreamResponseState::Closing;
-
-      auto stream_id = nghttp2_submit_request(
-        session, nullptr, hdrs.data(), hdrs.size(), &prov, stream_data.get());
-      if (stream_id < 0)
-      {
-        LOG_FAIL_FMT(
-          "Could not submit HTTP request: {}", nghttp2_strerror(stream_id));
-        return;
-      }
-
-      store_stream(stream_id, stream_data);
-
-      send_all_submitted();
-      LOG_DEBUG_FMT("Successfully sent request with stream id: {}", stream_id);
-    }
-
-    void handle_completed(
-      StreamId /*stream_id*/, StreamData* stream_data) override
-    {
-      LOG_TRACE_FMT("http2::ClientParser: handle_completed");
-
-      if (stream_data == nullptr)
-      {
-        LOG_FAIL_FMT("No stream data to handle response");
-        return;
-      }
-
-      auto& headers = stream_data->incoming.headers;
-
-      ccf::http_status status = {};
-      {
-        const auto status_it = headers.find(ccf::http2::headers::STATUS);
-        if (status_it != headers.end())
-        {
-          status = ccf::http_status(std::stoi(status_it->second));
-        }
-      }
-
-      proc.handle_response(
-        status,
-        std::move(stream_data->incoming.headers),
-        std::move(stream_data->incoming.body));
     }
   };
 }
