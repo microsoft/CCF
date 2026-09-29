@@ -1227,10 +1227,13 @@ namespace aft
           state->commit_idx);
         return;
       }
-      // This block is redundant - the checks above cover this case, so the code
-      // inside this block should be unreachable. It is retained out of
-      // abundance of caution, in case future rewrites of the above conditions
-      // allow a fallthrough.
+      // The prev_term check above rejects most AppendEntries whose prev_idx is
+      // beyond our log, but not one which also claims prev_term ==
+      // VIEW_UNKNOWN, since that is what get_term_internal() returns for
+      // indices we do not hold. A correct primary sends such an AppendEntries
+      // after its first send to a newly added node fails (that node's sent_idx
+      // starts beyond the primary's log), and a malformed message could too.
+      // Responding would acknowledge entries we do not hold, so it is ignored.
       if (r.prev_idx > state->last_idx)
       {
         RAFT_FAIL_FMT(
@@ -1420,58 +1423,41 @@ namespace aft
         ledger->put_entry(
           entry, globally_committable, ds->get_term(), ds->get_index());
 
-        switch (apply_success)
+        // ApplyResult::FAIL has already returned above, so the only remaining
+        // distinction is whether this entry is a signature.
+        if (globally_committable)
         {
-          case ccf::kv::ApplyResult::FAIL:
+          RAFT_DEBUG_FMT("Deserialising signature at {}", i);
+          if (
+            state->membership_state == ccf::kv::MembershipState::Retired &&
+            state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
           {
-            RAFT_FAIL_FMT("Follower failed to apply log entry: {}", i);
-            state->last_idx--;
-            ledger->truncate(state->last_idx);
-            send_append_entries_response_nack(from);
-            break;
+            become_retired(i, ccf::kv::RetirementPhase::Signed);
           }
+          state->committable_indices.push_back(i);
 
-          case ccf::kv::ApplyResult::PASS_SIGNATURE:
+          if (ds->get_term() != 0u)
           {
-            RAFT_DEBUG_FMT("Deserialising signature at {}", i);
-            if (
-              state->membership_state == ccf::kv::MembershipState::Retired &&
-              state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
+            // A signature for sig_term tells us that all transactions from
+            // the previous signature onwards (at least, if not further back)
+            // happened in sig_term. We reflect this in the history.
+            if (r.term_of_idx == aft::ViewHistory::InvalidView)
             {
-              become_retired(i, ccf::kv::RetirementPhase::Signed);
+              state->view_history.update(1, r.term);
             }
-            state->committable_indices.push_back(i);
-
-            if (ds->get_term() != 0u)
+            else
             {
-              // A signature for sig_term tells us that all transactions from
-              // the previous signature onwards (at least, if not further back)
-              // happened in sig_term. We reflect this in the history.
-              if (r.term_of_idx == aft::ViewHistory::InvalidView)
-              {
-                state->view_history.update(1, r.term);
-              }
-              else
-              {
-                // NB: This is only safe as long as AppendEntries only contain a
-                // single term. If they cover multiple terms, then we need to
-                // know our previous signature locally.
-                static_assert(
-                  max_terms_per_append_entries == 1,
-                  "AppendEntries processing for term updates assumes single "
-                  "term");
-                state->view_history.update(r.prev_idx + 1, ds->get_term());
-              }
-
-              commit_if_possible(std::min(r.leader_commit_idx, r.idx));
+              // NB: This is only safe as long as AppendEntries only contain a
+              // single term. If they cover multiple terms, then we need to
+              // know our previous signature locally.
+              static_assert(
+                max_terms_per_append_entries == 1,
+                "AppendEntries processing for term updates assumes single "
+                "term");
+              state->view_history.update(r.prev_idx + 1, ds->get_term());
             }
-            break;
-          }
 
-          case ccf::kv::ApplyResult::PASS:
-          case ccf::kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET:
-          {
-            break;
+            commit_if_possible(std::min(r.leader_commit_idx, r.idx));
           }
         }
       }
@@ -2015,11 +2001,14 @@ namespace aft
         state->leadership_state.load() !=
           ccf::kv::LeadershipState::PreVoteCandidate)
       {
-        // To receive a PreVoteResponse, we must have been a PreVoteCandidate in
-        // that term.
-        // Since we are a Candidate for term T, we can only have transitioned
-        // from PreVoteCandidate for term (T-1). Since terms are monotonic this
-        // is impossible.
+        // We sent our RequestPreVotes as a PreVoteCandidate in term T-1, and
+        // have since become a Candidate in term T. A response carries the
+        // responder's term rather than the term of the request, so a late
+        // refusal from a node which had already moved to term T (for
+        // instance, by voting for a competing candidate) arrives here. The
+        // pre-vote is over, so the response is ignored. In particular, a
+        // pre-vote grant (which a correct node sends in term T-1) must not be
+        // counted as a vote in this election.
         RAFT_FAIL_FMT(
           "Recv {} to {} from {}: unexpected message in {} when "
           "Candidate for {}",
