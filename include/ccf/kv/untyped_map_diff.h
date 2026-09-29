@@ -24,8 +24,7 @@ namespace ccf::kv::untyped
   struct ChangeSet;
 
   /** Read-only view of the changes made to a single map by the transaction
-   * which committed at a given version. See untyped_map_diff.cpp for how the
-   * diff is reconstructed from its change set.
+   * which committed at a given version.
    *
    * Only constructible by a transaction (ccf::kv::TxDiff::diff), which
    * guarantees the change set was created for a diff.
