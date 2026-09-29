@@ -67,7 +67,9 @@ File: `cross-platform-lts.yml`
 
 # Coverage
 
-Builds CCF with coverage enabled, runs unit and end to end tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
+Builds CCF with coverage enabled, runs unit, end to end and partition tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
+
+A parallel job on `gha-aci-genoa` builds with coverage and runs the same SEV-SNP tests as the ACI SNP Genoa job in `ci.yml`, excluding benchmarks, then uploads their merged coverage profile. Before generating reports, the Virtual job waits for that job and merges its profile into the overall statistics. This relies on both jobs building with the same compiler and compile options, and does not lengthen the workflow because the SNP job normally finishes well before the Virtual tests. If the SNP job does not succeed, the Virtual job fails rather than report statistics without SNP coverage, which also keeps that run out of the coverage trend.
 
 File: `coverage.yml`
 3rd party dependencies: None
