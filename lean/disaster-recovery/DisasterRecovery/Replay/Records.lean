@@ -4,9 +4,10 @@ set_option autoImplicit false
 
 /-!
 Extracts recovery-decision-protocol records from CCF node logs, and checks
-each against the fields its kind carries. Nodes built with
-`-DCCF_RECOVERY_TRACE=ON` log each record as `RDP_TRACE` followed by a JSON
-object, and log `Failed to trace recovery-decision-protocol` when they cannot.
+each against the fields its kind carries. Nodes started with the
+`CCF_RECOVERY_TRACE` environment variable set log each record as `RDP_TRACE`
+followed by a JSON object, and log `Failed to trace recovery-decision-protocol`
+when they cannot.
 -/
 
 namespace DisasterRecovery.Replay

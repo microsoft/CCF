@@ -133,8 +133,9 @@ The build and audit include both the human-reviewed model and system properties 
 The standard `mk_all --check` command ensures that the audit root imports every library module, so newly added proofs cannot silently escape the checks.
 
 The build includes the trace replayer's modules. The Genoa SNP job in `ci.yml`
-builds the replayer and CCF with `-DCCF_RECOVERY_TRACE=ON`, and replays the
-recovery decision protocol e2e scenarios against the model.
+builds the replayer, runs its tests with `CCF_RECOVERY_TRACE=1` so that
+recovering nodes log their recovery decision protocol traces, and replays the
+protocol's e2e scenarios against the model.
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean`
 file with the pinned leanfmt dependency. The workflow runs on pull requests
