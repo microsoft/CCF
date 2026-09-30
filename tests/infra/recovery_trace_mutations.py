@@ -3,27 +3,21 @@
 
 """Mutation testing for the disaster-recovery trace validator.
 
-Run from the repository root:
-
-  python3 tests/infra/recovery_trace_mutations.py \
-    lean/disaster-recovery/.lake/build/bin/disaster-recovery-replay \
-    lean/disaster-recovery/replay/fixtures
+Run: python3 tests/infra/recovery_trace_mutations.py REPLAYER FIXTURES_DIR
 
 The fixtures are trace-only log excerpts for the quorum, failover, and
-multiple-timeout recovery-decision-protocol scenarios. The harness checks:
-
-- baseline replay of each unmodified scenario
-- curated targeted mutants with explicit pass/fail expectations
-- a systematic sweep that perturbs one field of sampled records
+multiple-timeout recovery-decision-protocol scenarios. The harness checks
+baseline replay, curated mutants with explicit pass/fail expectations, and
+a systematic sweep that perturbs one field of sampled records.
 
 Unexpected outcomes fail the script. Sweep mutants may pass only when they
 match a small explicit allowlist of harmless, currently indistinguishable
 classes.
 
 Most mutants are declarative: a `select` finds one record and an `edit`
-changes it. A few need bespoke functions: inserting or deleting records,
-swapping sequences between records, relabeling a TxID everywhere it appears,
-deleting whole batches, changing CLI arguments, or transforming a whole log.
+changes it. A few are bespoke functions: inserting/deleting records,
+swapping sequences, relabeling a TxID everywhere, deleting batches,
+changing CLI arguments, or transforming a whole log.
 """
 
 from __future__ import annotations
@@ -187,12 +181,8 @@ def entry(state: dict[str, Any], file_index: int, entry_index: int) -> dict[str,
     return state["logs"][file_index][entry_index]
 
 
-# --- Declarative single-record mutants ----------------------------------
-#
-# Each row below finds one record with `select` and changes it with `edit`.
-# `edit` mutates the record (or, for a self-delete, the log entry) in place
-# and returns a description; returning None means the mutation is not
-# applicable, like a missing `select` match.
+# --- Declarative single-record mutants: `select` finds a record, `edit`
+# changes it in place and returns a description ("record_mutant") ---------
 
 Select = Callable[[dict], Target | None]
 Edit = Callable[[dict, Target], str | None]
@@ -209,7 +199,7 @@ def del_field(record: dict[str, Any], field: str) -> str:
     return f"{field} {json.dumps(old)} removed"
 
 
-# --- Predicate and edit factories for the common "one field" mutants -----
+# --- Predicate/edit factories for the common "one field" mutants --------
 
 kind_is = lambda *kinds: (lambda r: r["kind"] in kinds)
 has = lambda field: (lambda r: field in r)
@@ -221,6 +211,10 @@ flipf = lambda field, mapping: (lambda s, r: set_field(r, field, mapping[r[field
 relabel = lambda field: (lambda s, r: set_field(r, field, other(s, r[field])))
 copyf = lambda dst, src: (lambda s, r: set_field(r, dst, r[src]))
 dynf = lambda field, fn: (lambda s, r: set_field(r, field, fn(r)))
+dyns = lambda field, fn: (lambda s, r: set_field(r, field, fn(s, r)))
+combine = lambda *edits: (
+    lambda s, r: "; ".join(t for t in (e(s, r) for e in edits) if t)
+)
 
 
 def self_delete(state: dict[str, Any], target: Target, text: str) -> str:
@@ -263,55 +257,18 @@ def _to_voting(record: dict[str, Any]) -> bool:
     )
 
 
-def _edit_open_without_quorum(state: dict[str, Any], record: dict[str, Any]) -> str:
-    kept = (
-        [record["source"]]
-        if record.get("source") in record["votes"]
-        else record["votes"][:1]
-    )
-    return set_field(record, "votes", kept) + " (still opens Quorum)"
+def _capped_next_phase(current: str) -> str:
+    candidate = PHASES[min(PHASES.index(current) + 1, 2)]
+    return candidate if candidate != current else "Joining"
 
 
-def _edit_no_advance(state: dict[str, Any], record: dict[str, Any]) -> str:
-    record["post"] = "Gossiping"
-    return del_field(record, "chosen") + ", post -> Gossiping"
-
-
-def _edit_premature_voting(state: dict[str, Any], record: dict[str, Any]) -> str:
-    chosen = max(record["gossips"].items(), key=lambda item: txkey(item[1], item[0]))[0]
-    set_field(record, "post", "Voting")
-    return (
-        set_field(record, "chosen", chosen) + f" with {len(record['gossips'])} gossips"
-    )
-
-
-def _edit_vote_to_non_chosen(state: dict[str, Any], record: dict[str, Any]) -> str:
-    original = record["send"].split(":", 1)[1]
-    return set_field(record, "send", f"vote:{other(state, original)}")
-
-
-def _edit_timeout_phase_skip(state: dict[str, Any], record: dict[str, Any]) -> str:
-    index = PHASES.index(record["post_timeout"])
-    candidate = PHASES[min(index + 1, 2)]
-    new = candidate if candidate != record["post_timeout"] else "Joining"
-    return set_field(record, "post_timeout", new)
-
-
-def _edit_failover_without_valid_timeout(
-    state: dict[str, Any], record: dict[str, Any]
-) -> str:
-    new = "Gossiping" if record["pre_timeout"] != "Gossiping" else "Opening"
-    return set_field(record, "pre_timeout", new)
-
-
-def _edit_set_chain_off(state: dict[str, Any], record: dict[str, Any]) -> str:
+def _set_chain_off(record: dict[str, Any]) -> dict[str, str]:
     txid = record["gossips"][record["source"]]
     missing = [v for v in record["expected_locations"] if v not in record["gossips"]]
     dropped = next(v for v in record["gossips"] if v != record["source"])
-    new = {k: v for k, v in record["gossips"].items() if k != dropped} | {
+    return {k: v for k, v in record["gossips"].items() if k != dropped} | {
         missing[0]: txid
     }
-    return set_field(record, "gossips", new) + " (a set off the chain)"
 
 
 def _edit_truncated_json(state: dict[str, Any], target: Target) -> str:
@@ -398,12 +355,9 @@ def _edit_rolled_back(state: dict[str, Any], target: Target) -> str:
 
 
 def m_committed_version_within_newest_pair(state: dict[str, Any]) -> bool:
-    """
-    The committed record for the newest pair's writer must be higher than
-    both versions of that pair, since the writer read that pair. Lowering it
-    to a version still inside the pair must fail even though it stays above
-    every earlier known committed version.
-    """
+    # The newest pair's writer's committed version must exceed both of that
+    # pair's versions; lowering it to inside the pair must fail even though
+    # it stays above every earlier known committed version.
     for node in nodes(state):
         handlers = [
             rec
@@ -490,34 +444,22 @@ def _txids(state: dict[str, Any]) -> dict[str, str]:
     return txids
 
 
-def m_txid_raise_consistent(state: dict[str, Any]) -> bool:
-    chosen = {record["chosen"] for _, _, record in recs(state) if "chosen" in record}
-    txids = _txids(state)
-    candidates = [name for name in txids if name not in chosen]
-    if not candidates or not chosen:
-        return False
-    name = candidates[0]
-    top = max(txkey(value, node) for node, value in txids.items())
-    new = f"{top[0]}.{top[1] + 77}"
-    state["detail"].append(
-        f"node {name} recovered TxID {txids[name]} -> {new} in every send, receive and gossips map"
-    )
-    _set_txid_everywhere(state, name, new)
-    return True
-
-
-def m_txid_lower_consistent(state: dict[str, Any]) -> bool:
+def _txid_consistent(state: dict[str, Any], raise_it: bool) -> bool:
     chosen = {record["chosen"] for _, _, record in recs(state) if "chosen" in record}
     txids = _txids(state)
     candidates = [
         name
         for name in txids
-        if name not in chosen and int(txids[name].split(".")[1]) > 0
+        if name not in chosen and (raise_it or int(txids[name].split(".")[1]) > 0)
     ]
     if not candidates or not chosen:
         return False
     name = candidates[0]
-    new = bump(txids[name], -1)
+    if raise_it:
+        top = max(txkey(value, node) for node, value in txids.items())
+        new = f"{top[0]}.{top[1] + 77}"
+    else:
+        new = bump(txids[name], -1)
     state["detail"].append(
         f"node {name} recovered TxID {txids[name]} -> {new} in every send, receive and gossips map"
     )
@@ -691,14 +633,6 @@ def _delete_unreceived_batch(state: dict[str, Any], tail: bool) -> bool:
     return False
 
 
-def m_delete_middle_unreceived_batch(state: dict[str, Any]) -> bool:
-    return _delete_unreceived_batch(state, tail=False)
-
-
-def m_delete_tail_unreceived_batch(state: dict[str, Any]) -> bool:
-    return _delete_unreceived_batch(state, tail=True)
-
-
 def m_truncate_opener_after_voting(state: dict[str, Any]) -> bool:
     target = find(state, lambda record: "open_kind" in record)
     if not target:
@@ -787,6 +721,39 @@ def m_log_order_permuted(state: dict[str, Any]) -> bool:
 
 _OPEN_KINDS = {"Quorum": "Failover", "Failover": "Quorum"}
 
+
+def _p_open_without_quorum(r):
+    return r.get("open_kind") == "Quorum" and len(r.get("votes", [])) > 1
+
+
+def _e_open_without_quorum(s, r):
+    kept = [r["source"]] if r.get("source") in r["votes"] else r["votes"][:1]
+    return set_field(r, "votes", kept)
+
+
+def _p_premature_voting(r):
+    return (
+        r["kind"] == "gossip_accepted"
+        and r["pre"] == r["post"] == "Gossiping"
+        and len(r["gossips"]) < len(r["expected_locations"])
+    )
+
+
+def _e_premature_voting(s, r):
+    chosen = max(r["gossips"].items(), key=lambda i: txkey(i[1], i[0]))[0]
+    return combine(setf("post", "Voting"), setf("chosen", chosen))(s, r)
+
+
+_p_failover_pretimeout = lambda r: r.get("open_kind") == "Failover"
+_e_failover_pretimeout = dynf(
+    "pre_timeout", lambda r: "Gossiping" if r["pre_timeout"] != "Gossiping" else "Opening"
+)  # fmt: skip
+
+_SOURCE_MISMATCH_PREDS = [
+    lambda r: r["kind"] == "gossip_accepted" and r["source"] != r["node"],
+    kind_is("gossip_accepted"),
+]
+
 MUTANTS = [
     (
         "decision/open_kind_flip/FAIL",
@@ -794,22 +761,17 @@ MUTANTS = [
     ),
     (
         "decision/open_without_quorum/FAIL",
-        simple(
-            lambda r: r.get("open_kind") == "Quorum" and len(r.get("votes", [])) > 1,
-            _edit_open_without_quorum,
-        ),
+        simple(_p_open_without_quorum, _e_open_without_quorum),
     ),
     ("decision/chosen_not_max/FAIL", simple(_to_voting, relabel("chosen"))),
     ("decision/skip_to_opening/FAIL", simple(_to_voting, setf("post", "Opening"))),
-    ("decision/no_advance_on_full_gossips/FAIL", simple(_to_voting, _edit_no_advance)),
+    (
+        "decision/no_advance_on_full_gossips/FAIL",
+        simple(_to_voting, combine(setf("post", "Gossiping"), delf("chosen"))),
+    ),
     (
         "decision/premature_voting/FAIL",
-        simple(
-            lambda r: r["kind"] == "gossip_accepted"
-            and r["pre"] == r["post"] == "Gossiping"
-            and len(r["gossips"]) < len(r["expected_locations"]),
-            _edit_premature_voting,
-        ),
+        simple(_p_premature_voting, _e_premature_voting),
     ),
     ("decision/drop_restart/FAIL", simple(flag("restart"), delf("restart"))),
     (
@@ -820,14 +782,14 @@ MUTANTS = [
         "decision/vote_to_non_chosen/FAIL",
         simple(
             lambda r: r["kind"] == "send" and r["send"].startswith("vote:"),
-            _edit_vote_to_non_chosen,
+            dyns("send", lambda s, r: f"vote:{other(s, r['send'].split(':', 1)[1])}"),
         ),
     ),
     (
         "decision/timeout_phase_skip/FAIL",
         simple(
             lambda r: r["kind"] == "timeout" and r["post_timeout"] != r["pre_timeout"],
-            _edit_timeout_phase_skip,
+            dynf("post_timeout", lambda r: _capped_next_phase(r["post_timeout"])),
         ),
     ),
     (
@@ -839,14 +801,17 @@ MUTANTS = [
     ),
     (
         "decision/failover_without_valid_timeout/FAIL",
-        simple(
-            lambda r: r.get("open_kind") == "Failover",
-            _edit_failover_without_valid_timeout,
-        ),
+        simple(_p_failover_pretimeout, _e_failover_pretimeout),
     ),
     ("decision/txid_lie_send_only/FAIL", m_txid_lie_send_only),
-    ("decision/txid_raise_consistent/FAIL", m_txid_raise_consistent),
-    ("decision/txid_lower_consistent/PASS", m_txid_lower_consistent),
+    (
+        "decision/txid_raise_consistent/FAIL",
+        lambda s: _txid_consistent(s, raise_it=True),
+    ),
+    (
+        "decision/txid_lower_consistent/PASS",
+        lambda s: _txid_consistent(s, raise_it=False),
+    ),
     (
         "causality/dangling_caused_by/FAIL",
         simple(
@@ -857,13 +822,7 @@ MUTANTS = [
     ("causality/caused_by_other_kind/FAIL", m_caused_by_other_kind),
     (
         "causality/source_mismatch/FAIL",
-        fallback(
-            [
-                lambda r: r["kind"] == "gossip_accepted" and r["source"] != r["node"],
-                kind_is("gossip_accepted"),
-            ],
-            relabel("source"),
-        ),
+        fallback(_SOURCE_MISMATCH_PREDS, relabel("source")),
     ),
     ("causality/drop_received_send/FAIL", m_drop_received_send),
     ("causality/receive_before_send/FAIL", m_receive_before_send),
@@ -913,7 +872,7 @@ MUTANTS = [
             lambda r: r["kind"] == "gossip_accepted"
             and r["post"] == "Gossiping"
             and 1 < len(r["gossips"]) < len(r["expected_locations"]),
-            _edit_set_chain_off,
+            dynf("gossips", _set_chain_off),
         ),
     ),
     (
@@ -953,8 +912,14 @@ MUTANTS = [
         "format/delete_unreceived_send/FAIL",
         record_mutant(_select_delete_unreceived_send, _edit_delete_unreceived_send),
     ),
-    ("format/delete_middle_unreceived_batch/FAIL", m_delete_middle_unreceived_batch),
-    ("format/delete_tail_unreceived_batch/PASS", m_delete_tail_unreceived_batch),
+    (
+        "format/delete_middle_unreceived_batch/FAIL",
+        lambda s: _delete_unreceived_batch(s, tail=False),
+    ),
+    (
+        "format/delete_tail_unreceived_batch/PASS",
+        lambda s: _delete_unreceived_batch(s, tail=True),
+    ),
     ("format/truncate_opener_after_voting/FAIL", m_truncate_opener_after_voting),
     ("args/wrong_open_kind_arg/FAIL", m_wrong_open_kind_arg),
     ("args/wrong_participants_arg/FAIL", m_wrong_participants_arg),
@@ -1077,31 +1042,21 @@ def classify(returncode: int, output: str) -> str:
     return f"OTHER(rc={returncode})"
 
 
-def run_mutant(
-    mutant_id: str,
-    state: dict[str, Any],
-    replayer: pathlib.Path,
-    work_dir: pathlib.Path,
-) -> tuple[str, str]:
+def run_mutant(mutant_id: str, state, replayer: pathlib.Path, work_dir: pathlib.Path):
     case_dir = work_dir / mutant_id.replace("/", "__")
     case_dir.mkdir(parents=True, exist_ok=True)
-    files = []
-    for index in state["order"]:
-        path = case_dir / f"{index}.out"
+    files = [case_dir / f"{index}.out" for index in state["order"]]
+    for path, index in zip(files, state["order"]):
         path.write_text(
             "".join(render(item) for item in state["logs"][index]), encoding="utf-8"
         )
-        files.append(str(path))
     command = [
         str(replayer),
-        "--participants",
-        str(state["participants"]),
-        "--open-kind",
-        state["open_kind"],
-        "--wait-ms",
-        "0",
-        *files,
-    ]
+        "--participants", str(state["participants"]),
+        "--open-kind", state["open_kind"],
+        "--wait-ms", "0",
+        *(str(f) for f in files),
+    ]  # fmt: skip
     try:
         completed = subprocess.run(
             command, capture_output=True, text=True, timeout=90, check=False
@@ -1124,115 +1079,85 @@ def build_jobs(scenarios: dict[str, Any]):
         for kind, field, position, file_index, entry_index in sweep_specs(base):
             state = copy.deepcopy(base)
             record = state["logs"][file_index][entry_index]["rec"]
-            ident = f"node {record['node']} seq {record['sequence']} ({kind})"
             change = perturb(state, record, field)
             if change is None:
                 continue
-            state["detail"].append(f"{ident}: {change}")
+            state["detail"].append(
+                f"node {record['node']} seq {record['sequence']} ({kind}): {change}"
+            )
             jobs.append(("sweep", name, f"{kind}.{field}#{position}", "?", state))
     return jobs
+
+
+def _bad(row: dict[str, Any]) -> bool:
+    if row["group"] == "sweep":
+        return row["outcome"] == "PASS" and "allowlist" not in row
+    return (row["expected"] == "PASS") != (row["outcome"] == "PASS")
 
 
 def main() -> int:
     if len(sys.argv) != 3:
         print(f"usage: {sys.argv[0]} REPLAYER FIXTURES_DIR", file=sys.stderr)
         return 2
-    replayer = pathlib.Path(sys.argv[1])
-    fixtures_dir = pathlib.Path(sys.argv[2])
-
+    replayer, fixtures_dir = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
     scenarios = {
-        path.name: load_scenario(path)
-        for path in sorted(fixtures_dir.iterdir())
-        if path.is_dir() and (path / "scenario.json").exists()
+        p.name: load_scenario(p)
+        for p in sorted(fixtures_dir.iterdir())
+        if p.is_dir() and (p / "scenario.json").exists()
     }
     if not scenarios:
         raise SystemExit(f"no scenarios found under {fixtures_dir}")
 
-    jobs = build_jobs(scenarios)
+    with tempfile.TemporaryDirectory() as work_dir:
 
-    with tempfile.TemporaryDirectory() as work_dir_name:
-        work_dir = pathlib.Path(work_dir_name)
-
-        def work(job):
-            group, scenario, mutant_name, expected, state = job
+        def run(job):
+            group, scenario, name, expected, state = job
             outcome, output = run_mutant(
-                f"{scenario}/{group}/{mutant_name}", state, replayer, work_dir
+                f"{scenario}/{group}/{name}", state, replayer, pathlib.Path(work_dir)
             )
             result = {
                 "group": group,
                 "scenario": scenario,
-                "name": mutant_name,
+                "name": name,
                 "expected": expected,
                 "outcome": outcome,
                 "detail": "; ".join(state["detail"]),
                 "message": output.splitlines()[-1][:300] if output else "",
             }
-            allowed = (
-                allow_sweep(result) if group == "sweep" and outcome == "PASS" else None
-            )
-            if allowed is not None:
-                result["allowlist"] = {"name": allowed[0], "reason": allowed[1]}
+            if group == "sweep" and outcome == "PASS":
+                allowed = allow_sweep(result)
+                if allowed:
+                    result["allowlist"] = {"name": allowed[0], "reason": allowed[1]}
             return result
 
         with ThreadPoolExecutor(max_workers=os.cpu_count() or 1) as executor:
-            results = list(executor.map(work, jobs))
+            results = list(executor.map(run, build_jobs(scenarios)))
 
-    unexpected = []
-    for result in results:
-        if result["group"] == "sweep":
-            if result["outcome"] == "PASS" and "allowlist" not in result:
-                unexpected.append(result)
-            continue
-        expected = result["expected"]
-        if (
-            expected == "PASS"
-            and result["outcome"] != "PASS"
-            or expected == "FAIL"
-            and result["outcome"] == "PASS"
-        ):
-            unexpected.append(result)
-
-    curated = [
-        row
-        for row in results
-        if row["group"] != "sweep" and row["expected"] in {"PASS", "FAIL"}
-    ]
-    curated_ok = sum(
-        (row["expected"] == "PASS" and row["outcome"] == "PASS")
-        or (row["expected"] == "FAIL" and row["outcome"] != "PASS")
-        for row in curated
-    )
+    curated = [row for row in results if row["group"] != "sweep"]
     sweep = [row for row in results if row["group"] == "sweep"]
-    sweep_caught = sum(row["outcome"] != "PASS" for row in sweep)
-    sweep_allowed = [row for row in sweep if row.get("allowlist")]
-
-    print(f"Curated mutants: {curated_ok}/{len(curated)} matched expectation")
+    allowed = {
+        (row["allowlist"]["name"], row["allowlist"]["reason"])
+        for row in sweep
+        if row.get("allowlist")
+    }
     print(
-        f"Sweep mutants: {sweep_caught}/{len(sweep)} caught, {len(sweep_allowed)} allowlisted harmless pass(es)"
+        f"Curated mutants: {sum(not _bad(r) for r in curated)}/{len(curated)} matched expectation"
     )
-    if sweep_allowed:
-        print("Allowlisted sweep classes:")
-        seen = set()
-        for row in sweep_allowed:
-            key = (row["allowlist"]["name"], row["allowlist"]["reason"])
-            if key in seen:
-                continue
-            seen.add(key)
-            print(f"- {key[0]}: {key[1]}")
+    print(
+        f"Sweep mutants: {sum(r['outcome'] != 'PASS' for r in sweep)}/{len(sweep)} caught, "
+        f"{sum(1 for r in sweep if r.get('allowlist'))} allowlisted harmless pass(es)"
+    )
+    for name, reason in sorted(allowed):
+        print(f"- {name}: {reason}")
 
-    if unexpected:
-        print("Unexpected mutation outcomes:", file=sys.stderr)
-        for row in unexpected:
-            expected = row["expected"]
-            print(
-                f"- {row['scenario']} {row['group']} {row['name']}: expected {expected}, got {row['outcome']}\n"
-                f"  detail: {row['detail']}\n"
-                f"  message: {row['message']}",
-                file=sys.stderr,
-            )
-        return 1
-
-    return 0
+    unexpected = [row for row in results if _bad(row)]
+    for row in unexpected:
+        print(
+            f"- {row['scenario']} {row['group']} {row['name']}: expected {row['expected']}, "
+            f"got {row['outcome']}\n  detail: {row['detail']}\n  message: {row['message']}",
+            file=sys.stderr,
+        )
+    return 1 if unexpected else 0
 
 
 if __name__ == "__main__":
