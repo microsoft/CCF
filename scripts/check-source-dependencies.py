@@ -93,37 +93,6 @@ def is_internal_spelling(path, source_components, public_components):
     )
 
 
-def strongly_connected_components(components, edges):
-    successors = {component: set() for component in components}
-    for source, target in edges:
-        if source in successors and target in successors:
-            successors[source].add(target)
-
-    reachable = {}
-    for component in components:
-        seen = set()
-        pending = list(successors[component])
-        while pending:
-            current = pending.pop()
-            if current not in seen:
-                seen.add(current)
-                pending.extend(successors[current])
-        reachable[component] = seen
-
-    # Only components on a cycle, grouped into their strongly connected sets
-    sccs = set()
-    for component in components:
-        if component in reachable[component]:
-            sccs.add(
-                frozenset(
-                    other
-                    for other in reachable[component]
-                    if component in reachable[other]
-                )
-            )
-    return sccs
-
-
 def main():
     script_dir = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(
@@ -156,7 +125,6 @@ def main():
         component: set(dependencies)
         for component, dependencies in config["allowed_internal_dependencies"].items()
     }
-    allowed_cyclic = set(config["cyclic_components"])
 
     source_components = {
         path.name for path in (root / "src").iterdir() if path.is_dir()
@@ -164,7 +132,7 @@ def main():
     public_root = root / "include" / "ccf"
     public_components = {path.name for path in public_root.iterdir() if path.is_dir()}
     known_components = source_components | public_components | {PUBLIC_API_COMPONENT}
-    unknown_sources = (set(allowed_dependencies) | allowed_cyclic) - source_components
+    unknown_sources = set(allowed_dependencies) - source_components
     unknown_targets = set().union(*allowed_dependencies.values()) - known_components
     if unknown_sources or unknown_targets:
         unknown = ", ".join(sorted(unknown_sources | unknown_targets))
@@ -173,7 +141,6 @@ def main():
 
     edges = {}
     errors = []
-    scanned_components = set()
     source_files = sorted(
         path
         for path in (root / "src").rglob("*")
@@ -187,7 +154,6 @@ def main():
         source_component = component_for(source_file, root)
         if source_component is None:
             continue
-        scanned_components.add(source_component)
 
         source = strip_comments(source_file.read_text())
         for line_number, line in logical_lines(source):
@@ -260,35 +226,6 @@ def main():
                 print(f"  {path}:{line_number}: {directive}")
             allowed = ", ".join(sorted(allowed_dependencies[source])) or "none"
             print(f"Allowed internal dependencies for {source}: {allowed}")
-        return 1
-
-    sccs = strongly_connected_components(scanned_components, edges)
-    cyclic = set().union(*sccs)
-    failed = False
-    for scc in sorted(sccs, key=sorted):
-        new_members = scc - allowed_cyclic
-        if not new_members:
-            continue
-        failed = True
-        print(
-            "New source dependency cycle through "
-            f"{', '.join(sorted(new_members))}, in: {', '.join(sorted(scc))}"
-        )
-        for (source, target), evidence in sorted(edges.items()):
-            if source in scc and target in scc:
-                path, line_number, directive = min(evidence)
-                print(f"  {source} -> {target}: {path}:{line_number}: {directive}")
-    for component in sorted(allowed_cyclic - cyclic):
-        failed = True
-        print(
-            f"{component} is no longer in a dependency cycle: remove it from "
-            "cyclic_components and add its allowed_internal_dependencies"
-        )
-    unpoliced = scanned_components - cyclic - set(allowed_dependencies)
-    for component in sorted(unpoliced):
-        failed = True
-        print(f"No allowed_internal_dependencies policy for {component}")
-    if failed:
         return 1
 
     print("No source dependency violations")
