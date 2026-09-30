@@ -197,13 +197,20 @@ namespace ccf::crypto
   std::vector<uint8_t> ECKeyPair_OpenSSL::sign_hash(
     const uint8_t* hash, size_t hash_size) const
   {
-    std::vector<uint8_t> sig(EVP_PKEY_size(key));
-    size_t written = sig.size();
+    // Query the required signature size from this context, rather than
+    // relying on EVP_PKEY_size(key). For some curves (eg - P-521), some
+    // providers (eg - SymCrypt) report a smaller EVP_PKEY_size() than the
+    // buffer they actually need, particularly after a private key has been
+    // through a PEM round trip, which then makes signing itself fail with
+    // "output buffer too small".
+    Unique_EVP_PKEY_CTX pctx(key);
+    OpenSSL::CHECK1(EVP_PKEY_sign_init(pctx));
 
-    if (sign_hash(hash, hash_size, &written, sig.data()) != 0)
-    {
-      return {};
-    }
+    size_t written = 0;
+    OpenSSL::CHECK1(EVP_PKEY_sign(pctx, nullptr, &written, hash, hash_size));
+
+    std::vector<uint8_t> sig(written);
+    OpenSSL::CHECK1(EVP_PKEY_sign(pctx, sig.data(), &written, hash, hash_size));
 
     sig.resize(written);
     return sig;
