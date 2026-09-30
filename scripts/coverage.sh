@@ -64,10 +64,10 @@ Notes:
     and performance code.
   - Requires llvm-profdata, llvm-cov and python3 (any of -18 / -15 suffixed
     llvm variants are also accepted).
-  - Two summaries are printed: llvm-cov's own per-function summary, and a
-    corrected "distinct lines" summary (scripts/coverage_lines.py). Treat the
-    latter's line coverage as the headline; branch coverage is NOT corrected,
-    so read it from llvm-cov's own per-function summary. See
+  - The TOTAL row's line coverage is corrected to count each physical source
+    line once (scripts/coverage_lines.py), rather than llvm-cov's own
+    per-function summary, which distorts C++ line totals. Branch coverage
+    and all per-file rows are unmodified llvm-cov output. See
     scripts/coverage_lines.py for why.
 EOF
   exit 0
@@ -227,25 +227,20 @@ mapfile -t COV_ARGS < <(build_cov_args)
 # ---------------------------------------------------------------------------
 # Overall coverage summary
 #
-# llvm-cov's own summary (below) computes coverage per function, then sums
-# per file, which distorts C++ line totals (see scripts/coverage_lines.py for
-# why). The "Coverage Summary (distinct lines)" section further below
-# corrects this for LINES ONLY. Treat that section as the headline line
-# coverage number, but use THIS section for branch coverage, which is not
-# corrected.
+# llvm-cov's own report computes line coverage per function then sums per
+# file, which distorts C++ totals (see scripts/coverage_lines.py for why).
+# The TOTAL row's line count/missed/coverage is patched below to count each
+# physical source line once instead; all other columns, and every per-file
+# row, are unmodified llvm-cov output.
 # ---------------------------------------------------------------------------
-echo ""
-echo "=== Coverage Summary (llvm-cov per-function summary) ==="
-"${LLVM_COV}" report "${COV_ARGS[@]}"
+REPORT_FILE=$(mktemp)
+trap 'rm -f "${REPORT_FILE}"' EXIT
+"${LLVM_COV}" report "${COV_ARGS[@]}" > "${REPORT_FILE}"
 
 echo ""
-echo "=== Coverage Summary (distinct lines) ==="
-echo "Each physical source line is counted once. Treat this as the headline"
-echo "LINE coverage metric. It has no branch column: use the per-function"
-echo "summary above for branch coverage. See scripts/coverage_lines.py for"
-echo "details."
+echo "=== Coverage Summary ==="
 "${LLVM_COV}" export -format=lcov "${COV_ARGS[@]}" |
-  python3 "${SOURCE_DIR}/scripts/coverage_lines.py"
+  python3 "${SOURCE_DIR}/scripts/coverage_lines.py" "${REPORT_FILE}"
 
 # ---------------------------------------------------------------------------
 # Uncovered lines detail
@@ -289,9 +284,7 @@ if [[ -n "${HTML_DIR}" ]]; then
   mkdir -p "${HTML_DIR}"
   "${LLVM_COV}" show "${COV_ARGS[@]}" --format=html --output-dir="${HTML_DIR}"
   echo "HTML report written to '${HTML_DIR}/index.html'"
-  echo "Note: the HTML index totals use llvm-cov's per-function summary"
-  echo "semantics (see 'Coverage Summary' above), not the corrected"
-  echo "distinct-line count. Each file's own source view is unaffected and"
-  echo "already shows every line once, correctly merged across template"
-  echo "instantiations."
+  echo "Note: the HTML index totals use llvm-cov's own per-function summary,"
+  echo "not the corrected line count above. Each file's own source view is"
+  echo "unaffected, and already shows every line once."
 fi

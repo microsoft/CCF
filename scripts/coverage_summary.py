@@ -10,15 +10,10 @@ Coverage runs on the same branch, which contain the same report. This script
 extracts the overall line and branch coverage percentages from each of those
 reports and renders Mermaid xychart trend charts, including the current run.
 
-``scripts/coverage.sh`` prints two summaries: llvm-cov's own per-function
-"TOTAL" row (lines and branches), and a corrected "TOTAL-DISTINCT" row (lines
-only, from ``scripts/coverage_lines.py``) that counts each physical source
-line once instead of double-counting it. See ``coverage_lines.py`` for why
-there is no distinct-branch equivalent. This script prefers "TOTAL-DISTINCT"
-for line coverage, falling back to the legacy "TOTAL" row for logs that
-predate it, tagging each point with which metric it used so the trend can
-show the metric changed rather than silently mixing the two; branch coverage
-always comes from "TOTAL".
+``scripts/coverage.sh`` patches the TOTAL row's line coverage to count each
+physical source line once (see ``scripts/coverage_lines.py``); this script
+just reads whatever percentage is in that row, so it needs no changes to
+track the correction.
 """
 
 import argparse
@@ -38,9 +33,7 @@ DEFAULT_REPOSITORY = "microsoft/CCF"
 # Lines and Branches, a count, a missed count and a coverage percentage, e.g.:
 #   TOTAL  123860 19651 84.13%  4579 1274 72.18%  84414 26245 68.91%  ...
 # Line coverage is therefore the third percentage on the line, and branch
-# coverage the fourth. This row is also the only source of branch coverage:
-# see the module and scripts/coverage_lines.py docstrings for why branch
-# coverage is not recomputed from per-branch records.
+# coverage the fourth.
 _PERCENT_RE = re.compile(r"(\d+(?:\.\d+)?)%")
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 # Optional leading ISO-8601 timestamp, as prefixed to each GitHub Actions log
@@ -49,26 +42,10 @@ _TIMESTAMP_RE = re.compile(r"^\S+T\S+Z\s+")
 _LINE_COVERAGE_INDEX = 2
 _BRANCH_COVERAGE_INDEX = 3
 
-# scripts/coverage_lines.py's "TOTAL-DISTINCT" row lists a line count, a
-# missed line count and a coverage percentage only, e.g.:
-#   TOTAL-DISTINCT  56992  10078  82.32%
-# so line coverage is the only percentage on the line. There is no branch
-# column.
-_DISTINCT_LINE_COVERAGE_INDEX = 0
-
 # Plot colours for the trend charts: bright green for line coverage, bright
 # blue for branch coverage.
 _LINE_COVERAGE_COLOR = "#00ff00"
 _BRANCH_COVERAGE_COLOR = "#0000ff"
-
-# Coverage metric a point's LINE coverage was computed with: "distinct"
-# counts each physical source line once (scripts/coverage_lines.py);
-# "legacy" is llvm-cov's own per-function summary (see that module's
-# docstring for its two line distortions). Logs predating the distinct-line
-# summary only have the legacy metric. Branch coverage always uses llvm-cov's
-# own per-function summary, regardless of this tag.
-METRIC_DISTINCT = "distinct"
-METRIC_LEGACY = "legacy"
 
 
 class CoveragePoint(NamedTuple):
@@ -76,47 +53,26 @@ class CoveragePoint(NamedTuple):
     label: str
     line_coverage: float
     branch_coverage: Optional[float]
-    metric: str = METRIC_DISTINCT
 
 
-def _clean_line(line: str) -> str:
-    stripped: str = _ANSI_RE.sub("", line)
-    return _TIMESTAMP_RE.sub("", stripped).strip()
+def extract_coverage(text: str) -> Optional[Tuple[float, Optional[float]]]:
+    """Return the (line, branch) coverage percentages from an llvm-cov report.
 
-
-def extract_coverage(text: str) -> Optional[Tuple[float, Optional[float], str]]:
-    """Return the (line, branch, metric) coverage from a coverage.sh report.
-
-    Line coverage prefers the corrected "TOTAL-DISTINCT" row (metric
-    ``METRIC_DISTINCT``) printed by ``scripts/coverage_lines.py``, falling
-    back to llvm-cov's own "TOTAL" row (metric ``METRIC_LEGACY``) for older
-    logs that predate the distinct-line summary. Branch coverage always comes
-    from the "TOTAL" row (``None`` if that row has no branch column), since
-    there is no corrected branch metric.
+    Branch coverage is ``None`` when the report does not include a branch
+    column.
     """
-    legacy: Optional[Tuple[float, Optional[float]]] = None
-    distinct_line_coverage: Optional[float] = None
     for line in text.splitlines():
-        stripped: str = _clean_line(line)
-        if distinct_line_coverage is None and stripped.startswith("TOTAL-DISTINCT"):
-            percentages: List[str] = _PERCENT_RE.findall(stripped)
-            if len(percentages) > _DISTINCT_LINE_COVERAGE_INDEX:
-                distinct_line_coverage = float(
-                    percentages[_DISTINCT_LINE_COVERAGE_INDEX]
-                )
-        elif legacy is None and stripped.startswith("TOTAL"):
-            percentages = _PERCENT_RE.findall(stripped)
-            if len(percentages) > _LINE_COVERAGE_INDEX:
-                line_coverage: float = float(percentages[_LINE_COVERAGE_INDEX])
-                branch_coverage: Optional[float] = None
-                if len(percentages) > _BRANCH_COVERAGE_INDEX:
-                    branch_coverage = float(percentages[_BRANCH_COVERAGE_INDEX])
-                legacy = (line_coverage, branch_coverage)
-    branch_coverage = legacy[1] if legacy is not None else None
-    if distinct_line_coverage is not None:
-        return distinct_line_coverage, branch_coverage, METRIC_DISTINCT
-    if legacy is not None:
-        return legacy[0], branch_coverage, METRIC_LEGACY
+        stripped: str = _ANSI_RE.sub("", line)
+        stripped = _TIMESTAMP_RE.sub("", stripped).strip()
+        if not stripped.startswith("TOTAL"):
+            continue
+        percentages: List[str] = _PERCENT_RE.findall(stripped)
+        if len(percentages) > _LINE_COVERAGE_INDEX:
+            line_coverage: float = float(percentages[_LINE_COVERAGE_INDEX])
+            branch_coverage: Optional[float] = None
+            if len(percentages) > _BRANCH_COVERAGE_INDEX:
+                branch_coverage = float(percentages[_BRANCH_COVERAGE_INDEX])
+            return line_coverage, branch_coverage
     return None
 
 
@@ -145,16 +101,14 @@ def load_history(directory: str) -> List[CoveragePoint]:
         run_id, label = parsed
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
-                coverage: Optional[Tuple[float, Optional[float], str]] = (
-                    extract_coverage(f.read())
+                coverage: Optional[Tuple[float, Optional[float]]] = extract_coverage(
+                    f.read()
                 )
         except OSError:
             continue
         if coverage is not None:
-            line_coverage, branch_coverage, metric = coverage
-            points.append(
-                CoveragePoint(run_id, label, line_coverage, branch_coverage, metric)
-            )
+            line_coverage, branch_coverage = coverage
+            points.append(CoveragePoint(run_id, label, line_coverage, branch_coverage))
     return points
 
 
@@ -216,20 +170,6 @@ def render_trend(points: List[CoveragePoint]) -> str:
             branch_values.append(point.branch_coverage)
 
     lines: List[str] = ["## Line coverage trend", ""]
-    has_legacy: bool = any(point.metric == METRIC_LEGACY for point in points)
-    has_distinct: bool = any(point.metric == METRIC_DISTINCT for point in points)
-    if has_legacy and has_distinct:
-        lines += [
-            "> [!NOTE]",
-            "> Runs marked `*` below used llvm-cov's older per-function "
-            "summary metric, which under-counts lines from template "
-            "instantiations and double-counts lambda bodies (see "
-            "`scripts/coverage_lines.py`). Later runs use a corrected "
-            "distinct-line count. The step reflects a change in how "
-            "coverage is measured, not only in what is tested, so the two "
-            "metrics are not directly comparable.",
-            "",
-        ]
     lines += _render_chart(
         "Line coverage (%)", _LINE_COVERAGE_COLOR, line_labels, line_values
     )
@@ -249,9 +189,8 @@ def render_trend(points: List[CoveragePoint]) -> str:
             if point.branch_coverage is not None
             else "-"
         )
-        marker: str = "\\*" if point.metric == METRIC_LEGACY else ""
         lines.append(
-            f"| [{point.label}]({run_url(point.run_id)}){marker} "
+            f"| [{point.label}]({run_url(point.run_id)}) "
             f"| {point.line_coverage:.2f}% | {branch} |"
         )
     lines.append("")
@@ -274,17 +213,17 @@ def build_points(
 def current_point(report_path: str) -> Optional[CoveragePoint]:
     try:
         with open(report_path, "r", encoding="utf-8", errors="replace") as f:
-            coverage: Optional[Tuple[float, Optional[float], str]] = extract_coverage(
+            coverage: Optional[Tuple[float, Optional[float]]] = extract_coverage(
                 f.read()
             )
     except OSError:
         return None
     if coverage is None:
         return None
-    line_coverage, branch_coverage, metric = coverage
+    line_coverage, branch_coverage = coverage
     run_id: int = int(os.environ.get("GITHUB_RUN_ID") or 0)
     label: str = os.environ.get("GITHUB_RUN_NUMBER") or str(run_id)
-    return CoveragePoint(run_id, label, line_coverage, branch_coverage, metric)
+    return CoveragePoint(run_id, label, line_coverage, branch_coverage)
 
 
 def main() -> int:

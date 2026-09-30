@@ -2,29 +2,30 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Compute distinct-line coverage from an ``llvm-cov export -format=lcov`` report.
+"""Patch an ``llvm-cov report`` TOTAL row's line coverage to count each
+physical source line once, instead of llvm-cov's own per-function summary.
 
-llvm-cov computes line coverage per function, then sums per file (``report``'s
-totals, the HTML index, and ``llvm-cov export``'s own ``LF``/``LH`` records).
-This distorts C++ totals two ways:
+llvm-cov computes line coverage per function, then sums per file (``report``,
+the HTML index, and ``llvm-cov export``'s own ``LF``/``LH`` records). This
+distorts C++ totals two ways:
 
-1. Function templates are grouped into "instantiation groups" and merged with
-   ``LineCoverageInfo::merge``, which takes the *maximum* covered/total line
-   count across instantiations rather than their union, so lines covered only
-   by *different* instantiations never add up even though every line ran.
-   See llvm/tools/llvm-cov/CoverageSummaryInfo.h/.cpp.
+1. Function templates are grouped into "instantiation groups" and merged
+   with ``LineCoverageInfo::merge``, which takes the *maximum*
+   covered/total line count across instantiations rather than their union,
+   so lines covered only by *different* instantiations never add up even
+   though every line ran. See llvm/tools/llvm-cov/CoverageSummaryInfo.h/.cpp.
 2. Each function's line count includes lines of nested lambdas, which have
-   their own summary too, so a lambda's body is counted once for it and again
-   for its enclosing function.
+   their own summary too, so a lambda's body is counted once for it and
+   again for its enclosing function.
 
 The per-line ``DA:`` records (and ``llvm-cov show``'s source view) are not
-affected: each physical line is reported once. Only the ``LF``/``LH`` summary
-fields copy the distorted per-function totals instead of being derived from
-the ``DA`` records alongside them. This module recomputes line totals from
-``DA:`` directly, counting each physical line once. This does move what
-counts as "one line" for macros: a macro's definition gets one aggregate
-``DA:`` record (summed across expansions) plus one per expansion site, since
-these are different physical lines -- matching ``llvm-cov show``.
+affected: each physical line is reported once. This module recomputes the
+line total from ``DA:`` records and substitutes it into the TOTAL row of an
+``llvm-cov report`` text, leaving every other column and every per-file row
+as llvm-cov printed them. This does move what counts as "one line" for
+macros: a macro's definition gets one aggregate ``DA:`` record (summed
+across expansions) plus one per expansion site, since these are different
+physical lines -- matching ``llvm-cov show``.
 
 Branch coverage is deliberately NOT recomputed here. ``BranchCoverageInfo::
 merge`` has the same max()-merge problem, but counting ``BRDA:`` records
@@ -40,14 +41,19 @@ per-branch-region reconciliation is implemented and verified.
 """
 
 import argparse
+import re
 import sys
-from typing import Dict, List, NamedTuple, Optional, TextIO
+from typing import Dict, List, NamedTuple, Optional
 
 
 def _percentage(hit: int, found: int) -> Optional[float]:
     if found == 0:
         return None
     return 100.0 * hit / found
+
+
+def _format_percentage(value: Optional[float]) -> str:
+    return f"{value:.2f}%" if value is not None else "-"
 
 
 class FileLineCoverage(NamedTuple):
@@ -101,46 +107,52 @@ def aggregate(files: Dict[str, FileLineCoverage]) -> FileLineCoverage:
     return FileLineCoverage(lines_found, lines_hit)
 
 
-def _format_percentage(value: Optional[float]) -> str:
-    return f"{value:.2f}%" if value is not None else "-"
+# Token indices of an ``llvm-cov report`` TOTAL row's Lines group, after
+# splitting on runs of whitespace while keeping the whitespace itself (so
+# every other column's original spacing survives untouched), e.g.:
+#   TOTAL  123860 19651 84.13%  4579 1274 72.18%  84414 26245 68.91%  ...
+# Index 0 is "TOTAL"; 2/4/6 are Regions, 8/10/12 Functions, 14/16/18 Lines
+# (replaced below), 20/22/24 Branches (if present).
+_TOTAL_LINES_FOUND_INDEX = 14
+_TOTAL_MISSED_LINES_INDEX = 16
+_TOTAL_LINE_COVER_INDEX = 18
 
 
-def render_report(files: Dict[str, FileLineCoverage], total: FileLineCoverage) -> str:
-    """Render a line-coverage-only report table in the style of ``llvm-cov report``.
+def patch_total_line(report_text: str, total: FileLineCoverage) -> str:
+    """Replace the Lines/Missed Lines/Cover columns of the TOTAL row in an
+    ``llvm-cov report`` text with the corrected distinct-line counts.
 
-    The ``TOTAL-DISTINCT`` row is deliberately distinct from llvm-cov's own
-    ``TOTAL`` row, so callers such as ``coverage_summary.py`` can tell them
-    apart in historical logs. No branch column: see the module docstring.
+    Every other column, and every per-file row, is returned unmodified.
     """
-    header = f"{'Filename':<50} {'Lines':>10} {'Missed Lines':>14} {'Cover':>9}"
-    separator = "-" * len(header)
-    lines: List[str] = [header, separator]
-    for path in sorted(files):
-        file_cov = files[path]
-        lines.append(
-            f"{path:<50} {file_cov.lines_found:>10} "
-            f"{file_cov.lines_found - file_cov.lines_hit:>14} "
-            f"{_format_percentage(file_cov.line_coverage):>9}"
-        )
-    lines.append(separator)
-    lines.append(
-        f"{'TOTAL-DISTINCT':<50} {total.lines_found:>10} "
-        f"{total.lines_found - total.lines_hit:>14} "
-        f"{_format_percentage(total.line_coverage):>9}"
-    )
-    return "\n".join(lines)
+    lines: List[str] = report_text.splitlines()
+    for i, line in enumerate(lines):
+        if not line.startswith("TOTAL "):
+            continue
+        tokens: List[str] = re.split(r"(\s+)", line)
+        replacements = {
+            _TOTAL_LINES_FOUND_INDEX: str(total.lines_found),
+            _TOTAL_MISSED_LINES_INDEX: str(total.lines_found - total.lines_hit),
+            _TOTAL_LINE_COVER_INDEX: _format_percentage(total.line_coverage),
+        }
+        for index, value in replacements.items():
+            tokens[index] = value.rjust(max(len(tokens[index]), len(value)))
+        lines[i] = "".join(tokens)
+        return "\n".join(lines)
+    raise ValueError("No TOTAL row found in llvm-cov report output")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Recompute distinct-line coverage from an "
+            "Patch an 'llvm-cov report' TOTAL row's line coverage from an "
             "'llvm-cov export -format=lcov' report, counting each physical "
-            "source line once regardless of how many template instantiations "
-            "or enclosing lambdas cover it. Branch coverage is not "
-            "recomputed; use llvm-cov's own branch numbers."
+            "source line once regardless of how many template "
+            "instantiations or enclosing lambdas cover it. Every other "
+            "column, and every per-file row, is left unmodified. Branch "
+            "coverage is not recomputed; see the module docstring for why."
         )
     )
+    parser.add_argument("report_file", help="Path to 'llvm-cov report' text output")
     parser.add_argument(
         "lcov_file",
         nargs="?",
@@ -149,20 +161,21 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    text: str
+    with open(args.report_file, "r", encoding="utf-8") as f:
+        report_text = f.read()
+
     if args.lcov_file:
         with open(args.lcov_file, "r", encoding="utf-8") as f:
-            text = f.read()
+            lcov_text = f.read()
     else:
-        stream: TextIO = sys.stdin
-        text = stream.read()
+        lcov_text = sys.stdin.read()
 
-    files = parse_lcov(text)
+    files = parse_lcov(lcov_text)
     if not files:
         print("No LCOV records found.", file=sys.stderr)
         return 1
     total = aggregate(files)
-    print(render_report(files, total))
+    print(patch_total_line(report_text, total))
     return 0
 
 
