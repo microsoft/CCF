@@ -285,21 +285,32 @@ def load_history(directory: str) -> List[CoveragePoint]:
     return points
 
 
-def latest_history_path(directory: str) -> Optional[str]:
-    """Return the previous-run log with the highest run id, if any."""
-    latest: Optional[Tuple[int, str]] = None
+def previous_file_coverage(directory: str) -> List[FileCoverage]:
+    """Return the per-file rows of the most recent complete previous-run log.
+
+    Previous-run logs are downloaded on a best-effort basis, so the most recent
+    one may be empty or truncated. Logs are tried from the highest run id down,
+    and the first with per-file rows and a TOTAL line (which llvm-cov prints
+    after them) is used.
+    """
+    candidates: List[Tuple[int, str]] = []
     if not os.path.isdir(directory):
-        return None
+        return []
     for name in os.listdir(directory):
         path: str = os.path.join(directory, name)
         if not os.path.isfile(path):
             continue
         parsed: Optional[Tuple[int, str]] = _parse_history_name(name)
-        if parsed is None:
+        if parsed is not None:
+            candidates.append((parsed[0], path))
+    for _, path in sorted(candidates, reverse=True):
+        text: Optional[str] = _read_text(path)
+        if text is None or extract_coverage(text) is None:
             continue
-        if latest is None or parsed[0] > latest[0]:
-            latest = (parsed[0], path)
-    return latest[1] if latest is not None else None
+        files: List[FileCoverage] = extract_file_coverage(text)
+        if files:
+            return files
+    return []
 
 
 def _read_text(path: str) -> Optional[str]:
@@ -454,14 +465,10 @@ def main() -> int:
     if not files:
         return 0
 
-    previous_areas: Optional[List[AreaCoverage]] = None
-    previous_path: Optional[str] = latest_history_path(args.history)
-    if previous_path is not None:
-        previous_text: Optional[str] = _read_text(previous_path)
-        if previous_text is not None:
-            previous_files: List[FileCoverage] = extract_file_coverage(previous_text)
-            if previous_files:
-                previous_areas = aggregate_by_area(previous_files)
+    previous_files: List[FileCoverage] = previous_file_coverage(args.history)
+    previous_areas: Optional[List[AreaCoverage]] = (
+        aggregate_by_area(previous_files) if previous_files else None
+    )
 
     print(render_areas(aggregate_by_area(files), previous_areas))
     print(render_top_files(files))
