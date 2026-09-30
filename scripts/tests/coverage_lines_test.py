@@ -5,16 +5,12 @@
 """Unit tests for scripts/coverage_lines.py and the distinct-line handling in
 scripts/coverage_summary.py.
 
-Covers the two llvm-cov line-count distortions that motivate the
-distinct-line count: function template instantiations merged with max()
-rather than union, and lines inside lambdas counted once for the lambda and
-again for the enclosing function. Also covers macro line semantics (a
-macro's definition line gets one aggregate DA: record on top of one per
-expansion site), and confirms that the same "count each record once"
-approach must NOT be applied to branches, because BRDA: records (unlike
-DA:) are not deduplicated the same way across macro/template expansions.
-Synthetic LCOV inputs below are based on real 'llvm-cov export -format=lcov'
-output observed for equivalent C++ sources compiled with clang 21.1.8.
+Covers the two llvm-cov line-count distortions (template max()-merge,
+lambda double-counting), macro line semantics (a macro's definition line
+gets one aggregate DA: record on top of one per expansion site), and why
+that same approach must NOT be applied to BRDA: records. Synthetic LCOV
+inputs below are based on real 'llvm-cov export -format=lcov' output for
+equivalent C++ sources compiled with clang 21.1.8.
 """
 
 import importlib.util
@@ -40,12 +36,10 @@ coverage_summary = _load("coverage_summary", "coverage_summary.py")
 
 
 # Reproduces a function template f<T> instantiated as f<int> and f<double>,
-# called with values that take opposite branches of an if/else. llvm-cov's
-# per-function summary merges the two instantiations with max(), reporting
-# only 16 of 21 lines hit even though every line is covered by some
-# instantiation, and only 1 of 2 branches hit even though both were taken.
-# The DA records themselves are correctly unioned (no DA with count 0),
-# matching real 'llvm-cov export -format=lcov' output for this case.
+# with an if/else. llvm-cov's per-function summary merges the two
+# instantiations with max(), reporting only 16 of 21 lines hit even though
+# every line is covered by some instantiation. The DA records themselves are
+# correctly unioned (no DA with count 0).
 TEMPLATE_LCOV = """\
 SF:/src/template.cpp
 FN:23,main
@@ -87,11 +81,8 @@ end_of_record
 """
 
 # Reproduces a lambda body (lines 6-13) nested inside make() (lines 5-20).
-# llvm-cov's per-function summary counts the lambda's lines both for the
-# lambda and for the enclosing make(), reporting 20 lines total although
-# only 14 physical lines exist and are all covered. LF/LH copy that inflated
-# summary rather than being derived from the (correctly deduplicated) DA
-# records shown in the same section.
+# llvm-cov counts the lambda's lines both for it and for the enclosing
+# make(), reporting 20 lines although only 14 physical lines exist.
 LAMBDA_LCOV = """\
 SF:/src/lambda.cpp
 FN:5,_Z4makev
@@ -123,20 +114,17 @@ LH:20
 end_of_record
 """
 
-# Reproduces a two-line branching macro (LOG_DEBUG(x), lines 3-7, with a
-# never-taken 'if (level <= 0)' body at lines 6-7) invoked twice (lines 9 and
-# 10) inside g(), never taken since level is statically 1. This is real
-# 'llvm-cov export -format=lcov' output for:
+# Reproduces a two-line branching macro invoked twice (never taken, since
+# level is statically 1), for:
 #   #define LOG_DEBUG(x) if (level <= 0) { std::printf("%d\\n", x); }
 #   int g(int x) { LOG_DEBUG(1); LOG_DEBUG(2); return x; }
 #
-# llvm-cov report correctly says 4 branches, 2 missed (2 expansions x 2
-# outcomes each). Counting BRDA: records directly (as this module does for
-# DA:) would instead give 6 branches, 3 missed: the macro definition line
-# (4) gets its own aggregate BRDA: record on top of the two per-expansion
-# BRDA: records at lines 9 and 10, all describing the same two branches.
-# scripts/coverage_lines.py therefore does not recompute branch coverage at
-# all; only the DA:/line-count behaviour is exercised by this fixture here.
+# llvm-cov report correctly says 4 branches, 2 missed. Counting BRDA:
+# records directly (as this module does for DA:) would instead give 6/3:
+# the macro definition line (4) gets its own aggregate BRDA: record on top
+# of the per-expansion records at lines 9 and 10. This module therefore does
+# not recompute branch coverage at all; only line-count behaviour is
+# exercised here.
 MACRO_LCOV = """\
 SF:/src/macro.cpp
 FN:8,_Z1gi

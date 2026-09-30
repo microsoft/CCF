@@ -4,58 +4,39 @@
 
 """Compute distinct-line coverage from an ``llvm-cov export -format=lcov`` report.
 
-llvm-cov's ``report`` command (and the summary totals in its HTML index and
-in ``llvm-cov export``'s own ``LF``/``LH`` records) compute line coverage per
-function, then sum per file. For C++ this distorts the totals in two ways:
+llvm-cov computes line coverage per function, then sums per file (``report``'s
+totals, the HTML index, and ``llvm-cov export``'s own ``LF``/``LH`` records).
+This distorts C++ totals two ways:
 
-1. Function templates are grouped into "instantiation groups", and each
-   group's line summary is computed by ``LineCoverageInfo::merge``, which
-   takes the *maximum* covered/total line counts across instantiations rather
-   than their union. Lines covered only by *different* instantiations of the
-   same template therefore never add up, even though every line was executed
-   by some instantiation.
-   See llvm/tools/llvm-cov/CoverageSummaryInfo.h and .cpp in the LLVM source.
+1. Function templates are grouped into "instantiation groups" and merged with
+   ``LineCoverageInfo::merge``, which takes the *maximum* covered/total line
+   count across instantiations rather than their union, so lines covered only
+   by *different* instantiations never add up even though every line ran.
+   See llvm/tools/llvm-cov/CoverageSummaryInfo.h/.cpp.
+2. Each function's line count includes lines of nested lambdas, which have
+   their own summary too, so a lambda's body is counted once for it and again
+   for its enclosing function.
 
-2. Each function's line count includes every line lexically inside it,
-   including nested lambdas. Since a lambda is itself a function with its own
-   summary, its body lines are counted once for the lambda and again for the
-   enclosing function, inflating the file (and total) line count. A lambda
-   that never runs still counts as "covered" through its enclosing function's
-   region.
+The per-line ``DA:`` records (and ``llvm-cov show``'s source view) are not
+affected: each physical line is reported once. Only the ``LF``/``LH`` summary
+fields copy the distorted per-function totals instead of being derived from
+the ``DA`` records alongside them. This module recomputes line totals from
+``DA:`` directly, counting each physical line once. This does move what
+counts as "one line" for macros: a macro's definition gets one aggregate
+``DA:`` record (summed across expansions) plus one per expansion site, since
+these are different physical lines -- matching ``llvm-cov show``.
 
-The per-line data itself (the ``DA:`` records in the LCOV export, and the
-source view in ``llvm-cov show``) is not affected by either distortion: each
-physical line is reported once, correctly merged across instantiations. Only
-the ``LF``/``LH`` summary records (and everything derived from them: llvm-cov
-``report``'s totals, the HTML index, and ``llvm-cov export``'s own summary
-fields) copy the distorted per-function summary instead of being derived from
-the ``DA`` records shown alongside them in the same export.
-
-This module recomputes line totals directly from the ``DA:`` records,
-counting each physical source line once. This does change what counts as one
-"line": a macro's definition gets a single aggregate ``DA:`` record (summed
-across all its expansions), on top of one record per expansion site, since
-those are different physical lines. A macro body that is never executed by
-any expansion (e.g. a disabled ``LOG_DEBUG`` branch) therefore shows up as one
-uncovered line at the definition, in addition to whatever is at each call
-site; this matches ``llvm-cov show``'s source view, which marks the
-definition line itself with the aggregate count.
-
-Branch coverage is deliberately NOT recomputed here, and this module does not
-touch it. llvm-cov's per-function branch summary has the same max()-merge
-problem as lines (``BranchCoverageInfo::merge``), but counting ``BRDA:``
-records directly does not fix it: unlike ``DA:``, a macro or template
-expansion produces an aggregate ``BRDA:`` record at the definition line *in
-addition to* one at each expansion/instantiation site, all describing the
-same source branch. Counting them all as distinct branches over-counts found
-and missed branches (verified: a two-line macro invoked twice moves llvm-cov
-report's correct 4 branches/2 missed to 6 branches/3 missed when counted this
-way). CCF's headers make heavy use of branching macros (LOG_*_FMT,
-CCF_ASSERT*, RAFT_TRACE_JSON_OUT, ...), so this is not a corner case. Treat
-llvm-cov's own branch numbers (from ``report``, or this export's ``BRF``/
-``BRH``) as authoritative until a correct per-branch-region reconciliation
-(e.g. from the JSON export's region/expansion metadata) is implemented and
-verified.
+Branch coverage is deliberately NOT recomputed here. ``BranchCoverageInfo::
+merge`` has the same max()-merge problem, but counting ``BRDA:`` records
+directly does not fix it: unlike ``DA:``, a macro/template expansion adds an
+aggregate ``BRDA:`` record at the definition line *in addition to* one per
+expansion/instantiation site, all describing the same branch, so counting
+them all over-counts found/missed branches (verified: a two-line macro
+invoked twice moves llvm-cov's correct 4/2 to a naive 6/3). CCF's headers use
+branching macros heavily (LOG_*_FMT, CCF_ASSERT*, RAFT_TRACE_JSON_OUT), so
+this is not a corner case. Treat llvm-cov's own branch numbers (``report``,
+or this export's ``BRF``/``BRH``) as authoritative until a correct
+per-branch-region reconciliation is implemented and verified.
 """
 
 import argparse
@@ -81,12 +62,9 @@ class FileLineCoverage(NamedTuple):
 def parse_lcov(text: str) -> Dict[str, FileLineCoverage]:
     """Return per-file distinct line counts from LCOV text.
 
-    Counts each ``DA:`` record as one found line (hit if its execution count
-    is non-zero). This ignores the file's own ``LF``/``LH`` records, which
-    copy llvm-cov's per-function summary rather than being derived from the
-    ``DA`` records in the same section. ``BRDA:`` records are ignored
-    entirely; see the module docstring for why branch coverage is not
-    recomputed here.
+    Counts each ``DA:`` record as one found line (hit if its count is
+    non-zero), ignoring the file's own ``LF``/``LH`` and all ``BRDA:``
+    records; see the module docstring for why.
     """
     files: Dict[str, FileLineCoverage] = {}
     current_file: Optional[str] = None
@@ -130,12 +108,9 @@ def _format_percentage(value: Optional[float]) -> str:
 def render_report(files: Dict[str, FileLineCoverage], total: FileLineCoverage) -> str:
     """Render a line-coverage-only report table in the style of ``llvm-cov report``.
 
-    The ``TOTAL-DISTINCT`` row (rather than plain ``TOTAL``) is deliberately
-    distinct from llvm-cov's own summary row, so callers such as
-    ``coverage_summary.py`` can tell the corrected metric apart from the
-    older, distorted one when reading historical logs that predate this
-    change. There is no branch column: see the module docstring for why
-    branch coverage is not recomputed here.
+    The ``TOTAL-DISTINCT`` row is deliberately distinct from llvm-cov's own
+    ``TOTAL`` row, so callers such as ``coverage_summary.py`` can tell them
+    apart in historical logs. No branch column: see the module docstring.
     """
     header = f"{'Filename':<50} {'Lines':>10} {'Missed Lines':>14} {'Cover':>9}"
     separator = "-" * len(header)

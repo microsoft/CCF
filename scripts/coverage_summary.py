@@ -11,20 +11,14 @@ extracts the overall line and branch coverage percentages from each of those
 reports and renders Mermaid xychart trend charts, including the current run.
 
 ``scripts/coverage.sh`` prints two summaries: llvm-cov's own per-function
-summary (a "TOTAL" row, covering both lines and branches), and a corrected
-"distinct lines" summary (a "TOTAL-DISTINCT" row, from
-``scripts/coverage_lines.py``) that counts each physical source line once,
-fixing two distinct per-function line distortions: template instantiations
-are merged with max() rather than union, under-counting lines only covered
-by other instantiations, and lambda bodies are double-counted against their
-enclosing function. There is deliberately no distinct-branch metric (see
-``coverage_lines.py`` for why counting branch records the same way
-over-counts them for macro- and template-heavy code). This script therefore
-takes line coverage from "TOTAL-DISTINCT" when present, falling back to the
-legacy "TOTAL" row for logs from before this distinction existed, tagging
-each point with which metric it used so the trend can show that the metric
-changed (and the two are not directly comparable) rather than silently
-mixing the two; branch coverage always comes from the "TOTAL" row.
+"TOTAL" row (lines and branches), and a corrected "TOTAL-DISTINCT" row (lines
+only, from ``scripts/coverage_lines.py``) that counts each physical source
+line once instead of double-counting it. See ``coverage_lines.py`` for why
+there is no distinct-branch equivalent. This script prefers "TOTAL-DISTINCT"
+for line coverage, falling back to the legacy "TOTAL" row for logs that
+predate it, tagging each point with which metric it used so the trend can
+show the metric changed rather than silently mixing the two; branch coverage
+always comes from "TOTAL".
 """
 
 import argparse
@@ -67,14 +61,12 @@ _DISTINCT_LINE_COVERAGE_INDEX = 0
 _LINE_COVERAGE_COLOR = "#00ff00"
 _BRANCH_COVERAGE_COLOR = "#0000ff"
 
-# Coverage metric a point's LINE coverage was computed with. "distinct"
+# Coverage metric a point's LINE coverage was computed with: "distinct"
 # counts each physical source line once (scripts/coverage_lines.py);
-# "legacy" is llvm-cov's own per-function summary, which under-counts lines
-# only covered by other template instantiations (max()-merged rather than
-# unioned) and double-counts lines inside lambdas against their enclosing
-# function. Logs from before the distinct-line summary existed only have the
-# legacy metric. Branch coverage always uses llvm-cov's own per-function
-# summary, regardless of this tag.
+# "legacy" is llvm-cov's own per-function summary (see that module's
+# docstring for its two line distortions). Logs predating the distinct-line
+# summary only have the legacy metric. Branch coverage always uses llvm-cov's
+# own per-function summary, regardless of this tag.
 METRIC_DISTINCT = "distinct"
 METRIC_LEGACY = "legacy"
 
@@ -229,14 +221,13 @@ def render_trend(points: List[CoveragePoint]) -> str:
     if has_legacy and has_distinct:
         lines += [
             "> [!NOTE]",
-            "> Runs marked `*` below used llvm-cov's older per-function summary "
-            "metric, which under-counts lines only covered by other template "
-            "instantiations (merged with max() rather than union) and "
-            "double-counts lines inside lambdas against their enclosing "
-            "function. Later runs use a corrected distinct-line count (see "
-            "`scripts/coverage_lines.py`). The step between the two reflects "
-            "a change in how coverage is measured, not only in what is "
-            "tested, so the two metrics are not directly comparable.",
+            "> Runs marked `*` below used llvm-cov's older per-function "
+            "summary metric, which under-counts lines from template "
+            "instantiations and double-counts lambda bodies (see "
+            "`scripts/coverage_lines.py`). Later runs use a corrected "
+            "distinct-line count. The step reflects a change in how "
+            "coverage is measured, not only in what is tested, so the two "
+            "metrics are not directly comparable.",
             "",
         ]
     lines += _render_chart(

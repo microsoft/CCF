@@ -66,19 +66,9 @@ Notes:
     llvm variants are also accepted).
   - Two summaries are printed: llvm-cov's own per-function summary, and a
     corrected "distinct lines" summary (scripts/coverage_lines.py). Treat the
-    latter's line coverage as the headline: llvm-cov's per-function summary
-    has two distinct distortions for lines, which the distinct-line summary
-    fixes by counting each physical source line once. Template
-    instantiations are merged with max(), not union, so lines covered only
-    by *different* instantiations of the same template are under-counted,
-    even though every line executed. Lines inside lambdas are counted twice:
-    once for the lambda and again for the enclosing function that contains
-    it. Branch coverage is NOT corrected: use llvm-cov's own per-function
-    summary for branches. Counting branch records the same way as line
-    records over-counts them, because macro and template expansions each add
-    their own branch record on top of one aggregated at the
-    definition/pattern site, unlike line records. See scripts/coverage_lines.py
-    for details.
+    latter's line coverage as the headline; branch coverage is NOT corrected,
+    so read it from llvm-cov's own per-function summary. See
+    scripts/coverage_lines.py for why.
 EOF
   exit 0
 }
@@ -238,20 +228,11 @@ mapfile -t COV_ARGS < <(build_cov_args)
 # Overall coverage summary
 #
 # llvm-cov's own summary (below) computes coverage per function, then sums
-# per file. For C++ this distorts line coverage in two distinct ways:
-# function template instantiations are merged with max(), not union, so
-# lines covered only by *different* instantiations never add up even though
-# every line executed; and lines inside lambdas are counted once for the
-# lambda and again for the enclosing function that contains it, so those
-# lines are double-counted. The "Coverage Summary (distinct lines)" section
-# further below corrects this for LINES ONLY, by counting each physical
-# source line once from the per-line 'llvm-cov export -format=lcov' data.
-# Treat that section as the headline line coverage number, but use THIS
-# section (llvm-cov's own summary) for branch coverage: unlike lines, macro
-# and template expansions each add their own branch record on top of one
-# aggregated at the definition/pattern site, so counting branch records the
-# same way as line records over-counts them. See scripts/coverage_lines.py
-# for details.
+# per file, which distorts C++ line totals (see scripts/coverage_lines.py for
+# why). The "Coverage Summary (distinct lines)" section further below
+# corrects this for LINES ONLY. Treat that section as the headline line
+# coverage number, but use THIS section for branch coverage, which is not
+# corrected.
 # ---------------------------------------------------------------------------
 echo ""
 echo "=== Coverage Summary (llvm-cov per-function summary) ==="
@@ -259,13 +240,10 @@ echo "=== Coverage Summary (llvm-cov per-function summary) ==="
 
 echo ""
 echo "=== Coverage Summary (distinct lines) ==="
-echo "Each physical source line is counted once, fixing two distinct"
-echo "per-function summary distortions: template instantiations merged with"
-echo "max() under-counting lines only covered by other instantiations, and"
-echo "lambda bodies double-counted against their enclosing function. Treat"
-echo "this as the headline LINE coverage metric. It has no branch column:"
-echo "use the per-function summary above for branch coverage. See"
-echo "scripts/coverage_lines.py for details."
+echo "Each physical source line is counted once. Treat this as the headline"
+echo "LINE coverage metric. It has no branch column: use the per-function"
+echo "summary above for branch coverage. See scripts/coverage_lines.py for"
+echo "details."
 "${LLVM_COV}" export -format=lcov "${COV_ARGS[@]}" |
   python3 "${SOURCE_DIR}/scripts/coverage_lines.py"
 
