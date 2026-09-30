@@ -51,6 +51,7 @@
 #include "node/pending_node_cleanup.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
+#include "node/retired_nodes_cleanup.h"
 #include "node/rpc/abstract_rpc_sessions.h"
 #include "node/runtime_control.h"
 #include "node/signature_cache_subsystem.h"
@@ -58,6 +59,7 @@
 #include "node/startup_inputs.h"
 #include "node_to_node.h"
 #include "pal/quote_generation.h"
+#include "pal/uvm_endorsements.h"
 #include "quote_endorsements_client.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
@@ -67,7 +69,6 @@
 #include "share_manager.h"
 #include "snapshots/fetch.h"
 #include "snapshots/filenames.h"
-#include "uvm_endorsements.h"
 
 #include <arpa/inet.h>
 #include <optional>
@@ -3721,13 +3722,16 @@ namespace ccf
           return endorsed_node_cert.value_or(self_signed_node_cert);
         });
 
+      auto retired_node_cleanup =
+        std::make_shared<RetiredNodeCleanup>(node_client);
+
       consensus = std::make_shared<RaftType>(
         consensus_config,
         std::make_unique<aft::Adaptor<ccf::kv::Store>>(network.tables),
         std::make_unique<::consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         shared_state,
-        node_client,
+        [retired_node_cleanup]() { retired_node_cleanup->cleanup(); },
         commit_callbacks,
         public_only);
 
