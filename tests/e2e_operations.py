@@ -2649,28 +2649,35 @@ def run_initial_tcb_version_checks(const_args):
         network.start_and_open(args)
         primary, _ = network.find_primary()
 
-        LOG.info("Fetch current join policy to get the minimum TCB version")
-        with primary.api_versioned_client(api_version=args.gov_api_version) as uc:
-            r = uc.get("/gov/service/join-policy")
-            assert r.status_code == http.HTTPStatus.OK, r
-            tcb_versions = r.body.json()["snp"]["tcbVersions"]
-            assert len(tcb_versions) == 1, tcb_versions
-            cpuid, node_tcb = next(iter(tcb_versions.items()))
-            LOG.info(f"Current minimum TCB version for {cpuid}: {node_tcb}")
+        def get_min_tcb_versions(node):
+            with node.api_versioned_client(api_version=args.gov_api_version) as uc:
+                r = uc.get("/gov/service/join-policy")
+                assert r.status_code == http.HTTPStatus.OK, r
+                return r.body.json()["snp"]["tcbVersions"]
 
-        # Lower microcode and raise boot_loader, so that recovery must take the
-        # component-wise minimum of this and the node's TCB version
-        assert node_tcb["microcode"] > 0, node_tcb
-        tcb_before_recovery = {k: v for k, v in node_tcb.items() if k != "hexstring"}
-        tcb_before_recovery["microcode"] -= 1
-        tcb_before_recovery["boot_loader"] += 1
-        LOG.info(f"Proposing minimum TCB version for {cpuid}: {tcb_before_recovery}")
-        network.consortium.set_snp_minimum_tcb_version(
-            primary, cpuid, tcb_before_recovery
+        LOG.info("Fetch current join policy to get the minimum TCB version")
+        tcb_versions = get_min_tcb_versions(primary)
+        assert len(tcb_versions) == 1, tcb_versions
+        cpuid, node_tcb = next(iter(tcb_versions.items()))
+        LOG.info(f"Current minimum TCB version for {cpuid}: {node_tcb}")
+
+        # Lowering microcode, the first byte of the hex string on every product,
+        # gives a minimum that admits the node's TCB version, so recovery must
+        # keep it as is rather than replace it with the node's TCB version
+        node_tcb_hex = node_tcb["hexstring"]
+        microcode = int(node_tcb_hex[:2], 16)
+        assert microcode > 0, node_tcb
+        tcb_hex_before_recovery = f"{microcode - 1:02x}{node_tcb_hex[2:]}"
+        LOG.info(
+            f"Proposing minimum TCB version for {cpuid}: {tcb_hex_before_recovery}"
         )
-        expected_recovery_tcb = dict(
-            tcb_before_recovery, boot_loader=node_tcb["boot_loader"]
+        network.consortium.set_snp_minimum_tcb_version_hex(
+            primary, cpuid, tcb_hex_before_recovery
         )
+        tcb_versions_before_recovery = get_min_tcb_versions(primary)
+        assert (
+            tcb_versions_before_recovery[cpuid]["hexstring"] == tcb_hex_before_recovery
+        ), tcb_versions_before_recovery
 
         network_service_identity_file, _ = network.save_service_identity_to_file()
         snapshots_dir = network.get_committed_snapshots(primary)
@@ -2707,7 +2714,13 @@ def run_initial_tcb_version_checks(const_args):
                 snapshots_dir=snapshots_dir,
             )
             recovered_primary, _ = recovered_network.find_primary()
-            LOG.info("Check that the TCB_version is present in the recovery tx")
+            LOG.info("Check that recovery kept the minimum TCB version")
+            tcb_versions = get_min_tcb_versions(recovered_primary)
+            assert (
+                tcb_versions == tcb_versions_before_recovery
+            ), f"Expected minimum TCB versions {tcb_versions_before_recovery} after recovery, got {tcb_versions}"
+
+            LOG.info("Check that the TCB_version is not written by the recovery tx")
             recovery_seqno = None
             with recovered_primary.client() as c:
                 r = c.get("/node/network").body.json()
@@ -2731,18 +2744,14 @@ def run_initial_tcb_version_checks(const_args):
                     if seqno < recovery_seqno:
                         continue
                     else:
+                        assert seqno == recovery_seqno, (seqno, recovery_seqno)
                         tables = tx.get_public_domain().get_tables()
-                        tcb_versions = tables["public:ccf.gov.nodes.snp.tcb_versions"]
-                        assert len(tcb_versions) == 1, tcb_versions
-                        LOG.info(
-                            f"Recovery TCB_version found in ledger: {tcb_versions}"
-                        )
-                        recovery_tcb = json.loads(tcb_versions[cpuid.encode()])
+                        assert "public:ccf.gov.service.info" in tables, tables.keys()
                         assert (
-                            recovery_tcb == expected_recovery_tcb
-                        ), f"Expected minimum TCB version {expected_recovery_tcb} after recovery, got {recovery_tcb}"
+                            "public:ccf.gov.nodes.snp.tcb_versions" not in tables
+                        ), tables["public:ccf.gov.nodes.snp.tcb_versions"]
                         return
-            assert False, "No TCB_version found in recovery ledger"
+            assert False, "No recovery tx found in recovery ledger"
 
 
 def run_recovery_local_unsealing(

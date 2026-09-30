@@ -210,7 +210,7 @@ TEST_CASE("trust_node_snp_tcb_version - recovering")
       get_min_tcb_version(kv_store, cpuid).first == nlohmann::json(reported));
   }
 
-  SUBCASE("Existing value is not higher in any component")
+  SUBCASE("Existing value admits the reported TCB version")
   {
     pal::snp::TcbVersionPolicy existing;
     SUBCASE("Equal")
@@ -235,45 +235,33 @@ TEST_CASE("trust_node_snp_tcb_version - recovering")
     REQUIRE(get_min_tcb_version(kv_store, cpuid) == existing_entry);
   }
 
-  SUBCASE("Existing value is higher in every component")
+  SUBCASE("Existing value does not admit the reported TCB version")
   {
-    set_min_tcb_version(
-      kv_store,
-      cpuid,
-      {.microcode = 220, .snp = 25, .tee = 1, .boot_loader = 5});
+    pal::snp::TcbVersionPolicy existing;
+    SUBCASE("Higher in every component")
+    {
+      // boot_loader 5, tee 1, snp 25, microcode 220
+      existing = tcb_from_hex(milan, "dc19000000000105");
+    }
+    SUBCASE("Higher in some components and lower in others")
+    {
+      // boot_loader 5, tee 0, snp 28, microcode 211
+      existing = tcb_from_hex(milan, "d31c000000000005");
+    }
+    SUBCASE("Has a component that Milan does not")
+    {
+      // As set_snp_minimum_tcb_version allows. Admits no Milan TCB version.
+      existing = {
+        .microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0, .fmc = 0};
+    }
+    set_min_tcb_version(kv_store, cpuid, existing);
+
     trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
-    // Including the reported hexstring
+
+    // Replaced by the whole reported TCB version, including its hexstring,
+    // rather than combined with the existing value component by component
     REQUIRE(
       get_min_tcb_version(kv_store, cpuid).first == nlohmann::json(reported));
-  }
-
-  SUBCASE("Existing value is higher in some components and lower in others")
-  {
-    set_min_tcb_version(
-      kv_store,
-      cpuid,
-      {.microcode = 211, .snp = 28, .tee = 0, .boot_loader = 5});
-    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
-    // Without the reported hexstring, which no longer applies
-    REQUIRE(
-      get_min_tcb_version(kv_store, cpuid).first ==
-      nlohmann::json(pal::snp::TcbVersionPolicy{
-        .microcode = 211, .snp = 24, .tee = 0, .boot_loader = 4}));
-  }
-
-  SUBCASE("Existing value has a component that Milan does not")
-  {
-    // Such a minimum admits no Milan TCB version, and the result must admit
-    // the reported one, so fmc is dropped
-    set_min_tcb_version(
-      kv_store,
-      cpuid,
-      {.microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0, .fmc = 0});
-    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
-    REQUIRE(
-      get_min_tcb_version(kv_store, cpuid).first ==
-      nlohmann::json(pal::snp::TcbVersionPolicy{
-        .microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0}));
   }
 
   REQUIRE(get_min_tcb_version(kv_store, genoa_cpuid) == genoa_entry);
@@ -289,30 +277,38 @@ TEST_CASE("trust_node_snp_tcb_version - recovering, Turin")
   // fmc 85, boot_loader 68, tee 51, snp 34, microcode 17
   const auto reported = tcb_from_hex(turin, "1100000022334455");
 
-  SUBCASE("Existing value is higher in some components and lower in others")
+  SUBCASE("Existing value admits the reported TCB version")
   {
+    // fmc 80, boot_loader 68, tee 51, snp 34, microcode 17
     set_min_tcb_version(
-      kv_store,
-      cpuid,
-      {.microcode = 32, .snp = 16, .tee = 64, .boot_loader = 64, .fmc = 80});
+      kv_store, cpuid, tcb_from_hex(turin, "1100000022334450"));
+    const auto existing_entry = get_min_tcb_version(kv_store, cpuid);
+
     trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
-    REQUIRE(
-      get_min_tcb_version(kv_store, cpuid).first ==
-      nlohmann::json(pal::snp::TcbVersionPolicy{
-        .microcode = 17, .snp = 16, .tee = 51, .boot_loader = 64, .fmc = 80}));
+
+    // Neither modified nor re-written
+    REQUIRE(get_min_tcb_version(kv_store, cpuid) == existing_entry);
   }
 
-  SUBCASE("Existing value has no fmc")
+  SUBCASE("Existing value does not admit the reported TCB version")
   {
-    // As set_snp_minimum_tcb_version allows. Such a minimum admits no Turin
-    // TCB version, so the reported fmc is kept.
-    set_min_tcb_version(
-      kv_store, cpuid, {.microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0});
+    pal::snp::TcbVersionPolicy existing;
+    SUBCASE("Higher in some components and lower in others")
+    {
+      // fmc 80, boot_loader 64, tee 64, snp 16, microcode 32
+      existing = tcb_from_hex(turin, "2000000010404050");
+    }
+    SUBCASE("Has no fmc")
+    {
+      // As set_snp_minimum_tcb_version allows. Admits no Turin TCB version.
+      existing = {.microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0};
+    }
+    set_min_tcb_version(kv_store, cpuid, existing);
+
     trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
+
     REQUIRE(
-      get_min_tcb_version(kv_store, cpuid).first ==
-      nlohmann::json(pal::snp::TcbVersionPolicy{
-        .microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0, .fmc = 85}));
+      get_min_tcb_version(kv_store, cpuid).first == nlohmann::json(reported));
   }
 }
 

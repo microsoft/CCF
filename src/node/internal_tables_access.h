@@ -855,9 +855,11 @@ namespace ccf
         recovering);
     }
 
-    // On recovery, the minimum TCB version for the CPUID is set to the
-    // component-wise minimum of the existing value, if any, and the reported
-    // TCB version, so that recovery never raises a previously set minimum.
+    // On start, the reported TCB version is set as the minimum for the CPUID.
+    // On recovery, an existing minimum is kept if it admits the reported TCB
+    // version, and is otherwise replaced by it, so that the recovering node is
+    // admitted. The minimum is always a whole TCB version, the existing one or
+    // the reported one, never a component-wise combination of the two.
     static void trust_node_snp_tcb_version(
       ccf::kv::Tx& tx,
       const std::string& cpuid,
@@ -869,7 +871,6 @@ namespace ccf
       auto existing = recovering ? tcb_versions->get(cpuid) : std::nullopt;
       if (existing.has_value())
       {
-        // Already no higher than the reported TCB version in any component
         if (pal::snp::TcbVersionPolicy::is_valid(existing.value(), tcb_version))
         {
           LOG_INFO_FMT(
@@ -879,28 +880,9 @@ namespace ccf
           return;
         }
 
-        // Lower each reported component to its existing value, if lower. The
-        // result has the same components as the reported TCB version, so that
-        // it admits it.
-        auto lower = [&tcb_version](
-                       std::optional<uint32_t>& component,
-                       const std::optional<uint32_t>& existing_component) {
-          if (
-            component.has_value() && existing_component.has_value() &&
-            existing_component.value() < component.value())
-          {
-            component = existing_component;
-            // The reported hex string no longer describes the result
-            tcb_version.hexstring = std::nullopt;
-          }
-        };
-        lower(tcb_version.microcode, existing->microcode);
-        lower(tcb_version.snp, existing->snp);
-        lower(tcb_version.tee, existing->tee);
-        lower(tcb_version.boot_loader, existing->boot_loader);
-        lower(tcb_version.fmc, existing->fmc);
         LOG_INFO_FMT(
-          "SNP minimum TCB version for CPUID {} set to {} on recovery (was {})",
+          "SNP minimum TCB version for CPUID {} set to {} on recovery, as the "
+          "existing minimum {} does not admit it",
           cpuid,
           nlohmann::json(tcb_version).dump(),
           nlohmann::json(existing.value()).dump());
