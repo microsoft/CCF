@@ -42,6 +42,7 @@
     "service": ["ccf-api", "crypto", "ds", "kv"],
     "rust": ["ccf-api", "kv"],
     "consensus": ["ccf-api", "crypto", "ds", "kv", "service"],
+    "endpoints": ["ccf-api", "crypto", "ds", "http", "kv", "service"],
     "host": [
       "ccf-api",
       "common",

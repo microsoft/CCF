@@ -23,24 +23,6 @@
 namespace ccf::cose
 {
 
-  using Signature = std::span<const uint8_t>;
-
-  static bool is_ecdsa_alg(int64_t cose_alg)
-  {
-    // RFC 9864 deprecates the curve-agnostic ES identifiers in favour of the
-    // fully-specified ESP ones. Both are accepted, since the curve, and
-    // therefore the digest, is fixed by the verification key.
-    return cose_alg == alg::ES256 || cose_alg == alg::ES384 ||
-      cose_alg == alg::ES512 || cose_alg == alg::ESP256 ||
-      cose_alg == alg::ESP384 || cose_alg == alg::ESP512;
-  }
-
-  static bool is_rsa_alg(int64_t cose_alg)
-  {
-    return cose_alg == alg::PS256 || cose_alg == alg::PS384 ||
-      cose_alg == alg::PS512;
-  }
-
   struct COSEDecodeError : public std::runtime_error
   {
     COSEDecodeError(const std::string& msg) : std::runtime_error(msg) {}

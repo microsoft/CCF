@@ -5,10 +5,10 @@
 #include "ccf/odata_error.h"
 #include "ccf/rpc_context.h"
 #include "ds/actors.h"
+#include "endpoints/rpc_context_impl.h"
 #include "http/http_parser.h"
 #include "node/rpc/rpc_handler.h"
 #include "node/rpc/rpc_map.h"
-#include "node/rpc_context_impl.h"
 
 namespace http
 {
