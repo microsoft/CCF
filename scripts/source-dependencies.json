@@ -21,6 +21,7 @@
     "src/host/config_schema.h",
     "src/node/gov/api_schema.h"
   ],
+  "cyclic_components": ["endpoints", "js", "node"],
   "allowed_internal_dependencies": {
     "apps": ["ccf-api", "js"],
     "common": ["crypto", "ds", "service"],
@@ -41,6 +42,7 @@
     "kv": ["ccf-api", "crypto", "ds"],
     "service": ["ccf-api", "crypto", "ds", "kv"],
     "rust": ["ccf-api", "kv"],
+    "consensus": ["ccf-api", "crypto", "ds", "kv", "service"],
     "host": [
       "ccf-api",
       "common",
