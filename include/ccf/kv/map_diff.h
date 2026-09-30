@@ -10,19 +10,17 @@ namespace ccf::kv
   class MapDiff : public AbstractHandle
   {
   protected:
+    friend class ccf::kv::BaseTx;
+
     ccf::kv::untyped::MapDiff map_diff;
-
-  public:
-    using KeyType = K;
-    using ValueType = V;
-
-    MapDiff(ccf::kv::untyped::MapDiff map_diff_) :
-      map_diff(std::move(map_diff_))
-    {}
 
     MapDiff(ccf::kv::untyped::ChangeSet& changes, const std::string& map_name) :
       map_diff(changes, map_name)
     {}
+
+  public:
+    using KeyType = K;
+    using ValueType = V;
 
     /** Get value for key.
      *
