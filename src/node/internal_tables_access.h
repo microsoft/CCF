@@ -20,7 +20,7 @@
 #include "crypto/cose.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
-#include "node/uvm_endorsements.h"
+#include "pal/uvm_endorsements.h"
 #include "service/tables/config.h"
 #include "service/tables/governance_history.h"
 #include "service/tables/local_sealing.h"

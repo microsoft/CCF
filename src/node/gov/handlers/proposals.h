@@ -9,9 +9,9 @@
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/gov_effects.h"
 #include "js/checks.h"
-#include "js/extensions/ccf/network.h"
-#include "js/extensions/ccf/node.h"
 #include "node/gov/api_version.h"
+#include "node/gov/extensions/network.h"
+#include "node/gov/extensions/node.h"
 #include "node/gov/handlers/helpers.h"
 
 namespace ccf::gov::endpoints
