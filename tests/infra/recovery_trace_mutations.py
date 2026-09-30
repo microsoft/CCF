@@ -19,11 +19,15 @@ multiple-timeout recovery-decision-protocol scenarios. The harness checks:
 Unexpected outcomes fail the script. Sweep mutants may pass only when they
 match a small explicit allowlist of harmless, currently indistinguishable
 classes.
+
+Most mutants are declarative: a `select` finds one record and an `edit`
+changes it. A few need bespoke functions: inserting or deleting records,
+swapping sequences between records, relabeling a TxID everywhere it appears,
+deleting whole batches, changing CLI arguments, or transforming a whole log.
 """
 
 from __future__ import annotations
 
-import argparse
 import collections
 import copy
 import json
@@ -31,15 +35,18 @@ import os
 import pathlib
 import random
 import re
-import shutil
 import subprocess
 import sys
+import tempfile
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 MARK = "RDP_TRACE "
 PHASES = ["Gossiping", "Voting", "Opening", "Joining", "Open"]
 HANDLERS = {"gossip_accepted", "vote_accepted", "iamopen_accepted", "timeout"}
+
+Target = tuple[int, int, dict]
 
 
 def dump(record: dict[str, Any], sort: bool = True) -> str:
@@ -89,9 +96,9 @@ def render(entry: dict[str, Any]) -> str:
 
 def recs(state: dict[str, Any]):
     for file_index, log in enumerate(state["logs"]):
-        for entry_index, entry in enumerate(log):
-            if "rec" in entry and not entry.get("deleted"):
-                yield file_index, entry_index, entry["rec"]
+        for entry_index, item in enumerate(log):
+            if "rec" in item and not item.get("deleted"):
+                yield file_index, entry_index, item["rec"]
 
 
 def seqsorted(state: dict[str, Any]):
@@ -110,17 +117,22 @@ def is_final(state: dict[str, Any], record: dict[str, Any]) -> bool:
 
 
 def find(
-    state: dict[str, Any],
-    predicate,
-    nth: int = 0,
-    final_only: bool = True,
-):
+    state: dict[str, Any], predicate, nth: int = 0, final_only: bool = True
+) -> Target | None:
     candidates = [
         item
         for item in seqsorted(state)
         if predicate(item[2]) and (not final_only or is_final(state, item[2]))
     ]
     return candidates[nth] if len(candidates) > nth else None
+
+
+def find_any(state: dict[str, Any], *predicates, nth: int = 0) -> Target | None:
+    for predicate in predicates:
+        target = find(state, predicate, nth=nth)
+        if target:
+            return target
+    return None
 
 
 def locs(state: dict[str, Any]) -> list[str]:
@@ -141,7 +153,7 @@ def other(
     return None
 
 
-def by_id(state: dict[str, Any], cause_id: str):
+def by_id(state: dict[str, Any], cause_id: str) -> Target | None:
     node, sequence = cause_id.split(":")
     for file_index, entry_index, record in recs(state):
         if record["node"] == node and record["sequence"] == int(sequence):
@@ -175,34 +187,71 @@ def entry(state: dict[str, Any], file_index: int, entry_index: int) -> dict[str,
     return state["logs"][file_index][entry_index]
 
 
-def m_open_kind_flip(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: "open_kind" in record)
-    if not target:
-        return False
-    record = target[2]
-    new = "Failover" if record["open_kind"] == "Quorum" else "Quorum"
-    note(state, record, f"open_kind {record['open_kind']} -> {new}")
-    record["open_kind"] = new
-    return True
+# --- Declarative single-record mutants ----------------------------------
+#
+# Each row below finds one record with `select` and changes it with `edit`.
+# `edit` mutates the record (or, for a self-delete, the log entry) in place
+# and returns a description; returning None means the mutation is not
+# applicable, like a missing `select` match.
+
+Select = Callable[[dict], Target | None]
+Edit = Callable[[dict, Target], str | None]
 
 
-def m_open_without_quorum(state: dict[str, Any]) -> bool:
-    target = find(
-        state,
-        lambda record: record.get("open_kind") == "Quorum"
-        and len(record.get("votes", [])) > 1,
+def set_field(record: dict[str, Any], field: str, value: Any) -> str:
+    old = record.get(field, "<absent>")
+    record[field] = value
+    return f"{field} {json.dumps(old)} -> {json.dumps(value)}"
+
+
+def del_field(record: dict[str, Any], field: str) -> str:
+    old = record.pop(field)
+    return f"{field} {json.dumps(old)} removed"
+
+
+# --- Predicate and edit factories for the common "one field" mutants -----
+
+kind_is = lambda *kinds: (lambda r: r["kind"] in kinds)
+has = lambda field: (lambda r: field in r)
+flag = lambda field: (lambda r: r.get(field) is True)
+setf = lambda field, value: (lambda s, r: set_field(r, field, value))
+delf = lambda field: (lambda s, r: del_field(r, field))
+bumpf = lambda field, delta: (lambda s, r: set_field(r, field, r[field] + delta))
+flipf = lambda field, mapping: (lambda s, r: set_field(r, field, mapping[r[field]]))
+relabel = lambda field: (lambda s, r: set_field(r, field, other(s, r[field])))
+copyf = lambda dst, src: (lambda s, r: set_field(r, dst, r[src]))
+dynf = lambda field, fn: (lambda s, r: set_field(r, field, fn(r)))
+
+
+def self_delete(state: dict[str, Any], target: Target, text: str) -> str:
+    entry(state, target[0], target[1])["deleted"] = True
+    return text
+
+
+def record_mutant(select: Select, edit: Edit) -> Callable[[dict], bool]:
+    def mutant(state: dict[str, Any]) -> bool:
+        target = select(state)
+        if not target:
+            return False
+        description = edit(state, target)
+        if description is None:
+            return False
+        note(state, target[2], description)
+        return True
+
+    return mutant
+
+
+def simple(predicate, edit, nth: int = 0) -> Callable[[dict], bool]:
+    """A mutant that finds one record by predicate and edits it in place."""
+    return record_mutant(
+        lambda s: find(s, predicate, nth=nth), lambda s, t: edit(s, t[2])
     )
-    if not target:
-        return False
-    record = target[2]
-    kept = (
-        [record["source"]]
-        if record.get("source") in record["votes"]
-        else record["votes"][:1]
-    )
-    note(state, record, f"votes {record['votes']} -> {kept}, still opens Quorum")
-    record["votes"] = kept
-    return True
+
+
+def fallback(predicates, edit) -> Callable[[dict], bool]:
+    """A mutant that edits the first record matched by any predicate, in order."""
+    return record_mutant(lambda s: find_any(s, *predicates), lambda s, t: edit(s, t[2]))
 
 
 def _to_voting(record: dict[str, Any]) -> bool:
@@ -214,143 +263,188 @@ def _to_voting(record: dict[str, Any]) -> bool:
     )
 
 
-def m_chosen_not_max(state: dict[str, Any]) -> bool:
-    target = find(state, _to_voting)
-    if not target:
-        return False
-    record = target[2]
-    new = other(state, record["chosen"])
-    note(state, record, f"chosen {record['chosen']} -> {new}")
-    record["chosen"] = new
-    return True
+def _edit_open_without_quorum(state: dict[str, Any], record: dict[str, Any]) -> str:
+    kept = (
+        [record["source"]]
+        if record.get("source") in record["votes"]
+        else record["votes"][:1]
+    )
+    return set_field(record, "votes", kept) + " (still opens Quorum)"
 
 
-def m_skip_to_opening(state: dict[str, Any]) -> bool:
-    target = find(state, _to_voting)
-    if not target:
-        return False
-    note(state, target[2], "post Voting -> Opening")
-    target[2]["post"] = "Opening"
-    return True
-
-
-def m_no_advance(state: dict[str, Any]) -> bool:
-    target = find(state, _to_voting)
-    if not target:
-        return False
-    record = target[2]
-    note(state, record, "post Voting -> Gossiping, chosen dropped")
+def _edit_no_advance(state: dict[str, Any], record: dict[str, Any]) -> str:
     record["post"] = "Gossiping"
-    del record["chosen"]
-    return True
+    return del_field(record, "chosen") + ", post -> Gossiping"
 
 
-def m_premature_voting(state: dict[str, Any]) -> bool:
-    target = find(
-        state,
-        lambda record: record["kind"] == "gossip_accepted"
-        and record["pre"] == "Gossiping"
-        and record["post"] == "Gossiping"
-        and len(record["gossips"]) < len(record["expected_locations"]),
-    )
-    if not target:
-        return False
-    record = target[2]
+def _edit_premature_voting(state: dict[str, Any], record: dict[str, Any]) -> str:
     chosen = max(record["gossips"].items(), key=lambda item: txkey(item[1], item[0]))[0]
-    note(
-        state,
-        record,
-        f"post Gossiping -> Voting with {len(record['gossips'])} gossips, chosen {chosen}",
+    set_field(record, "post", "Voting")
+    return (
+        set_field(record, "chosen", chosen) + f" with {len(record['gossips'])} gossips"
     )
-    record["post"] = "Voting"
-    record["chosen"] = chosen
-    return True
 
 
-def m_drop_restart(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record.get("restart") is True)
-    if not target:
-        return False
-    note(state, target[2], "restart dropped")
-    del target[2]["restart"]
-    return True
-
-
-def m_add_restart(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record["kind"] == "gossip_accepted")
-    if not target:
-        return False
-    note(state, target[2], "restart added")
-    target[2]["restart"] = True
-    return True
-
-
-def m_vote_to_non_chosen(state: dict[str, Any]) -> bool:
-    target = find(
-        state,
-        lambda record: record["kind"] == "send" and record["send"].startswith("vote:"),
-    )
-    if not target:
-        return False
-    record = target[2]
+def _edit_vote_to_non_chosen(state: dict[str, Any], record: dict[str, Any]) -> str:
     original = record["send"].split(":", 1)[1]
-    new = other(state, original)
-    note(state, record, f"send vote:{original} -> vote:{new}")
-    record["send"] = f"vote:{new}"
-    return True
+    return set_field(record, "send", f"vote:{other(state, original)}")
 
 
-def m_timeout_phase_skip(state: dict[str, Any]) -> bool:
-    target = find(
-        state,
-        lambda record: record["kind"] == "timeout"
-        and record["post_timeout"] != record["pre_timeout"],
-    )
-    if not target:
-        return False
-    record = target[2]
+def _edit_timeout_phase_skip(state: dict[str, Any], record: dict[str, Any]) -> str:
     index = PHASES.index(record["post_timeout"])
-    new = (
-        PHASES[min(index + 1, 2)]
-        if PHASES[min(index + 1, 2)] != record["post_timeout"]
-        else "Joining"
-    )
-    note(state, record, f"post_timeout {record['post_timeout']} -> {new}")
-    record["post_timeout"] = new
-    return True
+    candidate = PHASES[min(index + 1, 2)]
+    new = candidate if candidate != record["post_timeout"] else "Joining"
+    return set_field(record, "post_timeout", new)
 
 
-def m_timeout_no_advance(state: dict[str, Any]) -> bool:
-    target = find(
-        state,
-        lambda record: record["kind"] == "timeout"
-        and record["post_timeout"] != record["pre_timeout"],
-    )
-    if not target:
-        return False
-    record = target[2]
-    note(
-        state,
-        record,
-        f"post_timeout {record['post_timeout']} -> {record['pre_timeout']}",
-    )
-    record["post_timeout"] = record["pre_timeout"]
-    return True
-
-
-def m_failover_without_valid_timeout(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record.get("open_kind") == "Failover")
-    if not target:
-        return False
-    record = target[2]
+def _edit_failover_without_valid_timeout(
+    state: dict[str, Any], record: dict[str, Any]
+) -> str:
     new = "Gossiping" if record["pre_timeout"] != "Gossiping" else "Opening"
-    note(
-        state,
-        record,
-        f"pre_timeout {record['pre_timeout']} -> {new} (timeout no longer valid)",
+    return set_field(record, "pre_timeout", new)
+
+
+def _edit_set_chain_off(state: dict[str, Any], record: dict[str, Any]) -> str:
+    txid = record["gossips"][record["source"]]
+    missing = [v for v in record["expected_locations"] if v not in record["gossips"]]
+    dropped = next(v for v in record["gossips"] if v != record["source"])
+    new = {k: v for k, v in record["gossips"].items() if k != dropped} | {
+        missing[0]: txid
+    }
+    return set_field(record, "gossips", new) + " (a set off the chain)"
+
+
+def _edit_truncated_json(state: dict[str, Any], target: Target) -> str:
+    file_index, entry_index, record = target
+    body = dump(record)
+    entry(state, file_index, entry_index)["body"] = body[: len(body) // 2]
+    return "JSON truncated"
+
+
+def _select_participation_drop(state: dict[str, Any]) -> Target | None:
+    return find(
+        state, lambda r: r["kind"] == "committed" and r["node"] == nodes(state)[-1]
     )
-    record["pre_timeout"] = new
-    return True
+
+
+def _select_retry_bad_version(state: dict[str, Any]) -> Target | None:
+    first_send = find(state, lambda r: r["kind"] == "send", nth=0)
+    if not first_send:
+        return None
+    first = first_send[2]["pre_version"]
+    return find(state, lambda r: r["kind"] == "send" and r["pre_version"] != first)
+
+
+def _select_delete_unreceived_send(state: dict[str, Any]) -> Target | None:
+    refs = referenced(state)
+    batches = collections.Counter(
+        (record["node"], record["batch"])
+        for _, _, record in recs(state)
+        if record["kind"] == "send"
+    )
+    for target in seqsorted(state):
+        record = target[2]
+        if (
+            record["kind"] == "send"
+            and f"{record['node']}:{record['sequence']}" not in refs
+            and batches[(record["node"], record["batch"])] > 1
+        ):
+            return target
+    return None
+
+
+def _edit_delete_unreceived_send(state: dict[str, Any], target: Target) -> str:
+    record = target[2]
+    count = sum(
+        1
+        for _, _, other_record in recs(state)
+        if other_record["kind"] == "send"
+        and other_record["node"] == record["node"]
+        and other_record["batch"] == record["batch"]
+    )
+    return self_delete(
+        state,
+        target,
+        f"deleted one unreceived send ({record['send']}) of a batch of {count}",
+    )
+
+
+def _multi_attempt(state: dict[str, Any]):
+    groups = collections.defaultdict(list)
+    for file_index, entry_index, record in recs(state):
+        if "caused_by" in record:
+            groups[(record["node"], record["caused_by"])].append(
+                (file_index, entry_index, record)
+            )
+    for _, values in sorted(groups.items()):
+        if len(values) > 1:
+            values.sort(key=lambda item: item[2]["sequence"])
+            return values
+    return None
+
+
+def _select_rolled_back(state: dict[str, Any]) -> Target | None:
+    attempts = _multi_attempt(state)
+    return attempts[0] if attempts else None
+
+
+def _edit_rolled_back(state: dict[str, Any], target: Target) -> str:
+    record = target[2]
+    before = record["post"]
+    record["post"] = "Opening" if record["post"] != "Opening" else "Voting"
+    if record["post"] == "Opening":
+        record["open_kind"] = "Quorum"
+    return f"superseded attempt: post {before} -> {record['post']}"
+
+
+def m_committed_version_within_newest_pair(state: dict[str, Any]) -> bool:
+    """
+    The committed record for the newest pair's writer must be higher than
+    both versions of that pair, since the writer read that pair. Lowering it
+    to a version still inside the pair must fail even though it stays above
+    every earlier known committed version.
+    """
+    for node in nodes(state):
+        handlers = [
+            rec
+            for _, _, rec in recs(state)
+            if rec["node"] == node and rec["kind"] in HANDLERS
+        ]
+        committed = [
+            (file_index, entry_index, rec)
+            for file_index, entry_index, rec in recs(state)
+            if rec["node"] == node and rec["kind"] == "committed"
+        ]
+        if not handlers or not committed:
+            continue
+        newest = max(
+            max(rec["pre_version"], rec["pre_timeout_version"]) for rec in handlers
+        )
+        lowest = min(
+            min(rec["pre_version"], rec["pre_timeout_version"])
+            for rec in handlers
+            if max(rec["pre_version"], rec["pre_timeout_version"]) == newest
+        )
+        if newest - lowest < 2:
+            continue
+        target = max(committed, key=lambda item: item[2]["sequence"])
+        if target[2]["version"] <= newest:
+            continue
+        new_version = (lowest + newest) // 2
+        if new_version <= lowest or new_version >= newest:
+            continue
+        note(
+            state,
+            target[2],
+            f"version {target[2]['version']} -> {new_version} (inside the newest pair {(lowest, newest)})",
+        )
+        target[2]["version"] = new_version
+        return True
+    return False
+
+
+# --- Bespoke mutants: cross-record edits, insertions, deletions, whole-log
+# transforms and CLI argument changes -------------------------------------
 
 
 def m_txid_lie_send_only(state: dict[str, Any]) -> bool:
@@ -431,17 +525,6 @@ def m_txid_lower_consistent(state: dict[str, Any]) -> bool:
     return True
 
 
-def m_dangling_caused_by(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record["kind"] == "gossip_accepted")
-    if not target:
-        return False
-    record = target[2]
-    new = f"{record['source']}:99999"
-    note(state, record, f"caused_by {record['caused_by']} -> {new}")
-    record["caused_by"] = new
-    return True
-
-
 def m_caused_by_other_kind(state: dict[str, Any]) -> bool:
     target = find(state, lambda record: record["kind"] == "vote_accepted")
     if not target:
@@ -460,23 +543,6 @@ def m_caused_by_other_kind(state: dict[str, Any]) -> bool:
     new = f"{source}:{gossip[2]['sequence']}"
     note(state, record, f"caused_by {record['caused_by']} -> {new} (a gossip send)")
     record["caused_by"] = new
-    return True
-
-
-def m_source_mismatch(state: dict[str, Any]) -> bool:
-    target = find(
-        state,
-        lambda record: record["kind"] == "gossip_accepted"
-        and record["source"] != record["node"],
-    )
-    if not target:
-        target = find(state, lambda record: record["kind"] == "gossip_accepted")
-    if not target:
-        return False
-    record = target[2]
-    new = other(state, record["source"])
-    note(state, record, f"source {record['source']} -> {new}")
-    record["source"] = new
     return True
 
 
@@ -520,19 +586,6 @@ def m_receive_before_send(state: dict[str, Any]) -> bool:
     return True
 
 
-def m_timeout_dangling(state: dict[str, Any]) -> bool:
-    target = find(
-        state, lambda record: record["kind"] == "timeout" and "caused_by" in record
-    )
-    if not target:
-        return False
-    record = target[2]
-    new = f"{record['node']}:99999"
-    note(state, record, f"caused_by {record['caused_by']} -> {new}")
-    record["caused_by"] = new
-    return True
-
-
 def m_redirect_to_identical_copy(state: dict[str, Any]) -> bool:
     refs = referenced(state)
     for _, _, record in seqsorted(state):
@@ -564,192 +617,6 @@ def m_redirect_to_identical_copy(state: dict[str, Any]) -> bool:
                 record["caused_by"] = new
                 return True
     return False
-
-
-def m_participation_drop(state: dict[str, Any]) -> bool:
-    target = find(
-        state,
-        lambda record: record["kind"] == "committed"
-        and record["node"] == nodes(state)[-1],
-    )
-    if not target:
-        return False
-    note(state, target[2], "first committed record deleted")
-    entry(state, target[0], target[1])["deleted"] = True
-    return True
-
-
-def m_participation_version(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record["kind"] == "committed")
-    if not target:
-        return False
-    note(
-        state,
-        target[2],
-        f"version {target[2]['version']} -> {target[2]['version'] + 1}",
-    )
-    target[2]["version"] += 1
-    return True
-
-
-def m_segment_bad_pre_version(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record["kind"] == "gossip_accepted", nth=1)
-    if not target:
-        return False
-    note(
-        state,
-        target[2],
-        f"pre_version {target[2]['pre_version']} -> {target[2]['pre_version'] + 100}",
-    )
-    target[2]["pre_version"] += 100
-    return True
-
-
-def m_committed_version_shift(state: dict[str, Any]) -> bool:
-    target = find(
-        state,
-        lambda record: record["kind"] == "committed" and record["post"] != "Gossiping",
-    )
-    if not target:
-        return False
-    note(
-        state,
-        target[2],
-        f"version {target[2]['version']} -> {target[2]['version'] + 1}",
-    )
-    target[2]["version"] += 1
-    return True
-
-
-def m_committed_version_within_newest_pair(state: dict[str, Any]) -> bool:
-    """
-    The committed record for the newest pair's writer must be higher than
-    both versions of that pair, since the writer read that pair. Lowering it
-    to a version still inside the pair must fail even though it stays above
-    every earlier known committed version.
-    """
-    for node in nodes(state):
-        handlers = [
-            rec
-            for _, _, rec in recs(state)
-            if rec["node"] == node and rec["kind"] in HANDLERS
-        ]
-        committed = [
-            (file_index, entry_index, rec)
-            for file_index, entry_index, rec in recs(state)
-            if rec["node"] == node and rec["kind"] == "committed"
-        ]
-        if not handlers or not committed:
-            continue
-        newest = max(
-            max(rec["pre_version"], rec["pre_timeout_version"]) for rec in handlers
-        )
-        lowest = min(
-            min(rec["pre_version"], rec["pre_timeout_version"])
-            for rec in handlers
-            if max(rec["pre_version"], rec["pre_timeout_version"]) == newest
-        )
-        if newest - lowest < 2:
-            continue
-        target = max(committed, key=lambda item: item[2]["sequence"])
-        if target[2]["version"] <= newest:
-            continue
-        new_version = (lowest + newest) // 2
-        if new_version <= lowest or new_version >= newest:
-            continue
-        note(
-            state,
-            target[2],
-            f"version {target[2]['version']} -> {new_version} (inside the newest pair {(lowest, newest)})",
-        )
-        target[2]["version"] = new_version
-        return True
-    return False
-
-
-def m_committed_phase_lie(state: dict[str, Any]) -> bool:
-    target = find(
-        state,
-        lambda record: record["kind"] == "committed" and record["post"] == "Voting",
-    )
-    if not target:
-        return False
-    note(state, target[2], "post Voting -> Opening")
-    target[2]["post"] = "Opening"
-    return True
-
-
-def m_set_chain_off(state: dict[str, Any]) -> bool:
-    target = find(
-        state,
-        lambda record: record["kind"] == "gossip_accepted"
-        and record["post"] == "Gossiping"
-        and 1 < len(record["gossips"]) < len(record["expected_locations"]),
-    )
-    if not target:
-        return False
-    record = target[2]
-    txid = record["gossips"][record["source"]]
-    missing = [
-        value
-        for value in record["expected_locations"]
-        if value not in record["gossips"]
-    ]
-    dropped = next(value for value in record["gossips"] if value != record["source"])
-    new = {key: value for key, value in record["gossips"].items() if key != dropped}
-    new[missing[0]] = txid
-    note(
-        state,
-        record,
-        f"gossips {sorted(record['gossips'])} -> {sorted(new)} (a set off the chain)",
-    )
-    record["gossips"] = new
-    return True
-
-
-def m_retry_bad_version(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record["kind"] == "send", nth=0)
-    first = target[2]["pre_version"] if target else None
-    target = find(
-        state,
-        lambda record: record["kind"] == "send" and record["pre_version"] != first,
-    )
-    if not target:
-        return False
-    note(
-        state,
-        target[2],
-        f"pre_version {target[2]['pre_version']} -> {target[2]['pre_version'] + 100}",
-    )
-    target[2]["pre_version"] += 100
-    return True
-
-
-def _multi_attempt(state: dict[str, Any]):
-    groups = collections.defaultdict(list)
-    for file_index, entry_index, record in recs(state):
-        if "caused_by" in record:
-            groups[(record["node"], record["caused_by"])].append(
-                (file_index, entry_index, record)
-            )
-    for _, values in sorted(groups.items()):
-        if len(values) > 1:
-            values.sort(key=lambda item: item[2]["sequence"])
-            return values
-    return None
-
-
-def m_rolled_back_mutation(state: dict[str, Any]) -> bool:
-    attempts = _multi_attempt(state)
-    if not attempts:
-        return False
-    record = attempts[0][2]
-    before = record["post"]
-    record["post"] = "Opening" if record["post"] != "Opening" else "Voting"
-    if record["post"] == "Opening":
-        record["open_kind"] = "Quorum"
-    note(state, record, f"superseded attempt: post {before} -> {record['post']}")
-    return True
 
 
 def m_extra_final_attempt(state: dict[str, Any]) -> bool:
@@ -788,94 +655,6 @@ def m_failed_to_trace_line(state: dict[str, Any]) -> bool:
         "inserted a 'Failed to trace recovery-decision-protocol' line into the first log"
     )
     return True
-
-
-def m_truncated_json(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record["kind"] == "gossip_accepted")
-    if not target:
-        return False
-    current = entry(state, target[0], target[1])
-    body = dump(target[2])
-    current["body"] = body[: len(body) // 2]
-    note(state, target[2], "JSON truncated")
-    return True
-
-
-def m_missing_pre(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record["kind"] in HANDLERS)
-    if not target:
-        return False
-    note(state, target[2], "field pre removed")
-    del target[2]["pre"]
-    return True
-
-
-def m_unknown_kind(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record["kind"] == "send")
-    if not target:
-        return False
-    note(state, target[2], "kind send -> bogus")
-    target[2]["kind"] = "bogus"
-    return True
-
-
-def m_expected_locations_changed(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record["kind"] == "gossip_accepted")
-    if not target:
-        return False
-    note(
-        state,
-        target[2],
-        f"expected_locations {target[2]['expected_locations']} -> {target[2]['expected_locations'][:-1]}",
-    )
-    target[2]["expected_locations"] = target[2]["expected_locations"][:-1]
-    return True
-
-
-def m_node_misattributed(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record["kind"] in HANDLERS)
-    if not target:
-        return False
-    new = other(state, target[2]["node"])
-    note(state, target[2], f"node {target[2]['node']} -> {new}")
-    target[2]["node"] = new
-    return True
-
-
-def m_duplicate_sequence(state: dict[str, Any]) -> bool:
-    target = find(state, lambda record: record["kind"] == "send", nth=1)
-    if not target:
-        return False
-    note(
-        state,
-        target[2],
-        f"sequence {target[2]['sequence']} -> {target[2]['sequence'] - 1}",
-    )
-    target[2]["sequence"] -= 1
-    return True
-
-
-def m_delete_unreceived_send(state: dict[str, Any]) -> bool:
-    refs = referenced(state)
-    batches = collections.Counter(
-        (record["node"], record["batch"])
-        for _, _, record in recs(state)
-        if record["kind"] == "send"
-    )
-    for file_index, entry_index, record in seqsorted(state):
-        if (
-            record["kind"] == "send"
-            and f"{record['node']}:{record['sequence']}" not in refs
-            and batches[(record["node"], record["batch"])] > 1
-        ):
-            note(
-                state,
-                record,
-                f"deleted one unreceived send ({record['send']}) of a batch of {batches[(record['node'], record['batch'])]}",
-            )
-            entry(state, file_index, entry_index)["deleted"] = True
-            return True
-    return False
 
 
 def _delete_unreceived_batch(state: dict[str, Any], tail: bool) -> bool:
@@ -1006,73 +785,189 @@ def m_log_order_permuted(state: dict[str, Any]) -> bool:
     return True
 
 
-CURATED = [
-    ("decision", "open_kind_flip", "FAIL", m_open_kind_flip),
-    ("decision", "open_without_quorum", "FAIL", m_open_without_quorum),
-    ("decision", "chosen_not_max", "FAIL", m_chosen_not_max),
-    ("decision", "skip_to_opening", "FAIL", m_skip_to_opening),
-    ("decision", "no_advance_on_full_gossips", "FAIL", m_no_advance),
-    ("decision", "premature_voting", "FAIL", m_premature_voting),
-    ("decision", "drop_restart", "FAIL", m_drop_restart),
-    ("decision", "add_restart", "FAIL", m_add_restart),
-    ("decision", "vote_to_non_chosen", "FAIL", m_vote_to_non_chosen),
-    ("decision", "timeout_phase_skip", "FAIL", m_timeout_phase_skip),
-    ("decision", "timeout_no_advance", "FAIL", m_timeout_no_advance),
+_OPEN_KINDS = {"Quorum": "Failover", "Failover": "Quorum"}
+
+MUTANTS = [
     (
-        "decision",
-        "failover_without_valid_timeout",
-        "FAIL",
-        m_failover_without_valid_timeout,
+        "decision/open_kind_flip/FAIL",
+        simple(has("open_kind"), flipf("open_kind", _OPEN_KINDS)),
     ),
-    ("decision", "txid_lie_send_only", "FAIL", m_txid_lie_send_only),
-    ("decision", "txid_raise_consistent", "FAIL", m_txid_raise_consistent),
-    ("decision", "txid_lower_consistent", "PASS", m_txid_lower_consistent),
-    ("causality", "dangling_caused_by", "FAIL", m_dangling_caused_by),
-    ("causality", "caused_by_other_kind", "FAIL", m_caused_by_other_kind),
-    ("causality", "source_mismatch", "FAIL", m_source_mismatch),
-    ("causality", "drop_received_send", "FAIL", m_drop_received_send),
-    ("causality", "receive_before_send", "FAIL", m_receive_before_send),
-    ("causality", "timeout_dangling", "FAIL", m_timeout_dangling),
-    ("commit-order", "participation_drop", "FAIL", m_participation_drop),
-    ("commit-order", "participation_version", "FAIL", m_participation_version),
-    ("commit-order", "segment_bad_pre_version", "FAIL", m_segment_bad_pre_version),
-    ("commit-order", "committed_version_shift", "FAIL", m_committed_version_shift),
     (
-        "commit-order",
-        "committed_version_within_newest_pair",
-        "FAIL",
+        "decision/open_without_quorum/FAIL",
+        simple(
+            lambda r: r.get("open_kind") == "Quorum" and len(r.get("votes", [])) > 1,
+            _edit_open_without_quorum,
+        ),
+    ),
+    ("decision/chosen_not_max/FAIL", simple(_to_voting, relabel("chosen"))),
+    ("decision/skip_to_opening/FAIL", simple(_to_voting, setf("post", "Opening"))),
+    ("decision/no_advance_on_full_gossips/FAIL", simple(_to_voting, _edit_no_advance)),
+    (
+        "decision/premature_voting/FAIL",
+        simple(
+            lambda r: r["kind"] == "gossip_accepted"
+            and r["pre"] == r["post"] == "Gossiping"
+            and len(r["gossips"]) < len(r["expected_locations"]),
+            _edit_premature_voting,
+        ),
+    ),
+    ("decision/drop_restart/FAIL", simple(flag("restart"), delf("restart"))),
+    (
+        "decision/add_restart/FAIL",
+        simple(kind_is("gossip_accepted"), setf("restart", True)),
+    ),
+    (
+        "decision/vote_to_non_chosen/FAIL",
+        simple(
+            lambda r: r["kind"] == "send" and r["send"].startswith("vote:"),
+            _edit_vote_to_non_chosen,
+        ),
+    ),
+    (
+        "decision/timeout_phase_skip/FAIL",
+        simple(
+            lambda r: r["kind"] == "timeout" and r["post_timeout"] != r["pre_timeout"],
+            _edit_timeout_phase_skip,
+        ),
+    ),
+    (
+        "decision/timeout_no_advance/FAIL",
+        simple(
+            lambda r: r["kind"] == "timeout" and r["post_timeout"] != r["pre_timeout"],
+            copyf("post_timeout", "pre_timeout"),
+        ),
+    ),
+    (
+        "decision/failover_without_valid_timeout/FAIL",
+        simple(
+            lambda r: r.get("open_kind") == "Failover",
+            _edit_failover_without_valid_timeout,
+        ),
+    ),
+    ("decision/txid_lie_send_only/FAIL", m_txid_lie_send_only),
+    ("decision/txid_raise_consistent/FAIL", m_txid_raise_consistent),
+    ("decision/txid_lower_consistent/PASS", m_txid_lower_consistent),
+    (
+        "causality/dangling_caused_by/FAIL",
+        simple(
+            kind_is("gossip_accepted"),
+            dynf("caused_by", lambda r: f"{r['source']}:99999"),
+        ),
+    ),
+    ("causality/caused_by_other_kind/FAIL", m_caused_by_other_kind),
+    (
+        "causality/source_mismatch/FAIL",
+        fallback(
+            [
+                lambda r: r["kind"] == "gossip_accepted" and r["source"] != r["node"],
+                kind_is("gossip_accepted"),
+            ],
+            relabel("source"),
+        ),
+    ),
+    ("causality/drop_received_send/FAIL", m_drop_received_send),
+    ("causality/receive_before_send/FAIL", m_receive_before_send),
+    (
+        "causality/timeout_dangling/FAIL",
+        simple(
+            lambda r: r["kind"] == "timeout" and "caused_by" in r,
+            dynf("caused_by", lambda r: f"{r['node']}:99999"),
+        ),
+    ),
+    (
+        "commit-order/participation_drop/FAIL",
+        record_mutant(
+            _select_participation_drop,
+            lambda s, t: self_delete(s, t, "first committed record deleted"),
+        ),
+    ),
+    (
+        "commit-order/participation_version/FAIL",
+        simple(kind_is("committed"), bumpf("version", 1)),
+    ),
+    (
+        "commit-order/segment_bad_pre_version/FAIL",
+        simple(kind_is("gossip_accepted"), bumpf("pre_version", 100), nth=1),
+    ),
+    (
+        "commit-order/committed_version_shift/FAIL",
+        simple(
+            lambda r: r["kind"] == "committed" and r["post"] != "Gossiping",
+            bumpf("version", 1),
+        ),
+    ),
+    (
+        "commit-order/committed_version_within_newest_pair/FAIL",
         m_committed_version_within_newest_pair,
     ),
-    ("commit-order", "committed_phase_lie", "FAIL", m_committed_phase_lie),
-    ("commit-order", "set_chain_off", "FAIL", m_set_chain_off),
-    ("commit-order", "retry_bad_version", "FAIL", m_retry_bad_version),
-    ("commit-order", "rolled_back_mutation", "FAIL", m_rolled_back_mutation),
-    ("commit-order", "extra_final_attempt", "FAIL", m_extra_final_attempt),
-    ("commit-order", "failed_to_trace_line", "FAIL", m_failed_to_trace_line),
-    ("format", "truncated_json", "FAIL", m_truncated_json),
-    ("format", "missing_pre", "FAIL", m_missing_pre),
-    ("format", "unknown_kind", "FAIL", m_unknown_kind),
-    ("format", "expected_locations_changed", "FAIL", m_expected_locations_changed),
-    ("format", "node_misattributed", "FAIL", m_node_misattributed),
-    ("format", "duplicate_sequence", "FAIL", m_duplicate_sequence),
-    ("format", "delete_unreceived_send", "FAIL", m_delete_unreceived_send),
     (
-        "format",
-        "delete_middle_unreceived_batch",
-        "FAIL",
-        m_delete_middle_unreceived_batch,
+        "commit-order/committed_phase_lie/FAIL",
+        simple(
+            lambda r: r["kind"] == "committed" and r["post"] == "Voting",
+            setf("post", "Opening"),
+        ),
     ),
-    ("format", "delete_tail_unreceived_batch", "PASS", m_delete_tail_unreceived_batch),
-    ("format", "truncate_opener_after_voting", "FAIL", m_truncate_opener_after_voting),
-    ("args", "wrong_open_kind_arg", "FAIL", m_wrong_open_kind_arg),
-    ("args", "wrong_participants_arg", "FAIL", m_wrong_participants_arg),
-    ("args", "missing_log_file", "FAIL", m_missing_log_file),
-    ("benign", "shuffle_trace_lines", "PASS", m_shuffle_trace_lines),
-    ("benign", "strip_non_trace_lines", "PASS", m_strip_non_trace_lines),
-    ("benign", "reverse_key_order", "PASS", m_reverse_key_order),
-    ("benign", "log_order_permuted", "PASS", m_log_order_permuted),
-    ("benign", "identical_unreceived_copy", "PASS", m_redirect_to_identical_copy),
+    (
+        "commit-order/set_chain_off/FAIL",
+        simple(
+            lambda r: r["kind"] == "gossip_accepted"
+            and r["post"] == "Gossiping"
+            and 1 < len(r["gossips"]) < len(r["expected_locations"]),
+            _edit_set_chain_off,
+        ),
+    ),
+    (
+        "commit-order/retry_bad_version/FAIL",
+        record_mutant(
+            _select_retry_bad_version,
+            lambda s, t: set_field(t[2], "pre_version", t[2]["pre_version"] + 100),
+        ),
+    ),
+    (
+        "commit-order/rolled_back_mutation/FAIL",
+        record_mutant(_select_rolled_back, _edit_rolled_back),
+    ),
+    ("commit-order/extra_final_attempt/FAIL", m_extra_final_attempt),
+    ("commit-order/failed_to_trace_line/FAIL", m_failed_to_trace_line),
+    (
+        "format/truncated_json/FAIL",
+        record_mutant(
+            lambda s: find(s, kind_is("gossip_accepted")), _edit_truncated_json
+        ),
+    ),
+    ("format/missing_pre/FAIL", simple(kind_is(*HANDLERS), delf("pre"))),
+    ("format/unknown_kind/FAIL", simple(kind_is("send"), setf("kind", "bogus"))),
+    (
+        "format/expected_locations_changed/FAIL",
+        simple(
+            kind_is("gossip_accepted"),
+            dynf("expected_locations", lambda r: r["expected_locations"][:-1]),
+        ),
+    ),
+    ("format/node_misattributed/FAIL", simple(kind_is(*HANDLERS), relabel("node"))),
+    (
+        "format/duplicate_sequence/FAIL",
+        simple(kind_is("send"), bumpf("sequence", -1), nth=1),
+    ),
+    (
+        "format/delete_unreceived_send/FAIL",
+        record_mutant(_select_delete_unreceived_send, _edit_delete_unreceived_send),
+    ),
+    ("format/delete_middle_unreceived_batch/FAIL", m_delete_middle_unreceived_batch),
+    ("format/delete_tail_unreceived_batch/PASS", m_delete_tail_unreceived_batch),
+    ("format/truncate_opener_after_voting/FAIL", m_truncate_opener_after_voting),
+    ("args/wrong_open_kind_arg/FAIL", m_wrong_open_kind_arg),
+    ("args/wrong_participants_arg/FAIL", m_wrong_participants_arg),
+    ("args/missing_log_file/FAIL", m_missing_log_file),
+    ("benign/shuffle_trace_lines/PASS", m_shuffle_trace_lines),
+    ("benign/strip_non_trace_lines/PASS", m_strip_non_trace_lines),
+    ("benign/reverse_key_order/PASS", m_reverse_key_order),
+    ("benign/log_order_permuted/PASS", m_log_order_permuted),
+    ("benign/identical_unreceived_copy/PASS", m_redirect_to_identical_copy),
 ]
+
+
+# --- Systematic sweep: perturb one field of each sampled record ----------
 
 KIND_SWAP = {
     "gossip_accepted": "vote_accepted",
@@ -1217,66 +1112,51 @@ def run_mutant(
         return "OTHER(rc=-1)", "harness timeout"
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("replayer", type=pathlib.Path)
-    parser.add_argument("fixtures_dir", type=pathlib.Path)
-    parser.add_argument(
-        "--work-dir",
-        type=pathlib.Path,
-        default=pathlib.Path("recovery-trace-mutation-work"),
-        help="Directory used for mutated logs (default: %(default)s)",
-    )
-    parser.add_argument(
-        "--results-json",
-        type=pathlib.Path,
-        default=None,
-        help="Optional path to write the full result set as JSON",
-    )
-    parser.add_argument(
-        "--keep-work",
-        action="store_true",
-        help="Keep the generated mutant directories instead of deleting them at the end",
-    )
-    return parser.parse_args()
+def build_jobs(scenarios: dict[str, Any]):
+    jobs = []
+    for name, base in scenarios.items():
+        jobs.append(("baseline", name, "baseline", "PASS", copy.deepcopy(base)))
+        for spec, fn in MUTANTS:
+            group, mutant_name, expected = spec.split("/")
+            state = copy.deepcopy(base)
+            if fn(state):
+                jobs.append((group, name, mutant_name, expected, state))
+        for kind, field, position, file_index, entry_index in sweep_specs(base):
+            state = copy.deepcopy(base)
+            record = state["logs"][file_index][entry_index]["rec"]
+            ident = f"node {record['node']} seq {record['sequence']} ({kind})"
+            change = perturb(state, record, field)
+            if change is None:
+                continue
+            state["detail"].append(f"{ident}: {change}")
+            jobs.append(("sweep", name, f"{kind}.{field}#{position}", "?", state))
+    return jobs
 
 
 def main() -> int:
-    args = parse_args()
+    if len(sys.argv) != 3:
+        print(f"usage: {sys.argv[0]} REPLAYER FIXTURES_DIR", file=sys.stderr)
+        return 2
+    replayer = pathlib.Path(sys.argv[1])
+    fixtures_dir = pathlib.Path(sys.argv[2])
+
     scenarios = {
         path.name: load_scenario(path)
-        for path in sorted(args.fixtures_dir.iterdir())
+        for path in sorted(fixtures_dir.iterdir())
         if path.is_dir() and (path / "scenario.json").exists()
     }
     if not scenarios:
-        raise SystemExit(f"no scenarios found under {args.fixtures_dir}")
+        raise SystemExit(f"no scenarios found under {fixtures_dir}")
 
-    if args.work_dir.exists():
-        shutil.rmtree(args.work_dir)
-    args.work_dir.mkdir(parents=True)
+    jobs = build_jobs(scenarios)
 
-    try:
-        jobs = []
-        for name, base in scenarios.items():
-            jobs.append(("baseline", name, "baseline", "PASS", copy.deepcopy(base)))
-            for group, mutant_name, expected, fn in CURATED:
-                state = copy.deepcopy(base)
-                if fn(state):
-                    jobs.append((group, name, mutant_name, expected, state))
-            for kind, field, position, file_index, entry_index in sweep_specs(base):
-                state = copy.deepcopy(base)
-                record = state["logs"][file_index][entry_index]["rec"]
-                ident = f"node {record['node']} seq {record['sequence']} ({kind})"
-                change = perturb(state, record, field)
-                if change is None:
-                    continue
-                state["detail"].append(f"{ident}: {change}")
-                jobs.append(("sweep", name, f"{kind}.{field}#{position}", "?", state))
+    with tempfile.TemporaryDirectory() as work_dir_name:
+        work_dir = pathlib.Path(work_dir_name)
 
         def work(job):
             group, scenario, mutant_name, expected, state = job
             outcome, output = run_mutant(
-                f"{scenario}/{group}/{mutant_name}", state, args.replayer, args.work_dir
+                f"{scenario}/{group}/{mutant_name}", state, replayer, work_dir
             )
             result = {
                 "group": group,
@@ -1297,70 +1177,62 @@ def main() -> int:
         with ThreadPoolExecutor(max_workers=os.cpu_count() or 1) as executor:
             results = list(executor.map(work, jobs))
 
-        if args.results_json is not None:
-            args.results_json.write_text(
-                json.dumps(results, indent=2) + "\n", encoding="utf-8"
-            )
-
-        unexpected = []
-        for result in results:
-            if result["group"] == "sweep":
-                if result["outcome"] == "PASS" and "allowlist" not in result:
-                    unexpected.append(result)
-                continue
-            expected = result["expected"]
-            if (
-                expected == "PASS"
-                and result["outcome"] != "PASS"
-                or expected == "FAIL"
-                and result["outcome"] == "PASS"
-            ):
+    unexpected = []
+    for result in results:
+        if result["group"] == "sweep":
+            if result["outcome"] == "PASS" and "allowlist" not in result:
                 unexpected.append(result)
+            continue
+        expected = result["expected"]
+        if (
+            expected == "PASS"
+            and result["outcome"] != "PASS"
+            or expected == "FAIL"
+            and result["outcome"] == "PASS"
+        ):
+            unexpected.append(result)
 
-        curated = [
-            row
-            for row in results
-            if row["group"] != "sweep" and row["expected"] in {"PASS", "FAIL"}
-        ]
-        curated_ok = sum(
-            (row["expected"] == "PASS" and row["outcome"] == "PASS")
-            or (row["expected"] == "FAIL" and row["outcome"] != "PASS")
-            for row in curated
-        )
-        sweep = [row for row in results if row["group"] == "sweep"]
-        sweep_caught = sum(row["outcome"] != "PASS" for row in sweep)
-        sweep_allowed = [row for row in sweep if row.get("allowlist")]
+    curated = [
+        row
+        for row in results
+        if row["group"] != "sweep" and row["expected"] in {"PASS", "FAIL"}
+    ]
+    curated_ok = sum(
+        (row["expected"] == "PASS" and row["outcome"] == "PASS")
+        or (row["expected"] == "FAIL" and row["outcome"] != "PASS")
+        for row in curated
+    )
+    sweep = [row for row in results if row["group"] == "sweep"]
+    sweep_caught = sum(row["outcome"] != "PASS" for row in sweep)
+    sweep_allowed = [row for row in sweep if row.get("allowlist")]
 
-        print(f"Curated mutants: {curated_ok}/{len(curated)} matched expectation")
-        print(
-            f"Sweep mutants: {sweep_caught}/{len(sweep)} caught, {len(sweep_allowed)} allowlisted harmless pass(es)"
-        )
-        if sweep_allowed:
-            print("Allowlisted sweep classes:")
-            seen = set()
-            for row in sweep_allowed:
-                key = (row["allowlist"]["name"], row["allowlist"]["reason"])
-                if key in seen:
-                    continue
-                seen.add(key)
-                print(f"- {key[0]}: {key[1]}")
+    print(f"Curated mutants: {curated_ok}/{len(curated)} matched expectation")
+    print(
+        f"Sweep mutants: {sweep_caught}/{len(sweep)} caught, {len(sweep_allowed)} allowlisted harmless pass(es)"
+    )
+    if sweep_allowed:
+        print("Allowlisted sweep classes:")
+        seen = set()
+        for row in sweep_allowed:
+            key = (row["allowlist"]["name"], row["allowlist"]["reason"])
+            if key in seen:
+                continue
+            seen.add(key)
+            print(f"- {key[0]}: {key[1]}")
 
-        if unexpected:
-            print("Unexpected mutation outcomes:", file=sys.stderr)
-            for row in unexpected:
-                expected = row["expected"]
-                print(
-                    f"- {row['scenario']} {row['group']} {row['name']}: expected {expected}, got {row['outcome']}\n"
-                    f"  detail: {row['detail']}\n"
-                    f"  message: {row['message']}",
-                    file=sys.stderr,
-                )
-            return 1
+    if unexpected:
+        print("Unexpected mutation outcomes:", file=sys.stderr)
+        for row in unexpected:
+            expected = row["expected"]
+            print(
+                f"- {row['scenario']} {row['group']} {row['name']}: expected {expected}, got {row['outcome']}\n"
+                f"  detail: {row['detail']}\n"
+                f"  message: {row['message']}",
+                file=sys.stderr,
+            )
+        return 1
 
-        return 0
-    finally:
-        if not args.keep_work and args.work_dir.exists():
-            shutil.rmtree(args.work_dir)
+    return 0
 
 
 if __name__ == "__main__":
