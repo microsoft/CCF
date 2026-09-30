@@ -10,17 +10,28 @@ def completionTimeoutMs : Nat :=
   20000
 
 def usage : String :=
-  "usage: disaster-recovery-replay --participants N --open-kind QUORUM|FAILOVER LOG..."
+  "usage: disaster-recovery-replay --participants N --open-kind QUORUM|FAILOVER [--wait-ms N] LOG..."
 
-def parseArgs : List String → Option (Scenario × List System.FilePath)
-  | "--participants" :: count :: "--open-kind" :: kind :: logs@(_ :: _) => do
-      let openKind ←
-        match kind with
-        | "QUORUM" => some OpenKind.quorum
-        | "FAILOVER" => some OpenKind.failover
-        | _ => none
-      return ({ participants := ← count.toNat?, openKind }, logs.map System.FilePath.mk)
+private def parseOpenKind : String → Option OpenKind
+  | "QUORUM" => some OpenKind.quorum
+  | "FAILOVER" => some OpenKind.failover
   | _ => none
+
+def parseArgs : List String → Option (Nat × Scenario × List System.FilePath) :=
+  let rec go (waitMs : Nat) (participants : Option Nat) (openKind : Option OpenKind)
+      : List String → Option (Nat × Scenario × List System.FilePath)
+    | "--participants" :: count :: rest => do
+        go waitMs (some (← count.toNat?)) openKind rest
+    | "--open-kind" :: kind :: rest => do
+        go waitMs participants (some (← parseOpenKind kind)) rest
+    | "--wait-ms" :: value :: rest => do
+        go (← value.toNat?) participants openKind rest
+    | logs@(_ :: _) => do
+        let participants ← participants
+        let openKind ← openKind
+        return (waitMs, { participants, openKind }, logs.map System.FilePath.mk)
+    | [] => none
+  go completionTimeoutMs none none
 
 /-- Reduces the logs once they record a complete scenario. -/
 partial def reduceWhenComplete (scenario : Scenario) (logs : List System.FilePath)
@@ -36,11 +47,11 @@ partial def reduceWhenComplete (scenario : Scenario) (logs : List System.FilePat
       reduceWhenComplete scenario logs deadline
 
 def main (args : List String) : IO UInt32 := do
-  let some (scenario, logs) := parseArgs args
+  let some (waitMs, scenario, logs) := parseArgs args
   |
     IO.eprintln usage
     return 2
-  let deadline := (← IO.monoMsNow) + completionTimeoutMs
+  let deadline := (← IO.monoMsNow) + waitMs
   match ← reduceWhenComplete scenario logs deadline with
   | .error message =>
       IO.eprintln s!"reduction failed: {message}"
