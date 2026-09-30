@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - TAV's CBOR C++ API (`<tav/cbor.hpp>`) is now installed with CCF's headers (#8467).
+- `ccf::crypto::OpenSSL::drain_error_queue()`, in the public header `ccf/crypto/openssl/openssl_wrappers.h`, removes every entry from the calling thread's OpenSSL error queue and returns their error strings (#8474).
 
 ### Changed
 
