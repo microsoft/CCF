@@ -41,11 +41,7 @@ namespace ccf::crypto
   {
     Unique_BIO mem(pem);
     key.reset(PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr));
-    if (key == nullptr)
-    {
-      throw std::runtime_error(
-        fmt::format("could not parse PEM: {}", OpenSSL::last_error()));
-    }
+    OpenSSL::CHECKNULL(key);
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
@@ -59,11 +55,7 @@ namespace ccf::crypto
   {
     Unique_BIO buf(der);
     key.reset(d2i_PUBKEY_bio(buf, nullptr));
-    if (key == nullptr)
-    {
-      throw std::runtime_error(
-        fmt::format("Could not read DER: {}", OpenSSL::last_error()));
-    }
+    OpenSSL::CHECKNULL(key);
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {

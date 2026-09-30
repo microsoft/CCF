@@ -20,11 +20,7 @@ namespace ccf::crypto
   {
     OpenSSL::Unique_BIO mem(pem);
     key = PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr);
-    if (key == nullptr)
-    {
-      throw std::runtime_error(
-        fmt::format("could not parse PEM: {}", OpenSSL::last_error()));
-    }
+    OpenSSL::CHECKNULL(key);
   }
 
   EdDSAKeyPair_OpenSSL::EdDSAKeyPair_OpenSSL(const JsonWebKeyEdDSAPrivate& jwk)
