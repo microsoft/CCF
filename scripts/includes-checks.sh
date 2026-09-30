@@ -6,6 +6,8 @@
 #   1. No private headers included from public headers
 #   2. All public headers declare a ccf namespace
 #   3. All exported headers are actually included somewhere
+#   4. Source components follow their dependency policy, and public header
+#      components include no private headers and form no cycle
 # Accepts -f for interface consistency, but no auto-fix is available.
 
 set -uo pipefail
@@ -42,8 +44,9 @@ fi
 echo "Checking headers are included..."
 "$SCRIPT_DIR"/headers-are-included.sh || STATUS=1
 
-# 4. Source component dependencies: enforce the declared dependency policy
-echo "Checking source component dependencies..."
+# 4. Component dependencies: enforce the declared source dependency policy,
+# and keep public header components acyclic
+echo "Checking source and public header component dependencies..."
 python3 "$SCRIPT_DIR/check-source-dependencies.py" \
   --root "$ROOT_DIR" \
   --config "$SCRIPT_DIR/source-dependencies.json" || STATUS=1

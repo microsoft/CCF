@@ -90,5 +90,12 @@
       "node",
       "tasks"
     ]
+  },
+  "public_component_overrides": {
+    "common_auth_policies.h": "endpoints",
+    "endpoint.h": "endpoints",
+    "endpoint_context.h": "endpoints",
+    "indexing/strategies/": "indexing/strategies",
+    "tx.h": "kv"
   }
 }

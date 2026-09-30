@@ -2,7 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/service/tables/uvm_endorsements.h"
+#include "ccf/ds/json.h"
+#include "ccf/pal/measurement.h"
+
+#include <string>
+#include <vector>
+
+namespace ccf
+{
+  using DID = std::string;
+  using Feed = std::string;
+}
 
 namespace ccf::pal
 {
