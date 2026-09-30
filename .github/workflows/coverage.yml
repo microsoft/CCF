@@ -139,11 +139,43 @@ jobs:
           # this branch, which contain the same llvm-cov report (see the "tee"
           # above). The number of runs kept here is COVERAGE_HISTORY_POINTS,
           # which coverage_summary.py also uses when plotting the trend.
-          runs=$(gh api \
-            "repos/${GITHUB_REPOSITORY}/actions/workflows/coverage.yml/runs?branch=${GITHUB_REF_NAME}&per_page=30" \
-            --jq "[.workflow_runs[] | select(.conclusion == \"success\") | select((.id | tostring) != \"${GITHUB_RUN_ID}\")] | .[0:${COVERAGE_HISTORY_POINTS}] | .[] | \"\(.id) \(.run_number)\"" || true)
+          #
+          # Lists of runs filtered by branch are sometimes outdated, missing
+          # the runs of the last days or weeks, which would plot an outdated
+          # trend. Runs are therefore listed without filters and filtered
+          # here, and a list is only used if it includes this run, as any
+          # up-to-date list does. Otherwise, it is requested again.
+          select_runs='
+            if any(.workflow_runs[]; (.id | tostring) == env.GITHUB_RUN_ID) then
+              [.workflow_runs[]
+                | select(.head_branch == env.GITHUB_REF_NAME)
+                | select(.conclusion == "success")
+                | select((.id | tostring) != env.GITHUB_RUN_ID)]
+              | sort_by(.run_number) | reverse
+              | .[:(env.COVERAGE_HISTORY_POINTS | tonumber)][]
+              | "\(.id) \(.run_number)"
+            else
+              "outdated"
+            end'
+          for attempt in 1 2 3 4 5; do
+            if runs=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/coverage.yml/runs?per_page=100" \
+              --jq "${select_runs}") && [[ "${runs}" != "outdated" ]]; then
+              break
+            fi
+            runs="outdated"
+            echo "Could not list up-to-date Coverage runs (attempt ${attempt})"
+            if [[ "${attempt}" -lt 5 ]]; then
+              sleep 30
+            fi
+          done
+          if [[ "${runs}" == "outdated" ]]; then
+            echo "::warning::Could not list up-to-date Coverage runs, so the coverage trend only includes this run"
+            runs=""
+          fi
           while read -r run_id run_number; do
             [[ -z "$run_id" ]] && continue
+            echo "Downloading the log of run ${run_number} (${run_id})"
             job_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs" \
               --jq '.jobs[] | select(.name == "Coverage Virtual") | .id' || true)
             [[ -z "$job_id" ]] && continue
