@@ -53,13 +53,9 @@ namespace ccf::crypto::OpenSSL
     return "unknown error";
   }
 
-  /// Removes every entry from this thread's OpenSSL error queue, and returns
-  /// the last error string. A failed OpenSSL call may queue several entries,
-  /// and any left behind would be reported by a later, unrelated failure on
-  /// the same thread, so failures should be reported with this rather than
-  /// with a single ERR_get_error(). Logging macros do not evaluate their
-  /// arguments when their level is disabled, so call this before logging its
-  /// result.
+  /// Clears this thread's OpenSSL error queue and returns the last error
+  /// string. Use this to report failures: ERR_get_error() takes only the
+  /// oldest entry, and the rest leak into later, unrelated errors.
   inline std::string last_error()
   {
     const auto ec = ERR_peek_last_error();
