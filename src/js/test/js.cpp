@@ -1,5 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/crypto/ec_key_pair.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/ccf/consensus.h"
@@ -10,6 +12,8 @@
 #include "ccf/js/extensions/snp_attestation.h"
 #include "ccf/js/registry.h"
 #include "ccf/js/samples/governance_driven_registry.h"
+#include "ccf/pal/attestation_sev_snp.h"
+#include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/service/tables/modules.h"
 #include "js/extensions/ccf/scoped_cleanse.h"
 #include "js/global_class_ids.h"
@@ -2660,6 +2664,52 @@ namespace
       FAIL("JS threw: ", reason);
     }
   }
+
+  // Safely embeds an arbitrary C++ string (eg - a PEM, with embedded
+  // newlines) as a JS string literal.
+  std::string js_string_literal(const std::string& s)
+  {
+    return nlohmann::json(s).dump();
+  }
+
+  // Shared by the argument-validation TEST_CASEs below. expectThrows()
+  // pins both the error's type (TypeError/RangeError/InternalError) and a
+  // substring of its message, so these tests break if the bindings' error
+  // contract changes rather than merely if they stop throwing. runCases()
+  // runs a table of [description, thunk, ErrorType, message substring]
+  // entries, and reports which entry failed.
+  const char* const validation_prelude = R"JS(
+    function expectThrows(desc, fn, ErrorType, substr) {
+      let caught = null;
+      try {
+        fn();
+      } catch (e) {
+        caught = e;
+      }
+      if (caught === null) {
+        throw new Error(desc + ": expected to throw, but did not");
+      }
+      if (!(caught instanceof ErrorType)) {
+        const actual = (caught && caught.constructor) ?
+          caught.constructor.name : typeof caught;
+        throw new Error(
+          desc + ": expected " + ErrorType.name + " but got " + actual +
+          ": " + caught);
+      }
+      const message = String(caught.message !== undefined ?
+        caught.message : caught);
+      if (!message.includes(substr)) {
+        throw new Error(
+          desc + ": message '" + message + "' does not include '" +
+          substr + "'");
+      }
+    }
+    function runCases(cases) {
+      for (const [desc, fn, ErrorType, substr] of cases) {
+        expectThrows(desc, fn, ErrorType, substr);
+      }
+    }
+  )JS";
 }
 
 TEST_CASE("ccf.crypto private-key bindings still succeed after scrubbing")
@@ -2825,6 +2875,472 @@ TEST_CASE("ccf.crypto private-key bindings still succeed after scrubbing")
           throw new Error("caller-owned invalid JWK was scrubbed");
       }
     )JS");
+  }
+}
+
+TEST_CASE("ccf.crypto bindings validate their arguments")
+{
+  // These cover the argc/type/range checks in src/js/extensions/ccf/crypto.cpp
+  // that are not exercised by any other test: wrong arity, wrong argument
+  // types (a Symbol where a string is expected, a non-ArrayBuffer where an
+  // ArrayBuffer is expected), and unsupported algorithm/curve/size values.
+  // Each case pins the thrown error's type and a substring of its message.
+
+  SUBCASE("generateAesKey")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.generateAesKey(),
+          TypeError, "expected 1"],
+        ["non-number size", () => ccf.crypto.generateAesKey(S),
+          TypeError, "cannot convert symbol to number"],
+        ["unsupported size", () => ccf.crypto.generateAesKey(64),
+          RangeError, "invalid key size"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("generateRsaKeyPair")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.generateRsaKeyPair(),
+          TypeError, "expected 1 or 2"],
+        ["non-number size", () => ccf.crypto.generateRsaKeyPair(S),
+          TypeError, "cannot convert symbol to number"],
+        ["non-number exponent", () => ccf.crypto.generateRsaKeyPair(2048, S),
+          TypeError, "cannot convert symbol to number"],
+        ["invalid size", () => ccf.crypto.generateRsaKeyPair(0),
+          InternalError, "Failed to generate RSA key pair"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("generateEcdsaKeyPair")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.generateEcdsaKeyPair(),
+          TypeError, "expected 1"],
+        ["non-string curve", () => ccf.crypto.generateEcdsaKeyPair(S),
+          TypeError, "cannot convert symbol to string"],
+        ["unsupported curve", () => ccf.crypto.generateEcdsaKeyPair("secp999"),
+          RangeError, "Unsupported curve id"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("generateEddsaKeyPair")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.generateEddsaKeyPair(),
+          TypeError, "expected 1"],
+        ["non-string curve", () => ccf.crypto.generateEddsaKeyPair(S),
+          TypeError, "cannot convert symbol to string"],
+        ["unsupported curve", () => ccf.crypto.generateEddsaKeyPair("foo"),
+          RangeError, "Unsupported curve id"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("digest")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.digest(),
+          TypeError, "expected 2"],
+        ["non-string algorithm",
+          () => ccf.crypto.digest(S, ccf.strToBuf("x")),
+          TypeError, "cannot convert symbol to string"],
+        ["unsupported algorithm",
+          () => ccf.crypto.digest("SHA-1", ccf.strToBuf("x")),
+          RangeError, "unsupported digest algorithm"],
+        ["non-ArrayBuffer data", () => ccf.crypto.digest("SHA-256", "x"),
+          TypeError, "ArrayBuffer object expected"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("isValidX509RootCACert")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.isValidX509RootCACert(),
+          TypeError, "expected 1"],
+        ["non-string pem", () => ccf.crypto.isValidX509RootCACert(S),
+          TypeError, "cannot convert symbol to string"],
+      ]);
+      if (ccf.crypto.isValidX509RootCACert("not a pem") !== false)
+        throw new Error("malformed PEM should be rejected, not thrown");
+    )JS");
+  }
+
+  SUBCASE("isValidX509CertChain")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.isValidX509CertChain(),
+          TypeError, "expected 2"],
+        ["non-string chain", () => ccf.crypto.isValidX509CertChain(S, "y"),
+          TypeError, "cannot convert symbol to string"],
+        ["non-string trusted", () => ccf.crypto.isValidX509CertChain("x", S),
+          TypeError, "cannot convert symbol to string"],
+      ]);
+      if (ccf.crypto.isValidX509CertChain("", "") !== false)
+        throw new Error("empty chain/trusted should be rejected, not thrown");
+    )JS");
+  }
+
+  SUBCASE("isValidX509CertBundle")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.isValidX509CertBundle(),
+          TypeError, "expected 1"],
+        ["non-string bundle", () => ccf.crypto.isValidX509CertBundle(S),
+          TypeError, "cannot convert symbol to string"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("pemToJwk and jwkToPem")
+  {
+    // All six pem/jwk conversion bindings of each direction share one
+    // template, so a single binding covers their argument validation.
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["pemToJwk argc 0", () => ccf.crypto.pemToJwk(),
+          TypeError, "expected 1 or 2"],
+        ["pemToJwk non-string pem", () => ccf.crypto.pemToJwk(S),
+          TypeError, "cannot convert symbol to string"],
+        ["pemToJwk non-string kid", () => ccf.crypto.pemToJwk("x", S),
+          TypeError, "cannot convert symbol to string"],
+        ["jwkToPem argc 0", () => ccf.crypto.jwkToPem(),
+          TypeError, "expected 1"],
+        ["jwkToPem non-object jwk", () => ccf.crypto.jwkToPem("not an object"),
+          InternalError, "Failed to convert jwk to pem"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("wrapKey and unwrapKey")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const buf16 = new ArrayBuffer(16);
+      runCases([
+        ["wrapKey argc 0", () => ccf.crypto.wrapKey(),
+          TypeError, "expected 3"],
+        ["wrapKey non-buffer key",
+          () => ccf.crypto.wrapKey("x", buf16, {name: "AES-KWP"}),
+          TypeError, "ArrayBuffer object expected"],
+        ["wrapKey non-buffer wrapping key",
+          () => ccf.crypto.wrapKey(buf16, "x", {name: "AES-KWP"}),
+          TypeError, "ArrayBuffer object expected"],
+        ["wrapKey unsupported name",
+          () => ccf.crypto.wrapKey(buf16, buf16, {name: "foo"}),
+          RangeError, "unsupported key wrapping algorithm"],
+        ["wrapKey AES-KWP wrong key size",
+          () => ccf.crypto.wrapKey(buf16, new ArrayBuffer(5), {name: "AES-KWP"}),
+          InternalError, "Failed to wrap key"],
+
+        ["unwrapKey argc 0", () => ccf.crypto.unwrapKey(),
+          TypeError, "expected 3"],
+        ["unwrapKey non-buffer key",
+          () => ccf.crypto.unwrapKey("x", buf16, {name: "AES-KWP"}),
+          TypeError, "ArrayBuffer object expected"],
+        ["unwrapKey non-buffer unwrapping key",
+          () => ccf.crypto.unwrapKey(buf16, "x", {name: "AES-KWP"}),
+          TypeError, "ArrayBuffer object expected"],
+        ["unwrapKey unsupported name",
+          () => ccf.crypto.unwrapKey(buf16, buf16, {name: "foo"}),
+          RangeError, "unsupported key unwrapping algorithm"],
+        ["unwrapKey AES-KWP wrong key size",
+          () => ccf.crypto.unwrapKey(
+            buf16, new ArrayBuffer(5), {name: "AES-KWP"}),
+          InternalError, "Failed to unwrap key"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("sign")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      const rsaKp = ccf.crypto.generateRsaKeyPair(2048);
+      const data = ccf.strToBuf("hello");
+      runCases([
+        ["argc 0", () => ccf.crypto.sign(), TypeError, "expected 3"],
+        ["missing hash",
+          () => ccf.crypto.sign({name: "ECDSA"}, "key", data),
+          RangeError, "Unsupported hash algorithm"],
+        ["non-string key",
+          () => ccf.crypto.sign({name: "ECDSA", hash: "SHA-256"}, S, data),
+          TypeError, "cannot convert symbol to string"],
+        ["non-ArrayBuffer data",
+          () => ccf.crypto.sign({name: "ECDSA", hash: "SHA-256"}, "key", "x"),
+          TypeError, "ArrayBuffer object expected"],
+        ["unsupported name",
+          () => ccf.crypto.sign({name: "foo", hash: "SHA-256"}, "key", data),
+          RangeError, "Unsupported signing algorithm"],
+        ["RSA-PSS bad saltLength",
+          () => ccf.crypto.sign(
+            {name: "RSA-PSS", hash: "SHA-256", saltLength: 100000},
+            rsaKp.privateKey, data),
+          InternalError, "Failed to sign"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("verifySignature")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      const sig = new ArrayBuffer(64);
+      const data = ccf.strToBuf("hello");
+      runCases([
+        ["argc 0", () => ccf.crypto.verifySignature(),
+          TypeError, "expected 4"],
+        ["missing hash",
+          () => ccf.crypto.verifySignature({name: "ECDSA"}, "key", sig, data),
+          RangeError, "Unsupported hash algorithm"],
+        ["non-string key",
+          () => ccf.crypto.verifySignature(
+            {name: "ECDSA", hash: "SHA-256"}, S, sig, data),
+          TypeError, "cannot convert symbol to string"],
+        ["non-ArrayBuffer signature",
+          () => ccf.crypto.verifySignature(
+            {name: "ECDSA", hash: "SHA-256"}, "key", "x", data),
+          TypeError, "ArrayBuffer object expected"],
+        ["non-ArrayBuffer data",
+          () => ccf.crypto.verifySignature(
+            {name: "ECDSA", hash: "SHA-256"}, "key", sig, "x"),
+          TypeError, "ArrayBuffer object expected"],
+        ["unsupported name",
+          () => ccf.crypto.verifySignature(
+            {name: "foo", hash: "SHA-256"}, "key", sig, data),
+          RangeError, "Unsupported signing algorithm"],
+        ["EdDSA bad key",
+          () => ccf.crypto.verifySignature(
+            {name: "EdDSA"}, "garbage", sig, data),
+          RangeError, "Failed to verify EdDSA signature"],
+      ]);
+    )JS");
+  }
+}
+
+TEST_CASE("ccf.crypto key generation with non-default parameters")
+{
+  // Success paths of src/js/extensions/ccf/crypto.cpp that no other test
+  // reaches: the secp521r1 curve, and an explicit RSA exponent. Signing with
+  // a P-521 key is covered by crypto_test.
+  SUBCASE("generateEcdsaKeyPair secp521r1")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEcdsaKeyPair("secp521r1");
+      if (!kp.privateKey.includes("PRIVATE KEY"))
+        throw new Error("bad privateKey");
+    )JS");
+  }
+
+  SUBCASE("generateRsaKeyPair with explicit exponent")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateRsaKeyPair(2048, 65537);
+      if (!kp.privateKey.includes("PRIVATE KEY"))
+        throw new Error("bad privateKey");
+    )JS");
+  }
+}
+
+TEST_CASE("ccf.crypto.verifySignature against an X.509 certificate")
+{
+  // js_verify_signature has two paths depending on whether the supplied key
+  // parses as an X.509 certificate; this exercises the make_unique_verifier
+  // path taken when the key looks like "-----BEGIN CERTIFICATE".
+  using namespace std::literals;
+  auto kp = ccf::crypto::make_ec_key_pair();
+  auto valid_from =
+    ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::now() - 24h);
+  auto valid_to =
+    ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::now() + 24h * 3650);
+  auto cert_pem = kp->self_sign("CN=verify test", valid_from, valid_to);
+
+  run_crypto_handler(fmt::format(
+    R"JS(
+      const cert = {};
+      const privateKey = {};
+      const data = ccf.strToBuf("hello");
+      const sig = ccf.crypto.sign(
+        {{name: "ECDSA", hash: "SHA-256"}}, privateKey, data);
+      if (!ccf.crypto.verifySignature(
+          {{name: "ECDSA", hash: "SHA-256"}}, cert, sig, data))
+        throw new Error("certificate-based signature did not verify");
+    )JS",
+    js_string_literal(cert_pem.str()),
+    js_string_literal(kp->private_key_pem().str())));
+}
+
+TEST_CASE("ccf converters validate their arguments")
+{
+  // These cover the argc/type checks in src/js/extensions/ccf/converters.cpp
+  // that are not exercised elsewhere, plus the enableMetricsLogging toggle.
+
+  SUBCASE("strToBuf and bufToStr")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["strToBuf argc 0", () => ccf.strToBuf(), TypeError, "expected 1"],
+        ["strToBuf non-string", () => ccf.strToBuf(S),
+          TypeError, "Argument must be a string"],
+
+        ["bufToStr argc 0", () => ccf.bufToStr(), TypeError, "expected 1"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("jsonCompatibleToBuf and bufToJsonCompatible")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      runCases([
+        ["jsonCompatibleToBuf argc 0", () => ccf.jsonCompatibleToBuf(),
+          TypeError, "expected 1"],
+
+        ["bufToJsonCompatible argc 0", () => ccf.bufToJsonCompatible(),
+          TypeError, "expected 1"],
+        ["bufToJsonCompatible non-buffer", () => ccf.bufToJsonCompatible("x"),
+          TypeError, "Argument must be an ArrayBuffer"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("enableUntrustedDateTime")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      runCases([
+        ["argc 0", () => ccf.enableUntrustedDateTime(),
+          TypeError, "expected 1"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("enableMetricsLogging validates arguments and toggles")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      runCases([
+        ["argc 0", () => ccf.enableMetricsLogging(),
+          TypeError, "expected 1"],
+        ["non-boolean", () => ccf.enableMetricsLogging(1),
+          TypeError, "First argument must be a boolean"],
+      ]);
+      // log_execution_metrics defaults to true.
+      const wasOn = ccf.enableMetricsLogging(false);
+      if (wasOn !== true)
+        throw new Error("expected previous value true, got " + wasOn);
+      const wasOff = ccf.enableMetricsLogging(true);
+      if (wasOff !== false)
+        throw new Error("expected previous value false, got " + wasOff);
+    )JS");
+  }
+
+  SUBCASE("pemToId validates arguments and rejects malformed PEMs")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.pemToId(), TypeError, "expected 1"],
+        ["non-string", () => ccf.pemToId(S),
+          TypeError, "cannot convert symbol to string"],
+        ["malformed PEM", () => ccf.pemToId("not a pem"),
+          InternalError, "Failed to parse PEM"],
+      ]);
+    )JS");
+  }
+}
+
+TEST_CASE("ccf.tcbHexToPolicy")
+{
+  // Covers js_tcb_hex_to_policy's argument validation and, for Turin, its
+  // success path, cross-checking the JS-visible object against
+  // TcbVersionRaw::to_policy computed directly in C++.
+  using ccf::pal::snp::ProductName;
+
+  SUBCASE("argument validation")
+  {
+    run_crypto_handler(
+      std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      const cpuid = ")JS" +
+      ccf::pal::snp::get_cpuid_of_snp_sev_product(ProductName::Milan) +
+      R"JS(";
+      runCases([
+        ["argc 0", () => ccf.tcbHexToPolicy(), TypeError, "expected 2"],
+        ["non-string cpuid",
+          () => ccf.tcbHexToPolicy(S, "d315000000000004"),
+          TypeError, "CPUID could not be parsed"],
+        ["non-string tcb", () => ccf.tcbHexToPolicy(cpuid, S),
+          TypeError, "TCB could not be parsed"],
+      ]);
+    )JS");
+  }
+
+  const std::string tcb_hex = "d315000000000004";
+
+  SUBCASE("success for Turin")
+  {
+    // Turin is the only SEV-SNP product whose to_policy() sets the extra
+    // "fmc" field; Milan and Genoa exercise the same lines of
+    // js_tcb_hex_to_policy that Turin does, so only Turin is checked here.
+    const auto product = ProductName::Turin;
+    const auto cpuid_hex = ccf::pal::snp::get_cpuid_of_snp_sev_product(product);
+    const auto expected =
+      ccf::pal::snp::TcbVersionRaw::from_hex(tcb_hex).to_policy(product);
+
+    auto js_field = [](const char* field, auto opt) {
+      if (!opt.has_value())
+      {
+        return fmt::format(
+          "if (\"{}\" in policy) throw new Error(\"unexpected {}\");\n",
+          field,
+          field);
+      }
+      return fmt::format(
+        "if (policy.{} !== {}) throw new Error(\"bad {}: \" + policy.{});\n",
+        field,
+        opt.value(),
+        field,
+        field);
+    };
+
+    std::string checks;
+    checks += fmt::format(
+      "if (policy.hexstring !== {}) throw new Error(\"bad hexstring: \" + "
+      "policy.hexstring);\n",
+      js_string_literal(expected.hexstring.value()));
+    checks += js_field("microcode", expected.microcode);
+    checks += js_field("snp", expected.snp);
+    checks += js_field("tee", expected.tee);
+    checks += js_field("boot_loader", expected.boot_loader);
+    checks += js_field("fmc", expected.fmc);
+
+    run_crypto_handler(fmt::format(
+      R"JS(
+        const policy = ccf.tcbHexToPolicy("{}", "{}");
+        {}
+      )JS",
+      cpuid_hex,
+      tcb_hex,
+      checks));
   }
 }
 
