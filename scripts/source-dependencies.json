@@ -23,8 +23,8 @@
   ],
   "allowed_internal_dependencies": {
     "apps": ["ccf-api", "js"],
-    "cose": [],
-    "crypto": ["cose", "ds"],
+    "common": ["crypto", "ds", "service"],
+    "crypto": ["ds"],
     "ds": [],
     "msgpack": [],
     "pal": ["crypto", "ds"],
@@ -38,6 +38,9 @@
     "indexing": ["ccf-api", "crypto", "ds", "kv", "node", "tasks"],
     "ledger": [],
     "tls": ["ccf-api", "crypto", "ds", "tasks", "tcp"],
+    "kv": ["ccf-api", "crypto", "ds"],
+    "service": ["ccf-api", "crypto", "ds", "kv"],
+    "rust": ["ccf-api", "kv"],
     "host": [
       "ccf-api",
       "common",

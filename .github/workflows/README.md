@@ -67,7 +67,9 @@ File: `cross-platform-lts.yml`
 
 # Coverage
 
-Builds CCF with coverage enabled, runs unit and end to end tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
+Builds CCF with coverage enabled, runs unit, end to end and partition tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
+
+A parallel job on `gha-aci-genoa` builds with coverage and runs the same SEV-SNP tests as the ACI SNP Genoa job in `ci.yml`, excluding benchmarks, then uploads their merged coverage profile. Before generating reports, the Virtual job waits for that job and merges its profile into the overall statistics. This does not lengthen the workflow, because the SNP job normally finishes well before the Virtual tests. Profiles only match binaries built with the same compiler and compile options, so the Virtual job also checks that both jobs used the same compiler version. If the SNP job does not succeed, or its compiler differs, the Virtual job fails rather than report statistics without SNP coverage, which also keeps that run out of the coverage trend.
 
 File: `coverage.yml`
 3rd party dependencies: None
@@ -120,16 +122,11 @@ File: `tla-shallow.yml`
 
 # Lean
 
-Runs all Lean verification for the repository. Future Lean checks should be
-added as jobs to this workflow.
+Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
 
-The disaster recovery job builds the canonical model with `lake build --wfail`,
-audits its transitive axiom dependencies with `lake lint`, and runs its
-executable canonical behavior checks on Ubuntu 26.04 on relevant pull requests.
-The build and audit include both the human-reviewed model and system properties
-and the proof implementation files marked as generated for review purposes.
-The standard `mk_all --check` command ensures that the audit root imports every
-library module, so newly added proofs cannot silently escape the checks.
+The disaster recovery job builds the canonical model with `lake build --wfail`, audits its transitive axiom dependencies with `lake lint`, and runs its executable canonical behavior checks on Ubuntu 26.04 on relevant pull requests.
+The build and audit include both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
+The standard `mk_all --check` command ensures that the audit root imports every library module, so newly added proofs cannot silently escape the checks.
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean`
 file with the pinned leanfmt dependency. The workflow runs on pull requests
@@ -142,10 +139,7 @@ File: `lean.yml`
 
 # Vendored Dependency Verification
 
-Verifies that files under `3rdparty/` match the Git commits or release artifacts
-recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main`
-that change vendored sources, the manifest, the verifier, or this workflow. It
-can also be run manually.
+Verifies that files under `3rdparty/` match the Git commits or release artifacts recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main` that change vendored sources, the manifest, the verifier, or this workflow. It can also be run manually.
 
 File: `vendor-verification.yml`
 3rd party dependencies: None

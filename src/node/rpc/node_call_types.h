@@ -2,18 +2,18 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/cose_signatures_config.h"
 #include "ccf/ds/json_schema.h"
-#include "ccf/node/cose_signatures_config.h"
 #include "ccf/node/ledger_sign_mode.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/service/local_sealing.h"
 #include "ccf/service/node_info_network.h"
+#include "ccf/service/service_config.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
-#include "common/configuration.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node/rpc/ringbuffer_messages.h"
@@ -56,6 +56,15 @@ namespace ccf
 
   struct CreateNetworkNodeToNode
   {
+    struct GenesisInfo
+    {
+      std::vector<ccf::NewMember> members;
+      std::string constitution;
+      ccf::ServiceConfiguration service_configuration;
+
+      bool operator==(const GenesisInfo&) const = default;
+    };
+
     struct In
     {
       NodeId node_id;
@@ -77,9 +86,16 @@ namespace ccf
         sealing_recovery_data = std::nullopt;
 
       // Only set on genesis transaction, but not on recovery
-      std::optional<ccf::StartupConfig::Start> genesis_info = std::nullopt;
+      std::optional<GenesisInfo> genesis_info = std::nullopt;
     };
   };
+
+  DECLARE_JSON_TYPE(CreateNetworkNodeToNode::GenesisInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    CreateNetworkNodeToNode::GenesisInfo,
+    members,
+    constitution,
+    service_configuration);
 
   struct JoinNetworkNodeToNode
   {

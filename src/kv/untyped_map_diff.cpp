@@ -8,32 +8,72 @@
 
 namespace ccf::kv::untyped
 {
-  void MapDiff::foreach_(const MapDiff::ElementVisitorWithEarlyOut& f)
-  {
-    for (auto& write : writes)
-    {
-      bool should_continue = f(write.first, write.second);
+  // A change set created for a diff (see Map::create_change_set) holds the
+  // state as of its start version, and its writes contain exactly the keys
+  // deleted by the commit at that version, all mapped to nullopt. Puts are the
+  // entries of the state whose version is the start version.
 
-      if (!should_continue)
+  namespace
+  {
+    // Returns the value written at the change set's start version if key was
+    // put by that commit, else nullptr. The pointer is owned by change_set.
+    const MapDiff::ValueType* written_value(
+      const ChangeSet& change_set, const MapDiff::KeyType& key)
+    {
+      const auto* const search = change_set.state.getp(key);
+      if (search == nullptr || search->version != change_set.start_version)
       {
-        break;
+        return nullptr;
       }
+
+      return &search->value;
     }
   }
 
+  void MapDiff::foreach_(const MapDiff::ElementVisitorWithEarlyOut& f)
+  {
+    for (const auto& [key, deleted] : change_set.writes)
+    {
+      if (!f(key, deleted))
+      {
+        return;
+      }
+    }
+
+    const auto version = change_set.start_version;
+    change_set.state.foreach(
+      [&f, version](const KeyType& k, const VersionV& v) {
+        if (v.version != version)
+        {
+          return true;
+        }
+
+        const std::optional<ValueType> value = v.value;
+        return f(k, value);
+      });
+  }
+
   MapDiff::MapDiff(ccf::kv::untyped::ChangeSet& cs, std::string map_name) :
-    writes(cs.writes),
+    change_set(cs),
     map_name(std::move(map_name))
   {}
 
   std::optional<std::optional<MapDiff::ValueType>> MapDiff::get(
     const MapDiff::KeyType& key)
   {
-    auto val_opt = writes.find(key);
-    if (val_opt != writes.end())
+    using MaybeValue = std::optional<ValueType>;
+
+    if (change_set.writes.contains(key))
+    {
+      LOG_TRACE_FMT("KV[{}]::get({}) - deleted", map_name, key);
+      return std::optional<MaybeValue>(std::in_place, std::nullopt);
+    }
+
+    const auto* value_p = written_value(change_set, key);
+    if (value_p != nullptr)
     {
       LOG_TRACE_FMT("KV[{}]::get({}) - found", map_name, key);
-      return val_opt->second;
+      return std::optional<MaybeValue>(std::in_place, *value_p);
     }
 
     LOG_TRACE_FMT("KV[{}]::get({}) - not found", map_name, key);
@@ -43,14 +83,7 @@ namespace ccf::kv::untyped
 
   bool MapDiff::has(const MapDiff::KeyType& key)
   {
-    auto val_opt = writes.find(key);
-
-    bool found = false;
-
-    if (val_opt != writes.end())
-    {
-      found = val_opt->second.has_value();
-    }
+    const bool found = written_value(change_set, key) != nullptr;
 
     LOG_TRACE_FMT(
       "KV[{}]::has({}) - {}found", map_name, key, found ? "" : "not ");
@@ -59,14 +92,7 @@ namespace ccf::kv::untyped
 
   bool MapDiff::is_deleted(const MapDiff::KeyType& key)
   {
-    auto val_opt = writes.find(key);
-
-    bool deleted = false;
-
-    if (val_opt != writes.end())
-    {
-      deleted = !val_opt->second.has_value();
-    }
+    const bool deleted = change_set.writes.contains(key);
 
     LOG_TRACE_FMT(
       "KV[{}]::deleted({}) - {}deleted", map_name, key, deleted ? "" : "not ");
@@ -80,12 +106,15 @@ namespace ccf::kv::untyped
 
   size_t MapDiff::size()
   {
-    size_t size_ = 0;
+    // Counted directly rather than via foreach, which would copy every value
+    size_t size_ = change_set.writes.size();
 
-    foreach([&size_](const auto&, const auto&) {
-      ++size_;
-      return true;
-    });
+    const auto version = change_set.start_version;
+    change_set.state.foreach(
+      [&size_, version](const KeyType&, const VersionV& v) {
+        size_ += (v.version == version) ? 1 : 0;
+        return true;
+      });
 
     return size_;
   }

@@ -362,8 +362,7 @@ QuickJS runtime options, used to configure runtimes created by CCF.
 
 ``interpreter.flush``
 ~~~~~~~~~~~~~~~~~~~~~~
-Used by transactions that set the JS application to signal to the interpreter cache system
-that existing instances need to be flushed.
+Used by transactions that set the JS application to signal to the interpreter cache system that existing instances need to be flushed.
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
@@ -560,8 +559,7 @@ Status information recorded when a primary produces a snapshot.
 ~~~~~~~~~~~~~~~~~~~
 
 Durability marker written when a snapshot is explicitly requested via the operator endpoint.
-This ensures the request is recorded as a real transaction even when it would otherwise
-carry only a transaction flag.
+This ensures the request is recorded as a real transaction even when it would otherwise carry only a transaction flag.
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 

@@ -11,6 +11,7 @@
 #include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/x509_time_fmt.h"
@@ -20,6 +21,8 @@
 #include "crypto/csr.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "crypto/openssl/ec_key_pair.h"
+#include "crypto/openssl/ec_public_key.h"
+#include "crypto/openssl/eddsa_public_key.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "crypto/openssl/symmetric_key.h"
 #include "crypto/openssl/verifier.h"
@@ -33,6 +36,7 @@
 #include <ctime>
 #include <doctest/doctest.h>
 #include <exception>
+#include <limits>
 #include <mutex>
 #include <optional>
 #include <span>
@@ -201,6 +205,13 @@ ccf::crypto::Pem generate_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
 }
 
+static Pem pem_from_der(
+  const std::string& label, const std::vector<uint8_t>& der)
+{
+  return Pem(fmt::format(
+    "-----BEGIN {0}-----\n{1}\n-----END {0}-----\n", label, b64_from_raw(der)));
+}
+
 TEST_CASE("Check verifier handles nested certs for both PEM and DER inputs")
 {
   auto cert_der = ccf::crypto::raw_from_b64(nested_cert);
@@ -274,6 +285,12 @@ TEST_CASE("Private PEM imports enforce key family")
 
   CHECK(make_ec_key_pair(ec_pem)->public_key_der() == ec->public_key_der());
   CHECK(make_rsa_key_pair(rsa_pem)->public_key_der() == rsa->public_key_der());
+  CHECK(
+    make_ec_key_pair(pem_from_der("EC PRIVATE KEY", ec->private_key_der()))
+      ->public_key_der() == ec->public_key_der());
+  CHECK(
+    make_rsa_key_pair(pem_from_der("RSA PRIVATE KEY", rsa->private_key_der()))
+      ->public_key_der() == rsa->public_key_der());
   for (const auto& pem : {rsa_pem, eddsa_pem})
   {
     CHECK_THROWS_WITH_AS(
@@ -290,6 +307,35 @@ TEST_CASE("Private PEM imports enforce key family")
   }
 }
 
+TEST_CASE("Malformed, wrong-family and unsupported key material is rejected")
+{
+  const auto rsa = make_rsa_key_pair();
+  const auto rsa_der = rsa->public_key_der();
+  const std::vector<uint8_t> garbage = {0xde, 0xad, 0xbe, 0xef};
+  const Pem garbage_pem(
+    "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n");
+
+  CHECK_THROWS_AS(
+    make_ec_public_key(std::span<const uint8_t>(garbage)), std::runtime_error);
+  CHECK_THROWS_AS(make_ec_public_key(rsa_der), std::logic_error);
+  CHECK_THROWS_AS(make_ec_public_key(rsa->public_key_pem()), std::logic_error);
+  CHECK_THROWS_AS(make_rsa_public_key(garbage), std::runtime_error);
+  CHECK_THROWS_AS(make_rsa_public_key(garbage_pem), std::runtime_error);
+  CHECK_THROWS_AS(make_eddsa_public_key(garbage_pem), std::runtime_error);
+  CHECK_THROWS_AS(make_verifier(garbage), std::invalid_argument);
+  CHECK(
+    make_rsa_public_key(rsa_der.data(), rsa_der.size())->public_key_der() ==
+    rsa_der);
+
+  CHECK(ECPublicKey_OpenSSL::get_openssl_group_id(CurveID::NONE) == NID_undef);
+  CHECK_THROWS_AS(
+    ECPublicKey_OpenSSL::get_openssl_group_id(CurveID::CURVE25519),
+    std::logic_error);
+  CHECK_THROWS_AS(
+    EdDSAPublicKey_OpenSSL::get_openssl_group_id(CurveID::NONE),
+    std::logic_error);
+}
+
 TEST_CASE("Sign, verify, with ECKeyPair")
 {
   for (const auto curve : supported_curves)
@@ -299,6 +345,8 @@ TEST_CASE("Sign, verify, with ECKeyPair")
     vector<uint8_t> payload(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(payload);
     CHECK(kp->verify(payload, signature));
+    CHECK(kp->verify(
+      payload.data(), payload.size(), signature.data(), signature.size()));
 
     auto kp2 = make_ec_key_pair(kp->private_key_pem());
     CHECK(kp2->verify(payload, signature));
@@ -636,6 +684,19 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
     auto unwrapped = rsa_kp->rsa_oaep_unwrap(wrapped, label);
     REQUIRE(input == unwrapped);
   }
+
+  INFO("Key pair can wrap, and rejects empty labels");
+  {
+    auto rsa_kp = make_rsa_key_pair();
+    REQUIRE(rsa_kp->rsa_oaep_unwrap(rsa_kp->rsa_oaep_wrap(input)) == input);
+    REQUIRE(
+      rsa_kp->rsa_oaep_unwrap(
+        rsa_kp->rsa_oaep_wrap(input.data(), input.size())) == input);
+    const std::vector<uint8_t> empty;
+    REQUIRE_THROWS_AS(rsa_kp->rsa_oaep_wrap(input, empty), std::logic_error);
+    REQUIRE_THROWS_AS(
+      (void)rsa_kp->rsa_oaep_unwrap(input, empty), std::logic_error);
+  }
 }
 
 TEST_CASE("Extract public key from cert")
@@ -665,6 +726,12 @@ void create_csr_and_extract_pubk()
 TEST_CASE("Extract public key from csr")
 {
   create_csr_and_extract_pubk<ECKeyPair_OpenSSL>();
+
+  const auto kp = make_ec_key_pair();
+  const auto csr_der = kp->create_csr_der("CN=name", {});
+  REQUIRE(
+    public_key_pem_from_csr(pem_from_der("CERTIFICATE REQUEST", csr_der)) ==
+    kp->public_key_pem());
 }
 
 template <typename T, typename S>
@@ -1297,6 +1364,25 @@ TEST_CASE("X509 chain common validity period")
                   .has_value());
 }
 
+TEST_CASE("Certificate validity period")
+{
+  using namespace std::literals;
+  const auto kp = make_ec_key_pair();
+  REQUIRE_THROWS_AS(
+    (void)kp->self_sign("CN=name", "20240102000000Z", "20240101000000Z"),
+    std::logic_error);
+
+  const auto verifier = make_verifier(
+    kp->self_sign("CN=name", "20240101000000Z", "20240102000000Z"));
+  const auto midpoint = ccf::ds::time_point_from_string("20240101120000Z");
+  // Both ends of the validity period are included, so it lasts 86401s
+  CHECK(verifier->remaining_seconds(midpoint) == 43201);
+  CHECK(
+    verifier->remaining_percentage(midpoint) ==
+    doctest::Approx(43201.0 / 86401));
+  CHECK(verifier->remaining_seconds(midpoint + 24h) == 0);
+}
+
 TEST_CASE("hmac")
 {
   std::vector<uint8_t> key(32, 0);
@@ -1520,6 +1606,21 @@ TEST_CASE("Sign and verify with RSA key")
       RSAPadding::PKCS_PSS,
       verify_salt_legth));
   }
+
+  {
+    // The key pair can verify its own signatures
+    const auto sig = kp->sign(payload, mdtype);
+    REQUIRE(kp->verify(
+      payload.data(), payload.size(), sig.data(), sig.size(), mdtype));
+    const auto hash = ccf::crypto::sha256(payload);
+    REQUIRE(kp->verify_hash(
+      hash.data(), hash.size(), sig.data(), sig.size(), mdtype));
+    REQUIRE(kp->public_key_jwk() == pub->public_key_jwk());
+
+    constexpr auto bad_salt_length = std::numeric_limits<size_t>::max();
+    REQUIRE_THROWS_AS(
+      (void)kp->sign(payload, mdtype, bad_salt_length), std::invalid_argument);
+  }
 }
 
 TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
@@ -1561,6 +1662,17 @@ TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
   );
 
   REQUIRE(!rc);
+
+  // Expired: the same chain is rejected once validity times are checked
+  REQUIRE_FALSE(
+    verifier->verify_certificate({&root_cert}, {&intermediate_cert}));
+
+  // Unparseable trusted or chain certificates
+  const Pem not_a_cert(
+    "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n");
+  REQUIRE_FALSE(verifier->verify_certificate({&not_a_cert}, {}, true));
+  REQUIRE_FALSE(
+    verifier->verify_certificate({&root_cert}, {&not_a_cert}, true));
 }
 
 TEST_CASE("Do not trust non-ca certs")
