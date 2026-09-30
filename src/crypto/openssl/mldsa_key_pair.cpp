@@ -33,7 +33,7 @@ namespace ccf::crypto
     if (decoded == nullptr)
     {
       throw std::invalid_argument(fmt::format(
-        "Malformed ML-DSA private key PEM: {}", OpenSSL::drain_error_queue()));
+        "Malformed ML-DSA private key PEM: {}", OpenSSL::last_error()));
     }
     key.reset(decoded);
     mldsa::parameter_set(key, expected);
@@ -52,7 +52,7 @@ namespace ccf::crypto
     if (decoded == nullptr)
     {
       throw std::invalid_argument(fmt::format(
-        "Malformed ML-DSA private key DER: {}", OpenSSL::drain_error_queue()));
+        "Malformed ML-DSA private key DER: {}", OpenSSL::last_error()));
     }
     const OpenSSL::Unique_PKCS8_PRIV_KEY_INFO info(decoded);
     if (cursor != der.data() + der.size())
@@ -64,7 +64,7 @@ namespace ccf::crypto
     {
       throw std::invalid_argument(fmt::format(
         "ML-DSA provider rejected the key material: {}",
-        OpenSSL::drain_error_queue()));
+        OpenSSL::last_error()));
     }
     key.reset(converted);
     mldsa::parameter_set(key, expected);

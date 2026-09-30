@@ -23,7 +23,7 @@ namespace ccf::crypto
     if (key == nullptr)
     {
       throw std::runtime_error(
-        fmt::format("could not parse PEM: {}", OpenSSL::drain_error_queue()));
+        fmt::format("could not parse PEM: {}", OpenSSL::last_error()));
     }
   }
 

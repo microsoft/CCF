@@ -54,28 +54,17 @@ namespace ccf::crypto::OpenSSL
   }
 
   /// Removes every entry from this thread's OpenSSL error queue, and returns
-  /// their error strings, oldest first. A failed OpenSSL call may queue
-  /// several entries, and any left behind would be reported by a later,
-  /// unrelated failure on the same thread, so failures should be reported
-  /// with this rather than with a single ERR_get_error(). Logging macros do
-  /// not evaluate their arguments when their level is disabled, so call this
-  /// before logging its result.
-  inline std::string drain_error_queue()
+  /// the last error string. A failed OpenSSL call may queue several entries,
+  /// and any left behind would be reported by a later, unrelated failure on
+  /// the same thread, so failures should be reported with this rather than
+  /// with a single ERR_get_error(). Logging macros do not evaluate their
+  /// arguments when their level is disabled, so call this before logging its
+  /// result.
+  inline std::string last_error()
   {
-    std::string errors;
-    for (auto ec = ERR_get_error(); ec != 0; ec = ERR_get_error())
-    {
-      if (!errors.empty())
-      {
-        errors += "; ";
-      }
-      errors += error_string(ec);
-    }
-    if (errors.empty())
-    {
-      return "unknown error";
-    }
-    return errors;
+    const auto ec = ERR_peek_last_error();
+    ERR_clear_error();
+    return error_string(ec);
   }
 
   /// Throws if rc is not 1
@@ -84,7 +73,7 @@ namespace ccf::crypto::OpenSSL
     if (rc != 1)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error (rc={}): {}", rc, drain_error_queue()));
+        fmt::format("OpenSSL error (rc={}): {}", rc, last_error()));
     }
   }
 
@@ -94,7 +83,7 @@ namespace ccf::crypto::OpenSSL
     if (ptr == nullptr)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error (missing object): {}", drain_error_queue()));
+        fmt::format("OpenSSL error (missing object): {}", last_error()));
     }
   }
 
@@ -104,7 +93,7 @@ namespace ccf::crypto::OpenSSL
     if (expect != actual)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error (rc={}): {}", actual, drain_error_queue()));
+        fmt::format("OpenSSL error (rc={}): {}", actual, last_error()));
     }
   }
 
@@ -114,7 +103,7 @@ namespace ccf::crypto::OpenSSL
     if (val <= 0)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error (rc={}): {}", val, drain_error_queue()));
+        fmt::format("OpenSSL error (rc={}): {}", val, last_error()));
     }
   }
 
@@ -539,13 +528,10 @@ namespace ccf::crypto::OpenSSL
       if (rc == 0)
       {
         throw std::invalid_argument(
-          fmt::format("Key failed {} check: {}", which, drain_error_queue()));
+          fmt::format("Key failed {} check: {}", which, last_error()));
       }
       throw std::runtime_error(fmt::format(
-        "OpenSSL error in {} key check (rc={}): {}",
-        which,
-        rc,
-        drain_error_queue()));
+        "OpenSSL error in {} key check (rc={}): {}", which, rc, last_error()));
     };
     Unique_EVP_PKEY_CTX ctx(key);
     check(EVP_PKEY_public_check(ctx), "public");

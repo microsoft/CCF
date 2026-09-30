@@ -39,7 +39,7 @@ namespace ccf::crypto
     if (key == nullptr)
     {
       throw std::runtime_error(
-        fmt::format("could not parse PEM: {}", OpenSSL::drain_error_queue()));
+        fmt::format("could not parse PEM: {}", OpenSSL::last_error()));
     }
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {

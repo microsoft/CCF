@@ -17,7 +17,7 @@ namespace ccf::crypto
     if (key == nullptr)
     {
       throw std::runtime_error(
-        fmt::format("could not parse PEM: {}", OpenSSL::drain_error_queue()));
+        fmt::format("could not parse PEM: {}", OpenSSL::last_error()));
     }
   }
 
@@ -53,7 +53,7 @@ namespace ccf::crypto
     {
       throw std::logic_error(fmt::format(
         "Error constructing EdDSA public key from JWK: {}",
-        OpenSSL::drain_error_queue()));
+        OpenSSL::last_error()));
     }
   }
 
@@ -91,8 +91,8 @@ namespace ccf::crypto
       EVP_DigestVerify(ctx, signature, signature_size, contents, contents_size);
     if (rc != 1)
     {
-      const auto errors = OpenSSL::drain_error_queue();
-      LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", errors);
+      const auto error = OpenSSL::last_error();
+      LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", error);
       return false;
     }
     return true;

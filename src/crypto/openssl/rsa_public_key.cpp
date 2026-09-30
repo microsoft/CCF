@@ -61,7 +61,7 @@ namespace ccf::crypto
     if (key == nullptr)
     {
       throw std::runtime_error(
-        fmt::format("could not parse PEM: {}", OpenSSL::drain_error_queue()));
+        fmt::format("could not parse PEM: {}", OpenSSL::last_error()));
     }
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
@@ -90,7 +90,7 @@ namespace ccf::crypto
     if (key == nullptr)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error: {}", OpenSSL::drain_error_queue()));
+        fmt::format("OpenSSL error: {}", OpenSSL::last_error()));
     }
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
@@ -253,8 +253,8 @@ namespace ccf::crypto
       EVP_PKEY_verify(pctx, signature, signature_size, hash, hash_size);
     if (rc != 1)
     {
-      const auto errors = OpenSSL::drain_error_queue();
-      LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", errors);
+      const auto error = OpenSSL::last_error();
+      LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", error);
       return false;
     }
     return true;

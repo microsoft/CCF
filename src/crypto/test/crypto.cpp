@@ -345,7 +345,7 @@ TEST_CASE("Reported OpenSSL failures drain the error queue")
   ERR_clear_error();
   using Failure = std::pair<std::string, std::function<void()>>;
 
-  SUBCASE("Check helpers report every queued error")
+  SUBCASE("Check helpers report the last queued error")
   {
     CHECK_THROWS_WITH_AS(
       OpenSSL::CHECK1(0),
@@ -363,10 +363,7 @@ TEST_CASE("Reported OpenSSL failures drain the error queue")
       ERR_raise(ERR_LIB_EVP, EVP_R_BAD_DECRYPT);
       ERR_raise(ERR_LIB_PEM, PEM_R_NO_START_LINE);
       const auto expected_message = fmt::format(
-        "{}{}; {}",
-        prefix,
-        OpenSSL::error_string(ERR_peek_error()),
-        OpenSSL::error_string(ERR_peek_last_error()));
+        "{}{}", prefix, OpenSSL::error_string(ERR_peek_last_error()));
       CHECK_THROWS_WITH_AS(
         fail(), expected_message.c_str(), std::runtime_error);
       CHECK(ERR_peek_error() == 0);
