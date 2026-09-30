@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - A node which applied an opening of a recovered service that an election then rolled back could keep that opening's seqno, rather than the seqno of the opening which committed, as the version at which the last ledger secret before recovery is stored. That version is recorded in the recovery shares and sealed recovery shares information, and sent to joining nodes (#8452).
 - `ccf::crypto::Verifier::remaining_seconds()` now returns 0 once the certificate has expired. Previously, the negative remaining duration wrapped around to a very large unsigned value (#8430).
 - `ccf::crypto::ECKeyPair::sign()` and `sign_hash()`, and therefore `ccf.crypto.sign()`, no longer fail with an OpenSSL "output buffer too small" error when signing with a P-521 key loaded from PEM under OpenSSL providers such as SymCrypt (#8428).
-- Failed OpenSSL calls in `ccf::crypto` now remove every entry from the thread's OpenSSL error queue, and report all of them in the resulting exception or log message. Previously at most one entry was taken, so errors left behind by a handled failure could appear in the message of a later, unrelated failure on the same thread. The OpenSSL check helpers in `ccf/crypto/openssl/openssl_wrappers.h` no longer print a separate `ec=` code, as it is included in each error string, and the new `ccf::crypto::OpenSSL::drain_error_queue()` is available to report failures of other OpenSSL calls.
+- Failed OpenSSL calls in `ccf::crypto` now drain and report the whole OpenSSL error queue, so stale errors no longer appear in later, unrelated error messages (#8474).
 
 ## [7.0.17]
 
