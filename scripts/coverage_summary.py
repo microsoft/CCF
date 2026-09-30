@@ -56,7 +56,7 @@ _MISSED_BRANCHES_INDEX = 11
 # ``src/node/rpc`` or ``include/ccf/ds``.
 _AREA_DEPTH = 3
 # Number of files listed in the "most uncovered lines" table.
-_TOP_FILES = 15
+_TOP_FILES = 5
 
 # Plot colours for the trend charts: bright green for line coverage, bright
 # blue for branch coverage.
