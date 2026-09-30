@@ -552,6 +552,7 @@ class CCFRemote:
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
+        self.supports_service_signing_keys = version is None
         self.local_node_id = local_node_id
         self.pem = f"{local_node_id}.pem"
         self.node_address_file = f"{local_node_id}.node_address"
@@ -741,6 +742,14 @@ class CCFRemote:
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
 
+                if not self.supports_service_signing_keys:
+                    j["command"].get("recover", {}).pop(
+                        "previous_service_signing_key_files", None
+                    )
+                    j["command"].get("recover", {}).pop(
+                        "service_cert_subject_name", None
+                    )
+
                 # Releases before 7.0.16 reject this unknown HTTP configuration field.
                 if v is not None and v < Version("7.0.16"):
                     for interface in j["network"]["rpc_interfaces"].values():
@@ -860,6 +869,10 @@ class CCFRemote:
             self.remote.get(self.rpc_addresses_file, dst_path, timeout=timeout)
         if self.start_type in {StartType.start, StartType.recover}:
             self.remote.get("service_cert.pem", dst_path, timeout=timeout)
+            if self.supports_service_signing_keys:
+                self.remote.get(
+                    "service_signing_key_classical.pem", dst_path, timeout=timeout
+                )
 
     def debug_node_cmd(self):
         return self.remote.debug_node_cmd()

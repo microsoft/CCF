@@ -41,7 +41,6 @@ from e2e_logging import (
     test_cose_receipt_schema,
     verify_receipt,
 )
-from infra.consortium import slurp_file
 from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 from reconfiguration import assert_no_ipv4_in_node_configs
@@ -232,14 +231,9 @@ def recover_with_primary_dying(args, recovered_network, after_backups_recovered=
         recovered_network.find_random_node()
     )
 
-    prev_service_identity = None
-    if args.previous_service_identity_file:
-        prev_service_identity = slurp_file(args.previous_service_identity_file)
-    LOG.info(f"Prev identity: {prev_service_identity}")
-
     recovered_network.consortium.transition_service_to_open(
         recovered_network.find_random_node(),
-        previous_service_identity=prev_service_identity,
+        **infra.network.get_previous_service_identity(args),
     )
 
     retired_primary, initial_view = recovered_network.find_primary()
@@ -418,7 +412,7 @@ def test_recovery_member_changes_rejected_during_recovery(network, args):
     primary, _ = recovered_network.find_primary()
     recovered_network.consortium.transition_service_to_open(
         primary,
-        previous_service_identity=slurp_file(args.previous_service_identity_file),
+        **infra.network.get_previous_service_identity(args),
     )
     recovered_network.consortium.check_for_service(
         primary,
@@ -531,9 +525,7 @@ def run_reconfiguration_before_recovery_shares(args):
             primary, _ = recovered_network.find_primary()
             recovered_network.consortium.transition_service_to_open(
                 primary,
-                previous_service_identity=slurp_file(
-                    args.previous_service_identity_file
-                ),
+                **infra.network.get_previous_service_identity(args),
             )
             recovered_network.consortium.check_for_service(
                 primary, infra.network.ServiceStatus.WAITING_FOR_RECOVERY_SHARES
@@ -970,6 +962,7 @@ def test_recover_service_with_wrong_identity(network, args):
 
     network.save_service_identity(args)
     first_service_identity_file = args.previous_service_identity_file
+    first_service_signing_key_files = args.previous_service_signing_key_files
 
     with old_primary.client() as c:
         before_recovery_tx_id = ccf.tx_id.TxID.from_str(
@@ -983,10 +976,12 @@ def test_recover_service_with_wrong_identity(network, args):
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
-    # Attempt a recovery with the wrong previous service certificate
+    # Invalid signing keys must not fall back to the correct previous certificate.
     # The mismatch results in all snapshots being ignored
 
-    args.previous_service_identity_file = network.consortium.user_cert_path("user0")
+    args.previous_service_signing_key_files = infra.network.save_service_signing_keys(
+        network.consortium.user_cert_path("user0"), network.common_dir
+    )
 
     broken_network = infra.network.Network(
         args.nodes,
@@ -1028,6 +1023,7 @@ def test_recover_service_with_wrong_identity(network, args):
     # Recover, now with the correct service identity
 
     args.previous_service_identity_file = first_service_identity_file
+    args.previous_service_signing_key_files = first_service_signing_key_files
 
     recovered_network = infra.network.Network(
         args.nodes,
@@ -1272,6 +1268,11 @@ def run_recover_service_from_files(
 
         args.previous_service_identity_file = os.path.join(
             old_common, "service_cert.pem"
+        )
+        args.previous_service_signing_key_files = (
+            infra.network.save_service_signing_keys(
+                args.previous_service_identity_file, new_common
+            )
         )
 
         network.start_in_recovery(
@@ -1533,7 +1534,7 @@ def test_share_resilience(network, args, from_snapshot=False):
     primary, _ = recovered_network.find_primary()
     recovered_network.consortium.transition_service_to_open(
         primary,
-        previous_service_identity=slurp_file(args.previous_service_identity_file),
+        **infra.network.get_previous_service_identity(args),
     )
 
     # Submit all required recovery shares minus one. Last recovery share is
@@ -2492,6 +2493,9 @@ def run_recovery_after_cose_upgrade(args):
         strict_args.package = cose_strict_package
         strict_args.previous_service_identity_file = (
             recovered_args.previous_service_identity_file
+        )
+        strict_args.previous_service_signing_key_files = (
+            recovered_args.previous_service_signing_key_files
         )
         strict_network = infra.network.Network(
             args.nodes,

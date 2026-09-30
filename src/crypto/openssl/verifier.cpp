@@ -163,6 +163,27 @@ namespace ccf::crypto
     return valid;
   }
 
+  bool Verifier_OpenSSL::verify_certificate_signature(
+    const Pem& signing_key) const
+  {
+    Unique_BIO key_bio(signing_key);
+    Unique_PKEY key(key_bio);
+    const auto rc = X509_verify(cert, key);
+    if (rc < 0)
+    {
+      throw std::runtime_error(fmt::format(
+        "OpenSSL certificate signature verification error: {}",
+        OpenSSL::error_string(ERR_get_error())));
+    }
+    if (rc == 0)
+    {
+      LOG_DEBUG_FMT(
+        "Certificate signature does not match the trusted public key: {}",
+        OpenSSL::error_string(ERR_get_error()));
+    }
+    return rc == 1;
+  }
+
   bool Verifier_OpenSSL::is_self_signed() const
   {
     return (X509_get_extension_flags(cert) & EXFLAG_SS) != 0U;

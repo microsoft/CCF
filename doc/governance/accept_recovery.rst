@@ -84,9 +84,13 @@ A member proposes to recover the network and other members can vote on the propo
 
 Once the proposal to recover the network has passed under the rules of the :term:`Constitution`, the recovered service is ready for members to submit their recovery shares.
 
-Note that the ``transition_service_to_open`` proposal takes two parameters: the previous and the next :term:`Service Identity` (X.509 certificates in PEM format). The previous identity must match the identity supplied to the recovery node at startup, while the next identity must match the recovered service's newly generated identity. Snapshot validation is performed earlier at node startup using the configured previous service identity. Since both identities are recorded on the ledger with the proposal, it is always clear at which point the identity changed.
+The ``transition_service_to_open`` proposal accepts ``previous_service_signing_keys``, a JSON object mapping identity types to the previous service signing public keys in PEM format. When supplied, these keys take precedence over ``previous_service_identity`` for verification. Invalid or mismatching keys do not fall back to the certificate.
 
-.. note:: The ``previous_service_identity`` argument to the ``transition_service_to_open`` proposal is required for recovery, but must not be provided when opening a new service as there is no previous identity.
+The ``previous_service_identity`` proposal argument is deprecated in favour of ``previous_service_signing_keys``. If signing keys are omitted, the proposal still falls back to the certificate-based ``previous_service_identity`` check for backward compatibility. The ``next_service_identity`` remains the recovered service's newly generated X.509 certificate in PEM format. These identities are recorded on the ledger with the proposal.
+
+Snapshot validation happens earlier at node startup. Operators must supply ``command.recover.previous_service_identity_file``, ``command.recover.previous_service_signing_key_files``, or both; keys take precedence for verification. The recovered TLS certificate's subject is set with ``command.recover.service_cert_subject_name``, which takes precedence over the deprecated previous-certificate input. If both are supplied, their subjects must match or startup fails. This is checked once when resolving startup inputs, before node setup. If the explicit subject is omitted, recovery inherits the previous certificate's subject when available, or uses ``CN=CCF Service`` otherwise. See :doc:`/operations/configuration`.
+
+.. note:: Recovery proposals require previous signing keys or a previous service certificate. Neither previous-identity argument is needed when opening a new service.
 
 Submitting Recovery Shares
 --------------------------

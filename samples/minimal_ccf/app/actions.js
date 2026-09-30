@@ -873,16 +873,33 @@ const actions = new Map([
           "next_service_identity",
         );
 
-        checkType(
-          args.previous_service_identity,
-          "string?",
-          "previous service identity (PEM certificate)",
-        );
-        if (args.previous_service_identity !== undefined) {
-          checkX509CertBundle(
-            args.previous_service_identity,
-            "previous_service_identity",
+        if (args.previous_service_signing_keys !== undefined) {
+          checkType(
+            args.previous_service_signing_keys,
+            "object",
+            "previous service signing public keys",
           );
+          for (const [identityType, key] of Object.entries(
+            args.previous_service_signing_keys,
+          )) {
+            checkType(
+              key,
+              "string",
+              `previous ${identityType} service signing public key (PEM)`,
+            );
+          }
+        } else {
+          checkType(
+            args.previous_service_identity,
+            "string?",
+            "previous service identity (PEM certificate)",
+          );
+          if (args.previous_service_identity !== undefined) {
+            checkX509CertBundle(
+              args.previous_service_identity,
+              "previous_service_identity",
+            );
+          }
         }
       },
 
@@ -897,20 +914,30 @@ const actions = new Map([
 
         if (
           service.status === "Recovering" &&
-          (args.previous_service_identity === undefined ||
+          ((args.previous_service_identity === undefined &&
+            args.previous_service_signing_keys === undefined) ||
             args.next_service_identity === undefined)
         ) {
           throw new Error(
-            `Opening a recovering network requires both, the previous and the next service identity`,
+            `Opening a recovering network requires previous signing keys or a previous service certificate, and the next service identity`,
           );
         }
 
         const previous_identity =
+          args.previous_service_signing_keys === undefined &&
           args.previous_service_identity !== undefined
             ? ccf.strToBuf(args.previous_service_identity)
             : undefined;
         const next_identity = ccf.strToBuf(args.next_service_identity);
-        ccf.node.transitionServiceToOpen(previous_identity, next_identity);
+        if (args.previous_service_signing_keys !== undefined) {
+          ccf.node.transitionServiceToOpen(
+            previous_identity,
+            next_identity,
+            ccf.jsonCompatibleToBuf(args.previous_service_signing_keys),
+          );
+        } else {
+          ccf.node.transitionServiceToOpen(previous_identity, next_identity);
+        }
       },
     ),
   ],

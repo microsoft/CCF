@@ -212,6 +212,7 @@ namespace ccf
       ccf::CCFConfig ccf_config_,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& service_cert,
+      ServiceSigningKeys& service_signing_keys,
       std::vector<uint8_t>& rpc_addresses)
     {
       start_type = start_type_;
@@ -353,6 +354,7 @@ namespace ccf
         // When starting a node in start or recover modes, fresh network secrets
         // are created and the associated certificate can be passed to the host
         service_cert = create_info.service_cert.raw();
+        service_signing_keys = std::move(create_info.service_signing_keys);
       }
 
       return CreateNodeStatus::OK;

@@ -49,8 +49,10 @@
       "host_data_transparent_statement_path": {{ host_data_transparent_statement_path|tojson }}{% endif %}
     },
     "recover": {
-      "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
-      "previous_service_identity_file": "{{ previous_service_identity_file }}"
+      "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }}{% if recovery_service_cert_subject_name is defined and recovery_service_cert_subject_name is not none %},
+      "service_cert_subject_name": {{ recovery_service_cert_subject_name|tojson }}{% endif %}{% if previous_service_identity_file is defined and previous_service_identity_file is not none %},
+      "previous_service_identity_file": {{ previous_service_identity_file|tojson }}{% endif %}{% if previous_service_signing_key_files is defined and previous_service_signing_key_files is not none %},
+      "previous_service_signing_key_files": {{ previous_service_signing_key_files|tojson }}{% endif %}
     }
   },
   "ledger":

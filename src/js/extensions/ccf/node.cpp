@@ -87,10 +87,10 @@ namespace ccf::js::extensions
       js::core::Context& jsctx =
         *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
 
-      if (argc != 2)
+      if (argc != 2 && argc != 3)
       {
         return JS_ThrowTypeError(
-          ctx, "Passed %d arguments but expected two", argc);
+          ctx, "Passed %d arguments but expected two or three", argc);
       }
 
       auto* extension = jsctx.get_extension<NodeExtension>();
@@ -118,7 +118,23 @@ namespace ccf::js::extensions
 
         size_t prev_bytes_sz = 0;
         uint8_t* prev_bytes = nullptr;
-        if (JS_IsUndefined(argv[0]) == 0)
+        const bool has_previous_service_signing_keys =
+          argc == 3 && JS_IsUndefined(argv[2]) == 0;
+        if (has_previous_service_signing_keys)
+        {
+          size_t keys_size = 0;
+          const auto* keys_bytes = JS_GetArrayBuffer(ctx, &keys_size, argv[2]);
+          if (keys_bytes == nullptr)
+          {
+            return JS_ThrowTypeError(
+              ctx,
+              "Previous service signing keys argument is not an array buffer");
+          }
+          identities.previous_signing_keys =
+            ccf::parse_json_safe(keys_bytes, keys_bytes + keys_size)
+              .get<ServiceSigningKeys>();
+        }
+        else if (JS_IsUndefined(argv[0]) == 0)
         {
           prev_bytes = JS_GetArrayBuffer(ctx, &prev_bytes_sz, argv[0]);
           if (prev_bytes == nullptr)

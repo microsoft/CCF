@@ -20,6 +20,7 @@ from typing import ClassVar
 import ccf.ledger
 from ccf.tx_id import TxID
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from cryptography.x509 import load_pem_x509_certificate
 from loguru import logger as LOG
 
@@ -43,6 +44,50 @@ JOIN_TIMEOUT = 40
 DEFAULT_TIMEOUT_MULTIPLIER = 15
 
 COMMON_FOLDER = "common"
+
+
+def get_previous_service_identity(args):
+    certificate_file = getattr(args, "previous_service_identity_file", None)
+    key_files = getattr(args, "previous_service_signing_key_files", None)
+    return {
+        "previous_service_identity": (
+            slurp_file(certificate_file) if certificate_file else None
+        ),
+        "previous_service_signing_keys": (
+            {
+                identity_type: slurp_file(path)
+                for identity_type, path in key_files.items()
+            }
+            if key_files is not None
+            else None
+        ),
+    }
+
+
+def save_service_signing_keys(certificate_file, directory, key_files=None):
+    if key_files is None:
+        # Historical services did not export signing public keys separately.
+        certificate = load_pem_x509_certificate(
+            slurp_file(certificate_file).encode("ascii"), default_backend()
+        )
+        keys = {
+            "CLASSICAL": certificate.public_key()
+            .public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+            .decode("ascii")
+        }
+    else:
+        keys = {
+            identity_type: slurp_file(path) for identity_type, path in key_files.items()
+        }
+
+    stem = os.path.splitext(os.path.basename(certificate_file))[0]
+    paths = {}
+    for identity_type, key in keys.items():
+        path = os.path.join(directory, f"{stem}_{identity_type}_pubk.pem")
+        with open(path, "w", encoding="utf-8") as key_file:
+            key_file.write(key)
+        paths[identity_type] = path
+    return paths
 
 
 class NodeRole(Enum):
@@ -216,6 +261,8 @@ class Network:
         "config_file",
         "ubsan_options",
         "previous_service_identity_file",
+        "previous_service_signing_key_files",
+        "recovery_service_cert_subject_name",
         "snp_endorsements_servers",
         "node_to_node_message_limit",
         "historical_cache_soft_limit",
@@ -982,16 +1029,9 @@ class Network:
         # so we make sure that we're running the right one.
         self.consortium.set_constitution(random_node, args.constitution)
 
-        prev_service_identity = None
-        if (
-            args.previous_service_identity_file is not None
-            and args.previous_service_identity_file != ""
-        ):
-            prev_service_identity = slurp_file(args.previous_service_identity_file)
-
         self.consortium.transition_service_to_open(
             self.find_random_node(),
-            previous_service_identity=prev_service_identity,
+            **get_previous_service_identity(args),
         )
 
         if via_local_sealing:
@@ -2496,6 +2536,18 @@ class Network:
     def save_service_identity(self, args):
         path, identity = self.save_service_identity_to_file()
         args.previous_service_identity_file = path
+        signing_key_file = os.path.join(
+            self.common_dir, "service_signing_key_classical.pem"
+        )
+        args.previous_service_signing_key_files = save_service_signing_keys(
+            path,
+            self.common_dir,
+            (
+                {"CLASSICAL": signing_key_file}
+                if os.path.exists(signing_key_file)
+                else None
+            ),
+        )
         return identity
 
     def identity(self, name=None):
