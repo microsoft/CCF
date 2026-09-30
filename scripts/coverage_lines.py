@@ -44,7 +44,7 @@ per-branch-region reconciliation is implemented and verified.
 import argparse
 import re
 import sys
-from typing import Dict, Iterable, List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional
 
 
 def _percentage(hit: int, found: int) -> Optional[float]:
@@ -119,33 +119,18 @@ _MISSED_LINES_INDEX = 16
 _LINE_COVER_INDEX = 18
 
 
-def _paths_by_suffix(paths: Iterable[str]) -> Dict[str, str]:
-    """Map each path, and each suffix of it that starts after a ``/``, to the
-    shortest of the paths it is a suffix of.
-
-    ``llvm-cov report`` names each file by its path with the leading
-    components common to all files removed, so a row's name is one of these
-    suffixes of its LCOV ``SF:`` path. Other paths ending with the same
-    suffix are in subdirectories of the common prefix, so are longer.
-    """
-    by_suffix: Dict[str, str] = {}
-    for path in paths:
-        suffixes = [path] + [path[i + 1 :] for i, c in enumerate(path) if c == "/"]
-        for suffix in suffixes:
-            if suffix not in by_suffix or len(path) < len(by_suffix[suffix]):
-                by_suffix[suffix] = path
-    return by_suffix
-
-
 def patch_report(report_text: str, files: Dict[str, FileLineCoverage]) -> str:
     """Replace the Lines/Missed Lines/Cover columns of each per-file row, and
     of the TOTAL row, of an ``llvm-cov report`` text with the corrected
     distinct-line counts.
 
-    Every other column is returned unmodified. Raises ``ValueError`` if a row
-    with lines has no LCOV record, rather than leave it uncorrected.
+    ``llvm-cov report`` names each file by its path with the leading
+    components common to all files removed, so a row is matched to the
+    shortest LCOV ``SF:`` path ending with its name (any other is in a deeper
+    directory). Every other column is returned unmodified. Raises
+    ``ValueError`` if a row with lines has no LCOV record, rather than leave
+    it uncorrected.
     """
-    by_suffix: Dict[str, str] = _paths_by_suffix(files)
     total: FileLineCoverage = aggregate(files)
     patched_total = False
     lines: List[str] = report_text.splitlines()
@@ -157,12 +142,14 @@ def patch_report(report_text: str, files: Dict[str, FileLineCoverage]) -> str:
         if name == "TOTAL":
             coverage = total
             patched_total = True
-        elif name in by_suffix:
-            coverage = files[by_suffix[name]]
-        elif tokens[_LINES_FOUND_INDEX] == "0":
-            continue
         else:
-            raise ValueError(f"No LCOV record found for {name}")
+            matches = [p for p in files if p == name or p.endswith("/" + name)]
+            if matches:
+                coverage = files[min(matches, key=len)]
+            elif tokens[_LINES_FOUND_INDEX] == "0":
+                continue
+            else:
+                raise ValueError(f"No LCOV record found for {name}")
         replacements = {
             _LINES_FOUND_INDEX: str(coverage.lines_found),
             _MISSED_LINES_INDEX: str(coverage.lines_found - coverage.lines_hit),

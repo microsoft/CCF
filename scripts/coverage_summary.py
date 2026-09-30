@@ -47,7 +47,6 @@ _BRANCH_COVERAGE_INDEX = 3
 #   src/kv/store.h  1046 216 79.35%  85 3 96.47%  1046 216 79.35%  322 102 68.32%
 # Token indices of the line and branch counts within such a row.
 _FILE_ROW_TOKENS = 13
-_FILE_ROW_TOKENS_NO_BRANCHES = 10
 _LINES_INDEX = 7
 _MISSED_LINES_INDEX = 8
 _BRANCHES_INDEX = 10
@@ -131,13 +130,12 @@ def extract_file_coverage(text: str) -> List[FileCoverage]:
     """Return the per-file line and branch counts from an llvm-cov report.
 
     Rows are recognised by their shape rather than by position, as the report
-    is embedded in a job log alongside other output. Files without branch
-    columns are recorded with zero branches.
+    is embedded in a job log alongside other output.
     """
     files: List[FileCoverage] = []
     for line in text.splitlines():
         tokens: List[str] = _clean_line(line).split()
-        if len(tokens) not in (_FILE_ROW_TOKENS, _FILE_ROW_TOKENS_NO_BRANCHES):
+        if len(tokens) != _FILE_ROW_TOKENS:
             continue
         path: str = tokens[0]
         if "/" not in path or path == "TOTAL":
@@ -150,11 +148,8 @@ def extract_file_coverage(text: str) -> List[FileCoverage]:
         try:
             lines: int = int(tokens[_LINES_INDEX])
             missed_lines: int = int(tokens[_MISSED_LINES_INDEX])
-            branches: int = 0
-            missed_branches: int = 0
-            if len(tokens) == _FILE_ROW_TOKENS:
-                branches = int(tokens[_BRANCHES_INDEX])
-                missed_branches = int(tokens[_MISSED_BRANCHES_INDEX])
+            branches: int = int(tokens[_BRANCHES_INDEX])
+            missed_branches: int = int(tokens[_MISSED_BRANCHES_INDEX])
         except ValueError:
             continue
         files.append(FileCoverage(path, lines, missed_lines, branches, missed_branches))
