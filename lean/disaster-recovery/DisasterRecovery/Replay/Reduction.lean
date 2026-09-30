@@ -89,15 +89,115 @@ private def chain (base : List Location) (inserts : Array (Location × List Loca
       let (source, _) ← inserts.find? (·.2 == last)
       return (← chain base inserts (last.erase source) fuel) ++ [last]
 
+private def phaseText : Phase → String
+  | .gossiping => "Gossiping"
+  | .voting => "Voting"
+  | .opening => "Opening"
+  | .joining => "Joining"
+  | .open => "Open"
+
+private def validatorInstanceId : String :=
+  "recovery-trace"
+
+private def executionNotifications (execution : Execution) : List Notification :=
+  if let some kind := execution.openKind then
+    [.opening kind]
+  else if execution.restart then
+    (execution.chosen.map .restart).toList
+  else if execution.pre == .opening && execution.post == .open then
+    [.completed]
+  else
+    []
+
+private def compareObserved {α : Type} [BEq α] (label : String)
+    (actual expected : α) (render : α → String)
+    : Checked Unit := do
+  require
+    (actual == expected)
+    s!"{label}: recorded {render expected}, model {render actual}"
+
+private def compareOptional {α : Type} [BEq α] (label : String)
+    (actual : α) (expected : Option α) (render : α → String)
+    : Checked Unit := do
+  if let some expected := expected then
+    compareObserved label actual expected render
+
+private def renderGossips (gossips : List (Location × TxID)) : String :=
+  let entries :=
+    (gossips.mergeSort fun left right => left.1 <= right.1).map
+      fun (location, value) => s!"{location}={value.view}.{value.seqno}"
+  s!"[{String.intercalate ", " entries}]"
+
+private def renderRepr {α : Type} [Repr α] (value : α) : String :=
+  reprStr value
+
+private def readState (event : TraceEvent) (execution : Execution) : NodeState :=
+  {
+    location := event.node
+    phase := execution.pre
+    timeoutState := execution.preTimeout
+    gossips := execution.gossips.getD []
+    votes := execution.votes.getD []
+    chosen :=
+      if event.isIAmOpen || execution.pre == .joining then execution.chosen else none
+  }
+
+private def checkExecutionStep (expectedLocations : List Location) (event : TraceEvent)
+    : Checked Unit := do
+  let some (_, execution) := event.execution? | pure ()
+  let some effect :=
+    advance
+      (Shared.Capabilities.record event.node)
+      { instanceId := validatorInstanceId, expectedLocations }
+      (readState event execution)
+      (event.body matches .timeout ..)
+  | throw
+      (.invalid
+        s!"{event.record.location}: local-step: advance was disabled from {phaseText execution.pre}")
+  let model := Id.run (effect.run {})
+  let modelState := model.1
+  let outputs := model.2
+  compareObserved "phase" modelState.phase execution.post phaseText
+  compareObserved "timeoutState" modelState.timeoutState execution.postTimeout phaseText
+  compareOptional "gossips"
+    (modelState.gossips.mergeSort fun left right => left.1 <= right.1)
+    (execution.gossips.map (·.mergeSort fun left right => left.1 <= right.1))
+    renderGossips
+  compareOptional "votes" modelState.votes execution.votes renderRepr
+  if execution.chosen.isSome then
+    compareObserved "chosen" modelState.chosen execution.chosen renderRepr
+  if execution.openKind.isSome then
+    compareObserved "openKind" modelState.openKind execution.openKind renderRepr
+  if execution.restart then
+    compareObserved "restart" modelState.restartRequested true toString
+  require
+    outputs.outgoing.isEmpty
+    s!"{event.record.location}: local-step: handler emitted unexpected messages"
+  compareObserved "notifications" outputs.notifications
+    (executionNotifications execution) renderRepr
+
 /-- One node's items in commit order, and the phase and open kind it ends in. -/
 private def reduceNode (node : Location) (records : Array TraceEvent)
+    (expectedLocations : List Location)
     (retries : List (Nat × Array TraceEvent))
     : Checked (Array Item × Phase × Option OpenKind) := do
+  for event in records do
+    checkExecutionStep expectedLocations event
   -- participation: the first committed record, for Gossiping, has the initial versions.
   let some start := records.find? (·.body matches .committed ..)
   | throw (.incomplete s!"node {node} has no committed Gossiping record yet")
   let .committed .gossiping initial := start.body
   | throw (.invalid s!"{start.record.location}: first committed phase is not Gossiping")
+  let committeds :=
+    records.filterMap
+      fun event =>
+        match event.body with
+        | .committed post version => some (event, post, version)
+        | _ => none
+  for ((earlier, _, earlierVersion), (later, _, laterVersion))
+      in committeds.toList.zip committeds.toList.tail do
+    require (earlierVersion < laterVersion)
+      s!"{later.record.location}: committed version {laterVersion} does not increase after {earlier.record.location}"
   -- rolled-back: only the last execution of a message or timeout request can commit.
   let executions := records.filterMap fun event => event.execution?.map ((event, ·.2))
   let final :=
@@ -125,6 +225,9 @@ private def reduceNode (node : Location) (records : Array TraceEvent)
   let mut openKind : Option OpenKind := none
   let mut votes : List Location := []
   let mut items : Array Item := #[]
+  let mut committedWrites : List (Nat × Phase) := [(initial, .gossiping)]
+  let mut latestCommittedPost : Option Phase := none
+  let mut latestCommittedVersion : Option Nat := none
   for (pre, preTimeout) in pairs, index in [:pairs.length] do
     -- retry: a retry runs where the sm_state version it read is first read.
     if pairs.findIdx? (·.1 == pre) == some index then
@@ -170,6 +273,12 @@ private def reduceNode (node : Location) (records : Array TraceEvent)
       | throw (.invalid s!"node {node}: no inserts explain {top} at {(pre, preTimeout)}")
       -- An insert off the chain did not commit, but a reader off it read no committed state.
       let (chained, unchained) := others.partition fun (_, x) => x.set.all states.contains
+      for (event, execution) in unchained do
+        let some source := event.inserts? gossiping | continue
+        let some recorded := execution.set | continue
+        let read := if recorded.contains source then recorded.erase source else recorded
+        require (states.contains read)
+          s!"{event.record.location}: set-chain: {recorded} reads {read}, which is not on the committed chain at {(pre, preTimeout)}"
       require (unchained.all fun (e, _) => (e.inserts? gossiping).isSome)
         s!"node {node} read sets at {(pre, preTimeout)} that were never committed"
       placed :=
@@ -184,8 +293,40 @@ private def reduceNode (node : Location) (records : Array TraceEvent)
       if writing && (writes event execution).1 then
         phase := execution.post
       openKind := execution.openKind <|> openKind
+    if let some (event, execution) := writer then
+      if (writes event execution).1 then
+        match next with
+        | some (sm, _) =>
+            if sm != pre then
+              committedWrites := committedWrites ++ [(sm, execution.post)]
+        | none =>
+            latestCommittedPost := some execution.post
+            latestCommittedVersion := later[0]?
     if next.isNone && writer.any (fun (e, x) => (writes e x).1) then
       items := items ++ (retries.filter (later.contains ·.1)).toArray.map (.retry ·.2)
+  let knownCommitted := committedWrites.tail
+  let highestKnown := committedWrites.getLast!.1
+  let mut latestCommittedSeen := false
+  for (event, post, version) in committeds.drop 1 do
+    if let some (_, expectedPost) := knownCommitted.find? (·.1 == version) then
+      require (post == expectedPost)
+        s!"{event.record.location}: committed phase {phaseText post} does not match the writer of version {version}, which wrote {phaseText expectedPost}"
+    else
+      let some expectedPost := latestCommittedPost
+      | throw
+          (.invalid
+            s!"{event.record.location}: committed version {version} is not on the replayed sm_state chain")
+      require (!latestCommittedSeen)
+        s!"{event.record.location}: committed version {version} is not on the replayed sm_state chain"
+      if let some expectedVersion := latestCommittedVersion then
+        require (version == expectedVersion)
+          s!"{event.record.location}: committed version {version} does not match the newest writer's committed sm_state version {expectedVersion}"
+      else
+        require (version > highestKnown)
+          s!"{event.record.location}: committed version {version} is not on the replayed sm_state chain"
+      require (post == expectedPost)
+        s!"{event.record.location}: committed phase {phaseText post} does not match the newest writer, which wrote {phaseText expectedPost}"
+      latestCommittedSeen := true
   require (retries.all fun (v, _) => pairs.any (·.1 == v) || later.contains v)
     s!"node {node} retried from an sm_state version that no execution read or wrote"
   return (items, phase, openKind)
@@ -277,6 +418,10 @@ def reduce (records : Array Record) (scenario : Scenario) : Checked Reduced := d
   let events ← records.mapM parseEvent
   let some first := events[0]?
   | throw (.incomplete "no recovery-decision-protocol trace records found")
+  for event in events do
+    require
+      (event.expectedLocations == first.expectedLocations)
+      s!"{event.record.location}: expected_locations differs from the scenario header"
   let nodes ← group events
   let mut queues := #[]
   let mut ends := []
@@ -296,7 +441,8 @@ def reduce (records : Array Record) (scenario : Scenario) : Checked Reduced := d
             | _, _ => false)
           s!"{event.record.location}: {cause.record.location} did not cause it"
     let (items, phase, kind) ←
-      reduceNode node records (← retryBatches first.expectedLocations records)
+      reduceNode node records first.expectedLocations
+        (← retryBatches first.expectedLocations records)
     queues := queues.push items
     ends := ends ++ [(node, phase, kind)]
   let instructions ← linearize queues
