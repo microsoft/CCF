@@ -71,6 +71,8 @@ Builds CCF with coverage enabled, runs unit, end to end and partition tests, and
 
 A parallel job on `gha-aci-genoa` builds with coverage and runs the same SEV-SNP tests as the ACI SNP Genoa job in `ci.yml`, excluding benchmarks, then uploads their merged coverage profile. Before generating reports, the Virtual job waits for that job and merges its profile into the overall statistics. This does not lengthen the workflow, because the SNP job normally finishes well before the Virtual tests. Profiles only match binaries built with the same compiler and compile options, so the Virtual job also checks that both jobs used the same compiler version. If the SNP job does not succeed, or its compiler differs, the Virtual job fails rather than report statistics without SNP coverage, which also keeps that run out of the coverage trend.
 
+The Virtual job summary plots the line and branch coverage of the previous successful runs on the same branch, recovered from their job logs, followed by the current run. The GitHub API sometimes returns an outdated list of runs, so a list is only used if it includes the current run, and is otherwise requested again. If no up-to-date list is returned, the trend only includes the current run, and the job reports a warning.
+
 File: `coverage.yml`
 3rd party dependencies: None
 
