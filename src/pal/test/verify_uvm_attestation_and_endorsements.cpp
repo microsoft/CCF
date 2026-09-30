@@ -4,7 +4,7 @@
 #include "verify_uvm_attestation_and_endorsements.h"
 
 #include "ccf/ds/quote_info.h"
-#include "node/uvm_endorsements.h"
+#include "pal/uvm_endorsements.h"
 
 std::string read_in(const std::string& path)
 {

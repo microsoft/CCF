@@ -59,6 +59,7 @@
 #include "node/startup_inputs.h"
 #include "node_to_node.h"
 #include "pal/quote_generation.h"
+#include "pal/uvm_endorsements.h"
 #include "quote_endorsements_client.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
@@ -68,7 +69,6 @@
 #include "share_manager.h"
 #include "snapshots/fetch.h"
 #include "snapshots/filenames.h"
-#include "uvm_endorsements.h"
 
 #include <arpa/inet.h>
 #include <optional>

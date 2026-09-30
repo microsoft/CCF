@@ -308,15 +308,15 @@ add_ccf_static_library(
     ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
     ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
     ${CCF_DIR}/src/js/extensions/ccf/gov.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
     ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
     ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/network.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/node.cpp
     ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
     ${CCF_DIR}/src/js/extensions/ccf/request.cpp
     ${CCF_DIR}/src/js/registry.cpp
-    ${CCF_DIR}/src/node/uvm_endorsements.cpp
+    ${CCF_DIR}/src/node/gov/extensions/gov_effects.cpp
+    ${CCF_DIR}/src/node/gov/extensions/network.cpp
+    ${CCF_DIR}/src/node/gov/extensions/node.cpp
+    ${CCF_DIR}/src/pal/uvm_endorsements.cpp
   LINK_LIBS ccfcrypto quickjs ccf_pal
 )
 
@@ -495,7 +495,7 @@ set(
   ${CCF_DIR}/src/enclave/main.cpp
   ${CCF_DIR}/src/node/env.cpp
   ${CCF_DIR}/src/node/quote.cpp
-  ${CCF_DIR}/src/node/uvm_endorsements.cpp
+  ${CCF_DIR}/src/pal/uvm_endorsements.cpp
   ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
 )
 
@@ -913,7 +913,7 @@ if(BUILD_TESTS)
     add_unit_test(
       js_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/uvm_endorsements.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/uvm_endorsements.cpp
     )
     target_link_libraries(
       js_test
@@ -932,7 +932,7 @@ if(BUILD_TESTS)
     add_unit_test(
       endorsements_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/endorsements.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/uvm_endorsements.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/uvm_endorsements.cpp
     )
     set_property(
       TEST endorsements_test
@@ -1047,7 +1047,7 @@ if(BUILD_TESTS)
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
       ${CCF_DIR}/src/node/quote.cpp
-      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/pal/uvm_endorsements.cpp
       ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
       DETECT_DEADLOCKS
     )
@@ -1099,7 +1099,7 @@ if(BUILD_TESTS)
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
       ${CCF_DIR}/src/node/quote.cpp
-      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/pal/uvm_endorsements.cpp
       ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
     )
     target_link_libraries(
@@ -1119,7 +1119,7 @@ if(BUILD_TESTS)
     add_unit_test(
       internal_tables_access_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/internal_tables_access_test.cpp
-      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/pal/uvm_endorsements.cpp
     )
     target_link_libraries(internal_tables_access_test PRIVATE ccfcrypto ccf_kv)
 

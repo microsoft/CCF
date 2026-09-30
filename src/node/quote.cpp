@@ -20,7 +20,7 @@
 #include "crypto/cose_utils.h"
 #include "ds/internal_logger.h"
 #include "node/js_policy.h"
-#include "node/uvm_endorsements.h"
+#include "pal/uvm_endorsements.h"
 
 #include <cstring>
 #include <tav/cbor.hpp>
