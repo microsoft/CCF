@@ -1788,12 +1788,23 @@ TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
   REQUIRE_FALSE(
     verifier->verify_certificate({&root_cert}, {&intermediate_cert}));
 
-  // Unparseable trusted or chain certificates
+  // Unparseable trusted or chain certificates, whose parsing errors must not
+  // be left on the OpenSSL error queue
   const Pem not_a_cert(
     "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n");
   REQUIRE_FALSE(verifier->verify_certificate({&not_a_cert}, {}, true));
+  CHECK(ERR_peek_error() == 0);
   REQUIRE_FALSE(
     verifier->verify_certificate({&root_cert}, {&not_a_cert}, true));
+  CHECK(ERR_peek_error() == 0);
+
+  // Bad leaf signature, which also queues OpenSSL errors
+  auto bad_signature = ccf::crypto::cert_pem_to_der(leaf_cert);
+  bad_signature.back() ^= 1;
+  auto bad_verifier = ccf::crypto::make_verifier(bad_signature);
+  REQUIRE_FALSE(
+    bad_verifier->verify_certificate({&root_cert}, {&intermediate_cert}, true));
+  CHECK(ERR_peek_error() == 0);
 }
 
 TEST_CASE("Do not trust non-ca certs")

@@ -89,6 +89,19 @@ namespace ccf::crypto
     const std::vector<const Pem*>& chain,
     bool ignore_time)
   {
+    // Rejections are reported through the return value, but some, such as an
+    // unparseable certificate or a bad signature, also queue OpenSSL errors.
+    // Log and remove any, so that a later, unrelated, failure on this thread
+    // does not report them. Most rejections, such as an expired certificate,
+    // queue none.
+    const auto log_queued_errors = []() {
+      if (ERR_peek_error() != 0)
+      {
+        const auto errors = OpenSSL::drain_error_queue();
+        LOG_DEBUG_FMT("OpenSSL errors: {}", errors);
+      }
+    };
+
     Unique_X509_STORE store;
     Unique_X509_STORE_CTX store_ctx;
 
@@ -99,6 +112,7 @@ namespace ccf::crypto
       if (tc == nullptr)
       {
         LOG_DEBUG_FMT("Failed to load certificate from PEM: {}", pem->str());
+        log_queued_errors();
         return false;
       }
 
@@ -110,6 +124,7 @@ namespace ccf::crypto
       if (!is_ca)
       {
         LOG_DEBUG_FMT("Trusted certificate is not a CA: {}", pem->str());
+        log_queued_errors();
         return false;
       }
 
@@ -124,6 +139,7 @@ namespace ccf::crypto
       if (chain_cert == nullptr)
       {
         LOG_DEBUG_FMT("Failed to load certificate from PEM: {}", pem->str());
+        log_queued_errors();
         return false;
       }
 
@@ -145,6 +161,9 @@ namespace ccf::crypto
     }
 
     auto valid = X509_verify_cert(store_ctx) == 1;
+    // Chain building can also queue errors for candidate issuers that it
+    // rejects, even when verification then succeeds.
+    log_queued_errors();
     if (!valid)
     {
       auto error = X509_STORE_CTX_get_error(store_ctx);
