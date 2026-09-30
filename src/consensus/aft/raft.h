@@ -6,21 +6,19 @@
 #include "ccf/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
+#include "consensus/aft/commit_observer.h"
+#include "consensus/aft/consensus_channels.h"
 #include "consensus/aft/raft_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "impl/state.h"
 #include "kv/kv_types.h"
-#include "node/commit_callback_subsystem.h"
-#include "node/node_client.h"
-#include "node/node_to_node.h"
-#include "node/node_types.h"
-#include "node/retired_nodes_cleanup.h"
 #include "raft_types.h"
 #include "service/tables/signatures.h"
 
 #include <algorithm>
+#include <functional>
 #include <list>
 #include <random>
 #include <unordered_map>
@@ -174,13 +172,10 @@ namespace aft
     std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
 
-    // Node client to trigger submission of RPC requests
-    std::shared_ptr<ccf::NodeClient> node_client;
+    // Called on the primary to remove retired nodes from the store
+    std::function<void()> retired_node_cleanup;
 
-    // Used to remove retired nodes from store
-    std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup;
-
-    std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks;
+    std::shared_ptr<CommitObserver> commit_observer;
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
@@ -204,17 +199,16 @@ namespace aft
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
-    std::shared_ptr<ccf::NodeToNode> channels;
+    std::shared_ptr<ConsensusChannels> channels;
 
     Aft(
       const ccf::consensus::Configuration& settings_,
       std::unique_ptr<Store> store_,
       std::unique_ptr<LedgerProxy> ledger_,
-      std::shared_ptr<ccf::NodeToNode> channels_,
+      std::shared_ptr<ConsensusChannels> channels_,
       std::shared_ptr<aft::State> state_,
-      std::shared_ptr<ccf::NodeClient> rpc_request_context_,
-      std::shared_ptr<ccf::CommitCallbackSubsystem>
-        commit_callbacks_subsystem_ = nullptr,
+      std::function<void()> retired_node_cleanup_,
+      std::shared_ptr<CommitObserver> commit_observer_ = nullptr,
       bool public_only_ = false) :
       store(std::move(store_)),
 
@@ -226,10 +220,8 @@ namespace aft
       election_timeout(settings_.election_timeout),
       max_uncommitted_tx_count(settings_.max_uncommitted_tx_count),
 
-      node_client(std::move(rpc_request_context_)),
-      retired_node_cleanup(
-        std::make_unique<ccf::RetiredNodeCleanup>(node_client)),
-      commit_callbacks(std::move(commit_callbacks_subsystem_)),
+      retired_node_cleanup(std::move(retired_node_cleanup_)),
+      commit_observer(std::move(commit_observer_)),
 
       public_only(public_only_),
 
@@ -238,12 +230,7 @@ namespace aft
 
       ledger(std::move(ledger_)),
       channels(std::move(channels_))
-    {
-      if (commit_callbacks != nullptr)
-      {
-        commit_callbacks->set_consensus(this);
-      }
-    }
+    {}
 
     ~Aft() override = default;
 
@@ -816,7 +803,7 @@ namespace aft
           }
         }
       }
-      catch (const ccf::NodeToNode::DroppedMessageException& e)
+      catch (const ConsensusChannels::DroppedMessageException& e)
       {
         RAFT_INFO_FMT("Dropped invalid message from {}", e.from);
         return;
@@ -1095,8 +1082,7 @@ namespace aft
 
       // The host will append log entries to this message when it is
       // sent to the destination node.
-      if (!channels->send_authenticated(
-            to, ccf::NodeMsgType::consensus_msg, ae))
+      if (!channels->send_consensus_message(to, ae))
       {
         return;
       }
@@ -1557,8 +1543,7 @@ namespace aft
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      channels->send_authenticated(
-        to, ccf::NodeMsgType::consensus_msg, response);
+      channels->send_consensus_message(to, response);
     }
 
     void recv_append_entries_response(
@@ -1698,7 +1683,7 @@ namespace aft
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rpv);
+      channels->send_consensus_message(to, rpv);
     }
 
     void send_request_vote(const ccf::NodeId& to)
@@ -1722,7 +1707,7 @@ namespace aft
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
+      channels->send_consensus_message(to, rv);
     }
 
     void recv_request_vote_unsafe(
@@ -1899,8 +1884,7 @@ namespace aft
           to,
           answer);
 
-        channels->send_authenticated(
-          to, ccf::NodeMsgType::consensus_msg, response);
+        channels->send_consensus_message(to, response);
       }
       else
       {
@@ -1914,8 +1898,7 @@ namespace aft
           to,
           answer);
 
-        channels->send_authenticated(
-          to, ccf::NodeMsgType::consensus_msg, response);
+        channels->send_consensus_message(to, response);
       }
     }
 
@@ -2248,7 +2231,7 @@ namespace aft
 
       if (retired_node_cleanup)
       {
-        retired_node_cleanup->cleanup();
+        retired_node_cleanup();
       }
     }
 
@@ -2343,8 +2326,7 @@ namespace aft
     {
       ProposeRequestVote prv{.term = state->current_view};
       RAFT_INFO_FMT("Proposing that {} becomes candidate", successor);
-      channels->send_authenticated(
-        successor, ccf::NodeMsgType::consensus_msg, prv);
+      channels->send_consensus_message(successor, prv);
     }
     void become_retired(Index idx, ccf::kv::RetirementPhase phase)
     {
@@ -2613,10 +2595,10 @@ namespace aft
       store->compact(idx);
       ledger->commit(idx);
 
-      if (commit_callbacks != nullptr)
+      if (commit_observer != nullptr)
       {
         const auto term = get_term_internal(idx);
-        commit_callbacks->trigger_callbacks({term, idx}, state->view_history);
+        commit_observer->on_commit({term, idx}, state->view_history);
       }
 
       RAFT_DEBUG_FMT("Commit on {}: {}", state->node_id, idx);
@@ -2655,7 +2637,7 @@ namespace aft
         create_and_remove_node_state();
         if (retired_node_cleanup && is_primary())
         {
-          retired_node_cleanup->cleanup();
+          retired_node_cleanup();
         }
       }
     }

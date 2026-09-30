@@ -175,7 +175,7 @@ namespace aft
     void commit(Index idx) {}
   };
 
-  class ChannelStubProxy : public ccf::NodeToNode
+  class ChannelStubProxy : public aft::ConsensusChannels
   {
   public:
     // Capture what is being sent out
@@ -185,7 +185,7 @@ namespace aft
     MessageList messages;
     std::map<ccf::NodeId, std::pair<std::string, std::string>> node_addresses;
 
-    // When set, send_authenticated() reports failure (as NodeToNode permits)
+    // When set, send_consensus_message() reports failure (as channels permit)
     // and the message is not captured.
     bool fail_sends = false;
 
@@ -242,20 +242,8 @@ namespace aft
       node_addresses[peer_id] = {peer_hostname, peer_service};
     }
 
-    void close_channel(const ccf::NodeId& peer_id) override {}
-
-    void set_endorsed_node_cert(const ccf::crypto::Pem&) override {}
-
-    bool have_channel(const ccf::NodeId& nid) override
-    {
-      return true;
-    }
-
-    bool send_authenticated(
-      const ccf::NodeId& to,
-      ccf::NodeMsgType msg_type,
-      const uint8_t* data,
-      size_t size) override
+    bool send_consensus_message(
+      const ccf::NodeId& to, const uint8_t* data, size_t size) override
     {
       if (fail_sends)
       {
@@ -274,48 +262,6 @@ namespace aft
       size_t& size) override
     {
       return !fail_recv_authentication;
-    }
-
-    bool recv_channel_message(
-      const ccf::NodeId& from, const uint8_t* data, size_t size) override
-    {
-      return true;
-    }
-
-    void initialize(
-      const ccf::NodeId& self_id,
-      const ccf::crypto::Pem& service_cert,
-      ccf::crypto::ECKeyPairPtr node_kp,
-      const std::optional<ccf::crypto::Pem>& node_cert = std::nullopt) override
-    {}
-
-    bool send_encrypted(
-      const ccf::NodeId& to,
-      ccf::NodeMsgType msg_type,
-      std::span<const uint8_t> cb,
-      const std::vector<uint8_t>& data) override
-    {
-      return true;
-    }
-
-    std::vector<uint8_t> recv_encrypted(
-      const ccf::NodeId& fromfpf32,
-      std::span<const uint8_t> cb,
-      const uint8_t* data,
-      size_t size) override
-    {
-      return {};
-    }
-
-    void set_message_limit(size_t message_limit) override {}
-    void set_idle_timeout(std::chrono::milliseconds idle_timeout) override {}
-
-    void tick(std::chrono::milliseconds elapsed) override {}
-
-    bool recv_authenticated_with_load(
-      const ccf::NodeId& from, const uint8_t*& data, size_t& size) override
-    {
-      return true;
     }
   };
 
