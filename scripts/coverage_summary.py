@@ -9,11 +9,6 @@ summary directly, so the trend is reconstructed from the logs of previous
 Coverage runs on the same branch, which contain the same report. This script
 extracts the overall line and branch coverage percentages from each of those
 reports and renders Mermaid xychart trend charts, including the current run.
-
-``scripts/coverage.sh`` patches the TOTAL row's line coverage to count each
-physical source line once (see ``scripts/coverage_lines.py``); this script
-just reads whatever percentage is in that row, so it needs no changes to
-track the correction.
 """
 
 import argparse
