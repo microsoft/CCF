@@ -11,7 +11,7 @@
 #include "ccf/service/tables/users.h"
 #include "crypto/cbor_helpers.h"
 #include "crypto/cbor_tags.h"
-#include "node/cose_common.h"
+#include "crypto/cose.h"
 
 #include <tav/cbor.hpp>
 
