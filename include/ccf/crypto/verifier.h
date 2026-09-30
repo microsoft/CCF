@@ -142,6 +142,11 @@ namespace ccf::crypto
       const std::vector<const Pem*>& chain = {},
       bool ignore_time = false) = 0;
 
+    /** Verify only the certificate signature with a trusted public key.
+     */
+    [[nodiscard]] virtual bool verify_certificate_signature(
+      const Pem& signing_key) const = 0;
+
     /** Indicates whether the certificate (held intenally) is self-signed */
     [[nodiscard]] virtual bool is_self_signed() const = 0;
 

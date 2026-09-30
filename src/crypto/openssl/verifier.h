@@ -29,6 +29,8 @@ namespace ccf::crypto
       const std::vector<const Pem*>& chain = {},
       bool ignore_time = false) override;
 
+    bool verify_certificate_signature(const Pem& signing_key) const override;
+
     bool is_self_signed() const override;
 
     std::string serial_number() const override;

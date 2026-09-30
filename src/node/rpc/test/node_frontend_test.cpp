@@ -135,6 +135,7 @@ TEST_CASE("Node configuration retains operator file paths")
         {"host_data_transparent_statement_path", "not-loaded/statement.cose"}}},
       {"recover",
        {{"previous_service_identity_file", "not-loaded/previous.pem"},
+        {"service_cert_subject_name", "CN=Recovered Service"},
         {"initial_service_certificate_validity_days", 13}}}}}};
 
   auto config = input.get<CCFConfig>();
@@ -189,6 +190,8 @@ TEST_CASE("Node configuration retains operator file paths")
     config.command.recover.previous_service_identity_file ==
     "not-loaded/previous.pem");
   CHECK(config.command.recover.initial_service_certificate_validity_days == 13);
+  CHECK(
+    config.command.recover.service_cert_subject_name == "CN=Recovered Service");
 
   const auto defaults = json{
     {"network", CCFConfig{}.network},
@@ -199,6 +202,7 @@ TEST_CASE("Node configuration retains operator file paths")
   CHECK(defaults.command.join.fetch_recent_snapshot);
   CHECK(
     defaults.command.recover.initial_service_certificate_validity_days == 1);
+  CHECK_FALSE(defaults.command.recover.service_cert_subject_name.has_value());
 }
 
 TEST_CASE("Genesis request retains resolved data on the wire")
@@ -345,6 +349,7 @@ TEST_CASE("Startup inputs are read from files")
 TEST_CASE("Startup inputs are resolved by start type")
 {
   const ScopedTempDir dir;
+  const auto previous_subject = ccf::crypto::get_subject_name(member_cert);
   const auto missing_file = (dir.path / "missing").string();
   const auto bytes = [](const std::string& s) {
     return std::vector<uint8_t>(s.begin(), s.end());
@@ -369,7 +374,7 @@ TEST_CASE("Startup inputs are resolved by start type")
   config.command.start.constitution_files = {
     write_test_file(dir, "constitution.js", "constitution")};
   config.command.recover.previous_service_identity_file =
-    write_test_file(dir, "previous_identity.pem", "previous identity");
+    write_test_file(dir, "previous_identity.pem", member_cert.str());
 
   {
     INFO("Start reads node data, service data and genesis inputs");
@@ -390,7 +395,49 @@ TEST_CASE("Startup inputs are resolved by start type")
     CHECK(inputs.service_data == json{{"service", 2}});
     CHECK_FALSE(inputs.genesis_info.has_value());
     CHECK(inputs.join_service_cert.empty());
-    CHECK(inputs.previous_service_identity == bytes("previous identity"));
+    CHECK(inputs.previous_service_identity == member_cert.raw());
+    CHECK(inputs.service_cert_subject_name == previous_subject);
+  }
+
+  {
+    INFO("An explicit recovery subject must match a supplied certificate");
+    auto matching_subject = config;
+    matching_subject.command.recover.service_cert_subject_name =
+      previous_subject;
+    CHECK(
+      resolve(matching_subject, StartType::Recover).service_cert_subject_name ==
+      previous_subject);
+
+    matching_subject.command.recover.service_cert_subject_name =
+      "CN=Different Service";
+    CHECK(
+      logic_error_message([&]() {
+        resolve_startup_inputs(matching_subject, StartType::Recover);
+      }) ==
+      fmt::format(
+        "command.recover.service_cert_subject_name 'CN=Different Service' "
+        "does not match the previous service certificate subject '{}'",
+        previous_subject));
+  }
+
+  {
+    INFO("Key-only recovery uses the configured subject or the default");
+    auto keys_only = config;
+    keys_only.command.recover.previous_service_identity_file.reset();
+    keys_only.command.recover.previous_service_signing_key_files =
+      std::map<std::string, std::string>{
+        {SigningKeyType::CLASSICAL,
+         write_test_file(dir, "previous_key.pem", kp->public_key_pem().str())}};
+    keys_only.command.recover.service_cert_subject_name =
+      "CN=Recovered Service";
+    const auto inputs = resolve(keys_only, StartType::Recover);
+    CHECK_FALSE(inputs.previous_service_identity.has_value());
+    CHECK(inputs.service_cert_subject_name == "CN=Recovered Service");
+
+    keys_only.command.recover.service_cert_subject_name.reset();
+    CHECK(
+      resolve(keys_only, StartType::Recover).service_cert_subject_name ==
+      CCFConfig::Command::Start{}.service_subject_name);
   }
 
   {
@@ -410,11 +457,12 @@ TEST_CASE("Startup inputs are resolved by start type")
   {
     INFO("Inputs required by the start type must be readable");
     auto no_identity = config;
-    no_identity.command.recover.previous_service_identity_file = "";
+    no_identity.command.recover.previous_service_identity_file.reset();
     CHECK(
       logic_error_message(
         [&]() { resolve_startup_inputs(no_identity, StartType::Recover); }) ==
-      "Recovery requires the certificate of the previous service identity");
+      "Recovery requires previous service signing keys or a previous service "
+      "certificate");
 
     auto no_service_cert = config;
     no_service_cert.command.service_certificate_file = missing_file;

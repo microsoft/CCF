@@ -22,7 +22,9 @@
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
+#include "ccf/service_signing_keys.h"
 #include "ccf/tx.h"
+#include "common/enclave_interface_types.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
@@ -97,6 +99,7 @@ namespace ccf
   {
     ccf::crypto::Pem self_signed_node_cert;
     ccf::crypto::Pem service_cert;
+    ServiceSigningKeys service_signing_keys;
   };
 
   inline void reset_data(std::vector<uint8_t>& data)
@@ -564,13 +567,10 @@ namespace ccf
     void verify_recovery_snapshot_candidate_unsafe(
       const SnapshotSegments& segments, ccf::kv::Version snapshot_seqno)
     {
-      if (!startup_inputs.previous_service_identity.has_value())
-      {
-        throw std::logic_error("No previous service identity is configured");
-      }
-
-      const ccf::crypto::Pem target_identity(
-        *startup_inputs.previous_service_identity);
+      const auto target_key = get_previous_service_signing_key(
+                                startup_inputs.previous_service_signing_keys,
+                                startup_inputs.previous_service_identity)
+                                ->public_key_der();
       verify_snapshot_seqno(
         segments, network.tables->get_encryptor(), snapshot_seqno);
 
@@ -578,7 +578,10 @@ namespace ccf
       {
         try
         {
-          verify_snapshot(segments, target_identity.raw());
+          verify_snapshot(
+            segments,
+            startup_inputs.previous_service_identity,
+            startup_inputs.previous_service_signing_keys);
           LOG_INFO_FMT(
             "Recovery snapshot at {} is directly signed by the configured "
             "previous service identity",
@@ -599,7 +602,7 @@ namespace ccf
       try
       {
         const auto verifier =
-          ccf::crypto::make_cose_verifier_from_pem_cert(target_identity);
+          ccf::crypto::make_cose_verifier_from_key(target_key);
         if (verifier->verify_detached(segments.receipt, receipt.merkle_root))
         {
           LOG_INFO_FMT(
@@ -626,8 +629,6 @@ namespace ccf
 
       const auto scan = scan_recovery_snapshot_ledger_files(
         config.ledger, network.tables->get_encryptor(), snapshot_seqno);
-      const auto target_key = ccf::crypto::public_key_der_from_cert(
-        ccf::crypto::cert_pem_to_der(target_identity));
       const auto snapshot_signer_key =
         validate_recovery_snapshot_endorsement_chain(
           scan.endorsements, target_key, snapshot_seqno);
@@ -1324,7 +1325,7 @@ namespace ccf
           initiate_quote_generation();
 
           LOG_INFO_FMT("Created new node {}", self);
-          return {new_self_signed_node_cert, network.identity->cert};
+          break;
         }
         case StartType::Join:
         {
@@ -1339,24 +1340,17 @@ namespace ccf
           initiate_quote_generation();
 
           LOG_INFO_FMT("Created join node {}", self);
-          return {new_self_signed_node_cert, {}};
+          return {new_self_signed_node_cert, {}, {}};
         }
         case StartType::Recover:
         {
           LOG_INFO_FMT("Creating new node - recover");
-          // Already enforced by resolve_startup_inputs(); kept as a guard for
-          // the dereference below, with the same message.
-          if (!startup_inputs.previous_service_identity.has_value())
-          {
-            throw std::logic_error(
-              "Recovery requires the certificate of the previous service "
-              "identity");
-          }
-          ccf::crypto::Pem previous_service_identity_cert(
-            startup_inputs.previous_service_identity.value());
+          get_previous_service_signing_key(
+            startup_inputs.previous_service_signing_keys,
+            startup_inputs.previous_service_identity);
 
           network.identity = std::make_unique<ccf::NetworkIdentity>(
-            ccf::crypto::get_subject_name(previous_service_identity_cert),
+            startup_inputs.service_cert_subject_name,
             curve_id,
             startup_time,
             config.command.recover.initial_service_certificate_validity_days);
@@ -1364,7 +1358,7 @@ namespace ccf
           initiate_quote_generation();
 
           LOG_INFO_FMT("Created recovery node {}", self);
-          return {new_self_signed_node_cert, network.identity->cert};
+          break;
         }
         default:
         {
@@ -1372,6 +1366,19 @@ namespace ccf
             fmt::format("Node was started in unknown mode {}", start_type));
         }
       }
+
+      ServiceSigningKeys service_signing_keys{
+        {SigningKeyType::CLASSICAL,
+         network.identity->get_key_pair()->public_key_pem()}};
+      if (service_signing_keys.contains(SigningKeyType::PQ))
+      {
+        throw std::logic_error(
+          "Unexpected PQ service signing identity at node creation");
+      }
+      return {
+        new_self_signed_node_cert,
+        network.identity->cert,
+        std::move(service_signing_keys)};
     }
 
     //
@@ -2659,24 +2666,38 @@ namespace ccf
         const auto prev_ident =
           tx.ro<PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
             ->get();
-        if (!prev_ident.has_value() || !identities.previous.has_value())
+        if (
+          !prev_ident.has_value() ||
+          (!identities.previous.has_value() &&
+           !identities.previous_signing_keys.has_value()))
         {
           throw std::logic_error(
             "Recovery with service certificates requires both, a previous "
             "service identity written to the KV during recovery genesis and a "
-            "transition_service_to_open proposal that contains previous and "
-            "next service certificates");
+            "transition_service_to_open proposal that contains previous "
+            "signing keys or a previous service certificate, and the next "
+            "service certificate");
         }
 
-        const ccf::crypto::Pem from_proposal(
-          identities.previous->data(), identities.previous->size());
-        if (prev_ident.value() != from_proposal)
+        const auto expected_key =
+          get_previous_service_signing_key(std::nullopt, prev_ident->raw());
+        const auto proposed_key = get_previous_service_signing_key(
+          identities.previous_signing_keys,
+          identities.previous.has_value() ?
+            std::make_optional(identities.previous->raw()) :
+            std::nullopt);
+        if (
+          expected_key->public_key_der() != proposed_key->public_key_der() ||
+          (!identities.previous_signing_keys.has_value() &&
+           prev_ident.value() != identities.previous.value()))
         {
           throw std::logic_error(fmt::format(
             "Previous service identity does not match.\nActual:\n{}\nIn "
             "proposal:\n{}",
             prev_ident->str(),
-            from_proposal.str()));
+            identities.previous_signing_keys.has_value() ?
+              nlohmann::json(*identities.previous_signing_keys).dump() :
+              identities.previous->str()));
         }
       }
 

@@ -4,6 +4,9 @@
 #include "service/tables/identity_types.h"
 
 #include "ccf/kv/unit.h"
+#include "ccf/node/configuration.h"
+#include "ccf/service_signing_keys.h"
+#include "crypto/openssl/ec_key_pair.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <array>
@@ -92,4 +95,39 @@ TEST_CASE("Identities round-trips through JSON")
 
   const nlohmann::json j = identities;
   REQUIRE(j.get<ccf::Identities>() == identities);
+}
+
+TEST_CASE("Service signing key files are a JSON object keyed by identity name")
+{
+  const ccf::CCFConfig::Command command;
+  const nlohmann::json paths = command.service_signing_key_files;
+  REQUIRE(
+    paths ==
+    nlohmann::json{{"CLASSICAL", "service_signing_key_classical.pem"}});
+
+  const nlohmann::json custom = {
+    {"type", "Start"},
+    {"service_signing_key_files", {{"CLASSICAL", "custom_signing_key.pem"}}}};
+  const auto parsed = custom.get<ccf::CCFConfig::Command>();
+  REQUIRE(
+    parsed.service_signing_key_files.at(ccf::SigningKeyType::CLASSICAL) ==
+    "custom_signing_key.pem");
+  const nlohmann::json round_trip = parsed;
+  REQUIRE(
+    round_trip.at("service_signing_key_files") ==
+    custom.at("service_signing_key_files"));
+}
+
+TEST_CASE(
+  "Service signing public keys round-trip as PEM strings in a JSON object")
+{
+  const ccf::crypto::ECKeyPair_OpenSSL key_pair(
+    ccf::crypto::CurveID::SECP384R1);
+  const auto public_key = key_pair.public_key_pem();
+  const ccf::ServiceSigningKeys keys{
+    {ccf::SigningKeyType::CLASSICAL, public_key}};
+
+  const nlohmann::json j = keys;
+  REQUIRE(j == nlohmann::json{{"CLASSICAL", public_key.str()}});
+  REQUIRE(j.get<ccf::ServiceSigningKeys>() == keys);
 }

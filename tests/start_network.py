@@ -128,6 +128,20 @@ def run(args):
                 LOG.warning(f"Storing previous service's cert at {backup_location}")
                 shutil.copy(previous_service_cert, backup_location)
                 args.previous_service_identity_file = backup_location
+                signing_key_file = os.path.join(
+                    args.common_dir, "service_signing_key_classical.pem"
+                )
+                args.previous_service_signing_key_files = (
+                    infra.network.save_service_signing_keys(
+                        backup_location,
+                        args.common_dir,
+                        (
+                            {"CLASSICAL": signing_key_file}
+                            if os.path.exists(signing_key_file)
+                            else None
+                        ),
+                    )
+                )
 
                 network.start_in_recovery(
                     args,

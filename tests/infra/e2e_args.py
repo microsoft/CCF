@@ -72,6 +72,8 @@ CLI_ARGUMENT_CONFIG_PATHS = {
     ),
     "reconfiguration_type": None,
     "previous_service_identity_file": None,
+    "previous_service_signing_key_files": None,
+    "recovery_service_cert_subject_name": "command.recover.service_cert_subject_name",
     "config_file": None,
     "max_http_body_size": ("network.rpc_interfaces.*.http_configuration.max_body_size"),
     "max_http_header_size": (

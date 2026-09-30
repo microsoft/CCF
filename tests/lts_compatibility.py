@@ -774,6 +774,11 @@ def run_ledger_compatibility_since_first(
                     args.previous_service_identity_file = os.path.join(
                         service_dir, "common", "service_cert.pem"
                     )
+                    args.previous_service_signing_key_files = (
+                        infra.network.save_service_signing_keys(
+                            args.previous_service_identity_file, new_common
+                        )
+                    )
 
                     network.start_in_recovery(
                         args,

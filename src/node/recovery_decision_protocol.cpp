@@ -206,7 +206,10 @@ namespace ccf
             tx.ro<PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
               ->get();
           AbstractGovernanceEffects::ServiceIdentities identities{
-            .previous = prev_ident, .next = service_info->cert};
+            .previous = prev_ident,
+            .next = service_info->cert,
+            .previous_signing_keys =
+              node_state->startup_inputs.previous_service_signing_keys};
 
           sm_state_handle->put(
             recovery_decision_protocol::StateMachine::OPENING);

@@ -4,6 +4,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/kv/serialisers/blit_serialiser.h"
+#include "ccf/service_signing_keys.h"
 
 #include <cstdint>
 #include <map>
@@ -25,7 +26,8 @@ namespace ccf
 
   DECLARE_JSON_ENUM(
     IdentityType,
-    {{IdentityType::CLASSICAL, "CLASSICAL"}, {IdentityType::PQ, "PQ"}});
+    {{IdentityType::CLASSICAL, SigningKeyType::CLASSICAL},
+     {IdentityType::PQ, SigningKeyType::PQ}});
 
   /// Encoding of the certificate or public key held by an identity.
   enum class IdentityKind : uint8_t

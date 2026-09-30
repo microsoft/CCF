@@ -30,6 +30,7 @@ namespace ccf
     const ccf::CCFConfig& ccf_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
+    ServiceSigningKeys& service_signing_keys,
     std::vector<uint8_t>& rpc_addresses,
     StartType start_type,
     ccf::LoggerLevel log_level,
@@ -145,7 +146,12 @@ namespace ccf
     try
     {
       status = enclave->create_new_node(
-        start_type, ccf_config, node_cert, service_cert, rpc_addresses);
+        start_type,
+        ccf_config,
+        node_cert,
+        service_cert,
+        service_signing_keys,
+        rpc_addresses);
     }
     catch (...)
     {

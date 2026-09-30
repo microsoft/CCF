@@ -1016,7 +1016,7 @@ def test_recovery_elections(orig_network, args):
 
         r = c.get("/node/network")
         assert r.status_code == 200, r
-        previous_identity = orig_network.save_service_identity(args)
+        orig_network.save_service_identity(args)
         c.wait_for_commit(
             orig_network.consortium.set_recovery_threshold(old_primary, 1)
         )
@@ -1041,11 +1041,11 @@ def test_recovery_elections(orig_network, args):
     )
     new_primary, new_backups = network.find_nodes()
     network.consortium.transition_service_to_open(
-        new_primary, previous_service_identity=previous_identity
+        new_primary, **infra.network.get_previous_service_identity(args)
     )
 
     with new_primary.client("user0") as c:
-        previous_identity = network.save_service_identity(args)
+        network.save_service_identity(args)
 
     member = network.consortium.get_active_recovery_participants()[0]
 

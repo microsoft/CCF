@@ -12,9 +12,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - TAV's CBOR C++ API (`<tav/cbor.hpp>`) is now installed with CCF's headers (#8467).
+- Service signing public-key files can be exported on `Start` and `Recover` through `command.service_signing_key_files`, which defaults to writing `service_signing_key_classical.pem`, and supplied for recovery through `command.recover.previous_service_signing_key_files`. Recovery requires previous signing keys, a certificate, or both. The public header `ccf/service_signing_keys.h` exposes `ccf::ServiceSigningKeys` and `ccf::SigningKeyType`. Key-based verification of legacy JSON snapshots uses the new pure virtual `ccf::crypto::Verifier::verify_certificate_signature()` method, which checks the node certificate's signature rather than its X.509 chain; custom `Verifier` implementations must implement it. See [node configuration](doc/operations/configuration.rst).
+- `command.recover.service_cert_subject_name` sets the recovered service's TLS certificate subject, taking precedence over inheritance from the previous certificate. If both are supplied, their subjects must match or startup fails before node setup. When omitted, the previous certificate's subject is inherited if available; otherwise the default is `CN=CCF Service`. The existing start option remains `command.start.service_subject_name`.
 
 ### Changed
 
+- The `transition_service_to_open` proposal accepts `previous_service_signing_keys`, a map of identity types to PEM public keys. Supplied keys take precedence over the previous certificate, without certificate fallback on key-verification failure; `next_service_identity` remains a PEM certificate. The native `ccf.node.transitionServiceToOpen()` binding accepts the JSON-encoded key map as an optional third `ArrayBuffer` argument, preserving existing two-argument calls. See [accepting recovery](doc/governance/accept_recovery.rst).
 - `ccf::NodeConfigurationState::node_config` now exposes the operator configuration as `ccf::CCFConfig`, declared in `ccf/node/configuration.h`. It is the type parsed from the operator JSON configuration, so command-specific settings are under `command.start`, `command.join`, and `command.recover`, and file paths are exposed as configured. File-backed inputs are read once by the node when it is created, rather than being resolved by the host into a second startup configuration type. A missing or malformed input file now fails node creation with an error naming that file, rather than exiting the host process. The operator JSON format and the node-to-node genesis format are unchanged. `StartType` is now declared in `ccf/node/start_type.h` in the `ccf` namespace (#8309, #7565).
 - Resolved node data is now available to applications as `ccf::NodeConfigurationState::node_data`, alongside `node_config` (#8309).
 - A node joining a service no longer reads `service_data_json_file`, which is only used when starting or recovering a service. Previously a missing file failed a joining node at startup; it now starts and logs that the setting is ignored (#8309).
@@ -24,6 +27,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Deprecated
 
+- The `previous_service_identity` proposal argument and `command.recover.previous_service_identity_file` configuration option are deprecated in favour of the corresponding signing-key inputs. Certificate-based fallback remains supported when signing keys are omitted. In C++, `ccf::CCFConfig::Command::Recover::previous_service_identity_file` is now `std::optional<std::string>`.
 - The public headers `ccf/node/cose_signatures_config.h` and `ccf/service/reconfiguration_type.h` are deprecated, and will be removed in 8.0. They are kept for source compatibility only, include `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively, and emit a compiler warning when included. Applications should include the new headers instead (#8463).
 
 ### Removed
