@@ -64,11 +64,11 @@ Notes:
     and performance code.
   - Requires llvm-profdata, llvm-cov and python3 (any of -18 / -15 suffixed
     llvm variants are also accepted).
-  - The TOTAL row's line coverage is corrected to count each physical source
-    line once (scripts/coverage_lines.py), rather than llvm-cov's own
-    per-function summary, which distorts C++ line totals. Branch coverage
-    and all per-file rows are unmodified llvm-cov output. See
-    scripts/coverage_lines.py for why.
+  - Line coverage, per file and in the TOTAL row, is corrected to count each
+    physical source line once (scripts/coverage_lines.py), rather than
+    llvm-cov's own per-function summary, which distorts C++ line counts. All
+    other columns, including branch coverage, are unmodified llvm-cov output.
+    See scripts/coverage_lines.py for why.
 EOF
   exit 0
 }
@@ -229,9 +229,9 @@ mapfile -t COV_ARGS < <(build_cov_args)
 #
 # llvm-cov's own report computes line coverage per function then sums per
 # file, which distorts C++ totals (see scripts/coverage_lines.py for why).
-# The TOTAL row's line count/missed/coverage is patched below to count each
-# physical source line once instead; all other columns, and every per-file
-# row, are unmodified llvm-cov output.
+# The line count/missed/coverage of each per-file row and of the TOTAL row is
+# patched below to count each physical source line once instead; all other
+# columns are unmodified llvm-cov output.
 # ---------------------------------------------------------------------------
 REPORT_FILE=$(mktemp)
 trap 'rm -f "${REPORT_FILE}"' EXIT
@@ -285,6 +285,6 @@ if [[ -n "${HTML_DIR}" ]]; then
   "${LLVM_COV}" show "${COV_ARGS[@]}" --format=html --output-dir="${HTML_DIR}"
   echo "HTML report written to '${HTML_DIR}/index.html'"
   echo "Note: the HTML index totals use llvm-cov's own per-function summary,"
-  echo "not the corrected line count above. Each file's own source view is"
+  echo "not the corrected line counts above. Each file's own source view is"
   echo "unaffected, and already shows every line once."
 fi
