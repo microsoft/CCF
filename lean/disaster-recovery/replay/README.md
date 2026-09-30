@@ -86,7 +86,9 @@ The newest pair has no next pair. Its writer is replayed if it is the only
 execution that writes, or if a retry read a later `sm_state` version, which it
 must then have written. A later `committed` record, if present, confirms that
 the newest writer committed and, when a later retry read its `sm_state`
-version, must agree with that version. A replayed execution is its state
+version, must agree with that version; otherwise it must be higher than both
+versions of the newest pair, since the writer read that pair. A replayed
+execution is its state
 observation, its action, the notifications it emitted and the state it
 recorded writing. A retry is its action and the messages it sent. Messages of
 executions that are not replayed stay in the network, as any undelivered

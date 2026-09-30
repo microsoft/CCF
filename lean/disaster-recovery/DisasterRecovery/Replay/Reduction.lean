@@ -305,7 +305,6 @@ private def reduceNode (node : Location) (records : Array TraceEvent)
     if next.isNone && writer.any (fun (e, x) => (writes e x).1) then
       items := items ++ (retries.filter (later.contains ·.1)).toArray.map (.retry ·.2)
   let knownCommitted := committedWrites.tail
-  let highestKnown := committedWrites.getLast!.1
   let mut latestCommittedSeen := false
   for (event, post, version) in committeds.drop 1 do
     if let some (_, expectedPost) := knownCommitted.find? (·.1 == version) then
@@ -322,7 +321,7 @@ private def reduceNode (node : Location) (records : Array TraceEvent)
         require (version == expectedVersion)
           s!"{event.record.location}: committed version {version} does not match the newest writer's committed sm_state version {expectedVersion}"
       else
-        require (version > highestKnown)
+        require (version > newest)
           s!"{event.record.location}: committed version {version} is not on the replayed sm_state chain"
       require (post == expectedPost)
         s!"{event.record.location}: committed phase {phaseText post} does not match the newest writer, which wrote {phaseText expectedPost}"
