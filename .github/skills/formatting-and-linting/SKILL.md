@@ -42,7 +42,6 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | `ascii-checks.sh`         | Source/config files and agent-instruction Markdown           | ASCII policy and grandfathered Unicode lines       | No                |
 | `ascii-policy-tests.sh`   | ASCII policy/checker changes                                 | ASCII policy regression tests                      | No                |
 | `test-buckets-checks.sh`  | CMake test registration, defaults, or `tests/ci-buckets.txt` | Fresh configure and CI bucket inventory comparison | No                |
-| `coverage-lines-tests.sh` | `coverage_lines.py`, `coverage_summary.py`, `coverage.sh`    | Distinct-line coverage counting unit tests         | No                |
 
 Some report-only scripts accept `-f` for interface compatibility without changing files. For Rust or other file types not covered by a formatter above, consult their existing build/CI configuration rather than introducing a new tool.
 
