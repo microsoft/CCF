@@ -2,8 +2,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Patch an ``llvm-cov report`` TOTAL row's line coverage to count each
-physical source line once, instead of llvm-cov's own per-function summary.
+"""Patch an ``llvm-cov report``'s per-file and TOTAL line coverage to count
+each physical source line once, instead of llvm-cov's own per-function
+summary.
 
 llvm-cov computes line coverage per function, then sums per file (``report``,
 the HTML index, and ``llvm-cov export``'s own ``LF``/``LH`` records). This
@@ -19,13 +20,13 @@ distorts C++ totals two ways:
    again for its enclosing function.
 
 The per-line ``DA:`` records (and ``llvm-cov show``'s source view) are not
-affected: each physical line is reported once. This module recomputes the
-line total from ``DA:`` records and substitutes it into the TOTAL row of an
-``llvm-cov report`` text, leaving every other column and every per-file row
-as llvm-cov printed them. This does move what counts as "one line" for
-macros: a macro's definition gets one aggregate ``DA:`` record (summed
-across expansions) plus one per expansion site, since these are different
-physical lines -- matching ``llvm-cov show``.
+affected: each physical line is reported once. This module recomputes each
+file's line counts, and their total, from ``DA:`` records and substitutes
+them into the per-file and TOTAL rows of an ``llvm-cov report`` text,
+leaving every other column as llvm-cov printed it. This does move what
+counts as "one line" for macros: a macro's definition gets one aggregate
+``DA:`` record (summed across expansions) plus one per expansion site,
+since these are different physical lines -- matching ``llvm-cov show``.
 
 Branch coverage is deliberately NOT recomputed here. ``BranchCoverageInfo::
 merge`` has the same max()-merge problem, but counting ``BRDA:`` records
@@ -43,7 +44,7 @@ per-branch-region reconciliation is implemented and verified.
 import argparse
 import re
 import sys
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, Iterable, List, NamedTuple, Optional
 
 
 def _percentage(hit: int, found: int) -> Optional[float]:
@@ -107,49 +108,83 @@ def aggregate(files: Dict[str, FileLineCoverage]) -> FileLineCoverage:
     return FileLineCoverage(lines_found, lines_hit)
 
 
-# Token indices of an ``llvm-cov report`` TOTAL row's Lines group, after
-# splitting on runs of whitespace while keeping the whitespace itself (so
-# every other column's original spacing survives untouched), e.g.:
+# Token indices of an ``llvm-cov report`` row's Lines group, after splitting
+# on runs of whitespace while keeping the whitespace itself (so every other
+# column's original spacing survives untouched), e.g.:
 #   TOTAL  123860 19651 84.13%  4579 1274 72.18%  84414 26245 68.91%  ...
-# Index 0 is "TOTAL"; 2/4/6 are Regions, 8/10/12 Functions, 14/16/18 Lines
-# (replaced below), 20/22/24 Branches (if present).
-_TOTAL_LINES_FOUND_INDEX = 14
-_TOTAL_MISSED_LINES_INDEX = 16
-_TOTAL_LINE_COVER_INDEX = 18
+# Index 0 is the file name, or "TOTAL"; 2/4/6 are Regions, 8/10/12
+# Functions, 14/16/18 Lines (replaced below), 20/22/24 Branches (if present).
+_LINES_FOUND_INDEX = 14
+_MISSED_LINES_INDEX = 16
+_LINE_COVER_INDEX = 18
 
 
-def patch_total_line(report_text: str, total: FileLineCoverage) -> str:
-    """Replace the Lines/Missed Lines/Cover columns of the TOTAL row in an
-    ``llvm-cov report`` text with the corrected distinct-line counts.
+def _paths_by_suffix(paths: Iterable[str]) -> Dict[str, str]:
+    """Map each path, and each suffix of it that starts after a ``/``, to the
+    shortest of the paths it is a suffix of.
 
-    Every other column, and every per-file row, is returned unmodified.
+    ``llvm-cov report`` names each file by its path with the leading
+    components common to all files removed, so a row's name is one of these
+    suffixes of its LCOV ``SF:`` path. Other paths ending with the same
+    suffix are in subdirectories of the common prefix, so are longer.
     """
+    by_suffix: Dict[str, str] = {}
+    for path in paths:
+        suffixes = [path] + [path[i + 1 :] for i, c in enumerate(path) if c == "/"]
+        for suffix in suffixes:
+            if suffix not in by_suffix or len(path) < len(by_suffix[suffix]):
+                by_suffix[suffix] = path
+    return by_suffix
+
+
+def patch_report(report_text: str, files: Dict[str, FileLineCoverage]) -> str:
+    """Replace the Lines/Missed Lines/Cover columns of each per-file row, and
+    of the TOTAL row, of an ``llvm-cov report`` text with the corrected
+    distinct-line counts.
+
+    Every other column is returned unmodified. Raises ``ValueError`` if a row
+    with lines has no LCOV record, rather than leave it uncorrected.
+    """
+    by_suffix: Dict[str, str] = _paths_by_suffix(files)
+    total: FileLineCoverage = aggregate(files)
+    patched_total = False
     lines: List[str] = report_text.splitlines()
     for i, line in enumerate(lines):
-        if not line.startswith("TOTAL "):
-            continue
         tokens: List[str] = re.split(r"(\s+)", line)
+        if len(tokens) <= _LINE_COVER_INDEX or not tokens[_LINES_FOUND_INDEX].isdigit():
+            continue
+        name: str = tokens[0]
+        if name == "TOTAL":
+            coverage = total
+            patched_total = True
+        elif name in by_suffix:
+            coverage = files[by_suffix[name]]
+        elif tokens[_LINES_FOUND_INDEX] == "0":
+            continue
+        else:
+            raise ValueError(f"No LCOV record found for {name}")
         replacements = {
-            _TOTAL_LINES_FOUND_INDEX: str(total.lines_found),
-            _TOTAL_MISSED_LINES_INDEX: str(total.lines_found - total.lines_hit),
-            _TOTAL_LINE_COVER_INDEX: _format_percentage(total.line_coverage),
+            _LINES_FOUND_INDEX: str(coverage.lines_found),
+            _MISSED_LINES_INDEX: str(coverage.lines_found - coverage.lines_hit),
+            _LINE_COVER_INDEX: _format_percentage(coverage.line_coverage),
         }
         for index, value in replacements.items():
             tokens[index] = value.rjust(max(len(tokens[index]), len(value)))
         lines[i] = "".join(tokens)
-        return "\n".join(lines)
-    raise ValueError("No TOTAL row found in llvm-cov report output")
+    if not patched_total:
+        raise ValueError("No TOTAL row found in llvm-cov report output")
+    return "\n".join(lines)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Patch an 'llvm-cov report' TOTAL row's line coverage from an "
-            "'llvm-cov export -format=lcov' report, counting each physical "
-            "source line once regardless of how many template "
+            "Patch an 'llvm-cov report''s per-file and TOTAL line coverage "
+            "from an 'llvm-cov export -format=lcov' report, counting each "
+            "physical source line once regardless of how many template "
             "instantiations or enclosing lambdas cover it. Every other "
-            "column, and every per-file row, is left unmodified. Branch "
-            "coverage is not recomputed; see the module docstring for why."
+            "column is left unmodified. Branch coverage is not recomputed; "
+            "see the module docstring for why."
         )
     )
     parser.add_argument("report_file", help="Path to 'llvm-cov report' text output")
@@ -174,8 +209,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not files:
         print("No LCOV records found.", file=sys.stderr)
         return 1
-    total = aggregate(files)
-    print(patch_total_line(report_text, total))
+    print(patch_report(report_text, files))
     return 0
 
 
