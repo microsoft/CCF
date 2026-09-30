@@ -29,6 +29,9 @@ The SNP Genoa CI job runs its tests with `CCF_RECOVERY_TRACE=1`, which
 protocol scenarios only run traced there. After the quorum, failover and
 multiple-timeout scenarios in `tests/e2e_operations.py`,
 `tests/infra/recovery_trace.py` runs the replayer on the nodes' logs.
+`.github/workflows/lean.yml` also builds the replayer and runs
+`tests/infra/recovery_trace_mutations.py` against committed fixtures of those
+three scenarios.
 
 ## Records
 
@@ -151,6 +154,89 @@ that every discarded handler record is one valid local step from the snapshot
 it logged, and that committed and configuration records agree with the replayed
 chain. It still does not show behaviour that no record shows, or liveness.
 Review the rules against the C++ they name.
+
+## Mutation test
+
+`tests/infra/recovery_trace_mutations.py` is the maintained regression test
+for the validator. It replays the committed fixtures in
+`lean/disaster-recovery/replay/fixtures/`, checks targeted negative and benign
+mutations with explicit expectations, and then sweeps sampled records with
+single-field perturbations. The sweep may pass only for a small explicit
+allowlist of harmless cases where no other record can constrain the changed
+value.
+
+Run it from the repository root after building the replayer:
+
+```bash
+cd lean/disaster-recovery
+lake build disaster-recovery-replay
+cd ../..
+python3 tests/infra/recovery_trace_mutations.py \
+  lean/disaster-recovery/.lake/build/bin/disaster-recovery-replay \
+  lean/disaster-recovery/replay/fixtures
+```
+
+To refresh the fixtures from a traced SNP run's `logs-caci-snp-genoa`
+artifact, download and extract it, then keep only the `RDP_TRACE ` lines from
+the three recovery-decision-protocol scenarios:
+
+```bash
+gh api repos/microsoft/CCF/actions/artifacts/ARTIFACT_ID/zip > artifact.zip
+python3 - <<'PY'
+import json
+import pathlib
+import zipfile
+
+workspace = pathlib.Path("artifact-extracted")
+with zipfile.ZipFile("artifact.zip") as zf:
+    zf.extractall(workspace)
+
+sources = {
+    "quorum": (
+        3,
+        "QUORUM",
+        [
+            "platform_snp_platform_tests_recovery_decision_protocol_3/out",
+            "platform_snp_platform_tests_recovery_decision_protocol_4/out",
+            "platform_snp_platform_tests_recovery_decision_protocol_5/out",
+        ],
+    ),
+    "timeout": (
+        1,
+        "FAILOVER",
+        ["platform_snp_platform_tests_recovery_decision_protocol_timeout_3/out"],
+    ),
+    "multiple-timeout": (
+        3,
+        "FAILOVER",
+        [
+            "platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_3/out",
+            "platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_4/out",
+            "platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_5/out",
+        ],
+    ),
+}
+
+marker = "RDP_TRACE "
+fixtures = pathlib.Path("lean/disaster-recovery/replay/fixtures")
+for name, (participants, open_kind, relpaths) in sources.items():
+    scenario = fixtures / name
+    scenario.mkdir(parents=True, exist_ok=True)
+    (scenario / "scenario.json").write_text(
+        json.dumps({"participants": participants, "open_kind": open_kind}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    for relpath in relpaths:
+        source = workspace / "build/workspace" / relpath
+        lines = []
+        with source.open(encoding="utf-8", errors="surrogateescape") as f:
+            for line in f:
+                index = line.find(marker)
+                if index >= 0:
+                    lines.append(line[index:])
+        (scenario / f"{source.parent.name}.out").write_text("".join(lines), encoding="utf-8")
+PY
+```
 
 `Config.isValid` requires an instance identifier, which traces do not carry,
 so the replayer uses a fixed one. A node that never gossips never reads its
