@@ -133,7 +133,15 @@ The ``.committed_prefix`` suffix distinguishes this synthetic resource from a ca
 
 Both the temporary redirect and the committed-prefix response include ``Cache-Control: no-store``. The response also includes ``x-ms-ccf-ledger-chunk-kind: committed-prefix``. Clients must not archive, install, or use this resource for recovery as though it were a canonical ``.committed`` file. In particular, committed-prefix files are ignored by ledger directory discovery, both by nodes and by :py:class:`ccf.ledger.Ledger`, and can only be read individually with :py:class:`ccf.ledger.LedgerChunk`.
 
+Committed prefixes give clients such as auditors timely access to recent committed entries, but do not replace canonical files in backups.
+A client which tracks its progress with ``since`` must not advance it past a committed prefix: having received ``ledger_101-140.committed_prefix`` for ``since=101``, it should keep requesting ``since=101`` until it receives a canonical file, such as ``ledger_101-150.committed``.
+Committed prefixes are best stored apart from canonical files, for example in a separate directory, and discarded once a canonical file covering their range has been obtained.
+
 The ``307`` redirect intentionally differs from the ``308 Permanent Redirect`` used for canonical ``.committed`` files. A physical chunk's name and range are final, while the committed-prefix range selected for the same ``since`` value may grow as the commit watermark advances. The exact ``.committed_prefix`` URL is immutable once returned, so it remains suitable for retrying or resuming that specific download.
+
+Committed-prefix URLs are not immutable across a recovery from a ledger which is missing some of their transactions, for example from canonical backups alone: these transactions are not part of the recovered service's history, and the same URL may then serve different content.
+Operators should avoid this by recovering from the most recent ledger files available.
+Should it happen, receipts for the missing transactions can be used to :ref:`denounce the recovery <audit/receipts:Denounce an invalid recovery>`.
 
 More than one contiguous committed prefix can be available. For example, physical chunking may have produced unsuffixed files ``ledger_101-150`` and ``ledger_151-200`` before the commit watermark catches up to 200. The API preserves these physical boundaries and can expose ``ledger_101-150.committed_prefix`` followed by ``ledger_151-200.committed_prefix``.
 
