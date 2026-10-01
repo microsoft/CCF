@@ -4,7 +4,10 @@ on:
   pull_request:
     paths:
       - "tla/**"
-      - "src/consensus/aft/raft.h"
+      - "lean/ccf-raft/**"
+      - "src/consensus/aft/**"
+      - "tests/raft_scenarios/**"
+      - "tests/raft_scenarios*.py"
       - ".github/workflows/tla-shallow.yml"
 
 concurrency:
@@ -79,6 +82,7 @@ jobs:
           python3 tla/install_deps.py --tdnf-extended
 
       - name: "Build"
+        id: raft_driver
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
@@ -105,6 +109,53 @@ jobs:
           mv ../build/consensus traces/
           parallel './tlc.py --workers 1 --dot --trace-name {} tv --ccf-raft-trace {} consensus/Traceccfraft.tla' ::: traces/consensus/*.ndjson
         shell: bash
+
+      - name: Install pinned Lean toolchain
+        id: lean_toolchain
+        if: ${{ !cancelled() && steps.raft_driver.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tdnf install -y curl tar zstd
+          toolchain=$(< lean/ccf-raft/lean-toolchain)
+          if [[ ! "$toolchain" =~ ^leanprover/lean4:v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "Unsupported Lean toolchain: $toolchain" >&2
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}"
+          archive="$RUNNER_TEMP/lean-$version-linux.tar.zst"
+          curl --fail --location --retry 3 \
+            "https://releases.lean-lang.org/lean4/v$version/lean-$version-linux.tar.zst" \
+            --output "$archive"
+          tar --zstd -xf "$archive" -C "$RUNNER_TEMP"
+          rm -- "$archive"
+          echo "$RUNNER_TEMP/lean-$version-linux/bin" >> "$GITHUB_PATH"
+
+      - name: Build Lean trace replayer
+        id: lean_replayer
+        if: ${{ !cancelled() && steps.lean_toolchain.outcome == 'success' }}
+        working-directory: lean/ccf-raft
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake exe cache get Mathlib.Data.Finset.Card Mathlib.Data.Finset.Lattice.Fold
+          lake build ccfraft-replay
+
+      - name: Validate every Raft scenario with Lean
+        if: ${{ !cancelled() && steps.lean_replayer.outcome == 'success' }}
+        working-directory: lean/ccf-raft
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 replay/run_scenarios.py ../../build/raft_driver \
+            --output ../../build/lean-raft-traces
+
+      - name: Upload Lean trace-validation artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: lean-trace-validation-consensus
+          path: build/lean-raft-traces/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
