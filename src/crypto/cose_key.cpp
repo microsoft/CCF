@@ -51,6 +51,9 @@ namespace
   // OpenSSL's, limits the cost of verifying with a supplied key.
   constexpr size_t RSA_MIN_MODULUS_BITS = 2048;
   constexpr size_t RSA_MAX_MODULUS_BITS = 16384;
+  // OpenSSL's bound on e for moduli above 3072 bits. It also limits the cost of
+  // verifying with smaller moduli, and keeps e below n.
+  constexpr size_t RSA_MAX_EXPONENT_SIZE = 8;
 
   constexpr uint8_t SEC1_UNCOMPRESSED_POINT = 0x04;
 
@@ -103,17 +106,14 @@ namespace
     COSEKeyType kty,
     std::vector<tav::cbor::MapItem>&& items,
     std::optional<int64_t> alg,
-    const std::optional<std::string>& kid)
+    std::optional<std::span<const uint8_t>> kid)
   {
     using namespace tav::cbor;
     items.emplace_back(
       make_signed(LABEL_KTY), make_signed(static_cast<int64_t>(kty)));
     if (kid.has_value())
     {
-      items.emplace_back(
-        make_signed(LABEL_KID),
-        make_bytes(
-          {reinterpret_cast<const uint8_t*>(kid->data()), kid->size()}));
+      items.emplace_back(make_signed(LABEL_KID), make_bytes(kid.value()));
     }
     if (alg.has_value())
     {
@@ -125,7 +125,7 @@ namespace
   std::vector<uint8_t> encode_cose_key(
     const COSEKey::EC2Parameters& parameters,
     std::optional<int64_t> alg,
-    const std::optional<std::string>& kid)
+    std::optional<std::span<const uint8_t>> kid)
   {
     using namespace tav::cbor;
     std::vector<MapItem> items;
@@ -138,7 +138,7 @@ namespace
   std::vector<uint8_t> encode_cose_key(
     const COSEKey::RSAParameters& parameters,
     std::optional<int64_t> alg,
-    const std::optional<std::string>& kid)
+    std::optional<std::span<const uint8_t>> kid)
   {
     using namespace tav::cbor;
     std::vector<MapItem> items;
@@ -160,6 +160,18 @@ namespace
   {
     const auto jwk = key.public_key_jwk();
     return {.n = raw_from_b64url(jwk.n), .e = raw_from_b64url(jwk.e)};
+  }
+
+  std::vector<uint8_t> encode_cose_key(
+    const std::variant<ECPublicKeyPtr, RSAPublicKeyPtr>& key,
+    std::optional<int64_t> alg,
+    std::optional<std::span<const uint8_t>> kid)
+  {
+    return std::visit(
+      [&](const auto& typed) {
+        return encode_cose_key(parameters_of(*typed), alg, kid);
+      },
+      key);
   }
 
   template <typename T>
@@ -323,17 +335,14 @@ namespace
     return value;
   }
 
-  RSAPublicKeyPtr parse_rsa(const Value& map)
+  // n and e are big-endian, without leading zero octets
+  void check_rsa_parameters(const COSEKey::RSAParameters& parameters)
   {
-    if (has_private_rsa_parts(map))
-    {
-      invalid("private key parameters are not accepted");
-    }
-    COSEKey::RSAParameters parameters;
-    parameters.n = require_unsigned(map, LABEL_RSA_N, "n");
-    parameters.e = require_unsigned(map, LABEL_RSA_E, "e");
-    const size_t modulus_bits = ((parameters.n.size() - 1) * 8) +
-      static_cast<size_t>(std::bit_width(parameters.n.front()));
+    const auto& n = parameters.n;
+    const auto& e = parameters.e;
+    const size_t modulus_bits = n.empty() ?
+      0 :
+      ((n.size() - 1) * 8) + static_cast<size_t>(std::bit_width(n.front()));
     if (
       modulus_bits < RSA_MIN_MODULUS_BITS ||
       modulus_bits > RSA_MAX_MODULUS_BITS)
@@ -343,14 +352,25 @@ namespace
         RSA_MIN_MODULUS_BITS,
         RSA_MAX_MODULUS_BITS));
     }
-    // e has no leading zero octets, so if it is odd and not 1, it is at
-    // least 3.
+    // Without leading zero octets, an odd e other than 1 is at least 3
     if (
-      (parameters.e.back() & 1U) == 0 ||
-      (parameters.e.size() == 1 && parameters.e.front() == 1))
+      e.empty() || e.size() > RSA_MAX_EXPONENT_SIZE || (e.back() & 1U) == 0 ||
+      (e.size() == 1 && e.front() == 1))
     {
-      invalid("e must be odd and at least 3");
+      invalid("e must be odd, at least 3 and at most 64 bits long");
     }
+  }
+
+  RSAPublicKeyPtr parse_rsa(const Value& map)
+  {
+    if (has_private_rsa_parts(map))
+    {
+      invalid("private key parameters are not accepted");
+    }
+    COSEKey::RSAParameters parameters;
+    parameters.n = require_unsigned(map, LABEL_RSA_N, "n");
+    parameters.e = require_unsigned(map, LABEL_RSA_E, "e");
+    check_rsa_parameters(parameters);
     // The JWK form of the key, which CCF imports
     JsonWebKeyRSAPublic jwk;
     jwk.kty = JsonWebKeyType::RSA;
@@ -428,7 +448,13 @@ namespace ccf::crypto
 
   COSEKey COSEKey::from_der_cert(std::span<const uint8_t> der)
   {
-    return cose_key_from_der_cert(der);
+    auto key = cose_key_from_der_cert(der);
+    const auto rsa = key.rsa_parameters();
+    if (rsa.has_value())
+    {
+      check_rsa_parameters(rsa.value());
+    }
+    return key;
   }
 
   COSEKeyType COSEKey::kty() const
@@ -481,23 +507,24 @@ namespace ccf::crypto
     return key == nullptr ? nullptr : *key;
   }
 
-  std::vector<uint8_t> COSEKey::to_cbor(
-    const std::optional<std::string>& kid) const
+  std::vector<uint8_t> COSEKey::to_cbor() const
   {
-    return std::visit(
-      [&](const auto& key) {
-        return encode_cose_key(parameters_of(*key), key_alg, kid);
-      },
-      public_key);
+    return encode_cose_key(public_key, key_alg, std::nullopt);
+  }
+
+  std::vector<uint8_t> COSEKey::to_cbor(std::span<const uint8_t> kid) const
+  {
+    return encode_cose_key(public_key, key_alg, kid);
+  }
+
+  std::vector<uint8_t> COSEKey::to_cbor(std::string_view kid) const
+  {
+    return to_cbor(std::span<const uint8_t>(
+      reinterpret_cast<const uint8_t*>(kid.data()), kid.size()));
   }
 
   Sha256Hash COSEKey::thumbprint_sha256() const
   {
-    return std::visit(
-      [](const auto& key) {
-        return Sha256Hash(
-          encode_cose_key(parameters_of(*key), std::nullopt, std::nullopt));
-      },
-      public_key);
+    return Sha256Hash(encode_cose_key(public_key, std::nullopt, std::nullopt));
   }
 }

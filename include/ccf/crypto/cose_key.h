@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
-#include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -61,7 +61,13 @@ namespace ccf::crypto
      */
     explicit COSEKey(ECPublicKeyPtr key);
 
-    /// @throws std::invalid_argument if key is null
+    /**
+     * The key is not checked against the requirements of from_cbor(), so if
+     * it does not meet them, as an RSA key of fewer than 2048 bits does not,
+     * from_cbor() rejects its encoding.
+     *
+     * @throws std::invalid_argument if key is null
+     */
     explicit COSEKey(RSAPublicKeyPtr key);
 
     /**
@@ -69,7 +75,8 @@ namespace ccf::crypto
      *
      * Only public keys are accepted: EC2 keys whose coordinates have the
      * curve's field size and form a point on the curve, and RSA keys of 2048
-     * to 16384 bits. Compressed points, and RSA parameters with leading zero
+     * to 16384 bits whose public exponent is odd, at least 3 and at most 64
+     * bits long. Compressed points, and RSA parameters with leading zero
      * octets, are rejected, so that each key has a single encoding and
      * thumbprint. "alg", if present, must be an algorithm that CCF can verify
      * with the key, and "key_ops", if present, must allow verify. "kid" is not
@@ -80,7 +87,8 @@ namespace ccf::crypto
     [[nodiscard]] static COSEKey from_cbor(std::span<const uint8_t> cose_key);
 
     /**
-     * The public key of a DER X.509 certificate.
+     * The public key of a DER X.509 certificate, which may be untrusted. An
+     * RSA key must meet the same requirements as in from_cbor().
      *
      * @throws std::invalid_argument if the certificate cannot be parsed, or its
      * key is not supported
@@ -109,12 +117,24 @@ namespace ccf::crypto
 
     /**
      * Deterministically encoded COSE_Key (RFC 8949 Section 4.2.1), with kty,
-     * the key parameters, alg if set, and kid if given.
+     * the key parameters, and alg if set.
+     */
+    [[nodiscard]] std::vector<uint8_t> to_cbor() const;
+
+    /**
+     * As to_cbor(), with a key identifier.
      *
-     * @param kid Optional key identifier, encoded as a byte string
+     * @param kid Key identifier, encoded as a byte string
      */
     [[nodiscard]] std::vector<uint8_t> to_cbor(
-      const std::optional<std::string>& kid = std::nullopt) const;
+      std::span<const uint8_t> kid) const;
+
+    /**
+     * As to_cbor(), with a key identifier.
+     *
+     * @param kid Key identifier, whose bytes are encoded as a byte string
+     */
+    [[nodiscard]] std::vector<uint8_t> to_cbor(std::string_view kid) const;
 
     /// COSE Key Thumbprint (RFC 9679) with SHA-256.
     [[nodiscard]] Sha256Hash thumbprint_sha256() const;
