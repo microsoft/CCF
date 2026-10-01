@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/uvm_endorsements.h"
+#include "pal/uvm_endorsements.h"
 
 #include "ccf/ds/json.h"
 #include "crypto/cbor_helpers.h"

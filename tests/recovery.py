@@ -160,6 +160,30 @@ def get_step_down_commit_seqno(node):
     return None
 
 
+def wait_for_recovery_ledger_chunks_renamed(node, timeout=10):
+    """Wait until the node's host has renamed the ledger chunks written during
+    recovery. They keep a .recovery suffix, and are skipped by ledger reads that
+    exclude recovery files, until the host completes recovery. It does so
+    asynchronously, after the node sees the service opening commit, so this can
+    happen after the node reports that transaction as committed."""
+    ledger_dir = node.remote.current_ledger_path()
+    end_time = time.time() + timeout
+    while True:
+        recovery_chunks = [
+            f
+            for f in os.listdir(ledger_dir)
+            if f.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX)
+        ]
+        if not recovery_chunks:
+            return
+        if time.time() > end_time:
+            raise TimeoutError(
+                f"Node {node.node_id} still has recovery ledger chunks after "
+                f"{timeout}s: {recovery_chunks}"
+            )
+        time.sleep(0.1)
+
+
 def find_service_open_seqnos(node, from_seqno):
     """Return the seqnos after from_seqno, in the node's ledger, of the
     transactions which set the service status to Open."""
@@ -336,6 +360,7 @@ def recover_with_primary_dying(args, recovered_network, after_backups_recovered=
     recovered_network.wait_for_all_nodes_to_commit(primary=primary)
     open_seqno = None
     for node in recovered_network.get_joined_nodes():
+        wait_for_recovery_ledger_chunks_renamed(node)
         open_seqnos = find_service_open_seqnos(node, create_seqno)
         assert (
             len(open_seqnos) == 1

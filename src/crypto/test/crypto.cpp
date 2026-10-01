@@ -362,6 +362,21 @@ TEST_CASE("Sign, verify, with ECKeyPair")
   }
 }
 
+TEST_CASE("Sign, verify, with ECKeyPair (P-521, regression for #8428)")
+{
+  // Not part of supported_curves/labels above (shared by many other tests):
+  // some OpenSSL providers (eg - SymCrypt) report a smaller EVP_PKEY_size()
+  // for a P-521 key than the buffer their signing implementation actually
+  // needs, once the private key has been reconstructed from PEM. sign_hash()
+  // must size its buffer from the signing operation itself, not
+  // EVP_PKEY_size(), or signing fails with "output buffer too small".
+  auto kp = make_ec_key_pair(CurveID::SECP521R1);
+  auto kp2 = make_ec_key_pair(kp->private_key_pem());
+  vector<uint8_t> payload(contents_.begin(), contents_.end());
+  const vector<uint8_t> signature = kp2->sign(payload);
+  CHECK(kp->verify(payload, signature));
+}
+
 TEST_CASE("Sign, verify, with ECPublicKey")
 {
   for (const auto curve : supported_curves)
