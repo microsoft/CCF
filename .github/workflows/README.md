@@ -136,9 +136,7 @@ The job also builds `disaster-recovery-replay` and runs
 `tests/infra/recovery_trace_mutations.py` against committed quorum, failover,
 and multiple-timeout trace fixtures. The harness replays the unmodified traces,
 checks targeted negative and benign mutations, and sweeps sampled records for
-single-field perturbations; a sweep mutant may pass only if it changes a
-`version` or `wrote` field in a way that admits no commit order the original
-does not admit, which the harness checks.
+single-field perturbations, every one of which must fail.
 
 The Genoa SNP job in `ci.yml` builds the replayer, runs its tests with
 `CCF_RECOVERY_TRACE=1` so that recovering nodes log their recovery decision

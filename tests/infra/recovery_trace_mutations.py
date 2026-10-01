@@ -9,9 +9,8 @@ The fixtures are trace-only log excerpts for the quorum, failover, and
 multiple-timeout recovery-decision-protocol scenarios. The harness checks
 baseline replay, curated mutants grouped by kind with explicit pass/fail
 expectations, and a systematic sweep that perturbs one field of sampled
-records. Unexpected outcomes fail the script; a sweep mutant may pass only
-if it changes a `version` or `wrote` field in a way that admits no commit
-order the original does not admit, which the harness checks.
+records, every one of which must fail. Commit order is covered by targeted
+mutants rather than by sweeping `version` and `wrote`.
 """
 
 import collections
@@ -113,18 +112,13 @@ def other(state: dict, current: str, pool=None):
     return None
 
 
-def by_id(state: dict, cause_id: str):
-    node, sequence = cause_id.split(":")
-    for file_index, entry_index, record in recs(state):
-        if record["node"] == node and record["sequence"] == int(sequence):
-            return file_index, entry_index, record
-    return None
-
-
-def referenced(state: dict) -> set:
-    return {
-        record["caused_by"] for _, _, record in recs(state) if "caused_by" in record
-    }
+def envelope(record: dict) -> tuple:
+    """The (source, target, message) of a send or receive record."""
+    if record["kind"] == "send":
+        message, target = record["send"].split(":", 1)
+        return record["node"], target, message, record.get("txid")
+    message = record["kind"].removesuffix("_accepted")
+    return record["source"], record["node"], message, record.get("txid")
 
 
 def bump(txid: str, delta: int = 1) -> str:
@@ -307,39 +301,40 @@ def _retry_bad_version(state: dict) -> bool:
     return True
 
 
-def _delete_unreceived_send(state: dict) -> bool:
-    refs = referenced(state)
+def _delete_send_from_batch(state: dict) -> bool:
     batches = collections.Counter(
         (r["node"], r["batch"]) for _, _, r in recs(state) if r["kind"] == "send"
     )
     for file_index, entry_index, record in seqsorted(state):
-        if (
-            record["kind"] == "send"
-            and f"{record['node']}:{record['sequence']}" not in refs
-            and batches[(record["node"], record["batch"])] > 1
-        ):
+        if record["kind"] == "send" and batches[(record["node"], record["batch"])] > 1:
             state["logs"][file_index][entry_index]["deleted"] = True
             return True
     return False
 
 
-def _delete_unreceived_batch(state: dict, tail: bool) -> bool:
-    refs = referenced(state)
+def _delete_batch(state: dict, tail: bool) -> bool:
+    """Deletes a retry's sends, from the middle of a node's log or from its end.
+    A tail batch is only deleted if every receive still has a send to take."""
+    sends = collections.Counter(
+        envelope(r) for _, _, r in recs(state) if r["kind"] == "send"
+    )
+    receives = collections.Counter(
+        envelope(r) for _, _, r in recs(state) if "source" in r
+    )
     groups = collections.defaultdict(list)
-    per_node_max = collections.defaultdict(int)
+    last = collections.defaultdict(int)
     for file_index, entry_index, record in recs(state):
         if record["kind"] == "send":
             groups[(record["node"], record["batch"])].append(
                 (file_index, entry_index, record)
             )
-        per_node_max[record["node"]] = max(
-            per_node_max[record["node"]], record["sequence"]
-        )
-    for (node, batch), rows in sorted(groups.items()):
-        if any(f"{r['node']}:{r['sequence']}" in refs for _, _, r in rows):
+        last[record["node"]] = max(last[record["node"]], record["sequence"])
+    for (node, _), rows in sorted(groups.items()):
+        if (max(r["sequence"] for _, _, r in rows) == last[node]) != tail:
             continue
-        highest = max(r["sequence"] for _, _, r in rows)
-        if (highest == per_node_max[node]) != tail:
+        if tail and any(
+            sends[envelope(r)] <= receives[envelope(r)] for _, _, r in rows
+        ):
             continue
         for file_index, entry_index, _ in rows:
             state["logs"][file_index][entry_index]["deleted"] = True
@@ -348,18 +343,10 @@ def _delete_unreceived_batch(state: dict, tail: bool) -> bool:
 
 
 def m_txid_lie_send_only(state: dict) -> bool:
-    def has_send(r):
-        return (
-            r["kind"] == "gossip_accepted" and by_id(state, r["caused_by"]) is not None
-        )
-
-    target = find(state, lambda r: has_send(r) and r["source"] != r["node"]) or find(
-        state, has_send
-    )
+    target = find(state, lambda r: r["kind"] == "send" and "txid" in r, nth=1)
     if not target:
         return False
-    send = by_id(state, target[2]["caused_by"])[2]
-    send["txid"] = bump(send["txid"])
+    target[2]["txid"] = bump(target[2]["txid"])
     return True
 
 
@@ -393,75 +380,27 @@ def _txid_consistent(state: dict, raise_it: bool) -> bool:
     return True
 
 
-def m_caused_by_other_kind(state: dict) -> bool:
-    target = find(state, lambda r: r["kind"] == "vote_accepted")
-    if not target:
-        return False
-    record = target[2]
-    source = record["caused_by"].split(":")[0]
-    gossip = find(
-        state,
-        lambda r: r["kind"] == "send"
-        and r["node"] == source
-        and r["send"].startswith("gossip:"),
-    )
-    if not gossip:
-        return False
-    record["caused_by"] = f"{source}:{gossip[2]['sequence']}"
-    return True
-
-
-def m_drop_received_send(state: dict) -> bool:
-    target = find(
-        state,
-        lambda r: r["kind"] == "gossip_accepted"
-        and by_id(state, r["caused_by"]) is not None,
-    )
-    if not target:
-        return False
-    file_index, entry_index, _ = by_id(state, target[2]["caused_by"])
-    state["logs"][file_index][entry_index]["deleted"] = True
-    return True
-
-
 def m_receive_before_send(state: dict) -> bool:
-    # A node's receive of its own vote, moved before the retry that sent it
+    # A node's receive of its own vote, moved before the retry that first sent it
     for _, _, record in seqsorted(state):
         if record["kind"] != "vote_accepted" or record["source"] != record["node"]:
             continue
-        send = by_id(state, record["caused_by"])
-        if send:
-            record["version"] = send[2]["pre_version"] - 1
+        own_votes = [
+            r
+            for _, _, r in seqsorted(state)
+            if r["kind"] == "send"
+            and r["node"] == record["node"]
+            and r["send"] == f"vote:{record['node']}"
+        ]
+        if own_votes:
+            record["version"] = own_votes[0]["pre_version"] - 1
             record["wrote"] = False
             return True
     return False
 
 
-def m_redirect_to_identical_copy(state: dict) -> bool:
-    refs = referenced(state)
-    for _, _, record in seqsorted(state):
-        if record["kind"] != "gossip_accepted" or record["source"] == record["node"]:
-            continue
-        send = by_id(state, record["caused_by"])
-        if not send:
-            continue
-        send_record = send[2]
-        for _, _, copy_record in seqsorted(state):
-            if (
-                copy_record["kind"] == "send"
-                and copy_record["node"] == send_record["node"]
-                and copy_record["send"] == send_record["send"]
-                and copy_record.get("txid") == send_record.get("txid")
-                and copy_record["sequence"] < send_record["sequence"]
-                and f"{copy_record['node']}:{copy_record['sequence']}" not in refs
-            ):
-                record["caused_by"] = f"{copy_record['node']}:{copy_record['sequence']}"
-                return True
-    return False
-
-
 def m_extra_final_attempt(state: dict) -> bool:
-    target = find(state, lambda r: "open_kind" in r and "caused_by" in r)
+    target = find(state, lambda r: "open_kind" in r and "source" in r)
     if not target:
         return False
     file_index, entry_index, record = target
@@ -615,15 +554,13 @@ DECISION = [
     ("txid_lower_consistent", PASS, lambda s: _txid_consistent(s, False)),
 ]
 
-_dangling_gossip = dynf("caused_by", lambda r: f"{r['source']}:99999")
+_unsent_txid = dynf("txid", lambda r: bump(r["txid"]))
 _source_ne_node = lambda r: r["kind"] == "gossip_accepted" and r["source"] != r["node"]
 _source_mismatch = one(_source_ne_node, kind_is("gossip_accepted"), relabel("source"))
 
 CAUSALITY = [
-    ("dangling_caused_by", FAIL, one(kind_is("gossip_accepted"), _dangling_gossip)),
-    ("caused_by_other_kind", FAIL, m_caused_by_other_kind),
+    ("receive_unsent_txid", FAIL, one(kind_is("gossip_accepted"), _unsent_txid)),
     ("source_mismatch", FAIL, _source_mismatch),
-    ("drop_received_send", FAIL, m_drop_received_send),
     ("receive_before_send", FAIL, m_receive_before_send),
 ]
 
@@ -651,8 +588,8 @@ _shrink_expected_locations = dynf(
     "expected_locations", lambda r: r["expected_locations"][:-1]
 )
 _expected_locations_changed = one(kind_is("start"), _shrink_expected_locations, nth=1)
-_delete_middle_batch = lambda s: _delete_unreceived_batch(s, False)
-_delete_tail_batch = lambda s: _delete_unreceived_batch(s, True)
+_delete_middle_batch = lambda s: _delete_batch(s, False)
+_delete_tail_batch = lambda s: _delete_batch(s, True)
 
 FORMAT = [
     ("truncated_json", FAIL, _truncated_json),
@@ -661,9 +598,9 @@ FORMAT = [
     ("expected_locations_changed", FAIL, _expected_locations_changed),
     ("node_misattributed", FAIL, one(kind_is(*HANDLERS), relabel("node"))),
     ("duplicate_sequence", FAIL, one(kind_is("send"), bumpf("sequence", -1), nth=1)),
-    ("delete_unreceived_send", FAIL, _delete_unreceived_send),
-    ("delete_middle_unreceived_batch", FAIL, _delete_middle_batch),
-    ("delete_tail_unreceived_batch", PASS, _delete_tail_batch),
+    ("delete_send_from_batch", FAIL, _delete_send_from_batch),
+    ("delete_middle_batch", FAIL, _delete_middle_batch),
+    ("delete_tail_batch", PASS, _delete_tail_batch),
     ("truncate_opener_after_voting", FAIL, m_truncate_opener_after_voting),
 ]
 
@@ -678,7 +615,6 @@ BENIGN = [
     ("strip_non_trace_lines", PASS, m_strip_non_trace_lines),
     ("reverse_key_order", PASS, m_reverse_key_order),
     ("log_order_permuted", PASS, m_log_order_permuted),
-    ("identical_unreceived_copy", PASS, m_redirect_to_identical_copy),
 ]
 
 GROUPS = {
@@ -705,15 +641,10 @@ def perturb(state: dict, record: dict, field: str) -> bool:
     value = record[field]
     if field in ("pre", "post", "pre_timeout", "post_timeout"):
         record[field] = PHASES[(PHASES.index(value) + 1) % len(PHASES)]
-    elif field in ("version", "pre_version", "batch"):
+    elif field in ("pre_version", "batch"):
         record[field] = value + 1
-    elif field == "wrote":
-        record[field] = not value
     elif field == "sequence":
         record[field] = value + 1000
-    elif field == "caused_by":
-        node, sequence = value.split(":")
-        record[field] = f"{node}:{int(sequence) + 1}"
     elif field in ("source", "node", "chosen"):
         record[field] = other(state, value)
     elif field == "txid":
@@ -757,45 +688,6 @@ def sweep_specs(base: dict):
                 yield kind, field, position, file_index, entry_index
 
 
-def commit_order(state: dict) -> dict:
-    """Per node, the order the reduction derives, as groups whose members can
-    run in any order: at each version, the start or the execution that wrote
-    it, then the retries that read it, then the executions that read it."""
-    order = {}
-    for node in nodes(state):
-        rows = [r for _, _, r in recs(state) if r["node"] == node]
-        groups = collections.defaultdict(lambda: (set(), set(), set()))
-        for r in rows:
-            if r["kind"] == "start":
-                groups[r["version"]][0].add("start")
-            elif r["kind"] == "send":
-                groups[r["pre_version"]][1].add(("retry", r["batch"]))
-            elif r["kind"] in HANDLERS:
-                groups[r["version"]][0 if r["wrote"] else 2].add(r["sequence"])
-        order[node] = [g for v in sorted(groups) for g in groups[v] if g]
-    return order
-
-
-def same_order(base: dict, mutated: dict) -> bool:
-    """Whether the mutant admits only orders that the base admits, so that its
-    groups split the base's groups without reordering them."""
-    before, after = commit_order(base), commit_order(mutated)
-    if before.keys() != after.keys():
-        return False
-    for node, coarse in before.items():
-        fine = iter(after[node])
-        for group in coarse:
-            covered = set()
-            while covered != group:
-                part = next(fine, None)
-                if part is None or not part <= group - covered:
-                    return False
-                covered |= part
-        if next(fine, None) is not None:
-            return False
-    return True
-
-
 class Result(NamedTuple):
     group: str
     scenario: str
@@ -827,19 +719,6 @@ def describe(base: dict, mutated: dict) -> str:
                         f"{old['node']}:{old['sequence']} {field}: {old.get(field)} -> {new.get(field)}"
                     )
     return "; ".join(changes) or "(no change)"
-
-
-def allow_sweep(result: Result, base: dict):
-    field = result.name.split(".")[1].split("#")[0]
-    if field in ("version", "wrote") and same_order(base, result.state):
-        return (
-            "order-preserving",
-            (
-                "A version or wrote change that admits no order the original does "
-                "not admit describes the same execution."
-            ),
-        )
-    return None
 
 
 def classify(returncode: int, output: str) -> str:
@@ -903,9 +782,9 @@ def build_jobs(scenarios: dict):
                 yield "sweep", name, f"{kind}.{field}#{position}", "?", state
 
 
-def _bad(row: Result, scenarios: dict) -> bool:
+def _bad(row: Result) -> bool:
     if row.group == "sweep":
-        return row.outcome == "PASS" and not allow_sweep(row, scenarios[row.scenario])
+        return row.outcome == "PASS"
     return (row.expected == PASS) != (row.outcome == "PASS")
 
 
@@ -937,22 +816,14 @@ def main() -> int:
 
     curated = [r for r in results if r.group != "sweep"]
     sweep = [r for r in results if r.group == "sweep"]
-    passes = [
-        allow_sweep(r, scenarios[r.scenario]) for r in sweep if r.outcome == "PASS"
-    ]
-    allowed = {a for a in passes if a}
-    allowed_count = sum(1 for a in passes if a)
     print(
-        f"Curated mutants: {sum(not _bad(r, scenarios) for r in curated)}/{len(curated)} matched expectation"
+        f"Curated mutants: {sum(not _bad(r) for r in curated)}/{len(curated)} matched expectation"
     )
     print(
-        f"Sweep mutants: {sum(r.outcome != 'PASS' for r in sweep)}/{len(sweep)} caught, "
-        f"{allowed_count} allowlisted harmless pass(es)"
+        f"Sweep mutants: {sum(r.outcome != 'PASS' for r in sweep)}/{len(sweep)} caught"
     )
-    for name, reason in sorted(allowed):
-        print(f"- {name}: {reason}")
 
-    unexpected = [r for r in results if _bad(r, scenarios)]
+    unexpected = [r for r in results if _bad(r)]
     for r in unexpected:
         print(
             f"- {r.scenario} {r.group} {r.name}: expected {r.expected}, got {r.outcome}\n"

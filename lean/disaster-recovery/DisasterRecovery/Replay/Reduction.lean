@@ -1,5 +1,4 @@
 import DisasterRecovery.Replay.Records
-import Std.Data.HashSet
 
 set_option autoImplicit false
 
@@ -161,9 +160,13 @@ private def Item.instructions : Item → Array Instruction
             .state event.node post [event.origin s!"{rule}-post"]
           ]
 
-/-- Interleaves the nodes' items so that each message is received after it is sent. -/
+/--
+Interleaves the nodes' items so that each receive takes a copy of its message
+that its source has already sent to its node, and that no other receive has
+taken, as the model's network delivers any queued copy.
+-/
 private def linearize (queues : Array (Array Item)) : Checked (Array Instruction) := do
-  let mut sent : Std.HashSet (Location × Nat) := {}
+  let mut queued : List (Location × Location × Message) := []
   let mut positions := Array.replicate queues.size 0
   let mut result := #[]
   let mut progress := true
@@ -174,15 +177,25 @@ private def linearize (queues : Array (Array Item)) : Checked (Array Instruction
         let item := queue[positions[index]!]!
         match item with
         | .retry sends =>
-            sent := sends.foldl (fun s e => s.insert (e.node, e.sequence)) sent
+            queued :=
+              queued
+              ++ sends.toList.filterMap
+                  fun event =>
+                    match event.body with
+                    | .send _ target message _ => some (event.node, target, message)
+                    | _ => none
         | .execution _ event =>
-            if event.body matches .receive .. && !event.causedBy?.all sent.contains then
-              break
+            if let .receive source message _ := event.body then
+              let envelope := (source, event.node, message)
+              if !queued.contains envelope then
+                break
+              queued := Shared.MultiNodeTransitionSystem.removeOne envelope queued
         result := result ++ item.instructions
         positions := positions.modify index (· + 1)
         progress := true
-  require ((queues.zip positions).all fun (queue, position) => position == queue.size)
-    "receives precede their sends in a cycle"
+  -- A send that a growing log has not logged yet may still come.
+  unless (queues.zip positions).all fun (queue, position) => position == queue.size do
+    throw (.incomplete "a receive has no earlier send of its message from its source")
   return result
 
 structure Reduced where
@@ -210,19 +223,6 @@ def reduce (records : Array Record) (scenario : Scenario) : Checked Reduced := d
   let mut queues := #[]
   let mut ends := []
   for (node, records) in nodes do
-    -- causes: each receive names its send, which a growing log may not have logged yet.
-    for event in records do
-      if let .receive source message causedBy _ := event.body then
-        let some (sender, sequence) := causedBy
-        | throw (.invalid s!"{event.record.location}: {event.kind} has no caused_by")
-        let some cause := (nodes.lookup sender).bind (·[sequence]?)
-        | throw (.incomplete s!"{event.record.location}: its cause is not logged yet")
-        require
-          (match cause.body with
-            | .send _ target payload _ =>
-                source == sender && target == node && payload == message
-            | _ => false)
-          s!"{event.record.location}: {cause.record.location} did not cause it"
     let (items, phase, kind) ← reduceNode node records (← retryBatches locations records)
     queues := queues.push items
     ends := ends ++ [(node, phase, kind)]

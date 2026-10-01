@@ -108,8 +108,7 @@ inductive Body where
   | start (version : Nat) (expectedLocations : List Location)
   | send (batch : Nat) (target : Location) (message : Message) (preVersion : Nat)
   | timeout (execution : Execution)
-  | receive (source : Location) (message : Message) (causedBy : Option (Location × Nat))
-    (execution : Execution)
+  | receive (source : Location) (message : Message) (execution : Execution)
 deriving Inhabited
 
 /-- One validated record, in the model's vocabulary. -/
@@ -130,24 +129,18 @@ def TraceEvent.kind (event : TraceEvent) : String :=
   | .start .. => "start"
   | .send .. => "send"
   | .timeout .. => "timeout"
-  | .receive _ (.gossip _) _ _ => "gossip_accepted"
-  | .receive _ .vote _ _ => "vote_accepted"
-  | .receive _ .iAmOpen _ _ => "iamopen_accepted"
-
-/-- The send record that caused a receive. -/
-def TraceEvent.causedBy? (event : TraceEvent) : Option (Location × Nat) :=
-  match event.body with
-  | .receive _ _ causedBy _ => causedBy
-  | _ => none
+  | .receive _ (.gossip _) _ => "gossip_accepted"
+  | .receive _ .vote _ => "vote_accepted"
+  | .receive _ .iAmOpen _ => "iamopen_accepted"
 
 def TraceEvent.isIAmOpen (event : TraceEvent) : Bool :=
-  event.body matches .receive _ .iAmOpen _ _
+  event.body matches .receive _ .iAmOpen _
 
 /-- The model action of a timeout or receive, and what it recorded. -/
 def TraceEvent.execution? (event : TraceEvent) : Option (Model.Action × Execution) :=
   match event.body with
   | .timeout execution => some (.local event.node .timeout, execution)
-  | .receive source message _ execution =>
+  | .receive source message execution =>
       some (.deliver { source, target := event.node, payload := message }, execution)
   | _ => none
 
@@ -169,10 +162,10 @@ private def fieldsOf : String → Option (List String × List String)
   | "send" => some (common ++ ["batch", "send", "pre_version"], ["txid"])
   | "timeout" => some (executionFields, advanceFields)
   | "gossip_accepted" =>
-      some (executionFields ++ ["source", "txid"], advanceFields ++ ["caused_by"])
+      some (executionFields ++ ["source", "txid"], advanceFields)
   | "vote_accepted"
   | "iamopen_accepted" =>
-      some (executionFields ++ ["source"], advanceFields ++ ["caused_by"])
+      some (executionFields ++ ["source"], advanceFields)
   | _ => none
 
 private def digits (text : String) : Option Nat :=
@@ -203,16 +196,6 @@ private def parseTxID (location : String) (value : Json) : Checked TxID := do
   let some view := digits view | throw invalid
   let some seqno := digits seqno | throw invalid
   return { view, seqno }
-
-/-- `caused_by` is NODE:SEQUENCE. The node name may contain ':'. -/
-private def parseCause (location : String) (value : Json) : Checked (Location × Nat) := do
-  let invalid := Failure.invalid s!"{location}: invalid caused_by {value.compress}"
-  let .str text := value | throw invalid
-  let parts := text.splitOn ":"
-  let node := ":".intercalate parts.dropLast
-  let some sequence := digits (parts.getLastD "") | throw invalid
-  if node.isEmpty then throw invalid
-  return (node, sequence)
 
 /-- Validates one record against the fields its kind carries. -/
 def parseEvent (record : Record) : Checked TraceEvent := do
@@ -273,7 +256,6 @@ def parseEvent (record : Record) : Checked TraceEvent := do
       | _ => throw (.invalid s!"{location}: invalid restart")
   let restart := restart.getD false
   let source ← optionalField "source" (parseName location)
-  let causedBy ← optionalField "caused_by" (parseCause location)
   let txid ← optionalField "txid" (parseTxID location)
   let batch ← optionalField "batch" (parseNatural location)
   let natural (key : String) : Checked Nat := parseNatural location (get key)
@@ -346,6 +328,6 @@ def parseEvent (record : Record) : Checked TraceEvent := do
           s!"{location}: IAmOpen does not record its Joining write"
         pure .iAmOpen
     | _, _ => throw (.invalid s!"{location}: {kind} misses txid")
-  return event (.receive source message causedBy execution)
+  return event (.receive source message execution)
 
 end DisasterRecovery.Replay
