@@ -159,12 +159,7 @@ namespace ccf::node
         trace_kind = "iamopen_accepted";
       }
       node_operation->recovery_decision_protocol().prepare_trace_step(
-        *args.rpc_ctx,
-        trace_kind,
-        params,
-        in.info.location.name,
-        trace_txid,
-        trace);
+        *args.rpc_ctx, trace_kind, in.info.location.name, trace_txid, trace);
       return make_success();
     };
   }
@@ -402,7 +397,7 @@ namespace ccf::node
             e.what()));
       }
       node_operation->recovery_decision_protocol().prepare_trace_step(
-        *args.rpc_ctx, "timeout", params, {}, std::nullopt, trace);
+        *args.rpc_ctx, "timeout", {}, std::nullopt, trace);
       return make_success(
         "Recovery-decision-protocol timeout processed successfully");
     };

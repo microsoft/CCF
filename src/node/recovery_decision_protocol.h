@@ -98,7 +98,6 @@ namespace ccf
     void prepare_trace_step(
       ccf::RpcContext& rpc_ctx,
       const char* kind,
-      const nlohmann::json& params,
       std::string_view source,
       std::optional<ccf::TxID> txid,
       const recovery_decision_protocol::AdvanceTrace& trace) noexcept;
@@ -128,10 +127,9 @@ namespace ccf
     ccf::TxID get_last_recovered_signed_txid();
 
     void record_trace_send(
-      nlohmann::json& request,
       const char* message,
       const sealing_recovery::Name& target,
       std::optional<ccf::TxID> txid) noexcept;
-    std::string emit_trace(nlohmann::json&& record);
+    void emit_trace(nlohmann::json&& record);
   };
 }

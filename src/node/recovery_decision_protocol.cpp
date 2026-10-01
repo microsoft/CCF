@@ -27,10 +27,6 @@ namespace ccf
   {
     constexpr auto recovery_trace_marker = "RDP_TRACE";
 
-    // When tracing is enabled, sent protocol messages carry this field, so that
-    // receives can be linked to sends. It is only ever logged.
-    constexpr auto trace_message_id_field = "trace_message_id";
-
     // Sends are only made by the retry task. Each invocation tags its sends
     // with a new batch, so that concurrent invocations can be told apart, and
     // with the version of the sm_state value it read.
@@ -86,26 +82,19 @@ namespace ccf
     node_state(node_state_)
   {}
 
-  std::string RecoveryDecisionProtocolSubsystem::emit_trace(
-    nlohmann::json&& record)
+  void RecoveryDecisionProtocolSubsystem::emit_trace(nlohmann::json&& record)
   {
-    const auto& node = get_location().name;
-    record["node"] = node;
-    const auto sequence = next_trace_sequence.fetch_add(1);
-    record["sequence"] = sequence;
+    record["node"] = get_location().name;
+    record["sequence"] = next_trace_sequence.fetch_add(1);
     LOG_INFO_FMT("{} {}", recovery_trace_marker, record.dump());
-    return fmt::format("{}:{}", node, sequence);
   }
 
   void RecoveryDecisionProtocolSubsystem::record_trace_send(
-    nlohmann::json& request,
     const char* message,
     const sealing_recovery::Name& target,
     std::optional<ccf::TxID> txid) noexcept
   {
     trace_safely("send", [&]() {
-      // A message whose send could not be recorded carries no identifier
-      request.erase(trace_message_id_field);
       nlohmann::json record = {
         {"kind", "send"},
         {"batch", current_trace_batch},
@@ -118,14 +107,13 @@ namespace ccf
       {
         record["txid"] = txid.value();
       }
-      request[trace_message_id_field] = emit_trace(std::move(record));
+      emit_trace(std::move(record));
     });
   }
 
   void RecoveryDecisionProtocolSubsystem::prepare_trace_step(
     ccf::RpcContext& rpc_ctx,
     const char* kind,
-    const nlohmann::json& params,
     std::string_view source,
     std::optional<ccf::TxID> txid,
     const recovery_decision_protocol::AdvanceTrace& trace) noexcept
@@ -141,11 +129,6 @@ namespace ccf
       if (txid.has_value())
       {
         (*record)["txid"] = txid.value();
-      }
-      const auto message_id = params.find(trace_message_id_field);
-      if (message_id != params.end() && message_id->is_string())
-      {
-        (*record)["caused_by"] = message_id.value();
       }
       rpc_ctx.set_user_data(record);
     });
@@ -803,7 +786,7 @@ namespace ccf
     for (auto& target : config.expected_locations)
     {
       auto target_address = target.address;
-      record_trace_send(request_json, "gossip", target.name, request.txid);
+      record_trace_send("gossip", target.name, request.txid);
       dispatch_authenticated_message(
         request_json,
         target_address,
@@ -827,8 +810,7 @@ namespace ccf
     const auto self_signed_node_cert =
       node_state->get_self_signed_certificate();
 
-    record_trace_send(
-      request_json, "vote", node_info.location.name, std::nullopt);
+    record_trace_send("vote", node_info.location.name, std::nullopt);
     dispatch_authenticated_message(
       request_json,
       node_info.location.address,
@@ -894,7 +876,7 @@ namespace ccf
         // Don't send to self
         continue;
       }
-      record_trace_send(request_json, "iamopen", target.name, std::nullopt);
+      record_trace_send("iamopen", target.name, std::nullopt);
       dispatch_authenticated_message(
         request_json,
         target.address,
