@@ -499,8 +499,6 @@ namespace ccf::crypto
     shared_secret.resize(shared_secret_length);
     CHECK1(EVP_PKEY_derive(ctx, shared_secret.data(), &shared_secret_length));
 
-    EVP_PKEY_free(pk);
-
     return shared_secret;
   }
 
