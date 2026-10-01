@@ -19,8 +19,8 @@ By default it waits up to 20 seconds for the nodes to log a complete
 scenario; `--wait-ms 0` makes any incompleteness fail immediately. It replays
 the reduced trace through `Model.transitionSystem`, prints how many actions
 and observations it replayed, and checks the scenario. Malformed records,
-records that no commit order explains, impossible local handler steps,
-disabled actions and observation mismatches fail it immediately. Each
+records that no commit order explains, disabled actions and observation
+mismatches fail it immediately. Each
 instruction names the log line and the rule it comes from, so a failure
 points back to both.
 
@@ -36,64 +36,50 @@ three scenarios.
 ## Records
 
 When the `CCF_RECOVERY_TRACE` environment variable is set to a non-empty
-value, `src/node/recovery_decision_protocol.cpp` logs
-`RDP_TRACE` followed by one JSON object. Every record has `node`,
-`expected_locations`, `sequence`, a per-node counter from 0, and `kind`:
+value, `src/node/recovery_decision_protocol.cpp` logs `RDP_TRACE` followed by
+one JSON object. Every record has `node`, `sequence`, a per-node counter from
+0, and `kind`:
 
-| Kind                                                              | Emitted when                                                   |
-| ----------------------------------------------------------------- | -------------------------------------------------------------- |
-| `committed`                                                       | The global hook sees a phase write in `post`, at `version`     |
-| `gossip_accepted`, `vote_accepted`, `iamopen_accepted`, `timeout` | A handler succeeded, before its transaction commits            |
-| `send`                                                            | A retry is about to dispatch one message, named by `send`      |
-| `timeout_request`                                                 | The failover timer is about to send its node a timeout request |
+| Kind                                                              | Emitted when                                                       |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `start`                                                           | The global hook sees the protocol start in Gossiping, at `version` |
+| `gossip_accepted`, `vote_accepted`, `iamopen_accepted`, `timeout` | The local commit handler of a request whose transaction committed  |
+| `send`                                                            | A retry is about to dispatch one message, named by `send`          |
 
-Handler records hold the phase and timeout phase that `advance()` read and
-wrote (`pre`, `pre_timeout`, `post`, `post_timeout`), the KV versions of the
-`sm_state` and `timeout_sm_state` values it read (`pre_version`,
-`pre_timeout_version`), the `gossips` or `votes` it evaluated, and any
-`chosen` node, `open_kind` or `restart` it read, wrote or requested. An
-IAmOpen's `pre` and `chosen` are its own Joining writes, before the
-subsequent `advance()` reads them. Gossip and vote records include the
-execution's own insert in `gossips` or `votes`. `caused_by` names the send of
-a received message, or the timeout request of a timeout, as `NODE:SEQUENCE`.
-Receives name their sender in `source`. The sends of one retry share a `batch`
-and the `sm_state` version the retry read, in `pre_version`. Gossip records
-and sends carry the gossiped `txid`, as `"view.seqno"`. The C++ omits a
-version only when tracing fails, and a log line containing `Failed to trace
-recovery-decision-protocol` fails the replay, so versions are required.
+`start` also carries the `expected_locations`. Handler records are logged by
+the endpoint's locally committed function, so only executions that committed
+are logged. Their `version` is the seqno of the TxID that CCF reported for the
+transaction: the version it committed at if it wrote, as `wrote` says, and the
+version it read at otherwise. They hold the phase and timeout phase that
+`advance()` read and wrote (`pre`, `pre_timeout`, `post`, `post_timeout`), the
+`gossips` or `votes` it evaluated, and any `chosen` node, `open_kind` or
+`restart` it read, wrote or requested. An IAmOpen's `pre` and `chosen` are its
+own Joining writes, before the subsequent `advance()` reads them. Gossip and
+vote records include the execution's own insert in `gossips` or `votes`.
+`caused_by` names the send of a received message as `NODE:SEQUENCE`, and
+receives name their sender in `source`. The sends of one retry share a `batch`
+and the version of the `sm_state` value the retry read, in `pre_version`.
+Gossip records and sends carry the gossiped `txid`, as `"view.seqno"`.
 
 ## Rules
 
-The reduction derives the order in which each node committed its executions,
-and tells logs that are still growing, which it waits for, from logs that no
-order explains, which fail. The replay checks the reduced global execution,
-and the reduction also checks every record that it does not replay.
+The reduction orders each node's records as they committed, and tells logs
+that are still growing, which it waits for, from logs that no order explains,
+which fail. The replay checks everything else.
 
-| Rule            | Effect                                                                                                                                                                                                               |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `config`        | Every record carries the same `expected_locations`                                                                                                                                                                   |
-| `participation` | A node's first `committed` record is for Gossiping, and its version is the initial version of both `sm_state` and `timeout_sm_state`                                                                                 |
-| `local-step`    | Every handler record, replayed or not, is one valid local `advance()` step from the recorded snapshot, with the recorded notifications and post-state                                                                |
-| `rolled-back`   | Of the executions with one `caused_by`, only the last can have committed; the others are not replayed                                                                                                                |
-| `segment`       | The version pairs that executions read, `(pre_version, pre_timeout_version)`, form one chain from the initial pair, in which each pair writes one or both keys at a new version                                      |
-| `writer`        | One final execution that read a pair, up to identical copies, writes the keys changing at the next pair, and is replayed after the pair's other executions; other writers did not commit                             |
-| `set-chain`     | In Gossiping and Voting, executions follow the insert of the gossips or votes they read; a reader off the committed set chain fails, and an insert off it is accepted only if the set before its own insert is on it |
-| `committed`     | Every `committed` record matches the replayed `sm_state` chain, and committed versions rise in sequence order                                                                                                        |
-| `retry`         | A retry runs where the `sm_state` version it read is first read                                                                                                                                                      |
-| `scenario`      | Each participant ends Opening or Open with the expected open kind, or Joining after a restart request, and one opens                                                                                                 |
+| Rule           | Effect                                                                                                               |
+| -------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `config`       | Every node's `start` record carries the same `expected_locations`                                                    |
+| `start`        | Each node starts once, and every execution is at or after its start version                                          |
+| `causes`       | Each receive names a send to it, from its `source`, of the same message                                              |
+| `commit-order` | A node's executions run in version order; an execution that wrote nothing runs after the write at its version        |
+| `retry`        | A retry runs right after the `sm_state` write at the version it read                                                 |
+| `scenario`     | Each participant ends Opening or Open with the expected open kind, or Joining after a restart request, and one opens |
 
-The newest pair has no next pair. Its writer is replayed if it is the only
-execution that writes, or if a retry read a later `sm_state` version, which it
-must then have written. A later `committed` record, if present, confirms that
-the newest writer committed and, when a later retry read its `sm_state`
-version, must agree with that version; otherwise it must be higher than both
-versions of the newest pair, since the writer read that pair. A replayed
-execution is its state
-observation, its action, the notifications it emitted and the state it
-recorded writing. A retry is its action and the messages it sent. Messages of
-executions that are not replayed stay in the network, as any undelivered
-message does. Items of different nodes are interleaved so that each message
-is received after it is sent.
+A replayed execution is its state observation, its action, the notifications
+it emitted and the state it recorded writing. A retry is its action and the
+messages it sent. Items of different nodes are interleaved so that each
+message is received after it is sent.
 
 The e2e tests check the open kind, which the move to Opening decides, and do
 not wait for the timeout from Opening to Open, so the scenario accepts
@@ -103,59 +89,18 @@ how many actions and observations replayed.
 
 ## Why this is the commit order
 
-- After a conflict, `src/node/rpc/frontend.h` runs the same request again, so
-  all attempts of a message or timeout request record the same `caused_by`,
-  and only the last one can commit.
-- Every execution reads `sm_state` and `timeout_sm_state`, in `advance()` or,
-  for IAmOpen, before its write. The KV commits a transaction only if what it
-  read is unchanged, under the map locks that assign its version
-  (`src/kv/apply_changes.h`, `src/kv/untyped_map.h`). So a committed execution
-  commits within the pair it read, and the first write to either key ends that
-  pair. The writer of each pair but the newest reads it, so the pairs that
-  executions read, ordered by version, are the committed chain, and the next
-  pair shows which keys the writer wrote. Transactions without writes are not
-  validated, but read one consistent snapshot, which lies in the pair they
-  read.
-- In Gossiping and Voting, `advance()` iterates the gossips or votes, which
-  makes every transaction that changes them conflict with every other one that
-  reads them. So they commit one after the other, each inserting at most one
-  location, and each execution records the set it read, with its own insert. A
-  sequence is taken after the reads and before the commit, so a reader of a
-  set has a higher sequence than the insert that wrote it. Walking back from
-  the set the writer read, the lowest-sequence insert that recorded each set
-  therefore added its last location. A final insert off that chain conflicted
-  with the writer, and its re-execution was rejected, so the set before its
-  own insert must still be on the committed chain. A reader off it read no
-  committed state, so the trace fails.
-- A retry reads one snapshot, and its messages depend only on the phase and
-  chosen node, which are written together. A receive of its messages reads a
-  later snapshot, so running the retry where its version is first read puts it
-  before them.
-- The `sm_state` commit hook logs every committed phase write that it sees.
-  Earlier writers are matched to the next pair's `sm_state` version. For the
-  newest writer, a later `committed` record is the only source of its exact
-  committed version.
+CCF gives each transaction that writes a new version, in the order in which
+transactions commit, and a transaction that writes nothing reads the state at
+the version it reports. So ordering a node's executions by version, with each
+write before the transactions that read it, is the order in which they took
+effect. A retry reads one snapshot, and its messages depend only on the phase
+and chosen node, which are written together, so it can run right after the
+`sm_state` write it read. Executions whose transactions did not commit are not
+logged, and have no effect on the KV.
 
-The reduction does not choose between candidates. Identical copies of a writer,
-with the same action and recorded fields, are the exception: they are
-concurrent executions of the same message, or of timeout requests that found
-the same state. The model replays any of them alike, since it delivers any
-queued copy of an envelope, so the lowest sequence is replayed. Otherwise
-several different writers of one pair, several largest sets when the writer
-read none, a retry from a version that no execution read or wrote, or pairs
-that no single write links, fail. Different writers can still write the same
-keys from one pair when the loser's re-execution is rejected rather than
-traced. For example, in Gossiping an IAmOpen and a gossip that completes the
-gossips both read one pair, and if the IAmOpen commits, the gossip's
-re-execution finds a chosen node and fails before `advance()`. Such traces fail
-as invalid, or as incomplete when no later record shows the next versions.
-
-A successful replay shows that one model execution explains every replayed
-record: each action is enabled, and each observation matches. It also checks
-that every discarded handler record is one valid local step from the snapshot
-it logged, and that committed and configuration records agree with the replayed
-chain. It still does not show behaviour that no record shows, or liveness.
-Review the rules against the C++ they name.
+A successful replay shows that one model execution explains every record:
+each action is enabled, and each observation matches. It does not show
+behaviour that no record shows, or liveness.
 
 ## Mutation test
 
@@ -163,9 +108,9 @@ Review the rules against the C++ they name.
 for the validator. It replays the committed fixtures in
 `lean/disaster-recovery/replay/fixtures/`, checks targeted negative and benign
 mutations with explicit expectations, and then sweeps sampled records with
-single-field perturbations. The sweep may pass only for a small explicit
-allowlist of harmless cases where no other record can constrain the changed
-value.
+single-field perturbations. A sweep mutant may pass only if it changes a
+`version` or `wrote` field in a way that admits no commit order the original
+does not admit, which the harness checks.
 
 Run it from the repository root after building the replayer:
 
