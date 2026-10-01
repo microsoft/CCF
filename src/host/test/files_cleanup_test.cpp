@@ -11,6 +11,7 @@
 #include <doctest/doctest.h>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 
 namespace fs = std::filesystem;
 using namespace asynchost;
@@ -707,8 +708,8 @@ TEST_CASE("committed prefix names contain a strict range")
   const auto range = get_ledger_committed_prefix_range_from_file_name(
     "ledger_42-100.committed_prefix");
   REQUIRE(range.has_value());
-  CHECK(range->first == 42);
-  CHECK(range->second == 100);
+  CHECK(range->start_idx == 42);
+  CHECK(range->end_idx == 100);
 
   for (const auto* invalid_name :
        {"ledger_0-100.committed_prefix",
@@ -717,11 +718,35 @@ TEST_CASE("committed prefix names contain a strict range")
         "ledger_42-100.committed",
         "ledger_42-100-101.committed_prefix",
         "ledger_42x-100.committed_prefix",
+        "ledger_042-100.committed_prefix",
+        "ledger_+42-100.committed_prefix",
+        "ledger_42-100.committed_prefix.ignored",
         "../ledger_42-100.committed_prefix"})
   {
     CHECK_FALSE(get_ledger_committed_prefix_range_from_file_name(invalid_name)
                   .has_value());
   }
+}
+
+TEST_CASE("committed prefix names round-trip through their range")
+{
+  for (const auto& range :
+       {CommittedLedgerPrefixRange{.start_idx = 1, .end_idx = 1},
+        CommittedLedgerPrefixRange{.start_idx = 42, .end_idx = 100},
+        CommittedLedgerPrefixRange{
+          .start_idx = std::numeric_limits<size_t>::max(),
+          .end_idx = std::numeric_limits<size_t>::max()}})
+  {
+    const auto name = get_ledger_committed_prefix_file_name(range);
+    CHECK(is_ledger_file_name_committed_prefix(name));
+    const auto parsed = get_ledger_committed_prefix_range_from_file_name(name);
+    REQUIRE(parsed.has_value());
+    CHECK(parsed->start_idx == range.start_idx);
+    CHECK(parsed->end_idx == range.end_idx);
+  }
+  CHECK(
+    get_ledger_committed_prefix_file_name({.start_idx = 42, .end_idx = 100}) ==
+    "ledger_42-100.committed_prefix");
 }
 
 TEST_CASE("committed prefix files are ignored by the host ledger")

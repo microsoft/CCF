@@ -9,7 +9,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <utility>
 
 namespace ccf::ledger
 {
@@ -59,43 +58,50 @@ namespace ccf::ledger
     return file_name.ends_with(ledger_committed_prefix_suffix);
   }
 
-  static inline std::optional<std::pair<size_t, size_t>>
+  // Inclusive range of sequence numbers covered by a committed ledger prefix
+  struct CommittedLedgerPrefixRange
+  {
+    size_t start_idx;
+    size_t end_idx;
+  };
+
+  static inline std::string get_ledger_committed_prefix_file_name(
+    const CommittedLedgerPrefixRange& range)
+  {
+    return fmt::format(
+      "ledger{}{}{}{}{}",
+      ledger_start_idx_delimiter,
+      range.start_idx,
+      ledger_last_idx_delimiter,
+      range.end_idx,
+      ledger_committed_prefix_suffix);
+  }
+
+  static inline std::optional<CommittedLedgerPrefixRange>
   get_ledger_committed_prefix_range_from_file_name(std::string_view file_name)
   {
-    static constexpr std::string_view prefix = "ledger_";
-    static constexpr std::string_view suffix = ledger_committed_prefix_suffix;
-
-    if (!file_name.starts_with(prefix) || !file_name.ends_with(suffix))
-    {
-      return std::nullopt;
-    }
-
-    file_name.remove_prefix(prefix.size());
-    file_name.remove_suffix(suffix.size());
-
-    const auto delimiter = file_name.find(ledger_last_idx_delimiter);
+    const auto start_pos = file_name.find(ledger_start_idx_delimiter);
+    const auto end_pos = file_name.find(ledger_last_idx_delimiter);
     if (
-      delimiter == std::string_view::npos || delimiter == 0 ||
-      delimiter == file_name.size() - 1 ||
-      file_name.find(ledger_last_idx_delimiter, delimiter + 1) !=
-        std::string_view::npos)
+      start_pos == std::string_view::npos ||
+      end_pos == std::string_view::npos || end_pos < start_pos)
     {
       return std::nullopt;
     }
 
-    const auto parse_idx = [](std::string_view value) -> std::optional<size_t> {
+    const auto parse_idx_after = [&](size_t pos) -> std::optional<size_t> {
       size_t idx = 0;
-      const auto* const end = value.data() + value.size();
-      const auto [ptr, ec] = std::from_chars(value.data(), end, idx);
-      if (ec != std::errc() || ptr != end)
+      const auto result = std::from_chars(
+        file_name.data() + pos + 1, file_name.data() + file_name.size(), idx);
+      if (result.ec != std::errc())
       {
         return std::nullopt;
       }
       return idx;
     };
 
-    const auto start_idx = parse_idx(file_name.substr(0, delimiter));
-    const auto end_idx = parse_idx(file_name.substr(delimiter + 1));
+    const auto start_idx = parse_idx_after(start_pos);
+    const auto end_idx = parse_idx_after(end_pos);
     if (
       !start_idx.has_value() || !end_idx.has_value() ||
       start_idx.value() == 0 || end_idx.value() < start_idx.value())
@@ -103,7 +109,16 @@ namespace ccf::ledger
       return std::nullopt;
     }
 
-    return std::make_pair(start_idx.value(), end_idx.value());
+    // Only the exact name produced for a range is accepted, so that each
+    // committed prefix has a single, canonical name
+    const CommittedLedgerPrefixRange range{
+      .start_idx = start_idx.value(), .end_idx = end_idx.value()};
+    if (get_ledger_committed_prefix_file_name(range) != file_name)
+    {
+      return std::nullopt;
+    }
+
+    return range;
   }
 
   static inline bool is_ledger_file_name_recovery(const std::string& file_name)

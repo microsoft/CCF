@@ -21,7 +21,6 @@
 #include <random>
 #include <string>
 #include <sys/file.h>
-#include <tuple>
 #include <unistd.h>
 
 using namespace asynchost;
@@ -196,6 +195,28 @@ void verify_completed_chunk(
       sizeof(size_t) + i * framed_entry_size);
   }
   REQUIRE(size == 0);
+}
+
+std::optional<std::vector<uint8_t>> read_whole_chunk(
+  const std::optional<LedgerFile::CompletedChunkReader>& reader)
+{
+  if (!reader.has_value())
+  {
+    return std::nullopt;
+  }
+  return reader->read(0, reader->size());
+}
+
+std::optional<std::vector<uint8_t>> read_committed_ledger_prefix(
+  Ledger& ledger, size_t from, size_t to)
+{
+  return read_whole_chunk(ledger.open_committed_ledger_prefix(from, to));
+}
+
+std::optional<std::vector<uint8_t>> read_completed_chunk(
+  LedgerFile& file, size_t from, size_t to)
+{
+  return read_whole_chunk(file.make_completed_chunk_reader(from, to));
 }
 
 void read_entry_from_ledger(Ledger& ledger, size_t idx)
@@ -1044,35 +1065,35 @@ TEST_CASE("Committed ledger prefixes")
 
   const auto first_range = ledger.committed_ledger_prefix_range_with_idx(1);
   REQUIRE(first_range.has_value());
-  REQUIRE(first_range->first == 1);
-  REQUIRE(first_range->second == 5);
+  REQUIRE(first_range->start_idx == 1);
+  REQUIRE(first_range->end_idx == 5);
 
   const auto middle_range = ledger.committed_ledger_prefix_range_with_idx(3);
   REQUIRE(middle_range.has_value());
-  REQUIRE(middle_range->first == 3);
-  REQUIRE(middle_range->second == 5);
+  REQUIRE(middle_range->start_idx == 3);
+  REQUIRE(middle_range->end_idx == 5);
 
   REQUIRE_FALSE(ledger.committed_ledger_prefix_range_with_idx(0).has_value());
   REQUIRE_FALSE(ledger.committed_ledger_prefix_range_with_idx(6).has_value());
-  REQUIRE_FALSE(ledger.read_committed_ledger_prefix(0, 5).has_value());
-  REQUIRE_FALSE(ledger.read_committed_ledger_prefix(1, 6).has_value());
-  REQUIRE_FALSE(ledger.read_committed_ledger_prefix(5, 4).has_value());
+  REQUIRE_FALSE(read_committed_ledger_prefix(ledger, 0, 5).has_value());
+  REQUIRE_FALSE(read_committed_ledger_prefix(ledger, 1, 6).has_value());
+  REQUIRE_FALSE(read_committed_ledger_prefix(ledger, 5, 4).has_value());
 
-  const auto first_prefix = ledger.read_committed_ledger_prefix(1, 5);
+  const auto first_prefix = read_committed_ledger_prefix(ledger, 1, 5);
   REQUIRE(first_prefix.has_value());
   verify_completed_chunk(first_prefix.value(), 1, 5);
 
   ledger.commit(8);
   const auto second_range = ledger.committed_ledger_prefix_range_with_idx(6);
   REQUIRE(second_range.has_value());
-  REQUIRE(second_range->first == 6);
-  REQUIRE(second_range->second == 8);
+  REQUIRE(second_range->start_idx == 6);
+  REQUIRE(second_range->end_idx == 8);
 
-  const auto second_prefix = ledger.read_committed_ledger_prefix(6, 8);
+  const auto second_prefix = read_committed_ledger_prefix(ledger, 6, 8);
   REQUIRE(second_prefix.has_value());
   verify_completed_chunk(second_prefix.value(), 6, 8);
 
-  const auto first_prefix_again = ledger.read_committed_ledger_prefix(1, 5);
+  const auto first_prefix_again = read_committed_ledger_prefix(ledger, 1, 5);
   REQUIRE(first_prefix_again.has_value());
   REQUIRE(first_prefix_again.value() == first_prefix.value());
 
@@ -1080,7 +1101,7 @@ TEST_CASE("Committed ledger prefixes")
   REQUIRE(number_of_committed_files_in_ledger_dir() == 1);
   REQUIRE_FALSE(ledger.committed_ledger_prefix_range_with_idx(9).has_value());
 
-  const auto promoted_prefix = ledger.read_committed_ledger_prefix(1, 5);
+  const auto promoted_prefix = read_committed_ledger_prefix(ledger, 1, 5);
   REQUIRE(promoted_prefix.has_value());
   REQUIRE(promoted_prefix.value() == first_prefix.value());
 }
@@ -1108,20 +1129,20 @@ TEST_CASE("Committed ledger prefixes only depend on flushed bytes")
     entry_submitter.write(false);
   }
 
-  const auto prefix = ledger.read_committed_ledger_prefix(1, 5);
+  const auto prefix = read_committed_ledger_prefix(ledger, 1, 5);
   REQUIRE(prefix.has_value());
   verify_completed_chunk(prefix.value(), 1, 5);
 
-  const auto middle_prefix = ledger.read_committed_ledger_prefix(3, 5);
+  const auto middle_prefix = read_committed_ledger_prefix(ledger, 3, 5);
   REQUIRE(middle_prefix.has_value());
   verify_completed_chunk(middle_prefix.value(), 3, 5);
 
-  REQUIRE_FALSE(ledger.read_committed_ledger_prefix(1, 6).has_value());
+  REQUIRE_FALSE(read_committed_ledger_prefix(ledger, 1, 6).has_value());
   REQUIRE_FALSE(ledger.committed_ledger_prefix_range_with_idx(6).has_value());
 
   // Rolling back the tail leaves the committed prefix unchanged
   entry_submitter.truncate(5);
-  const auto prefix_after_truncate = ledger.read_committed_ledger_prefix(1, 5);
+  const auto prefix_after_truncate = read_committed_ledger_prefix(ledger, 1, 5);
   REQUIRE(prefix_after_truncate.has_value());
   REQUIRE(prefix_after_truncate.value() == prefix.value());
 }
@@ -1154,7 +1175,7 @@ TEST_CASE("Committed ledger prefix readers serve arbitrary byte ranges")
     const auto full = reader->read(0, reader->size());
     REQUIRE(full.has_value());
     verify_completed_chunk(full.value(), from, to);
-    REQUIRE(full == ledger.read_committed_ledger_prefix(from, to));
+    REQUIRE(full == read_committed_ledger_prefix(ledger, from, to));
 
     // Every range starting and ending on either side of the boundaries between
     // the header, the entries, and the positions table
@@ -1214,7 +1235,7 @@ TEST_CASE(
   const auto positions_start = serialized::read<size_t>(data, size);
 
   // Without any entry bytes left on disk, ranges which do not include entry
-  // bytes can still be served, while those which do fail to be read
+  // bytes can still be served, while those which do cannot be read
   fs::resize_file(fs::path(ledger_dir) / "ledger_1", 0);
   REQUIRE(
     reader->read(0, entries_start) ==
@@ -1222,12 +1243,8 @@ TEST_CASE(
   REQUIRE(
     reader->read(positions_start, full->size()) ==
     std::vector<uint8_t>(full->begin() + positions_start, full->end()));
-  REQUIRE_THROWS_AS(
-    std::ignore = reader->read(entries_start, entries_start + 1),
-    std::logic_error);
-  REQUIRE_THROWS_AS(
-    std::ignore = reader->read(positions_start - 1, positions_start),
-    std::logic_error);
+  REQUIRE_FALSE(reader->read(entries_start, entries_start + 1).has_value());
+  REQUIRE_FALSE(reader->read(positions_start - 1, positions_start).has_value());
 }
 
 TEST_CASE("Committed ledger prefix readers are unaffected by later writes")
@@ -1243,7 +1260,7 @@ TEST_CASE("Committed ledger prefix readers are unaffected by later writes")
   }
   ledger.commit(5);
 
-  const auto expected = ledger.read_committed_ledger_prefix(1, 5);
+  const auto expected = read_committed_ledger_prefix(ledger, 1, 5);
   REQUIRE(expected.has_value());
   const auto reader = ledger.open_committed_ledger_prefix(1, 5);
   REQUIRE(reader.has_value());
@@ -1275,7 +1292,7 @@ TEST_CASE("Committed ledger prefix files are not recovered")
       source.write_entry(entry.data(), entry.size(), true);
     }
 
-    const auto result = source.read_entries_as_completed_chunk(1, 5);
+    const auto result = read_completed_chunk(source, 1, 5);
     REQUIRE(result.has_value());
     prefix = std::move(result.value());
   }

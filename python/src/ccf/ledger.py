@@ -162,16 +162,12 @@ def range_from_filename(filename: str) -> tuple[int, int | None]:
     is_recovery = basename.endswith(RECOVERY_FILE_SUFFIX)
     basename = basename.removesuffix(RECOVERY_FILE_SUFFIX)
     if basename.endswith(COMMITTED_PREFIX_FILE_SUFFIX):
-        if is_recovery:
-            raise ValueError(f"Could not read seqno range from ledger file {filename}")
-
         range_str = basename.removesuffix(COMMITTED_PREFIX_FILE_SUFFIX)
-        if not range_str.startswith("ledger_"):
-            raise ValueError(f"Could not read seqno range from ledger file {filename}")
-
-        elements = range_str[len("ledger_") :].split("-")
+        elements = range_str.removeprefix("ledger_").split("-")
         if (
-            len(elements) != 2
+            is_recovery
+            or not range_str.startswith("ledger_")
+            or len(elements) != 2
             or not all(element.isascii() and element.isdigit() for element in elements)
             or int(elements[0]) == 0
             or int(elements[1]) < int(elements[0])

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/node_subsystem_interface.h"
+#include "ledger/filenames.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -13,12 +14,6 @@
 
 namespace ccf
 {
-  struct CommittedLedgerPrefixRange
-  {
-    size_t start_idx;
-    size_t end_idx;
-  };
-
   // Random access to the bytes of a committed ledger prefix. Reads do not hold
   // any ledger lock, and only read the ledger entries within the requested
   // byte range.
@@ -30,7 +25,7 @@ namespace ccf
     [[nodiscard]] virtual size_t size() const = 0;
 
     // Returns the bytes [start, end) of the prefix, or nullopt if this range
-    // is not within the prefix
+    // is not within the prefix or could not be read
     [[nodiscard]] virtual std::optional<std::vector<uint8_t>> read(
       size_t start, size_t end) const = 0;
   };
@@ -48,7 +43,7 @@ namespace ccf
     virtual std::optional<std::filesystem::path> committed_ledger_path_with_idx(
       size_t idx) = 0;
 
-    virtual std::optional<CommittedLedgerPrefixRange>
+    virtual std::optional<ccf::ledger::CommittedLedgerPrefixRange>
     committed_ledger_prefix_range_with_idx(size_t idx) = 0;
 
     // Returns nullptr if this node cannot provide the committed prefix

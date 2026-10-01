@@ -28,6 +28,7 @@
 #include <string>
 #include <sys/types.h>
 #include <tuple>
+#include <utility>
 #include <uv.h>
 #include <vector>
 
@@ -81,6 +82,50 @@ namespace asynchost
   {
     std::vector<uint8_t> data;
     size_t end_idx{};
+  };
+
+  // Owns a file descriptor, and closes it on destruction
+  class UniqueFd
+  {
+  private:
+    int fd = -1;
+
+    void reset() noexcept
+    {
+      if (fd >= 0)
+      {
+        ::close(fd);
+        fd = -1;
+      }
+    }
+
+  public:
+    explicit UniqueFd(int fd_) : fd(fd_) {}
+
+    UniqueFd(const UniqueFd&) = delete;
+    UniqueFd& operator=(const UniqueFd&) = delete;
+
+    UniqueFd(UniqueFd&& other) noexcept : fd(std::exchange(other.fd, -1)) {}
+
+    UniqueFd& operator=(UniqueFd&& other) noexcept
+    {
+      if (this != &other)
+      {
+        reset();
+        fd = std::exchange(other.fd, -1);
+      }
+      return *this;
+    }
+
+    ~UniqueFd()
+    {
+      reset();
+    }
+
+    [[nodiscard]] int get() const
+    {
+      return fd;
+    }
   };
 
   // A single ledger chunk on disk. LedgerFile is not internally synchronised:
@@ -554,21 +599,12 @@ namespace asynchost
     private:
       std::vector<uint8_t> header;
       std::vector<uint8_t> positions_table;
-      int fd = -1;
+      UniqueFd fd;
       off_t file_offset = 0;
       size_t raw_entries_size = 0;
       std::string description;
 
-      void close_fd() noexcept
-      {
-        if (fd >= 0)
-        {
-          ::close(fd);
-          fd = -1;
-        }
-      }
-
-      void read_entry_bytes(
+      bool read_entry_bytes(
         uint8_t* out, size_t size, size_t offset_in_entries) const
       {
         ccf::ds::TimeBoundLogger log_if_slow(
@@ -578,79 +614,46 @@ namespace asynchost
         auto offset = file_offset + static_cast<off_t>(offset_in_entries);
         while (remaining > 0)
         {
-          const auto rc = ::pread(fd, out, remaining, offset);
+          const auto rc = ::pread(fd.get(), out, remaining, offset);
           if (rc < 0)
           {
             if (errno == EINTR)
             {
               continue;
             }
-            throw std::logic_error(
-              fmt::format("{}: {}", description, ccf::nonstd::strerror(errno)));
+            LOG_FAIL_FMT("{}: {}", description, ccf::nonstd::strerror(errno));
+            return false;
           }
           if (rc == 0)
           {
-            throw std::logic_error(fmt::format(
+            LOG_FAIL_FMT(
               "{}: unexpected end of file with {} bytes remaining",
               description,
-              remaining));
+              remaining);
+            return false;
           }
           out += rc;
           remaining -= static_cast<size_t>(rc);
           offset += rc;
         }
+        return true;
       }
 
     public:
       CompletedChunkReader(
         std::vector<uint8_t>&& header_,
         std::vector<uint8_t>&& positions_table_,
-        int fd_,
+        UniqueFd&& fd_,
         off_t file_offset_,
         size_t raw_entries_size_,
         std::string description_) :
         header(std::move(header_)),
         positions_table(std::move(positions_table_)),
-        fd(fd_),
+        fd(std::move(fd_)),
         file_offset(file_offset_),
         raw_entries_size(raw_entries_size_),
         description(std::move(description_))
       {}
-
-      CompletedChunkReader(const CompletedChunkReader&) = delete;
-      CompletedChunkReader& operator=(const CompletedChunkReader&) = delete;
-
-      CompletedChunkReader(CompletedChunkReader&& other) noexcept :
-        header(std::move(other.header)),
-        positions_table(std::move(other.positions_table)),
-        fd(other.fd),
-        file_offset(other.file_offset),
-        raw_entries_size(other.raw_entries_size),
-        description(std::move(other.description))
-      {
-        other.fd = -1;
-      }
-
-      CompletedChunkReader& operator=(CompletedChunkReader&& other) noexcept
-      {
-        if (this != &other)
-        {
-          close_fd();
-          header = std::move(other.header);
-          positions_table = std::move(other.positions_table);
-          fd = other.fd;
-          other.fd = -1;
-          file_offset = other.file_offset;
-          raw_entries_size = other.raw_entries_size;
-          description = std::move(other.description);
-        }
-        return *this;
-      }
-
-      ~CompletedChunkReader()
-      {
-        close_fd();
-      }
 
       [[nodiscard]] size_t size() const
       {
@@ -658,7 +661,8 @@ namespace asynchost
       }
 
       // Returns the bytes [start, end) of the chunk, or nullopt if this range
-      // is not within the chunk. Only entry bytes within this range are read.
+      // is not within the chunk or its entries could not be read. Only entry
+      // bytes within this range are read.
       [[nodiscard]] std::optional<std::vector<uint8_t>> read(
         size_t start, size_t end) const
       {
@@ -689,12 +693,14 @@ namespace asynchost
 
         const auto overlap_start = std::max(start, entries_start);
         const auto overlap_end = std::min(end, entries_end);
-        if (overlap_start < overlap_end)
-        {
-          read_entry_bytes(
+        if (
+          overlap_start < overlap_end &&
+          !read_entry_bytes(
             out.data() + (overlap_start - start),
             overlap_end - overlap_start,
-            overlap_start - entries_start);
+            overlap_start - entries_start))
+        {
+          return std::nullopt;
         }
 
         return out;
@@ -708,7 +714,7 @@ namespace asynchost
     // committable entry is flushed as it is written and every completed file
     // is flushed on completion, so committed bytes are always visible to
     // later pread() calls regardless of stdio buffering on the writer's FILE*.
-    // A violation of that invariant surfaces as a short read, never as
+    // A violation of that invariant surfaces as a failed read, never as
     // incorrect bytes.
     std::optional<CompletedChunkReader> make_completed_chunk_reader(
       size_t from, size_t to)
@@ -776,8 +782,8 @@ namespace asynchost
           out, remaining, static_cast<uint32_t>(relative_position));
       }
 
-      const auto fd = ::dup(fileno(file));
-      if (fd < 0)
+      UniqueFd fd(::dup(fileno(file)));
+      if (fd.get() < 0)
       {
         throw std::logic_error(fmt::format(
           "Failed to duplicate descriptor for ledger file {}: {}",
@@ -788,7 +794,7 @@ namespace asynchost
       return CompletedChunkReader(
         std::move(header),
         std::move(positions_table),
-        fd,
+        std::move(fd),
         static_cast<off_t>(first_position),
         raw_entries_size,
         fmt::format(
@@ -796,18 +802,6 @@ namespace asynchost
           from,
           to,
           file_name));
-    }
-
-    std::optional<std::vector<uint8_t>> read_entries_as_completed_chunk(
-      size_t from, size_t to)
-    {
-      const auto reader = make_completed_chunk_reader(from, to);
-      if (!reader.has_value())
-      {
-        return std::nullopt;
-      }
-
-      return reader->read(0, reader->size());
     }
 
     bool truncate(size_t idx, bool remove_file_if_empty = true)
@@ -1239,9 +1233,7 @@ namespace asynchost
             return idx >= f->get_start_idx();
           });
 
-        if (
-          f != files.rend() && (*f)->get_start_idx() <= idx &&
-          idx <= (*f)->get_last_idx())
+        if (f != files.rend() && idx <= (*f)->get_last_idx())
         {
           return *f;
         }
@@ -2019,7 +2011,7 @@ namespace asynchost
       return ledger_dir / name.value();
     }
 
-    [[nodiscard]] std::optional<std::pair<size_t, size_t>>
+    [[nodiscard]] std::optional<ccf::ledger::CommittedLedgerPrefixRange>
     committed_ledger_prefix_range_with_idx(size_t idx)
     {
       ccf::ds::MutexGuard guard(state_lock);
@@ -2037,8 +2029,9 @@ namespace asynchost
         return std::nullopt;
       }
 
-      return std::make_pair(
-        idx, std::min(committed_idx, (*it)->get_last_idx()));
+      return ccf::ledger::CommittedLedgerPrefixRange{
+        .start_idx = idx,
+        .end_idx = std::min(committed_idx, (*it)->get_last_idx())};
     }
 
     // Only the chunk metadata is materialised under the state lock. The entry
@@ -2064,18 +2057,6 @@ namespace asynchost
       }
 
       return file->make_completed_chunk_reader(from, to);
-    }
-
-    [[nodiscard]] std::optional<std::vector<uint8_t>>
-    read_committed_ledger_prefix(size_t from, size_t to)
-    {
-      const auto reader = open_committed_ledger_prefix(from, to);
-      if (!reader.has_value())
-      {
-        return std::nullopt;
-      }
-
-      return reader->read(0, reader->size());
     }
 
     [[nodiscard]] size_t get_init_idx()

@@ -555,8 +555,8 @@ namespace ccf::node
     ccf::endpoints::CommandEndpointContext& ctx, std::ifstream& f)
   {
     f.seekg(0, std::ifstream::end);
-    const auto end = f.tellg();
-    if (end < 0)
+    const auto file_end = f.tellg();
+    if (file_end < 0)
     {
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -565,7 +565,7 @@ namespace ccf::node
       return;
     }
 
-    const auto total_size = static_cast<size_t>(end);
+    const auto total_size = static_cast<size_t>(file_end);
     const auto read_range =
       [&f](size_t start, size_t end) -> std::optional<std::vector<uint8_t>> {
       const auto size = end - start;
@@ -827,6 +827,31 @@ namespace ccf::node
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
         };
 
+      // Redirects the same query to another node. If the query opts in to
+      // committed prefixes, the resource it resolves to may change, so the
+      // redirect is only temporary.
+      const auto redirect_to_node =
+        [&](const std::string& node_address, std::string&& reason) {
+          auto location = fmt::format(
+            "https://{}/node/ledger_chunk?{}={}",
+            node_address,
+            file_since_param_key,
+            since_idx);
+          if (include_committed_prefix)
+          {
+            location +=
+              fmt::format("&{}=true", include_committed_prefix_param_key);
+            ctx.rpc_ctx->set_response_header(
+              ccf::http::headers::CACHE_CONTROL, "no-store");
+          }
+          ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
+          ctx.rpc_ctx->set_error(
+            include_committed_prefix ? HTTP_STATUS_TEMPORARY_REDIRECT :
+                                       HTTP_STATUS_PERMANENT_REDIRECT,
+            ccf::errors::NodeCannotHandleRequest,
+            std::move(reason));
+        };
+
       // If the file is found locally, always serve it from this node
       if (chunk_path.has_value())
       {
@@ -841,15 +866,11 @@ namespace ccf::node
             since_idx);
         if (prefix_range.has_value())
         {
-          const auto chunk_filename = fmt::format(
-            "ledger_{}-{}{}",
-            prefix_range->start_idx,
-            prefix_range->end_idx,
-            ccf::ledger::ledger_committed_prefix_suffix);
           const auto redirect_url = fmt::format(
             "https://{}/node/ledger_chunk/committed_prefix/{}",
             address.value(),
-            chunk_filename);
+            ccf::ledger::get_ledger_committed_prefix_file_name(
+              prefix_range.value()));
           LOG_DEBUG_FMT(
             "Redirecting to committed ledger prefix: {}", redirect_url);
           ctx.rpc_ctx->set_response_header(
@@ -891,23 +912,8 @@ namespace ccf::node
           return;
         }
 
-        auto location = fmt::format(
-          "https://{}/node/ledger_chunk?{}={}",
+        redirect_to_node(
           address.value(),
-          file_since_param_key,
-          since_idx);
-        if (include_committed_prefix)
-        {
-          location +=
-            fmt::format("&{}=true", include_committed_prefix_param_key);
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CACHE_CONTROL, "no-store");
-        }
-        ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
-        ctx.rpc_ctx->set_error(
-          include_committed_prefix ? HTTP_STATUS_TEMPORARY_REDIRECT :
-                                     HTTP_STATUS_PERMANENT_REDIRECT,
-          ccf::errors::NodeCannotHandleRequest,
           "Node does not have ledger chunk; redirecting to next node");
         return;
       }
@@ -926,22 +932,8 @@ namespace ccf::node
           address = get_redirect_address_for_node(ctx, ctx.tx, *primary_id);
           if (address.has_value())
           {
-            auto location =
-              fmt::format("https://{}/node/ledger_chunk", address.value());
-            location += fmt::format("?{}={}", file_since_param_key, since_idx);
-            if (include_committed_prefix)
-            {
-              location +=
-                fmt::format("&{}=true", include_committed_prefix_param_key);
-              ctx.rpc_ctx->set_response_header(
-                ccf::http::headers::CACHE_CONTROL, "no-store");
-            }
-
-            ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
-            ctx.rpc_ctx->set_error(
-              include_committed_prefix ? HTTP_STATUS_TEMPORARY_REDIRECT :
-                                         HTTP_STATUS_PERMANENT_REDIRECT,
-              ccf::errors::NodeCannotHandleRequest,
+            redirect_to_node(
+              address.value(),
               fmt::format(
                 "Ledger chunk including index {} not found locally; "
                 "redirecting to primary",
@@ -1234,7 +1226,7 @@ namespace ccf::node
       }
 
       const auto reader = read_ledger_subsystem->open_committed_ledger_prefix(
-        range->first, range->second);
+        range->start_idx, range->end_idx);
       if (reader == nullptr)
       {
         ctx.rpc_ctx->set_error(

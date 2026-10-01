@@ -168,7 +168,12 @@ namespace
     {
       if constexpr (MaterializePrefix)
       {
-        const auto result = file.read_entries_as_completed_chunk(1, 1);
+        const auto reader = file.make_completed_chunk_reader(1, 1);
+        if (!reader.has_value())
+        {
+          throw std::logic_error("Unable to read completed chunk");
+        }
+        const auto result = reader->read(0, reader->size());
         do_not_optimize(result);
       }
       else
