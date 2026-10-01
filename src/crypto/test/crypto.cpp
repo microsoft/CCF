@@ -530,6 +530,11 @@ TEST_CASE("Public key from a raw EC point")
     vector<uint8_t> payload(contents_.begin(), contents_.end());
     CHECK(pubk->verify(payload, kp->sign(payload)));
 
+    // The raw point is an uncompressed SEC1 encoding, 0x04 || x || y, so
+    // changing its last byte changes y and the point is no longer on the curve
+    const auto coordinate_size = pubk->coordinates().x.size();
+    REQUIRE(raw.size() == 1 + (2 * coordinate_size));
+    REQUIRE(raw.front() == 0x04);
     auto off_curve = raw;
     off_curve.back() ^= 0xff;
     CHECK_THROWS_AS(

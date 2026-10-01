@@ -69,6 +69,6 @@ namespace ccf::crypto
   /// key: move it into an ECPublicKey_OpenSSL rather than passing the raw
   /// pointer, and do not free it separately.
   /// @throws std::runtime_error if the point is not valid for the curve
-  OpenSSL::Unique_PKEY key_from_raw_ec_point(
+  [[nodiscard]] OpenSSL::Unique_PKEY key_from_raw_ec_point(
     const std::vector<uint8_t>& raw, int nid);
 }
