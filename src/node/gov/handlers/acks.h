@@ -24,13 +24,17 @@ namespace ccf::gov::endpoints
       StateDigest, member_id, "memberId", state_digest, "stateDigest");
   }
 
-  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-  inline void init_ack_handlers(
-    ccf::BaseEndpointRegistry& registry,
-    NetworkState& /*network*/,
-    ShareManager& share_manager)
+  namespace detail
   {
-    auto get_state_digest = [&](auto& ctx, ApiVersion api_version) {
+    // Handler bodies are moved out of init_ack_handlers() into named
+    // functions here, so that their cognitive complexity is no longer
+    // attributed to the registration function. Each takes the endpoint
+    // context by template parameter (the same genericity as the former
+    // lambda's `auto& ctx`), plus any previously-captured dependencies as
+    // explicit parameters, and is registered via a thin forwarding lambda.
+    template <typename Ctx>
+    inline void get_state_digest(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -74,18 +78,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/members/state-digests/{memberId}",
-        HTTP_GET,
-        api_version_adapter(get_state_digest),
-        no_auth_required)
-      .set_auto_schema<void, api::StateDigest>()
-      .set_openapi_summary("Get a member's state digest")
-      .install();
+    }
 
-    auto update_state_digest = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void update_state_digest(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -162,18 +159,12 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_endpoint(
-        "/members/state-digests/{memberId}:update",
-        HTTP_POST,
-        api_version_adapter(update_state_digest),
-        detail::member_sig_only_policies("state_digest"))
-      .set_auto_schema<ds::openapi::Cose, api::StateDigest>()
-      .set_openapi_summary("Update a member's state digest")
-      .install();
+    }
 
-    auto ack_state_digest = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void ack_state_digest(
+      Ctx& ctx, ApiVersion api_version, ShareManager& share_manager)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -358,6 +349,42 @@ namespace ccf::gov::endpoints
           break;
         }
       }
+    }
+  }
+
+  inline void init_ack_handlers(
+    ccf::BaseEndpointRegistry& registry,
+    NetworkState& /*network*/,
+    ShareManager& share_manager)
+  {
+    auto get_state_digest = [](auto& ctx, ApiVersion api_version) {
+      detail::get_state_digest(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/members/state-digests/{memberId}",
+        HTTP_GET,
+        api_version_adapter(get_state_digest),
+        no_auth_required)
+      .set_auto_schema<void, api::StateDigest>()
+      .set_openapi_summary("Get a member's state digest")
+      .install();
+
+    auto update_state_digest = [](auto& ctx, ApiVersion api_version) {
+      detail::update_state_digest(ctx, api_version);
+    };
+    registry
+      .make_endpoint(
+        "/members/state-digests/{memberId}:update",
+        HTTP_POST,
+        api_version_adapter(update_state_digest),
+        detail::member_sig_only_policies("state_digest"))
+      .set_auto_schema<ds::openapi::Cose, api::StateDigest>()
+      .set_openapi_summary("Update a member's state digest")
+      .install();
+
+    auto ack_state_digest = [&](auto& ctx, ApiVersion api_version) {
+      detail::ack_state_digest(ctx, api_version, share_manager);
     };
     registry
       .make_endpoint(
