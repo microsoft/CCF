@@ -316,7 +316,7 @@ namespace ccf::js::extensions
         ccf::crypto::OpenSSL::Unique_X509 cert(bio, true);
         if (cert == nullptr)
         {
-          const auto error = ccf::crypto::OpenSSL::last_error();
+          const auto error = ccf::crypto::OpenSSL::first_error();
           LOG_DEBUG_FMT("isValidX509Bundle: {}", error);
           return ccf::js::core::constants::False;
         }

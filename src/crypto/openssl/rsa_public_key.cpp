@@ -245,7 +245,7 @@ namespace ccf::crypto
       EVP_PKEY_verify(pctx, signature, signature_size, hash, hash_size);
     if (rc != 1)
     {
-      const auto error = OpenSSL::last_error();
+      const auto error = OpenSSL::first_error();
       LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", error);
       return false;
     }

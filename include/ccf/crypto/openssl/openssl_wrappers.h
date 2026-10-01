@@ -53,12 +53,12 @@ namespace ccf::crypto::OpenSSL
     return "unknown error";
   }
 
-  /// Clears this thread's OpenSSL error queue and returns the last error
-  /// string. Use this to report failures: ERR_get_error() takes only the
-  /// oldest entry, and the rest leak into later, unrelated errors.
-  inline std::string last_error()
+  /// Clears this thread's OpenSSL error queue and returns its first (oldest)
+  /// error string, usually the root cause. Unlike ERR_get_error(), this
+  /// leaves no entries to leak into later, unrelated errors.
+  inline std::string first_error()
   {
-    const auto ec = ERR_peek_last_error();
+    const auto ec = ERR_peek_error();
     ERR_clear_error();
     return error_string(ec);
   }
@@ -69,7 +69,7 @@ namespace ccf::crypto::OpenSSL
     if (rc != 1)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error (rc={}): {}", rc, last_error()));
+        fmt::format("OpenSSL error (rc={}): {}", rc, first_error()));
     }
   }
 
@@ -79,7 +79,7 @@ namespace ccf::crypto::OpenSSL
     if (ptr == nullptr)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error (missing object): {}", last_error()));
+        fmt::format("OpenSSL error (missing object): {}", first_error()));
     }
   }
 
@@ -89,7 +89,7 @@ namespace ccf::crypto::OpenSSL
     if (expect != actual)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error (rc={}): {}", actual, last_error()));
+        fmt::format("OpenSSL error (rc={}): {}", actual, first_error()));
     }
   }
 
@@ -99,7 +99,7 @@ namespace ccf::crypto::OpenSSL
     if (val <= 0)
     {
       throw std::runtime_error(
-        fmt::format("OpenSSL error (rc={}): {}", val, last_error()));
+        fmt::format("OpenSSL error (rc={}): {}", val, first_error()));
     }
   }
 
@@ -524,10 +524,10 @@ namespace ccf::crypto::OpenSSL
       if (rc == 0)
       {
         throw std::invalid_argument(
-          fmt::format("Key failed {} check: {}", which, last_error()));
+          fmt::format("Key failed {} check: {}", which, first_error()));
       }
       throw std::runtime_error(fmt::format(
-        "OpenSSL error in {} key check (rc={}): {}", which, rc, last_error()));
+        "OpenSSL error in {} key check (rc={}): {}", which, rc, first_error()));
     };
     Unique_EVP_PKEY_CTX ctx(key);
     check(EVP_PKEY_public_check(ctx), "public");

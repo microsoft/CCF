@@ -30,7 +30,7 @@ namespace ccf::crypto
       if (cert == nullptr)
       {
         throw std::invalid_argument(
-          fmt::format("OpenSSL error: {}", OpenSSL::last_error()));
+          fmt::format("OpenSSL error: {}", OpenSSL::first_error()));
       }
     }
 
@@ -39,7 +39,7 @@ namespace ccf::crypto
     {
       throw std::invalid_argument(fmt::format(
         "OpenSSL error loading certificate public key: {}",
-        OpenSSL::last_error()));
+        OpenSSL::first_error()));
     }
 
     // The constructed public key takes ownership of pk, so it is only freed
@@ -97,7 +97,7 @@ namespace ccf::crypto
     const auto log_queued_error = []() {
       if (ERR_peek_error() != 0)
       {
-        const auto error = OpenSSL::last_error();
+        const auto error = OpenSSL::first_error();
         LOG_DEBUG_FMT("OpenSSL error: {}", error);
       }
     };

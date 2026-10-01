@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - TAV's CBOR C++ API (`<tav/cbor.hpp>`) is now installed with CCF's headers (#8467).
-- `ccf::crypto::OpenSSL::last_error()`, in the public header `ccf/crypto/openssl/openssl_wrappers.h`, removes every entry from the calling thread's OpenSSL error queue and returns the last error string (#8474).
+- `ccf::crypto::OpenSSL::first_error()`, in the public header `ccf/crypto/openssl/openssl_wrappers.h`, removes every entry from the calling thread's OpenSSL error queue and returns the oldest error string, usually the root cause (#8474).
 
 ### Changed
 
@@ -39,7 +39,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - A node which applied an opening of a recovered service that an election then rolled back could keep that opening's seqno, rather than the seqno of the opening which committed, as the version at which the last ledger secret before recovery is stored. That version is recorded in the recovery shares and sealed recovery shares information, and sent to joining nodes (#8452).
 - `ccf::crypto::Verifier::remaining_seconds()` now returns 0 once the certificate has expired. Previously, the negative remaining duration wrapped around to a very large unsigned value (#8430).
 - `ccf::crypto::ECKeyPair::sign()` and `sign_hash()`, and therefore `ccf.crypto.sign()`, no longer fail with an OpenSSL "output buffer too small" error when signing with a P-521 key loaded from PEM under OpenSSL providers such as SymCrypt (#8428).
-- Failed OpenSSL calls in `ccf::crypto` now clear the calling thread's OpenSSL error queue and report its most recent error, so stale errors no longer appear in later, unrelated error messages (#8474).
+- Failed OpenSSL calls in `ccf::crypto` now clear the calling thread's OpenSSL error queue and report its oldest error, usually the root cause, so stale errors no longer appear in later, unrelated error messages (#8474).
 
 ## [7.0.17]
 

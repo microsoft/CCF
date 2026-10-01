@@ -49,7 +49,7 @@ namespace ccf::crypto
     {
       throw std::logic_error(fmt::format(
         "Error constructing EdDSA public key from JWK: {}",
-        OpenSSL::last_error()));
+        OpenSSL::first_error()));
     }
   }
 
@@ -87,7 +87,7 @@ namespace ccf::crypto
       EVP_DigestVerify(ctx, signature, signature_size, contents, contents_size);
     if (rc != 1)
     {
-      const auto error = OpenSSL::last_error();
+      const auto error = OpenSSL::first_error();
       LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", error);
       return false;
     }

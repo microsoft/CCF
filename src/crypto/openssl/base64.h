@@ -48,7 +48,7 @@ namespace ccf::crypto
       int rc = EVP_DecodeUpdate(ctx, output, &chunk_len, data, size);
       if (rc < 0)
       {
-        auto err_str = OpenSSL::last_error();
+        auto err_str = OpenSSL::first_error();
         throw std::invalid_argument(fmt::format(
           "OSSL: Could not decode update from base64 string: {} [{} bytes out "
           "of {}, chunk_len = {}]",
@@ -62,7 +62,7 @@ namespace ccf::crypto
       rc = EVP_DecodeFinal(ctx, output + chunk_len, &chunk_len);
       if (rc != 1)
       {
-        auto err_str = OpenSSL::last_error();
+        auto err_str = OpenSSL::first_error();
         throw std::logic_error(fmt::format(
           "OSSL: Could not decode final from base64 string: {} [{} bytes out "
           "of {}, chunk_len = {}]",
@@ -104,7 +104,7 @@ namespace ccf::crypto
       int rc = EVP_EncodeUpdate(ctx, output, &chunk_len, data, size);
       if (rc < 0)
       {
-        auto err_str = OpenSSL::last_error();
+        auto err_str = OpenSSL::first_error();
         throw std::logic_error(fmt::format(
           "OSSL: Could not encode update to base64 string: {} [{} bytes out of "
           "{}, chunk_len = {}]",
@@ -118,7 +118,7 @@ namespace ccf::crypto
       EVP_EncodeFinal(ctx, output + chunk_len, &chunk_len);
       if (ERR_peek_error() != 0)
       {
-        auto err_str = OpenSSL::last_error();
+        auto err_str = OpenSSL::first_error();
         throw std::logic_error(fmt::format(
           "OSSL: Could not encode final to base64 string: {} [{} bytes out of "
           "{}, chunk_len = {}]",

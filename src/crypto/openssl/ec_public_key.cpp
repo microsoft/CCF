@@ -226,7 +226,7 @@ namespace ccf::crypto
     bool ok = rc == 1;
     if (!ok)
     {
-      const auto error = OpenSSL::last_error();
+      const auto error = OpenSSL::first_error();
       LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", error);
     }
 
@@ -298,7 +298,7 @@ namespace ccf::crypto
       throw std::logic_error(fmt::format(
         "Error loading public key. Curve: {}, err: {}",
         curve_name,
-        OpenSSL::last_error()));
+        OpenSSL::first_error()));
     }
 
     Unique_PKEY pk(pkey);

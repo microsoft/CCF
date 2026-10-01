@@ -23,7 +23,7 @@ namespace ccf::crypto
     if (decoded == nullptr)
     {
       throw std::invalid_argument(fmt::format(
-        "Malformed ML-DSA public key PEM: {}", OpenSSL::last_error()));
+        "Malformed ML-DSA public key PEM: {}", OpenSSL::first_error()));
     }
     key.reset(decoded);
     mldsa::parameter_set(key, expected);
@@ -38,7 +38,7 @@ namespace ccf::crypto
     if (decoded == nullptr)
     {
       throw std::invalid_argument(fmt::format(
-        "Malformed ML-DSA public key DER: {}", OpenSSL::last_error()));
+        "Malformed ML-DSA public key DER: {}", OpenSSL::first_error()));
     }
     key.reset(decoded);
     if (cursor != der.data() + der.size())
@@ -106,14 +106,14 @@ namespace ccf::crypto
     }
     if (rc == 0)
     {
-      const auto error = OpenSSL::last_error();
+      const auto error = OpenSSL::first_error();
       LOG_TRACE_FMT("ML-DSA signature verification failed: {}", error);
       return false;
     }
     throw std::runtime_error(fmt::format(
       "ML-DSA provider failed verification (rc={}): {}",
       rc,
-      OpenSSL::last_error()));
+      OpenSSL::first_error()));
   }
 
   MLDSAPublicKeyPtr make_mldsa_public_key(const Pem& pem)
