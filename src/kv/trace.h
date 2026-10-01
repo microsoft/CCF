@@ -2,6 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+// Test-only capture of KV operations as NDJSON records, which lean/kv replays
+// against its model. The declarations below exist only in builds with
+// CCF_KV_TRACING, where capture starts once start() finds CCF_KV_TRACE_FILE and
+// KV_TRACE(...) runs its statements only while capture is active. In other
+// builds KV_TRACE(...) expands to an empty statement.
 #ifdef CCF_KV_TRACING
 #  include "ccf/ds/hex.h"
 
@@ -70,6 +75,9 @@ namespace ccf::kv::trace
   void compact(
     const AbstractStore* store, uint64_t version, uint64_t requested);
 
+  // Marks the current thread as inside a store-wide compaction or rollback,
+  // the model's environment transitions. Map-level compaction or rollback
+  // outside one is unsupported.
   class Environment
   {
     bool previous;
