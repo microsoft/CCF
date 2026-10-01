@@ -259,6 +259,7 @@ of normal CCF builds:
 .. code-block:: bash
 
    cd lean/kv
+   lake exe cache get
    lake build
    lake test
    cd ../..
@@ -311,8 +312,9 @@ must not be mistaken for a valid atomic transition.
 Campaigns use the same Lean checker as ordinary trace validation. A seed fixes
 program choices, not the operating system's scheduling. The captured trace is
 the exact observed execution to replay. Every seed retains its console output,
-trace, and diagnostics under a unique directory. C++ writes recipe and coverage
-metadata to console records, separately from the strict NDJSON event schema.
+trace, and diagnostics under a unique directory. C++ writes the seed and its
+operation coverage counters to the console, separately from the strict NDJSON
+event schema.
 
 The campaign checks both completed-operation counters and actual emitted event
 families and outcomes, including successful/conflicting/nonreplicating commits,
@@ -321,15 +323,8 @@ operations, timeout, rejection and malformed capture remain non-passing
 outcomes. A campaign stops at the first non-passing seed. Coverage of these
 families is not an exhaustive exploration of every program or thread schedule.
 
-After configuring a tracing build as above:
-
-.. code-block:: bash
-
-   cd build-kv-trace
-   ./tests.sh -R '^kv_trace_validation$' -L kv_fuzz --no-tests=error
-
-The CMake options below configure the campaign, without modifying the test
-program or its trace schema:
+The CMake options below configure the campaign run by ``kv_trace_validation``,
+without modifying the test program or its trace schema:
 
 .. list-table::
    :header-rows: 1
@@ -343,17 +338,16 @@ program or its trace schema:
      - First unsigned 64-bit seed.
    * - ``CCF_KV_FUZZ_SEEDS``
      - ``8``
-     - Number of consecutive seeds, from 1 to 256 without overflow.
+     - Number of consecutive seeds, at least 1.
 
 The C++ workload bounds its worker count, transaction and operation budgets,
-iteration depth, callback visits, and key/map universes.
-``CCF_KV_TRACE_TIMEOUT`` bounds each capture/replay process. For example, to
-explore a different seed range:
+iteration depth, callback visits, and key/map universes. For example, to explore
+a different seed range:
 
 .. code-block:: bash
 
    cmake -S .. -B . -DCCF_KV_FUZZ_SEED_START=100 -DCCF_KV_FUZZ_SEEDS=16
-   ./tests.sh -R '^kv_trace_validation$' -L kv_fuzz --no-tests=error
+   ./tests.sh -R '^kv_trace_validation$' -L kv_trace --no-tests=error
 
 The workflow uploads each generated trace and its test and checker output as
 diagnostic artifacts.

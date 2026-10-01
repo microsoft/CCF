@@ -6,7 +6,6 @@
 
 import argparse
 import json
-import math
 import os
 import subprocess
 import sys
@@ -159,13 +158,9 @@ def main():
     parser.add_argument("--timeout", type=float, default=300)
     args = parser.parse_args()
 
-    maximum_seed = 2**64 - 1
-    if not 1 <= args.seeds <= 256:
-        parser.error("--seeds must be in [1, 256]")
-    if not 0 <= args.seed_start <= maximum_seed - args.seeds + 1:
-        parser.error("seed range must fit in an unsigned 64-bit integer")
-    if not math.isfinite(args.timeout) or args.timeout <= 0:
-        parser.error("--timeout must be finite and positive")
+    # Without a seed, fuzzer coverage would silently go unchecked.
+    if args.seeds < 1:
+        parser.error("--seeds must be positive")
 
     args.binary = args.binary.resolve(strict=True)
     args.checker = args.checker.resolve(strict=True)

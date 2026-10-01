@@ -1,12 +1,11 @@
 # Executable KV implementation profile
 
-Standalone Lean 4.34.0 project, using the same pinned Mathlib and axiom-audit
-tooling as the disaster-recovery model. It does not change CCF behavior or
-introduce a normal-build dependency. The fuller contract and provenance belong in
-`doc/build_apps/kv/semantics.rst`.
+Standalone Lean 4.34.0 project, using the same pinned Mathlib, axiom-audit and
+leanfmt tooling as the [disaster-recovery model](../disaster-recovery/README.md).
+It does not change CCF behavior or introduce a normal-build dependency. The
+user-facing contract, trace capture and fuzzing campaigns are described in
+[`doc/build_apps/kv/semantics.rst`](../../doc/build_apps/kv/semantics.rst).
 This profile follows the implementation's **per-map globally committed views**.
-The original stronger transaction-wide-global model is preserved at checkpoint
-`93e110bec91ac31fea7925f580fc812819336da5` for comparison.
 
 ## Commands
 
@@ -22,7 +21,9 @@ lake test
 
 Elan is optional: putting the official Lean 4.34.0 distribution's `bin`
 directory on `PATH` is sufficient. Lake dependencies and their transitive
-revisions are pinned in `lake-manifest.json`.
+revisions are pinned in `lake-manifest.json`. From the repository root,
+`scripts/lean-format-checks.sh lean/kv` checks formatting, and `-f` before the
+package directory applies fixes.
 
 Exit codes: 0 accepted, 1 contract rejection, 2 invalid/incomplete trace or IO
 error, 3 explicitly unsupported operation. `--json` writes exactly one object
@@ -38,9 +39,8 @@ is not constant even though whole-file input buffering is avoided.
 
 ## Review guide
 
-Start with [`Kv/Properties.lean`](Kv/Properties.lean). It exposes the 37
-review-facing guarantees previously listed by the axiom audit, with their
-original hypotheses and conclusions. Each theorem directly applies a checked
+Start with [`Kv/Properties.lean`](Kv/Properties.lean). It states the
+review-facing guarantees, each of which directly applies a checked
 implementation in `Kv.Proofs`; these are not detached proposition declarations.
 Review the statements together with every definition and assumption they use in
 `Kv/Protocol/`.
@@ -64,15 +64,10 @@ hiding the executable model, assumptions, or public statements. Imports, audit
 configuration, toolchain changes, the import-root check, and the attribute rules
 still require human review.
 
-The 116 supporting lemmas live in `Kv.Proofs.Types`, `Kv.Proofs.Model`, and
-`Kv.Proofs.Trace`. Public guarantees live in `Kv.Properties`. Runtime definitions
-retain their existing `Kv` names, preserving trace diagnostics and model
-identifiers.
-
-The model imports `Kv.Proofs.Types` only to construct the same runtime-erased
-certificates it carried before the separation. Their types and the state
-construction remain review-visible in `Protocol/`; moving the proof terms does
-not add an assumption or a new replay acceptance condition.
+The model imports `Kv.Proofs.Types` only to construct runtime-erased
+certificates. Their types and the state construction remain review-visible in
+`Protocol/`, and constructing them adds no assumption or replay acceptance
+condition.
 
 ## Model
 
@@ -132,10 +127,9 @@ absence, and a missing required `value` field is an invalid trace.
   and global reads, even if another transaction subsequently creates and
   compacts the real map. Its global revision is zero, not the current real
   map's committed revision. This does not recover discarded contents from ghost
-  history or claim the placeholder is the latest committed map.
-  An already-existing empty map with
-  revision zero remains subject to retention checks; zero revision alone is
-  not evidence that the map was absent.
+  history or claim the placeholder is the latest committed map. An
+  already-existing empty map with revision zero remains subject to retention
+  checks; zero revision alone is not evidence that the map was absent.
   A request above the current head is an observed no-op: its effective boundary
   must equal the previous global cut. A backward request also leaves the
   effective cut unchanged. Neither request permits a fabricated global advance.
@@ -143,9 +137,8 @@ absence, and a missing required `value` field is an invalid trace.
   Pinned handles remain readable. Per-map application identities prevent reuse
   of a rolled-back version from restoring lineage. Map-birth identities also
   distinguish removed/recreated empty maps whose effective revision stayed zero.
-  A changed commit term also
-  invalidates writing attempts. Unrelated same-term rollback does not
-  automatically invalidate all handles.
+  A changed commit term also invalidates writing attempts. Unrelated same-term
+  rollback does not automatically invalidate all handles.
 
 `Tx.certificate` is a kernel-checked, runtime-erased invariant that the exact
 normal-operation log was executed against its captured snapshot. It is
@@ -160,12 +153,10 @@ frame results from publishing a finite write set over its predecessor.
 The head is the first history frame and the global cut never exceeds it.
 `Snapshot` retains the current frame and captured commit term; its erased
 `origin` certifies the current frame's provenance. The initial global frontier
-is checked at capture, not retained as transaction state. Historical `Frame`
-objects do not store an unused term; the necessary store and transaction terms
-still drive stale-term rejection.
-`Tx.globalViews` is the sole acquired-map table, storing a distinct immutable
-`GlobalView` per map without a redundant handle-name list. Its erased provenance
-is explicitly either an empty
+is checked at capture, not retained as transaction state. Store and transaction
+terms drive stale-term rejection.
+`Tx.globalViews` is the acquired-map table, storing one immutable `GlobalView`
+per map. Its erased provenance is explicitly either an empty
 genesis/placeholder frame or a frame from a store's committed prefix. The
 actual acquisition theorem selects the placeholder only when the map did not
 exist at R; otherwise it selects the prefix current at acquisition.
@@ -303,16 +294,21 @@ not guaranteed by generated-trace event coverage. It exercises expected
 rejections, including forbidden map-view refreshes, wrong global
 values/presence/revisions, partial applications, absent/phantom/write-skew
 conflicts, stale lineage, iteration lifecycle errors, exact uint64 decoding, and
-damaged streams. Other positive implementation schedules come from the focused
-C++ tests and concurrent fuzzer.
+damaged streams. Every case is replayed from a temporary file through the same
+streaming reader as the CLI. Other positive implementation schedules come from
+the focused C++ tests and concurrent fuzzer.
 
-## Recorded failure analyses
+## Recorded finding
 
-- [Whole-map dependency at revision zero](failures/revision_zero_map_dependency.md):
-  source-linked diagnosis of the saved concurrent-fuzzer rejection. The model
-  recorded a dependency that the implementation's zero-valued marker failed to
-  distinguish from an absent map-read dependency. The correction is now included
-  in upstream CCF; the saved pre-fix trace remains a rejection.
+The concurrent fuzzer found a whole-map conflict that C++ failed to detect. An
+iteration over a map at revision zero recorded its map-read version as zero,
+which was also `NoVersion`, the marker for "no whole-map read". Commit
+validation therefore skipped the check, and C++ applied a transaction whose
+iterated map had since gained an entry, while the model rejected the `apply`.
+[#8320](https://github.com/microsoft/CCF/pull/8320) fixed this by tracking the
+map-read version as `std::optional<Version>`. The model's whole-map dependency
+check, which caught it, is exercised by the `map-wide phantom dependency` case
+in `Tests.lean`.
 
 ## Trust and exclusions
 
