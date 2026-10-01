@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf::crypto::make_cose_verifier_from_pem_cert()` and `ccf::crypto::make_cose_verifier_any_cert()` now require PEM certificates to start with `-----BEGIN CERTIFICATE-----`; leading text is no longer skipped (#8459).
 - `ccf::make_net_address()` and `ccf::split_net_address()` are now declared in the new public header `ccf/ds/net_address.h`. `ccf/service/node_info_network.h` still includes it, so existing includers are unaffected (#8463).
 - `ccf::COSESignaturesConfig` and `ccf::ReconfigurationType` are unchanged, but are now declared in the new public headers `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively (#8463).
+- The `ccf::crypto` base64 functions are now declared in the new public header `ccf/ds/base64.h`, so that `ccf/ds/json.h` no longer depends on crypto. `ccf/crypto/base64.h` still includes it, so existing includers are unaffected (#8478).
+- `ccf::DID` and `ccf::Feed` are now declared in `ccf/pal/uvm_endorsements.h`, which no longer includes `ccf/service/tables/uvm_endorsements.h`. `ccf::kv::serialisers::BlitSerialiser<ccf::crypto::Sha256Hash>` is now declared in `ccf/kv/serialisers/blit_serialiser.h`, next to the primary template, rather than in `ccf/crypto/sha256_hash.h` (#8478).
+- Public headers no longer form dependency cycles between components, so some of them no longer provide KV types transitively. `ccf/tx.h` still provides `ccf::kv::Map`, `ccf::kv::Set`, `ccf::kv::Value` and `ccf::kv::UnitValue`, but no longer `ccf::ServiceMap`, `ccf::ServiceValue`, `ccf::ServiceSet` or `ccf::ServiceUnit`, and neither do the headers which include it, such as `ccf/rpc_context.h` and `ccf/node_context.h`. `ccf/crypto/sha256_hash.h`, `ccf/crypto/hash_provider.h`, `ccf/claims_digest.h`, `ccf/receipt.h`, `ccf/service/local_sealing.h` and several `ccf/pal/` headers, such as `ccf/pal/attestation.h`, no longer provide the typed KV maps. Applications which relied on this must include `ccf/kv/map.h` or `ccf/service/map.h` directly. `ccf/app_interface.h`, `ccf/endpoint_registry.h`, `ccf/common_endpoint_registry.h` and `ccf/json_handler.h` still provide everything they did (#8478).
 
 ### Deprecated
 
@@ -38,6 +41,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - A node which applied an opening of a recovered service that an election then rolled back could keep that opening's seqno, rather than the seqno of the opening which committed, as the version at which the last ledger secret before recovery is stored. That version is recorded in the recovery shares and sealed recovery shares information, and sent to joining nodes (#8452).
 - `ccf::crypto::Verifier::remaining_seconds()` now returns 0 once the certificate has expired. Previously, the negative remaining duration wrapped around to a very large unsigned value (#8430).
 - `ccf::crypto::ECKeyPair::sign()` and `sign_hash()`, and therefore `ccf.crypto.sign()`, no longer fail with an OpenSSL "output buffer too small" error when signing with a P-521 key loaded from PEM under OpenSSL providers such as SymCrypt (#8428).
+- `ccf/research/create_tx_claims_digest.h` no longer includes the private header `kv/kv_types.h`, which is not installed with CCF, so applications can now include it. It includes `ccf/claims_digest.h` and `ccf/tx.h` instead (#8478).
 
 ## [7.0.17]
 

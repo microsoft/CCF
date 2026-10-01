@@ -14,6 +14,7 @@
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/users.h"
+#include "ccf/service/tables/uvm_endorsements.h"
 #include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"

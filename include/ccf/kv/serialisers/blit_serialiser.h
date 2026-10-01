@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
 
@@ -84,6 +85,24 @@ namespace ccf::kv::serialisers
           "Can't deserialise this type");
       }
       // NOLINTEND(bugprone-branch-clone)
+    }
+  };
+
+  // Declared with the primary template, so that it is visible wherever
+  // BlitSerialiser<Sha256Hash> can be instantiated.
+  template <>
+  struct BlitSerialiser<ccf::crypto::Sha256Hash>
+  {
+    static SerialisedEntry to_serialised(const ccf::crypto::Sha256Hash& h)
+    {
+      auto hex_str = h.hex_str();
+      return {hex_str.begin(), hex_str.end()};
+    }
+
+    static ccf::crypto::Sha256Hash from_serialised(const SerialisedEntry& data)
+    {
+      auto data_str = std::string{data.begin(), data.end()};
+      return ccf::crypto::Sha256Hash::from_hex_string(data_str);
     }
   };
 }

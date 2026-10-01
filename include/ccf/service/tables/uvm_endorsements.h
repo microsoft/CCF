@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/pal/uvm_endorsements.h"
 #include "ccf/service/map.h"
 
 #include <string>
@@ -17,8 +18,6 @@ namespace ccf
   DECLARE_JSON_TYPE(UVMEndorsementsData);
   DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsementsData, svn);
 
-  using DID = std::string;
-  using Feed = std::string;
   using FeedToEndorsementsDataMap = std::map<Feed, UVMEndorsementsData>;
 
   using SNPUVMEndorsements = ServiceMap<DID, FeedToEndorsementsDataMap>;
