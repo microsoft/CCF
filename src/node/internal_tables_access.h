@@ -8,6 +8,7 @@
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/constitution.h"
+#include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/snp_measurements.h"
@@ -16,10 +17,11 @@
 #include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
-#include "cose/cose_rs_ffi.h"
+#include "crypto/cose.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
-#include "node/uvm_endorsements.h"
+#include "pal/uvm_endorsements.h"
+#include "service/tables/config.h"
 #include "service/tables/governance_history.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
@@ -531,39 +533,22 @@ namespace ccf
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
-      auto key_der = service_key.private_key_der();
-      CoseBuffer key_err;
-      auto cose_key =
-        CoseKey::from_private(key_der.data(), key_der.size(), key_err);
-      if (key_err.is_set())
+      try
       {
-        LOG_FAIL_FMT("Failed to create signing key: {}", key_err.to_string());
-        return false;
+        endorsement.endorsement = cose::sign_endorsement(
+          service_key,
+          time_since_epoch,
+          from_txid,
+          to_txid,
+          previous_root,
+          key_to_endorse);
       }
-
-      CoseBuffer cose_buf;
-      CoseBuffer cose_err;
-      auto rc = cose_sign_endorsement(
-        cose_key,
-        time_since_epoch,
-        reinterpret_cast<const uint8_t*>(from_txid.data()),
-        from_txid.size(),
-        reinterpret_cast<const uint8_t*>(to_txid.data()),
-        to_txid.size(),
-        previous_root.data(),
-        previous_root.size(),
-        key_to_endorse.data(),
-        key_to_endorse.size(),
-        cose_buf,
-        cose_err);
-      if (rc != 0 || !cose_buf.is_set())
+      catch (const std::exception& error)
       {
         LOG_FAIL_FMT(
-          "Failed to sign previous service identity: {}",
-          cose_err.is_set() ? cose_err.to_string() : "unknown error");
+          "Failed to sign previous service identity: {}", error.what());
         return false;
       }
-      endorsement.endorsement = cose_buf.to_vector();
 
       previous_identity_endorsement->put(IdentityType::CLASSICAL, endorsement);
       return true;
@@ -822,7 +807,9 @@ namespace ccf
     }
 
     static void trust_node_snp_tcb_version(
-      ccf::kv::Tx& tx, const pal::snp::AttestationReport& attestation)
+      ccf::kv::Tx& tx,
+      const pal::snp::AttestationReport& attestation,
+      bool recovering)
     {
       if (attestation == nullptr)
       {
@@ -857,14 +844,50 @@ namespace ccf
           tav_snp_attestation_report_cpuid_mod_id(attestation.get()),
           tav_snp_attestation_report_cpuid_step(attestation.get())));
       }
-      auto* h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
       auto product = pal::snp::get_sev_snp_product(cpuid);
       const uint8_t* data = nullptr;
       size_t size = 0;
       tav_snp_attestation_report_reported_tcb(attestation.get(), &data, &size);
-      h->put(
+      trust_node_snp_tcb_version(
+        tx,
         cpuid.hex_str(),
-        pal::snp::TcbVersionRaw({data, size}).to_policy(product));
+        pal::snp::TcbVersionRaw({data, size}).to_policy(product),
+        recovering);
+    }
+
+    // On start, the reported TCB version is set as the minimum for the CPUID.
+    // On recovery, an existing minimum is kept if it admits the reported TCB
+    // version, and is otherwise replaced by it, so that the recovering node is
+    // admitted. Either way, the minimum is one of the two values, unmodified,
+    // never a combination of them.
+    static void trust_node_snp_tcb_version(
+      ccf::kv::Tx& tx,
+      const std::string& cpuid,
+      pal::snp::TcbVersionPolicy tcb_version,
+      bool recovering)
+    {
+      auto* tcb_versions =
+        tx.rw<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+      auto existing = recovering ? tcb_versions->get(cpuid) : std::nullopt;
+      if (existing.has_value())
+      {
+        if (pal::snp::TcbVersionPolicy::is_valid(existing.value(), tcb_version))
+        {
+          LOG_INFO_FMT(
+            "SNP minimum TCB version for CPUID {} unchanged on recovery: {}",
+            cpuid,
+            nlohmann::json(existing.value()).dump());
+          return;
+        }
+
+        LOG_INFO_FMT(
+          "SNP minimum TCB version for CPUID {} set to {} on recovery, as the "
+          "existing minimum {} does not admit it",
+          cpuid,
+          nlohmann::json(tcb_version).dump(),
+          nlohmann::json(existing.value()).dump());
+      }
+      tcb_versions->put(cpuid, tcb_version);
     }
 
     static void init_configuration(

@@ -5,8 +5,8 @@
 #include "ccf/kv/serialisers/serialised_entry.h"
 #include "ds/ccf_assert.h"
 #include "ds/serialized.h"
+#include "kv/claims.h"
 #include "kv_types.h"
-#include "node/rpc/claims.h"
 #include "serialised_entry_format.h"
 
 #include <optional>

@@ -36,10 +36,7 @@ namespace ccf::crypto
   {
     Unique_BIO mem(pem);
     key.reset(PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr));
-    if (key == nullptr)
-    {
-      throw std::runtime_error("could not parse PEM");
-    }
+    OpenSSL::CHECKNULL(key);
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
       throw std::logic_error(

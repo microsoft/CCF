@@ -14,7 +14,7 @@
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
-#include "ccf/service/reconfiguration_type.h"
+#include "ccf/reconfiguration_type.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
@@ -1382,7 +1382,7 @@ namespace ccf
           ccf::NodeStatus::PENDING,
           is_primary,
           node_startup_config.network.rpc_interfaces,
-          node_startup_config.node_data,
+          node_configuration_subsystem->get().node_data,
           0});
       };
       make_read_only_endpoint(
@@ -1777,7 +1777,7 @@ namespace ccf
               AttestationProvider::get_snp_attestation_report(in.quote_info)
                 .value();
             InternalTablesAccess::trust_node_snp_tcb_version(
-              ctx.tx, attestation);
+              ctx.tx, attestation, recovering);
             break;
           }
           case QuoteFormat::oe_sgx_v1:

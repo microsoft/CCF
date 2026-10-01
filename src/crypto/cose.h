@@ -4,12 +4,51 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <string>
+#include <string_view>
+#include <vector>
+
+namespace ccf::crypto
+{
+  class ECKeyPair;
+}
 
 namespace ccf
 {
   namespace cose
   {
+    std::vector<uint8_t> make_cose_sign1_tbs(
+      std::span<const uint8_t> protected_header,
+      std::span<const uint8_t> payload);
+
+    std::vector<uint8_t> make_cose_sign1_envelope(
+      std::span<const uint8_t> protected_header,
+      std::span<const uint8_t> payload,
+      std::span<const uint8_t> signature,
+      bool detached);
+
+    /// @throws std::runtime_error if header construction, signing, or
+    /// encoding fails.
+    std::vector<uint8_t> sign_ledger(
+      const crypto::ECKeyPair& key,
+      std::string_view kid,
+      int64_t iat,
+      std::string_view issuer,
+      std::string_view subject,
+      std::string_view txid,
+      std::span<const uint8_t> payload);
+
+    /// @throws std::runtime_error if header construction, signing, or
+    /// encoding fails.
+    std::vector<uint8_t> sign_endorsement(
+      const crypto::ECKeyPair& key,
+      int64_t iat,
+      std::string_view epoch_begin,
+      std::string_view epoch_end,
+      std::span<const uint8_t> previous_merkle_root,
+      std::span<const uint8_t> payload);
+
     namespace header
     {
       namespace iana // https://www.iana.org/assignments/cose/cose.xhtml
@@ -32,6 +71,8 @@ namespace ccf
         static constexpr std::string_view TX_ID = "txid";
         static constexpr std::string_view TX_RANGE_BEGIN = "epoch.start.txid";
         static constexpr std::string_view TX_RANGE_END = "epoch.end.txid";
+        static constexpr std::string_view EPOCH_LAST_MERKLE_ROOT =
+          "epoch.end.merkle.root";
       }
     }
     namespace value
@@ -42,6 +83,37 @@ namespace ccf
       static constexpr std::string_view CT_JSON = "application/json";
       static constexpr std::string_view CT_OCTET_STREAM =
         "application/octet-stream";
+    }
+    namespace alg // https://www.iana.org/assignments/cose/cose.xhtml
+    {
+      static constexpr int64_t ES256 = -7;
+      static constexpr int64_t ES384 = -35;
+      static constexpr int64_t ES512 = -36;
+      // Fully-specified ECDSA identifiers, RFC 9864.
+      static constexpr int64_t ESP256 = -9;
+      static constexpr int64_t ESP384 = -51;
+      static constexpr int64_t ESP512 = -52;
+      static constexpr int64_t PS256 = -37;
+      static constexpr int64_t PS384 = -38;
+      static constexpr int64_t PS512 = -39;
+    }
+
+    using Signature = std::span<const uint8_t>;
+
+    static bool is_ecdsa_alg(int64_t cose_alg)
+    {
+      // RFC 9864 deprecates the curve-agnostic ES identifiers in favour of the
+      // fully-specified ESP ones. Both are accepted, since the curve, and
+      // therefore the digest, is fixed by the verification key.
+      return cose_alg == alg::ES256 || cose_alg == alg::ES384 ||
+        cose_alg == alg::ES512 || cose_alg == alg::ESP256 ||
+        cose_alg == alg::ESP384 || cose_alg == alg::ESP512;
+    }
+
+    static bool is_rsa_alg(int64_t cose_alg)
+    {
+      return cose_alg == alg::PS256 || cose_alg == alg::PS384 ||
+        cose_alg == alg::PS512;
     }
   }
   namespace cwt::header

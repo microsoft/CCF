@@ -48,31 +48,22 @@ namespace ccf::crypto
   {
     int curve_nid = get_openssl_group_id(curve_id);
     Unique_EVP_PKEY_CTX pkctx;
-    if (
-      EVP_PKEY_keygen_init(pkctx) <= 0 ||
-      EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pkctx, curve_nid) <= 0 ||
-      EVP_PKEY_CTX_set_ec_param_enc(pkctx, OPENSSL_EC_NAMED_CURVE) <= 0)
-    {
-      throw std::runtime_error("could not initialize PK context");
-    }
+    OpenSSL::CHECKPOSITIVE(EVP_PKEY_keygen_init(pkctx));
+    OpenSSL::CHECKPOSITIVE(
+      EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pkctx, curve_nid));
+    OpenSSL::CHECKPOSITIVE(
+      EVP_PKEY_CTX_set_ec_param_enc(pkctx, OPENSSL_EC_NAMED_CURVE));
     EVP_PKEY* generated = nullptr;
     const auto keygen_rc = EVP_PKEY_keygen(pkctx, &generated);
     key.reset(generated);
-    if (keygen_rc <= 0)
-    {
-      throw std::runtime_error(
-        fmt::format("could not generate new EC key: {}", keygen_rc));
-    }
+    OpenSSL::CHECKPOSITIVE(keygen_rc);
   }
 
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
     key.reset(PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr));
-    if (key == nullptr)
-    {
-      throw std::runtime_error("could not parse PEM");
-    }
+    OpenSSL::CHECKNULL(key);
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
       throw std::logic_error(
@@ -193,13 +184,20 @@ namespace ccf::crypto
   std::vector<uint8_t> ECKeyPair_OpenSSL::sign_hash(
     const uint8_t* hash, size_t hash_size) const
   {
-    std::vector<uint8_t> sig(EVP_PKEY_size(key));
-    size_t written = sig.size();
+    // Query the required signature size from this context, rather than
+    // relying on EVP_PKEY_size(key). For some curves (eg - P-521), some
+    // providers (eg - SymCrypt) report a smaller EVP_PKEY_size() than the
+    // buffer they actually need, particularly after a private key has been
+    // through a PEM round trip, which then makes signing itself fail with
+    // "output buffer too small".
+    Unique_EVP_PKEY_CTX pctx(key);
+    OpenSSL::CHECK1(EVP_PKEY_sign_init(pctx));
 
-    if (sign_hash(hash, hash_size, &written, sig.data()) != 0)
-    {
-      return {};
-    }
+    size_t written = 0;
+    OpenSSL::CHECK1(EVP_PKEY_sign(pctx, nullptr, &written, hash, hash_size));
+
+    std::vector<uint8_t> sig(written);
+    OpenSSL::CHECK1(EVP_PKEY_sign(pctx, sig.data(), &written, hash, hash_size));
 
     sig.resize(written);
     return sig;

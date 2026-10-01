@@ -34,14 +34,14 @@ namespace ccf::crypto
         "Cannot construct ECPublicKey_OpenSSL from non-EC key");
     }
   }
+  ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(Unique_PKEY&& pkey) :
+    ECPublicKey_OpenSSL(pkey.release())
+  {}
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
     key.reset(PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr));
-    if (key == nullptr)
-    {
-      throw std::runtime_error("could not parse PEM");
-    }
+    OpenSSL::CHECKNULL(key);
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
@@ -55,10 +55,7 @@ namespace ccf::crypto
   {
     Unique_BIO buf(der);
     key.reset(d2i_PUBKEY_bio(buf, nullptr));
-    if (key == nullptr)
-    {
-      throw std::runtime_error("Could not read DER");
-    }
+    OpenSSL::CHECKNULL(key);
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
@@ -229,10 +226,8 @@ namespace ccf::crypto
     bool ok = rc == 1;
     if (!ok)
     {
-      int ec = ERR_get_error();
-      LOG_DEBUG_FMT(
-        "OpenSSL signature verification failure: {}",
-        OpenSSL::error_string(ec));
+      const auto error = OpenSSL::first_error();
+      LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", error);
     }
 
     return ok;
@@ -303,7 +298,7 @@ namespace ccf::crypto
       throw std::logic_error(fmt::format(
         "Error loading public key. Curve: {}, err: {}",
         curve_name,
-        OpenSSL::error_string(ERR_get_error())));
+        OpenSSL::first_error()));
     }
 
     Unique_PKEY pk(pkey);

@@ -10,19 +10,17 @@ namespace ccf::kv
   class MapDiff : public AbstractHandle
   {
   protected:
+    friend class ccf::kv::BaseTx;
+
     ccf::kv::untyped::MapDiff map_diff;
-
-  public:
-    using KeyType = K;
-    using ValueType = V;
-
-    MapDiff(ccf::kv::untyped::MapDiff map_diff_) :
-      map_diff(std::move(map_diff_))
-    {}
 
     MapDiff(ccf::kv::untyped::ChangeSet& changes, const std::string& map_name) :
       map_diff(changes, map_name)
     {}
+
+  public:
+    using KeyType = K;
+    using ValueType = V;
 
     /** Get value for key.
      *
@@ -41,6 +39,9 @@ namespace ccf::kv
         {
           return VSerialiser::from_serialised(opt_v_rep.value().value());
         }
+
+        // Key was deleted by this transaction.
+        return std::optional<V>(std::nullopt);
       }
 
       return std::nullopt;
@@ -116,7 +117,7 @@ namespace ccf::kv
     {
       auto g = [&](
                  const ccf::kv::serialisers::SerialisedEntry& k_rep,
-                 const ccf::kv::serialisers::SerialisedEntry&) {
+                 const std::optional<ccf::kv::serialisers::SerialisedEntry>&) {
         return f(KSerialiser::from_serialised(k_rep));
       };
       map_diff.foreach(g);
@@ -135,13 +136,17 @@ namespace ccf::kv
       auto g =
         [&](
           const ccf::kv::serialisers::SerialisedEntry&,
-          const std::optional<ccf::kv::serialisers::SerialisedEntry>& v_rep) {
-          if (v_rep.has_value())
-          {
-            return f(VSerialiser::from_serialised(v_rep));
-          }
-          return f(std::nullopt);
-        };
+          const std::optional<ccf::kv::serialisers::SerialisedEntry>& v_rep)
+        -> bool {
+        if (v_rep.has_value())
+        {
+          const std::optional<V> v =
+            VSerialiser::from_serialised(v_rep.value());
+          return f(v);
+        }
+        const std::optional<V> v = std::nullopt;
+        return f(v);
+      };
       map_diff.foreach(g);
     }
 

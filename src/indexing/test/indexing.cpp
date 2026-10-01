@@ -674,7 +674,6 @@ public:
     ccf::SeqNo seqno, const uint8_t* data, size_t size) override
   {
     auto store = std::make_shared<ccf::kv::Store>(
-      false /* Do not start from very first seqno */,
       true /* Make use of historical secrets */);
 
     store->set_encryptor(encryptor);

@@ -75,11 +75,56 @@ jobs:
           ./tests.sh --timeout 360 --output-on-failure -C partitions -L '^partitions$' --no-tests=error
         shell: bash
 
+      # Coverage SNP Genoa runs in parallel and normally finishes well before
+      # this job's tests, so waiting for it here adds no time in practice,
+      # unlike a job dependency. Fail rather than report statistics missing its
+      # coverage, so that the run is excluded from the coverage trend.
+      - name: "Wait for SNP Genoa coverage"
+        timeout-minutes: 60
+        run: |
+          set -euo pipefail
+          job="Coverage SNP Genoa"
+          while true; do
+            if ! state=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs" \
+              --jq ".jobs[] | select(.name == \"${job}\") | \"\(.status) \(.conclusion)\""); then
+              state="unavailable"
+            fi
+            case "${state}" in
+              "completed success") exit 0 ;;
+              completed*)
+                echo "::error::${job} concluded ${state#completed }, so its coverage cannot be merged"
+                exit 1
+                ;;
+              "")
+                echo "::error::${job} was not found in this workflow run"
+                exit 1
+                ;;
+            esac
+            echo "Waiting for ${job} (${state%% *})"
+            sleep 30
+          done
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: "Download SNP Genoa coverage"
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: coverage-snp-genoa-profdata
+          path: build
+
       - name: "Generate coverage reports"
         run: |
           set -exo pipefail
           cd build
-          ../scripts/coverage.sh --html coverage_html | tee coverage_report.txt
+          snp_clang=$(cat coverage_snp_genoa.clang-version)
+          local_clang=$(clang++ -dumpversion)
+          if [[ "${snp_clang}" != "${local_clang}" ]]; then
+            echo "::error::SNP Genoa coverage was built with clang ${snp_clang} rather than ${local_clang}, so it cannot be merged"
+            exit 1
+          fi
+          ../scripts/coverage.sh --html coverage_html \
+            --add-profile coverage_snp_genoa.profdata | tee coverage_report.txt
         shell: bash
 
       - name: "Download previous coverage summaries"
@@ -90,17 +135,49 @@ jobs:
           mkdir -p coverage_history
           # GitHub does not expose an API to download a job summary, so the
           # previous line and branch coverage values are recovered from the logs
-          # of the last successful Coverage runs on this branch, which contain
-          # the same llvm-cov report (see the "tee" above). The number of runs
-          # kept here is COVERAGE_HISTORY_POINTS, which coverage_summary.py also
-          # uses when plotting the trend.
-          runs=$(gh api \
-            "repos/${GITHUB_REPOSITORY}/actions/workflows/coverage.yml/runs?branch=${GITHUB_REF_NAME}&per_page=30" \
-            --jq "[.workflow_runs[] | select(.conclusion == \"success\") | select((.id | tostring) != \"${GITHUB_RUN_ID}\")] | .[0:${COVERAGE_HISTORY_POINTS}] | .[] | \"\(.id) \(.run_number)\"" || true)
+          # of the Coverage Virtual job in the last successful Coverage runs on
+          # this branch, which contain the same llvm-cov report (see the "tee"
+          # above). The number of runs kept here is COVERAGE_HISTORY_POINTS,
+          # which coverage_summary.py also uses when plotting the trend.
+          #
+          # Lists of runs filtered by branch are sometimes outdated, missing
+          # the runs of the last days or weeks, which would plot an outdated
+          # trend. Runs are therefore listed without filters and filtered
+          # here, and a list is only used if it includes this run, as any
+          # up-to-date list does. Otherwise, it is requested again.
+          select_runs='
+            if any(.workflow_runs[]; (.id | tostring) == env.GITHUB_RUN_ID) then
+              [.workflow_runs[]
+                | select(.head_branch == env.GITHUB_REF_NAME)
+                | select(.conclusion == "success")
+                | select((.id | tostring) != env.GITHUB_RUN_ID)]
+              | sort_by(.run_number) | reverse
+              | .[:(env.COVERAGE_HISTORY_POINTS | tonumber)][]
+              | "\(.id) \(.run_number)"
+            else
+              "outdated"
+            end'
+          for attempt in 1 2 3 4 5; do
+            if runs=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/coverage.yml/runs?per_page=100" \
+              --jq "${select_runs}") && [[ "${runs}" != "outdated" ]]; then
+              break
+            fi
+            runs="outdated"
+            echo "Could not list up-to-date Coverage runs (attempt ${attempt})"
+            if [[ "${attempt}" -lt 5 ]]; then
+              sleep 30
+            fi
+          done
+          if [[ "${runs}" == "outdated" ]]; then
+            echo "::warning::Could not list up-to-date Coverage runs, so the coverage trend only includes this run"
+            runs=""
+          fi
           while read -r run_id run_number; do
             [[ -z "$run_id" ]] && continue
+            echo "Downloading the log of run ${run_number} (${run_id})"
             job_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs" \
-              --jq '.jobs[0].id' || true)
+              --jq '.jobs[] | select(.name == "Coverage Virtual") | .id' || true)
             [[ -z "$job_id" ]] && continue
             # Job logs contain ANSI sequences, which gh 2.97+ blocks by default.
             gh api --allow-escape-sequences \
@@ -146,6 +223,88 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*/*.ledger/*
+            build/workspace/*/*.ledger.*/*
+            build/workspace/*/stack_trace
+            build/workspace/**/openapi_coverage.json
+          if-no-files-found: ignore
+        if: success() || failure()
+
+  coverage_snp_genoa:
+    # Coverage Virtual waits for this job by name, and merges its profile.
+    name: "Coverage SNP Genoa"
+    runs-on: [gha-aci-genoa]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: "Confirm running on SEV-SNP Genoa"
+        run: |
+          set -ex
+          python3 tests/infra/platform_detection.py snp genoa
+        shell: bash
+
+      # Builds and runs the same tests as the ACI SNP Genoa job in ci.yml, with
+      # coverage enabled, except for ledger_bench, since benchmarks are not
+      # included in coverage.
+      - name: "Build Debug with coverage"
+        run: |
+          set -ex
+          mkdir build
+          cd build
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON -DWORKER_THREADS=1 ..
+          ninja snp code_update_test
+        shell: bash
+
+      - name: "Tests"
+        run: |
+          set -ex
+          cd build
+          ./tests.sh --timeout 360 --output-on-failure -C snp -L snp --no-tests=error
+          ./tests.sh --timeout 360 --output-on-failure -R code_update --no-tests=error
+        shell: bash
+        env:
+          CCF_TEST_SYNC_AFTER_SETUP: 1
+          ELECTION_TIMEOUT_MS: 10000
+
+      - name: "Merge coverage data"
+        run: |
+          set -ex
+          cd build
+          ../scripts/coverage.sh --merge-only -o coverage_snp_genoa.profdata
+          # Checked by Coverage Virtual, since profiles only match binaries built
+          # by the same compiler
+          clang++ -dumpversion > coverage_snp_genoa.clang-version
+        shell: bash
+
+      - name: "Upload coverage data"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-snp-genoa-profdata
+          path: |
+            build/coverage_snp_genoa.profdata
+            build/coverage_snp_genoa.clang-version
+          if-no-files-found: error
+
+      - name: "Capture dmesg"
+        run: |
+          set -ex
+          dmesg > dmesg.log
+        shell: bash
+        if: success() || failure()
+
+      - name: "Upload logs"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: logs-coverage-snp-genoa
+          path: |
+            dmesg.log
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*/*.ledger/*
+            build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore

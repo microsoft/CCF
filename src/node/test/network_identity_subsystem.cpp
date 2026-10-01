@@ -4,9 +4,9 @@
 #include "node/rpc/network_identity_subsystem.h"
 
 #include "ccf/ds/locking.h"
-#include "cose/cose_rs_ffi.h"
+#include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/network_identity_accessors_impl.h"
@@ -208,7 +208,7 @@ namespace
   };
 
   // ChainBuilder -- mints real COSE-signed endorsements via the same
-  // cose-rs path production uses. Layout mirrors production:
+  // CCF crypto path production uses. Layout mirrors production:
   //
   //   * Service S_0 self-endorses, producing entry e_0. e_0 has no
   //     epoch_end and no previous_version. Its epoch_begin is the create
@@ -332,31 +332,13 @@ namespace
     {
       const auto begin_str = begin.to_str();
       const auto end_str = end.has_value() ? end->to_str() : std::string{};
-      auto priv_der = key.private_key_der();
-      CoseBuffer key_err;
-      auto cose_key =
-        CoseKey::from_private(priv_der.data(), priv_der.size(), key_err);
-      REQUIRE(cose_key.is_set());
-
-      CoseBuffer out;
-      CoseBuffer sign_err;
-      auto rc = cose_sign_endorsement(
-        cose_key,
+      return ccf::cose::sign_endorsement(
+        key,
         /*iat=*/1700000000,
-        reinterpret_cast<const uint8_t*>(begin_str.data()),
-        begin_str.size(),
-        end.has_value() ? reinterpret_cast<const uint8_t*>(end_str.data()) :
-                          nullptr,
-        end.has_value() ? end_str.size() : 0,
-        previous_root.data(),
-        previous_root.size(),
-        payload.data(),
-        payload.size(),
-        out,
-        sign_err);
-      REQUIRE(rc == 0);
-      REQUIRE(out.is_set());
-      return out.to_vector();
+        begin_str,
+        end_str,
+        previous_root,
+        payload);
     }
   };
 
