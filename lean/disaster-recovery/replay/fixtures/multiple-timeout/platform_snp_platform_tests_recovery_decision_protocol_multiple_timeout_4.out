@@ -187,4 +187,6 @@ RDP_TRACE {"batch":41,"kind":"send","node":"1","pre_version":67,"send":"iamopen:
 RDP_TRACE {"batch":41,"kind":"send","node":"1","pre_version":67,"send":"iamopen:2","sequence":186}
 RDP_TRACE {"batch":42,"kind":"send","node":"1","pre_version":67,"send":"iamopen:0","sequence":187}
 RDP_TRACE {"batch":42,"kind":"send","node":"1","pre_version":67,"send":"iamopen:2","sequence":188}
-RDP_TRACE {"kind":"timeout","node":"1","post":"Open","post_timeout":"Opening","pre":"Opening","pre_timeout":"Opening","sequence":189,"version":72,"wrote":true}
+RDP_TRACE {"batch":43,"kind":"send","node":"1","pre_version":67,"send":"iamopen:0","sequence":189}
+RDP_TRACE {"batch":43,"kind":"send","node":"1","pre_version":67,"send":"iamopen:2","sequence":190}
+RDP_TRACE {"kind":"timeout","node":"1","post":"Open","post_timeout":"Opening","pre":"Opening","pre_timeout":"Opening","sequence":191,"version":73,"wrote":true}
