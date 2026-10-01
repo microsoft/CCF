@@ -293,18 +293,16 @@ namespace ccf::crypto
 
     if (pkey == nullptr)
     {
-      EVP_PKEY_free(pkey);
-
       throw std::logic_error(fmt::format(
         "Error loading public key. Curve: {}, err: {}",
         curve_name,
         OpenSSL::first_error()));
     }
 
-    Unique_PKEY pk(pkey);
-    EVP_PKEY_up_ref(pk);
-    EVP_PKEY_free(pkey);
-    return pk;
+    // Take over the single reference that EVP_PKEY_fromdata returned, rather
+    // than duplicating the key (as Unique_PKEY(EVP_PKEY*) does), so that the
+    // result is the sole owner and no caller has to drop an extra reference.
+    return {pkey, EVP_PKEY_free};
   }
 
   ECPublicKey::Coordinates ECPublicKey_OpenSSL::coordinates() const
