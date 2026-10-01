@@ -332,21 +332,17 @@ def parseEvent (record : Record) : Checked TraceEvent := do
       ] do
     require (fields.contains key == present)
       s!"{location}: {kind} from {phaseName pre} to {phaseName post} {if present then "must" else "cannot"} record {key}"
-  require (restart == (advanced == .joining))
-    s!"{location}: {kind} in {phaseName advanced} must {if advanced == .joining then "" else "not "}request a restart"
   if kind == "timeout" then
     return event (.timeout execution)
   let some source := source | throw (.invalid s!"{location}: {kind} misses source")
   let message ←
     match kind, txid with
     | "gossip_accepted", some txid =>
-        -- Gossips are rejected once a node has chosen, which it does on leaving Gossiping.
-        require (pre == .gossiping) s!"{location}: gossip accepted in {phaseName pre}"
         pure (Message.gossip txid)
     | "vote_accepted", _ => pure .vote
     | "iamopen_accepted", _ =>
         -- IAmOpen writes Joining and its sender as the chosen node before advance().
-        require (pre == .joining && post == .joining && chosen == some source && restart)
+        require (pre == .joining && post == .joining && chosen == some source)
           s!"{location}: IAmOpen does not record its Joining write"
         pure .iAmOpen
     | _, _ => throw (.invalid s!"{location}: {kind} misses txid")

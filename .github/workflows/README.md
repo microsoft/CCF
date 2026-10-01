@@ -140,7 +140,7 @@ single-field perturbations; a sweep mutant may pass only if it changes a
 `version` or `wrote` field in a way that admits no commit order the original
 does not admit, which the harness checks.
 
-The Genoa SNP job in `ci.yml` still builds the replayer, runs its tests with
+The Genoa SNP job in `ci.yml` builds the replayer, runs its tests with
 `CCF_RECOVERY_TRACE=1` so that recovering nodes log their recovery decision
 protocol traces, and replays the protocol's e2e scenarios against the model.
 
