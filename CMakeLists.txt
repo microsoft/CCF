@@ -323,12 +323,6 @@ add_ccf_static_library(
 # CCF kv lib
 option(CCF_KV_TRACING "Enable test-only KV semantic trace capture" OFF)
 set(
-  CCF_KV_TRACE_REVISION
-  "${CCF_VERSION}"
-  CACHE STRING
-  "Source revision for KV traces"
-)
-set(
   CCF_KV_TRACE_CHECKER
   ""
   CACHE FILEPATH
@@ -348,7 +342,8 @@ set(
 )
 set(CCF_KV_FUZZ_SEED_START "0" CACHE STRING "First concurrent KV fuzz seed")
 if(CCF_KV_TRACING)
-  # Internal headers are shared by libraries and test translation units.
+  # Tracing changes the layout of internal KV types, so every target in the
+  # build must agree on it.
   add_compile_definitions(CCF_KV_TRACING)
 endif()
 
@@ -362,11 +357,6 @@ add_ccf_static_library(
 )
 if(CCF_KV_TRACING)
   target_sources(ccf_kv PRIVATE ${CCF_DIR}/src/kv/trace.cpp)
-  target_compile_definitions(
-    ccf_kv
-    PUBLIC CCF_KV_TRACING
-    PRIVATE CCF_KV_TRACE_REVISION="${CCF_KV_TRACE_REVISION}"
-  )
 endif()
 
 # CCF endpoints lib
@@ -775,28 +765,17 @@ if(BUILD_TESTS)
       kv_test
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_kv
     )
-    if(CCF_KV_TRACING)
-      if(CCF_KV_TRACE_CHECKER)
-        add_test(
-          NAME kv_trace_validation
-          COMMAND
-            python3 ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_trace_validation.py
-            --binary $<TARGET_FILE:kv_test> --checker ${CCF_KV_TRACE_CHECKER}
-            --output ${CMAKE_CURRENT_BINARY_DIR}/kv-traces --seeds
-            ${CCF_KV_FUZZ_SEEDS} --seed-start ${CCF_KV_FUZZ_SEED_START}
-            --timeout ${CCF_KV_TRACE_TIMEOUT}
-        )
-        set_property(
-          TEST kv_trace_validation
-          APPEND
-          PROPERTY LABELS kv_trace kv_fuzz
-        )
-        set_property(
-          TEST kv_trace_validation
-          APPEND
-          PROPERTY ENVIRONMENT "TMPDIR=${CMAKE_CURRENT_BINARY_DIR}"
-        )
-      endif()
+    if(CCF_KV_TRACING AND CCF_KV_TRACE_CHECKER)
+      add_test(
+        NAME kv_trace_validation
+        COMMAND
+          python3 ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_trace_validation.py
+          --binary $<TARGET_FILE:kv_test> --checker ${CCF_KV_TRACE_CHECKER}
+          --output ${CMAKE_CURRENT_BINARY_DIR}/kv-traces --seeds
+          ${CCF_KV_FUZZ_SEEDS} --seed-start ${CCF_KV_FUZZ_SEED_START} --timeout
+          ${CCF_KV_TRACE_TIMEOUT}
+      )
+      set_property(TEST kv_trace_validation PROPERTY LABELS kv_trace)
     endif()
 
     add_unit_test(

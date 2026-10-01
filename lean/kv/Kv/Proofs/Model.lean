@@ -267,34 +267,14 @@ theorem apply_atomic (s : Store) (writes : Pending)
     : (advance s writes).head.data = publish s.head.data (s.head.version + 1) writes :=
   rfl
 
-theorem apply_adds_one_version (s : Store) (writes : Pending)
-    : (advance s writes).head.version = s.head.version + 1 :=
-  rfl
-
 theorem compact_preserves_head (s : Store) (v : Nat)
     : (compactStore s v).head = s.head := by
-  unfold compactStore
-  split <;> rfl
-
-theorem compact_preserves_history (s : Store) (v : Nat)
-    : (compactStore s v).history = s.history := by
   unfold compactStore
   split <;> rfl
 
 theorem compact_above_head_noop (s : Store) (v : Nat) (h : s.head.version < v)
     : compactStore s v = s := by
   simp [compactStore, Nat.not_le.mpr h]
-
-theorem rollbackCut_exact (s : Store) (v : Nat)
-    (boundary : s.global ≤ v) (within : v ≤ s.head.version)
-    : rollbackCut s v = v := by
-  simp [rollbackCut, Nat.min_eq_right within, Nat.max_eq_right boundary]
-
-theorem rollback_effective_version (s : Store) (v term : Nat)
-    (boundary : s.global ≤ v) (within : v ≤ s.head.version)
-    : (rollbackStore s v term).head.version = v := by
-  simp only [rollbackStore, rollbackCut_exact s v boundary within]
-  exact (atCut_spec s v within).1
 
 theorem runOp_preserves_snapshot (t next : Tx) (op : NormalOp String String String)
     (h : runOp t op = .ok next)
@@ -467,10 +447,5 @@ theorem executable_branch_serializability (s final : Store) (ts : List Tx)
       simp only [serialTransactions, hw.1, Option.bind_some]
       rw [← hw.2, ← hversion]
       exact ih
-
-theorem map_global_ignores_writes (view : GlobalView) (a : Addr String String)
-    : valueAt view.frame.data ([] : Pending) a
-      = (find view.frame.data a).map Cell.value := by
-  simp [valueAt, find]
 
 end Kv.Proofs.Model

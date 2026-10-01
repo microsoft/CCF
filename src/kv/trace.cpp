@@ -2,17 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #include "kv/trace.h"
 
-#include <array>
 #include <atomic>
-#include <condition_variable>
 #include <cstdlib>
-#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string_view>
-#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -29,23 +26,18 @@ namespace ccf::kv::trace
       size_t acquisitions = 0;
     };
 
+    // The mutex orders every record by seq. It is a leaf lock: tracing never
+    // acquires a KV lock while holding it.
     struct Sink
     {
       std::mutex mutex;
-      std::condition_variable ready;
-      std::deque<Json> pending;
+      std::ofstream output;
       std::unordered_map<const void*, StoreInfo> stores;
       std::unordered_set<uint64_t> attempts;
       std::unordered_set<uint64_t> completed_attempts;
       uint64_t seq = 0;
       uint64_t next_store = 0;
       uint64_t next_tx = 0;
-      bool stopping = false;
-      bool overflow = false;
-      std::array<char, 1024 * 1024> output_buffer;
-      std::ofstream output;
-      std::thread writer;
-      std::exception_ptr error;
 
       explicit Sink(const std::filesystem::path& path)
       {
@@ -53,83 +45,28 @@ namespace ccf::kv::trace
         {
           throw std::logic_error("CCF_KV_TRACE_FILE must be absolute");
         }
-        output.exceptions(std::ios::failbit | std::ios::badbit);
-        output.rdbuf()->pubsetbuf(output_buffer.data(), output_buffer.size());
         output.open(path, std::ios::out | std::ios::trunc);
-        std::ofstream metadata;
-        metadata.exceptions(std::ios::failbit | std::ios::badbit);
-        metadata.open(path.string() + ".metadata.json", std::ios::trunc);
-        metadata << Json({{"trace_schema", 1},
-                          {"build", "CCF_KV_TRACING"},
-                          {"compiler", __VERSION__},
-                          {"source_revision", CCF_KV_TRACE_REVISION}})
-                      .dump()
-                 << '\n';
-        metadata.flush();
-        writer = std::thread([this]() {
-          try
-          {
-            while (true)
-            {
-              std::deque<Json> batch;
-              {
-                std::unique_lock guard(mutex);
-                ready.wait(
-                  guard, [this]() { return stopping || !pending.empty(); });
-                pending.swap(batch);
-                if (batch.empty() && stopping)
-                {
-                  break;
-                }
-              }
-              for (const auto& record : batch)
-              {
-                output << record.dump() << '\n';
-              }
-            }
-            output.flush();
-          }
-          catch (...)
-          {
-            error = std::current_exception();
-          }
-        });
-      }
-
-      ~Sink()
-      {
+        if (!output)
         {
-          std::lock_guard guard(mutex);
-          stopping = true;
-          ready.notify_one();
-        }
-        if (writer.joinable())
-        {
-          writer.join();
+          throw std::runtime_error("Cannot open CCF_KV_TRACE_FILE");
         }
       }
 
-      // Called only with the observer mutex. File I/O and JSON encoding run
-      // on the writer thread, never while a KV lock is held.
+      // Called only with the mutex held. Encoding errors, such as a map name
+      // that is not valid UTF-8, and write errors are reported by finish(),
+      // rather than thrown into the traced KV operation.
       void append(const char* type, Json fields)
       {
-        if (std::string_view(type) != "trace_end")
-        {
-          if (overflow)
-          {
-            return;
-          }
-          if (pending.size() >= 100000)
-          {
-            overflow = true;
-            type = "unsupported";
-            fields = {{"operation", "trace writer queue capacity exceeded"}};
-          }
-        }
         fields["type"] = type;
         fields["seq"] = ++seq;
-        pending.push_back(std::move(fields));
-        ready.notify_one();
+        try
+        {
+          output << fields.dump() << '\n';
+        }
+        catch (const std::exception&)
+        {
+          output.setstate(std::ios::badbit);
+        }
       }
 
       StoreInfo* find(const void* store)
@@ -175,6 +112,21 @@ namespace ccf::kv::trace
     thread_local const Json* current_writes = nullptr;
     thread_local Commit* current_commit = nullptr;
     thread_local bool environment = false;
+
+    // Calls f with the sink locked, if tracing is active and store is
+    // registered.
+    template <typename F>
+    void with_store(const void* store, F&& f)
+    {
+      if (auto* sink = active.load(std::memory_order_acquire))
+      {
+        std::lock_guard guard(sink->mutex);
+        if (auto* info = sink->find(store))
+        {
+          f(*sink, *info);
+        }
+      }
+    }
 
     void acquisition(Identity id, bool begin)
     {
@@ -238,16 +190,14 @@ namespace ccf::kv::trace
           "unsupported", {{"operation", "unclosed store or transaction"}});
       }
       sink->append("trace_end", {{"events", sink->seq}});
-      sink->stopping = true;
-      sink->ready.notify_one();
+      sink->output.flush();
     }
-    sink->writer.join();
     active.store(nullptr, std::memory_order_release);
-    auto error = sink->error;
+    const bool written = sink->output.good();
     owner.reset();
-    if (error != nullptr)
+    if (!written)
     {
-      std::rethrow_exception(error);
+      throw std::runtime_error("Failed to write CCF_KV_TRACE_FILE");
     }
   }
 
@@ -323,29 +273,19 @@ namespace ccf::kv::trace
 
   void store_end(const void* store)
   {
-    if (auto* sink = active.load(std::memory_order_acquire))
-    {
-      std::lock_guard guard(sink->mutex);
-      if (auto* info = sink->find(store))
-      {
-        sink->append("store_end", {{"store", info->id}});
-        sink->stores.erase(store);
-      }
-    }
+    with_store(store, [store](Sink& sink, StoreInfo& info) {
+      sink.append("store_end", {{"store", info.id}});
+      sink.stores.erase(store);
+    });
   }
 
   void Attempt::bind(const void* store)
   {
-    if (auto* sink = active.load(std::memory_order_acquire))
-    {
-      std::lock_guard guard(sink->mutex);
-      if (auto* info = sink->find(store))
-      {
-        id = {info->id, ++sink->next_tx};
-        sink->attempts.insert(id.tx);
-        sink->append("tx_create", {{"store", id.store}, {"tx", id.tx}});
-      }
-    }
+    with_store(store, [this](Sink& sink, StoreInfo& info) {
+      id = {info.id, ++sink.next_tx};
+      sink.attempts.insert(id.tx);
+      sink.append("tx_create", {{"store", id.store}, {"tx", id.tx}});
+    });
   }
 
   Attempt::~Attempt()
@@ -411,24 +351,22 @@ namespace ccf::kv::trace
 
   void snapshot(const void* store, uint64_t version, uint64_t term)
   {
-    if (auto* sink = active.load(std::memory_order_acquire);
-        sink && current.tx != 0)
+    if (current.tx == 0)
     {
-      std::lock_guard guard(sink->mutex);
-      if (auto* info = sink->find(store))
-      {
-        sink->check_boundary(info->id);
-        sink->check_attempt_phase(current);
-        info->term_observed = true;
-        sink->append(
-          "snapshot",
-          {{"store", current.store},
-           {"tx", current.tx},
-           {"version", version},
-           {"global", info->global},
-           {"term", term}});
-      }
+      return;
     }
+    with_store(store, [&](Sink& sink, StoreInfo& info) {
+      sink.check_boundary(info.id);
+      sink.check_attempt_phase(current);
+      info.term_observed = true;
+      sink.append(
+        "snapshot",
+        {{"store", current.store},
+         {"tx", current.tx},
+         {"version", version},
+         {"global", info.global},
+         {"term", term}});
+    });
   }
 
   void apply(const void* store, uint64_t version, uint64_t term)
@@ -446,23 +384,18 @@ namespace ccf::kv::trace
 
   void initialise_term(const void* store)
   {
-    if (auto* sink = active.load(std::memory_order_acquire))
-    {
-      std::lock_guard guard(sink->mutex);
-      if (auto* info = sink->find(store))
+    with_store(store, [](Sink& sink, StoreInfo& info) {
+      sink.check_boundary(info.id);
+      // The wire learns initial term metadata from the first snapshot or
+      // accepted rollback, but cannot represent later explicit changes.
+      if (info.term_observed)
       {
-        sink->check_boundary(info->id);
-        // The wire learns initial term metadata from the first snapshot or
-        // accepted rollback, but cannot represent later explicit changes.
-        if (info->term_observed)
-        {
-          sink->append(
-            "unsupported",
-            {{"store", info->id},
-             {"operation", "term initialisation after observation"}});
-        }
+        sink.append(
+          "unsupported",
+          {{"store", info.id},
+           {"operation", "term initialisation after observation"}});
       }
-    }
+    });
   }
 
   void local_result(const char* result, uint64_t version)
@@ -475,92 +408,65 @@ namespace ccf::kv::trace
 
   void compact(const void* store, uint64_t version, uint64_t requested)
   {
-    if (auto* sink = active.load(std::memory_order_acquire))
-    {
-      std::lock_guard guard(sink->mutex);
-      if (auto* info = sink->find(store))
-      {
-        sink->check_boundary(info->id);
-        sink->append(
-          "compact",
-          {{"store", info->id},
-           {"version", version},
-           {"requested", requested}});
-        info->global = version;
-      }
-    }
+    with_store(store, [&](Sink& sink, StoreInfo& info) {
+      sink.check_boundary(info.id);
+      sink.append(
+        "compact",
+        {{"store", info.id}, {"version", version}, {"requested", requested}});
+      info.global = version;
+    });
   }
 
   Rollback::Rollback(const void* store_) : store(store_)
   {
-    if (auto* sink = active.load(std::memory_order_acquire))
-    {
-      std::lock_guard guard(sink->mutex);
-      if (auto* info = sink->find(store))
+    with_store(store, [](Sink& sink, StoreInfo& info) {
+      if (info.acquisitions != 0)
       {
-        if (info->acquisitions != 0)
-        {
-          sink->append(
-            "unsupported",
-            {{"store", info->id},
-             {"operation", "map acquisition overlaps rollback"}});
-        }
-        info->rolling_back = true;
+        sink.append(
+          "unsupported",
+          {{"store", info.id},
+           {"operation", "map acquisition overlaps rollback"}});
       }
-    }
+      info.rolling_back = true;
+    });
   }
 
   Rollback::~Rollback()
   {
-    if (auto* sink = active.load(std::memory_order_acquire))
-    {
-      std::lock_guard guard(sink->mutex);
-      if (auto* info = sink->find(store))
+    with_store(store, [this](Sink& sink, StoreInfo& info) {
+      info.rolling_back = false;
+      if (!complete)
       {
-        info->rolling_back = false;
-        if (!complete)
-        {
-          sink->append(
-            "unsupported",
-            {{"store", info->id}, {"operation", "rollback exception"}});
-        }
+        sink.append(
+          "unsupported",
+          {{"store", info.id}, {"operation", "rollback exception"}});
       }
-    }
+    });
   }
 
   void Rollback::result(uint64_t version, uint64_t requested, uint64_t term)
   {
-    if (auto* sink = active.load(std::memory_order_acquire))
-    {
-      std::lock_guard guard(sink->mutex);
-      if (auto* info = sink->find(store))
-      {
-        info->term_observed = true;
-        sink->append(
-          "rollback",
-          {{"store", info->id},
-           {"version", version},
-           {"requested", requested},
-           {"term", term}});
-        info->rolling_back = false;
-      }
-    }
+    with_store(store, [&](Sink& sink, StoreInfo& info) {
+      info.term_observed = true;
+      sink.append(
+        "rollback",
+        {{"store", info.id},
+         {"version", version},
+         {"requested", requested},
+         {"term", term}});
+      info.rolling_back = false;
+    });
     complete = true;
   }
 
   void Rollback::rejected(uint64_t requested, uint64_t term)
   {
-    if (auto* sink = active.load(std::memory_order_acquire))
-    {
-      std::lock_guard guard(sink->mutex);
-      if (auto* info = sink->find(store))
-      {
-        sink->append(
-          "rollback_rejected",
-          {{"store", info->id}, {"requested", requested}, {"term", term}});
-        info->rolling_back = false;
-      }
-    }
+    with_store(store, [&](Sink& sink, StoreInfo& info) {
+      sink.append(
+        "rollback_rejected",
+        {{"store", info.id}, {"requested", requested}, {"term", term}});
+      info.rolling_back = false;
+    });
     complete = true;
   }
 }

@@ -558,13 +558,21 @@ def negative : List (String × String × List Event) :=
     ("no coverage", "invalid_trace", [])
   ]
 
+/-- Checks text with the same streaming file reader as the CLI. -/
+def checkText (text : String) : IO Report :=
+  IO.FS.withTempFile
+    fun handle path => do
+      handle.putStr text
+      handle.flush
+      checkFile path
+
 def assertStatus (name expected text : String) : IO Unit := do
-  let result := checkText text
+  let result ← checkText text
   if result.status != expected then
     throw
       (IO.userError
         s!"{name}: expected {expected}, got {result.status}: {result.message}")
-  if result != checkText text then
+  if result != (← checkText text) then
     throw (IO.userError s!"nondeterministic replay: {name}")
   if expected != "accepted" && result.message.isEmpty then
     throw (IO.userError s!"missing diagnostic: {name}")
@@ -595,20 +603,8 @@ def assertProjection : IO Unit := do
       || after.head.version != before.head.version + txs.length then
     throw (IO.userError "selected-store serial projection disagrees with actual replay")
 
-def assertStreaming : IO Unit :=
-  IO.FS.withTempFile
-    fun handle path => do
-      let text := encode (closed basic)
-      handle.putStr text
-      handle.flush
-      let streamed ← checkFile path
-      let buffered := checkText text
-      if streamed != buffered then
-        throw (IO.userError "streaming and pure replay disagree")
-
 def run : IO Unit := do
   assertProjection
-  assertStreaming
   let good := encode (closed basic)
   assertStatus "basic accepted history" "accepted" good
   for (name, body) in accepted do
@@ -661,7 +657,7 @@ def run : IO Unit := do
   | .ok j =>
       if (num j "seq").toOption != some uint64Max then
         throw (IO.userError "uint64 precision was lost")
-  let diagnostic :=
+  let diagnostic ←
     checkText (encode (closed (globalPrefix ++ [.compact 1 2 2, .acquire 1 3 "b" 2 1])))
   if diagnostic.store? != some 1
       || diagnostic.tx? != some 3

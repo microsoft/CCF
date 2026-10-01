@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/kv/map.h"
 #include "kv/compacted_version_conflict.h"
-#include "kv/store.h"
 #include "kv/null_encryptor.h"
+#include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 
 #include <algorithm>
@@ -16,7 +16,6 @@
 #include <doctest/doctest.h>
 #include <exception>
 #include <iostream>
-#include <limits>
 #include <mutex>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -50,58 +49,30 @@ namespace
     }
   }
 
-  uint64_t option(
-    const char* name, uint64_t fallback, uint64_t minimum, uint64_t maximum)
+  uint64_t seed_from_environment()
   {
-    const auto* raw = std::getenv(name);
+    const auto* raw = std::getenv("CCF_KV_FUZZ_SEED");
     if (raw == nullptr)
     {
-      return fallback;
+      return 0;
     }
     const std::string_view text(raw);
     uint64_t value = 0;
     const auto [end, error] =
       std::from_chars(text.data(), text.data() + text.size(), value);
-    if (
-      error != std::errc{} || end != text.data() + text.size() ||
-      value < minimum || value > maximum)
-    {
-      throw std::invalid_argument(
-        std::string(name) + " must be a decimal integer in [" +
-        std::to_string(minimum) + ", " + std::to_string(maximum) + "]");
-    }
+    ensure(
+      error == std::errc{} && end == text.data() + text.size(),
+      "CCF_KV_FUZZ_SEED must be an unsigned 64-bit decimal integer");
     return value;
   }
 
+  // Only the seed varies between campaign runs.
   struct Config
   {
-    uint64_t seed =
-      option("CCF_KV_FUZZ_SEED", 0, 0, std::numeric_limits<uint64_t>::max());
-    size_t threads = option("CCF_KV_FUZZ_THREADS", 4, 1, 16);
-    size_t transactions = option("CCF_KV_FUZZ_TRANSACTIONS", 24, 1, 256);
-    size_t operations = option("CCF_KV_FUZZ_OPERATIONS", 8, 1, 32);
-
-    Config()
-    {
-      if (threads * transactions * operations > 65536)
-      {
-        throw std::invalid_argument(
-          "CCF_KV_FUZZ_THREADS * CCF_KV_FUZZ_TRANSACTIONS * "
-          "CCF_KV_FUZZ_OPERATIONS must not exceed 65536");
-      }
-    }
-
-    Json recipe() const
-    {
-      return {
-        {"version", 1},
-        {"seed", std::to_string(seed)},
-        {"threads", threads},
-        {"transactions", transactions},
-        {"operations", operations},
-        {"maps", MAP_COUNT},
-        {"keys", KEY_COUNT}};
-    }
+    uint64_t seed = seed_from_environment();
+    size_t threads = 4;
+    size_t transactions = 24;
+    size_t operations = 8;
   };
 
   uint64_t derive_seed(uint64_t seed, uint64_t stream)
@@ -1529,7 +1500,7 @@ namespace
 TEST_CASE("KV trace concurrent operation fuzzer")
 {
   const Config config;
-  std::cout << "KV_FUZZ_RECIPE " << config.recipe().dump() << std::endl;
+  std::cout << "KV_FUZZ_SEED " << config.seed << std::endl;
   const Universe universe;
   Coverage coverage;
   free_running(config, universe, coverage);

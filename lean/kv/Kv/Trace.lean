@@ -266,20 +266,6 @@ def finishReport (w : World) : Report :=
       message := s!"accepted {w.count} events in {w.cases} cases"
     }
 
-def checkLines (lines : List String) : Report :=
-  Id.run do
-    let mut w : World := {}
-    for line in lines do
-      match checkLine w line with
-      | .ok next => w := next
-      | .error report => return report
-    return finishReport w
-
-def checkText (text : String) : Report :=
-  let lines := text.splitOn "\n"
-  let lines := if lines.getLast? == some "" then lines.dropLast else lines
-  checkLines lines
-
 def checkHandle (handle : IO.FS.Handle) : IO Report := do
   let mut w : World := {}
   let mut eof := false
