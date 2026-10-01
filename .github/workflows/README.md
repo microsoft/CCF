@@ -60,6 +60,8 @@ File: `ci-al4.yml`
 
 Builds configurable CCF release install trees on Azure Linux 3 and Azure Linux 4 in parallel, then runs the LTS live-upgrade test directly on a VMSS runner. By default, it upgrades from the previous stable CCF release to the latest stable release; both versions can be overridden using the manual inputs in [`cross-platform-lts.yml`](cross-platform-lts.yml). Separate runtime images install only the required shared-library packages and copy in the matching install tree. Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking. Runs weekly and manually, but not on pull requests because both full builds and the compatibility test are expensive.
 
+Because the upgrade job runs directly on the runner rather than in a container, it first restores ownership of the workspace with `sudo chown`. VMSS runners are reused across jobs, and `--user root` container jobs, including the Azure Linux 3 build in the same run, can leave root-owned files in the shared workspace that would otherwise make `actions/checkout` fail with permission errors.
+
 Shared workflow environment values define the Python version, base images, runner pool labels, install archive filename, and test workspace.
 
 File: `cross-platform-lts.yml`

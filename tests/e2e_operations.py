@@ -309,6 +309,7 @@ def test_snapshot_create_endpoint(network, args):
     with primary.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
         r = c.post("/node/snapshot:create")
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+        assert r.body.json()["error"]["code"] == "ResourceNotFound", r
 
     with primary.client(
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
