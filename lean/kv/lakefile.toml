@@ -9,12 +9,17 @@ testDriver = "kv_trace_tests"
 [[require]]
 name = "mathlib"
 git = "https://github.com/leanprover-community/mathlib4.git"
-rev = "v4.33.1"
+rev = "v4.34.0"
 
 [[require]]
 name = "axiomAudit"
 git = "https://github.com/leanprover-community/axiom-audit.git"
 rev = "46024e005996495c65ef609368e11ab39c4222e3" # v0.1.2
+
+[[require]]
+name = "leanfmt"
+git = "https://github.com/duckki/leanfmt.git"
+rev = "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef" # v0.4.5
 
 [[lean_lib]]
 name = "Kv"

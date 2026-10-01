@@ -13,20 +13,21 @@ def SegmentEvent (sid : Nat) : Event → Prop
 
 def projectedApplication (w : World) (sid : Nat) : Event → List Tx
   | .apply id tid _ _ _ =>
-    if id = sid then (txOf w id tid).toOption.toList else []
+      if id = sid then (txOf w id tid).toOption.toList else []
   | _ => []
 
 inductive HeadEffect (before after : Store) : List Tx → Prop
   | stutter (data : after.head.data = before.head.data)
-      (version : after.head.version = before.head.version) : HeadEffect before after []
+    (version : after.head.version = before.head.version)
+    : HeadEffect before after []
   | apply (tx : Tx) (one : tryApply before tx = some after) : HeadEffect before after [tx]
 
 def projectApplications (w : World) (sid : Nat) : List Record → Except Failure (List Tx)
   | [] => .ok []
   | r :: rs => do
-    let next ← step w r
-    let rest ← projectApplications next sid rs
-    return projectedApplication w sid r.event ++ rest
+      let next ← step w r
+      let rest ← projectApplications next sid rs
+      return projectedApplication w sid r.event ++ rest
 
 def Reachable (w : World) : Prop := ∃ rs, replay {} rs = .ok w
 

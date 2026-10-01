@@ -104,8 +104,9 @@ To update a tool dependency without changing the toolchain, run
 ## Formatting
 
 Install Lean via [elan](https://lean-lang.org/install/) and run
-`lake exe cache get` from this directory before the first formatting check.
-From the repository root, check every tracked `.lean` file:
+`lake exe cache get` in each Lean package directory before the first formatting
+check. From the repository root, check the tracked `.lean` files of every Lean
+package (this one and [`lean/kv`](../kv/README.md)):
 
 ```console
 scripts/lean-format-checks.sh
@@ -117,7 +118,9 @@ To apply formatting fixes, run:
 scripts/lean-format-checks.sh -f
 ```
 
-The script builds the model's imported modules and runs the pinned leanfmt
-dependency. The Lean CI workflow runs the same check after the proof checks.
-Files outside `lean/` are included; untracked files and downloaded dependencies
-are excluded. Add new Lean files to Git before running the check.
+Pass package directories, such as `lean/disaster-recovery`, to check or fix only
+those packages. For each package, the script builds its modules, which leanfmt
+imports to parse project-specific syntax, and runs the package's pinned leanfmt
+dependency. The Lean CI workflow runs the same check after each package's proof
+checks. Untracked files and downloaded dependencies are excluded. Add new Lean
+files to Git before running the check.

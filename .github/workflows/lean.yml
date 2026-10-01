@@ -42,9 +42,6 @@ jobs:
           working-directory: lean/disaster-recovery
           library: DisasterRecovery
 
-      - name: Check Lean formatting
-        run: ./scripts/lean-format-checks.sh
-
   kv-contract:
     name: KV model and trace conformance
     runs-on: ubuntu-latest
@@ -54,6 +51,10 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      # Must match lean/kv/lean-toolchain. The digest is the release archive's.
+      LEAN_VERSION: 4.34.0
+      LEAN_SHA256: caaa98356098c85dc0fcbbd28e1ec66f39eb6551829972b752ff20e1286b646b
 
     steps:
       - name: Bootstrap checkout dependencies
@@ -62,6 +63,7 @@ jobs:
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
           tdnf -y install ca-certificates git
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -70,42 +72,11 @@ jobs:
       - name: Install CCF build dependencies
         uses: ./.github/actions/install-ci-dependencies
 
-      - name: Cache pinned Lean distribution
-        id: lean-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/ccf-lean/lean-4.33.1-linux
-          key: lean-${{ runner.os }}-${{ runner.arch }}-4.33.1-890afd185370f856
-
-      - name: Download pinned Lean distribution
-        if: steps.lean-cache.outputs.cache-hit != 'true'
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/ccf-lean"
-          cd "$RUNNER_TEMP/ccf-lean"
-          curl --fail --location --retry 3 \
-            https://github.com/leanprover/lean4/releases/download/v4.33.1/lean-4.33.1-linux.tar.zst \
-            --output lean.tar.zst
-          echo '890afd185370f85666025b883914ab4f4b339136f8c96167b69cfb62aecaf235  lean.tar.zst' | sha256sum --check
-          tar --zstd -xf lean.tar.zst
-          rm lean.tar.zst
-
-      - name: Verify the repository toolchain version
-        run: |
-          set -euo pipefail
-          test "$(tr -d '\r\n' < lean/kv/lean-toolchain)" = 'leanprover/lean4:v4.33.1'
-
-      - name: Build and check KV model
-        uses: ./.github/actions/lean-checks
-        with:
-          working-directory: lean/kv
-          library: Kv
-          lean-bin-path: ${{ runner.temp }}/ccf-lean/lean-4.33.1-linux/bin
-
+      # Build native code before Lean, whose distribution bundles its own clang,
+      # is added to PATH.
       - name: Build instrumented KV unit tests
         run: |
           set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           cmake -S . -B build-kv-trace -GNinja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCCF_KV_TRACING=ON \
@@ -115,6 +86,37 @@ jobs:
       - name: Run KV unit tests
         working-directory: build-kv-trace
         run: ./tests.sh -R '^kv_test$' -L unit --no-tests=error
+
+      - name: Cache pinned Lean distribution
+        id: lean-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ccf-lean
+          key: lean-${{ runner.os }}-${{ runner.arch }}-${{ env.LEAN_SHA256 }}
+
+      - name: Download pinned Lean distribution
+        if: steps.lean-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ccf-lean"
+          cd "$RUNNER_TEMP/ccf-lean"
+          curl --fail --location --retry 3 --output lean.tar.zst \
+            "https://github.com/leanprover/lean4/releases/download/v$LEAN_VERSION/lean-$LEAN_VERSION-linux.tar.zst"
+          echo "$LEAN_SHA256  lean.tar.zst" | sha256sum --check
+          tar --zstd -xf lean.tar.zst
+          rm lean.tar.zst
+
+      - name: Add Lean to PATH
+        run: |
+          set -euo pipefail
+          test "$(tr -d '\r\n' < lean/kv/lean-toolchain)" = "leanprover/lean4:v$LEAN_VERSION"
+          echo "$RUNNER_TEMP/ccf-lean/lean-$LEAN_VERSION-linux/bin" >> "$GITHUB_PATH"
+
+      - name: Build and check KV model
+        uses: ./.github/actions/lean-checks
+        with:
+          working-directory: lean/kv
+          library: Kv
 
       - name: Check generated traces
         working-directory: build-kv-trace

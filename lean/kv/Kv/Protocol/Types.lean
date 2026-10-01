@@ -23,7 +23,7 @@ def Unique (xs : Assoc K V) : Prop := (xs.map Prod.fst).Nodup
 structure Cell (V : Type) where
   value : V
   version : Nat
-  deriving Repr, DecidableEq, BEq
+deriving Repr, DecidableEq, BEq
 
 abbrev Addr (M K : Type) := M × K
 abbrev DB (M K V : Type) := Assoc (Addr M K) (Cell V)
@@ -33,23 +33,26 @@ def image [DecidableEq M] (db : DB M K V) (m : M) : Assoc K (Cell V) :=
   db.filterMap fun (a, v) => if a.1 = m then some (a.2, v) else none
 
 def valueAt [DecidableEq M] [DecidableEq K]
-    (db : DB M K V) (ws : Writes M K V) (a : Addr M K) : Option V :=
+    (db : DB M K V) (ws : Writes M K V) (a : Addr M K)
+    : Option V :=
   match find ws a with
   | some v => v
   | none => (find db a).map Cell.value
 
-def previousAt [DecidableEq M] [DecidableEq K]
-    (db : DB M K V) (a : Addr M K) : Option Nat :=
+def previousAt [DecidableEq M] [DecidableEq K] (db : DB M K V) (a : Addr M K)
+    : Option Nat :=
   (find db a).map Cell.version
 
-def writeValues [DecidableEq K] (vs : Assoc K V) (ws : Assoc K (Option V)) :
-    Assoc K V :=
-  ws.foldr (fun (k, v) acc => match v with
-    | some x => set acc k x
-    | none => erase acc k) vs
+def writeValues [DecidableEq K] (vs : Assoc K V) (ws : Assoc K (Option V)) : Assoc K V :=
+  ws.foldr
+    (fun (k, v) acc =>
+      match v with
+      | some x => set acc k x
+      | none => erase acc k)
+    vs
 
-def scanAt [DecidableEq M] [DecidableEq K]
-    (db : DB M K V) (ws : Writes M K V) (m : M) : Assoc K V :=
+def scanAt [DecidableEq M] [DecidableEq K] (db : DB M K V) (ws : Writes M K V) (m : M)
+    : Assoc K V :=
   writeValues ((image db m).map fun (k, c) => (k, c.value))
     (ws.filterMap fun (a, v) => if a.1 = m then some (a.2, v) else none)
 
@@ -58,38 +61,40 @@ inductive NormalOp (M K V : Type) where
   | previous (addr : Addr M K) (observed : Option Nat)
   | scan (map : M) (observed : Assoc K V)
   | write (addr : Addr M K) (value : Option V)
-  deriving Repr, DecidableEq
+deriving Repr, DecidableEq
 
 inductive Dependency (M K V : Type) where
   | key (addr : Addr M K) (expected : Option (Cell V))
   | map (name : M) (expected : Assoc K (Cell V))
-  deriving Repr, DecidableEq
+deriving Repr, DecidableEq
 
-def Dependency.holds [DecidableEq M] [DecidableEq K] [DecidableEq V]
-    (db : DB M K V) : Dependency M K V → Bool
+def Dependency.holds [DecidableEq M] [DecidableEq K] [DecidableEq V] (db : DB M K V)
+    : Dependency M K V → Bool
   | .key a expected => decide (find db a = expected)
   | .map m expected => decide (image db m = expected)
 
 def validates [DecidableEq M] [DecidableEq K] [DecidableEq V]
-    (db : DB M K V) (deps : List (Dependency M K V)) : Bool :=
+    (db : DB M K V) (deps : List (Dependency M K V))
+    : Bool :=
   deps.all (Dependency.holds db)
 
-def needs [DecidableEq M] [DecidableEq K]
-    (db : DB M K V) (ws : Writes M K V) : NormalOp M K V → List (Dependency M K V)
+def needs [DecidableEq M] [DecidableEq K] (db : DB M K V) (ws : Writes M K V)
+    : NormalOp M K V → List (Dependency M K V)
   | .read a _ => if (find ws a).isSome then [] else [.key a (find db a)]
   | .previous a _ => [.key a (find db a)]
   | .scan m _ => [.map m (image db m)]
   | .write _ _ => []
 
 def observes [DecidableEq M] [DecidableEq K] [DecidableEq V]
-    (db : DB M K V) (ws : Writes M K V) : NormalOp M K V → Bool
+    (db : DB M K V) (ws : Writes M K V)
+    : NormalOp M K V → Bool
   | .read a v => decide (valueAt db ws a = v)
   | .previous a v => decide (previousAt db a = v)
   | .scan m vs => decide (scanAt db ws m = vs)
   | .write _ _ => true
 
-def stage [DecidableEq M] [DecidableEq K]
-    (ws : Writes M K V) : NormalOp M K V → Writes M K V
+def stage [DecidableEq M] [DecidableEq K] (ws : Writes M K V)
+    : NormalOp M K V → Writes M K V
   | .write a v => set ws a v
   | _ => ws
 
@@ -97,27 +102,35 @@ structure Normal (M K V : Type) where
   writes : Writes M K V := []
   deps : List (Dependency M K V) := []
   log : List (NormalOp M K V) := []
-  deriving Repr
+deriving Repr
 
 def normalStep [DecidableEq M] [DecidableEq K] [DecidableEq V]
-    (snapshot : DB M K V) (n : Normal M K V) (op : NormalOp M K V) :
-    Option (Normal M K V) :=
+    (snapshot : DB M K V) (n : Normal M K V) (op : NormalOp M K V)
+    : Option (Normal M K V) :=
   if observes snapshot n.writes op then
-    some { writes := stage n.writes op
-           deps := needs snapshot n.writes op ++ n.deps
-           log := n.log ++ [op] }
-  else none
+    some
+      {
+        writes := stage n.writes op
+        deps := needs snapshot n.writes op ++ n.deps
+        log := n.log ++ [op]
+      }
+  else
+    none
 
 def normalRun [DecidableEq M] [DecidableEq K] [DecidableEq V]
-    (snapshot : DB M K V) (n : Normal M K V) (ops : List (NormalOp M K V)) :
-    Option (Normal M K V) :=
+    (snapshot : DB M K V) (n : Normal M K V) (ops : List (NormalOp M K V))
+    : Option (Normal M K V) :=
   ops.foldlM (normalStep snapshot) n
 
 def publish [DecidableEq M] [DecidableEq K]
-    (db : DB M K V) (version : Nat) (writes : Writes M K V) : DB M K V :=
-  writes.foldr (fun (a, v) acc => match v with
-    | some value => set acc a { value, version }
-    | none => erase acc a) db
+    (db : DB M K V) (version : Nat) (writes : Writes M K V)
+    : DB M K V :=
+  writes.foldr
+    (fun (a, v) acc =>
+      match v with
+      | some value => set acc a { value, version }
+      | none => erase acc a)
+    db
 
 abbrev Data := DB String String String
 abbrev Pending := Writes String String String
@@ -125,22 +138,23 @@ abbrev Pending := Writes String String String
 structure Stamp where
   version : Nat := 0
   identity : Nat := 0
-  deriving Repr, BEq, DecidableEq, Inhabited
+deriving Repr, BEq, DecidableEq, Inhabited
 
 structure Frame where
   version : Nat := 0
   data : Data := []
   revisions : Assoc String Stamp := []
   births : Assoc String Stamp := []
-  deriving Repr, Inhabited
+deriving Repr, Inhabited
 
 def revision (f : Frame) (m : String) : Stamp := (find f.revisions m).getD {}
 
 inductive History : List Frame → Nat → Prop
   | zero : History [{}] 0
   | succ (f : Frame) (n : Nat) (fs : List Frame) (version : f.version = n + 1)
-      (effect : ∃ writes : Pending, f.data = publish (fs.head?.getD {}).data (n + 1) writes)
-      (tail : History fs n) : History (f :: fs) (n + 1)
+    (effect : ∃ writes : Pending, f.data = publish (fs.head?.getD {}).data (n + 1) writes)
+    (tail : History fs n)
+    : History (f :: fs) (n + 1)
 
 structure Store where
   history : List Frame := [{}]
@@ -152,7 +166,7 @@ structure Store where
   historyShape : History history head.version := by exact .zero
   headFirst : history.head? = some head := by rfl
   globalBound : global ≤ head.version := by exact Nat.le_refl 0
-  deriving Repr
+deriving Repr
 
 instance : Inhabited Store := ⟨{}⟩
 
@@ -163,12 +177,12 @@ structure Snapshot where
   current : Frame
   term : Nat
   origin : ∃ s : Store, current = s.head
-  deriving Repr
+deriving Repr
 
 structure GlobalView where
   frame : Frame
   origin : frame = {} ∨ ∃ s : Store, frame = atCut s s.global
-  deriving Repr
+deriving Repr
 
 structure Iteration where
   map : String
@@ -176,14 +190,14 @@ structure Iteration where
   remaining : Assoc String String
   awaitingContinue : Bool := false
   stopped : Bool := false
-  deriving Repr
+deriving Repr
 
 inductive Phase where
   | active
   | committing
   | applied (version : Nat)
   | finished
-  deriving Repr, BEq, DecidableEq
+deriving Repr, BEq, DecidableEq
 
 structure Tx where
   store : Nat
@@ -194,14 +208,18 @@ structure Tx where
   iterationIds : List (String × Nat) := []
   unavailable : Bool := false
   phase : Phase := .active
-  certificate : match snapshot with
-    | none => normal = {}
-    | some snap => normalRun snap.current.data {} normal.log = some normal := by rfl
-  deriving Repr
+  certificate
+    : match snapshot with
+      | none => normal = {}
+      | some snap =>
+          normalRun snap.current.data {} normal.log = some normal := by rfl
+deriving Repr
 
 inductive Outcome where
-  | success | conflict | noReplicate
-  deriving Repr, BEq, DecidableEq
+  | success
+  | conflict
+  | noReplicate
+deriving Repr, BEq, DecidableEq
 
 inductive Event where
   | traceStart (schema : Nat)
@@ -235,21 +253,23 @@ inductive Event where
   | rollbackRejected (store requested term : Nat)
   | unsupported (store : Option Nat) (operation : String)
   | traceEnd (events : Nat)
-  deriving Repr
+deriving Repr
 
 structure Record where
   seq : Nat
   event : Event
-  deriving Repr
+deriving Repr
 
 inductive FailureKind where
-  | rejected | invalidTrace | unsupported
-  deriving Repr, BEq, DecidableEq
+  | rejected
+  | invalidTrace
+  | unsupported
+deriving Repr, BEq, DecidableEq
 
 structure Failure where
   kind : FailureKind
   message : String
-  deriving Repr
+deriving Repr
 
 structure World where
   stores : Assoc Nat Store := []
@@ -263,6 +283,6 @@ structure World where
   ended : Bool := false
   lastSeq : Option Nat := none
   count : Nat := 0
-  deriving Repr
+deriving Repr
 
 end Kv

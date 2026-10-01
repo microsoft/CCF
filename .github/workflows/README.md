@@ -14,9 +14,8 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 
 ## Lean package checks
 
-The local composite action in `.github/actions/lean-checks/action.yml` restores the Mathlib cache, checks the generated library import root, builds with warnings as errors, and runs the package's configured axiom audit and test driver through `lake lint` and `lake test`.
-Each caller supplies a `working-directory` and `library`, and installs the package's pinned Lean toolchain before invoking the action.
-Callers whose Lean toolchain is not already an elan-managed shim on the runner's persistent `PATH` also supply `lean-bin-path`, which the action adds to `PATH` only for its own steps, so later steps in the same job that build unrelated native code are not exposed to the Lean distribution's bundled `clang`.
+The local composite action in `.github/actions/lean-checks/action.yml` restores the Mathlib cache, checks the generated library import root, builds with warnings as errors, runs the package's configured axiom audit and test driver through `lake lint` and `lake test`, and checks the package's formatting with `scripts/lean-format-checks.sh`.
+Each caller supplies a `working-directory` and `library`, and puts the package's pinned Lean toolchain on `PATH` before invoking the action.
 
 # Maintained
 
@@ -132,14 +131,12 @@ File: `tla-shallow.yml`
 
 Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
 
-The disaster recovery and KV jobs both use the shared [Lean package checks](#lean-package-checks) action.
+The disaster recovery and KV jobs both use the shared [Lean package checks](#lean-package-checks) action, which also checks the formatting of each package's tracked `.lean` files with its pinned leanfmt dependency.
 Disaster recovery runs its canonical behavior checks on Ubuntu 26.04.
-KV runs in Azure Linux 3, then builds the instrumented C++ KV unit tests and checks their generated traces against the Lean model.
-The KV job uploads trace diagnostics as artifacts.
+KV runs in Azure Linux 3: it builds and runs the instrumented C++ KV unit tests before putting the pinned Lean distribution, which bundles its own `clang`, on `PATH`, then checks the generated traces against the Lean model and uploads trace diagnostics as artifacts.
 The build and audit include both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every library module, so newly added proofs cannot silently escape the checks.
 
-After the disaster recovery checks, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
 The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, `src/kv/`, the KV trace runner, `CMakeLists.txt`, the shared Lean action, or the workflow.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
