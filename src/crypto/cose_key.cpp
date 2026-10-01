@@ -10,7 +10,9 @@
 #include <bit>
 #include <memory>
 #include <new>
+#include <optional>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <tav/cbor.hpp>
 #include <utility>
@@ -335,8 +337,12 @@ namespace
     return value;
   }
 
-  // n and e are big-endian, without leading zero octets
-  void check_rsa_parameters(const COSEKey::RSAParameters& parameters)
+  // Checks that n and e, big-endian without leading zero octets, form an
+  // acceptable RSA key: a modulus of 2048 to 16384 bits, and an odd public
+  // exponent, at least 3 and at most 64 bits long. Returns why they do not,
+  // or std::nullopt if they do.
+  std::optional<std::string> rsa_key_error(
+    const COSEKey::RSAParameters& parameters)
   {
     const auto& n = parameters.n;
     const auto& e = parameters.e;
@@ -347,18 +353,19 @@ namespace
       modulus_bits < RSA_MIN_MODULUS_BITS ||
       modulus_bits > RSA_MAX_MODULUS_BITS)
     {
-      invalid(fmt::format(
+      return fmt::format(
         "n must be {} to {} bits long",
         RSA_MIN_MODULUS_BITS,
-        RSA_MAX_MODULUS_BITS));
+        RSA_MAX_MODULUS_BITS);
     }
     // Without leading zero octets, an odd e other than 1 is at least 3
     if (
       e.empty() || e.size() > RSA_MAX_EXPONENT_SIZE || (e.back() & 1U) == 0 ||
       (e.size() == 1 && e.front() == 1))
     {
-      invalid("e must be odd, at least 3 and at most 64 bits long");
+      return "e must be odd, at least 3 and at most 64 bits long";
     }
+    return std::nullopt;
   }
 
   RSAPublicKeyPtr parse_rsa(const Value& map)
@@ -370,7 +377,11 @@ namespace
     COSEKey::RSAParameters parameters;
     parameters.n = require_unsigned(map, LABEL_RSA_N, "n");
     parameters.e = require_unsigned(map, LABEL_RSA_E, "e");
-    check_rsa_parameters(parameters);
+    const auto error = rsa_key_error(parameters);
+    if (error.has_value())
+    {
+      invalid(error.value());
+    }
     // The JWK form of the key, which CCF imports
     JsonWebKeyRSAPublic jwk;
     jwk.kty = JsonWebKeyType::RSA;
@@ -395,7 +406,12 @@ namespace ccf::crypto
 
   COSEKey::COSEKey(RSAPublicKeyPtr key) : COSEKey(PublicKey{key}, std::nullopt)
   {
-    non_null(key);
+    const auto error = rsa_key_error(parameters_of(non_null(key)));
+    if (error.has_value())
+    {
+      throw std::runtime_error(
+        fmt::format("Unsupported COSE RSA key: {}", error.value()));
+    }
   }
 
   COSEKey COSEKey::from_cbor(std::span<const uint8_t> cose_key)
@@ -448,13 +464,7 @@ namespace ccf::crypto
 
   COSEKey COSEKey::from_der_cert(std::span<const uint8_t> der)
   {
-    auto key = cose_key_from_der_cert(der);
-    const auto rsa = key.rsa_parameters();
-    if (rsa.has_value())
-    {
-      check_rsa_parameters(rsa.value());
-    }
-    return key;
+    return cose_key_from_der_cert(der);
   }
 
   COSEKeyType COSEKey::kty() const

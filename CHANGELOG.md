@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - TAV's CBOR C++ API (`<tav/cbor.hpp>`) is now installed with CCF's headers (#8467).
 - `ccf::crypto::OpenSSL::first_error()`, in the public header `ccf/crypto/openssl/openssl_wrappers.h`, reads the oldest error on the calling thread's OpenSSL error queue, usually the root cause, then removes every entry from the queue and returns the error string (#8474).
-- `ccf::crypto::COSEKey` (`ccf/crypto/cose_key.h`) holds an EC2 (P-256, P-384 or P-521) or RSA public key as a COSE_Key. It parses and validates encoded COSE_Keys, wraps CCF public keys and DER certificates, encodes them, and computes their RFC 9679 thumbprint. `ccf::crypto::make_cose_verifier_from_key()` accepts a `COSEKey`, and rejects algorithms other than the key's `alg` if it has one (#8480).
+- `ccf::crypto::COSEKey` (`ccf/crypto/cose_key.h`) parses, validates and encodes EC2 and RSA COSE_Keys, and computes their RFC 9679 thumbprint. `ccf::crypto::make_cose_verifier_from_key()` accepts one (#8480).
 
 ### Changed
 
@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf::COSESignaturesConfig` and `ccf::ReconfigurationType` are unchanged, but are now declared in the new public headers `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively (#8463).
 - On recovery, the minimum SNP TCB version stored for the recovering node's CPUID in `public:ccf.gov.nodes.snp.tcb_versions` is now kept if it admits the TCB version reported in the node's startup attestation, as it would for a joining node, rather than being overwritten with that TCB version. Otherwise, including when no minimum is stored for that CPUID, or when the stored minimum is higher than the reported TCB version in only some components, the reported TCB version is stored as the minimum, as before. On start, the behaviour is unchanged (#8468).
 - Requests to an endpoint whose required operator feature is not enabled on the receiving RPC interface now get the same `404` `ResourceNotFound` error as requests to an unknown path, rather than a `404` with an empty body (#8481).
+- `ccf::crypto::make_cose_verifier_*()` now reject RSA keys of fewer than 2048 or more than 16384 bits, or whose public exponent is even, 1 or longer than 64 bits (#8480).
 
 ### Deprecated
 

@@ -62,11 +62,10 @@ namespace ccf::crypto
     explicit COSEKey(ECPublicKeyPtr key);
 
     /**
-     * The key is not checked against the requirements of from_cbor(), so if
-     * it does not meet them, as an RSA key of fewer than 2048 bits does not,
-     * from_cbor() rejects its encoding.
-     *
      * @throws std::invalid_argument if key is null
+     * @throws std::runtime_error if the modulus is not 2048 to 16384 bits
+     * long, or the public exponent is not odd, at least 3 and at most 64 bits
+     * long.
      */
     explicit COSEKey(RSAPublicKeyPtr key);
 

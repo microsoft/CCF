@@ -928,20 +928,27 @@ TEST_CASE("COSE verifier imports public keys and certificates")
     }
   }
 
-  SUBCASE("RSA certificate key that a COSE_Key cannot have")
+  SUBCASE("RSA key below 2048 bits")
   {
+    const auto weak_key = ccf::crypto::make_rsa_key_pair(1024);
     const auto weak_cert = ccf::crypto::create_endorsed_cert(
-      ccf::crypto::make_rsa_key_pair(1024)->public_key_pem(),
+      weak_key->public_key_pem(),
       "CN=1024-bit RSA key",
       {},
       "20200101000000Z",
       "20301231235959Z",
       kp->private_key_pem(),
       cert_pem);
+    const auto weak_cert_der = ccf::crypto::cert_pem_to_der(weak_cert);
     CHECK_THROWS_AS(
-      std::ignore = ccf::crypto::COSEKey::from_der_cert(
-        ccf::crypto::cert_pem_to_der(weak_cert)),
+      std::ignore = ccf::crypto::COSEKey::from_der_cert(weak_cert_der),
       std::invalid_argument);
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_der_cert(weak_cert_der),
+      std::invalid_argument);
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_key(weak_key->public_key_der()),
+      std::runtime_error);
   }
 
   SUBCASE("invalid certificate public key")
@@ -1241,6 +1248,8 @@ TEST_CASE("COSE_Key round trips")
     COSEKey(ccf::crypto::ECPublicKeyPtr{}), std::invalid_argument);
   CHECK_THROWS_AS(
     COSEKey(ccf::crypto::RSAPublicKeyPtr{}), std::invalid_argument);
+  CHECK_THROWS_AS(
+    COSEKey(ccf::crypto::make_rsa_key_pair(1024)), std::runtime_error);
 }
 
 TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
