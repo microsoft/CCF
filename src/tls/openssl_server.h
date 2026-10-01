@@ -421,9 +421,10 @@ namespace ccf::tls
 
     // Describe a failed SSL operation. SSL_get_error() only gives the
     // category: for SSL_ERROR_SSL the detail is in the (thread-local) error
-    // queue, and for SSL_ERROR_SYSCALL it may be in errno instead. Consuming
-    // the queue entry here also keeps it from being misattributed to the next
-    // operation this worker performs.
+    // queue, and for SSL_ERROR_SYSCALL it may be in errno instead. Reading the
+    // oldest queued error here, then clearing the queue, also keeps its
+    // entries from being misattributed to the next operation this worker
+    // performs.
     static std::string ssl_error_string(int ssl_error)
     {
       switch (ssl_error)
@@ -434,10 +435,9 @@ namespace ccf::tls
         case SSL_ERROR_SSL:
         case SSL_ERROR_SYSCALL:
         {
-          const auto err = ERR_get_error();
-          if (err != 0)
+          if (ERR_peek_error() != 0)
           {
-            return ccf::crypto::OpenSSL::error_string(err);
+            return ccf::crypto::OpenSSL::first_error();
           }
           if (ssl_error == SSL_ERROR_SYSCALL)
           {
@@ -526,10 +526,8 @@ namespace ccf::tls
       ERR_clear_error();
 
       const auto fail = [](const char* step) {
-        LOG_FAIL_FMT(
-          "Failed to build TLS context ({}): {}",
-          step,
-          ccf::crypto::OpenSSL::error_string(ERR_get_error()));
+        const auto error = ccf::crypto::OpenSSL::first_error();
+        LOG_FAIL_FMT("Failed to build TLS context ({}): {}", step, error);
         return std::shared_ptr<SSL_CTX>{};
       };
 
@@ -975,10 +973,9 @@ namespace ccf::tls
         conn->ssl = SSL_new(conn->accepted_ctx.get());
         if (conn->ssl == nullptr || SSL_set_fd(conn->ssl, conn->fd) != 1)
         {
+          const auto error = ccf::crypto::OpenSSL::first_error();
           LOG_FAIL_FMT(
-            "Connection {}: failed to create SSL state: {}",
-            conn->id,
-            ccf::crypto::OpenSSL::error_string(ERR_get_error()));
+            "Connection {}: failed to create SSL state: {}", conn->id, error);
           if (conn->ssl != nullptr)
           {
             SSL_free(conn->ssl);
