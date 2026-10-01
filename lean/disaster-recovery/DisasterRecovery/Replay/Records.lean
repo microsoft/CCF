@@ -85,14 +85,18 @@ def readLogs (paths : List System.FilePath) : IO (Checked (Array Record)) := do
     return .error (.incomplete "no recovery-decision-protocol trace records found")
   return .ok records
 
-/-- What `advance()` read and wrote in a handler or timeout execution. -/
+/--
+What `advance()` read and wrote in a handler or timeout execution that
+committed, with the TxID seqno CCF reported for its transaction: the version
+it committed at if it wrote, and the version it read at otherwise.
+-/
 structure Execution where
   pre : Phase
   preTimeout : Phase
   post : Phase
   postTimeout : Phase
-  preVersion : Nat
-  preTimeoutVersion : Nat
+  version : Nat
+  wrote : Bool
   gossips : Option (List (Location × TxID))
   votes : Option (List Location)
   chosen : Option Location
@@ -101,10 +105,9 @@ structure Execution where
 deriving Inhabited, BEq
 
 inductive Body where
-  | committed (post : Phase) (version : Nat)
+  | start (version : Nat) (expectedLocations : List Location)
   | send (batch : Nat) (target : Location) (message : Message) (preVersion : Nat)
-  | timeoutRequest
-  | timeout (causedBy : Option (Location × Nat)) (execution : Execution)
+  | timeout (execution : Execution)
   | receive (source : Location) (message : Message) (causedBy : Option (Location × Nat))
     (execution : Execution)
 deriving Inhabited
@@ -114,7 +117,6 @@ structure TraceEvent where
   record : Record
   node : Location
   sequence : Nat
-  expectedLocations : List Location
   body : Body
 deriving Inhabited
 
@@ -125,19 +127,17 @@ def messageName : Message → String
 
 def TraceEvent.kind (event : TraceEvent) : String :=
   match event.body with
-  | .committed .. => "committed"
+  | .start .. => "start"
   | .send .. => "send"
-  | .timeoutRequest => "timeout_request"
   | .timeout .. => "timeout"
   | .receive _ (.gossip _) _ _ => "gossip_accepted"
   | .receive _ .vote _ _ => "vote_accepted"
   | .receive _ .iAmOpen _ _ => "iamopen_accepted"
 
-/-- The send or timeout request record that caused an execution. -/
+/-- The send record that caused a receive. -/
 def TraceEvent.causedBy? (event : TraceEvent) : Option (Location × Nat) :=
   match event.body with
-  | .receive _ _ causedBy _
-  | .timeout causedBy _ => causedBy
+  | .receive _ _ causedBy _ => causedBy
   | _ => none
 
 def TraceEvent.isIAmOpen (event : TraceEvent) : Bool :=
@@ -146,7 +146,7 @@ def TraceEvent.isIAmOpen (event : TraceEvent) : Bool :=
 /-- The model action of a timeout or receive, and what it recorded. -/
 def TraceEvent.execution? (event : TraceEvent) : Option (Model.Action × Execution) :=
   match event.body with
-  | .timeout _ execution => some (.local event.node .timeout, execution)
+  | .timeout execution => some (.local event.node .timeout, execution)
   | .receive source message _ execution =>
       some (.deliver { source, target := event.node, payload := message }, execution)
   | _ => none
@@ -155,21 +155,19 @@ def TraceEvent.origin (event : TraceEvent) (rule : String) : Origin :=
   { file := event.record.file, line := event.record.line, rule }
 
 private def common : List String :=
-  ["node", "expected_locations", "sequence", "kind"]
+  ["node", "sequence", "kind"]
 
 private def executionFields : List String :=
-  common
-  ++ ["pre", "pre_timeout", "post", "post_timeout", "pre_version", "pre_timeout_version"]
+  common ++ ["pre", "pre_timeout", "post", "post_timeout", "version", "wrote"]
 
 private def advanceFields : List String :=
   ["gossips", "votes", "chosen", "open_kind", "restart"]
 
 /-- The required and optional fields of each record kind. -/
 private def fieldsOf : String → Option (List String × List String)
-  | "committed" => some (common ++ ["post", "version"], [])
+  | "start" => some (common ++ ["version", "expected_locations"], [])
   | "send" => some (common ++ ["batch", "send", "pre_version"], ["txid"])
-  | "timeout_request" => some (common, [])
-  | "timeout" => some (executionFields, advanceFields ++ ["caused_by"])
+  | "timeout" => some (executionFields, advanceFields)
   | "gossip_accepted" =>
       some (executionFields ++ ["source", "txid"], advanceFields ++ ["caused_by"])
   | "vote_accepted"
@@ -239,11 +237,8 @@ def parseEvent (record : Record) : Checked TraceEvent := do
   let optionalField {α : Type} (key : String) (parse : Json → Checked α)
       : Checked (Option α) :=
     if fields.contains key then some <$> parse (get key) else pure none
-  let .arr expected := get "expected_locations"
-  | throw (.invalid s!"{location}: invalid expected_locations")
   let node ← parseName location (get "node")
   let sequence ← parseNatural location (get "sequence")
-  let expectedLocations ← expected.toList.mapM (parseName location)
   let pre ← optionalField "pre" (parsePhase location)
   let preTimeout ← optionalField "pre_timeout" (parsePhase location)
   let post ← optionalField "post" (parsePhase location)
@@ -282,13 +277,12 @@ def parseEvent (record : Record) : Checked TraceEvent := do
   let txid ← optionalField "txid" (parseTxID location)
   let batch ← optionalField "batch" (parseNatural location)
   let natural (key : String) : Checked Nat := parseNatural location (get key)
-  let event (body : Body) : TraceEvent :=
-    { record, node, sequence, expectedLocations, body }
-  if kind == "timeout_request" then
-    return event .timeoutRequest
-  if kind == "committed" then
-    let some post := post | throw (.invalid s!"{location}: committed misses post")
-    return event (.committed post (← natural "version"))
+  let event (body : Body) : TraceEvent := { record, node, sequence, body }
+  if kind == "start" then
+    let .arr expected := get "expected_locations"
+    | throw (.invalid s!"{location}: invalid expected_locations")
+    return event
+      (.start (← natural "version") (← expected.toList.mapM (parseName location)))
   if kind == "send" then
     let send := get "send"
     let invalid := Failure.invalid s!"{location}: invalid send {send.compress}"
@@ -311,12 +305,20 @@ def parseEvent (record : Record) : Checked TraceEvent := do
   let (some pre, some preTimeout, some post, some postTimeout) :=
     (pre, preTimeout, post, postTimeout)
   | throw (.invalid s!"{location}: {kind} misses its phases")
-  let preVersion ← natural "pre_version"
-  let preTimeoutVersion ← natural "pre_timeout_version"
+  let .bool wrote := get "wrote" | throw (.invalid s!"{location}: invalid wrote")
   let execution : Execution :=
     {
-      pre, preTimeout, post, postTimeout, preVersion, preTimeoutVersion, gossips, votes, chosen,
-      openKind, restart
+      pre,
+      preTimeout,
+      post,
+      postTimeout,
+      version := ← natural "version",
+      wrote,
+      gossips,
+      votes,
+      chosen,
+      openKind,
+      restart
     }
   -- advance() records the maps it evaluates, the node it chooses or joins,
   -- the open kind it writes and the restart it requests.
@@ -333,7 +335,7 @@ def parseEvent (record : Record) : Checked TraceEvent := do
   require (restart == (advanced == .joining))
     s!"{location}: {kind} in {phaseName advanced} must {if advanced == .joining then "" else "not "}request a restart"
   if kind == "timeout" then
-    return event (.timeout causedBy execution)
+    return event (.timeout execution)
   let some source := source | throw (.invalid s!"{location}: {kind} misses source")
   let message ←
     match kind, txid with
