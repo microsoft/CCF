@@ -5,7 +5,7 @@
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ledger_secrets.h"
-#include "service/internal_tables_access.h"
+#include "node/internal_tables_access.h"
 
 #include <optional>
 

@@ -3,7 +3,7 @@
 #include "ccf/kv/map.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 
 #include <algorithm>

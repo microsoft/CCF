@@ -12,8 +12,8 @@
 #include "ledger_secrets.h"
 #include "local_sealing.h"
 #include "network_state.h"
+#include "node/internal_tables_access.h"
 #include "node/ledger_secret.h"
-#include "service/internal_tables_access.h"
 
 #include <openssl/crypto.h>
 #include <ranges>

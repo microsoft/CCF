@@ -32,32 +32,20 @@ namespace http2
     const auto body_remaining = body.data.size() - body.consumed;
     size_t to_read = std::min(body_remaining, length);
 
-    if (
-      to_read == 0 &&
-      stream_data->outgoing.state == StreamResponseState::Streaming)
-    {
-      // Early out: when streaming, avoid calling this callback
-      // repeatedly when there no data to read
-      return NGHTTP2_ERR_DEFERRED;
-    }
-
     if (to_read > 0)
     {
       memcpy(buf, body.data.data() + body.consumed, to_read);
       body.consumed += to_read;
     }
 
-    if (stream_data->outgoing.state == StreamResponseState::Closing)
+    if (body.consumed == body.data.size())
     {
-      if (body.consumed == body.data.size())
-      {
-        *data_flags |= NGHTTP2_DATA_FLAG_EOF;
-      }
+      *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+    }
 
-      if (stream_data->outgoing.has_trailers)
-      {
-        *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
-      }
+    if (stream_data->outgoing.has_trailers)
+    {
+      *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
     }
 
     return to_read;

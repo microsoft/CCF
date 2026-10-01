@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "lean/**"
+      - "**/*.lean"
+      - "scripts/lean-format-checks.sh"
       - "src/kv/**"
       - "tests/kv_trace_validation.py"
       - "CMakeLists.txt"
@@ -39,6 +41,9 @@ jobs:
         with:
           working-directory: lean/disaster-recovery
           library: DisasterRecovery
+
+      - name: Check Lean formatting
+        run: ./scripts/lean-format-checks.sh
 
   kv-contract:
     name: KV model and trace conformance

@@ -1,4 +1,5 @@
 bucket_a:
+  docs
   tls_groups_test
   lts_compatibility
 
@@ -21,6 +22,7 @@ bucket_c:
   governance_test
   code_update_test
   e2e_logging
+  e2e_basic_rust
   programmability_and_jwt
   e2e_limits
   e2e_redirects
@@ -40,6 +42,7 @@ no_bucket:
   merkle_bench
   hash_bench
   http_bench
+  js_interpreter_bench
   task_bench
   recovery_test_suite
   reconfiguration_test_suite

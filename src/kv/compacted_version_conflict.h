@@ -3,6 +3,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 
 namespace ccf::kv
 {

@@ -95,6 +95,34 @@
         }
       }
     },
+    "/historical": {
+      "get": {
+        "js_module": "global_handle.js",
+        "js_function": "historical",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["no_auth"],
+        "mode": "historical",
+        "openapi": {},
+        "interpreter_reuse": {
+          "key": "historical_response"
+        }
+      }
+    },
+    "/historical/range/{seqno}": {
+      "get": {
+        "js_module": "global_handle.js",
+        "js_function": "historical",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {},
+        "interpreter_reuse": {
+          "key": "historical_response"
+        }
+      }
+    },
     "/func_caching": {
       "get": {
         "js_module": "func_caching.js",

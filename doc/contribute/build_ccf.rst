@@ -40,6 +40,14 @@ The most common build switches include:
 
 * **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
+* **CCF_STACKTRACE_BACKEND**: ``AUTO`` (default), ``STD``, or ``LIBBACKTRACE``. Selects the task exception stacktrace implementation.
+
+Task Stacktraces
+~~~~~~~~~~~~~~~~
+
+``AUTO`` prefers C++23 ``std::stacktrace`` when the active compiler and standard library can compile and link its required operations, trying the default libraries, ``stdc++exp``, then ``stdc++_libbacktrace``. Otherwise it requires standalone libbacktrace headers and a library. ``STD`` and ``LIBBACKTRACE`` fail configuration if the requested backend is unavailable.
+
+Configuration reports the selected backend and support library. The installed ``ccf_tasks`` target propagates its support-library and dynamic-loader dependencies by link name. Azure Linux 4's standard support archive requires the matching ``libstdc++-devel`` package; Azure Linux 3's fallback requires ``libbacktrace-static``.
 
 Run Tests
 ---------
@@ -67,3 +75,19 @@ or if there are no Doxygen changes
 .. code-block:: bash
 
     $ SKIP_DOXYGEN=ON ./livehtml.sh
+
+Rust API documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+HTML builds generate the :doc:`Rust API reference </build_apps/rust_api>` by running ``cargo doc`` on ``src/rust/ccf-app``, without building CCF, and publish it in each version's ``rust/`` directory.
+Versions without the SDK are skipped.
+Document the SDK in rustdoc comments, and link to its pages from RST with the ``rustdoc`` role:
+
+.. code-block:: rst
+
+    :rustdoc:`Registry <struct.Registry.html>`
+
+Builds fail on rustdoc warnings and broken ``rustdoc`` links.
+``SKIP_RUSTDOC=ON`` skips generation and these checks, for local previews only.
+Run the SDK doctests with ``cargo test --locked --doc`` in ``src/rust/ccf-app``.
+Doctests are linked without CCF, so examples that call into CCF cannot link, even with ``no_run``.

@@ -12,15 +12,14 @@
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "frontend_test_infra.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "node/history.h"
+#include "node/internal_tables_access.h"
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
-#include "service/internal_tables_access.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -476,11 +475,12 @@ MemberId invalid_member_id;
 class TestNodeConfiguration : public NodeConfigurationInterface
 {
 private:
-  StartupConfig config;
+  CCFConfig config;
+  const nlohmann::json node_data = nullptr;
   NodeConfigurationState state;
 
 public:
-  TestNodeConfiguration() : state{config, {}, true}
+  TestNodeConfiguration() : state{config, node_data, {}, true}
   {
     NodeInfoNetwork_v2::NetInterface interface;
     interface.redirections = NodeInfoNetwork_v2::NetInterface::Redirections{};
@@ -647,6 +647,39 @@ TEST_CASE("Redirect resolution handles unpublished consensus")
 
   REQUIRE(!rpc_ctx->response_is_pending);
   REQUIRE(rpc_ctx->get_response_status() == HTTP_STATUS_SERVICE_UNAVAILABLE);
+}
+
+TEST_CASE("Endpoints with disabled operator features look like unknown paths")
+{
+  NetworkState network;
+  prepare_callers(network);
+  BaseTestFrontend frontend(*network.tables);
+  frontend.context.install_subsystem(std::make_shared<TestNodeConfiguration>());
+  frontend
+    .make_endpoint(
+      "/gated",
+      HTTP_GET,
+      [](auto& ctx) { ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK); })
+    .require_operator_feature(ccf::endpoints::OperatorFeature::SnapshotRead)
+    .install();
+  frontend.open();
+
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, anonymous_caller_der, "test_interface");
+  for (const std::string path : {"/gated", "/unknown"})
+  {
+    INFO(path);
+    ::http::Request request(path, HTTP_GET);
+    auto rpc_ctx = ccf::make_rpc_context(session, request.build_request());
+    frontend.process(rpc_ctx);
+    const auto response = parse_response(rpc_ctx->serialise_response());
+    CHECK(response.status == HTTP_STATUS_NOT_FOUND);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"] ==
+      nlohmann::json{
+        {"code", ccf::errors::ResourceNotFound},
+        {"message", fmt::format("Unknown path: {}.", path)}});
+  }
 }
 
 TEST_CASE("SignedReq to and from json")
@@ -1245,6 +1278,48 @@ TEST_CASE("Decoded Templated paths")
   }
 }
 
+TEST_CASE("Forwarded request target limit" * doctest::test_suite("forwarding"))
+{
+  constexpr size_t forwarding_limit = 100 * 1024 * 1024;
+  auto target_size = forwarding_limit;
+  SUBCASE("At the forwarding limit") {}
+  SUBCASE("Above the forwarding limit")
+  {
+    target_size += 1;
+  }
+  const std::string prefix = "/app/empty_function?padding=";
+  const auto target = prefix + std::string(target_size - prefix.size(), 'a');
+  const auto packed = ::http::Request(target, HTTP_POST).build_request();
+
+  ccf::http::ParserConfiguration config;
+  config.max_request_target_size = "101MB";
+  {
+    ::http::SimpleRequestProcessor processor;
+    ::http::RequestParser ingress(processor, config);
+    ingress.execute(packed.data(), packed.size());
+    REQUIRE(processor.received.size() == 1);
+    CHECK(processor.received.front().url == target);
+  }
+
+  if (target_size > forwarding_limit)
+  {
+    CHECK_THROWS_AS(
+      ccf::make_fwd_rpc_context(user_session, packed, ccf::FrameFormat::http),
+      ::http::RequestTargetTooLongException);
+  }
+  else
+  {
+    auto forwarded =
+      ccf::make_fwd_rpc_context(user_session, packed, ccf::FrameFormat::http);
+    REQUIRE(forwarded != nullptr);
+    CHECK(forwarded->get_request_path() == "/app/empty_function");
+    CHECK(
+      forwarded->get_request_query() ==
+      std::string_view(target).substr(target.find('?') + 1));
+    CHECK(forwarded->get_serialised_request() == packed);
+  }
+}
+
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 {
   NetworkState network_primary;
@@ -1477,7 +1552,17 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   publish_frontend_state(user_frontend_backup, network_backup);
 
   auto write_req = create_simple_request();
+  write_req.set_query_param(
+    "padding",
+    std::string(ccf::http::default_max_request_target_size.count_bytes(), 'a'));
   auto serialized_call = write_req.build_request();
+
+  ccf::http::ParserConfiguration ingress_config;
+  ingress_config.max_request_target_size = "32KB";
+  ::http::SimpleRequestProcessor ingress_processor;
+  ::http::RequestParser ingress_parser(ingress_processor, ingress_config);
+  ingress_parser.execute(serialized_call.data(), serialized_call.size());
+  REQUIRE(ingress_processor.received.size() == 1);
 
   auto ctx = ccf::make_rpc_context(user_session, serialized_call);
   user_frontend_backup.process(ctx);
@@ -1490,6 +1575,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
       ccf::kv::test::FirstBackupNodeId,
       forwarded_msg.data(),
       forwarded_msg.size());
+  REQUIRE(fwd_ctx != nullptr);
 
   user_frontend_primary.process_forwarded(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());

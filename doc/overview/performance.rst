@@ -36,16 +36,13 @@ For a finer grained view of performance the clients in these tests can also dump
 Profiling
 ---------
 
-End-to-end performance tests can be run with the Linux utility ``perf``
-attached to the nodes to produce profile data. Set the ``CCF_PERF`` environment
-variable before running a test to enable this:
+End-to-end performance tests can be run with the Linux utility ``perf`` attached to the nodes to produce profile data. Set the ``CCF_PERF`` environment variable before running a test to enable this:
 
 .. code-block:: bash
 
     CCF_PERF=1 ./tests.sh -VV -R '^basic_blocking_locust$' -C perf
 
-By default, nodes run under
-``perf record -m 16 -e task-clock:u -F 99 -g --call-graph dwarf --quiet``.
+By default, nodes run under ``perf record -m 16 -e task-clock:u -F 99 -g --call-graph dwarf --quiet``.
 These options keep profiling reliable and useful in development containers:
 
 - ``-m 16`` limits the mmap data buffer to 16 pages, avoiding failures caused
@@ -62,15 +59,9 @@ These options keep profiling reliable and useful in development containers:
 - ``--quiet`` suppresses non-fatal recording warnings that would otherwise be
     mixed into each node's error log.
 
-Set ``CCF_PERF_ARGS`` to replace these recording options. The harness always
-appends ``-o perf.data --`` so that each node writes to a predictable path in
-its workspace directory and the remaining arguments invoke the node.
+Set ``CCF_PERF_ARGS`` to replace these recording options. The harness always appends ``-o perf.data --`` so that each node writes to a predictable path in its workspace directory and the remaining arguments invoke the node.
 
-The profiling process requires permission to use ``perf_event_open``. The
-CCF development containers install ``perf`` and grant the ``PERFMON``
-capability. Hardware performance counters may still be unavailable when the
-host does not expose a hardware PMU; the default software task-clock event
-remains available in that case.
+The profiling process requires permission to use ``perf_event_open``. The CCF development containers install ``perf`` and grant the ``PERFMON`` capability. Hardware performance counters may still be unavailable when the host does not expose a hardware PMU; the default software task-clock event remains available in that case.
 
 Inspect the recorded profile directly with:
 

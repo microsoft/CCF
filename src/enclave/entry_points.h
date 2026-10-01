@@ -2,24 +2,39 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/node/configuration.h"
+#include "ccf/node/start_type.h"
+#include "common/configuration.h"
 #include "common/enclave_interface_types.h"
 #include "ds/work_beacon.h"
-#include "host/ledger.h"
+#include "node/rpc/ledger_interface.h"
+#include "node/runtime_control.h"
 
 #include <cstdint>
+#include <memory>
 
 namespace ccf
 {
+  // ledger_subsystem is the host-owned read-only view of the ledger. It is
+  // installed as a node subsystem and must outlive the node.
   CreateNodeStatus enclave_create_node(
     const EnclaveConfig& enclave_config,
-    const ccf::StartupConfig& ccf_config,
+    const ccf::CCFConfig& ccf_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
+    std::vector<uint8_t>& rpc_addresses,
     StartType start_type,
     ccf::LoggerLevel log_level,
     size_t num_worker_thread,
     const ccf::ds::WorkBeaconPtr& work_beacon,
-    asynchost::Ledger& ledger);
+    ccf::AbstractRuntimeControl& runtime_control,
+    const std::shared_ptr<AbstractReadLedgerSubsystemInterface>&
+      ledger_subsystem);
 
   bool enclave_run();
+  bool enclave_request_stop();
+  bool enclave_request_stop_notice();
+
+  // Terminal cleanup after transports have stopped and enclave threads joined.
+  void enclave_shutdown_tasks();
 }

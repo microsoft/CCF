@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "node/rpc/ringbuffer_messages.h"
 #include "timer.h"
 
 #include <chrono>

@@ -7,6 +7,7 @@ set(CCF_RS_PACKAGE "ccf-rs")
 set(CCF_RS_LIB "libccf_rs.a")
 set(CCF_RS_LIB_BUILD_PATH "${CMAKE_BINARY_DIR}/${CCF_RS_LIB}")
 set(CCF_RS_CARGO_TARGET_DIR "${CMAKE_BINARY_DIR}/cargo/build")
+set(CCF_RS_COMBINED_OBJECT "${CCF_RS_CARGO_TARGET_DIR}/ccf_rs_combined.o")
 
 find_program(CARGO NAMES cargo REQUIRED)
 find_program(RUSTC NAMES rustc REQUIRED)
@@ -56,7 +57,7 @@ set(
 
 add_custom_target(
   cargo-build_ccf_rs
-  BYPRODUCTS "${CCF_RS_LIB_BUILD_PATH}"
+  BYPRODUCTS "${CCF_RS_LIB_BUILD_PATH}" "${CCF_RS_COMBINED_OBJECT}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CCF_RS_CARGO_TARGET_DIR}"
   COMMAND
     "${CMAKE_COMMAND}" -E env --unset=CARGO_BUILD_TARGET
@@ -66,19 +67,50 @@ add_custom_target(
     "${CCF_RS_PACKAGE}" --manifest-path "${CCF_RS_MANIFEST_PATH}" --target-dir
     "${CCF_RS_CARGO_TARGET_DIR}" ${CCF_RS_CARGO_PROFILE_FLAG} --locked
   COMMAND
-    "${CMAKE_COMMAND}" -E copy_if_different "${CCF_RS_CARGO_LIB_PATH}"
-    "${CMAKE_BINARY_DIR}"
+    "${CMAKE_CXX_COMPILER}" -r -nostdlib -Wl,--whole-archive
+    "${CCF_RS_CARGO_LIB_PATH}" -Wl,--no-whole-archive -o
+    "${CCF_RS_COMBINED_OBJECT}"
+  # Rust static libraries each contain the Rust runtime. Combine ccf-rs into a
+  # single object, then keep only its C ABI symbols global so a Rust application
+  # can link its own runtime without duplicate symbols.
+  COMMAND
+    "${CMAKE_OBJCOPY}" --wildcard "--keep-global-symbol=tav_*"
+    "${CCF_RS_COMBINED_OBJECT}"
+  COMMAND
+    "${CMAKE_COMMAND}" "-DNM=${CMAKE_NM}" "-DOBJECT=${CCF_RS_COMBINED_OBJECT}"
+    -P "${CCF_DIR}/cmake/verify_ccf_rs_exports.cmake"
+  COMMAND "${CMAKE_COMMAND}" -E rm -f "${CCF_RS_LIB_BUILD_PATH}"
+  COMMAND
+    "${CMAKE_AR}" qc "${CCF_RS_LIB_BUILD_PATH}" "${CCF_RS_COMBINED_OBJECT}"
+  COMMAND "${CMAKE_RANLIB}" "${CCF_RS_LIB_BUILD_PATH}"
   WORKING_DIRECTORY "${CCF_RS_DIR}"
   DEPENDS
     "${CCF_RS_MANIFEST_PATH}"
     "${CCF_RS_DIR}/Cargo.lock"
     "${CCF_RS_DIR}/rust-toolchain.toml"
-    "${CCF_DIR}/src/cose/cose_rs/Cargo.toml"
-    "${CCF_DIR}/3rdparty/internal/cose-openssl/Cargo.toml"
+    "${CCF_DIR}/3rdparty/internal/tee-attestation-verification/ffi/Cargo.toml"
   COMMENT
     "Building ${CCF_RS_PACKAGE} Rust static library (Cargo profile: ${CCF_RS_CARGO_PROFILE_NAME})"
   USES_TERMINAL
   VERBATIM
 )
 
+add_library(ccf_rs INTERFACE)
+target_link_libraries(
+  ccf_rs
+  INTERFACE
+    $<BUILD_INTERFACE:${CCF_RS_LIB_BUILD_PATH}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/lib/${CCF_RS_LIB}>
+    ssl
+    crypto
+)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(
+    ccf_rs
+    INTERFACE ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} m
+  )
+endif()
+add_dependencies(ccf_rs cargo-build_ccf_rs)
+
 install(FILES "${CCF_RS_LIB_BUILD_PATH}" DESTINATION lib)
+install(TARGETS ccf_rs EXPORT ccf)

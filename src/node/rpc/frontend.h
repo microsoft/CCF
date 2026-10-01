@@ -13,15 +13,14 @@
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
-#include "common/configuration.h"
-#include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
 #include "node/endpoint_context_impl.h"
+#include "node/internal_tables_access.h"
 #include "node/node_configuration_subsystem.h"
-#include "service/internal_tables_access.h"
+#include "node/rpc/rpc_handler.h"
 
 #define FMT_HEADER_ONLY
 
@@ -152,7 +151,11 @@ namespace ccf
                 endpoint->full_uri_path,
                 required_feature,
                 *interface_id);
-              ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+              // Respond as find_endpoint() does for an unknown path
+              ctx->set_error(
+                HTTP_STATUS_NOT_FOUND,
+                ccf::errors::ResourceNotFound,
+                fmt::format("Unknown path: {}.", ctx->get_method()));
               return false;
             }
           }

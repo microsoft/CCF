@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "enclave/entry_points.h"
 #include "signal.h"
 
 #include <chrono>
@@ -12,15 +13,11 @@ namespace asynchost
   class ShutdownSignalImpl
   {
   private:
-    ringbuffer::WriterPtr to_enclave;
     bool ignore_first_signal = false;
     size_t signal_count = 0;
 
   public:
-    ShutdownSignalImpl(
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      bool ignore_first_sigterm_) :
-      to_enclave(writer_factory.create_writer_to_inside()),
+    ShutdownSignalImpl(bool ignore_first_sigterm_) :
       ignore_first_signal(ignore_first_sigterm_)
     {}
 
@@ -32,13 +29,19 @@ namespace asynchost
         LOG_INFO_FMT(
           "SIG{}: Notifying enclave, but not shutting down.",
           sigabbrev_np(signal));
-        RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop_notice, to_enclave);
+        if (!ccf::enclave_request_stop_notice())
+        {
+          LOG_FAIL_FMT("Failed to request enclave stop notice");
+        }
       }
       else
       {
         LOG_INFO_FMT(
           "SIG{}: Shutting down enclave gracefully...", sigabbrev_np(signal));
-        RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop, to_enclave);
+        if (!ccf::enclave_request_stop())
+        {
+          LOG_FAIL_FMT("Failed to request enclave stop");
+        }
       }
     }
   };

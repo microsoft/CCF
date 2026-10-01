@@ -20,10 +20,11 @@ from infra.proposal import ProposalState
 from loguru import logger as LOG
 
 
-def check_operations(ledger, operations):
+def check_operations(ledger, operations, expect_detached_proposals=True):
     LOG.debug("Audit the ledger file for governance operations")
 
     members = {}
+    embedded_proposals = []
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
@@ -68,18 +69,48 @@ def check_operations(ledger, operations):
                     assert member_id in members
                     cert = members[member_id]
 
+                    cose_sign1 = base64.b64decode(cose_sign1)
+                    msg = cwt.COSEMessage.loads(cose_sign1)
+                    assert msg.type == cwt.COSETypes.SIGN1, msg
+                    assert "ccf.gov.msg.type" in msg.protected, msg.protected
+                    msg_type = msg.protected["ccf.gov.msg.type"]
+
+                    # Proposal creation always writes the signed proposal
+                    # body to public:ccf.gov.proposals in the same
+                    # transaction. Proposal entries now detach their payload
+                    # to avoid storing it twice, so it must be supplied from
+                    # that table for verification. Ledgers written by older
+                    # versions embed the payload in the envelope as well.
+                    # Ballots and withdrawals always embed their payload, as
+                    # it is not recorded elsewhere.
+                    detached_payload = None
+                    if msg_type == "proposal":
+                        proposals = {
+                            proposal_id: proposal
+                            for proposal_id, proposal in tables[
+                                "public:ccf.gov.proposals"
+                            ].items()
+                            if proposal is not None
+                        }
+                        ((proposal_id, proposal_body),) = proposals.items()
+                        if msg.payload is None:
+                            detached_payload = proposal_body
+                        else:
+                            embedded_proposals.append(proposal_id.decode())
+                    else:
+                        assert msg.payload is not None, msg
+
                     cose_ctx = cwt.COSE.new()
                     cert_pem = cert.decode()
                     cose_key = cwt.COSEKey.from_pem(
                         cert_pem, kid=cert_fingerprint(cert_pem)
                     )
                     phdr, uhdr, payload = cose_ctx.decode_with_headers(
-                        base64.b64decode(cose_sign1), cose_key
+                        cose_sign1, cose_key, detached_payload=detached_payload
                     )
 
-                    assert "ccf.gov.msg.type" in phdr
-                    msg_type = phdr["ccf.gov.msg.type"]
                     if msg_type == "ballot":
+                        assert "ballot" in json.loads(payload), payload
                         op = (
                             phdr["ccf.gov.msg.proposal_id"],
                             member_id.decode(),
@@ -92,7 +123,9 @@ def check_operations(ledger, operations):
                             "withdraw",
                         )
                     elif msg_type == "proposal":
-                        (proposal_id,) = tables["public:ccf.gov.proposals"].keys()
+                        # Whether detached or embedded, the signed payload must
+                        # be the proposal body stored in the proposals table
+                        assert payload == proposal_body, (payload, proposal_body)
                         op = (proposal_id.decode(), member_id.decode(), "propose")
                     else:
                         assert False, (phdr, uhdr, payload)
@@ -101,6 +134,8 @@ def check_operations(ledger, operations):
                         operations.remove(op)
 
     assert operations == set(), operations
+    if expect_detached_proposals:
+        assert embedded_proposals == [], embedded_proposals
 
 
 def check_signatures(ledger):

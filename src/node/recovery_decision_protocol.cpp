@@ -246,7 +246,7 @@ namespace ccf
           ccf::crypto::cert_der_to_pem(node_config->service_cert_der);
         LOG_INFO_FMT("{}", service_cert.str());
 
-        RINGBUFFER_WRITE_MESSAGE(AdminMessage::restart, node_state->to_host);
+        node_state->request_restart();
       }
       case recovery_decision_protocol::StateMachine::OPENING:
       {

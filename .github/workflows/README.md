@@ -1,5 +1,7 @@
 Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
 
+All jobs run on 1ES hosted pools targeted by pool name only, for example `runs-on: [gha-vmss-d16av7-ci]`.
+
 # Shared actions
 
 ## Azure Linux CI dependencies
@@ -12,16 +14,9 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 
 ## Lean package checks
 
-The local composite action in `.github/actions/lean-checks/action.yml` restores
-the Mathlib cache, checks the generated library import root, builds with warnings
-as errors, and runs the package's configured axiom audit and test driver through
-`lake lint` and `lake test`. Each caller supplies a `working-directory` and
-`library`, and installs the package's pinned Lean toolchain before invoking the
-action. Callers whose Lean toolchain is not already an elan-managed shim on the
-runner's persistent `PATH` also supply `lean-bin-path`, which the action adds to
-`PATH` only for its own steps, so later steps in the same job that build
-unrelated native code are not exposed to the Lean distribution's bundled
-`clang`.
+The local composite action in `.github/actions/lean-checks/action.yml` restores the Mathlib cache, checks the generated library import root, builds with warnings as errors, and runs the package's configured axiom audit and test driver through `lake lint` and `lake test`.
+Each caller supplies a `working-directory` and `library`, and installs the package's pinned Lean toolchain before invoking the action.
+Callers whose Lean toolchain is not already an elan-managed shim on the runner's persistent `PATH` also supply `lean-bin-path`, which the action adds to `PATH` only for its own steps, so later steps in the same job that build unrelated native code are not exposed to the Lean distribution's bundled `clang`.
 
 # Maintained
 
@@ -30,7 +25,7 @@ unrelated native code are not exposed to the Lean distribution's bundled
 Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
-Tests are run on two different testbeds for comparison: gha-vmss-d16av6-ci (d16av6 VMs) and gha-c-aci-ci (C-ACI with 16 cores and 32Gb RAM).
+Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP).
 
 File: `bencher.yml`
 3rd party dependencies: None
@@ -53,6 +48,8 @@ File: `copilot-setup-steps.yml`
 
 Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests. Runs on PRs, merge queue runs, manually, and once a week, regardless of commits.
 
+The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
+
 File: `ci.yml`
 3rd party dependencies: None
 
@@ -60,12 +57,27 @@ File: `ci.yml`
 
 Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readiness for the move from Azure Linux 3, which `ci.yml` builds against. Runs daily on `main` on week days, and manually. It deliberately does not run on PRs, to keep PR feedback fast and limit pool usage.
 
+Its Virtual A, B, and C jobs use the same pool distribution as the main continuous integration workflow.
+
 File: `ci-al4.yml`
+3rd party dependencies: None
+
+# Cross-platform LTS
+
+Builds configurable CCF release install trees on Azure Linux 3 and Azure Linux 4 in parallel, then runs the LTS live-upgrade test directly on a VMSS runner. By default, it upgrades from the previous stable CCF release to the latest stable release; both versions can be overridden using the manual inputs in [`cross-platform-lts.yml`](cross-platform-lts.yml). Separate runtime images install only the required shared-library packages and copy in the matching install tree. Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking. Runs weekly and manually, but not on pull requests because both full builds and the compatibility test are expensive.
+
+Shared workflow environment values define the Python version, base images, runner pool labels, install archive filename, and test workspace.
+
+File: `cross-platform-lts.yml`
 3rd party dependencies: None
 
 # Coverage
 
-Builds CCF with coverage enabled, runs unit and end to end tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
+Builds CCF with coverage enabled, runs unit, end to end and partition tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
+
+A parallel job on `gha-aci-genoa` builds with coverage and runs the same SEV-SNP tests as the ACI SNP Genoa job in `ci.yml`, excluding benchmarks, then uploads their merged coverage profile. Before generating reports, the Virtual job waits for that job and merges its profile into the overall statistics. This does not lengthen the workflow, because the SNP job normally finishes well before the Virtual tests. Profiles only match binaries built with the same compiler and compile options, so the Virtual job also checks that both jobs used the same compiler version. If the SNP job does not succeed, or its compiler differs, the Virtual job fails rather than report statistics without SNP coverage, which also keeps that run out of the coverage trend.
+
+The Virtual job summary plots the line and branch coverage of the previous successful runs on the same branch, recovered from their job logs, followed by the current run. The GitHub API sometimes returns an outdated list of runs, so a list is only used if it includes the current run, and is otherwise requested again. If no up-to-date list is returned, the trend only includes the current run, and the job reports a warning.
 
 File: `coverage.yml`
 3rd party dependencies: None
@@ -76,6 +88,7 @@ Secondary continuous integration job. Runs more expensive, longer tests, such as
 
 - Runs daily on week days.
 - Can be manually run on a PR by setting `run-long-test` label, or via workflow dispatch.
+- VMSS jobs target `gha-vmss-d16av7-ci-c` to use pool C's larger runner capacity.
 
 File: `long-test.yml`
 3rd party dependencies: None
@@ -92,7 +105,7 @@ File: `codeql-analysis.yml`
 
 # Continuous Verification
 
-Runs the standard model checking, simulation, trace validation, counterexample, and disaster recovery jobs each week.
+Runs the standard model checking, simulation, trace validation, and counterexample jobs each week.
 
 File: `ci-verification.yml`
 3rd party dependencies: None
@@ -100,6 +113,7 @@ File: `ci-verification.yml`
 # Long Verification
 
 Runs the longer consensus model checking and simulation jobs each week.
+VMSS jobs target `gha-vmss-d16av7-ci-c` to use pool C's larger runner capacity.
 
 File: `long-verification.yml`
 3rd party dependencies: None
@@ -116,30 +130,25 @@ File: `tla-shallow.yml`
 
 # Lean
 
-Runs all Lean verification for the repository. Future Lean checks should be
-added as jobs to this workflow.
+Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
 
-The disaster recovery and KV jobs both use the shared
-[Lean package checks](#lean-package-checks) action on relevant pull requests.
-Disaster recovery runs its canonical behavior checks on Ubuntu 26.04. KV runs
-in Azure Linux 3, then builds the instrumented C++ KV unit tests and checks their
-generated traces against the Lean model. The KV job uploads trace diagnostics
-as artifacts.
+The disaster recovery and KV jobs both use the shared [Lean package checks](#lean-package-checks) action.
+Disaster recovery runs its canonical behavior checks on Ubuntu 26.04.
+KV runs in Azure Linux 3, then builds the instrumented C++ KV unit tests and checks their generated traces against the Lean model.
+The KV job uploads trace diagnostics as artifacts.
+The build and audit include both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
+The standard `mk_all --check` command ensures that the audit root imports every library module, so newly added proofs cannot silently escape the checks.
 
-The build and audit include both the human-reviewed model and system properties
-and the proof implementation files marked as generated for review purposes.
-The standard `mk_all --check` command ensures that the audit root imports every
-library module, so newly added proofs cannot silently escape the checks.
+After the disaster recovery checks, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
+The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, `src/kv/`, the KV trace runner, `CMakeLists.txt`, the shared Lean action, or the workflow.
+See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
 3rd party dependencies: None
 
 # Vendored Dependency Verification
 
-Verifies that files under `3rdparty/` match the Git commits or release artifacts
-recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main`
-that change vendored sources, the manifest, the verifier, or this workflow. It
-can also be run manually.
+Verifies that files under `3rdparty/` match the Git commits or release artifacts recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main` that change vendored sources, the manifest, the verifier, or this workflow. It can also be run manually.
 
 File: `vendor-verification.yml`
 3rd party dependencies: None

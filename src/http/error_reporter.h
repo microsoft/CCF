@@ -15,5 +15,7 @@ namespace http
       const ccf::ListenInterfaceID&) = 0;
     virtual void report_request_header_too_large_error(
       const ccf::ListenInterfaceID&) = 0;
+    virtual void report_request_target_too_long_error(
+      const ccf::ListenInterfaceID&) = 0;
   };
 }

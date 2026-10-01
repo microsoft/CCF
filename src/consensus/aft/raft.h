@@ -3,24 +3,22 @@
 #pragma once
 
 #include "ccf/ds/locking.h"
-#include "ccf/service/reconfiguration_type.h"
+#include "ccf/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
+#include "consensus/aft/commit_observer.h"
+#include "consensus/aft/consensus_channels.h"
 #include "consensus/aft/raft_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "impl/state.h"
 #include "kv/kv_types.h"
-#include "node/commit_callback_subsystem.h"
-#include "node/node_client.h"
-#include "node/node_to_node.h"
-#include "node/node_types.h"
-#include "node/retired_nodes_cleanup.h"
 #include "raft_types.h"
 #include "service/tables/signatures.h"
 
 #include <algorithm>
+#include <functional>
 #include <list>
 #include <random>
 #include <unordered_map>
@@ -174,13 +172,10 @@ namespace aft
     std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
 
-    // Node client to trigger submission of RPC requests
-    std::shared_ptr<ccf::NodeClient> node_client;
+    // Called on the primary to remove retired nodes from the store
+    std::function<void()> retired_node_cleanup;
 
-    // Used to remove retired nodes from store
-    std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup;
-
-    std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks;
+    std::shared_ptr<CommitObserver> commit_observer;
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
@@ -204,17 +199,16 @@ namespace aft
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
-    std::shared_ptr<ccf::NodeToNode> channels;
+    std::shared_ptr<ConsensusChannels> channels;
 
     Aft(
       const ccf::consensus::Configuration& settings_,
       std::unique_ptr<Store> store_,
       std::unique_ptr<LedgerProxy> ledger_,
-      std::shared_ptr<ccf::NodeToNode> channels_,
+      std::shared_ptr<ConsensusChannels> channels_,
       std::shared_ptr<aft::State> state_,
-      std::shared_ptr<ccf::NodeClient> rpc_request_context_,
-      std::shared_ptr<ccf::CommitCallbackSubsystem>
-        commit_callbacks_subsystem_ = nullptr,
+      std::function<void()> retired_node_cleanup_,
+      std::shared_ptr<CommitObserver> commit_observer_ = nullptr,
       bool public_only_ = false) :
       store(std::move(store_)),
 
@@ -226,10 +220,8 @@ namespace aft
       election_timeout(settings_.election_timeout),
       max_uncommitted_tx_count(settings_.max_uncommitted_tx_count),
 
-      node_client(std::move(rpc_request_context_)),
-      retired_node_cleanup(
-        std::make_unique<ccf::RetiredNodeCleanup>(node_client)),
-      commit_callbacks(std::move(commit_callbacks_subsystem_)),
+      retired_node_cleanup(std::move(retired_node_cleanup_)),
+      commit_observer(std::move(commit_observer_)),
 
       public_only(public_only_),
 
@@ -238,12 +230,7 @@ namespace aft
 
       ledger(std::move(ledger_)),
       channels(std::move(channels_))
-    {
-      if (commit_callbacks != nullptr)
-      {
-        commit_callbacks->set_consensus(this);
-      }
-    }
+    {}
 
     ~Aft() override = default;
 
@@ -414,7 +401,7 @@ namespace aft
 
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       state->current_view += starting_view_change;
-      become_leader(true);
+      become_leader();
     }
 
     void force_become_primary(
@@ -438,7 +425,7 @@ namespace aft
       state->view_history.initialise(terms);
       state->view_history.update(index, term);
       state->current_view += starting_view_change;
-      become_leader(true);
+      become_leader();
     }
 
     void init_as_backup(
@@ -816,7 +803,7 @@ namespace aft
           }
         }
       }
-      catch (const ccf::NodeToNode::DroppedMessageException& e)
+      catch (const ConsensusChannels::DroppedMessageException& e)
       {
         RAFT_INFO_FMT("Dropped invalid message from {}", e.from);
         return;
@@ -1095,8 +1082,7 @@ namespace aft
 
       // The host will append log entries to this message when it is
       // sent to the destination node.
-      if (!channels->send_authenticated(
-            to, ccf::NodeMsgType::consensus_msg, ae))
+      if (!channels->send_consensus_message(to, ae))
       {
         return;
       }
@@ -1227,10 +1213,13 @@ namespace aft
           state->commit_idx);
         return;
       }
-      // This block is redundant - the checks above cover this case, so the code
-      // inside this block should be unreachable. It is retained out of
-      // abundance of caution, in case future rewrites of the above conditions
-      // allow a fallthrough.
+      // The prev_term check above rejects most AppendEntries whose prev_idx is
+      // beyond our log, but not one which also claims prev_term ==
+      // VIEW_UNKNOWN, since that is what get_term_internal() returns for
+      // indices we do not hold. A correct primary sends such an AppendEntries
+      // after its first send to a newly added node fails (that node's sent_idx
+      // starts beyond the primary's log), and a malformed message could too.
+      // Responding would acknowledge entries we do not hold, so it is ignored.
       if (r.prev_idx > state->last_idx)
       {
         RAFT_FAIL_FMT(
@@ -1420,58 +1409,41 @@ namespace aft
         ledger->put_entry(
           entry, globally_committable, ds->get_term(), ds->get_index());
 
-        switch (apply_success)
+        // ApplyResult::FAIL has already returned above, so the only remaining
+        // distinction is whether this entry is a signature.
+        if (globally_committable)
         {
-          case ccf::kv::ApplyResult::FAIL:
+          RAFT_DEBUG_FMT("Deserialising signature at {}", i);
+          if (
+            state->membership_state == ccf::kv::MembershipState::Retired &&
+            state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
           {
-            RAFT_FAIL_FMT("Follower failed to apply log entry: {}", i);
-            state->last_idx--;
-            ledger->truncate(state->last_idx);
-            send_append_entries_response_nack(from);
-            break;
+            become_retired(i, ccf::kv::RetirementPhase::Signed);
           }
+          state->committable_indices.push_back(i);
 
-          case ccf::kv::ApplyResult::PASS_SIGNATURE:
+          if (ds->get_term() != 0u)
           {
-            RAFT_DEBUG_FMT("Deserialising signature at {}", i);
-            if (
-              state->membership_state == ccf::kv::MembershipState::Retired &&
-              state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
+            // A signature for sig_term tells us that all transactions from
+            // the previous signature onwards (at least, if not further back)
+            // happened in sig_term. We reflect this in the history.
+            if (r.term_of_idx == aft::ViewHistory::InvalidView)
             {
-              become_retired(i, ccf::kv::RetirementPhase::Signed);
+              state->view_history.update(1, r.term);
             }
-            state->committable_indices.push_back(i);
-
-            if (ds->get_term() != 0u)
+            else
             {
-              // A signature for sig_term tells us that all transactions from
-              // the previous signature onwards (at least, if not further back)
-              // happened in sig_term. We reflect this in the history.
-              if (r.term_of_idx == aft::ViewHistory::InvalidView)
-              {
-                state->view_history.update(1, r.term);
-              }
-              else
-              {
-                // NB: This is only safe as long as AppendEntries only contain a
-                // single term. If they cover multiple terms, then we need to
-                // know our previous signature locally.
-                static_assert(
-                  max_terms_per_append_entries == 1,
-                  "AppendEntries processing for term updates assumes single "
-                  "term");
-                state->view_history.update(r.prev_idx + 1, ds->get_term());
-              }
-
-              commit_if_possible(std::min(r.leader_commit_idx, r.idx));
+              // NB: This is only safe as long as AppendEntries only contain a
+              // single term. If they cover multiple terms, then we need to
+              // know our previous signature locally.
+              static_assert(
+                max_terms_per_append_entries == 1,
+                "AppendEntries processing for term updates assumes single "
+                "term");
+              state->view_history.update(r.prev_idx + 1, ds->get_term());
             }
-            break;
-          }
 
-          case ccf::kv::ApplyResult::PASS:
-          case ccf::kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET:
-          {
-            break;
+            commit_if_possible(std::min(r.leader_commit_idx, r.idx));
           }
         }
       }
@@ -1571,8 +1543,7 @@ namespace aft
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      channels->send_authenticated(
-        to, ccf::NodeMsgType::consensus_msg, response);
+      channels->send_consensus_message(to, response);
     }
 
     void recv_append_entries_response(
@@ -1712,7 +1683,7 @@ namespace aft
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rpv);
+      channels->send_consensus_message(to, rpv);
     }
 
     void send_request_vote(const ccf::NodeId& to)
@@ -1736,7 +1707,7 @@ namespace aft
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
+      channels->send_consensus_message(to, rv);
     }
 
     void recv_request_vote_unsafe(
@@ -1913,8 +1884,7 @@ namespace aft
           to,
           answer);
 
-        channels->send_authenticated(
-          to, ccf::NodeMsgType::consensus_msg, response);
+        channels->send_consensus_message(to, response);
       }
       else
       {
@@ -1928,8 +1898,7 @@ namespace aft
           to,
           answer);
 
-        channels->send_authenticated(
-          to, ccf::NodeMsgType::consensus_msg, response);
+        channels->send_consensus_message(to, response);
       }
     }
 
@@ -2015,11 +1984,14 @@ namespace aft
         state->leadership_state.load() !=
           ccf::kv::LeadershipState::PreVoteCandidate)
       {
-        // To receive a PreVoteResponse, we must have been a PreVoteCandidate in
-        // that term.
-        // Since we are a Candidate for term T, we can only have transitioned
-        // from PreVoteCandidate for term (T-1). Since terms are monotonic this
-        // is impossible.
+        // We sent our RequestPreVotes as a PreVoteCandidate in term T-1, and
+        // have since become a Candidate in term T. A response carries the
+        // responder's term rather than the term of the request, so a late
+        // refusal from a node which had already moved to term T (for
+        // instance, by voting for a competing candidate) arrives here. The
+        // pre-vote is over, so the response is ignored. In particular, a
+        // pre-vote grant (which a correct node sends in term T-1) must not be
+        // counted as a vote in this election.
         RAFT_FAIL_FMT(
           "Recv {} to {} from {}: unexpected message in {} when "
           "Candidate for {}",
@@ -2194,7 +2166,7 @@ namespace aft
       }
     }
 
-    void become_leader(bool /*force_become_leader*/ = false)
+    void become_leader()
     {
       if (is_retired_committed())
       {
@@ -2259,7 +2231,7 @@ namespace aft
 
       if (retired_node_cleanup)
       {
-        retired_node_cleanup->cleanup();
+        retired_node_cleanup();
       }
     }
 
@@ -2354,8 +2326,7 @@ namespace aft
     {
       ProposeRequestVote prv{.term = state->current_view};
       RAFT_INFO_FMT("Proposing that {} becomes candidate", successor);
-      channels->send_authenticated(
-        successor, ccf::NodeMsgType::consensus_msg, prv);
+      channels->send_consensus_message(successor, prv);
     }
     void become_retired(Index idx, ccf::kv::RetirementPhase phase)
     {
@@ -2392,7 +2363,7 @@ namespace aft
       }
       else if (phase == ccf::kv::RetirementPhase::RetiredCommitted)
       {
-        nominate_successor();
+        nominate_successor_unsafe();
 
         leader_id.reset();
         state->leadership_state.store(ccf::kv::LeadershipState::None);
@@ -2624,10 +2595,10 @@ namespace aft
       store->compact(idx);
       ledger->commit(idx);
 
-      if (commit_callbacks != nullptr)
+      if (commit_observer != nullptr)
       {
         const auto term = get_term_internal(idx);
-        commit_callbacks->trigger_callbacks({term, idx}, state->view_history);
+        commit_observer->on_commit({term, idx}, state->view_history);
       }
 
       RAFT_DEBUG_FMT("Commit on {}: {}", state->node_id, idx);
@@ -2666,7 +2637,7 @@ namespace aft
         create_and_remove_node_state();
         if (retired_node_cleanup && is_primary())
         {
-          retired_node_cleanup->cleanup();
+          retired_node_cleanup();
         }
       }
     }
@@ -2779,7 +2750,8 @@ namespace aft
       return *state;
     }
 
-    void nominate_successor() override
+  private:
+    void nominate_successor_unsafe()
     {
       if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
       {
@@ -2806,6 +2778,13 @@ namespace aft
 
         send_propose_request_vote(successor.value());
       }
+    }
+
+  public:
+    void nominate_successor() override
+    {
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
+      nominate_successor_unsafe();
     }
 
   private:

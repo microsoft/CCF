@@ -8,7 +8,7 @@
 #include "ccf/http_etag.h"
 #include "ccf/service/tables/nodes.h"
 #include "http/http_digest.h"
-#include "node/rpc/ledger_subsystem.h"
+#include "node/rpc/ledger_interface.h"
 #include "snapshots/filenames.h"
 
 namespace ccf::node
@@ -743,7 +743,7 @@ namespace ccf::node
       }
 
       auto read_ledger_subsystem =
-        node_context.get_subsystem<ccf::ReadLedgerSubsystem>();
+        node_context.get_subsystem<ccf::AbstractReadLedgerSubsystemInterface>();
       if (read_ledger_subsystem == nullptr)
       {
         ctx.rpc_ctx->set_error(

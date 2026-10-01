@@ -253,6 +253,27 @@ Service identity and status.
         WaitingForRecoveryShares -- member shares reassembly--> Open;
         Open-- "start in recovery"-->Recovering;
 
+``service.signing_identities``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Public keys for verifying service COSE signatures.
+
+**Key** Identity type as a little-endian 64-bit unsigned integer.
+
+.. doxygenenum:: ccf::IdentityType
+   :project: CCF
+
+**Value** Represented as JSON.
+
+.. doxygenenum:: ccf::IdentityKind
+   :project: CCF
+
+.. doxygenstruct:: ccf::Identity
+   :project: CCF
+   :members:
+
+For legacy ledgers, an empty table falls back to ``service.info.cert`` for ``CLASSICAL``.
+
 ``service.config``
 ~~~~~~~~~~~~~~~~~~
 
@@ -341,8 +362,7 @@ QuickJS runtime options, used to configure runtimes created by CCF.
 
 ``interpreter.flush``
 ~~~~~~~~~~~~~~~~~~~~~~
-Used by transactions that set the JS application to signal to the interpreter cache system
-that existing instances need to be flushed.
+Used by transactions that set the JS application to signal to the interpreter cache system that existing instances need to be flushed.
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
@@ -437,7 +457,9 @@ Governance history of the service, captures all COSE Sign 1 governance requests 
 
 **Key** Member ID: SHA-256 fingerprint of the member certificate, represented as a hex-encoded string.
 
-**Value** COSE Sign1
+**Value** COSE Sign1. For proposal creation requests (``ccf.gov.msg.type`` set to ``proposal`` in the protected header), the payload is detached (``nil``) since the signed proposal body is already stored in the ``proposals`` table, written in the same transaction. Ballots and withdrawals embed their payload.
+
+To verify a detached entry, supply the proposal body from the ``proposals`` table as the detached payload when verifying the COSE Sign1 signature. Entries written by older versions of CCF embed the proposal payload as well, so auditors reading historical ledgers should accept both forms.
 
 ``cose_recent_proposals``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -494,11 +516,11 @@ Signatures emitted by the primary node at regular interval, over the root of the
 ``cose_signatures``
 ~~~~~~~~~~~~~~~~~~~
 
-COSE signatures emitted by the primary node over the root of the Merkle Tree at that sequence number.
+COSE signatures over the Merkle root, keyed by service signing identity type.
 
-**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+**Key** Identity type as a little-endian 64-bit unsigned integer. Only ``CLASSICAL`` (0) is currently populated; ``PQ`` (1) is reserved for future support.
 
-**Value** Raw COSE Sign1 message as byte string (DER-encoded). Implements the following :ccf_repo:`CDDL schema </cddl/ccf-merkle-tree-cose-signature.cddl>`.
+**Value** A CBOR-encoded COSE Sign1 message, stored as a base64-encoded JSON string. Implements the following :ccf_repo:`CDDL schema </cddl/ccf-merkle-tree-cose-signature.cddl>`.
 
 ``recovery_shares``
 ~~~~~~~~~~~~~~~~~~~
@@ -537,8 +559,7 @@ Status information recorded when a primary produces a snapshot.
 ~~~~~~~~~~~~~~~~~~~
 
 Durability marker written when a snapshot is explicitly requested via the operator endpoint.
-This ensures the request is recorded as a real transaction even when it would otherwise
-carry only a transaction flag.
+This ensures the request is recorded as a real transaction even when it would otherwise carry only a transaction flag.
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 

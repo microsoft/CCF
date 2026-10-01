@@ -21,10 +21,9 @@ namespace ccf::js
   {
   public:
     GovernanceDrivenJSRegistry(AbstractNodeContext& context) :
-      // Note: We do not pass a kv_prefix here, instead we explicitly, manually
-      // construct each map name to match previously used values
-      ccf::js::BaseDynamicJSEndpointRegistry(context)
+      ccf::js::BaseDynamicJSEndpointRegistry(context, "public:ccf.gov")
     {
+      // Preserve governance table names that differ from the base suffixes.
       modules_map = ccf::Tables::MODULES;
       metadata_map = ccf::endpoints::Tables::ENDPOINTS;
       interpreter_flush_map = ccf::Tables::INTERPRETER_FLUSH;

@@ -5,15 +5,16 @@
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
+#include "crypto/certs.h"
 #include "service/tables/config.h"
 #include "service/tables/signatures.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
+#include "kv/null_encryptor.h"
 #include "kv/store.h"
-#include "kv/test/null_encryptor.h"
 #include "node/hooks.h"
-#include "service/internal_tables_access.h"
+#include "node/internal_tables_access.h"
 
 #include <doctest/doctest.h>
 
@@ -57,6 +58,67 @@ namespace
       return {};
     }
   };
+
+  pal::snp::TcbVersionPolicy tcb_from_hex(
+    pal::snp::ProductName product, const std::string& tcb_hex)
+  {
+    return pal::snp::TcbVersionRaw::from_hex(tcb_hex).to_policy(product);
+  }
+
+  void set_min_tcb_version(
+    ccf::kv::Store& kv_store,
+    const std::string& cpuid,
+    const pal::snp::TcbVersionPolicy& tcb_version)
+  {
+    auto tx = kv_store.create_tx();
+    tx.wo<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS)->put(cpuid, tcb_version);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  void trust_tcb_version(
+    ccf::kv::Store& kv_store,
+    const std::string& cpuid,
+    const pal::snp::TcbVersionPolicy& tcb_version,
+    bool recovering)
+  {
+    auto tx = kv_store.create_tx();
+    InternalTablesAccess::trust_node_snp_tcb_version(
+      tx, cpuid, tcb_version, recovering);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  // Returns the minimum TCB version for the CPUID as JSON, to compare all its
+  // fields, and the version at which it was last written
+  std::pair<nlohmann::json, ccf::kv::Version> get_min_tcb_version(
+    ccf::kv::Store& kv_store, const std::string& cpuid)
+  {
+    auto tx = kv_store.create_read_only_tx();
+    auto* handle = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+    const auto tcb_version = handle->get(cpuid);
+    REQUIRE(tcb_version.has_value());
+    const auto version = handle->get_version_of_previous_write(cpuid);
+    REQUIRE(version.has_value());
+    return {nlohmann::json(tcb_version.value()), version.value()};
+  }
+}
+
+TEST_CASE("Adding a member does not populate an ACK")
+{
+  ccf::kv::Store kv_store;
+  auto tx = kv_store.create_tx();
+
+  const auto key_pair = ccf::crypto::make_ec_key_pair();
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now());
+  const auto cert = ccf::crypto::create_self_signed_cert(
+    key_pair, "CN=member", {}, valid_from, 1);
+
+  const auto member_id = InternalTablesAccess::add_member(tx, {cert});
+
+  REQUIRE(
+    tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO)->get(member_id).has_value());
+  REQUIRE_FALSE(
+    tx.ro<ccf::MemberAcks>(Tables::MEMBER_ACKS)->get(member_id).has_value());
 }
 
 TEST_CASE("direct node deletion updates consensus configuration")
@@ -87,6 +149,167 @@ TEST_CASE("direct node deletion updates consensus configuration")
 
   REQUIRE(consensus.configuration_version == 42);
   REQUIRE(consensus.configuration_changes == 1);
+}
+
+TEST_CASE("trust_node_snp_tcb_version rejects an empty owner")
+{
+  ccf::kv::Store kv_store;
+  auto tx = kv_store.create_tx();
+  const pal::snp::AttestationReport report;
+  CHECK_THROWS_WITH_AS(
+    InternalTablesAccess::trust_node_snp_tcb_version(
+      tx, report, false /* recovering */),
+    "Cannot access an empty SNP attestation report",
+    std::logic_error);
+}
+
+TEST_CASE("trust_node_snp_tcb_version - not recovering")
+{
+  ccf::kv::Store kv_store;
+  kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+  const auto milan = pal::snp::ProductName::Milan;
+  const auto cpuid = pal::snp::get_cpuid_of_snp_sev_product(milan);
+  const auto reported = tcb_from_hex(milan, "db18000000000004");
+
+  SUBCASE("Empty map") {}
+
+  SUBCASE("Existing lower value")
+  {
+    set_min_tcb_version(
+      kv_store, cpuid, tcb_from_hex(milan, "0000000000000000"));
+  }
+
+  trust_tcb_version(kv_store, cpuid, reported, false /* recovering */);
+
+  REQUIRE(
+    get_min_tcb_version(kv_store, cpuid).first == nlohmann::json(reported));
+}
+
+TEST_CASE("trust_node_snp_tcb_version - recovering")
+{
+  ccf::kv::Store kv_store;
+  kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+  const auto milan = pal::snp::ProductName::Milan;
+  const auto cpuid = pal::snp::get_cpuid_of_snp_sev_product(milan);
+  // boot_loader 4, tee 0, snp 24, microcode 219
+  const auto reported = tcb_from_hex(milan, "db18000000000004");
+
+  // Entries for other CPUIDs are left untouched
+  const auto genoa = pal::snp::ProductName::Genoa;
+  const auto genoa_cpuid = pal::snp::get_cpuid_of_snp_sev_product(genoa);
+  set_min_tcb_version(
+    kv_store, genoa_cpuid, tcb_from_hex(genoa, "541700000000000a"));
+  const auto genoa_entry = get_min_tcb_version(kv_store, genoa_cpuid);
+
+  SUBCASE("No existing value for CPUID")
+  {
+    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
+    REQUIRE(
+      get_min_tcb_version(kv_store, cpuid).first == nlohmann::json(reported));
+  }
+
+  SUBCASE("Existing value admits the reported TCB version")
+  {
+    pal::snp::TcbVersionPolicy existing;
+    SUBCASE("Equal")
+    {
+      existing = reported;
+    }
+    SUBCASE("Lower")
+    {
+      // boot_loader 4, tee 0, snp 21, microcode 211
+      existing = tcb_from_hex(milan, "d315000000000004");
+    }
+    SUBCASE("Lower, set without hexstring")
+    {
+      existing = {.microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0};
+    }
+    set_min_tcb_version(kv_store, cpuid, existing);
+    const auto existing_entry = get_min_tcb_version(kv_store, cpuid);
+
+    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
+
+    // Neither modified nor re-written
+    REQUIRE(get_min_tcb_version(kv_store, cpuid) == existing_entry);
+  }
+
+  SUBCASE("Existing value does not admit the reported TCB version")
+  {
+    pal::snp::TcbVersionPolicy existing;
+    SUBCASE("Higher in every component")
+    {
+      // boot_loader 5, tee 1, snp 25, microcode 220
+      existing = tcb_from_hex(milan, "dc19000000000105");
+    }
+    SUBCASE("Higher in some components and lower in others")
+    {
+      // boot_loader 5, tee 0, snp 28, microcode 211
+      existing = tcb_from_hex(milan, "d31c000000000005");
+    }
+    SUBCASE("Has a component that Milan does not")
+    {
+      // As set_snp_minimum_tcb_version allows. Admits no Milan TCB version.
+      existing = {
+        .microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0, .fmc = 0};
+    }
+    set_min_tcb_version(kv_store, cpuid, existing);
+
+    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
+
+    // Replaced by the whole reported TCB version, including its hexstring,
+    // rather than combined with the existing value component by component
+    REQUIRE(
+      get_min_tcb_version(kv_store, cpuid).first == nlohmann::json(reported));
+  }
+
+  REQUIRE(get_min_tcb_version(kv_store, genoa_cpuid) == genoa_entry);
+}
+
+TEST_CASE("trust_node_snp_tcb_version - recovering, Turin")
+{
+  ccf::kv::Store kv_store;
+  kv_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+
+  const auto turin = pal::snp::ProductName::Turin;
+  const auto cpuid = pal::snp::get_cpuid_of_snp_sev_product(turin);
+  // fmc 85, boot_loader 68, tee 51, snp 34, microcode 17
+  const auto reported = tcb_from_hex(turin, "1100000022334455");
+
+  SUBCASE("Existing value admits the reported TCB version")
+  {
+    // fmc 80, boot_loader 68, tee 51, snp 34, microcode 17
+    set_min_tcb_version(
+      kv_store, cpuid, tcb_from_hex(turin, "1100000022334450"));
+    const auto existing_entry = get_min_tcb_version(kv_store, cpuid);
+
+    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
+
+    // Neither modified nor re-written
+    REQUIRE(get_min_tcb_version(kv_store, cpuid) == existing_entry);
+  }
+
+  SUBCASE("Existing value does not admit the reported TCB version")
+  {
+    pal::snp::TcbVersionPolicy existing;
+    SUBCASE("Higher in some components and lower in others")
+    {
+      // fmc 80, boot_loader 64, tee 64, snp 16, microcode 32
+      existing = tcb_from_hex(turin, "2000000010404050");
+    }
+    SUBCASE("Has no fmc")
+    {
+      // As set_snp_minimum_tcb_version allows. Admits no Turin TCB version.
+      existing = {.microcode = 0, .snp = 0, .tee = 0, .boot_loader = 0};
+    }
+    set_min_tcb_version(kv_store, cpuid, existing);
+
+    trust_tcb_version(kv_store, cpuid, reported, true /* recovering */);
+
+    REQUIRE(
+      get_min_tcb_version(kv_store, cpuid).first == nlohmann::json(reported));
+  }
 }
 
 TEST_CASE("trust_node_uvm_endorsements - not recovering, empty map")
@@ -401,5 +624,152 @@ TEST_CASE("remove_previous_service_nodes")
       REQUIRE_FALSE(
         local_sealing_node_ids_handle->get(sealing_name).has_value());
     }
+  }
+}
+
+TEST_CASE("create_service publishes the classical signing identity")
+{
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+
+  auto service_key = ccf::crypto::make_ec_key_pair();
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now());
+  const auto valid_to =
+    ccf::crypto::compute_cert_valid_to_string(valid_from, 1);
+  const auto service_cert =
+    service_key->self_sign("CN=Service", valid_from, valid_to);
+  const ccf::Identity expected_identity{
+    ccf::IdentityKind::X509_SPKI_DER, service_key->public_key_der()};
+
+  INFO("Creation publishes the existing service key, without a PQ identity");
+  {
+    auto tx = kv_store.create_tx();
+    InternalTablesAccess::create_service(tx, service_cert, {1, 1});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = kv_store.create_read_only_tx();
+    auto* handle = tx.ro<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
+    REQUIRE(handle->size() == 1);
+    REQUIRE(handle->get(ccf::IdentityType::CLASSICAL) == expected_identity);
+    REQUIRE_FALSE(handle->get(ccf::IdentityType::PQ).has_value());
+    REQUIRE(tx.ro<ccf::Service>(Tables::SERVICE)->get()->cert == service_cert);
+  }
+
+  SUBCASE("Recovering a service with a published signing identity") {}
+
+  SUBCASE("Recovering a legacy service without the signing identities table")
+  {
+    auto tx = kv_store.create_tx();
+    tx.rw<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES)
+      ->remove(ccf::IdentityType::CLASSICAL);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  const auto recovered_key = ccf::crypto::make_ec_key_pair();
+  const auto recovered_cert =
+    recovered_key->self_sign("CN=Service", valid_from, valid_to);
+  const ccf::Identity recovered_identity{
+    ccf::IdentityKind::X509_SPKI_DER, recovered_key->public_key_der()};
+  ccf::MerkleTreeHistory tree;
+
+  INFO("Recovery publishes the new key and preserves legacy recovery state");
+  {
+    auto tx = kv_store.create_tx();
+    tx.wo<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE)
+      ->put(tree.serialise());
+    InternalTablesAccess::create_service(
+      tx, recovered_cert, {2, 10}, nullptr, true /* recovering */);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = kv_store.create_read_only_tx();
+    auto* handle = tx.ro<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
+    REQUIRE(handle->size() == 1);
+    REQUIRE(handle->get(ccf::IdentityType::CLASSICAL) == recovered_identity);
+    REQUIRE_FALSE(handle->get(ccf::IdentityType::PQ).has_value());
+    REQUIRE(recovered_identity != expected_identity);
+    const auto service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
+    REQUIRE(service.has_value());
+    REQUIRE(service->cert == recovered_cert);
+    REQUIRE(service->status == ccf::ServiceStatus::RECOVERING);
+    REQUIRE(
+      tx.ro<ccf::PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
+        ->get() == service_cert);
+    REQUIRE(
+      tx.ro<ccf::PreviousServiceLastSignedRoot>(
+          Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT)
+        ->get() == tree.get_root());
+  }
+}
+
+TEST_CASE("Signing identity lookup only falls back for legacy CLASSICAL state")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const auto service_key = ccf::crypto::make_ec_key_pair();
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now());
+  const auto service_cert = service_key->self_sign(
+    "CN=Service",
+    valid_from,
+    ccf::crypto::compute_cert_valid_to_string(valid_from, 1));
+  const ccf::Identity identity{
+    ccf::IdentityKind::X509_SPKI_DER, service_key->public_key_der()};
+  auto tx = store.create_tx();
+  auto* service = tx.rw<ccf::Service>(Tables::SERVICE);
+  service->put(ccf::ServiceInfo{.cert = service_cert});
+  auto* signing_identities =
+    tx.rw<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
+
+  SUBCASE("Legacy certificate supplies only CLASSICAL")
+  {
+    REQUIRE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL) ==
+      identity);
+    REQUIRE_FALSE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::PQ).has_value());
+  }
+
+  SUBCASE("No identity is available without either source")
+  {
+    service->clear();
+    REQUIRE_FALSE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL)
+        .has_value());
+  }
+
+  SUBCASE("Published keys do not require a legacy certificate")
+  {
+    signing_identities->put(ccf::IdentityType::CLASSICAL, identity);
+    service->put(ccf::ServiceInfo{.cert = service_key->public_key_pem()});
+    REQUIRE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL) ==
+      identity);
+    REQUIRE_FALSE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::PQ).has_value());
+  }
+
+  SUBCASE("A populated table must contain CLASSICAL")
+  {
+    signing_identities->put(ccf::IdentityType::PQ, identity);
+    REQUIRE_THROWS_WITH(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL),
+      "Non-empty signing identities table has no CLASSICAL identity");
+  }
+
+  SUBCASE("A certificate entry must not be interpreted as a public key")
+  {
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      {ccf::IdentityKind::X509_CERT_DER,
+       ccf::crypto::cert_pem_to_der(service_cert)});
+    REQUIRE_THROWS_WITH(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL),
+      "Service signing identity must be a DER SubjectPublicKeyInfo");
   }
 }

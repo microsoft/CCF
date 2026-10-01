@@ -22,6 +22,7 @@
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "ccf/service/tables/virtual_measurements.h"
 #include "kv/store.h"
+#include "service/tables/signing_identities.h"
 #include "tables/config.h"
 #include "tables/governance_history.h"
 #include "tables/previous_service_identity.h"
@@ -32,7 +33,6 @@
 #include "tables/submitted_shares.h"
 
 #include <memory>
-#include <tuple>
 
 namespace ccf
 {
@@ -62,22 +62,11 @@ namespace ccf
     const MemberInfo member_info = {Tables::MEMBER_INFO};
     const MemberAcks member_acks = {Tables::MEMBER_ACKS};
 
-    [[nodiscard]] auto get_all_member_tables() const
-    {
-      return std::make_tuple(
-        member_certs, member_encryption_public_keys, member_info, member_acks);
-    }
-
     //
     // User tables
     //
     const UserCerts user_certs = {Tables::USER_CERTS};
     const UserInfo user_info = {Tables::USER_INFO};
-
-    [[nodiscard]] auto get_all_user_tables() const
-    {
-      return std::make_tuple(user_certs, user_info);
-    }
 
     //
     // Node tables
@@ -97,20 +86,6 @@ namespace ccf
       Tables::NODE_SNP_UVM_ENDORSEMENTS};
     const SnpTcbVersionMap snp_tcb_versions = {Tables::SNP_TCB_VERSIONS};
 
-    [[nodiscard]] auto get_all_node_tables() const
-    {
-      return std::make_tuple(
-        node_code_ids,
-        nodes,
-        node_endorsed_certificates,
-        virtual_host_data,
-        virtual_measurements,
-        host_data,
-        snp_measurements,
-        snp_uvm_endorsements,
-        snp_tcb_versions);
-    }
-
     //
     // History of governance, proposals, and ballots tables
     //
@@ -124,16 +99,6 @@ namespace ccf
     const jsgov::ProposalInfoMap proposal_info = {
       jsgov::Tables::PROPOSALS_INFO};
 
-    [[nodiscard]] auto get_all_governance_history_tables() const
-    {
-      return std::make_tuple(
-        governance_history,
-        cose_governance_history,
-        proposals,
-        proposal_info,
-        cose_recent_proposals);
-    }
-
     //
     // JS Generic tables
     //
@@ -146,17 +111,6 @@ namespace ccf
     const JSEngine js_engine = {Tables::JSENGINE};
     const endpoints::EndpointsMap js_endpoints = {endpoints::Tables::ENDPOINTS};
 
-    [[nodiscard]] auto get_all_js_generic_tables() const
-    {
-      return std::make_tuple(
-        modules,
-        modules_quickjs_bytecode,
-        modules_quickjs_version,
-        interpreter_flush,
-        js_engine,
-        js_endpoints);
-    }
-
     //
     // JWT tables
     //
@@ -165,16 +119,11 @@ namespace ccf
     const JwtPublicSigningKeysMetadata jwt_public_signing_keys_metadata = {
       Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA};
 
-    [[nodiscard]] auto get_all_jwt_tables() const
-    {
-      return std::make_tuple(
-        ca_cert_bundles, jwt_issuers, jwt_public_signing_keys_metadata);
-    }
-
     //
     // Service tables
     //
     const Service service = {Tables::SERVICE};
+    const SigningIdentities signing_identities = {Tables::SIGNING_IDENTITIES};
     const PreviousServiceIdentity previous_service_identity = {
       Tables::PREVIOUS_SERVICE_IDENTITY};
     const PreviousServiceLastSignedRoot previous_service_last_signed_root = {
@@ -184,26 +133,6 @@ namespace ccf
         Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT};
     const Configuration config = {Tables::CONFIGURATION};
     const Constitution constitution = {Tables::CONSTITUTION};
-
-    [[nodiscard]] auto get_all_service_tables() const
-    {
-      return std::make_tuple(
-        service, config, constitution, previous_service_identity);
-    }
-
-    // All builtin governance tables should be included here, so that wrapper
-    // endpoints can be automatically generated for them
-    [[nodiscard]] auto get_all_builtin_governance_tables() const
-    {
-      return std::tuple_cat(
-        get_all_member_tables(),
-        get_all_user_tables(),
-        get_all_node_tables(),
-        get_all_governance_history_tables(),
-        get_all_js_generic_tables(),
-        get_all_jwt_tables(),
-        get_all_service_tables());
-    }
 
     //
     // Internal tables (public:ccf.internal.* and ccf.internal.*)
@@ -223,23 +152,6 @@ namespace ccf
     const CoseSignatures cose_signatures = {Tables::COSE_SIGNATURES};
     const SerialisedMerkleTree serialise_tree = {
       Tables::SERIALISED_MERKLE_TREE};
-
-    [[nodiscard]] auto get_all_signature_tables() const
-    {
-      return std::make_tuple(signatures, serialise_tree);
-    }
-
-    [[nodiscard]] auto get_all_internal_tables() const
-    {
-      return std::tuple_cat(
-        std::make_tuple(
-          secrets,
-          snapshot_evidence,
-          shares,
-          encrypted_ledger_secrets,
-          encrypted_submitted_shares),
-        get_all_signature_tables());
-    }
 
     NetworkTables() : tables(make_store()) {}
   };

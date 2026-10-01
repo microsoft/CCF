@@ -6,7 +6,7 @@
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/history.h"
@@ -105,7 +105,7 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
     auto tx = source_store.create_tx();
     tx.rw<ccf::PreviousServiceIdentityEndorsement>(
         ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-      ->put(endorsement);
+      ->put(ccf::IdentityType::CLASSICAL, endorsement);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     auto latest_entry =
       consensus->get_latest_data().value_or(std::vector<uint8_t>{});
@@ -176,7 +176,7 @@ TEST_CASE("Recovery snapshot endorsement scan bounds candidate endorsements")
     auto tx = source_store.create_tx();
     tx.rw<ccf::PreviousServiceIdentityEndorsement>(
         ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-      ->put(endorsement);
+      ->put(ccf::IdentityType::CLASSICAL, endorsement);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     auto latest_entry =
       consensus->get_latest_data().value_or(std::vector<uint8_t>{});
@@ -226,7 +226,7 @@ TEST_CASE(
     auto tx = source_store.create_tx();
     tx.rw<ccf::PreviousServiceIdentityEndorsement>(
         ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-      ->put(endorsement);
+      ->put(ccf::IdentityType::CLASSICAL, endorsement);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     auto latest_entry =
       consensus->get_latest_data().value_or(std::vector<uint8_t>{});
@@ -306,7 +306,7 @@ TEST_CASE("Recovery snapshot endorsement scan bounds ledger entry allocation")
 
 std::optional<fs::path> latest_committed_snapshot_path(const fs::path& dir)
 {
-  return snapshots::find_latest_committed_snapshot_in_directory(dir);
+  return ccf::snapshots::find_latest_committed_snapshot_in_directory(dir);
 }
 
 std::optional<::consensus::Index> latest_committed_snapshot_idx(
@@ -318,7 +318,7 @@ std::optional<::consensus::Index> latest_committed_snapshot_idx(
     return std::nullopt;
   }
 
-  return snapshots::get_snapshot_idx_from_file_name(path->filename());
+  return ccf::snapshots::get_snapshot_idx_from_file_name(path->filename());
 }
 
 std::optional<::consensus::Index> latest_committed_snapshot_evidence_idx(
@@ -330,7 +330,8 @@ std::optional<::consensus::Index> latest_committed_snapshot_evidence_idx(
     return std::nullopt;
   }
 
-  return snapshots::get_snapshot_evidence_idx_from_file_name(path->filename());
+  return ccf::snapshots::get_snapshot_evidence_idx_from_file_name(
+    path->filename());
 }
 
 std::vector<uint8_t> read_latest_committed_snapshot_data(const fs::path& dir)
@@ -380,7 +381,8 @@ bool record_signature(
     "b96881e8c6f9265af8");
 
   bool requires_snapshot = snapshotter->record_committable(idx);
-  snapshotter->record_cose_signature(idx, dummy_cose_sig);
+  snapshotter->record_cose_signatures(
+    idx, {{ccf::IdentityType::CLASSICAL, dummy_cose_sig}});
   snapshotter->record_serialised_tree(idx, history->serialise_tree(idx));
 
   return requires_snapshot;

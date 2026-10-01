@@ -37,10 +37,10 @@
 #include "ccf/js/extensions/ccf/rpc.h"
 #include "ccf/js/interpreter_cache_interface.h"
 #include "ds/actors.h"
+#include "endpoints/rpc_context_impl.h"
 #include "js/modules/chained_module_loader.h"
 #include "js/modules/kv_bytecode_module_loader.h"
 #include "js/modules/kv_module_loader.h"
-#include "node/rpc_context_impl.h"
 
 namespace ccf::js
 {
@@ -179,7 +179,7 @@ namespace ccf::js
 
     // ccf.kv.*
     auto kv_extension = std::make_shared<ccf::js::extensions::KvExtension>(
-      &endpoint_ctx.tx, namespace_restriction);
+      &endpoint_ctx.tx, get_effective_namespace_restriction());
     local_extensions.emplace_back(kv_extension);
 
     // ccf.rpc.*
@@ -232,6 +232,9 @@ namespace ccf::js
       }
     };
 
+    // Historical reads remain valid in response getters and toJSON, but must
+    // still be released before the interpreter can serve another request.
+    ExtensionScope historical_extension_scope(ctx);
     ccf::js::core::JSWrappedValue val;
     {
       ExtensionScope extension_scope(ctx);
@@ -241,6 +244,20 @@ namespace ccf::js
         {
           extension_scope.add(extension);
         }
+
+        if (namespace_restriction)
+        {
+          // The live KvExtension takes precedence until handler teardown.
+          // After that, retain only its namespace policy for historical reads,
+          // including while extracting exceptions and converting the response.
+          historical_extension_scope.add(
+            std::make_shared<ccf::js::extensions::KvExtension>(
+              nullptr, namespace_restriction));
+        }
+
+        historical_extension_scope.add(
+          std::make_shared<ccf::js::extensions::HistoricalExtension>(
+            &context.get_historical_state()));
 
         if (pre_exec_hook.has_value())
         {
@@ -662,6 +679,7 @@ namespace ccf::js
   BaseDynamicJSEndpointRegistry::BaseDynamicJSEndpointRegistry(
     ccf::AbstractNodeContext& context, const std::string& kv_prefix) :
     ccf::UserEndpointRegistry(context),
+    registry_managed_prefix(fmt::format("{}.", kv_prefix)),
     modules_map(fmt::format("{}.modules", kv_prefix)),
     metadata_map(fmt::format("{}.metadata", kv_prefix)),
     interpreter_flush_map(fmt::format("{}.interpreter_flush", kv_prefix)),
@@ -686,10 +704,6 @@ namespace ccf::js
     // add ccf.consensus.*
     extensions.emplace_back(
       std::make_shared<ccf::js::extensions::ConsensusExtension>(this));
-    // add ccf.historical.*
-    extensions.emplace_back(
-      std::make_shared<ccf::js::extensions::HistoricalExtension>(
-        &context.get_historical_state()));
 
     interpreter_cache->set_interpreter_factory(
       [extensions](ccf::js::TxAccess access) {
@@ -882,9 +896,69 @@ namespace ccf::js
   }
 
   void BaseDynamicJSEndpointRegistry::set_js_kv_namespace_restriction(
-    const ccf::js::NamespaceRestriction& restriction)
+    const ccf::js::NamespaceRestriction& restriction,
+    bool protect_registry_tables)
   {
+    // Cached KV handles retain their permissions from creation.
+    interpreter_cache->clear_cached_interpreters();
+
     namespace_restriction = restriction;
+    registry_tables_protected = protect_registry_tables;
+  }
+
+  std::set<std::string> BaseDynamicJSEndpointRegistry::
+    get_registry_managed_tables() const
+  {
+    return {
+      modules_map,
+      metadata_map,
+      interpreter_flush_map,
+      modules_quickjs_version_map,
+      modules_quickjs_bytecode_map,
+      runtime_options_map};
+  }
+
+  ccf::js::NamespaceRestriction BaseDynamicJSEndpointRegistry::
+    get_effective_namespace_restriction() const
+  {
+    if (!registry_tables_protected)
+    {
+      return namespace_restriction;
+    }
+
+    return [managed_prefix = registry_managed_prefix,
+            managed_tables = get_registry_managed_tables(),
+            app_restriction = namespace_restriction](
+             const std::string& map_name,
+             std::string& explanation) -> ccf::js::KVAccessPermissions {
+      auto permission = ccf::js::KVAccessPermissions::READ_WRITE;
+
+      if (
+        map_name.starts_with(managed_prefix) ||
+        managed_tables.contains(map_name))
+      {
+        explanation = fmt::format(
+          "The {} table is managed by the endpoint registry, so is read-only "
+          "in JS.",
+          map_name);
+        permission = ccf::js::KVAccessPermissions::READ_ONLY;
+      }
+
+      if (app_restriction != nullptr)
+      {
+        std::string app_explanation;
+        const auto app_permission = app_restriction(map_name, app_explanation);
+        const auto combined =
+          ccf::js::intersect_access_permissions(permission, app_permission);
+        if (combined != permission)
+        {
+          permission = combined;
+          explanation = app_explanation;
+        }
+      }
+
+      return permission;
+    };
   }
 
   ccf::ApiResult BaseDynamicJSEndpointRegistry::set_js_runtime_options_v1(

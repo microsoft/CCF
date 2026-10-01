@@ -72,6 +72,11 @@ namespace ccf::uv
       return internal.get()->raw;
     }
 
+    T& operator*()
+    {
+      return *internal.get()->raw;
+    }
+
     proxy_ptr<T>& operator=(const proxy_ptr<T>& that) = default;
 
     bool is_null()

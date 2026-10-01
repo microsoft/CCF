@@ -17,10 +17,10 @@
 #include "ccf/service/node_info.h"
 #include "ds/ccf_assert.h"
 #include "ds/internal_logger.h"
+#include "node/internal_tables_access.h"
 #include "node/ledger_secret.h"
 #include "node/ledger_secrets.h"
 #include "node/share_manager.h"
-#include "service/internal_tables_access.h"
 #include "service/tables/local_sealing.h"
 
 #include <algorithm>

@@ -25,11 +25,9 @@ namespace ccf::kv::untyped
 
   using State = champ::Map<K, VersionV, H>;
 
-  // This is a map of keys and with a tuple of the key's write version and
-  // the version of last transaction which read the key and committed
-  // successfully
-  using LastReadVersion = Version;
-  using Read = std::map<K, std::tuple<Version, LastReadVersion>>;
+  // This is a map of keys and the key's write version when read, or NoVersion
+  // if the key did not exist
+  using Read = std::map<K, Version>;
 
   // This is a container for a write-set + dependencies. It can be applied to
   // a given state, or used to track a set of operations on a state

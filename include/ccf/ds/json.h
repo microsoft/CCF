@@ -456,8 +456,8 @@ namespace std
     const auto it = j.find(JSON_FIELD); \
     if (it == j.end()) \
     { \
-      throw ccf::JsonParseError( \
-        "Missing required field '" JSON_FIELD "' in object: " + j.dump()); \
+      throw ccf::JsonParseError("Missing required field '" JSON_FIELD \
+                                "' in object"); \
     } \
     try \
     { \
@@ -800,7 +800,7 @@ namespace std
   { \
     if (!j.is_object()) \
     { \
-      throw ccf::JsonParseError("Expected object, found: " + j.dump()); \
+      throw ccf::JsonParseError("Expected object"); \
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
@@ -836,7 +836,7 @@ namespace std
   { \
     if (!j.is_object()) \
     { \
-      throw ccf::JsonParseError("Expected object, found: " + j.dump()); \
+      throw ccf::JsonParseError("Expected object"); \
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(READ_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__) \

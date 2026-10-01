@@ -40,7 +40,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import ObjectIdentifier, load_pem_x509_certificate
 from infra.log_capture import flush_info
-from infra.member import AckException
+from infra.member import AckException, RecoveryRole
 from infra.runner import ConcurrentRunner
 from infra.tx_status import TxStatus
 from loguru import logger as LOG
@@ -622,6 +622,12 @@ def test_multi_auth(network, args):
             r = c.post("/app/multi_auth")
             assert r.body.text().startswith("User TLS cert"), r.body.text()
             require_new_response(r)
+
+        LOG.info("Authenticate via TLS cert without verifying the service CA")
+        with primary.client(user.local_id, verify_ca=False) as c:
+            unverified = c.post("/app/multi_auth")
+            assert unverified.status_code == http.HTTPStatus.OK, unverified
+            assert unverified.body.text() == r.body.text(), unverified.body.text()
 
         LOG.info("Authenticate as same user, now with user data")
         network.consortium.set_user_data(
@@ -1505,12 +1511,12 @@ def escaped_query_tests(c, endpoint):
         {"this": "that", "other": "with spaces"},
         {"this with spaces": "with spaces"},
         {"arg": 'This has many@many many \\% " AWKWARD :;-=?!& characters %20%20'},
+        {"reserved +#%": "literal + # % ? & = /"},
     ]
     for query in samples:
         unescaped_query = "&".join([f"{k}={v}" for k, v in query.items()])
-        query_to_send = unescaped_query
-        if os.getenv("CURL_CLIENT"):
-            query_to_send = urllib.parse.urlencode(query)
+        # Encode literal percent escapes and reserved characters before sending.
+        query_to_send = urllib.parse.urlencode(query)
         r = c.get(f"/app/log/{endpoint}?{query_to_send}")
         assert r.body.text() == unescaped_query, (
             r.body.text(),
@@ -1628,9 +1634,11 @@ def test_long_lived_forwarding(network, args):
     # node-to-node messages - a forwarded write and response, Raft AEs. If these
     # arrive too fast, they will trigger the hard cap and the node-to-node keys
     # will be reset, potentially invalidating in-flight messages and causing client
-    # requests to time out.
+    # requests to time out. This margin depends on client request rate, so must
+    # stay comfortably above the concurrent in-flight message burst produced by
+    # n_threads clients sending as fast as the network allows.
     n_threads = 5
-    message_limit = 30
+    message_limit = 90
 
     new_node_args = copy.deepcopy(args)
     new_node_args.node_to_node_message_limit = message_limit
@@ -2384,6 +2392,52 @@ def run(args):
         do_main_tests(network, args)
 
 
+def test_cose_set_member(network, args):
+    primary, _ = network.find_primary()
+
+    def assert_member_requires_state_digest_update(member):
+        with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+            response = c.get(f"/gov/service/members/{member.service_id}")
+            assert response.status_code == http.HTTPStatus.OK, response
+            assert response.body.json()["status"] == "Accepted", response
+
+            response = c.get(f"/gov/members/state-digests/{member.service_id}")
+            assert response.status_code == http.HTTPStatus.NOT_FOUND, response
+
+        with primary.api_versioned_client(
+            *member.auth(write=True), api_version=args.gov_api_version
+        ) as c:
+            response = c.post(
+                f"/gov/members/state-digests/{member.service_id}:ack",
+                body={"stateDigest": ""},
+            )
+            assert response.status_code == http.HTTPStatus.FORBIDDEN, response
+            assert response.body.json()["error"]["code"] == "AuthorizationFailed"
+
+    new_member = network.consortium.generate_and_add_new_member(
+        primary,
+        args.participants_curve,
+        recovery_role=RecoveryRole.NonParticipant,
+    )
+    assert_member_requires_state_digest_update(new_member)
+    new_member.ack(primary)
+
+    proposal_body, careful_vote = network.consortium.make_proposal(
+        "set_member",
+        cert=new_member.cert,
+        encryption_pub_key=None,
+        member_data={"reset": True},
+        recovery_role=None,
+    )
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(primary, proposal, careful_vote)
+
+    assert_member_requires_state_digest_update(new_member)
+    new_member.ack(primary)
+
+
 def run_multi_bucket_indexing(args):
     os.makedirs(args.workspace, exist_ok=True)
     node_data_json_file = os.path.join(
@@ -2643,6 +2697,12 @@ def do_main_tests(network, args):
         test_cose_config(network, args)
         if not args.http2:
             test_blocking_calls(network, args)
+
+    # These tests require a service which has only ever emitted COSE signatures,
+    # unlike a service upgraded from Dual mode with legacy signatures in its ledger.
+    is_cose_only_from_genesis = args.package.endswith("_cose_only")
+    if is_cose_only_from_genesis and not args.http2:
+        test_cose_set_member(network, args)
 
 
 def run_parsing_errors(args):

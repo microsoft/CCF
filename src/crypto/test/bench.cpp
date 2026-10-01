@@ -112,6 +112,70 @@ static void benchmark_hmac(picobench::state& s)
   s.stop_timer();
 }
 
+template <size_t NContents, bool ReuseContext>
+static void benchmark_aes_gcm_encrypt(picobench::state& s)
+{
+  const std::vector<uint8_t> key(GCM_DEFAULT_KEY_SIZE, 0x42);
+  const auto contents = make_contents<NContents>();
+  auto aes_gcm_key = make_key_aes_gcm(key);
+  auto context = aes_gcm_key->make_context();
+  StandardGcmHeader header;
+  std::vector<uint8_t> cipher;
+  uint64_t iv = 0;
+
+  s.start_timer();
+  for (auto _ : s)
+  {
+    (void)_;
+    memcpy(header.iv.data(), &iv, sizeof(iv));
+    ++iv;
+    if constexpr (ReuseContext)
+    {
+      context->encrypt(header.get_iv(), contents, {}, cipher, header.tag);
+    }
+    else
+    {
+      aes_gcm_key->encrypt(header.get_iv(), contents, {}, cipher, header.tag);
+    }
+    do_not_optimize(cipher);
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
+template <size_t NContents, bool ReuseContext>
+static void benchmark_aes_gcm_decrypt(picobench::state& s)
+{
+  const std::vector<uint8_t> key(GCM_DEFAULT_KEY_SIZE, 0x42);
+  const auto contents = make_contents<NContents>();
+  auto aes_gcm_key = make_key_aes_gcm(key);
+  auto context = aes_gcm_key->make_context();
+  StandardGcmHeader header;
+  std::vector<uint8_t> cipher;
+  std::vector<uint8_t> plain;
+  aes_gcm_key->encrypt(header.get_iv(), contents, {}, cipher, header.tag);
+
+  s.start_timer();
+  for (auto _ : s)
+  {
+    (void)_;
+    bool valid = false;
+    if constexpr (ReuseContext)
+    {
+      valid = context->decrypt(header.get_iv(), header.tag, cipher, {}, plain);
+    }
+    else
+    {
+      valid =
+        aes_gcm_key->decrypt(header.get_iv(), header.tag, cipher, {}, plain);
+    }
+    do_not_optimize(valid);
+    do_not_optimize(plain);
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
 template <typename P, MDType M, size_t NContents>
 static void benchmark_hash(picobench::state& s)
 {
@@ -463,6 +527,46 @@ namespace HMAC_bench
 
   auto openssl_hmac_sha256_64 = benchmark_hmac<MDType::SHA256, 64>;
   PICOBENCH(openssl_hmac_sha256_64).PICO_HASH_SUFFIX();
+}
+
+PICOBENCH_SUITE("aes gcm encrypt 64 bytes");
+namespace AES_GCM_ENCRYPT_64
+{
+  auto aes_gcm_encrypt_new_context = benchmark_aes_gcm_encrypt<64, false>;
+  PICOBENCH(aes_gcm_encrypt_new_context).iterations({100000}).baseline();
+
+  auto aes_gcm_encrypt_reused_context = benchmark_aes_gcm_encrypt<64, true>;
+  PICOBENCH(aes_gcm_encrypt_reused_context).iterations({100000});
+}
+
+PICOBENCH_SUITE("aes gcm encrypt 1024 bytes");
+namespace AES_GCM_ENCRYPT_1024
+{
+  auto aes_gcm_encrypt_new_context = benchmark_aes_gcm_encrypt<1024, false>;
+  PICOBENCH(aes_gcm_encrypt_new_context).iterations({100000}).baseline();
+
+  auto aes_gcm_encrypt_reused_context = benchmark_aes_gcm_encrypt<1024, true>;
+  PICOBENCH(aes_gcm_encrypt_reused_context).iterations({100000});
+}
+
+PICOBENCH_SUITE("aes gcm decrypt 64 bytes");
+namespace AES_GCM_DECRYPT_64
+{
+  auto aes_gcm_decrypt_new_context = benchmark_aes_gcm_decrypt<64, false>;
+  PICOBENCH(aes_gcm_decrypt_new_context).iterations({100000}).baseline();
+
+  auto aes_gcm_decrypt_reused_context = benchmark_aes_gcm_decrypt<64, true>;
+  PICOBENCH(aes_gcm_decrypt_reused_context).iterations({100000});
+}
+
+PICOBENCH_SUITE("aes gcm decrypt 1024 bytes");
+namespace AES_GCM_DECRYPT_1024
+{
+  auto aes_gcm_decrypt_new_context = benchmark_aes_gcm_decrypt<1024, false>;
+  PICOBENCH(aes_gcm_decrypt_new_context).iterations({100000}).baseline();
+
+  auto aes_gcm_decrypt_reused_context = benchmark_aes_gcm_decrypt<1024, true>;
+  PICOBENCH(aes_gcm_decrypt_reused_context).iterations({100000});
 }
 
 std::vector<ccf::crypto::sharing::Share> shares;

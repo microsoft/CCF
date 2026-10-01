@@ -1,22 +1,97 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/crypto/ec_key_pair.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/core/wrapped_value.h"
+#include "ccf/js/extensions/ccf/consensus.h"
+#include "ccf/js/extensions/ccf/crypto.h"
 #include "ccf/js/extensions/ccf/gov.h"
 #include "ccf/js/extensions/ccf/historical.h"
 #include "ccf/js/extensions/ccf/kv.h"
+#include "ccf/js/extensions/snp_attestation.h"
+#include "ccf/js/registry.h"
+#include "ccf/js/samples/governance_driven_registry.h"
+#include "ccf/pal/attestation_sev_snp.h"
+#include "ccf/pal/sev_snp_cpuid.h"
+#include "ccf/service/tables/modules.h"
+#include "js/extensions/ccf/scoped_cleanse.h"
 #include "js/global_class_ids.h"
+#include "js/interpreter_cache.h"
 #include "js/permissions_checks.h"
+#include "kv/null_encryptor.h"
 #include "kv/store.h"
-#include "kv/test/null_encryptor.h"
 #include "kv/untyped_map.h"
+#include "node/rpc/http_rpc_context.h"
+#include "node/rpc/test/node_stub.h"
 #include "node/tx_receipt_impl.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include <condition_variable>
 #include <doctest/doctest.h>
+#include <future>
+#include <mutex>
 #include <random>
 
 using namespace ccf::js;
+
+TEST_CASE("JS interpreters are constructed concurrently")
+{
+  using namespace std::chrono_literals;
+
+  const auto run =
+    [](const std::optional<ccf::endpoints::InterpreterReusePolicy>& reuse) {
+      ccf::js::InterpreterCache cache(1);
+      std::mutex lock;
+      std::condition_variable cv;
+      size_t active = 0;
+      size_t max_active = 0;
+      bool release = false;
+
+      cache.set_interpreter_factory([&](TxAccess access) {
+        {
+          std::unique_lock guard(lock);
+          ++active;
+          max_active = std::max(max_active, active);
+          if (active == 2)
+          {
+            release = true;
+            cv.notify_all();
+          }
+          else
+          {
+            cv.wait_for(guard, 30s, [&] { return release; });
+          }
+          --active;
+        }
+        return std::make_shared<ccf::js::core::Context>(access);
+      });
+
+      auto first = std::async(std::launch::async, [&] {
+        return cache.get_interpreter(TxAccess::APP_RW, reuse, 0);
+      });
+      auto second = std::async(std::launch::async, [&] {
+        return cache.get_interpreter(TxAccess::APP_RW, reuse, 0);
+      });
+
+      const auto first_interpreter = first.get();
+      const auto second_interpreter = second.get();
+      REQUIRE(max_active == 2);
+      if (reuse.has_value())
+      {
+        REQUIRE(first_interpreter == second_interpreter);
+      }
+      else
+      {
+        REQUIRE(first_interpreter != second_interpreter);
+      }
+    };
+
+  run(std::optional<ccf::endpoints::InterpreterReusePolicy>{});
+  run(ccf::endpoints::InterpreterReusePolicy{
+    .kind = ccf::endpoints::InterpreterReusePolicy::Kind::KeyBased,
+    .key = "test"});
+}
 
 TEST_CASE("Runtime limits cover top-level module evaluation")
 {
@@ -521,6 +596,254 @@ bool table_contains(ccf::kv::Tx& tx, const std::string& table_name)
 {
   auto* handle = tx.ro<KVMap>(table_name);
   return handle->has({'k'});
+}
+
+TEST_CASE("Interpreter cache without a clearing override")
+{
+  class LegacyInterpreterCache : public AbstractInterpreterCache
+  {
+    InterpreterCache cache{1};
+
+  public:
+    std::shared_ptr<core::Context> get_interpreter(
+      TxAccess access,
+      const std::optional<ccf::endpoints::InterpreterReusePolicy>& reuse,
+      size_t freshness_marker) override
+    {
+      return cache.get_interpreter(access, reuse, freshness_marker);
+    }
+
+    void set_max_cached_interpreters(size_t max) override
+    {
+      cache.set_max_cached_interpreters(max);
+    }
+
+    void set_interpreter_factory(const InterpreterFactory& factory) override
+    {
+      cache.set_interpreter_factory(factory);
+    }
+  };
+
+  LegacyInterpreterCache cache;
+  CHECK_THROWS_WITH_AS(
+    cache.clear_cached_interpreters(),
+    "Interpreter cache does not support clearing",
+    std::logic_error);
+}
+
+TEST_CASE("JS registry namespace restrictions")
+{
+  class ReassignedRegistry : public DynamicJSEndpointRegistry
+  {
+  public:
+    ReassignedRegistry(ccf::AbstractNodeContext& context) :
+      DynamicJSEndpointRegistry(context)
+    {
+      modules_map = "public:relocated.modules";
+      metadata_map = "public:relocated.metadata";
+      interpreter_flush_map = "public:relocated.interpreter_flush";
+      modules_quickjs_version_map = "public:relocated.modules_quickjs_version";
+      modules_quickjs_bytecode_map =
+        "public:relocated.modules_quickjs_bytecode";
+      runtime_options_map = "public:relocated.runtime_options";
+      recent_actions_map = "public:relocated.recent_actions";
+      audit_input_map = "public:relocated.audit.input";
+      audit_info_map = "public:relocated.audit.info";
+    }
+  };
+
+  ccf::AbstractNodeContext context;
+  context.install_subsystem(std::make_shared<ccf::StubNodeStateCache>());
+  context.install_subsystem(std::make_shared<InterpreterCache>(1));
+
+  std::unique_ptr<BaseDynamicJSEndpointRegistry> registry =
+    std::make_unique<DynamicJSEndpointRegistry>(context);
+  const NamespaceRestriction app_restriction =
+    [](const std::string& name, std::string& explanation) {
+      if (
+        name == "public:app_restricted" ||
+        name == "public:custom_endpoints.app_restricted")
+      {
+        explanation = "Restricted by the application";
+        return KVAccessPermissions::ILLEGAL;
+      }
+      return KVAccessPermissions::READ_WRITE;
+    };
+
+  bool protect_registry_tables = true;
+  bool uses_default_namespace = true;
+  bool restrict_app_table = false;
+  bool reenable_after_execution = false;
+  std::set<std::string> additional_managed_tables;
+  auto mode = ccf::endpoints::Mode::ReadWrite;
+  SUBCASE("Registry protection applies without calling the setter") {}
+  SUBCASE("Governance registry protects its reassigned tables only")
+  {
+    registry = std::make_unique<GovernanceDrivenJSRegistry>(context);
+    uses_default_namespace = false;
+    additional_managed_tables = {
+      ccf::Tables::MODULES,
+      ccf::endpoints::Tables::ENDPOINTS,
+      ccf::Tables::INTERPRETER_FLUSH,
+      ccf::Tables::MODULES_QUICKJS_VERSION,
+      ccf::Tables::MODULES_QUICKJS_BYTECODE,
+      ccf::Tables::JSENGINE};
+  }
+  SUBCASE("Reassigned tables outside the registry namespace")
+  {
+    registry = std::make_unique<ReassignedRegistry>(context);
+    additional_managed_tables = {
+      "public:relocated.modules",
+      "public:relocated.metadata",
+      "public:relocated.interpreter_flush",
+      "public:relocated.modules_quickjs_version",
+      "public:relocated.modules_quickjs_bytecode",
+      "public:relocated.runtime_options",
+      "public:relocated.recent_actions",
+      "public:relocated.audit.input",
+      "public:relocated.audit.info"};
+    SUBCASE("Reassigned tables are protected by default") {}
+    SUBCASE("Reassigned table protection can be disabled")
+    {
+      registry->set_js_kv_namespace_restriction({}, false);
+      protect_registry_tables = false;
+    }
+  }
+  SUBCASE("Setter protects registry tables by default")
+  {
+    registry->set_js_kv_namespace_restriction(app_restriction);
+    restrict_app_table = true;
+  }
+  SUBCASE("Empty callback preserves default registry protection")
+  {
+    registry->set_js_kv_namespace_restriction({});
+  }
+  SUBCASE("Opt-out preserves the app restriction")
+  {
+    registry->set_js_kv_namespace_restriction(app_restriction, false);
+    protect_registry_tables = false;
+    restrict_app_table = true;
+  }
+  SUBCASE("Empty callback and opt-out disable all namespace restrictions")
+  {
+    registry->set_js_kv_namespace_restriction({}, false);
+    protect_registry_tables = false;
+  }
+  SUBCASE("Full opt-out preserves read-only execution")
+  {
+    registry->set_js_kv_namespace_restriction({}, false);
+    protect_registry_tables = false;
+    mode = ccf::endpoints::Mode::ReadOnly;
+  }
+  SUBCASE("One-argument setter re-enables registry protection")
+  {
+    registry->set_js_kv_namespace_restriction({}, false);
+    protect_registry_tables = false;
+    reenable_after_execution = true;
+  }
+
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  Bundle bundle;
+  auto& properties = bundle.metadata.endpoints["/write"]["POST"];
+  properties.js_module = "/write.js";
+  properties.js_function = "write";
+  properties.mode = mode;
+  properties.interpreter_reuse =
+    ccf::endpoints::InterpreterReusePolicy{.key = "namespace-restrictions"};
+  bundle.modules.push_back({"/write.js", R"JS(
+const handles = new Map();
+export function write(request) {
+  try {
+    const table = request.body.text();
+    if (!handles.has(table)) {
+      handles.set(table, ccf.kv[table]);
+    }
+    handles.get(table).set(
+      new Uint8Array([107]).buffer, new Uint8Array([118]).buffer);
+  } catch (e) {
+    return {statusCode: 400, body: e.message};
+  }
+  return {statusCode: 200};
+}
+)JS"});
+  {
+    auto tx = store.create_tx();
+    REQUIRE(
+      registry->install_custom_endpoints_v1(tx, bundle) == ccf::ApiResult::OK);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  auto check_write = [&](const std::string& table, bool permitted) {
+    INFO(table);
+    auto rpc_ctx = std::make_shared<http::HttpRpcContext>(
+      std::make_shared<ccf::SessionContext>(0, std::vector<uint8_t>{}),
+      ccf::HttpVersion::HTTP1,
+      HTTP_POST,
+      "/write",
+      ccf::http::HeaderMap{},
+      std::vector<uint8_t>(table.begin(), table.end()));
+    auto tx = store.create_tx();
+    // Remove any earlier write so a rejected attempt must leave the key absent.
+    tx.rw<KVMap>(table)->remove({'k'});
+    auto endpoint = registry->find_endpoint(tx, *rpc_ctx);
+    REQUIRE(endpoint != nullptr);
+    ccf::endpoints::EndpointContext endpoint_ctx(rpc_ctx, tx);
+    registry->execute_endpoint(endpoint, endpoint_ctx);
+    CHECK(
+      rpc_ctx->get_response_status() ==
+      (permitted ? HTTP_STATUS_OK : HTTP_STATUS_BAD_REQUEST));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    auto read_tx = store.create_tx();
+    CHECK(table_contains(read_tx, table) == permitted);
+  };
+
+  const bool read_write = mode == ccf::endpoints::Mode::ReadWrite;
+  for (const auto& table : additional_managed_tables)
+  {
+    check_write(table, !protect_registry_tables && read_write);
+  }
+
+  const bool can_write_default_namespace =
+    (!protect_registry_tables || !uses_default_namespace) && read_write;
+  for (const auto* suffix :
+       {"modules",
+        "modules_quickjs_bytecode",
+        "modules_quickjs_version",
+        "metadata",
+        "interpreter_flush",
+        "runtime_options",
+        "recent_actions",
+        "audit.input",
+        "audit.info",
+        "my_table"})
+  {
+    check_write(
+      fmt::format("public:custom_endpoints.{}", suffix),
+      can_write_default_namespace);
+  }
+  check_write(
+    "public:custom_endpoints.app_restricted",
+    can_write_default_namespace && !restrict_app_table);
+  check_write("public:app_restricted", !restrict_app_table && read_write);
+  check_write("public:ordinary_app_table", read_write);
+  check_write("public:relocated.ordinary_app_table", read_write);
+  check_write("public:ccf.gov.table", false);
+  check_write("public:ccf.internal.table", false);
+  check_write("ccf.gov.table", false);
+  check_write("ccf.internal.table", false);
+
+  if (reenable_after_execution)
+  {
+    registry->set_js_kv_namespace_restriction(app_restriction);
+    check_write("public:custom_endpoints.my_table", false);
+    check_write("public:app_restricted", false);
+    check_write("public:ordinary_app_table", true);
+
+    registry->set_js_kv_namespace_restriction({}, false);
+    check_write("public:custom_endpoints.my_table", true);
+    check_write("public:app_restricted", true);
+  }
 }
 
 // Access is resolved once, when a handle is created. These cases confirm that
@@ -1327,6 +1650,110 @@ TEST_CASE("JSWrappedValue copy assignment frees old value")
   JS_FreeRuntime(rt);
 }
 
+// QuickJS frees the value passed to JS_SetProperty* and JS_DefinePropertyValue*
+// on every return path, so the wrapper must relinquish its reference even when
+// the set fails. Script can make these fail by placing a setter or read-only
+// property on the target's prototype chain, or by making the target
+// non-extensible, before the C++ side populates an object.
+TEST_CASE("JSWrappedValue setters release the value when the set fails")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+  JS_UpdateStackTop(ctx.runtime());
+
+  // Drain any pending exception and return its message
+  auto pending_exception = [&]() {
+    REQUIRE(JS_HasException(ctx) != 0);
+    return ctx.error_message().first;
+  };
+
+  SUBCASE("Non-extensible target")
+  {
+    auto target = ctx.new_obj();
+    REQUIRE(JS_PreventExtensions(ctx, target.val) == 1);
+
+    auto value = ctx.new_obj();
+    JSValue raw = JS_DupValue(ctx, value.val);
+    REQUIRE(get_ref_count(raw) == 2);
+
+    REQUIRE(target.set("x", std::move(value)) == -1);
+    REQUIRE(get_ref_count(raw) == 1);
+    CHECK(pending_exception() == "TypeError: object is not extensible");
+
+    JS_FreeValue(ctx, raw);
+  }
+
+  SUBCASE("Inherited throwing setter which retains the value")
+  {
+    auto handler = ctx.get_exported_function(
+      "Object.defineProperty(Object.prototype, 'headers', {"
+      "  set(v) { globalThis.leaked = v; throw new Error('boom'); },"
+      "  configurable: true });"
+      "export function handler() { globalThis.leaked.tag = 'ok'; "
+      "return JSON.stringify(globalThis.leaked); }",
+      "handler",
+      "/test/poisoned_setter");
+
+    auto target = ctx.new_obj();
+    JSValue raw = ctx.undefined().val;
+    {
+      auto value = ctx.new_obj();
+      raw = JS_DupValue(ctx, value.val);
+      REQUIRE(get_ref_count(raw) == 2);
+
+      REQUIRE(target.set("headers", std::move(value)) == -1);
+      CHECK(pending_exception() == "Error: boom");
+    }
+    // Held by raw and by globalThis.leaked
+    REQUIRE(get_ref_count(raw) == 2);
+
+    // The stashed value must still be a valid object
+    auto result = ctx.inner_call(handler, {});
+    REQUIRE_FALSE(result.is_exception());
+    CHECK(ctx.to_str(result).value() == "{\"tag\":\"ok\"}");
+
+    JS_FreeValue(ctx, raw);
+  }
+
+  SUBCASE("Inherited read-only data property")
+  {
+    ctx.get_exported_function(
+      "Object.defineProperty(Object.prototype, 'headers', {"
+      "  value: 1, writable: false, configurable: true });"
+      "export function handler() {}",
+      "handler",
+      "/test/poisoned_readonly");
+
+    auto target = ctx.new_obj();
+    auto value = ctx.new_obj();
+    JSValue raw = JS_DupValue(ctx, value.val);
+    REQUIRE(get_ref_count(raw) == 2);
+
+    REQUIRE(target.set("headers", std::move(value)) == -1);
+    REQUIRE(get_ref_count(raw) == 1);
+    CHECK(pending_exception() == "TypeError: 'headers' is read-only");
+
+    JS_FreeValue(ctx, raw);
+  }
+
+  SUBCASE("set_at_index on a non-extensible array")
+  {
+    auto target = ctx.new_array();
+    REQUIRE(JS_PreventExtensions(ctx, target.val) == 1);
+
+    auto value = ctx.new_obj();
+    JSValue raw = JS_DupValue(ctx, value.val);
+    REQUIRE(get_ref_count(raw) == 2);
+
+    // Define does not request JS_PROP_THROW, so this is a rejection (0)
+    // rather than an exception (-1), but the value is consumed either way
+    REQUIRE(target.set_at_index(0, std::move(value)) == 0);
+    REQUIRE(get_ref_count(raw) == 1);
+    CHECK(JS_HasException(ctx) == 0);
+
+    JS_FreeValue(ctx, raw);
+  }
+}
+
 TEST_CASE("QuickJS rejects arena allocations above a lowered heap limit")
 {
   ccf::js::core::Context ctx(TxAccess::APP_RW);
@@ -1451,7 +1878,329 @@ TEST_CASE("Context::to_str preserves embedded NUL bytes")
   }
 }
 
-TEST_CASE("Historical state")
+TEST_CASE(
+  "ArrayBuffer arguments to crypto/attestation bindings are copied before "
+  "re-entering JS")
+{
+  // Regression test for the QuickJS 2026-06-04 upgrade (see PR #8340).
+  // ArrayBuffer.prototype.transfer / .resize() let JS free or reallocate an
+  // ArrayBuffer's backing store. If the native bindings hold the raw
+  // uint8_t* returned by JS_GetArrayBuffer across any call that can re-enter
+  // JS (property getters, toString / Symbol.toPrimitive, JSON conversion,
+  // JS_Call...), that pointer can be freed or moved from under them,
+  // producing a use-after-free that ASAN catches. The bindings must instead
+  // copy the bytes immediately.
+  //
+  // These tests exercise the previously-vulnerable paths with argument
+  // objects whose getters/toString transfer or resize the target
+  // ArrayBuffer. They must not crash or read freed memory: results must be
+  // computed either from the pre-copy bytes (success case) or with a clean
+  // JS-level exception (failure case). Under ASAN, unfixed code hits a
+  // heap-use-after-free before returning.
+
+  SUBCASE("wrapKey (AES-KWP): algorithm.name getter transfers the key buffer")
+  {
+    // Uses a 16-byte AES-128 wrapping key and a 1024-byte plaintext. The
+    // plaintext is deliberately large enough (> 512 bytes) that QuickJS
+    // routes its backing allocation to the system malloc rather than its
+    // internal small-object arena, so ASAN can observe the transfer(0) as
+    // a real free and the subsequent C++ read of the raw pointer as a
+    // heap-use-after-free. With the fix, the wrap operates on the
+    // pre-transfer copy and returns an ArrayBuffer of length 1032
+    // (plaintext + 8 bytes of AES-KWP overhead).
+    ccf::js::core::Context ctx(TxAccess::APP_RW);
+    ctx.add_extension(std::make_shared<ccf::js::extensions::CryptoExtension>());
+    const auto script = R"(
+export function run() {
+  const key = new Uint8Array(1024);
+  for (let i = 0; i < 1024; ++i) key[i] = i & 0xff;
+  const wrappingKey = new Uint8Array(16);
+  for (let i = 0; i < 16; ++i) wrappingKey[i] = 0xa0 + i;
+  const params = {
+    get name() {
+      // transfer(0) creates a fresh empty ArrayBuffer and then detaches
+      // (and frees) the original backing store, so any raw pointer
+      // captured earlier by JS_GetArrayBuffer is dangling. Without the
+      // fix, the AES-KWP branch reads through that pointer.
+      key.buffer.transfer(0);
+      return "AES-KWP";
+    }
+  };
+  const result = ccf.crypto.wrapKey(key.buffer, wrappingKey.buffer, params);
+  return "" + result.byteLength;
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/reentry-wrap.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE(*s == "1032");
+  }
+
+  SUBCASE(
+    "unwrapKey (AES-KWP): algorithm.name getter transfers the wrapped key")
+  {
+    // Same > 512-byte allocation trick as the wrapKey test: a 1032-byte
+    // wrapped payload routes through the system malloc so ASAN can see
+    // the transfer(0) as a real free and catch the C++ read.
+    // Use valid ciphertext to avoid OpenSSL's heap corruption on failed
+    // AES-KWP unwraps (see #8358); this test targets re-entry, not rejection.
+    ccf::js::core::Context ctx(TxAccess::APP_RW);
+    ctx.add_extension(std::make_shared<ccf::js::extensions::CryptoExtension>());
+    const auto script = R"(
+export function run() {
+  const key = new Uint8Array(1024);
+  for (let i = 0; i < key.length; ++i) key[i] = i & 0xff;
+  const unwrappingKey = new Uint8Array(16);
+  for (let i = 0; i < 16; ++i) unwrappingKey[i] = 0xa0 + i;
+  const wrapped = ccf.crypto.wrapKey(
+    key.buffer, unwrappingKey.buffer, { name: "AES-KWP" });
+  if (wrapped.byteLength !== 1032)
+    throw new Error("Unexpected wrapped length");
+  const params = {
+    get name() {
+      wrapped.transfer(0);
+      return "AES-KWP";
+    }
+  };
+  const unwrapped = new Uint8Array(
+    ccf.crypto.unwrapKey(wrapped, unwrappingKey.buffer, params));
+  if (wrapped.byteLength !== 0)
+    throw new Error("Wrapped buffer was not detached");
+  if (unwrapped.length !== key.length)
+    throw new Error("Unexpected unwrapped length");
+  for (let i = 0; i < key.length; ++i) {
+    if (unwrapped[i] !== key[i])
+      throw new Error("Unwrapped bytes differ from the original key");
+  }
+  return "ok";
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/reentry-unwrap.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE(*s == "ok");
+  }
+
+  SUBCASE(
+    "verifySignature: algorithm.name getter resizes the signature and data "
+    "buffers")
+  {
+    // A resizable ArrayBuffer shrunk from inside the `name` getter is the
+    // clearest way to demonstrate the bug: the raw pointer taken earlier
+    // now covers memory past the current end of the backing store. With
+    // the fix, the binding operates on the pre-resize copies and reports
+    // the signature as invalid.
+    ccf::js::core::Context ctx(TxAccess::APP_RW);
+    ctx.add_extension(std::make_shared<ccf::js::extensions::CryptoExtension>());
+    const auto script = R"(
+const dummyKey = "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAENUpsFqLPRhO3AZKB6CjMv3vc4dTL\n0O73/CjhcyBqZeqklKZyU+i6PYtOtj3iIzZTfHhF11eyxYuGh85wF13Q0Q==\n-----END PUBLIC KEY-----\n";
+
+export function run() {
+  // > 512 bytes routes through the system malloc so ASAN can see the
+  // detach as a real free.
+  const sigBuf = new ArrayBuffer(1024);
+  new Uint8Array(sigBuf).fill(0xaa);
+  const dataBuf = new ArrayBuffer(1024);
+  new Uint8Array(dataBuf).fill(0xbb);
+  const algorithm = {
+    hash: "SHA-256",
+    get name() {
+      sigBuf.transfer(0);
+      dataBuf.transfer(0);
+      return "ECDSA";
+    }
+  };
+  try {
+    const ok = ccf.crypto.verifySignature(algorithm, dummyKey, sigBuf, dataBuf);
+    return ok ? "valid" : "invalid";
+  } catch (e) {
+    return "threw";
+  }
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/reentry-verify.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    // A random signature over random data cannot verify against the fixed
+    // key, so the outcome must be a clean "invalid" or a thrown error.
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE((*s == "invalid" || *s == "threw"));
+  }
+
+  SUBCASE(
+    "verifySnpAttestation: endorsed_tcb toString transfers evidence and "
+    "endorsements")
+  {
+    // Attestation verification will fail on junk bytes, but the path from
+    // JS_GetArrayBuffer -> to_str(argv[3]) was previously carrying raw
+    // pointers across a re-entrant call. With the fix, the evidence and
+    // endorsements copies survive the toString hook.
+    ccf::js::core::Context ctx(TxAccess::APP_RW);
+    ctx.add_extension(
+      std::make_shared<ccf::js::extensions::SnpAttestationExtension>());
+    const auto script = R"(
+export function run() {
+  // > 512 bytes so QuickJS routes to the system malloc; ASAN can then
+  // observe transfer(0) as a real free.
+  const evidence = new Uint8Array(1024);
+  for (let i = 0; i < 1024; ++i) evidence[i] = i & 0xff;
+  const endorsements = new Uint8Array(1024);
+  for (let i = 0; i < 1024; ++i) endorsements[i] = (i + 1) & 0xff;
+  const tcb = {
+    toString() {
+      evidence.buffer.transfer(0);
+      endorsements.buffer.transfer(0);
+      return "1234567890abcdef";
+    }
+  };
+  try {
+    snp_attestation.verifySnpAttestation(
+      evidence.buffer, endorsements.buffer, undefined, tcb);
+    return "no throw";
+  } catch (e) {
+    return "threw";
+  }
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/reentry-snp.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE(*s == "threw");
+  }
+}
+
+TEST_CASE("Optional RSA-OAEP label in wrapKey/unwrapKey")
+{
+  // The "label" parameter of RSA-OAEP is optional. JS_GetArrayBuffer throws
+  // a TypeError when handed a non-ArrayBuffer, so copying the label
+  // unconditionally left that exception pending on the context even when the
+  // operation itself succeeded. A label that is genuinely absent must be
+  // ignored silently; one that is present but is not an ArrayBuffer is a
+  // caller error and must be reported.
+  ccf::js::core::Context ctx(TxAccess::APP_RW);
+  ctx.add_extension(std::make_shared<ccf::js::extensions::CryptoExtension>());
+
+  // Converts an ASCII PEM string to an ArrayBuffer without relying on the
+  // converters extension, which this context does not install.
+  const auto* const prelude = R"(
+function strToBuf(s) {
+  const b = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; ++i) b[i] = s.charCodeAt(i);
+  return b.buffer;
+}
+function makePlaintext() {
+  const p = new Uint8Array(32);
+  for (let i = 0; i < 32; ++i) p[i] = i;
+  return p;
+}
+)";
+
+  SUBCASE("absent label round-trips and leaves no pending exception")
+  {
+    const auto script = std::string(prelude) + R"(
+export function run() {
+  const kp = ccf.crypto.generateRsaKeyPair(2048);
+  const plaintext = makePlaintext();
+  // Note: no "label" property at all.
+  const wrapped = ccf.crypto.wrapKey(
+    plaintext.buffer, strToBuf(kp.publicKey), { name: "RSA-OAEP" });
+  const unwrapped = new Uint8Array(ccf.crypto.unwrapKey(
+    wrapped, strToBuf(kp.privateKey), { name: "RSA-OAEP" }));
+  if (unwrapped.length !== 32) return "bad-length";
+  for (let i = 0; i < 32; ++i) {
+    if (unwrapped[i] !== i) return "mismatch";
+  }
+  return "ok";
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/label-absent.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE(*s == "ok");
+    // The regression: wrapKey/unwrapKey succeeded, so nothing may be left
+    // pending on the context.
+    REQUIRE(JS_HasException(ctx) == 0);
+  }
+
+  SUBCASE("empty label is treated as no label")
+  {
+    const auto script = std::string(prelude) + R"(
+export function run() {
+  const kp = ccf.crypto.generateRsaKeyPair(2048);
+  const plaintext = makePlaintext();
+  // Wrapped without a label, unwrapped with a zero-length one: the two are
+  // equivalent, so this must round-trip.
+  const wrapped = ccf.crypto.wrapKey(
+    plaintext.buffer, strToBuf(kp.publicKey), { name: "RSA-OAEP" });
+  const unwrapped = new Uint8Array(ccf.crypto.unwrapKey(
+    wrapped,
+    strToBuf(kp.privateKey),
+    { name: "RSA-OAEP", label: new ArrayBuffer(0) }));
+  return unwrapped.length === 32 ? "ok" : "bad-length";
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/label-empty.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE(*s == "ok");
+    REQUIRE(JS_HasException(ctx) == 0);
+  }
+
+  SUBCASE("non-ArrayBuffer label is rejected")
+  {
+    const auto script = std::string(prelude) + R"(
+export function run() {
+  const kp = ccf.crypto.generateRsaKeyPair(2048);
+  const plaintext = makePlaintext();
+  let wrapThrew = false;
+  try {
+    ccf.crypto.wrapKey(plaintext.buffer, strToBuf(kp.publicKey),
+      { name: "RSA-OAEP", label: 42 });
+  } catch (e) {
+    wrapThrew = true;
+  }
+  // Produce a genuinely wrapped blob so that the unwrap below fails on the
+  // label rather than on malformed ciphertext.
+  const wrapped = ccf.crypto.wrapKey(
+    plaintext.buffer, strToBuf(kp.publicKey), { name: "RSA-OAEP" });
+  let unwrapThrew = false;
+  try {
+    ccf.crypto.unwrapKey(wrapped, strToBuf(kp.privateKey),
+      { name: "RSA-OAEP", label: 42 });
+  } catch (e) {
+    unwrapThrew = true;
+  }
+  return (wrapThrew ? "w" : "-") + (unwrapThrew ? "u" : "-");
+}
+)";
+    auto func = ctx.get_exported_function(script, "run", "/label-bad.js");
+    const auto result = ctx.call_with_rt_options(
+      func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    REQUIRE_FALSE(result.is_exception());
+    const auto s = ctx.to_str(result);
+    REQUIRE(s.has_value());
+    REQUIRE(*s == "wu");
+  }
+}
+
+namespace
 {
   class CountingStore : public ccf::kv::Store
   {
@@ -1465,14 +2214,22 @@ TEST_CASE("Historical state")
     }
   };
 
+  ccf::TxReceiptImplPtr make_test_receipt()
+  {
+    return std::make_shared<ccf::TxReceiptImpl>(
+      std::vector<uint8_t>{1, 2, 3},
+      ccf::CoseSignatureMap{},
+      ccf::HistoryTree::Hash{},
+      nullptr,
+      ccf::NodeId("test-node"),
+      std::nullopt);
+  }
+}
+
+TEST_CASE("Historical state")
+{
   auto store = std::make_shared<CountingStore>();
-  auto receipt = std::make_shared<ccf::TxReceiptImpl>(
-    std::vector<uint8_t>{1, 2, 3},
-    std::nullopt,
-    ccf::HistoryTree::Hash{},
-    nullptr,
-    ccf::NodeId("test-node"),
-    std::nullopt);
+  auto receipt = make_test_receipt();
   auto state =
     std::make_shared<ccf::historical::State>(store, receipt, ccf::TxID{1, 1});
   std::weak_ptr<ccf::historical::State> original_state = state;
@@ -1520,6 +2277,1071 @@ TEST_CASE("Historical state")
   }
 
   REQUIRE(original_state.expired());
+}
+
+TEST_CASE("Historical handles are scoped to their extension")
+{
+  ccf::js::core::Context ctx(TxAccess::APP_RO);
+  auto receipt = make_test_receipt();
+
+  auto run_request = [&](ccf::SeqNo seqno, const auto& during_request) {
+    auto store = std::make_shared<CountingStore>();
+    std::weak_ptr<ccf::kv::Store> weak_store = store;
+    auto state = std::make_shared<ccf::historical::State>(
+      store, receipt, ccf::TxID{1, seqno});
+    std::weak_ptr<ccf::historical::State> weak_state = state;
+
+    auto extension =
+      std::make_shared<ccf::js::extensions::HistoricalExtension>(nullptr);
+    ctx.add_extension(extension);
+
+    auto js_state = extension->create_historical_state_object(ctx, state);
+    REQUIRE_FALSE(js_state.is_exception());
+    auto map = js_state["kv"]["public:records"];
+    REQUIRE_FALSE(map.is_exception());
+    REQUIRE(ctx.to_str(map["size"]) == "0");
+    REQUIRE(store->tx_creations == 1);
+
+    during_request();
+
+    // End of request: the extension goes away, the interpreter and JS values
+    // remain
+    REQUIRE(ctx.remove_extension(extension));
+    extension.reset();
+    state.reset();
+    store.reset();
+    REQUIRE(weak_state.expired());
+    REQUIRE(weak_store.expired());
+
+    return map;
+  };
+
+  auto expect_unavailable = [&](const ccf::js::core::JSWrappedValue& map) {
+    auto size = map["size"];
+    REQUIRE(size.is_exception());
+    auto [reason, trace] = ctx.error_message();
+    REQUIRE(reason.find("Unable to access MapHandle") != std::string::npos);
+  };
+
+  auto stale_map = run_request(1, [] {});
+
+  {
+    INFO("A handle retained after its request completed fails gracefully");
+    expect_unavailable(stale_map);
+  }
+
+  run_request(2, [&] {
+    INFO("Handles from earlier requests are not visible to later ones");
+    expect_unavailable(stale_map);
+  });
+}
+
+TEST_CASE("JS registry does not share historical state between interpreters")
+{
+  ccf::AbstractNodeContext context;
+  context.install_subsystem<ccf::historical::AbstractStateCache>(
+    std::make_shared<ccf::StubNodeStateCache>());
+  auto interpreter_cache = std::make_shared<ccf::js::InterpreterCache>(1);
+  context.install_subsystem<ccf::js::AbstractInterpreterCache>(
+    interpreter_cache);
+
+  [[maybe_unused]] ccf::js::BaseDynamicJSEndpointRegistry registry(context);
+
+  for (const auto access : {TxAccess::APP_RO, TxAccess::APP_RW})
+  {
+    auto interpreter =
+      interpreter_cache->get_interpreter(access, std::nullopt, 0);
+    REQUIRE(interpreter != nullptr);
+    REQUIRE(
+      interpreter->get_extension<ccf::js::extensions::ConsensusExtension>() !=
+      nullptr);
+    REQUIRE(
+      interpreter->get_extension<ccf::js::extensions::HistoricalExtension>() ==
+      nullptr);
+  }
+}
+
+TEST_CASE("Historical response conversion preserves request isolation")
+{
+  class StateCache : public ccf::StubNodeStateCache
+  {
+  public:
+    std::weak_ptr<ccf::historical::State> latest_state;
+
+    std::vector<ccf::historical::StatePtr> get_state_range(
+      ccf::historical::RequestHandle,
+      ccf::SeqNo,
+      ccf::SeqNo,
+      ccf::historical::ExpiryDuration) override
+    {
+      auto state = std::make_shared<ccf::historical::State>(
+        std::make_shared<CountingStore>(),
+        make_test_receipt(),
+        ccf::TxID{1, 1});
+      latest_state = state;
+      return {state};
+    }
+  };
+
+  ccf::AbstractNodeContext context;
+  auto state_cache = std::make_shared<StateCache>();
+  context.install_subsystem<ccf::historical::AbstractStateCache>(state_cache);
+  auto interpreter_cache = std::make_shared<ccf::js::InterpreterCache>(1);
+  context.install_subsystem<ccf::js::AbstractInterpreterCache>(
+    interpreter_cache);
+  ccf::js::BaseDynamicJSEndpointRegistry registry(context, "public:test");
+  registry.set_js_kv_namespace_restriction(
+    [](const std::string& map_name, std::string& explanation) {
+      explanation = "Restricted test table";
+      return map_name == "public:restricted" ? KVAccessPermissions::ILLEGAL :
+                                               KVAccessPermissions::READ_WRITE;
+    });
+
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  {
+    auto tx = store.create_tx();
+    tx.rw<ccf::Modules>("public:test.modules")->put("/response.js", R"(
+export function run(request) {
+  const live = ccf.kv["public:records"];
+  if (live.size !== 0) {
+    throw new Error("Unexpected live state");
+  }
+  const state = ccf.historical.getStateRange(1, 1, 1, 1)[0];
+  if (request.query === "handler_throw") {
+    throw new Error("Handler failure");
+  }
+  return {
+    body: {
+      toJSON() {
+        if (request.query === "restricted") {
+          return state.kv["public:restricted"].size;
+        }
+        if (request.query === "live") {
+          return live.size;
+        }
+        if (request.query === "throw") {
+          throw new Error("Response failure");
+        }
+        return state.kv["public:records"].size;
+      }
+    }
+  };
+}
+)");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  auto endpoint = std::make_shared<ccf::js::CustomJSEndpoint>();
+  endpoint->properties.js_module = "/response.js";
+  endpoint->properties.js_function = "run";
+  endpoint->properties.mode = ccf::endpoints::Mode::ReadWrite;
+  endpoint->properties.interpreter_reuse =
+    ccf::endpoints::InterpreterReusePolicy{.key = "historical"};
+
+  for (const std::string query :
+       {"ok", "restricted", "live", "throw", "handler_throw", "ok"})
+  {
+    INFO(query);
+    auto rpc_ctx = std::make_shared<http::HttpRpcContext>(
+      std::make_shared<ccf::SessionContext>(
+        ccf::InvalidSessionId, std::vector<uint8_t>{}),
+      ccf::HttpVersion::HTTP1,
+      HTTP_GET,
+      "/response?" + query,
+      ccf::http::HeaderMap{},
+      std::vector<uint8_t>{});
+    auto tx = store.create_tx();
+    ccf::endpoints::EndpointContext endpoint_ctx(rpc_ctx, tx);
+    registry.execute_endpoint(endpoint, endpoint_ctx);
+    REQUIRE(
+      rpc_ctx->get_response_status() ==
+      (query == "ok" ? HTTP_STATUS_OK : HTTP_STATUS_INTERNAL_SERVER_ERROR));
+    if (query == "ok")
+    {
+      REQUIRE(nlohmann::json::parse(rpc_ctx->get_response_body()) == 0);
+    }
+    REQUIRE(state_cache->latest_state.expired());
+    auto interpreter = interpreter_cache->get_interpreter(
+      TxAccess::APP_RW, endpoint->properties.interpreter_reuse, 0);
+    REQUIRE(
+      interpreter->get_extension<ccf::js::extensions::HistoricalExtension>() ==
+      nullptr);
+    REQUIRE(
+      interpreter->get_extension<ccf::js::extensions::KvExtension>() ==
+      nullptr);
+  }
+}
+
+TEST_CASE("ScopedCleanse scrubs secret bytes on scope exit")
+{
+  SUBCASE("std::string")
+  {
+    std::string secret(32, 'A');
+    {
+      ccf::js::ScopedCleanse<std::string> guard(secret);
+      REQUIRE(secret == std::string(32, 'A'));
+    }
+    // The guard destructor has zeroed the string's bytes in place. The
+    // std::string object itself is still alive here so its buffer can be
+    // safely inspected.
+    for (char c : secret)
+    {
+      CHECK(c == '\0');
+    }
+  }
+
+  SUBCASE("std::vector<uint8_t>")
+  {
+    std::vector<uint8_t> secret(32, 0xAB);
+    {
+      ccf::js::ScopedCleanse<std::vector<uint8_t>> guard(secret);
+      REQUIRE(secret == std::vector<uint8_t>(32, 0xAB));
+    }
+    for (auto b : secret)
+    {
+      CHECK(b == 0);
+    }
+  }
+
+  SUBCASE("ccf::crypto::Pem")
+  {
+    const std::string pem_text =
+      "-----BEGIN FAKE-----\nabcdefghij\n-----END FAKE-----\n";
+    ccf::crypto::Pem pem(pem_text);
+    REQUIRE(pem.str() == pem_text);
+    {
+      ccf::js::ScopedCleanse<ccf::crypto::Pem> guard(pem);
+    }
+    for (size_t i = 0; i < pem.size(); ++i)
+    {
+      CHECK(pem.data()[i] == 0);
+    }
+  }
+
+  SUBCASE("Scrubs on exception unwind")
+  {
+    std::string secret(16, 'S');
+    try
+    {
+      ccf::js::ScopedCleanse<std::string> guard(secret);
+      throw std::runtime_error("boom");
+    }
+    catch (const std::runtime_error&)
+    {}
+    for (char c : secret)
+    {
+      CHECK(c == '\0');
+    }
+  }
+
+  SUBCASE("Empty target is a no-op")
+  {
+    std::string empty;
+    ccf::js::ScopedCleanse<std::string> guard(empty);
+    CHECK(empty.empty());
+  }
+
+  SUBCASE("Private JWK fields")
+  {
+    ccf::crypto::JsonWebKeyECPrivate ec;
+    ccf::crypto::JsonWebKeyEdDSAPrivate eddsa;
+    ccf::crypto::JsonWebKeyRSAPrivate rsa;
+    ec.d = eddsa.d = "short secret";
+    ec.x = eddsa.x = "public";
+    rsa.n = "public";
+    for (auto* field : {&rsa.d, &rsa.p, &rsa.q, &rsa.dp, &rsa.dq, &rsa.qi})
+    {
+      *field = std::string(64, 'S');
+    }
+    {
+      ccf::js::ScopedCleanse ec_guard(ec);
+      ccf::js::ScopedCleanse eddsa_guard(eddsa);
+      ccf::js::ScopedCleanse rsa_guard(rsa);
+    }
+    CHECK(ec.d == std::string(12, '\0'));
+    CHECK(eddsa.d == std::string(12, '\0'));
+    CHECK(ec.x == "public");
+    CHECK(eddsa.x == "public");
+    CHECK(rsa.n == "public");
+    for (const auto* field :
+         {&rsa.d, &rsa.p, &rsa.q, &rsa.dp, &rsa.dq, &rsa.qi})
+    {
+      CHECK(*field == std::string(64, '\0'));
+    }
+  }
+
+  SUBCASE("Partially deserialised JWK on exception unwind")
+  {
+    nlohmann::json json = {
+      {"kty", "RSA"},
+      {"n", "public"},
+      {"e", "AQAB"},
+      {"d", "secret"},
+      {"p", "secret"}};
+    ccf::crypto::JsonWebKeyRSAPrivate jwk;
+    const auto parse = [&]() {
+      ccf::js::ScopedCleanse json_guard(json);
+      ccf::js::ScopedCleanse jwk_guard(jwk);
+      json.get_to(jwk);
+    };
+    CHECK_THROWS_AS(parse(), std::exception);
+    CHECK(jwk.d == std::string(6, '\0'));
+    CHECK(jwk.p == std::string(6, '\0'));
+    CHECK(jwk.q.empty());
+    CHECK(json["d"] == std::string(6, '\0'));
+    CHECK(json["p"] == std::string(6, '\0'));
+  }
+
+  SUBCASE("JSON strings in objects and arrays on early return")
+  {
+    nlohmann::json json = {
+      {"d", "secret"},
+      {"nested", nlohmann::json::array({"another", 42, nullptr, true})}};
+    const auto leave_scope = [&]() {
+      ccf::js::ScopedCleanse guard(json);
+      return;
+    };
+    leave_scope();
+    CHECK(json["d"] == std::string(6, '\0'));
+    CHECK(json["nested"][0] == std::string(7, '\0'));
+    CHECK(json["nested"][1] == 42);
+    CHECK(json["nested"][2].is_null());
+    CHECK(json["nested"][3] == true);
+  }
+
+  SUBCASE("JSON roots on exception unwind")
+  {
+    const auto check_unwind =
+      [](nlohmann::json value, const nlohmann::json& expected) {
+        const auto fail = [&]() {
+          ccf::js::ScopedCleanse guard(value);
+          throw std::runtime_error("boom");
+        };
+        CHECK_THROWS_AS(fail(), std::runtime_error);
+        CHECK(value.type() == expected.type());
+        CHECK(value == expected);
+      };
+    check_unwind("secret", std::string(6, '\0'));
+    check_unwind(
+      nlohmann::json::array({"secret", {{"d", "nested"}}}),
+      nlohmann::json::array(
+        {std::string(6, '\0'), {{"d", std::string(6, '\0')}}}));
+    for (const auto& value :
+         {nlohmann::json(),
+          nlohmann::json(true),
+          nlohmann::json(42),
+          nlohmann::json(42u),
+          nlohmann::json(3.5),
+          nlohmann::json(""),
+          nlohmann::json::array(),
+          nlohmann::json::object(),
+          nlohmann::json::binary({1, 2, 3})})
+    {
+      check_unwind(value, value);
+    }
+  }
+}
+
+namespace
+{
+  // Helper: run a JS snippet through a ccf.crypto-equipped context and assert
+  // it returned without throwing. The snippet must define and return from a
+  // handler() function.
+  void run_crypto_handler(const std::string& body)
+  {
+    ccf::js::CommonContext ctx(TxAccess::APP_RW);
+    JS_UpdateStackTop(ctx.runtime());
+    const auto module =
+      fmt::format("export function handler() {{\n{}\n}}", body);
+    auto handler =
+      ctx.get_exported_function(module, "handler", "/test/crypto.js");
+    const auto result = ctx.call_with_rt_options(
+      handler, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+    if (result.is_exception())
+    {
+      const auto [reason, trace] = ctx.error_message();
+      FAIL("JS threw: ", reason);
+    }
+  }
+
+  // Safely embeds an arbitrary C++ string (eg - a PEM, with embedded
+  // newlines) as a JS string literal.
+  std::string js_string_literal(const std::string& s)
+  {
+    return nlohmann::json(s).dump();
+  }
+
+  // Shared by the argument-validation TEST_CASEs below. expectThrows()
+  // pins both the error's type (TypeError/RangeError/InternalError) and a
+  // substring of its message, so these tests break if the bindings' error
+  // contract changes rather than merely if they stop throwing. runCases()
+  // runs a table of [description, thunk, ErrorType, message substring]
+  // entries, and reports which entry failed.
+  const char* const validation_prelude = R"JS(
+    function expectThrows(desc, fn, ErrorType, substr) {
+      let caught = null;
+      try {
+        fn();
+      } catch (e) {
+        caught = e;
+      }
+      if (caught === null) {
+        throw new Error(desc + ": expected to throw, but did not");
+      }
+      if (!(caught instanceof ErrorType)) {
+        const actual = (caught && caught.constructor) ?
+          caught.constructor.name : typeof caught;
+        throw new Error(
+          desc + ": expected " + ErrorType.name + " but got " + actual +
+          ": " + caught);
+      }
+      const message = String(caught.message !== undefined ?
+        caught.message : caught);
+      if (!message.includes(substr)) {
+        throw new Error(
+          desc + ": message '" + message + "' does not include '" +
+          substr + "'");
+      }
+    }
+    function runCases(cases) {
+      for (const [desc, fn, ErrorType, substr] of cases) {
+        expectThrows(desc, fn, ErrorType, substr);
+      }
+    }
+  )JS";
+}
+
+TEST_CASE("ccf.crypto private-key bindings still succeed after scrubbing")
+{
+  // These regression tests exercise the binding paths whose C++-side private
+  // key copies are now guarded by ScopedCleanse. Direct assertion that
+  // freed memory was scrubbed would be undefined behaviour; the unit tests
+  // above cover the guard's scrubbing semantics.
+
+  SUBCASE("generateRsaKeyPair")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateRsaKeyPair(2048);
+      if (typeof kp.privateKey !== "string" || kp.privateKey.length === 0)
+        throw new Error("bad privateKey");
+      if (typeof kp.publicKey !== "string" || kp.publicKey.length === 0)
+        throw new Error("bad publicKey");
+    )JS");
+  }
+
+  SUBCASE("generateEcdsaKeyPair")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEcdsaKeyPair("secp256r1");
+      if (!kp.privateKey.includes("PRIVATE KEY"))
+        throw new Error("bad privateKey");
+      if (!kp.publicKey.includes("PUBLIC KEY"))
+        throw new Error("bad publicKey");
+    )JS");
+  }
+
+  SUBCASE("generateEddsaKeyPair")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEddsaKeyPair("curve25519");
+      if (!kp.privateKey.includes("PRIVATE KEY"))
+        throw new Error("bad privateKey");
+      if (!kp.publicKey.includes("PUBLIC KEY"))
+        throw new Error("bad publicKey");
+    )JS");
+  }
+
+  SUBCASE("Private and public JWK conversions preserve caller-owned values")
+  {
+    run_crypto_handler(R"JS(
+      const cases = [
+        [ccf.crypto.generateEcdsaKeyPair("secp256r1"),
+         ccf.crypto.pemToJwk, ccf.crypto.jwkToPem,
+         ccf.crypto.pubPemToJwk, ccf.crypto.pubJwkToPem],
+        [ccf.crypto.generateRsaKeyPair(2048),
+         ccf.crypto.rsaPemToJwk, ccf.crypto.rsaJwkToPem,
+         ccf.crypto.pubRsaPemToJwk, ccf.crypto.pubRsaJwkToPem],
+        [ccf.crypto.generateEddsaKeyPair("curve25519"),
+         ccf.crypto.eddsaPemToJwk, ccf.crypto.eddsaJwkToPem,
+         ccf.crypto.pubEddsaPemToJwk, ccf.crypto.pubEddsaJwkToPem],
+      ];
+      for (const [kp, toJwk, toPem, pubToJwk, pubToPem] of cases) {
+        for (const [pem, encode, decode] of [
+          [kp.privateKey, toJwk, toPem],
+          [kp.publicKey, pubToJwk, pubToPem],
+        ]) {
+          const jwk = encode(pem, "test-key");
+          const original = JSON.stringify(jwk);
+          const roundTrip = decode(jwk);
+          if (JSON.stringify(encode(roundTrip, "test-key")) !== original)
+            throw new Error("key round trip changed JWK");
+          if (JSON.stringify(jwk) !== original ||
+              JSON.stringify(encode(pem, "test-key")) !== original)
+            throw new Error("caller-owned key was scrubbed");
+        }
+      }
+    )JS");
+  }
+
+  SUBCASE("sign with ECDSA")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEcdsaKeyPair("secp256r1");
+      const data = ccf.strToBuf("hello");
+      const sig = ccf.crypto.sign(
+        {name: "ECDSA", hash: "SHA-256"}, kp.privateKey, data);
+      if (!(sig instanceof ArrayBuffer) || sig.byteLength === 0)
+        throw new Error("bad signature");
+      if (!ccf.crypto.verifySignature(
+          {name: "ECDSA", hash: "SHA-256"}, kp.publicKey, sig, data))
+        throw new Error("signature did not verify");
+    )JS");
+  }
+
+  SUBCASE("sign with EdDSA")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEddsaKeyPair("curve25519");
+      const data = ccf.strToBuf("hello");
+      const sig = ccf.crypto.sign(
+        {name: "EdDSA"}, kp.privateKey, data);
+      if (!(sig instanceof ArrayBuffer) || sig.byteLength === 0)
+        throw new Error("bad signature");
+      if (!ccf.crypto.verifySignature(
+          {name: "EdDSA"}, kp.publicKey, sig, data))
+        throw new Error("signature did not verify");
+    )JS");
+  }
+
+  SUBCASE("sign with RSA-PSS")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateRsaKeyPair(2048);
+      const data = ccf.strToBuf("hello");
+      const algorithm = {name: "RSA-PSS", hash: "SHA-256", saltLength: 32};
+      const sig = ccf.crypto.sign(algorithm, kp.privateKey, data);
+      if (!ccf.crypto.verifySignature(algorithm, kp.publicKey, sig, data))
+        throw new Error("signature did not verify");
+    )JS");
+  }
+
+  SUBCASE("HMAC accepts a non-PEM key")
+  {
+    run_crypto_handler(R"JS(
+      const key = String.fromCharCode(11).repeat(20);
+      const sig = new Uint8Array(ccf.crypto.sign(
+        {name: "HMAC", hash: "SHA-256"}, key, ccf.strToBuf("Hi There")));
+      const hex = Array.from(sig, b => b.toString(16).padStart(2, "0")).join("");
+      if (hex !== "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7")
+        throw new Error("bad HMAC");
+      if (key !== String.fromCharCode(11).repeat(20))
+        throw new Error("caller-owned HMAC key was scrubbed");
+    )JS");
+  }
+
+  SUBCASE("Malformed PEMs and JWKs still throw")
+  {
+    run_crypto_handler(R"JS(
+      function expectError(fn) {
+        let threw = false;
+        try { fn(); } catch (e) { threw = true; }
+        if (!threw) throw new Error("malformed key was accepted");
+      }
+      for (const pem of ["not a PEM", "-----BEGIN PRIVATE KEY-----\ninvalid"]) {
+        for (const toJwk of [
+          ccf.crypto.pemToJwk, ccf.crypto.rsaPemToJwk, ccf.crypto.eddsaPemToJwk,
+        ]) {
+          expectError(() => toJwk(pem));
+        }
+        for (const name of ["ECDSA", "EdDSA", "RSA-PSS"]) {
+          expectError(() => ccf.crypto.sign(
+            {name, hash: "SHA-256", saltLength: 32}, pem, ccf.strToBuf("hello")));
+        }
+      }
+      const jwks = [
+        [ccf.crypto.pemToJwk(ccf.crypto.generateEcdsaKeyPair("secp256r1").privateKey),
+         ccf.crypto.jwkToPem, "d"],
+        [ccf.crypto.rsaPemToJwk(ccf.crypto.generateRsaKeyPair(2048).privateKey),
+         ccf.crypto.rsaJwkToPem, "qi"],
+        [ccf.crypto.eddsaPemToJwk(ccf.crypto.generateEddsaKeyPair("curve25519").privateKey),
+         ccf.crypto.eddsaJwkToPem, "d"],
+      ];
+      for (const [jwk, toPem, field] of jwks) {
+        jwk[field] = {};
+        const original = JSON.stringify(jwk);
+        expectError(() => toPem(jwk));
+        if (JSON.stringify(jwk) !== original)
+          throw new Error("caller-owned invalid JWK was scrubbed");
+      }
+    )JS");
+  }
+}
+
+TEST_CASE("ccf.crypto bindings validate their arguments")
+{
+  // These cover the argc/type/range checks in src/js/extensions/ccf/crypto.cpp
+  // that are not exercised by any other test: wrong arity, wrong argument
+  // types (a Symbol where a string is expected, a non-ArrayBuffer where an
+  // ArrayBuffer is expected), and unsupported algorithm/curve/size values.
+  // Each case pins the thrown error's type and a substring of its message.
+
+  SUBCASE("generateAesKey")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.generateAesKey(),
+          TypeError, "expected 1"],
+        ["non-number size", () => ccf.crypto.generateAesKey(S),
+          TypeError, "cannot convert symbol to number"],
+        ["unsupported size", () => ccf.crypto.generateAesKey(64),
+          RangeError, "invalid key size"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("generateRsaKeyPair")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.generateRsaKeyPair(),
+          TypeError, "expected 1 or 2"],
+        ["non-number size", () => ccf.crypto.generateRsaKeyPair(S),
+          TypeError, "cannot convert symbol to number"],
+        ["non-number exponent", () => ccf.crypto.generateRsaKeyPair(2048, S),
+          TypeError, "cannot convert symbol to number"],
+        ["invalid size", () => ccf.crypto.generateRsaKeyPair(0),
+          InternalError, "Failed to generate RSA key pair"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("generateEcdsaKeyPair")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.generateEcdsaKeyPair(),
+          TypeError, "expected 1"],
+        ["non-string curve", () => ccf.crypto.generateEcdsaKeyPair(S),
+          TypeError, "cannot convert symbol to string"],
+        ["unsupported curve", () => ccf.crypto.generateEcdsaKeyPair("secp999"),
+          RangeError, "Unsupported curve id"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("generateEddsaKeyPair")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.generateEddsaKeyPair(),
+          TypeError, "expected 1"],
+        ["non-string curve", () => ccf.crypto.generateEddsaKeyPair(S),
+          TypeError, "cannot convert symbol to string"],
+        ["unsupported curve", () => ccf.crypto.generateEddsaKeyPair("foo"),
+          RangeError, "Unsupported curve id"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("digest")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.digest(),
+          TypeError, "expected 2"],
+        ["non-string algorithm",
+          () => ccf.crypto.digest(S, ccf.strToBuf("x")),
+          TypeError, "cannot convert symbol to string"],
+        ["unsupported algorithm",
+          () => ccf.crypto.digest("SHA-1", ccf.strToBuf("x")),
+          RangeError, "unsupported digest algorithm"],
+        ["non-ArrayBuffer data", () => ccf.crypto.digest("SHA-256", "x"),
+          TypeError, "ArrayBuffer object expected"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("isValidX509RootCACert")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.isValidX509RootCACert(),
+          TypeError, "expected 1"],
+        ["non-string pem", () => ccf.crypto.isValidX509RootCACert(S),
+          TypeError, "cannot convert symbol to string"],
+      ]);
+      if (ccf.crypto.isValidX509RootCACert("not a pem") !== false)
+        throw new Error("malformed PEM should be rejected, not thrown");
+    )JS");
+  }
+
+  SUBCASE("isValidX509CertChain")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.isValidX509CertChain(),
+          TypeError, "expected 2"],
+        ["non-string chain", () => ccf.crypto.isValidX509CertChain(S, "y"),
+          TypeError, "cannot convert symbol to string"],
+        ["non-string trusted", () => ccf.crypto.isValidX509CertChain("x", S),
+          TypeError, "cannot convert symbol to string"],
+      ]);
+      if (ccf.crypto.isValidX509CertChain("", "") !== false)
+        throw new Error("empty chain/trusted should be rejected, not thrown");
+    )JS");
+  }
+
+  SUBCASE("isValidX509CertBundle")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.crypto.isValidX509CertBundle(),
+          TypeError, "expected 1"],
+        ["non-string bundle", () => ccf.crypto.isValidX509CertBundle(S),
+          TypeError, "cannot convert symbol to string"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("pemToJwk and jwkToPem")
+  {
+    // All six pem/jwk conversion bindings of each direction share one
+    // template, so a single binding covers their argument validation.
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["pemToJwk argc 0", () => ccf.crypto.pemToJwk(),
+          TypeError, "expected 1 or 2"],
+        ["pemToJwk non-string pem", () => ccf.crypto.pemToJwk(S),
+          TypeError, "cannot convert symbol to string"],
+        ["pemToJwk non-string kid", () => ccf.crypto.pemToJwk("x", S),
+          TypeError, "cannot convert symbol to string"],
+        ["jwkToPem argc 0", () => ccf.crypto.jwkToPem(),
+          TypeError, "expected 1"],
+        ["jwkToPem non-object jwk", () => ccf.crypto.jwkToPem("not an object"),
+          InternalError, "Failed to convert jwk to pem"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("wrapKey and unwrapKey")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const buf16 = new ArrayBuffer(16);
+      runCases([
+        ["wrapKey argc 0", () => ccf.crypto.wrapKey(),
+          TypeError, "expected 3"],
+        ["wrapKey non-buffer key",
+          () => ccf.crypto.wrapKey("x", buf16, {name: "AES-KWP"}),
+          TypeError, "ArrayBuffer object expected"],
+        ["wrapKey non-buffer wrapping key",
+          () => ccf.crypto.wrapKey(buf16, "x", {name: "AES-KWP"}),
+          TypeError, "ArrayBuffer object expected"],
+        ["wrapKey unsupported name",
+          () => ccf.crypto.wrapKey(buf16, buf16, {name: "foo"}),
+          RangeError, "unsupported key wrapping algorithm"],
+        ["wrapKey AES-KWP wrong key size",
+          () => ccf.crypto.wrapKey(buf16, new ArrayBuffer(5), {name: "AES-KWP"}),
+          InternalError, "Failed to wrap key"],
+
+        ["unwrapKey argc 0", () => ccf.crypto.unwrapKey(),
+          TypeError, "expected 3"],
+        ["unwrapKey non-buffer key",
+          () => ccf.crypto.unwrapKey("x", buf16, {name: "AES-KWP"}),
+          TypeError, "ArrayBuffer object expected"],
+        ["unwrapKey non-buffer unwrapping key",
+          () => ccf.crypto.unwrapKey(buf16, "x", {name: "AES-KWP"}),
+          TypeError, "ArrayBuffer object expected"],
+        ["unwrapKey unsupported name",
+          () => ccf.crypto.unwrapKey(buf16, buf16, {name: "foo"}),
+          RangeError, "unsupported key unwrapping algorithm"],
+        ["unwrapKey AES-KWP wrong key size",
+          () => ccf.crypto.unwrapKey(
+            buf16, new ArrayBuffer(5), {name: "AES-KWP"}),
+          InternalError, "Failed to unwrap key"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("sign")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      const rsaKp = ccf.crypto.generateRsaKeyPair(2048);
+      const data = ccf.strToBuf("hello");
+      runCases([
+        ["argc 0", () => ccf.crypto.sign(), TypeError, "expected 3"],
+        ["missing hash",
+          () => ccf.crypto.sign({name: "ECDSA"}, "key", data),
+          RangeError, "Unsupported hash algorithm"],
+        ["non-string key",
+          () => ccf.crypto.sign({name: "ECDSA", hash: "SHA-256"}, S, data),
+          TypeError, "cannot convert symbol to string"],
+        ["non-ArrayBuffer data",
+          () => ccf.crypto.sign({name: "ECDSA", hash: "SHA-256"}, "key", "x"),
+          TypeError, "ArrayBuffer object expected"],
+        ["unsupported name",
+          () => ccf.crypto.sign({name: "foo", hash: "SHA-256"}, "key", data),
+          RangeError, "Unsupported signing algorithm"],
+        ["RSA-PSS bad saltLength",
+          () => ccf.crypto.sign(
+            {name: "RSA-PSS", hash: "SHA-256", saltLength: 100000},
+            rsaKp.privateKey, data),
+          InternalError, "Failed to sign"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("verifySignature")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      const sig = new ArrayBuffer(64);
+      const data = ccf.strToBuf("hello");
+      runCases([
+        ["argc 0", () => ccf.crypto.verifySignature(),
+          TypeError, "expected 4"],
+        ["missing hash",
+          () => ccf.crypto.verifySignature({name: "ECDSA"}, "key", sig, data),
+          RangeError, "Unsupported hash algorithm"],
+        ["non-string key",
+          () => ccf.crypto.verifySignature(
+            {name: "ECDSA", hash: "SHA-256"}, S, sig, data),
+          TypeError, "cannot convert symbol to string"],
+        ["non-ArrayBuffer signature",
+          () => ccf.crypto.verifySignature(
+            {name: "ECDSA", hash: "SHA-256"}, "key", "x", data),
+          TypeError, "ArrayBuffer object expected"],
+        ["non-ArrayBuffer data",
+          () => ccf.crypto.verifySignature(
+            {name: "ECDSA", hash: "SHA-256"}, "key", sig, "x"),
+          TypeError, "ArrayBuffer object expected"],
+        ["unsupported name",
+          () => ccf.crypto.verifySignature(
+            {name: "foo", hash: "SHA-256"}, "key", sig, data),
+          RangeError, "Unsupported signing algorithm"],
+        ["EdDSA bad key",
+          () => ccf.crypto.verifySignature(
+            {name: "EdDSA"}, "garbage", sig, data),
+          RangeError, "Failed to verify EdDSA signature"],
+      ]);
+    )JS");
+  }
+}
+
+TEST_CASE("ccf.crypto key generation with non-default parameters")
+{
+  // Success paths of src/js/extensions/ccf/crypto.cpp that no other test
+  // reaches: the secp521r1 curve, and an explicit RSA exponent. Signing with
+  // a P-521 key is covered by crypto_test.
+  SUBCASE("generateEcdsaKeyPair secp521r1")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateEcdsaKeyPair("secp521r1");
+      if (!kp.privateKey.includes("PRIVATE KEY"))
+        throw new Error("bad privateKey");
+    )JS");
+  }
+
+  SUBCASE("generateRsaKeyPair with explicit exponent")
+  {
+    run_crypto_handler(R"JS(
+      const kp = ccf.crypto.generateRsaKeyPair(2048, 65537);
+      if (!kp.privateKey.includes("PRIVATE KEY"))
+        throw new Error("bad privateKey");
+    )JS");
+  }
+}
+
+TEST_CASE("ccf.crypto.verifySignature against an X.509 certificate")
+{
+  // js_verify_signature has two paths depending on whether the supplied key
+  // parses as an X.509 certificate; this exercises the make_unique_verifier
+  // path taken when the key looks like "-----BEGIN CERTIFICATE".
+  using namespace std::literals;
+  auto kp = ccf::crypto::make_ec_key_pair();
+  auto valid_from =
+    ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::now() - 24h);
+  auto valid_to =
+    ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::now() + 24h * 3650);
+  auto cert_pem = kp->self_sign("CN=verify test", valid_from, valid_to);
+
+  run_crypto_handler(fmt::format(
+    R"JS(
+      const cert = {};
+      const privateKey = {};
+      const data = ccf.strToBuf("hello");
+      const sig = ccf.crypto.sign(
+        {{name: "ECDSA", hash: "SHA-256"}}, privateKey, data);
+      if (!ccf.crypto.verifySignature(
+          {{name: "ECDSA", hash: "SHA-256"}}, cert, sig, data))
+        throw new Error("certificate-based signature did not verify");
+    )JS",
+    js_string_literal(cert_pem.str()),
+    js_string_literal(kp->private_key_pem().str())));
+}
+
+TEST_CASE("ccf converters validate their arguments")
+{
+  // These cover the argc/type checks in src/js/extensions/ccf/converters.cpp
+  // that are not exercised elsewhere, plus the enableMetricsLogging toggle.
+
+  SUBCASE("strToBuf and bufToStr")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["strToBuf argc 0", () => ccf.strToBuf(), TypeError, "expected 1"],
+        ["strToBuf non-string", () => ccf.strToBuf(S),
+          TypeError, "Argument must be a string"],
+
+        ["bufToStr argc 0", () => ccf.bufToStr(), TypeError, "expected 1"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("jsonCompatibleToBuf and bufToJsonCompatible")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      runCases([
+        ["jsonCompatibleToBuf argc 0", () => ccf.jsonCompatibleToBuf(),
+          TypeError, "expected 1"],
+
+        ["bufToJsonCompatible argc 0", () => ccf.bufToJsonCompatible(),
+          TypeError, "expected 1"],
+        ["bufToJsonCompatible non-buffer", () => ccf.bufToJsonCompatible("x"),
+          TypeError, "Argument must be an ArrayBuffer"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("enableUntrustedDateTime")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      runCases([
+        ["argc 0", () => ccf.enableUntrustedDateTime(),
+          TypeError, "expected 1"],
+      ]);
+    )JS");
+  }
+
+  SUBCASE("enableMetricsLogging validates arguments and toggles")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      runCases([
+        ["argc 0", () => ccf.enableMetricsLogging(),
+          TypeError, "expected 1"],
+        ["non-boolean", () => ccf.enableMetricsLogging(1),
+          TypeError, "First argument must be a boolean"],
+      ]);
+      // log_execution_metrics defaults to true.
+      const wasOn = ccf.enableMetricsLogging(false);
+      if (wasOn !== true)
+        throw new Error("expected previous value true, got " + wasOn);
+      const wasOff = ccf.enableMetricsLogging(true);
+      if (wasOff !== false)
+        throw new Error("expected previous value false, got " + wasOff);
+    )JS");
+  }
+
+  SUBCASE("pemToId validates arguments and rejects malformed PEMs")
+  {
+    run_crypto_handler(std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      runCases([
+        ["argc 0", () => ccf.pemToId(), TypeError, "expected 1"],
+        ["non-string", () => ccf.pemToId(S),
+          TypeError, "cannot convert symbol to string"],
+        ["malformed PEM", () => ccf.pemToId("not a pem"),
+          InternalError, "Failed to parse PEM"],
+      ]);
+    )JS");
+  }
+}
+
+TEST_CASE("ccf.tcbHexToPolicy")
+{
+  // Covers js_tcb_hex_to_policy's argument validation and, for Turin, its
+  // success path, cross-checking the JS-visible object against
+  // TcbVersionRaw::to_policy computed directly in C++.
+  using ccf::pal::snp::ProductName;
+
+  SUBCASE("argument validation")
+  {
+    run_crypto_handler(
+      std::string(validation_prelude) + R"JS(
+      const S = Symbol("s");
+      const cpuid = ")JS" +
+      ccf::pal::snp::get_cpuid_of_snp_sev_product(ProductName::Milan) +
+      R"JS(";
+      runCases([
+        ["argc 0", () => ccf.tcbHexToPolicy(), TypeError, "expected 2"],
+        ["non-string cpuid",
+          () => ccf.tcbHexToPolicy(S, "d315000000000004"),
+          TypeError, "CPUID could not be parsed"],
+        ["non-string tcb", () => ccf.tcbHexToPolicy(cpuid, S),
+          TypeError, "TCB could not be parsed"],
+      ]);
+    )JS");
+  }
+
+  const std::string tcb_hex = "d315000000000004";
+
+  SUBCASE("success for Turin")
+  {
+    // Turin is the only SEV-SNP product whose to_policy() sets the extra
+    // "fmc" field; Milan and Genoa exercise the same lines of
+    // js_tcb_hex_to_policy that Turin does, so only Turin is checked here.
+    const auto product = ProductName::Turin;
+    const auto cpuid_hex = ccf::pal::snp::get_cpuid_of_snp_sev_product(product);
+    const auto expected =
+      ccf::pal::snp::TcbVersionRaw::from_hex(tcb_hex).to_policy(product);
+
+    auto js_field = [](const char* field, auto opt) {
+      if (!opt.has_value())
+      {
+        return fmt::format(
+          "if (\"{}\" in policy) throw new Error(\"unexpected {}\");\n",
+          field,
+          field);
+      }
+      return fmt::format(
+        "if (policy.{} !== {}) throw new Error(\"bad {}: \" + policy.{});\n",
+        field,
+        opt.value(),
+        field,
+        field);
+    };
+
+    std::string checks;
+    checks += fmt::format(
+      "if (policy.hexstring !== {}) throw new Error(\"bad hexstring: \" + "
+      "policy.hexstring);\n",
+      js_string_literal(expected.hexstring.value()));
+    checks += js_field("microcode", expected.microcode);
+    checks += js_field("snp", expected.snp);
+    checks += js_field("tee", expected.tee);
+    checks += js_field("boot_loader", expected.boot_loader);
+    checks += js_field("fmc", expected.fmc);
+
+    run_crypto_handler(fmt::format(
+      R"JS(
+        const policy = ccf.tcbHexToPolicy("{}", "{}");
+        {}
+      )JS",
+      cpuid_hex,
+      tcb_hex,
+      checks));
+  }
 }
 
 int main(int argc, char** argv)

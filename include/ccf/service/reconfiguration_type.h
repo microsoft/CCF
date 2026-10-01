@@ -2,18 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/json.h"
+#warning \
+  "ccf/service/reconfiguration_type.h is deprecated and will be removed in 8.0; use ccf/reconfiguration_type.h instead"
 
-namespace ccf
-{
-  enum ReconfigurationType : uint8_t
-  {
-    ONE_TRANSACTION = 0,
-    TWO_TRANSACTION = 1
-  };
-
-  DECLARE_JSON_ENUM(
-    ReconfigurationType,
-    {{ReconfigurationType::ONE_TRANSACTION, "OneTransaction"},
-     {ReconfigurationType::TWO_TRANSACTION, "TwoTransaction"}});
-}
+// This header is kept for source compatibility only. ReconfigurationType is
+// unchanged and remains in namespace ccf, but is now declared in
+// ccf/reconfiguration_type.h, so that it can be used without depending on
+// service definitions.
+#include "ccf/reconfiguration_type.h"

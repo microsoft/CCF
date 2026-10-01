@@ -73,12 +73,10 @@ namespace ccf::js::core
 
   int JSWrappedValue::set(const char* prop, JSWrappedValue&& value) const
   {
-    int rc = JS_SetPropertyStr(ctx, val, prop, value.val);
-    if (rc == 1)
-    {
-      value.val = ccf::js::core::constants::Null;
-    }
-    return rc;
+    // JS_SetPropertyStr takes ownership of the value on every return path,
+    // including failure, so we call .take() to always drop our local owning
+    // reference
+    return JS_SetPropertyStr(ctx, val, prop, value.take());
   }
 
   int JSWrappedValue::set_getter(
@@ -91,9 +89,8 @@ namespace ccf::js::core
       return -1;
     }
 
-    // NB: Where other calls check the return code to determine whether they
-    // are responsible for freeing, this call unconditionally frees the getter
-    // arg, so we call .take() to always drop our local owning reference
+    // NB: This call unconditionally frees the getter arg, so we call .take() to
+    // always drop our local owning reference
     int rc = JS_DefinePropertyGetSet(
       ctx,
       val,
@@ -141,13 +138,10 @@ namespace ccf::js::core
 
   int JSWrappedValue::set_at_index(uint32_t index, JSWrappedValue&& value) const
   {
-    int rc =
-      JS_DefinePropertyValueUint32(ctx, val, index, value.val, JS_PROP_C_W_E);
-    if (rc == 1)
-    {
-      value.val = ccf::js::core::constants::Null;
-    }
-    return rc;
+    // As with set(), JS_DefinePropertyValueUint32 takes ownership of the value
+    // on every return path, including failure
+    return JS_DefinePropertyValueUint32(
+      ctx, val, index, value.take(), JS_PROP_C_W_E);
   }
 
   bool JSWrappedValue::is_exception() const

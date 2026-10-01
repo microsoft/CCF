@@ -8,8 +8,7 @@
 #include "ccf/ds/logger_level.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/ds/unit_strings.h"
-#include "ccf/ds/x509_time_fmt.h"
-#include "ccf/node/startup_config.h"
+#include "ccf/node/configuration.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/platform.h"
@@ -20,7 +19,6 @@
 #include "common/configuration.h"
 #include "common/enclave_interface_types.h"
 #include "config_schema.h"
-#include "configuration.h"
 #include "consensus/ledger_enclave_types.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
@@ -28,21 +26,19 @@
 #include "ds/non_blocking.h"
 #include "ds/notifying.h"
 #include "ds/oversized.h"
+#include "ds/time_bound_logger.h"
 #include "enclave/entry_points.h"
 #include "handle_ring_buffer.h"
-#include "host/env.h"
 #include "host/files_cleanup_timer.h"
+#include "host/ledger_subsystem.h"
 #include "http_client/curl.h"
 #include "json_schema.h"
-#include "lfs_file_handler.h"
 #include "node_connections.h"
 #include "pal/quote_generation.h"
-#include "rpc_connections.h"
+#include "runtime_control.h"
 #include "sig_term.h"
 #include "tcp.h"
 #include "ticker.h"
-#include "time_bound_logger.h"
-#include "udp.h"
 
 #include <CLI11/CLI11.hpp>
 #include <atomic>
@@ -80,9 +76,6 @@ size_t asynchost::TCPImpl::remaining_read_quota =
   asynchost::TCPImpl::max_read_quota;
 bool asynchost::TCPImpl::alloc_quota_logged = false;
 
-size_t asynchost::UDPImpl::remaining_read_quota =
-  asynchost::UDPImpl::max_read_quota;
-
 void print_version(int64_t ignored)
 {
   (void)ignored;
@@ -97,7 +90,7 @@ static constexpr size_t retry_interval_ms = 100;
 
 namespace ccf
 {
-  void validate_ledger_transaction_size(const host::HostConfig& config)
+  void validate_ledger_transaction_size(const ccf::CCFConfig& config)
   {
     const auto max_message_size = config.memory.max_msg_size.count_bytes();
     const auto max_transaction_size =
@@ -119,7 +112,20 @@ namespace ccf
     }
   }
 
-  void validate_and_adjust_recovery_threshold(host::HostConfig& config)
+  void validate_and_coerce_worker_threads(ccf::CCFConfig& config)
+  {
+    // Replace the task execution capacity of the dispatch thread, which no
+    // longer executes tasks itself, without requiring configuration changes.
+    if (config.worker_threads == 0)
+    {
+      LOG_FAIL_FMT(
+        "worker_threads is configured as 0; using 1 (the enforced minimum) "
+        "instead");
+    }
+    ++config.worker_threads;
+  }
+
+  void validate_and_adjust_recovery_threshold(ccf::CCFConfig& config)
   {
     if (config.command.type != StartType::Start)
     {
@@ -213,297 +219,18 @@ namespace ccf
     {}
   };
 
-  void setup_rpc_interfaces(
-    host::HostConfig& config,
-    asynchost::RPCConnections<asynchost::TCP>& rpc,
-    asynchost::RPCConnections<asynchost::UDP>& rpc_udp)
-  {
-    ResolvedAddresses resolved_rpc_addresses;
-
-    // Bind interfaces with an explicit (non-zero) port before those requesting
-    // an ephemeral port (port 0). Multiple interfaces on a node can share a
-    // single host address (for example the sole ::1 IPv6 loopback), and if an
-    // ephemeral interface is bound first the OS may assign it the exact port
-    // that another interface is configured to bind, making that later bind fail
-    // with "address already in use".
-    std::vector<std::string> ordered_interface_names;
-    ordered_interface_names.reserve(config.network.rpc_interfaces.size());
-    for (const auto& [name, interface] : config.network.rpc_interfaces)
-    {
-      if (cli::validate_address(interface.bind_address).second != "0")
-      {
-        ordered_interface_names.push_back(name);
-      }
-    }
-    for (const auto& [name, interface] : config.network.rpc_interfaces)
-    {
-      if (cli::validate_address(interface.bind_address).second == "0")
-      {
-        ordered_interface_names.push_back(name);
-      }
-    }
-
-    for (const auto& name : ordered_interface_names)
-    {
-      auto& interface = config.network.rpc_interfaces.at(name);
-      auto [rpc_host, rpc_port] = cli::validate_address(interface.bind_address);
-      LOG_INFO_FMT(
-        "Registering RPC interface {}, on {} {}:{}",
-        name,
-        interface.protocol,
-        rpc_host,
-        rpc_port);
-
-      if (interface.protocol == "udp")
-      {
-        rpc_udp->behaviour.listen(0, rpc_host, rpc_port, name);
-      }
-      else
-      {
-        rpc->behaviour.listen(0, rpc_host, rpc_port, name);
-      }
-
-      LOG_INFO_FMT(
-        "Registered RPC interface {}, on {} {}:{}",
-        name,
-        interface.protocol,
-        rpc_host,
-        rpc_port);
-
-      resolved_rpc_addresses[name] = ccf::make_net_address(rpc_host, rpc_port);
-      interface.bind_address = ccf::make_net_address(rpc_host, rpc_port);
-
-      // If public RPC address is not set, default to local RPC address
-      if (interface.published_address.empty())
-      {
-        interface.published_address = interface.bind_address;
-      }
-
-      auto [pub_host, pub_port] =
-        cli::validate_address(interface.published_address);
-      if (pub_port == "0")
-      {
-        pub_port = rpc_port;
-        interface.published_address = ccf::make_net_address(pub_host, pub_port);
-      }
-    }
-
-    if (!config.output_files.rpc_addresses_file.empty())
-    {
-      files::dump(
-        nlohmann::json(resolved_rpc_addresses).dump(),
-        config.output_files.rpc_addresses_file);
-    }
-  }
-
-  void configure_snp_attestation(ccf::StartupConfig& startup_config)
-  {
-    if (ccf::pal::platform != ccf::pal::Platform::SNP)
-    {
-      return;
-    }
-
-    if (startup_config.attestation.snp_security_policy_file.has_value())
-    {
-      auto security_policy_file =
-        startup_config.attestation.snp_security_policy_file.value();
-      LOG_DEBUG_FMT(
-        "Resolving snp_security_policy_file: {}", security_policy_file);
-      security_policy_file =
-        ccf::env::expand_envvars_in_path(security_policy_file);
-      LOG_DEBUG_FMT(
-        "Resolved snp_security_policy_file: {}", security_policy_file);
-
-      startup_config.attestation.environment.security_policy =
-        files::try_slurp_string(security_policy_file);
-      if (!startup_config.attestation.environment.security_policy.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Could not read snp_security_policy from {}", security_policy_file);
-      }
-    }
-
-    if (startup_config.attestation.snp_uvm_endorsements_file.has_value())
-    {
-      auto snp_uvm_endorsements_file =
-        startup_config.attestation.snp_uvm_endorsements_file.value();
-      LOG_DEBUG_FMT(
-        "Resolving snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
-      snp_uvm_endorsements_file =
-        ccf::env::expand_envvars_in_path(snp_uvm_endorsements_file);
-      LOG_DEBUG_FMT(
-        "Resolved snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
-
-      startup_config.attestation.environment.uvm_endorsements =
-        files::try_slurp_string(snp_uvm_endorsements_file);
-      if (!startup_config.attestation.environment.uvm_endorsements.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Could not read snp_uvm_endorsements from {}",
-          snp_uvm_endorsements_file);
-      }
-    }
-
-    for (auto& server : startup_config.attestation.snp_endorsements_servers)
-    {
-      auto& url = server.url;
-      if (url.has_value())
-      {
-        LOG_DEBUG_FMT("Resolving snp_endorsements_server url: {}", url.value());
-        auto pos = url->find(':');
-        if (pos == std::string::npos)
-        {
-          url = ccf::env::expand_envvar(url.value());
-        }
-        else
-        {
-          url = fmt::format(
-            "{}:{}",
-            ccf::env::expand_envvar(url->substr(0, pos)),
-            ccf::env::expand_envvar(url->substr(pos + 1)));
-        }
-        LOG_DEBUG_FMT("Resolved snp_endorsements_server url: {}", url.value());
-      }
-    }
-
-    if (startup_config.attestation.snp_endorsements_file.has_value())
-    {
-      auto snp_endorsements_file =
-        startup_config.attestation.snp_endorsements_file.value();
-      LOG_DEBUG_FMT(
-        "Resolving snp_endorsements_file: {}", snp_endorsements_file);
-      snp_endorsements_file =
-        ccf::env::expand_envvars_in_path(snp_endorsements_file);
-      LOG_DEBUG_FMT(
-        "Resolved snp_endorsements_file: {}", snp_endorsements_file);
-
-      startup_config.attestation.environment.snp_endorsements =
-        files::try_slurp_string(snp_endorsements_file);
-
-      if (!startup_config.attestation.environment.snp_endorsements.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Could not read snp_endorsements from {}", snp_endorsements_file);
-      }
-    }
-  }
-
-  void populate_config_for_start(
-    const host::HostConfig& config, ccf::StartupConfig& startup_config)
-  {
-    for (auto const& member : config.command.start.members)
-    {
-      std::optional<ccf::crypto::Pem> public_encryption_key = std::nullopt;
-      std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
-      if (
-        member.encryption_public_key_file.has_value() &&
-        !member.encryption_public_key_file.value().empty())
-      {
-        public_encryption_key = ccf::crypto::Pem(
-          files::slurp(member.encryption_public_key_file.value()));
-        recovery_role = member.recovery_role;
-      }
-
-      nlohmann::json member_data = nullptr;
-      if (
-        member.data_json_file.has_value() &&
-        !member.data_json_file.value().empty())
-      {
-        member_data =
-          nlohmann::json::parse(files::slurp(member.data_json_file.value()));
-      }
-
-      startup_config.start.members.emplace_back(
-        ccf::crypto::Pem(files::slurp(member.certificate_file)),
-        public_encryption_key,
-        member_data,
-        recovery_role);
-    }
-
-    startup_config.start.constitution = "";
-    for (const auto& constitution_path :
-         config.command.start.constitution_files)
-    {
-      // Separate with single newlines
-      if (!startup_config.start.constitution.empty())
-      {
-        startup_config.start.constitution += '\n';
-      }
-
-      startup_config.start.constitution +=
-        files::slurp_string(constitution_path);
-    }
-
-    startup_config.start.service_configuration =
-      config.command.start.service_configuration;
-    startup_config.start.service_configuration.recovery_threshold =
-      config.command.start.service_configuration.recovery_threshold;
-    startup_config.initial_service_certificate_validity_days =
-      config.command.start.initial_service_certificate_validity_days;
-    startup_config.service_subject_name =
-      config.command.start.service_subject_name;
-    startup_config.cose_signatures = config.command.start.cose_signatures;
-
-    LOG_INFO_FMT(
-      "Creating new node: new network (with {} initial member(s) and {} "
-      "member(s) required for recovery)",
-      config.command.start.members.size(),
-      config.command.start.service_configuration.recovery_threshold);
-  }
-
-  void populate_config_for_join(
-    const host::HostConfig& config, ccf::StartupConfig& startup_config)
-  {
-    LOG_INFO_FMT(
-      "Creating new node - join existing network at {}",
-      config.command.join.target_rpc_address);
-    startup_config.join.target_rpc_address =
-      config.command.join.target_rpc_address;
-    startup_config.join.retry_timeout = config.command.join.retry_timeout;
-    startup_config.join.service_cert =
-      files::slurp(config.command.service_certificate_file);
-    startup_config.join.follow_redirect = config.command.join.follow_redirect;
-    startup_config.join.fetch_recent_snapshot =
-      config.command.join.fetch_recent_snapshot;
-    startup_config.join.fetch_snapshot_max_attempts =
-      config.command.join.fetch_snapshot_max_attempts;
-    startup_config.join.fetch_snapshot_retry_interval =
-      config.command.join.fetch_snapshot_retry_interval;
-    startup_config.join.fetch_snapshot_max_size =
-      config.command.join.fetch_snapshot_max_size;
-    startup_config.join.host_data_transparent_statement_path =
-      config.command.join.host_data_transparent_statement_path;
-  }
-
-  void populate_config_for_recover(
-    const host::HostConfig& config, ccf::StartupConfig& startup_config)
-  {
-    LOG_INFO_FMT("Creating new node - recover");
-    startup_config.initial_service_certificate_validity_days =
-      config.command.recover.initial_service_certificate_validity_days;
-    auto idf = config.command.recover.previous_service_identity_file;
-    if (!files::exists(idf))
-    {
-      throw std::logic_error(fmt::format(
-        "Recovery requires a previous service identity certificate; cannot "
-        "open '{}'",
-        idf));
-    }
-    LOG_INFO_FMT("Reading previous service identity from {}", idf);
-    startup_config.recover.previous_service_identity = files::slurp(idf);
-  }
-
   std::optional<size_t> create_enclave_node(
-    const host::HostConfig& config,
+    const ccf::CCFConfig& config,
     messaging::BufferProcessor& buffer_processor,
     ringbuffer::Circuit& circuit,
     EnclaveConfig& enclave_config,
-    ccf::StartupConfig& startup_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
+    std::vector<uint8_t>& rpc_addresses,
     ccf::LoggerLevel log_level,
     ringbuffer::NotifyingWriterFactory& notifying_factory,
-    asynchost::Ledger& ledger)
+    ccf::AbstractRuntimeControl& runtime_control,
+    const std::shared_ptr<asynchost::ReadLedgerSubsystem>& ledger_subsystem)
   {
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;
@@ -519,14 +246,16 @@ namespace ccf
     std::thread flusher_thread(flush_outbound);
     auto create_status = enclave_create_node(
       enclave_config,
-      startup_config,
+      config,
       node_cert,
       service_cert,
+      rpc_addresses,
       config.command.type,
       log_level,
       config.worker_threads,
       notifying_factory.get_inbound_work_beacon(),
-      ledger);
+      runtime_control,
+      ledger_subsystem);
     ecall_completed.store(true);
     flusher_thread.join();
 
@@ -552,11 +281,18 @@ namespace ccf
     }
 
     LOG_INFO_FMT("Created new node");
+
+    // The enclave resolves and binds the RPC interfaces (including ephemeral
+    // ports), and reports the resolved addresses back here to be written out.
+    if (!config.output_files.rpc_addresses_file.empty())
+    {
+      files::dump(rpc_addresses, config.output_files.rpc_addresses_file);
+    }
     return std::nullopt;
   }
 
   void write_certificates_to_disk(
-    const host::HostConfig& config,
+    const ccf::CCFConfig& config,
     const std::vector<uint8_t>& node_cert,
     const std::vector<uint8_t>& service_cert)
   {
@@ -577,7 +313,9 @@ namespace ccf
     }
   }
 
-  void run_enclave_threads(const host::HostConfig& config)
+  void run_enclave_threads(
+    const ccf::CCFConfig& config,
+    asynchost::RuntimeControlImpl& runtime_control)
   {
     auto enclave_thread_start = [&](threading::ThreadID thread_id) {
       threading::set_current_thread_id(thread_id);
@@ -618,10 +356,16 @@ namespace ccf
     {
       thread.join();
     }
+
+    // Transports and task workers are quiescent. Release queued actions,
+    // including paused session queues, before their dependencies are torn down.
+    enclave_shutdown_tasks();
+
+    runtime_control.throw_if_fatal_error();
   }
 
   std::optional<size_t> run_main_loop(
-    host::HostConfig& config,
+    ccf::CCFConfig& config,
     messaging::BufferProcessor& buffer_processor,
     ringbuffer::Circuit& circuit,
     EnclaveConfig& enclave_config,
@@ -634,11 +378,19 @@ namespace ccf
     // provide regular ticks to the enclave
     const asynchost::Ticker ticker(config.tick_interval, writer_factory);
 
+    const auto request_enclave_stop = []() {
+      return ccf::enclave_request_stop();
+    };
+    const auto drain_ringbuffers_before_loop_stop =
+      [&buffer_processor, &circuit, &factories]() {
+        buffer_processor.read_all(circuit.read_from_inside());
+        factories.non_blocking_factory.flush_all_inbound();
+      };
+    asynchost::RuntimeControl runtime_control(
+      request_enclave_stop, drain_ringbuffers_before_loop_stop);
+
     // reset the inbound-TCP processing quota each iteration
     const asynchost::ResetTCPReadQuota reset_tcp_quota;
-
-    // reset the inbound-UDP processing quota each iteration
-    const asynchost::ResetUDPReadQuota reset_udp_quota;
 
     // handle outbound logging and admin messages from the enclave
     const asynchost::HandleRingbuffer handle_ringbuffer(
@@ -648,9 +400,9 @@ namespace ccf
       factories.non_blocking_factory);
 
     // graceful shutdown on sigterm
-    asynchost::Sigterm sigterm(writer_factory, config.ignore_first_sigterm);
+    asynchost::Sigterm sigterm(config.ignore_first_sigterm);
     // graceful shutdown on sighup
-    asynchost::Sighup sighup(writer_factory, false /* never ignore */);
+    asynchost::Sighup sighup(false /* never ignore */);
 
     asynchost::Ledger ledger(
       config.ledger.directory,
@@ -665,7 +417,6 @@ namespace ccf
         "snapshots.read_only_directory is deprecated and will be removed in a "
         "future release");
     }
-
     std::optional<asynchost::FilesCleanupTimer> files_cleanup;
     if (
       (config.files_cleanup.max_snapshots.has_value() ||
@@ -681,12 +432,6 @@ namespace ccf
         config.ledger.read_only_directories,
         config.files_cleanup.max_committed_ledger_chunks);
     }
-
-    // handle LFS-related messages from the enclave
-    asynchost::LFSFileHandler lfs_file_handler(
-      writer_factory.create_writer_to_inside());
-    lfs_file_handler.register_message_handlers(
-      buffer_processor.get_dispatcher());
 
     // Setup node-to-node connections
     auto [node_host, node_port] =
@@ -716,83 +461,48 @@ namespace ccf
         config.output_files.node_to_node_address_file);
     }
 
-    const auto id_gen = std::make_shared<asynchost::ConnIDGenerator>();
-
-    asynchost::RPCConnections<asynchost::TCP> rpc(
-      1s, // Tick once-per-second to track idle connections,
-      writer_factory,
-      id_gen,
-      config.client_connection_timeout,
-      config.idle_connection_timeout);
-    rpc->behaviour.register_message_handlers(buffer_processor.get_dispatcher());
-
-    asynchost::RPCConnections<asynchost::UDP> rpc_udp(
-      1s,
-      writer_factory,
-      id_gen,
-      config.client_connection_timeout,
-      config.idle_connection_timeout);
-    rpc_udp->behaviour.register_udp_message_handlers(
-      buffer_processor.get_dispatcher());
-
     // Initialise the curlm singleton
     curl_global_init(CURL_GLOBAL_DEFAULT);
     auto curl_libuv_context =
       http_client::CurlmLibuvContextSingleton(uv_default_loop());
 
-    // Setup RPC interfaces
-    setup_rpc_interfaces(config, rpc, rpc_udp);
+    // Validate and normalise the configured RPC addresses here, at the input
+    // boundary, so that everything downstream sees a well-formed "host:port"
+    // with a port in range. ccf::split_net_address, used to bind them, is
+    // deliberately lenient and does no validation of its own.
+    for (auto& [name, interface] : config.network.rpc_interfaces)
+    {
+      try
+      {
+        const auto [rpc_host, rpc_port] =
+          cli::validate_address(interface.bind_address);
+        interface.bind_address = ccf::make_net_address(rpc_host, rpc_port);
+
+        if (!interface.published_address.empty())
+        {
+          const auto [pub_host, pub_port] =
+            cli::validate_address(interface.published_address);
+          interface.published_address =
+            ccf::make_net_address(pub_host, pub_port);
+        }
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FATAL_FMT(
+          "Invalid address for RPC interface {}: {}. Exiting.", name, e.what());
+        return static_cast<int>(CLI::ExitCodes::ValidationError);
+      }
+    }
 
     // Prepare startup configuration
     const size_t certificate_size = 4096;
     std::vector<uint8_t> node_cert(certificate_size);
     std::vector<uint8_t> service_cert(certificate_size);
-
-    ccf::StartupConfig startup_config(config);
-
-    // Configure SNP attestation if on SNP platform
-    configure_snp_attestation(startup_config);
+    std::vector<uint8_t> rpc_addresses;
 
     if (ccf::pal::platform == ccf::pal::Platform::Virtual)
     {
       ccf::pal::emit_virtual_measurement();
-    }
-
-    if (config.node_data_json_file.has_value())
-    {
-      startup_config.node_data =
-        files::slurp_json(config.node_data_json_file.value());
-      LOG_TRACE_FMT("Read node_data: {}", startup_config.node_data.dump());
-    }
-
-    if (config.service_data_json_file.has_value())
-    {
-      if (
-        config.command.type == StartType::Start ||
-        config.command.type == StartType::Recover)
-      {
-        startup_config.service_data =
-          files::slurp_json(config.service_data_json_file.value());
-      }
-      else
-      {
-        LOG_FAIL_FMT(
-          "Service data is ignored for start type {}", config.command.type);
-      }
-    }
-
-    auto startup_host_time = std::chrono::system_clock::now();
-    LOG_INFO_FMT("Startup host time: {}", startup_host_time);
-
-    startup_config.startup_host_time =
-      ccf::ds::to_x509_time_string(startup_host_time);
-
-    startup_config.sealing_recovery = config.sealing_recovery;
-    if (config.sealing_recovery.has_value())
-    {
-      CCF_ASSERT_FMT(
-        ccf::pal::platform == ccf::pal::Platform::SNP,
-        "Sealing ledger secrets is only supported on SEV-SNP platforms");
     }
 
     // Configure startup based on command type
@@ -822,39 +532,31 @@ namespace ccf
           return static_cast<int>(CLI::ExitCodes::ValidationError);
         }
       }
-
-      populate_config_for_start(config, startup_config);
     }
-    else if (config.command.type == StartType::Join)
-    {
-      populate_config_for_join(config, startup_config);
-    }
-    else if (config.command.type == StartType::Recover)
-    {
-      populate_config_for_recover(config, startup_config);
-    }
-    else
+    else if (
+      config.command.type != StartType::Join &&
+      config.command.type != StartType::Recover)
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
-    // Used by GET /node/network/nodes/self to return rpc interfaces
-    // prior to the KV being updated
-    startup_config.network.rpc_interfaces = config.network.rpc_interfaces;
-
-    // Create the enclave node
+    // Create the enclave node. The read-only ledger view is installed as a
+    // node subsystem, and is only valid while the ledger above is alive.
+    auto ledger_subsystem =
+      std::make_shared<asynchost::ReadLedgerSubsystem>(ledger);
     auto enclave_creation_result = create_enclave_node(
       config,
       buffer_processor,
       circuit,
       enclave_config,
-      startup_config,
       node_cert,
       service_cert,
+      rpc_addresses,
       log_level,
       factories.notifying_factory,
-      ledger);
+      *runtime_control,
+      ledger_subsystem);
 
     if (enclave_creation_result.has_value())
     {
@@ -865,7 +567,7 @@ namespace ccf
     write_certificates_to_disk(config, node_cert, service_cert);
 
     // Run enclave threads and event loop
-    run_enclave_threads(config);
+    run_enclave_threads(config, *runtime_control);
 
     return std::nullopt;
   }
@@ -997,9 +699,9 @@ namespace ccf
         schema_error_msg.value()));
     }
 
-    host::HostConfig config = config_json;
+    ccf::CCFConfig config = config_json;
 
-    if (config.logging.format == host::LogFormat::JSON)
+    if (config.logging.format == ccf::LogFormat::JSON)
     {
       ccf::logger::config::add_json_console_logger();
     }
@@ -1017,18 +719,28 @@ namespace ccf
         argv + argc, // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         "\" \""));
 
-    // Validated before the --check early return, so that operators verifying a
-    // configuration file are told about a ledger/ring-buffer size mismatch
-    // rather than discovering it when the node starts for real
+    // Validate before --check returns, not just when starting the node.
     try
     {
       validate_ledger_transaction_size(config);
+      const auto pending_node_timeout =
+        std::chrono::microseconds(config.pending_node_timeout);
+      if (
+        pending_node_timeout > std::chrono::microseconds::zero() &&
+        pending_node_timeout < std::chrono::milliseconds(1))
+      {
+        throw std::logic_error(
+          "pending_node_timeout must be 0s or at least 1ms");
+      }
     }
     catch (const std::logic_error& e)
     {
       LOG_FATAL_FMT("{}. Exiting.", e.what());
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
+
+    // Coerces rather than rejects, so no try/catch is needed here.
+    validate_and_coerce_worker_threads(config);
 
     if (check_config_only)
     {
@@ -1077,7 +789,7 @@ namespace ccf
     // set the host log level
     ccf::logger::config::level() = log_level;
 
-    asynchost::TimeBoundLogger::default_max_time =
+    ccf::ds::TimeBoundLogger::default_max_time =
       config.slow_io_logging_threshold;
 
     // create the enclave:

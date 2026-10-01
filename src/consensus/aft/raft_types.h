@@ -6,7 +6,6 @@
 #include "ccf/entity_id.h"
 #include "consensus/consensus_types.h"
 #include "ds/ring_buffer_types.h"
-#include "enclave/rpc_handler.h"
 #include "kv/kv_types.h"
 
 #include <array>

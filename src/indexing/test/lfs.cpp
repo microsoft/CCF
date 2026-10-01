@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
-#include "host/lfs_file_handler.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/test/common.h"
+#include "tasks/job_board.h"
 
 #include <doctest/doctest.h>
 
@@ -20,6 +20,14 @@ std::vector<uint8_t> read_file(const std::filesystem::path& p)
   return contents;
 }
 
+void write_file(
+  const std::filesystem::path& p, const std::vector<uint8_t>& contents)
+{
+  std::ofstream f(p, std::ios::trunc | std::ios::binary);
+  f.write((char const*)contents.data(), contents.size());
+  f.close();
+}
+
 void write_file_corrupted_at(
   const std::filesystem::path& p,
   size_t i,
@@ -28,9 +36,20 @@ void write_file_corrupted_at(
   auto corrupted(original);
   REQUIRE(i < corrupted.size());
   corrupted[i]++;
-  std::ofstream f(p, std::ios::trunc | std::ios::binary);
-  f.write((char const*)corrupted.data(), corrupted.size());
-  f.close();
+  write_file(p, corrupted);
+}
+
+// Synchronously execute any LFS disk I/O actions (store/fetch) that have been
+// queued on the given job board, returning the number of actions executed.
+size_t flush_lfs(ccf::tasks::JobBoard& board)
+{
+  size_t count = 0;
+  while (auto task = board.get_task())
+  {
+    task->do_task();
+    ++count;
+  }
+  return count;
 }
 
 static std::vector<ActionDesc> create_actions(
@@ -91,22 +110,10 @@ static std::vector<ActionDesc> create_actions(
 
 TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
 {
-  messaging::BufferProcessor host_bp("lfs_host");
-  messaging::BufferProcessor enclave_bp("lfs_enclave");
+  ccf::tasks::JobBoard board;
+  const std::filesystem::path index_dir{".index"};
 
-  constexpr size_t buf_size = 1 << 10;
-  auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-  ringbuffer::Reader inbound_reader(inbound_buffer->bd);
-  auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-  ringbuffer::Reader outbound_reader(outbound_buffer->bd);
-
-  asynchost::LFSFileHandler host_files(
-    std::make_shared<ringbuffer::Writer>(inbound_reader));
-  host_files.register_message_handlers(host_bp.get_dispatcher());
-
-  ccf::indexing::EnclaveLFSAccess enclave_lfs(
-    std::make_shared<ringbuffer::Writer>(outbound_reader));
-  enclave_lfs.register_message_handlers(enclave_bp.get_dispatcher());
+  ccf::indexing::EnclaveLFSAccess lfs_access(board);
 
   ccf::indexing::LFSKey key_a("Blob A");
   ccf::indexing::LFSContents blob_a{0, 1, 2, 3, 4, 5, 6, 7};
@@ -114,26 +121,25 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
   ccf::indexing::LFSKey key_b("Blob B");
   ccf::indexing::LFSContents blob_b{'a', 'b', 'c'};
 
-  enclave_lfs.store(key_a, ccf::indexing::LFSContents(blob_a));
-  enclave_lfs.store(key_b, ccf::indexing::LFSContents(blob_b));
+  lfs_access.store(key_a, ccf::indexing::LFSContents(blob_a));
+  lfs_access.store(key_b, ccf::indexing::LFSContents(blob_b));
 
-  REQUIRE(2 == host_bp.read_all(outbound_reader));
+  REQUIRE(flush_lfs(board) > 0);
 
   {
     INFO("Load entries");
 
-    auto result_a = enclave_lfs.fetch(key_a);
+    auto result_a = lfs_access.fetch(key_a);
     REQUIRE(
       result_a->fetch_result ==
       ccf::indexing::FetchResult::FetchResultType::Fetching);
 
-    auto result_b = enclave_lfs.fetch(key_b);
+    auto result_b = lfs_access.fetch(key_b);
     REQUIRE(
       result_b->fetch_result ==
       ccf::indexing::FetchResult::FetchResultType::Fetching);
 
-    host_bp.read_all(outbound_reader);
-    enclave_bp.read_all(inbound_reader);
+    flush_lfs(board);
 
     REQUIRE(
       result_a->fetch_result ==
@@ -147,18 +153,15 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
   }
 
   {
-    INFO("Host cache provides wrong file");
+    INFO("Cache provides wrong file");
     REQUIRE(std::filesystem::copy_file(
-      host_files.root_dir /
-        ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b),
-      host_files.root_dir /
-        ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_a),
+      index_dir / ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b),
+      index_dir / ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_a),
       std::filesystem::copy_options::overwrite_existing));
 
-    auto result = enclave_lfs.fetch(key_a);
+    auto result = lfs_access.fetch(key_a);
 
-    host_bp.read_all(outbound_reader);
-    enclave_bp.read_all(inbound_reader);
+    flush_lfs(board);
 
     REQUIRE(
       result->fetch_result ==
@@ -166,21 +169,21 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
     REQUIRE(result->contents != blob_a);
   }
 
+  const auto b_path =
+    index_dir / ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b);
+  const auto original_b_contents = read_file(b_path);
+
 #ifndef PLAINTEXT_CACHE
   {
-    INFO("Host cache provides corrupt file");
-    const auto b_path = host_files.root_dir /
-      ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b);
-    const auto original_b_contents = read_file(b_path);
+    INFO("Cache provides corrupt file");
 
     for (size_t i = 0; i < original_b_contents.size(); ++i)
     {
       write_file_corrupted_at(b_path, i, original_b_contents);
 
-      auto result = enclave_lfs.fetch(key_b);
+      auto result = lfs_access.fetch(key_b);
 
-      host_bp.read_all(outbound_reader);
-      enclave_bp.read_all(inbound_reader);
+      flush_lfs(board);
 
       REQUIRE(
         result->fetch_result ==
@@ -189,6 +192,63 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
     }
   }
 #endif
+
+  {
+    INFO("Cache provides truncated file");
+
+    // Every truncation must be reported as corrupt, including files too short
+    // to contain a GCM header, rather than escaping as an exception
+    for (size_t size = 0; size < original_b_contents.size(); ++size)
+    {
+      write_file(
+        b_path,
+        std::vector<uint8_t>(
+          original_b_contents.begin(), original_b_contents.begin() + size));
+
+      auto result = lfs_access.fetch(key_b);
+
+      flush_lfs(board);
+
+      REQUIRE(
+        result->fetch_result ==
+        ccf::indexing::FetchResult::FetchResultType::Corrupt);
+      REQUIRE(result->contents != blob_b);
+    }
+  }
+
+  {
+    INFO("Cache provides oversized file");
+
+    // Sparsely extend the file far beyond any blob this instance has written.
+    // The read must be rejected by size, before any allocation is attempted.
+    std::error_code ec;
+    std::filesystem::resize_file(
+      b_path, static_cast<std::uintmax_t>(1) << 40, ec);
+    REQUIRE_MESSAGE(!ec, ec.message());
+
+    auto result = lfs_access.fetch(key_b);
+
+    flush_lfs(board);
+
+    REQUIRE(
+      result->fetch_result ==
+      ccf::indexing::FetchResult::FetchResultType::Corrupt);
+    REQUIRE(result->contents != blob_b);
+  }
+
+  {
+    INFO("Restored file loads again");
+    write_file(b_path, original_b_contents);
+
+    auto result = lfs_access.fetch(key_b);
+
+    flush_lfs(board);
+
+    REQUIRE(
+      result->fetch_result ==
+      ccf::indexing::FetchResult::FetchResultType::Loaded);
+    REQUIRE(result->contents == blob_b);
+  }
 }
 
 TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
@@ -204,30 +264,13 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
-  messaging::BufferProcessor host_bp("lfs_host");
-  messaging::BufferProcessor enclave_bp("lfs_enclave");
+  ccf::tasks::JobBoard board;
+  const std::filesystem::path index_dir{".index"};
 
-  constexpr size_t buf_size = 1 << 16;
-  auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-  ringbuffer::Reader inbound_reader(inbound_buffer->bd);
-  auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-
-  ringbuffer::Reader outbound_reader(outbound_buffer->bd);
-  asynchost::LFSFileHandler host_files(
-    std::make_shared<ringbuffer::Writer>(inbound_reader));
-  host_files.register_message_handlers(host_bp.get_dispatcher());
-
-  auto enclave_lfs = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
-    std::make_shared<ringbuffer::Writer>(outbound_reader));
-  enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
+  auto lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(board);
 
   ccf::AbstractNodeContext node_context;
-  node_context.install_subsystem(enclave_lfs);
-
-  auto flush_ringbuffers = [&]() {
-    return host_bp.read_all(outbound_reader) +
-      enclave_bp.read_all(inbound_reader);
-  };
+  node_context.install_subsystem(lfs_access);
 
   using StratA =
     ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_a)>;
@@ -266,12 +309,12 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
       }
       fetcher->requested.clear();
 
-      flush_ringbuffers();
+      flush_lfs(board);
     }
   };
 
   tick_until_caught_up();
-  REQUIRE(flush_ringbuffers() == 0);
+  REQUIRE(flush_lfs(board) == 0);
 
   auto current_seqno = kv_store.current_version();
   const auto max_requestable = index_a->max_requestable_range();
@@ -287,7 +330,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     REQUIRE_THROWS(index_a->get_write_txs_in_range(
       "hello", current_seqno - (max_requestable + 1), current_seqno));
 
-    REQUIRE(flush_ringbuffers() == 0);
+    REQUIRE(flush_lfs(board) == 0);
   }
 
   auto fetch_all = [&](
@@ -307,7 +350,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
       if (!results.has_value())
       {
         // This required an async load from disk
-        REQUIRE(flush_ringbuffers() > 0);
+        REQUIRE(flush_lfs(board) > 0);
 
         results = strat->get_write_txs_in_range(key, range_start, range_end);
 
@@ -356,7 +399,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
       if (!results.has_value())
       {
         // This required an async load from disk
-        REQUIRE(flush_ringbuffers() > 0);
+        REQUIRE(flush_lfs(board) > 0);
 
         results = strat->get_write_txs_in_range(range_start, range_end);
 
@@ -475,8 +518,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
     {
       INFO("Deleted files");
-      for (auto const& f :
-           std::filesystem::directory_iterator(host_files.root_dir))
+      for (auto const& f : std::filesystem::directory_iterator(index_dir))
       {
         std::filesystem::remove(f);
       }
@@ -486,8 +528,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
     {
       INFO("Corrupted files");
-      for (auto const& f :
-           std::filesystem::directory_iterator(host_files.root_dir))
+      for (auto const& f : std::filesystem::directory_iterator(index_dir))
       {
         auto original = read_file(f);
 
@@ -524,30 +565,12 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
-  messaging::BufferProcessor host_bp("lfs_host");
-  messaging::BufferProcessor enclave_bp("lfs_enclave");
+  ccf::tasks::JobBoard board;
 
-  constexpr size_t buf_size = 1 << 16;
-  auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-  ringbuffer::Reader inbound_reader(inbound_buffer->bd);
-  auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-
-  ringbuffer::Reader outbound_reader(outbound_buffer->bd);
-  asynchost::LFSFileHandler host_files(
-    std::make_shared<ringbuffer::Writer>(inbound_reader));
-  host_files.register_message_handlers(host_bp.get_dispatcher());
-
-  auto enclave_lfs = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
-    std::make_shared<ringbuffer::Writer>(outbound_reader));
-  enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
+  auto lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(board);
 
   ccf::AbstractNodeContext node_context;
-  node_context.install_subsystem(enclave_lfs);
-
-  auto flush_ringbuffers = [&]() {
-    return host_bp.read_all(outbound_reader) +
-      enclave_bp.read_all(inbound_reader);
-  };
+  node_context.install_subsystem(lfs_access);
 
   using Strat =
     ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_b)>;
@@ -628,12 +651,12 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
       }
       fetcher->requested.clear();
 
-      flush_ringbuffers();
+      flush_lfs(board);
     }
   };
 
   tick_until_caught_up();
-  REQUIRE(flush_ringbuffers() == 0);
+  REQUIRE(flush_lfs(board) == 0);
 
   auto fetch_write_seqnos = [&](size_t key) {
     const auto max_range = index->max_requestable_range();
@@ -658,7 +681,7 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
       if (!results.has_value())
       {
         // This required an async load from disk
-        REQUIRE(flush_ringbuffers() > 0);
+        REQUIRE(flush_lfs(board) > 0);
 
         results = index->get_write_txs_in_range(key, range_start, range_end);
         REQUIRE(results.has_value());

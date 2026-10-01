@@ -7,7 +7,7 @@
 #include "common/enclave_interface_types.h"
 #include "ds/internal_logger.h"
 #include "enclave.h"
-#include "host/ledger.h"
+#include "entry_points.h"
 
 #include <chrono>
 #include <cstdint>
@@ -27,20 +27,29 @@ namespace ccf
 {
   CreateNodeStatus enclave_create_node(
     const EnclaveConfig& enclave_config,
-    const ccf::StartupConfig& ccf_config,
+    const ccf::CCFConfig& ccf_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
+    std::vector<uint8_t>& rpc_addresses,
     StartType start_type,
     ccf::LoggerLevel log_level,
     size_t num_worker_threads,
     const ccf::ds::WorkBeaconPtr& work_beacon,
-    asynchost::Ledger& ledger)
+    ccf::AbstractRuntimeControl& runtime_control,
+    const std::shared_ptr<AbstractReadLedgerSubsystemInterface>&
+      ledger_subsystem)
   {
     std::lock_guard<ccf::ds::Mutex> guard(create_lock);
 
     if (e != nullptr)
     {
       return CreateNodeStatus::NodeAlreadyCreated;
+    }
+
+    if (ledger_subsystem == nullptr)
+    {
+      LOG_FAIL_FMT("A ledger subsystem must be provided to create a node");
+      return CreateNodeStatus::EnclaveInitFailed;
     }
 
     // Setup logger to allow enclave logs to reach the host before node is
@@ -66,9 +75,11 @@ namespace ccf
     // 2-tx reconfiguration is currently experimental, disable it in release
     // enclaves
     if (
-      ccf_config.start.service_configuration.reconfiguration_type.has_value() &&
-      ccf_config.start.service_configuration.reconfiguration_type.value() !=
-        ccf::ReconfigurationType::ONE_TRANSACTION)
+      start_type == StartType::Start &&
+      ccf_config.command.start.service_configuration.reconfiguration_type
+        .has_value() &&
+      ccf_config.command.start.service_configuration.reconfiguration_type
+          .value() != ccf::ReconfigurationType::ONE_TRANSACTION)
     {
       LOG_FAIL_FMT(
         "2TX reconfiguration is experimental, disabled in release mode");
@@ -110,7 +121,8 @@ namespace ccf
         ccf_config.consensus,
         ccf_config.node_certificate.curve_id,
         work_beacon,
-        ledger);
+        runtime_control,
+        ledger_subsystem);
       // NOLINTEND(cppcoreguidelines-owning-memory)
     }
     catch (const std::exception& exc)
@@ -133,7 +145,7 @@ namespace ccf
     try
     {
       status = enclave->create_new_node(
-        start_type, ccf_config, node_cert, service_cert);
+        start_type, ccf_config, node_cert, service_cert, rpc_addresses);
     }
     catch (...)
     {
@@ -186,5 +198,34 @@ namespace ccf
       return s;
     }
     return false;
+  }
+
+  bool enclave_request_stop()
+  {
+    auto* enclave = e.load();
+    if (enclave == nullptr)
+    {
+      return false;
+    }
+
+    enclave->request_stop();
+    return true;
+  }
+
+  bool enclave_request_stop_notice()
+  {
+    auto* enclave = e.load();
+    if (enclave == nullptr)
+    {
+      return false;
+    }
+
+    enclave->request_stop_notice();
+    return true;
+  }
+
+  void enclave_shutdown_tasks()
+  {
+    ccf::tasks::get_main_job_board().shutdown();
   }
 }

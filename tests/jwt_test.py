@@ -410,9 +410,12 @@ def get_jwt_refresh_endpoint_metrics(primary) -> dict:
 
 @contextmanager
 def reserve_unlistened_local_port():
+    # The socket is bound but never listened on, so connections to it are
+    # refused. It is yielded rather than just its port number so that callers
+    # can release the reservation early, e.g. to let a server bind that port.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
-        yield s.getsockname()[1]
+        yield s
 
 
 def add_auto_refresh_jwt_issuer(network, primary, issuer, ca_cert_bundle_name):
@@ -451,9 +454,11 @@ def test_jwt_key_auto_refresh_connection_failure(network, args):
     remove_all_jwt_issuers(network, args, primary)
     failures_before = get_jwt_refresh_endpoint_metrics(primary)["failures"]
     issuer_host = "127.0.0.1"
+    kid = "connection_failure"
 
     LOG.info("Add JWT issuer with auto-refresh pointing at an unavailable endpoint")
-    with reserve_unlistened_local_port() as issuer_port:
+    with reserve_unlistened_local_port() as reserved_socket:
+        issuer_port = reserved_socket.getsockname()[1]
         issuer = infra.jwt_issuer.JwtIssuer(
             f"https://{issuer_host}:{issuer_port}", cn=issuer_host
         )
@@ -463,6 +468,18 @@ def test_jwt_key_auto_refresh_connection_failure(network, args):
                 lambda: check_refresh_failures_increased(primary, failures_before),
                 timeout=5,
             )
+
+            LOG.info("Start the OpenID endpoint and check that the refresh is retried")
+            # Only release the port now, so that nothing else can claim it while
+            # the initial refresh failures are observed.
+            reserved_socket.close()
+            with issuer.start_openid_server(issuer_port, kid):
+                with_timeout(
+                    lambda: check_kv_jwt_key_matches(
+                        args, network, kid, issuer.key_pub_pem
+                    ),
+                    timeout=15,
+                )
         finally:
             network.consortium.remove_jwt_issuer(primary, issuer.name)
 

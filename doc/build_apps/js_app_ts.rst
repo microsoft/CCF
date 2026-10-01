@@ -49,12 +49,9 @@ It contains these files:
 
 .. note::
     Rollup requires exactly one entry-point module.
-    The ``src/endpoints/all.ts`` module serves that purpose and re-exports all endpoint handlers
-    from the other files in the same folder.
-    Keeping endpoint handlers in separate modules and referencing those directly in ``app.json``
-    allows for fine-grained control over which other modules are loaded, per endpoint.
-    This in turn may improve load time and/or memory consumption, for example if not all endpoints
-    share the same npm package dependencies.
+    The ``src/endpoints/all.ts`` module serves that purpose and re-exports all endpoint handlers from the other files in the same folder.
+    Keeping endpoint handlers in separate modules and referencing those directly in ``app.json`` allows for fine-grained control over which other modules are loaded, per endpoint.
+    This in turn may improve load time and/or memory consumption, for example if not all endpoints share the same npm package dependencies.
 
 Dependencies
 ------------
@@ -114,12 +111,10 @@ As an example, the ``/partition`` endpoint of the sample app is implemented as:
 .. literalinclude:: ../../tests/npm-app/src/endpoints/partition.ts
    :language: ts
 
-Here, the request body is a JSON array with elements of arbitrary type,
-and the response body is an even/odd partitioning of those elements as nested JSON array.
+Here, the request body is a JSON array with elements of arbitrary type, and the response body is an even/odd partitioning of those elements as nested JSON array.
 
 .. warning::
-    Even though request body schemas can be defined as part of the OpenAPI :ref:`metadata <build_apps/js_app_ts:Metadata>`,
-    CCF does not validate incoming request data against those schemas.
+    Even though request body schemas can be defined as part of the OpenAPI :ref:`metadata <build_apps/js_app_ts:Metadata>`, CCF does not validate incoming request data against those schemas.
     It is up to the application to perform any necessary validation.
 
 .. tip::
@@ -188,8 +183,7 @@ If that is the case, try one of the following suggestions:
 4. Manually wrap a browser bundle of the package without using npm.
    This may be needed if the browser bundle is not part of the npm package, although this is uncommon.
 
-Manually wrapping a browser bundle (step 4) means copying the bundle source code in a module
-file and surrounding it with module boiler-plate. This may look something like:
+Manually wrapping a browser bundle (step 4) means copying the bundle source code in a module file and surrounding it with module boiler-plate. This may look something like:
 
 .. code-block:: js
 
@@ -199,8 +193,7 @@ file and surrounding it with module boiler-plate. This may look something like:
 
     export default module.exports;
 
-If the bundle uses only global exports instead of CommonJS/Node.js exports,
-then the module should look something like:
+If the bundle uses only global exports instead of CommonJS/Node.js exports, then the module should look something like:
 
 .. code-block:: js
 

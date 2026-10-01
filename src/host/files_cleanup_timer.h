@@ -4,9 +4,9 @@
 
 #include "ccf/crypto/hash_provider.h"
 #include "ccf/crypto/sha256_hash.h"
-#include "ledger_filenames.h"
+#include "ds/time_bound_logger.h"
+#include "ledger/filenames.h"
 #include "snapshots/filenames.h"
-#include "time_bound_logger.h"
 #include "timer.h"
 
 #include <algorithm>
@@ -53,14 +53,14 @@ namespace asynchost
 
         auto file_name = entry.path().filename().string();
 
-        if (!is_ledger_file_name_committed(file_name))
+        if (!ccf::ledger::is_ledger_file_name_committed(file_name))
         {
           continue;
         }
 
         try
         {
-          auto start_idx = get_start_idx_from_file_name(file_name);
+          auto start_idx = ccf::ledger::get_start_idx_from_file_name(file_name);
           result.emplace_back(start_idx, entry.path());
         }
         catch (const std::exception& e)
@@ -85,7 +85,7 @@ namespace asynchost
     {
       std::ifstream f;
       {
-        TimeBoundLogger log_if_slow(
+        ccf::ds::TimeBoundLogger log_if_slow(
           fmt::format("Hashing file - ifstream open({})", path));
         f.open(path, std::ios::binary);
       }
@@ -97,7 +97,7 @@ namespace asynchost
       auto hasher = ccf::crypto::make_incremental_sha256();
       std::vector<uint8_t> buf(HASH_READ_CHUNK_SIZE);
       {
-        TimeBoundLogger log_if_slow(
+        ccf::ds::TimeBoundLogger log_if_slow(
           fmt::format("Hashing file - read loop({})", path));
         while (f.read(reinterpret_cast<char*>(buf.data()), buf.size()) ||
                f.gcount() > 0)
@@ -234,7 +234,8 @@ namespace asynchost
       std::vector<std::filesystem::path> directories{dir};
       try
       {
-        return snapshots::find_committed_snapshots_in_directories(directories);
+        return ccf::snapshots::find_committed_snapshots_in_directories(
+          directories);
       }
       catch (const std::filesystem::filesystem_error& e)
       {
@@ -270,7 +271,7 @@ namespace asynchost
         committed_snapshots,
       size_t max_retained)
     {
-      TimeBoundLogger log_if_slow(
+      ccf::ds::TimeBoundLogger log_if_slow(
         "Cleaning snapshots", std::chrono::seconds(1));
 
       if (committed_snapshots.size() > max_retained)
@@ -288,7 +289,7 @@ namespace asynchost
             max_retained);
           std::error_code ec;
           {
-            TimeBoundLogger log_remove_if_slow(fmt::format(
+            ccf::ds::TimeBoundLogger log_remove_if_slow(fmt::format(
               "Deleting old snapshot - remove({})", path.filename()));
             std::filesystem::remove(path, ec);
           }
@@ -309,7 +310,7 @@ namespace asynchost
       size_t max_retained,
       std::optional<size_t> snapshot_watermark = std::nullopt)
     {
-      TimeBoundLogger log_if_slow(
+      ccf::ds::TimeBoundLogger log_if_slow(
         fmt::format(
           "Cleaning ledger chunks from {}, watermark={}",
           main_dir,
@@ -364,7 +365,8 @@ namespace asynchost
         // onwards for disaster recovery.
         if (snapshot_watermark.has_value())
         {
-          auto end_idx = get_last_idx_from_file_name(path.filename().string());
+          auto end_idx =
+            ccf::ledger::get_last_idx_from_file_name(path.filename().string());
           if (
             end_idx.has_value() &&
             end_idx.value() >= snapshot_watermark.value())
@@ -401,7 +403,7 @@ namespace asynchost
           max_retained);
         std::error_code ec;
         {
-          TimeBoundLogger log_remove_if_slow(fmt::format(
+          ccf::ds::TimeBoundLogger log_remove_if_slow(fmt::format(
             "Deleting old ledger chunk - remove({})", path.filename()));
           std::filesystem::remove(path, ec);
         }

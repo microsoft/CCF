@@ -8,7 +8,8 @@ import infra.network
 import suite.test_requirements as reqs
 from loguru import logger as LOG
 
-# Hybrid groups offered by src/tls/context.h, in the order they are offered
+# Hybrid groups offered by src/host/tls/openssl_server.h, in the order they are
+# offered
 HYBRID_GROUPS = ["SecP384r1MLKEM1024", "SecP256r1MLKEM768", "X25519MLKEM768"]
 
 # Weakest classical fallback, and the name OpenSSL reports for it
@@ -106,11 +107,31 @@ def test_tls_groups(network, args):
 
 
 def run(args):
+    args.log_level = "info"
+    args.log_format_json = False
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
+        primary, _ = network.find_primary()
         test_tls_groups(network, args)
+
+    # Read complete logs after shutdown; unrelated sessions may also be logged.
+    out_path, _ = primary.get_logs()
+    with open(out_path, encoding="utf-8") as logs:
+        logged_groups = set(
+            re.findall(
+                r"\[info\s*\].*\| TLS handshake completed: "
+                r"connection_id=\d+, negotiated_group=(\S+)$",
+                logs.read(),
+                re.MULTILINE,
+            )
+        )
+    # SSL_get0_group_name reports P-256 as secp256r1, unlike s_client's prime256v1.
+    expected_groups = {*HYBRID_GROUPS, "secp256r1"}
+    assert (
+        expected_groups <= logged_groups
+    ), f"Missing INFO groups: {expected_groups - logged_groups}"
 
 
 if __name__ == "__main__":

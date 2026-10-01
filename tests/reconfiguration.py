@@ -224,13 +224,16 @@ def test_add_node_with_corrupted_ledger(network, args):
         fetch_recent_snapshot=False,
     )
 
-    # Find an uncommitted ledger file in the node's main ledger directory
+    # Find an uncommitted ledger file in the node's main ledger directory,
+    # skipping any chunk which the target node had already marked as ignored
     ledger_dir = new_node.remote.get_main_ledger_dir()
     ledger_files = sorted(
         [
             f
             for f in os.listdir(ledger_dir)
-            if f.startswith("ledger_") and not f.endswith(".committed")
+            if f.startswith("ledger_")
+            and not f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
+            and not f.endswith(ccf.ledger.IGNORED_FILE_SUFFIX)
         ],
         key=lambda f: ccf.ledger.range_from_filename(f)[0],
     )

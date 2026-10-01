@@ -5,8 +5,8 @@
 #include "ccf/ds/json.h"
 #include "ccf/service/consensus_type.h"
 #include "ccf/service/tables/code_id.h"
-#include "enclave/interface.h"
 #include "node/rpc/call_types.h"
+#include "node/rpc/ringbuffer_messages.h"
 
 namespace ccf
 {
@@ -84,13 +84,6 @@ namespace ccf
     snp_security_policy,
     snp_uvm_endorsements,
     sealing_recovery_data);
-
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::Out);
-  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id);
-  DECLARE_JSON_OPTIONAL_FIELDS(GetCommit::Out, view_history);
-
-  DECLARE_JSON_TYPE(GetTxStatus::Out);
-  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, transaction_id, status);
 
   DECLARE_JSON_TYPE(GetNetworkInfo::Out);
   DECLARE_JSON_REQUIRED_FIELDS(

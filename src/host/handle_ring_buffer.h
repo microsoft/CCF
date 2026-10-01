@@ -2,19 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../ds/files.h"
-#include "../enclave/interface.h"
-#include "ds/internal_logger.h"
 #include "ds/non_blocking.h"
 #include "timer.h"
-
-#include <chrono>
-#include <ctime>
-#include <iomanip>
-#include <nlohmann/json.hpp>
-#include <string>
-#include <sys/types.h>
-#include <unistd.h>
 
 namespace asynchost
 {
@@ -37,31 +26,7 @@ namespace asynchost
       bp(bp),
       r(r),
       nbwf(nbwf)
-    {
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        bp,
-        AdminMessage::fatal_error_msg,
-        [](const uint8_t* data, size_t size) {
-          auto [msg] =
-            ringbuffer::read_message<AdminMessage::fatal_error_msg>(data, size);
-
-          std::cerr << msg << std::endl << std::flush;
-          throw std::logic_error(msg);
-        });
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        bp, AdminMessage::stopped, [](const uint8_t*, size_t) {
-          uv_stop(uv_default_loop());
-          LOG_INFO_FMT("Host stopped successfully");
-        });
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        bp, AdminMessage::restart, [&](const uint8_t*, size_t) {
-          LOG_INFO_FMT("Received request to restart enclave, sending stops");
-          auto to_enclave = nbwf.create_writer_to_inside();
-          RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop, to_enclave);
-        });
-    }
+    {}
 
     void on_timer()
     {

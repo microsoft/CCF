@@ -13,6 +13,7 @@ These instructions apply when writing or reviewing changelog entries and SDK rel
 Before adding an entry, identify the target branch's release line and whether it is a stable maintenance line or a prerelease/development line. Use the branch context and published `ccf-<version>` releases/tags; do not select the repository-wide newest release across unrelated release lines, infer publication from `CHANGELOG.md` alone, or rely on an incomplete local tag list. Confirm ambiguous publication status against GitHub releases.
 
 - Use concrete Semantic Versioning release sections, not `Unreleased`.
+- Within each release, use each Keep a Changelog category heading (such as `Changed` or `Fixed`) at most once. Before adding a category heading, check the entire release section and add the entry under the existing heading instead; when reviewing, flag duplicate category headings.
 - If the first section is an unpublished next release for the target line, use it.
 - On a stable maintenance line, if the first section is already published, create the next patch section above it using the latest published stable release on that line. Add the matching `https://github.com/microsoft/CCF/releases/tag/ccf-<version>` link definition.
 - For prerelease/development lines, follow an explicit release target rather than inventing a patch, minor, major, or prerelease increment. If the target line, next version, or publication status cannot be established, ask for clarification before editing release metadata.

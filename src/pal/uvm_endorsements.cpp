@@ -1,0 +1,383 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
+#include "pal/uvm_endorsements.h"
+
+#include "ccf/ds/json.h"
+#include "crypto/cbor_helpers.h"
+#include "crypto/cbor_tags.h"
+#include "crypto/cose_utils.h"
+#include "ds/internal_logger.h"
+
+#include <tav/cbor.hpp>
+
+namespace ccf
+{
+  size_t parse_svn(const std::string& svn_str)
+  {
+    size_t svn = 0;
+    auto result =
+      std::from_chars(svn_str.data(), svn_str.data() + svn_str.size(), svn);
+    if (result.ec != std::errc())
+    {
+      throw std::runtime_error(
+        fmt::format("Unable to parse svn value {} to unsigned", svn_str));
+    }
+    return svn;
+  }
+
+  bool matches_uvm_roots_of_trust(
+    const pal::UVMEndorsements& endorsements,
+    const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust)
+  {
+    return std::ranges::any_of(
+      uvm_roots_of_trust, [&](const auto& uvm_root_of_trust) {
+        auto root_of_trust_svn = parse_svn(uvm_root_of_trust.svn);
+        auto endorsement_svn = parse_svn(endorsements.svn);
+
+        return uvm_root_of_trust.did == endorsements.did &&
+          uvm_root_of_trust.feed == endorsements.feed &&
+          root_of_trust_svn <= endorsement_svn;
+      });
+  }
+
+  namespace cose
+  {
+    namespace
+    {
+      UvmEndorsementsProtectedHeader decode_protected_header(
+        std::span<const uint8_t> raw_endorsements)
+      {
+        auto parsed = tav::cbor::rethrow_with_msg(
+          [&]() { return tav::cbor::nondet_parse(raw_endorsements); },
+          "UVM endorsements COSE envelope");
+        const auto& cose_array = tav::cbor::rethrow_with_msg(
+          [&]() { return parsed.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
+          "COSE_Sign1 tag");
+        constexpr std::string_view phdr_context{"COSE_Sign1[0]"};
+        const auto& phdr_bytes = tav::cbor::rethrow_with_msg(
+          [&]() { return cose_array.array_at(0); }, phdr_context);
+        auto phdr_bytes_span = tav::cbor::rethrow_with_msg(
+          [&]() { return phdr_bytes.as_bytes(); }, phdr_context);
+        auto parsed_phdr = tav::cbor::rethrow_with_msg(
+          [&]() { return tav::cbor::nondet_parse(phdr_bytes_span); },
+          "Parse protected header in UVM endorsements");
+
+        UvmEndorsementsProtectedHeader result;
+
+        result.alg = tav::cbor::rethrow_with_msg(
+          [&]() {
+            return parsed_phdr.map_at(tav::cbor::make_signed(header::iana::ALG))
+              .as_signed();
+          },
+          fmt::format(
+            "Parse alg ({}) in protected header in UVM endorsements",
+            header::iana::ALG));
+
+        result.content_type = tav::cbor::rethrow_with_msg(
+          [&]() {
+            return std::string(
+              parsed_phdr
+                .map_at(tav::cbor::make_signed(header::iana::CONTENT_TYPE))
+                .as_string());
+          },
+          fmt::format(
+            "Parse content-type ({}) in protected header in UVM endorsements",
+            header::iana::CONTENT_TYPE));
+
+        result.x5_chain = tav::cbor::rethrow_with_msg(
+          [&]() {
+            return utils::parse_x5chain(parsed_phdr.map_at(
+              tav::cbor::make_signed(header::iana::X5CHAIN)));
+          },
+          fmt::format(
+            "Parse x5chain ({}) in protected header in UVM endorsements",
+            header::iana::X5CHAIN));
+
+        result.iss = tav::cbor::rethrow_with_msg(
+          [&]() {
+            return parsed_phdr.map_at(tav::cbor::make_string("iss"))
+              .as_string();
+          },
+          "Parse iss in protected header in UVM endorsements");
+
+        result.feed = tav::cbor::rethrow_with_msg(
+          [&]() {
+            return std::string(
+              parsed_phdr.map_at(tav::cbor::make_string("feed")).as_string());
+          },
+          "Parse feed in protected header in UVM endorsements");
+
+        return result;
+      }
+
+      std::pair<UvmEndorsementsProtectedHeader, std::string>
+      decode_protected_header_with_cwt(
+        std::span<const uint8_t> raw_endorsements)
+      {
+        auto parsed = tav::cbor::rethrow_with_msg(
+          [&]() { return tav::cbor::nondet_parse(raw_endorsements); },
+          "COSE envelope");
+        const auto& cose_array = tav::cbor::rethrow_with_msg(
+          [&]() { return parsed.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
+          "COSE_Sign1 tag");
+
+        constexpr std::string_view phdr_context{"COSE_Sign1[0]"};
+        const auto& phdr_bytes = tav::cbor::rethrow_with_msg(
+          [&]() { return cose_array.array_at(0); }, phdr_context);
+        auto phdr_bytes_span = tav::cbor::rethrow_with_msg(
+          [&]() { return phdr_bytes.as_bytes(); }, phdr_context);
+
+        auto parsed_phdr = tav::cbor::rethrow_with_msg(
+          [&]() { return tav::cbor::nondet_parse(phdr_bytes_span); },
+          "Parse protected header in UVM endorsements");
+
+        UvmEndorsementsProtectedHeader result;
+
+        result.alg = tav::cbor::rethrow_with_msg(
+          [&]() {
+            return parsed_phdr.map_at(tav::cbor::make_signed(header::iana::ALG))
+              .as_signed();
+          },
+          fmt::format(
+            "Parse alg ({}) in protected header in UVM endorsements",
+            header::iana::ALG));
+
+        result.content_type = tav::cbor::rethrow_with_msg(
+          [&]() {
+            return std::string(parsed_phdr
+                                 .map_at(tav::cbor::make_signed(
+                                   header::iana::PREIMAGE_CONTENT_TYPE))
+                                 .as_string());
+          },
+          fmt::format(
+            "Parse content-type ({}) in protected header in UVM endorsements",
+            header::iana::PREIMAGE_CONTENT_TYPE));
+
+        result.x5_chain = tav::cbor::rethrow_with_msg(
+          [&]() {
+            return utils::parse_x5chain(parsed_phdr.map_at(
+              tav::cbor::make_signed(header::iana::X5CHAIN)));
+          },
+          fmt::format(
+            "Parse x5chain ({}) in protected header in UVM endorsements",
+            header::iana::X5CHAIN));
+
+        CwtClaims cwt_claims;
+        decode_cwt_claims(parsed_phdr, cwt_claims);
+        result.iss = cwt_claims.iss;
+        result.feed = cwt_claims.sub;
+
+        if (!cwt_claims.svn.has_value())
+        {
+          throw tav::cbor::DecodeError(
+            tav::cbor::Error::KEY_NOT_FOUND, "No CWT svn in UVM endorsements");
+        }
+
+        validate_cwt_iat_against_x5chain(
+          cwt_claims, result.x5_chain, "UVM endorsements");
+
+        return {result, std::to_string(cwt_claims.svn.value())};
+      }
+
+      std::span<const uint8_t> verify_uvm_endorsements_signature(
+        const ccf::crypto::Pem& leaf_cert_pub_key,
+        const std::vector<uint8_t>& uvm_endorsements_raw)
+      {
+        auto verifier =
+          ccf::crypto::make_cose_verifier_from_key(leaf_cert_pub_key);
+
+        std::span<uint8_t> payload;
+        if (!verifier->verify(uvm_endorsements_raw, payload))
+        {
+          throw cose::COSESignatureValidationError(
+            "Signature verification failed");
+        }
+
+        return payload;
+      }
+    }
+  }
+  pal::UVMEndorsements verify_uvm_endorsements(
+    const std::vector<uint8_t>& uvm_endorsements_raw,
+    const pal::PlatformAttestationMeasurement& uvm_measurement,
+    const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust,
+    bool enforce_uvm_roots_of_trust)
+  {
+    UvmEndorsementsProtectedHeader phdr{};
+    std::string sevsnpvm_guest_svn;
+
+    try
+    {
+      std::tie(phdr, sevsnpvm_guest_svn) =
+        cose::decode_protected_header_with_cwt(uvm_endorsements_raw);
+    }
+    // Since ContainerPlat 0.2.10, UVM endorsements carry SVN in CWT claims,
+    // alongside ISS and SUB(feed), so on decoding failure fallback to legacy.
+    catch (const tav::cbor::DecodeError&)
+    {
+      phdr = cose::decode_protected_header(uvm_endorsements_raw);
+    }
+
+    if (!(cose::is_rsa_alg(phdr.alg) || cose::is_ecdsa_alg(phdr.alg)))
+    {
+      throw std::logic_error(fmt::format(
+        "Signature algorithm {} is not one of expected: RSA, ECDSA", phdr.alg));
+    }
+
+    std::vector<std::string> pem_chain;
+    pem_chain.reserve(phdr.x5_chain.size());
+    for (auto const& c : phdr.x5_chain)
+    {
+      pem_chain.emplace_back(ccf::crypto::cert_der_to_pem(c).str());
+    }
+
+    const auto& did = phdr.iss;
+
+    ccf::crypto::Pem pubk;
+    const auto jwk = ccf::parse_json_safe(
+      didx509::resolve_jwk(pem_chain, did, true /* ignore time */));
+    const auto generic_jwk = jwk.get<ccf::crypto::JsonWebKey>();
+    switch (generic_jwk.kty)
+    {
+      case ccf::crypto::JsonWebKeyType::RSA:
+      {
+        auto rsa_jwk = jwk.get<ccf::crypto::JsonWebKeyRSAPublic>();
+        pubk = ccf::crypto::make_rsa_public_key(rsa_jwk)->public_key_pem();
+        break;
+      }
+      case ccf::crypto::JsonWebKeyType::EC:
+      {
+        auto ec_jwk = jwk.get<ccf::crypto::JsonWebKeyECPublic>();
+        pubk = ccf::crypto::make_ec_public_key(ec_jwk)->public_key_pem();
+        break;
+      }
+      case ccf::crypto::JsonWebKeyType::OKP:
+      {
+        throw std::logic_error(fmt::format(
+          "Unsupported public key type ({}) for DID {}", generic_jwk.kty, did));
+      }
+    }
+
+    auto raw_payload =
+      cose::verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
+
+    std::string sevsnpvm_launch_measurement{};
+    if (sevsnpvm_guest_svn.empty())
+    {
+      if (phdr.content_type != cose::value::CT_JSON)
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected payload content type {}, expected {}",
+          phdr.content_type,
+          cose::value::CT_JSON));
+      }
+
+      auto payload = ccf::parse_json_safe(raw_payload);
+      sevsnpvm_launch_measurement =
+        payload["x-ms-sevsnpvm-launchmeasurement"].get<std::string>();
+      auto sevsnpvm_guest_svn_obj = payload["x-ms-sevsnpvm-guestsvn"];
+      if (sevsnpvm_guest_svn_obj.is_string())
+      {
+        sevsnpvm_guest_svn = sevsnpvm_guest_svn_obj.get<std::string>();
+        size_t uintval = 0;
+        auto result = std::from_chars(
+          sevsnpvm_guest_svn.data(),
+          sevsnpvm_guest_svn.data() + sevsnpvm_guest_svn.size(),
+          uintval);
+        if (result.ec != std::errc())
+        {
+          throw std::logic_error(fmt::format(
+            "Unable to parse sevsnpvm_guest_svn value {} to unsigned in UVM "
+            "endorsements "
+            "payload",
+            sevsnpvm_guest_svn));
+        }
+      }
+      else if (sevsnpvm_guest_svn_obj.is_number_unsigned())
+      {
+        sevsnpvm_guest_svn =
+          std::to_string(sevsnpvm_guest_svn_obj.get<size_t>());
+      }
+      else
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected type {} for sevsnpvm_guest_svn in UVM endorsements "
+          "payload, expected string or unsigned integer",
+          sevsnpvm_guest_svn_obj.type_name()));
+      }
+    }
+    else
+    {
+      if (phdr.content_type != cose::value::CT_OCTET_STREAM)
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected payload content type {}, expected {}",
+          phdr.content_type,
+          cose::value::CT_OCTET_STREAM));
+      }
+
+      sevsnpvm_launch_measurement =
+        ccf::ds::to_hex(raw_payload.begin(), raw_payload.end());
+    }
+
+    if (sevsnpvm_launch_measurement != uvm_measurement.hex_str())
+    {
+      throw std::logic_error(fmt::format(
+        "Launch measurement in UVM endorsements payload {} is not equal "
+        "to UVM attestation measurement {}",
+        sevsnpvm_launch_measurement,
+        uvm_measurement.hex_str()));
+    }
+
+    LOG_INFO_FMT(
+      "Successfully verified endorsements for attested measurement {} against "
+      "{}, feed {}, svn {}",
+      sevsnpvm_launch_measurement,
+      did,
+      phdr.feed,
+      sevsnpvm_guest_svn);
+
+    pal::UVMEndorsements end{did, phdr.feed, sevsnpvm_guest_svn};
+
+    if (
+      enforce_uvm_roots_of_trust &&
+      !matches_uvm_roots_of_trust(end, uvm_roots_of_trust))
+    {
+      throw std::logic_error(fmt::format(
+        "UVM endorsements did {}, feed {}, svn {} "
+        "do not match any of the known UVM roots of trust",
+        end.did,
+        end.feed,
+        end.svn));
+    }
+
+    return end;
+  }
+
+  namespace pal
+  {
+    UVMEndorsements verify_uvm_endorsements_descriptor(
+      const std::vector<uint8_t>& uvm_endorsements_raw,
+      const pal::PlatformAttestationMeasurement& uvm_measurement)
+    {
+      return verify_uvm_endorsements(
+        uvm_endorsements_raw,
+        uvm_measurement,
+        {}, // No roots of trust
+        false); // Do not check against roots of trust
+    }
+  }
+
+  pal::UVMEndorsements verify_uvm_endorsements_against_roots_of_trust(
+    const std::vector<uint8_t>& uvm_endorsements_raw,
+    const pal::PlatformAttestationMeasurement& uvm_measurement,
+    const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust)
+  {
+    return verify_uvm_endorsements(
+      uvm_endorsements_raw,
+      uvm_measurement,
+      uvm_roots_of_trust,
+      true); // Check against roots of trust
+  }
+}

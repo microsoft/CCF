@@ -4,12 +4,14 @@
 #include "ccf/historical_queries_adapter.h"
 
 #include "ccf/crypto/cose.h"
+#include "ccf/endpoint_registry.h"
 #include "ccf/historical_queries_utils.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
 #include "crypto/cose.h"
 #include "kv/kv_types.h"
 #include "node/rpc/network_identity_subsystem.h"
+#include "node/signature_cache_interface.h"
 #include "node/tx_receipt_impl.h"
 
 #include <tav/cbor.hpp>
@@ -269,7 +271,14 @@ namespace ccf
   std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
     const TxReceiptImpl& receipt)
   {
-    return receipt.cose_signature;
+    // This API exposes a single signature, so it returns the CLASSICAL one.
+    const auto signature =
+      receipt.cose_signatures.find(IdentityType::CLASSICAL);
+    if (signature == receipt.cose_signatures.end())
+    {
+      return std::nullopt;
+    }
+    return signature->second;
   }
 
   std::optional<SerialisedCoseReceipt> describe_cose_receipt_v1(
@@ -292,6 +301,83 @@ namespace ccf
       inclusion_proof, ccf::cose::header::iana::VDP, *proof};
 
     return ccf::cose::edit::set_unprotected_header(*signature, desc);
+  }
+}
+
+namespace ccf::endpoints
+{
+  TxReceiptImplPtr build_receipt_for_committed_tx(
+    ccf::AbstractNodeContext& context, CommittedTxInfo& info)
+  {
+    if (info.commit_evidence.empty())
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format(
+          "Cannot construct receipt for TxID {}: transaction produced no "
+          "write set (read-only transactions do not have receipts)",
+          info.tx_id.to_str()));
+      return nullptr;
+    }
+
+    auto sig_cache = context.get_subsystem<ccf::SignatureCacheInterface>();
+    if (sig_cache == nullptr)
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        "SignatureCacheInterface subsystem is not installed");
+      return nullptr;
+    }
+
+    auto cached_sig = sig_cache->get_signature_for(info.tx_id.seqno);
+    if (!cached_sig.has_value())
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format(
+          "No cached signature found covering TxID {}", info.tx_id.to_str()));
+      return nullptr;
+    }
+
+    // Reconstruct merkle tree from the cached serialised tree and
+    // extract a proof for this specific seqno
+    ccf::MerkleTreeHistory tree(cached_sig->serialised_tree);
+    if (!tree.in_range(info.tx_id.seqno))
+    {
+      info.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format(
+          "Seqno {} is not in range of cached signature tree",
+          info.tx_id.seqno));
+      return nullptr;
+    }
+    auto proof = tree.get_proof(info.tx_id.seqno);
+
+    std::optional<std::vector<uint8_t>> sig;
+    std::optional<ccf::crypto::Pem> cert;
+    NodeId node{};
+
+    if (cached_sig->sig)
+    {
+      sig = cached_sig->sig->sig;
+      cert = cached_sig->sig->cert;
+      node = cached_sig->sig->node;
+    }
+
+    return std::make_shared<TxReceiptImpl>(
+      sig,
+      cached_sig->cose_signatures,
+      proof.get_root(),
+      proof.get_path(),
+      node,
+      cert,
+      info.write_set_digest,
+      info.commit_evidence,
+      info.claims_digest);
   }
 }
 

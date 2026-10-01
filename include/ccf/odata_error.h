@@ -83,6 +83,7 @@ namespace ccf
     ERROR(UnsupportedHttpVerb)
     ERROR(UnsupportedContentType)
     ERROR(RequestBodyTooLarge)
+    ERROR(RequestTargetTooLong)
     ERROR(RequestHeaderTooLarge)
     ERROR(PreconditionFailed)
 

@@ -5,8 +5,6 @@
 #include "ccf/endpoint_context.h"
 #include "ccf/node/session.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/rpc_context.h"
-#include "ccf/service/node_info_network.h"
 #include "ccf/tx.h"
 
 #include <functional>
@@ -16,7 +14,6 @@ namespace ccf
 {
   namespace tls
   {
-    class Context;
     using ConnID = int64_t;
   }
 
@@ -24,7 +21,7 @@ namespace ccf
   {
   public:
     using CreateSessionFn = std::function<std::shared_ptr<Session>(
-      ccf::tls::ConnID, const std::unique_ptr<tls::Context>&&)>;
+      ccf::tls::ConnID, ccf::SessionWriter&)>;
 
     ~CustomProtocolSubsystemInterface() override = default;
 
@@ -41,11 +38,10 @@ namespace ccf
     virtual std::shared_ptr<Session> create_session(
       const std::string& protocol_name,
       ccf::tls::ConnID conn_id,
-      const std::unique_ptr<tls::Context>&& ctx) = 0;
+      ccf::SessionWriter& writer) = 0;
 
     struct Essentials
     {
-      ringbuffer::WriterPtr writer;
       std::shared_ptr<ccf::kv::ReadOnlyTx> tx;
       std::shared_ptr<ccf::endpoints::ReadOnlyEndpointContext> ctx;
     };
