@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf::crypto::make_cose_verifier_from_pem_cert()` and `ccf::crypto::make_cose_verifier_any_cert()` now require PEM certificates to start with `-----BEGIN CERTIFICATE-----`; leading text is no longer skipped (#8459).
 - `ccf::make_net_address()` and `ccf::split_net_address()` are now declared in the new public header `ccf/ds/net_address.h`. `ccf/service/node_info_network.h` still includes it, so existing includers are unaffected (#8463).
 - `ccf::COSESignaturesConfig` and `ccf::ReconfigurationType` are unchanged, but are now declared in the new public headers `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively (#8463).
-- On recovery, a minimum SNP TCB version already stored for the recovering node's CPUID in `public:ccf.gov.nodes.snp.tcb_versions` is now kept if the TCB version reported in the node's startup attestation meets it in every component, rather than being overwritten with the reported TCB version. Otherwise, including when no value was stored for that CPUID, the reported TCB version is used as a whole, as before. On start, the behaviour is unchanged (#8468).
+- On recovery, the minimum SNP TCB version stored for the recovering node's CPUID in `public:ccf.gov.nodes.snp.tcb_versions` is now kept if it admits the TCB version reported in the node's startup attestation, as it would for a joining node, rather than being overwritten with that TCB version. Otherwise, including when no minimum is stored for that CPUID, or when the stored minimum is higher than the reported TCB version in only some components, the reported TCB version is stored as the minimum, as before. On start, the behaviour is unchanged (#8468).
 
 ### Deprecated
 

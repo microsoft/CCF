@@ -858,8 +858,8 @@ namespace ccf
     // On start, the reported TCB version is set as the minimum for the CPUID.
     // On recovery, an existing minimum is kept if it admits the reported TCB
     // version, and is otherwise replaced by it, so that the recovering node is
-    // admitted. The minimum is always a whole TCB version, the existing one or
-    // the reported one, never a component-wise combination of the two.
+    // admitted. Either way, the minimum is one of the two values, unmodified,
+    // never a combination of them.
     static void trust_node_snp_tcb_version(
       ccf::kv::Tx& tx,
       const std::string& cpuid,
