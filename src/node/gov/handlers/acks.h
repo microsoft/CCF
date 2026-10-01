@@ -26,12 +26,9 @@ namespace ccf::gov::endpoints
 
   namespace detail
   {
-    // Handler bodies are moved out of init_ack_handlers() into named
-    // functions here, so that their cognitive complexity is no longer
-    // attributed to the registration function. Each takes the endpoint
-    // context by template parameter (the same genericity as the former
-    // lambda's `auto& ctx`), plus any previously-captured dependencies as
-    // explicit parameters, and is registered via a thin forwarding lambda.
+    // Endpoint handlers registered by init_ack_handlers(), via forwarding
+    // lambdas. Kept out of the registration function so each handler's
+    // complexity is measured on its own.
     template <typename Ctx>
     inline void get_state_digest(Ctx& ctx, ApiVersion api_version)
     {
