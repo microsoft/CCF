@@ -56,8 +56,7 @@ version it read at otherwise. They hold the phase and timeout phase that
 `restart` it read, wrote or requested. An IAmOpen's `pre` and `chosen` are its
 own Joining writes, before the subsequent `advance()` reads them. Gossip and
 vote records include the execution's own insert in `gossips` or `votes`.
-`caused_by` names the send of a received message as `NODE:SEQUENCE`, and
-receives name their sender in `source`. The sends of one retry share a `batch`
+Receives name their sender in `source`. The sends of one retry share a `batch`
 and the version of the `sm_state` value the retry read, in `pre_version`.
 Gossip records and sends carry the gossiped `txid`, as `"view.seqno"`.
 
@@ -71,7 +70,7 @@ which fail. The replay checks everything else.
 | -------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `config`       | Every node's `start` record carries the same `expected_locations`                                                    |
 | `start`        | Each node starts once, and every execution is at or after its start version                                          |
-| `causes`       | Each receive names a send to it, from its `source`, of the same message                                              |
+| `delivery`     | Each receive takes an earlier send of its message from its `source` that no other receive has taken                  |
 | `commit-order` | A node's executions run in version order; an execution that wrote nothing runs after the write at its version        |
 | `retry`        | A retry runs right after the `sm_state` write at the version it read                                                 |
 | `scenario`     | Each participant ends Opening or Open with the expected open kind, or Joining after a restart request, and one opens |
@@ -79,7 +78,9 @@ which fail. The replay checks everything else.
 A replayed execution is its state observation, its action, the notifications
 it emitted and the state it recorded writing. A retry is its action and the
 messages it sent. Items of different nodes are interleaved so that each
-message is received after it is sent.
+message is received after it is sent. As in the model's network, any queued
+copy of a message can be the one received, so receives are matched to sends
+by content.
 
 The e2e tests check the open kind, which the move to Opening decides, and do
 not wait for the timeout from Opening to Open, so the scenario accepts
@@ -108,9 +109,8 @@ behaviour that no record shows, or liveness.
 for the validator. It replays the committed fixtures in
 `lean/disaster-recovery/replay/fixtures/`, checks targeted negative and benign
 mutations with explicit expectations, and then sweeps sampled records with
-single-field perturbations. A sweep mutant may pass only if it changes a
-`version` or `wrote` field in a way that admits no commit order the original
-does not admit, which the harness checks.
+single-field perturbations, every one of which must fail. Commit order is
+covered by targeted mutants rather than by sweeping `version` and `wrote`.
 
 Run it from the repository root after building the replayer:
 
@@ -123,66 +123,18 @@ python3 tests/infra/recovery_trace_mutations.py \
   lean/disaster-recovery/replay/fixtures
 ```
 
-To refresh the fixtures from a traced SNP run's `logs-caci-snp-genoa`
-artifact, download and extract it, then keep only the `RDP_TRACE ` lines from
-the three recovery-decision-protocol scenarios:
+To refresh the fixtures from a traced SNP run, download its
+`logs-caci-snp-genoa` artifact and keep the `RDP_TRACE` part of each line of
+the three scenarios' node logs. The `scenario.json` files do not change.
 
 ```bash
-gh api repos/microsoft/CCF/actions/artifacts/ARTIFACT_ID/zip > artifact.zip
-python3 - <<'PY'
-import json
-import pathlib
-import zipfile
-
-workspace = pathlib.Path("artifact-extracted")
-with zipfile.ZipFile("artifact.zip") as zf:
-    zf.extractall(workspace)
-
-sources = {
-    "quorum": (
-        3,
-        "QUORUM",
-        [
-            "platform_snp_platform_tests_recovery_decision_protocol_3/out",
-            "platform_snp_platform_tests_recovery_decision_protocol_4/out",
-            "platform_snp_platform_tests_recovery_decision_protocol_5/out",
-        ],
-    ),
-    "timeout": (
-        1,
-        "FAILOVER",
-        ["platform_snp_platform_tests_recovery_decision_protocol_timeout_3/out"],
-    ),
-    "multiple-timeout": (
-        3,
-        "FAILOVER",
-        [
-            "platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_3/out",
-            "platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_4/out",
-            "platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_5/out",
-        ],
-    ),
-}
-
-marker = "RDP_TRACE "
-fixtures = pathlib.Path("lean/disaster-recovery/replay/fixtures")
-for name, (participants, open_kind, relpaths) in sources.items():
-    scenario = fixtures / name
-    scenario.mkdir(parents=True, exist_ok=True)
-    (scenario / "scenario.json").write_text(
-        json.dumps({"participants": participants, "open_kind": open_kind}, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    for relpath in relpaths:
-        source = workspace / "build/workspace" / relpath
-        lines = []
-        with source.open(encoding="utf-8", errors="surrogateescape") as f:
-            for line in f:
-                index = line.find(marker)
-                if index >= 0:
-                    lines.append(line[index:])
-        (scenario / f"{source.parent.name}.out").write_text("".join(lines), encoding="utf-8")
-PY
+gh run download RUN_ID --repo microsoft/CCF --name logs-caci-snp-genoa --dir artifact
+W=artifact/build/workspace/platform_snp_platform_tests_recovery_decision_protocol
+F=lean/disaster-recovery/replay/fixtures
+refresh() { for s in "${@:2}"; do grep -o 'RDP_TRACE .*' "$W$s/out" > "$F/$1/$(basename "$W$s").out"; done; }
+refresh quorum _3 _4 _5
+refresh timeout _timeout_3
+refresh multiple-timeout _multiple_timeout_3 _multiple_timeout_4 _multiple_timeout_5
 ```
 
 `Config.isValid` requires an instance identifier, which traces do not carry,
