@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - TAV's CBOR C++ API (`<tav/cbor.hpp>`) is now installed with CCF's headers (#8467).
 - `ccf::crypto::OpenSSL::first_error()`, in the public header `ccf/crypto/openssl/openssl_wrappers.h`, reads the oldest error on the calling thread's OpenSSL error queue, usually the root cause, then removes every entry from the queue and returns the error string (#8474).
+- `ccf::crypto::COSEKey` (`ccf/crypto/cose_key.h`) holds an EC2 (P-256, P-384 or P-521) or RSA public key as a COSE_Key. It parses and validates encoded COSE_Keys, wraps CCF public keys and DER certificates, encodes them, and computes their RFC 9679 thumbprint. `ccf::crypto::make_cose_verifier_from_key()` accepts a `COSEKey`, and rejects algorithms other than the key's `alg` if it has one (#8480).
 
 ### Changed
 

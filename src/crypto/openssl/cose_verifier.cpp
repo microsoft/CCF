@@ -3,6 +3,7 @@
 
 #include "crypto/openssl/cose_verifier.h"
 
+#include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/ec_public_key.h"
@@ -15,7 +16,6 @@
 #include <openssl/sha.h>
 #include <stdexcept>
 #include <tav/cbor.hpp>
-#include <type_traits>
 
 namespace
 {
@@ -44,9 +44,12 @@ namespace
 
   struct AlgorithmParameters
   {
-    MDType digest;
-    CurveID curve;
-    size_t salt_length;
+    COSEKeyType kty{};
+    MDType digest = MDType::NONE;
+    // EC2 only
+    CurveID curve = CurveID::NONE;
+    // RSA only
+    size_t salt_length = 0;
   };
 
   AlgorithmParameters algorithm_parameters(int64_t alg)
@@ -55,19 +58,37 @@ namespace
     {
       case ccf::cose::alg::ES256:
       case ccf::cose::alg::ESP256:
-        return {MDType::SHA256, CurveID::SECP256R1, 0};
+        return {
+          .kty = COSEKeyType::EC2,
+          .digest = MDType::SHA256,
+          .curve = CurveID::SECP256R1};
       case ccf::cose::alg::ES384:
       case ccf::cose::alg::ESP384:
-        return {MDType::SHA384, CurveID::SECP384R1, 0};
+        return {
+          .kty = COSEKeyType::EC2,
+          .digest = MDType::SHA384,
+          .curve = CurveID::SECP384R1};
       case ccf::cose::alg::ES512:
       case ccf::cose::alg::ESP512:
-        return {MDType::SHA512, CurveID::SECP521R1, 0};
+        return {
+          .kty = COSEKeyType::EC2,
+          .digest = MDType::SHA512,
+          .curve = CurveID::SECP521R1};
       case ccf::cose::alg::PS256:
-        return {MDType::SHA256, CurveID::NONE, SHA256_DIGEST_LENGTH};
+        return {
+          .kty = COSEKeyType::RSA,
+          .digest = MDType::SHA256,
+          .salt_length = SHA256_DIGEST_LENGTH};
       case ccf::cose::alg::PS384:
-        return {MDType::SHA384, CurveID::NONE, SHA384_DIGEST_LENGTH};
+        return {
+          .kty = COSEKeyType::RSA,
+          .digest = MDType::SHA384,
+          .salt_length = SHA384_DIGEST_LENGTH};
       case ccf::cose::alg::PS512:
-        return {MDType::SHA512, CurveID::NONE, SHA512_DIGEST_LENGTH};
+        return {
+          .kty = COSEKeyType::RSA,
+          .digest = MDType::SHA512,
+          .salt_length = SHA512_DIGEST_LENGTH};
       default:
         throw std::runtime_error(
           fmt::format("Unsupported COSE signature algorithm {}", alg));
@@ -127,25 +148,20 @@ namespace
     return phdr.map_at(alg_key).as_signed();
   }
 
-  CoseKey cose_key_from_pkey(OpenSSL::Unique_PKEY key)
+  COSEKey cose_key_from_pkey(OpenSSL::Unique_PKEY key)
   {
     switch (EVP_PKEY_get_base_id(key))
     {
       case EVP_PKEY_EC:
-      {
-        auto ec_key = std::make_shared<ECPublicKey_OpenSSL>(std::move(key));
-        // Throws for curves that COSE verification does not support.
-        (void)ec_key->get_curve_id();
-        return ec_key;
-      }
+        return COSEKey(std::make_shared<ECPublicKey_OpenSSL>(std::move(key)));
       case EVP_PKEY_RSA:
-        return std::make_shared<RSAPublicKey_OpenSSL>(std::move(key));
+        return COSEKey(std::make_shared<RSAPublicKey_OpenSSL>(std::move(key)));
       default:
         throw std::runtime_error("Unsupported COSE public key type");
     }
   }
 
-  CoseKey cose_key_from_bytes(std::span<const uint8_t> encoded, bool pem)
+  COSEKey cose_key_from_bytes(std::span<const uint8_t> encoded, bool pem)
   {
     if (encoded.empty() || encoded.size() > INT_MAX)
     {
@@ -173,7 +189,7 @@ namespace
 
   // Certificate import errors are std::invalid_argument, as in
   // Verifier_OpenSSL.
-  CoseKey cose_key_from_certificate(
+  COSEKey cose_key_from_certificate(
     std::span<const uint8_t> encoded, CertificateFormat format)
   {
     if (encoded.empty() || encoded.size() > INT_MAX)
@@ -212,6 +228,22 @@ namespace
 
 namespace ccf::crypto
 {
+  COSEKey cose_key_from_der_cert(std::span<const uint8_t> der)
+  {
+    return cose_key_from_certificate(der, CertificateFormat::DER);
+  }
+
+  bool cose_algorithm_matches_key(int64_t alg, const COSEKey& key)
+  {
+    const auto parameters = algorithm_parameters(alg);
+    if (parameters.kty != key.kty())
+    {
+      return false;
+    }
+    const auto ec_key = key.ec_public_key();
+    return ec_key == nullptr || parameters.curve == ec_key->get_curve_id();
+  }
+
   std::unique_ptr<COSECertVerifier_OpenSSL> COSECertVerifier_OpenSSL::from_any(
     const std::vector<uint8_t>& certificate)
   {
@@ -243,6 +275,10 @@ namespace ccf::crypto
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(
     std::span<const uint8_t> public_key_der_) :
     COSEVerifier_OpenSSL(cose_key_from_bytes(public_key_der_, false))
+  {}
+
+  COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const COSEKey& key) :
+    COSEVerifier_OpenSSL(key)
   {}
 
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
@@ -299,52 +335,48 @@ namespace ccf::crypto
   {
     try
     {
+      const auto required_alg = verify_key.alg();
+      if (required_alg.has_value() && alg != required_alg.value())
+      {
+        throw std::runtime_error(fmt::format(
+          "COSE algorithm {} is not the key's algorithm {}",
+          alg,
+          required_alg.value()));
+      }
+      if (!cose_algorithm_matches_key(alg, verify_key))
+      {
+        throw std::runtime_error(
+          fmt::format("COSE algorithm {} does not match the key", alg));
+      }
       const auto parameters = algorithm_parameters(alg);
       const auto tbs = cose::make_cose_sign1_tbs(phdr, payload);
-      const bool verified = std::visit(
-        [&](const auto& key) {
-          if constexpr (std::is_same_v<
-                          std::remove_cvref_t<decltype(key)>,
-                          RSAPublicKeyPtr>)
-          {
-            if (parameters.curve != CurveID::NONE)
-            {
-              throw std::runtime_error("COSE algorithm does not match RSA key");
-            }
-            return key->verify(
-              tbs.data(),
-              tbs.size(),
-              sig.data(),
-              sig.size(),
-              parameters.digest,
-              RSAPadding::PKCS_PSS,
-              parameters.salt_length);
-          }
-          else
-          {
-            if (parameters.curve != key->get_curve_id())
-            {
-              throw std::runtime_error("COSE algorithm does not match EC key");
-            }
-            const auto signature_size =
-              expected_signature_size(parameters.curve);
-            if (sig.size() != signature_size)
-            {
-              throw std::runtime_error(fmt::format(
-                "Expected {} byte COSE ECDSA signature, got {}",
-                signature_size,
-                sig.size()));
-            }
-            const auto der = ecdsa_sig_p1363_to_der(sig);
-            return key->verify(
-              tbs.data(),
-              tbs.size(),
-              der.data(),
-              der.size(),
-              parameters.digest);
-          }
-        },
-        verify_key);
+      bool verified = false;
+      if (const auto rsa_key = verify_key.rsa_public_key())
+      {
+        verified = rsa_key->verify(
+          tbs.data(),
+          tbs.size(),
+          sig.data(),
+          sig.size(),
+          parameters.digest,
+          RSAPadding::PKCS_PSS,
+          parameters.salt_length);
+      }
+      else
+      {
+        const auto ec_key = verify_key.ec_public_key();
+        const auto signature_size = expected_signature_size(parameters.curve);
+        if (sig.size() != signature_size)
+        {
+          throw std::runtime_error(fmt::format(
+            "Expected {} byte COSE ECDSA signature, got {}",
+            signature_size,
+            sig.size()));
+        }
+        const auto der = ecdsa_sig_p1363_to_der(sig);
+        verified = ec_key->verify(
+          tbs.data(), tbs.size(), der.data(), der.size(), parameters.digest);
+      }
       if (!verified)
       {
         LOG_DEBUG_FMT("COSE Sign1 verification failed: signature mismatch");
@@ -384,6 +416,11 @@ namespace ccf::crypto
     std::span<const uint8_t> public_key)
   {
     return std::make_unique<COSEKeyVerifier_OpenSSL>(public_key);
+  }
+
+  COSEVerifierUniquePtr make_cose_verifier_from_key(const COSEKey& key)
+  {
+    return std::make_unique<COSEKeyVerifier_OpenSSL>(key);
   }
 
   COSEEndorsementValidity extract_cose_endorsement_validity(
