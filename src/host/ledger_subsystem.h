@@ -6,10 +6,35 @@
 #include "node/rpc/ledger_interface.h"
 
 #include <filesystem>
+#include <memory>
 #include <optional>
 
 namespace asynchost
 {
+  class CommittedLedgerPrefixReader
+    : public ccf::AbstractCommittedLedgerPrefixReader
+  {
+  private:
+    LedgerFile::CompletedChunkReader reader;
+
+  public:
+    explicit CommittedLedgerPrefixReader(
+      LedgerFile::CompletedChunkReader&& reader_) :
+      reader(std::move(reader_))
+    {}
+
+    [[nodiscard]] size_t size() const override
+    {
+      return reader.size();
+    }
+
+    [[nodiscard]] std::optional<std::vector<uint8_t>> read(
+      size_t start, size_t end) const override
+    {
+      return reader.read(start, end);
+    }
+  };
+
   // Host-owned adapter exposing the concrete ledger to the node through the
   // read-only subsystem interface. The host constructs it beside the ledger
   // and hands it to the enclave entry point, so the node never depends on the
@@ -41,10 +66,17 @@ namespace asynchost
         .start_idx = range->first, .end_idx = range->second};
     }
 
-    [[nodiscard]] std::optional<std::vector<uint8_t>>
-    read_committed_ledger_prefix(size_t from, size_t to) override
+    [[nodiscard]] std::unique_ptr<ccf::AbstractCommittedLedgerPrefixReader>
+    open_committed_ledger_prefix(size_t from, size_t to) override
     {
-      return ledger.read_committed_ledger_prefix(from, to);
+      auto reader = ledger.open_committed_ledger_prefix(from, to);
+      if (!reader.has_value())
+      {
+        return nullptr;
+      }
+
+      return std::make_unique<CommittedLedgerPrefixReader>(
+        std::move(reader.value()));
     }
 
     [[nodiscard]] size_t get_init_idx() override

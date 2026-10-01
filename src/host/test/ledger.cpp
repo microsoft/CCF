@@ -21,6 +21,7 @@
 #include <random>
 #include <string>
 #include <sys/file.h>
+#include <tuple>
 #include <unistd.h>
 
 using namespace asynchost;
@@ -1123,6 +1124,139 @@ TEST_CASE("Committed ledger prefixes only depend on flushed bytes")
   const auto prefix_after_truncate = ledger.read_committed_ledger_prefix(1, 5);
   REQUIRE(prefix_after_truncate.has_value());
   REQUIRE(prefix_after_truncate.value() == prefix.value());
+}
+
+TEST_CASE("Committed ledger prefix readers serve arbitrary byte ranges")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  Ledger ledger(ledger_dir, wf);
+  TestEntrySubmitter entry_submitter(ledger, 1024);
+
+  for (size_t i = 0; i < 5; ++i)
+  {
+    entry_submitter.write(true);
+  }
+  ledger.commit(5);
+
+  REQUIRE_FALSE(ledger.open_committed_ledger_prefix(0, 5).has_value());
+  REQUIRE_FALSE(ledger.open_committed_ledger_prefix(1, 6).has_value());
+  REQUIRE_FALSE(ledger.open_committed_ledger_prefix(5, 4).has_value());
+
+  const std::vector<std::pair<size_t, size_t>> prefixes = {
+    {1, 5}, {2, 5}, {3, 3}};
+  for (const auto& [from, to] : prefixes)
+  {
+    INFO(fmt::format("Committed prefix {} to {}", from, to));
+    const auto reader = ledger.open_committed_ledger_prefix(from, to);
+    REQUIRE(reader.has_value());
+
+    const auto full = reader->read(0, reader->size());
+    REQUIRE(full.has_value());
+    verify_completed_chunk(full.value(), from, to);
+    REQUIRE(full == ledger.read_committed_ledger_prefix(from, to));
+
+    // Every range starting and ending on either side of the boundaries between
+    // the header, the entries, and the positions table
+    const uint8_t* data = full->data();
+    auto size = full->size();
+    const auto entries_start = sizeof(size_t);
+    const auto positions_start = serialized::read<size_t>(data, size);
+    const std::vector<size_t> offsets = {
+      0,
+      1,
+      entries_start - 1,
+      entries_start,
+      entries_start + 1,
+      positions_start - 1,
+      positions_start,
+      positions_start + 1,
+      full->size() - 1,
+      full->size()};
+    for (const auto start : offsets)
+    {
+      for (const auto end : offsets)
+      {
+        if (start <= end)
+        {
+          REQUIRE(
+            reader->read(start, end) ==
+            std::vector<uint8_t>(full->begin() + start, full->begin() + end));
+        }
+      }
+    }
+
+    REQUIRE_FALSE(reader->read(1, 0).has_value());
+    REQUIRE_FALSE(reader->read(0, reader->size() + 1).has_value());
+  }
+}
+
+TEST_CASE(
+  "Committed ledger prefix readers only read entries in requested ranges")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  fs::create_directory(ledger_dir);
+
+  LedgerFile file(ledger_dir, 1);
+  for (size_t idx = 1; idx <= 5; ++idx)
+  {
+    const auto entry = make_ledger_entry(idx);
+    file.write_entry(entry.data(), entry.size(), true);
+  }
+
+  const auto reader = file.make_completed_chunk_reader(2, 5);
+  REQUIRE(reader.has_value());
+  const auto full = reader->read(0, reader->size());
+  REQUIRE(full.has_value());
+  const uint8_t* data = full->data();
+  auto size = full->size();
+  const auto entries_start = sizeof(size_t);
+  const auto positions_start = serialized::read<size_t>(data, size);
+
+  // Without any entry bytes left on disk, ranges which do not include entry
+  // bytes can still be served, while those which do fail to be read
+  fs::resize_file(fs::path(ledger_dir) / "ledger_1", 0);
+  REQUIRE(
+    reader->read(0, entries_start) ==
+    std::vector<uint8_t>(full->begin(), full->begin() + entries_start));
+  REQUIRE(
+    reader->read(positions_start, full->size()) ==
+    std::vector<uint8_t>(full->begin() + positions_start, full->end()));
+  REQUIRE_THROWS_AS(
+    std::ignore = reader->read(entries_start, entries_start + 1),
+    std::logic_error);
+  REQUIRE_THROWS_AS(
+    std::ignore = reader->read(positions_start - 1, positions_start),
+    std::logic_error);
+}
+
+TEST_CASE("Committed ledger prefix readers are unaffected by later writes")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  Ledger ledger(ledger_dir, wf);
+  TestEntrySubmitter entry_submitter(ledger, 1024);
+
+  for (size_t i = 0; i < 5; ++i)
+  {
+    entry_submitter.write(true);
+  }
+  ledger.commit(5);
+
+  const auto expected = ledger.read_committed_ledger_prefix(1, 5);
+  REQUIRE(expected.has_value());
+  const auto reader = ledger.open_committed_ledger_prefix(1, 5);
+  REQUIRE(reader.has_value());
+
+  // Extend and roll back the file the prefix is read from, then complete and
+  // commit it, which renames it
+  entry_submitter.write(false);
+  entry_submitter.truncate(5);
+  entry_submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+  ledger.commit(6);
+  REQUIRE(number_of_committed_files_in_ledger_dir() == 1);
+
+  REQUIRE(reader->read(0, reader->size()) == expected);
 }
 
 TEST_CASE("Committed ledger prefix files are not recovered")

@@ -1565,6 +1565,34 @@ def test_committed_ledger_prefix_access(network, args):
         assert r.headers["cache-control"] == "no-store", r
         assert r.body.data() == first_prefix[: range_end + 1]
 
+        # Ranges spanning the header, the entries, and the positions table
+        positions_start = int.from_bytes(
+            first_prefix[: ccf.ledger.LEDGER_HEADER_SIZE], byteorder="little"
+        )
+        for range_value, expected in (
+            (f"bytes=4-{positions_start}", first_prefix[4 : positions_start + 1]),
+            (f"bytes={positions_start - 2}-", first_prefix[positions_start - 2 :]),
+            ("bytes=-6", first_prefix[-6:]),
+        ):
+            r = c.get(prefix_url, allow_redirects=False, headers={"range": range_value})
+            assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT, r
+            assert r.body.data() == expected, range_value
+
+        r = c.get(
+            prefix_url,
+            allow_redirects=False,
+            headers={"range": "bytes=4-11", "want-repr-digest": "sha-256=1"},
+        )
+        assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT, r
+        assert r.body.data() == first_prefix[4:12]
+        assert r.headers["repr-digest"] == f"sha-256=:{expected_digest}:"
+
+        for invalid_range in (f"bytes={prefix_size}-", "bytes=10-5"):
+            r = c.get(
+                prefix_url, allow_redirects=False, headers={"range": invalid_range}
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+
         with tempfile.TemporaryDirectory() as ledger_dir:
             first_path = os.path.join(ledger_dir, first_prefix_name)
             with open(first_path, "wb") as prefix_file:

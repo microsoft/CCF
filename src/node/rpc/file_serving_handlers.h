@@ -589,29 +589,6 @@ namespace ccf::node
     fill_range_response(ctx, total_size, read_range);
   }
 
-  static void fill_range_response_from_contents(
-    ccf::endpoints::CommandEndpointContext& ctx, std::vector<uint8_t>&& source)
-  {
-    const auto total_size = source.size();
-    const auto read_range =
-      [&source](
-        size_t start, size_t end) -> std::optional<std::vector<uint8_t>> {
-      if (start > end || end > source.size())
-      {
-        return std::nullopt;
-      }
-
-      if (start == 0 && end == source.size())
-      {
-        return std::move(source);
-      }
-
-      return std::vector<uint8_t>(source.begin() + start, source.begin() + end);
-    };
-
-    fill_range_response(ctx, total_size, read_range);
-  }
-
   // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   static void init_file_serving_handlers(
     ccf::BaseEndpointRegistry& registry, ccf::AbstractNodeContext& node_context)
@@ -1256,9 +1233,9 @@ namespace ccf::node
         return;
       }
 
-      auto contents = read_ledger_subsystem->read_committed_ledger_prefix(
+      const auto reader = read_ledger_subsystem->open_committed_ledger_prefix(
         range->first, range->second);
-      if (!contents.has_value())
+      if (reader == nullptr)
       {
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_NOT_FOUND,
@@ -1272,7 +1249,12 @@ namespace ccf::node
         ccf::http::headers::CCF_LEDGER_CHUNK_NAME, chunk_name);
       ctx.rpc_ctx->set_response_header(
         ccf::http::headers::CCF_LEDGER_CHUNK_KIND, "committed-prefix");
-      fill_range_response_from_contents(ctx, std::move(contents.value()));
+      // The requested range is validated before anything is read, and only
+      // that range is read unless a digest of the whole prefix is requested
+      fill_range_response(
+        ctx, reader->size(), [&reader](size_t start, size_t end) {
+          return reader->read(start, end);
+        });
     };
     registry
       .make_command_endpoint(
