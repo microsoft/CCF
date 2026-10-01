@@ -807,7 +807,9 @@ namespace ccf
     }
 
     static void trust_node_snp_tcb_version(
-      ccf::kv::Tx& tx, const pal::snp::AttestationReport& attestation)
+      ccf::kv::Tx& tx,
+      const pal::snp::AttestationReport& attestation,
+      bool recovering)
     {
       if (attestation == nullptr)
       {
@@ -842,14 +844,50 @@ namespace ccf
           tav_snp_attestation_report_cpuid_mod_id(attestation.get()),
           tav_snp_attestation_report_cpuid_step(attestation.get())));
       }
-      auto* h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
       auto product = pal::snp::get_sev_snp_product(cpuid);
       const uint8_t* data = nullptr;
       size_t size = 0;
       tav_snp_attestation_report_reported_tcb(attestation.get(), &data, &size);
-      h->put(
+      trust_node_snp_tcb_version(
+        tx,
         cpuid.hex_str(),
-        pal::snp::TcbVersionRaw({data, size}).to_policy(product));
+        pal::snp::TcbVersionRaw({data, size}).to_policy(product),
+        recovering);
+    }
+
+    // On start, the reported TCB version is set as the minimum for the CPUID.
+    // On recovery, an existing minimum is kept if it admits the reported TCB
+    // version, and is otherwise replaced by it, so that the recovering node is
+    // admitted. Either way, the minimum is one of the two values, unmodified,
+    // never a combination of them.
+    static void trust_node_snp_tcb_version(
+      ccf::kv::Tx& tx,
+      const std::string& cpuid,
+      pal::snp::TcbVersionPolicy tcb_version,
+      bool recovering)
+    {
+      auto* tcb_versions =
+        tx.rw<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+      auto existing = recovering ? tcb_versions->get(cpuid) : std::nullopt;
+      if (existing.has_value())
+      {
+        if (pal::snp::TcbVersionPolicy::is_valid(existing.value(), tcb_version))
+        {
+          LOG_INFO_FMT(
+            "SNP minimum TCB version for CPUID {} unchanged on recovery: {}",
+            cpuid,
+            nlohmann::json(existing.value()).dump());
+          return;
+        }
+
+        LOG_INFO_FMT(
+          "SNP minimum TCB version for CPUID {} set to {} on recovery, as the "
+          "existing minimum {} does not admit it",
+          cpuid,
+          nlohmann::json(tcb_version).dump(),
+          nlohmann::json(existing.value()).dump());
+      }
+      tcb_versions->put(cpuid, tcb_version);
     }
 
     static void init_configuration(
