@@ -53,9 +53,10 @@ namespace ccf::crypto::OpenSSL
     return "unknown error";
   }
 
-  /// Clears this thread's OpenSSL error queue and returns its first (oldest)
-  /// error string, usually the root cause. Unlike ERR_get_error(), this
-  /// leaves no entries to leak into later, unrelated errors.
+  /// Reads the first (oldest) error on this thread's OpenSSL error queue,
+  /// usually the root cause, then clears the queue and returns the error
+  /// string. Unlike ERR_get_error(), this leaves no entries to leak into
+  /// later, unrelated errors.
   inline std::string first_error()
   {
     const auto ec = ERR_peek_error();
