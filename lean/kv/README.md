@@ -133,6 +133,9 @@ absence, and a missing required `value` field is an invalid trace.
   A request above the current head is an observed no-op: its effective boundary
   must equal the previous global cut. A backward request also leaves the
   effective cut unchanged. Neither request permits a fabricated global advance.
+  C++ `Store::compact` instead lowers its compaction point on a backward
+  request, so the checker rejects a trace containing one; the traced tests and
+  fuzzer only compact forward.
 - Rollback keeps the irrevocable prefix and discards the provisional suffix.
   Pinned handles remain readable. Per-map application identities prevent reuse
   of a rolled-back version from restoring lineage. Map-birth identities also
