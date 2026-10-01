@@ -9,6 +9,7 @@
 // Not used by this header, but kept for the source compatibility of includers
 #include "ccf/kv/map.h"
 #include "ccf/kv/set.h"
+#include "ccf/kv/unit_value.h"
 #include "ccf/kv/value.h"
 
 #include <list>
