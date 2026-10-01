@@ -510,6 +510,33 @@ TEST_CASE("Sign, verify, with ECPublicKey")
   }
 }
 
+TEST_CASE("Public key from a raw EC point")
+{
+  for (const auto curve : supported_curves)
+  {
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
+    auto kp = make_ec_key_pair(curve);
+    const auto nid = ECPublicKey_OpenSSL::get_openssl_group_id(curve);
+    const auto raw = kp->public_key_raw();
+
+    // key_from_raw_ec_point hands over its only reference to the key, so
+    // moving the result into a public key must not leak (checked when this
+    // test runs under LeakSanitizer) and the public key is the sole owner.
+    const auto pubk =
+      std::make_shared<ECPublicKey_OpenSSL>(key_from_raw_ec_point(raw, nid));
+    CHECK(pubk->public_key_der() == kp->public_key_der());
+    CHECK(pubk->get_curve_id() == curve);
+
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    CHECK(pubk->verify(payload, kp->sign(payload)));
+
+    auto off_curve = raw;
+    off_curve.back() ^= 0xff;
+    CHECK_THROWS_AS(
+      std::ignore = key_from_raw_ec_point(off_curve, nid), std::runtime_error);
+  }
+}
+
 TEST_CASE("Sign, fail to verify with bad signature")
 {
   for (const auto curve : supported_curves)
