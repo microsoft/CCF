@@ -158,8 +158,13 @@ namespace ccf::node
       {
         trace_kind = "iamopen_accepted";
       }
-      node_operation->recovery_decision_protocol().record_trace_step(
-        trace_kind, params, in.info.location.name, trace_txid, trace);
+      node_operation->recovery_decision_protocol().prepare_trace_step(
+        *args.rpc_ctx,
+        trace_kind,
+        params,
+        in.info.location.name,
+        trace_txid,
+        trace);
       return make_success();
     };
   }
@@ -168,6 +173,20 @@ namespace ccf::node
     endpoints::EndpointRegistry& registry,
     ccf::AbstractNodeContext& node_context)
   {
+    // Logs each successful execution once its transaction commits, with the
+    // TxID CCF reports for it
+    auto trace_on_commit = [&node_context](
+                             endpoints::CommandEndpointContext& ctx,
+                             const ccf::TxID& txid) {
+      endpoints::default_locally_committed_func(ctx, txid);
+      auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
+      if (node_operation != nullptr)
+      {
+        node_operation->recovery_decision_protocol().trace_committed_step(
+          ctx, txid);
+      }
+    };
+
     auto recovery_decision_protocol_gossip =
       [](auto& args, recovery_decision_protocol::GossipRequest in)
       -> std::optional<ErrorDetails> {
@@ -211,6 +230,7 @@ namespace ccf::node
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
+      .set_locally_committed_function(trace_on_commit)
       .install();
 
     auto recovery_decision_protocol_vote =
@@ -237,6 +257,7 @@ namespace ccf::node
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
+      .set_locally_committed_function(trace_on_commit)
       .install();
 
     auto recovery_decision_protocol_iamopen =
@@ -309,6 +330,7 @@ namespace ccf::node
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
+      .set_locally_committed_function(trace_on_commit)
       .install();
 
     auto recovery_decision_protocol_timeout = [&](
@@ -379,8 +401,8 @@ namespace ccf::node
             "Failed to advance recovery-decision-protocol state: {}",
             e.what()));
       }
-      node_operation->recovery_decision_protocol().record_trace_step(
-        "timeout", params, {}, std::nullopt, trace);
+      node_operation->recovery_decision_protocol().prepare_trace_step(
+        *args.rpc_ctx, "timeout", params, {}, std::nullopt, trace);
       return make_success(
         "Recovery-decision-protocol timeout processed successfully");
     };
@@ -392,6 +414,7 @@ namespace ccf::node
         {std::make_shared<NodeCertAuthnPolicy>()})
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
+      .set_locally_committed_function(trace_on_commit)
       .install();
   }
 }

@@ -10,6 +10,7 @@
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
 #include "http_client/curl.h"
+#include "kv/committable_tx.h"
 #include "node_state.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
@@ -90,12 +91,6 @@ namespace ccf
   {
     const auto& node = get_location().name;
     record["node"] = node;
-    auto& expected_locations = record["expected_locations"];
-    expected_locations = nlohmann::json::array();
-    for (const auto& location : get_config().expected_locations)
-    {
-      expected_locations.push_back(location.name);
-    }
     const auto sequence = next_trace_sequence.fetch_add(1);
     record["sequence"] = sequence;
     LOG_INFO_FMT("{} {}", recovery_trace_marker, record.dump());
@@ -127,7 +122,8 @@ namespace ccf
     });
   }
 
-  void RecoveryDecisionProtocolSubsystem::record_trace_step(
+  void RecoveryDecisionProtocolSubsystem::prepare_trace_step(
+    ccf::RpcContext& rpc_ctx,
     const char* kind,
     const nlohmann::json& params,
     std::string_view source,
@@ -135,22 +131,49 @@ namespace ccf
     const recovery_decision_protocol::AdvanceTrace& trace) noexcept
   {
     trace_safely(kind, [&]() {
-      nlohmann::json record = trace;
-      record["kind"] = kind;
+      rpc_ctx.set_user_data(nullptr);
+      auto record = std::make_shared<nlohmann::json>(trace);
+      (*record)["kind"] = kind;
       if (!source.empty())
       {
-        record["source"] = source;
+        (*record)["source"] = source;
       }
       if (txid.has_value())
       {
-        record["txid"] = txid.value();
+        (*record)["txid"] = txid.value();
       }
       const auto message_id = params.find(trace_message_id_field);
       if (message_id != params.end() && message_id->is_string())
       {
-        record["caused_by"] = message_id.value();
+        (*record)["caused_by"] = message_id.value();
       }
-      emit_trace(std::move(record));
+      rpc_ctx.set_user_data(record);
+    });
+  }
+
+  void RecoveryDecisionProtocolSubsystem::trace_committed_step(
+    ccf::endpoints::CommandEndpointContext& ctx, const ccf::TxID& txid) noexcept
+  {
+    trace_safely("commit", [&]() {
+      auto* record = static_cast<nlohmann::json*>(ctx.rpc_ctx->get_user_data());
+      if (record == nullptr)
+      {
+        throw std::logic_error("No execution was prepared for this commit");
+      }
+      // CCF reports the commit TxID of a transaction that wrote, and the TxID
+      // it read at otherwise
+      auto* endpoint_ctx = dynamic_cast<ccf::endpoints::EndpointContext*>(&ctx);
+      auto* tx = endpoint_ctx == nullptr ?
+        nullptr :
+        dynamic_cast<ccf::kv::CommittableTx*>(&endpoint_ctx->tx);
+      if (tx == nullptr)
+      {
+        throw std::logic_error("Committed request has no transaction");
+      }
+      (*record)["version"] = txid.seqno;
+      (*record)["wrote"] = tx->commit_version() != ccf::kv::NoVersion;
+      emit_trace(std::move(*record));
+      ctx.rpc_ctx->set_user_data(nullptr);
     });
   }
 
@@ -212,19 +235,21 @@ namespace ccf
         [this](
           ccf::kv::Version hook_version,
           const recovery_decision_protocol::SMState::Write& w) {
-          if (w.has_value())
-          {
-            trace_safely("commit", [&]() {
-              emit_trace(
-                {{"kind", "committed"},
-                 {"post", w.value()},
-                 {"version", hook_version}});
-            });
-          }
           if (
             w.has_value() &&
             w.value() == recovery_decision_protocol::StateMachine::GOSSIPING)
           {
+            trace_safely("start", [&]() {
+              nlohmann::json expected_locations = nlohmann::json::array();
+              for (const auto& location : get_config().expected_locations)
+              {
+                expected_locations.push_back(location.name);
+              }
+              emit_trace(
+                {{"kind", "start"},
+                 {"version", hook_version},
+                 {"expected_locations", expected_locations}});
+            });
             start_message_retry_timers();
             start_failover_timers();
           }
@@ -257,15 +282,6 @@ namespace ccf
     trace.pre_timeout = timeout_state;
     trace.post = sm_state;
     trace.post_timeout = timeout_state;
-    // Both keys have been read from the snapshot before any write to them: by
-    // the gets above or, for sm_state, by IAmOpen before it writes Joining. So
-    // unlike on a key that this transaction has only written, reading their
-    // versions adds no read dependency.
-    trace_safely("versions", [&]() {
-      trace.pre_version = sm_state_handle->get_version_of_previous_write();
-      trace.pre_timeout_version =
-        timeout_state_handle->get_version_of_previous_write();
-    });
 
     bool valid_timeout = timeout && sm_state == timeout_state;
 
@@ -641,23 +657,12 @@ namespace ccf
         http_client::UniqueSlist headers;
         headers.append("Content-Type: application/json");
 
-        // When tracing, the request names its timeout_request record, so that
-        // the handler executions it causes can be linked to it. Otherwise it
-        // has no body.
-        std::unique_ptr<http_client::RequestBody> body = nullptr;
-        trace_safely("timeout_request", [&]() {
-          nlohmann::json request = nlohmann::json::object();
-          request[trace_message_id_field] =
-            emit_trace({{"kind", "timeout_request"}});
-          body = std::make_unique<http_client::RequestBody>(request);
-        });
-
         auto curl_request = std::make_unique<http_client::CurlRequest>(
           std::move(curl_handle),
           HTTP_PUT,
           std::move(url),
           std::move(headers),
-          std::move(body),
+          nullptr,
           nullptr,
           std::nullopt);
         http_client::CurlmLibuvContextSingleton::get_instance()->attach_request(
