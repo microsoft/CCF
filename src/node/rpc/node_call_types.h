@@ -17,7 +17,7 @@
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node/rpc/ringbuffer_messages.h"
-#include "node/uvm_endorsements.h"
+#include "pal/uvm_endorsements.h"
 
 #include <nlohmann/json.hpp>
 

@@ -1777,7 +1777,7 @@ namespace ccf
               AttestationProvider::get_snp_attestation_report(in.quote_info)
                 .value();
             InternalTablesAccess::trust_node_snp_tcb_version(
-              ctx.tx, attestation);
+              ctx.tx, attestation, recovering);
             break;
           }
           case QuoteFormat::oe_sgx_v1:
