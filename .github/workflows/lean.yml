@@ -6,11 +6,18 @@ on:
       - "lean/**"
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
+      # KV behaviour checked against the model, and the KV job's build
       - "src/kv/**"
+      - "include/ccf/tx.h"
+      - "include/ccf/kv/**"
+      - "src/ds/champ_map.h"
       - "tests/kv_trace_validation.py"
+      - "tests/tests.sh"
       - "CMakeLists.txt"
+      - "cmake/**"
       - ".github/workflows/lean.yml"
       - ".github/actions/lean-checks/**"
+      - ".github/actions/install-ci-dependencies/**"
   workflow_dispatch:
 
 concurrency:
@@ -44,7 +51,8 @@ jobs:
 
   kv-contract:
     name: KV model and trace conformance
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root

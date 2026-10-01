@@ -72,6 +72,7 @@ namespace ccf::kv
   public:
     void clear()
     {
+      // StoreState is only a base of the store, so it cannot name it.
       KV_TRACE(trace::unsupported(nullptr, "store clear"));
       std::scoped_lock<ccf::ds::Mutex, ccf::ds::Mutex> mguard(
         maps_lock, version_lock);
@@ -210,12 +211,12 @@ namespace ccf::kv
   public:
     explicit Store(bool is_historical_ = false) : is_historical(is_historical_)
     {
-      KV_TRACE(trace::store_create(static_cast<AbstractStore*>(this)));
+      KV_TRACE(trace::store_create(this));
     }
 
     ~Store() override
     {
-      KV_TRACE(trace::store_end(static_cast<AbstractStore*>(this)));
+      KV_TRACE(trace::store_end(this));
     }
 
     Store(const Store& that) = delete;
@@ -636,11 +637,20 @@ namespace ccf::kv
 
       if (v > current_version())
       {
-        KV_TRACE(std::lock_guard<ccf::ds::Mutex> trace_vguard(version_lock);
-                 if (v <= version) {
-                   trace::unsupported(
-                     this, "above-head compaction overlaps version allocation");
-                 } trace::compact(this, compacted, v));
+#ifdef CCF_KV_TRACING
+        if (trace::enabled())
+        {
+          // The no-op is only traced faithfully if no version was allocated
+          // since the check above.
+          std::lock_guard<ccf::ds::Mutex> trace_vguard(version_lock);
+          if (v <= version)
+          {
+            trace::unsupported(
+              this, "above-head compaction overlaps version allocation");
+          }
+          trace::compact(this, compacted, v);
+        }
+#endif
         return;
       }
 

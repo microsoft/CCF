@@ -75,6 +75,9 @@ namespace
     size_t operations = 8;
   };
 
+  // Derives an independent SplitMix64 seed for each random stream. Worker
+  // programs use streams [0, threads); each coordinated scenario uses its own
+  // fixed stream from 100 upwards, so their choices never coincide.
   uint64_t derive_seed(uint64_t seed, uint64_t stream)
   {
     auto value = seed + 0x9e3779b97f4a7c15ULL * (stream + 1);

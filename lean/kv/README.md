@@ -25,10 +25,13 @@ revisions are pinned in `lake-manifest.json`. From the repository root,
 `scripts/lean-format-checks.sh lean/kv` checks formatting, and `-f` before the
 package directory applies fixes.
 
-Exit codes: 0 accepted, 1 contract rejection, 2 invalid/incomplete trace or IO
-error, 3 explicitly unsupported operation. `--json` writes exactly one object
-to stdout, with `status`, `events`, `message`, and, when decoded, `seq`, `store`,
-`tx`. `events` counts accepted records (including `trace_end` on success).
+The build also produces the checker, run as
+`.lake/build/bin/kv_trace_check [--json] <trace.ndjson>`. Its exit codes are 0
+for an accepted trace, 1 for a contract rejection, 2 for an invalid or
+incomplete trace or an IO error, and 3 for an explicitly unsupported operation.
+`--json` writes exactly one object to stdout, with `status`, `events`,
+`message`, and, when decoded, `seq`, `store`, `tx`. `events` counts accepted
+records (including `trace_end` on success).
 Without `--json`, diagnostics go to stderr. Diagnostics identify the event
 index/type, case and available IDs.
 The CLI reads one NDJSON line at a time and returns immediately at the first

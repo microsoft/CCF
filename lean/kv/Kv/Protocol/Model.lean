@@ -4,6 +4,13 @@
 import Kv.Protocol.Types
 import Kv.Proofs.Types
 
+/-!
+Human-reviewed executable transitions and replay. A failure is `invalidTrace` (`invalid`,
+`require`, `present`) when the trace is malformed, incomplete, or inconsistent with its own
+lifecycle events, `rejected` (`reject`, `expect`) when it records behaviour the model
+forbids, and `unsupported` when the implementation reports an operation outside the model.
+-/
+
 namespace Kv
 
 def invalid (message : String) : Except Failure α := .error ⟨.invalidTrace, message⟩

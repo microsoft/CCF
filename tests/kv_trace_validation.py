@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from xml.etree import ElementTree
 
 FUZZ_CASE = "KV trace concurrent operation fuzzer"
 TRACE_CASES = {
@@ -71,6 +72,31 @@ def execute(command, directory, prefix, timeout, env=None):
             stdout=stdout,
             stderr=stderr,
             timeout=timeout,
+        )
+
+
+def check_case_list(binary):
+    # A new "KV trace" case must be added to TRACE_CASES, or it would run in
+    # kv_test without ever being traced and replayed.
+    listing = subprocess.run(
+        [
+            str(binary),
+            "--list-test-cases",
+            "--test-case=KV trace *",
+            "--case-sensitive=true",
+            "--reporters=xml",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    listed = {
+        case.get("name") for case in ElementTree.fromstring(listing).iter("TestCase")
+    }
+    expected = TRACE_CASES | {FUZZ_CASE}
+    if listed != expected:
+        raise RuntimeError(
+            f"KV trace test cases {sorted(listed)} do not match the runner's {sorted(expected)}"
         )
 
 
@@ -166,6 +192,7 @@ def main():
     args.checker = args.checker.resolve(strict=True)
     args.output.mkdir(parents=True, exist_ok=True)
     try:
+        check_case_list(args.binary)
         check_trace(
             args,
             "suite",
@@ -175,7 +202,13 @@ def main():
         for offset in range(args.seeds):
             seed = args.seed_start + offset
             check_trace(args, f"seed-{seed}", FUZZ_CASE, {FUZZ_CASE}, seed)
-    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        subprocess.SubprocessError,
+        ElementTree.ParseError,
+    ) as error:
         parser.exit(1, f"{error}\n")
     return 0
 

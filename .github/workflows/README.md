@@ -139,7 +139,7 @@ KV runs in Azure Linux 3: it builds and runs the instrumented C++ KV unit tests 
 The build and audit include both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every library module, so newly added proofs cannot silently escape the checks.
 
-The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, `src/kv/`, the KV trace runner, `CMakeLists.txt`, the shared Lean action, or the workflow.
+The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, the workflow, or its shared actions. It also runs on changes to the KV implementation and public KV API (`src/kv/`, `include/ccf/kv/`, `include/ccf/tx.h`, and the CHAMP map), the KV trace runner, `tests/tests.sh`, and the CMake build.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`

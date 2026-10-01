@@ -3,6 +3,8 @@
 
 import Std
 
+/-! Human-reviewed model state, observations, dependencies, trace events, and failure kinds. -/
+
 namespace Kv
 
 abbrev Assoc (K V : Type) := List (K × V)

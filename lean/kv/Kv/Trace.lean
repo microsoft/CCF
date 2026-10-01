@@ -4,6 +4,8 @@
 import Kv.Protocol.Model
 import Lean.Data.Json
 
+/-! Human-reviewed strict decoding of schema 1 NDJSON traces, streaming replay, and reports. -/
+
 namespace Kv.Trace
 open Lean
 
@@ -233,11 +235,12 @@ def failureReport (w : World) (j : Json) (failure : Failure) : Report :=
   let seq := (num j "seq").toOption
   let sid := (num j "store").toOption
   let tid := (num j "tx").toOption
+  let id (n : Option Nat) := (n.map toString).getD "<none>"
   {
     status := statusName failure.kind
     events := w.count
     message :=
-      s!"event {w.count + 1} type={kind} case={w.currentCase.getD "<none>"} store={repr sid} tx={repr tid}: {failure.message}"
+      s!"event {w.count + 1} type={kind} case={w.currentCase.getD "<none>"} store={id sid} tx={id tid}: {failure.message}"
     seq? := seq,
     store? := sid,
     tx? := tid

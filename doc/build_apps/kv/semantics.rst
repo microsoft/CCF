@@ -277,10 +277,11 @@ into accepted observations. This is separate from whether the Lean proofs/checke
 regressions and C++ unit tests succeed.
 
 The runner captures the purpose-built ``KV trace *`` cases once, then captures
-the concurrent fuzzer for each seed. It checks every generated trace with Lean
-and verifies that the expected cases, event families, and important outcomes
-were actually observed. Each run retains its trace and test/checker output in a
-unique directory.
+the concurrent fuzzer for each seed. It fails if ``kv_test`` contains a
+``KV trace *`` case that it does not capture. It checks every generated trace
+with Lean and verifies that the expected cases, event families, and important
+outcomes were actually observed. Each run retains its trace and test/checker
+output in a unique directory.
 
 ``CCF_KV_TRACE_TIMEOUT`` configures each capture and replay timeout. The checker
 streams records and stops at the first diagnostic; accepted model history is not

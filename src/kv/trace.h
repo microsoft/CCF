@@ -8,6 +8,11 @@
 #  include <nlohmann/json.hpp>
 #  include <string>
 
+namespace ccf::kv
+{
+  class AbstractStore;
+}
+
 namespace ccf::kv::trace
 {
   using Json = nlohmann::json;
@@ -28,14 +33,14 @@ namespace ccf::kv::trace
     const std::string& map,
     Json fields = Json::object());
   void transaction(Identity id, const char* type, Json fields = Json::object());
-  void unsupported(const void* store, const std::string& operation);
-  void store_create(const void* store);
-  void store_end(const void* store);
+  void unsupported(const AbstractStore* store, const std::string& operation);
+  void store_create(const AbstractStore* store);
+  void store_end(const AbstractStore* store);
 
   struct Attempt
   {
     Identity id;
-    void bind(const void* store);
+    void bind(const AbstractStore* store);
     ~Attempt();
   };
 
@@ -58,11 +63,12 @@ namespace ccf::kv::trace
   };
 
   Identity context();
-  void snapshot(const void* store, uint64_t version, uint64_t term);
-  void initialise_term(const void* store);
-  void apply(const void* store, uint64_t version, uint64_t term);
+  void snapshot(const AbstractStore* store, uint64_t version, uint64_t term);
+  void initialise_term(const AbstractStore* store);
+  void apply(const AbstractStore* store, uint64_t version, uint64_t term);
   void local_result(const char* result, uint64_t version);
-  void compact(const void* store, uint64_t version, uint64_t requested);
+  void compact(
+    const AbstractStore* store, uint64_t version, uint64_t requested);
 
   class Environment
   {
@@ -126,11 +132,11 @@ namespace ccf::kv::trace
   // cannot be represented by the atomic wire event and must fail closed.
   class Rollback
   {
-    const void* store;
+    const AbstractStore* store;
     bool complete = false;
 
   public:
-    explicit Rollback(const void* store_);
+    explicit Rollback(const AbstractStore* store_);
     ~Rollback();
     void result(uint64_t version, uint64_t requested, uint64_t term);
     void rejected(uint64_t requested, uint64_t term);

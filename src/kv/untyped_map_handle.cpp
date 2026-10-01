@@ -8,6 +8,56 @@
 
 namespace ccf::kv::untyped
 {
+#ifdef CCF_KV_TRACING
+  namespace
+  {
+    // Traces one iteration: its start, every visited entry followed by the
+    // callback's decision to continue, and its end. iterate runs the
+    // untraced iteration with the given visitor.
+    template <typename Iterate>
+    void traced_foreach(
+      trace::MapMetadata& metadata,
+      const std::string& map_name,
+      const MapHandle::ElementVisitorWithEarlyOut& f,
+      Iterate&& iterate)
+    {
+      const auto iteration = ++metadata.iteration;
+      trace::operation(
+        metadata, "foreach_begin", map_name, {{"iteration", iteration}});
+      try
+      {
+        iterate(
+          [&](const MapHandle::KeyType& k, const MapHandle::ValueType& v) {
+            trace::operation(
+              metadata,
+              "foreach_entry",
+              map_name,
+              {{"iteration", iteration},
+               {"key", ccf::ds::to_hex(k)},
+               {"value", ccf::ds::to_hex(v)}});
+            const auto result = f(k, v);
+            trace::operation(
+              metadata,
+              "foreach_continue",
+              map_name,
+              {{"iteration", iteration}, {"value", result}});
+            return result;
+          });
+      }
+      catch (...)
+      {
+        trace::transaction(
+          metadata.id,
+          "unsupported",
+          {{"operation", "foreach callback exception"}});
+        throw;
+      }
+      trace::operation(
+        metadata, "foreach_end", map_name, {{"iteration", iteration}});
+    }
+  }
+#endif
+
   const MapHandle::ValueType* MapHandle::read_key(const KeyType& key)
   {
     // A write followed by a read doesn't introduce a read dependency.
@@ -118,25 +168,23 @@ namespace ccf::kv::untyped
     // If the key doesn't exist, return empty and record that we depend on
     // the key not existing.
     const auto* const search = tx_changes.state.getp(key);
+    KV_TRACE(trace::operation(
+      tx_changes.trace_metadata,
+      "previous_write",
+      map_name,
+      {{"key", ccf::ds::to_hex(key)},
+       {"value",
+        search == nullptr ? trace::Json(nullptr) :
+                            trace::Json(search->version)}}));
     if (search == nullptr)
     {
       tx_changes.reads.insert(std::make_pair(key, NoVersion));
-      KV_TRACE(trace::operation(
-        tx_changes.trace_metadata,
-        "previous_write",
-        map_name,
-        {{"key", ccf::ds::to_hex(key)}, {"value", nullptr}}));
       return std::nullopt;
     }
 
     // Record the version that we depend on.
     tx_changes.reads.insert(std::make_pair(key, search->version));
 
-    KV_TRACE(trace::operation(
-      tx_changes.trace_metadata,
-      "previous_write",
-      map_name,
-      {{"key", ccf::ds::to_hex(key)}, {"value", search->version}}));
     return search->version;
   }
 
@@ -226,41 +274,10 @@ namespace ccf::kv::untyped
   void MapHandle::foreach(const MapHandle::ElementVisitorWithEarlyOut& f)
   {
     KV_TRACE(if (tx_changes.trace_metadata.suppressed == 0) {
-      auto& metadata = tx_changes.trace_metadata;
-      const auto iteration = ++metadata.iteration;
-      trace::operation(
-        metadata, "foreach_begin", map_name, {{"iteration", iteration}});
-      try
-      {
-        foreach_state_and_writes(
-          [&](const KeyType& k, const ValueType& v) {
-            trace::operation(
-              metadata,
-              "foreach_entry",
-              map_name,
-              {{"iteration", iteration},
-               {"key", ccf::ds::to_hex(k)},
-               {"value", ccf::ds::to_hex(v)}});
-            const auto result = f(k, v);
-            trace::operation(
-              metadata,
-              "foreach_continue",
-              map_name,
-              {{"iteration", iteration}, {"value", result}});
-            return result;
-          },
-          false);
-      }
-      catch (...)
-      {
-        trace::transaction(
-          metadata.id,
-          "unsupported",
-          {{"operation", "foreach callback exception"}});
-        throw;
-      }
-      trace::operation(
-        metadata, "foreach_end", map_name, {{"iteration", iteration}});
+      traced_foreach(
+        tx_changes.trace_metadata, map_name, f, [this](const auto& visit) {
+          foreach_state_and_writes(visit, false);
+        });
       return;
     });
     foreach_state_and_writes(f, false);

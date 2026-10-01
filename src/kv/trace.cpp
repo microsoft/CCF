@@ -32,7 +32,7 @@ namespace ccf::kv::trace
     {
       std::mutex mutex;
       std::ofstream output;
-      std::unordered_map<const void*, StoreInfo> stores;
+      std::unordered_map<const AbstractStore*, StoreInfo> stores;
       std::unordered_set<uint64_t> attempts;
       std::unordered_set<uint64_t> completed_attempts;
       uint64_t seq = 0;
@@ -69,7 +69,7 @@ namespace ccf::kv::trace
         }
       }
 
-      StoreInfo* find(const void* store)
+      StoreInfo* find(const AbstractStore* store)
       {
         auto it = stores.find(store);
         if (it == stores.end())
@@ -116,7 +116,7 @@ namespace ccf::kv::trace
     // Calls f with the sink locked, if tracing is active and store is
     // registered.
     template <typename F>
-    void with_store(const void* store, F&& f)
+    void with_store(const AbstractStore* store, F&& f)
     {
       if (auto* sink = active.load(std::memory_order_acquire))
       {
@@ -245,7 +245,7 @@ namespace ccf::kv::trace
     transaction(id, type, std::move(fields));
   }
 
-  void unsupported(const void* store, const std::string& operation_)
+  void unsupported(const AbstractStore* store, const std::string& operation_)
   {
     if (auto* sink = active.load(std::memory_order_acquire))
     {
@@ -260,7 +260,7 @@ namespace ccf::kv::trace
     }
   }
 
-  void store_create(const void* store)
+  void store_create(const AbstractStore* store)
   {
     if (auto* sink = active.load(std::memory_order_acquire))
     {
@@ -271,7 +271,7 @@ namespace ccf::kv::trace
     }
   }
 
-  void store_end(const void* store)
+  void store_end(const AbstractStore* store)
   {
     with_store(store, [store](Sink& sink, StoreInfo& info) {
       sink.append("store_end", {{"store", info.id}});
@@ -279,7 +279,7 @@ namespace ccf::kv::trace
     });
   }
 
-  void Attempt::bind(const void* store)
+  void Attempt::bind(const AbstractStore* store)
   {
     with_store(store, [this](Sink& sink, StoreInfo& info) {
       id = {info.id, ++sink.next_tx};
@@ -349,7 +349,7 @@ namespace ccf::kv::trace
     return environment;
   }
 
-  void snapshot(const void* store, uint64_t version, uint64_t term)
+  void snapshot(const AbstractStore* store, uint64_t version, uint64_t term)
   {
     if (current.tx == 0)
     {
@@ -369,7 +369,7 @@ namespace ccf::kv::trace
     });
   }
 
-  void apply(const void* store, uint64_t version, uint64_t term)
+  void apply(const AbstractStore* store, uint64_t version, uint64_t term)
   {
     if (current_writes == nullptr || current.tx == 0)
     {
@@ -382,7 +382,7 @@ namespace ccf::kv::trace
       {{"version", version}, {"term", term}, {"writes", *current_writes}});
   }
 
-  void initialise_term(const void* store)
+  void initialise_term(const AbstractStore* store)
   {
     with_store(store, [](Sink& sink, StoreInfo& info) {
       sink.check_boundary(info.id);
@@ -406,7 +406,7 @@ namespace ccf::kv::trace
     }
   }
 
-  void compact(const void* store, uint64_t version, uint64_t requested)
+  void compact(const AbstractStore* store, uint64_t version, uint64_t requested)
   {
     with_store(store, [&](Sink& sink, StoreInfo& info) {
       sink.check_boundary(info.id);
@@ -417,7 +417,7 @@ namespace ccf::kv::trace
     });
   }
 
-  Rollback::Rollback(const void* store_) : store(store_)
+  Rollback::Rollback(const AbstractStore* store_) : store(store_)
   {
     with_store(store, [](Sink& sink, StoreInfo& info) {
       if (info.acquisitions != 0)
