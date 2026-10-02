@@ -537,7 +537,7 @@ namespace ccf
       // The history can be initialised after a snapshot has been applied by
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
-      auto tx = store.create_read_only_tx();
+      auto tx = store.create_read_only_tx_at_replicated_state();
       auto* tree_h = tx.template ro<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       auto tree = tree_h->get();
@@ -585,7 +585,7 @@ namespace ccf
 
     bool verify_root_signatures(ccf::kv::Version version) override
     {
-      auto tx = store.create_read_only_tx();
+      auto tx = store.create_read_only_tx_at_replicated_state();
 
       auto root = get_replicated_state_root();
       log_hash(root, VERIFY);

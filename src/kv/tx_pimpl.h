@@ -8,7 +8,15 @@ namespace ccf::kv
 {
   struct BaseTx::PrivateImpl
   {
+    enum class Role
+    {
+      Ordinary,
+      Reserved,
+      MaterialisedReadOnly
+    };
+
     AbstractStore* store = nullptr;
+    Role role = Role::Ordinary;
 
     // NB: This exists only to maintain the old API, where this Tx stores
     // MapHandles and returns raw pointers to them. It could be removed entirely
@@ -21,6 +29,7 @@ namespace ccf::kv
     // Note: read_txid version is set to NoVersion for the first transaction in
     // the service, before anything has been applied to the KV.
     std::optional<TxID> read_txid = std::nullopt;
+    Version read_rollback_count = 0;
     ccf::View commit_view = ccf::VIEW_UNKNOWN;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;

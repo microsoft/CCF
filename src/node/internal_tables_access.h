@@ -356,7 +356,9 @@ namespace ccf
       const ccf::crypto::Pem& service_cert,
       ccf::TxID create_txid,
       nlohmann::json service_data = nullptr,
-      bool recovering = false)
+      bool recovering = false,
+      std::optional<ccf::crypto::Sha256Hash> previous_signed_root =
+        std::nullopt)
     {
       auto* service = tx.rw<ccf::Service>(Tables::SERVICE);
 
@@ -380,27 +382,19 @@ namespace ccf
         prev_service_created_at =
           prev_service_info->current_service_create_txid.value().seqno;
 
+        if (!previous_signed_root.has_value())
+        {
+          throw std::logic_error(
+            "Previous service has no materialised signed root");
+        }
+
         auto* previous_service_identity = tx.wo<ccf::PreviousServiceIdentity>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         previous_service_identity->put(prev_service_info->cert);
 
         auto* last_signed_root = tx.wo<ccf::PreviousServiceLastSignedRoot>(
           ccf::Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT);
-        auto* tree_handle =
-          tx.ro<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
-        if (!tree_handle->has())
-        {
-          throw std::logic_error(
-            "Previous service doesn't have a serialised merkle tree");
-        }
-        auto tree_opt = tree_handle->get();
-        if (!tree_opt.has_value())
-        {
-          throw std::logic_error(
-            "Previous service doesn't have serialised merkle tree value");
-        }
-        ccf::MerkleTreeHistory tree(tree_opt.value());
-        last_signed_root->put(tree.get_root());
+        last_signed_root->put(previous_signed_root.value());
 
         // Record number of recoveries for service. If the value does
         // not exist in the table (i.e. pre 2.x ledger), assume it is the

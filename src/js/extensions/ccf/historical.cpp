@@ -336,12 +336,12 @@ namespace ccf::js::extensions
       LOG_TRACE_FMT(
         "Looking for historical kv map '{}' at seqno {}", map_name, seqno);
 
-      auto access_permission =
-        ccf::js::check_kv_map_access(jsctx.access, map_name);
+      auto access_permission = ccf::js::check_kv_map_access(
+        jsctx.access, map_name, kvhelpers::KVSource::Historical);
       std::string explanation =
         ccf::js::explain_kv_map_access(access_permission, jsctx.access);
 
-      // Historical KV access can never exceed current-KV access.
+      // Historical KV retains namespace restrictions and is always read-only.
       access_permission = ccf::js::intersect_access_permissions(
         access_permission, KVAccessPermissions::READ_ONLY);
       if (access_permission != KVAccessPermissions::ILLEGAL)

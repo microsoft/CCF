@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/kv/value.h"
 #include "ds/internal_logger.h"
 #include "kv/kv_serialiser.h"
 #include "kv/null_encryptor.h"
@@ -531,9 +532,10 @@ TEST_CASE(
   kv_store.set_encryptor(encryptor);
   kv_store.set_max_transaction_size(1);
 
-  MapTypes::StringString map("public:signature");
+  ccf::kv::RawCopySerialisedValue<std::vector<uint8_t>> tree(
+    ccf::Tables::SERIALISED_MERKLE_TREE);
   auto tx = kv_store.create_reserved_tx(kv_store.next_txid());
-  tx.rw(map)->put("signature", std::string(512, 'A'));
+  tx.wo(tree)->put(std::vector<uint8_t>(512, 'A'));
 
   const auto [result, data, claims, commit_evidence, hooks] =
     tx.commit_reserved();
@@ -895,6 +897,8 @@ TEST_CASE_TEMPLATE(
   ccf::kv::Store kv_store;
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  kv_store.set_consensus(consensus);
 
   MapType map("public:map");
 
@@ -911,19 +915,19 @@ TEST_CASE_TEMPLATE(
 
     MapType map2("public:map");
 
-    auto tx = kv_store.create_reserved_tx(kv_store.next_txid());
+    auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->put(k1, v1);
     handle->put(k2, v2);
 
-    auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
-      tx.commit_reserved();
-    auto& success = success_;
-    auto& data = data_;
-    REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    const auto data = consensus->get_latest_data();
+    REQUIRE(data.has_value());
     kv_store.compact(kv_store.current_version());
 
-    REQUIRE(kv_store2.deserialize(data)->apply() == ccf::kv::ApplyResult::PASS);
+    REQUIRE(
+      kv_store2.deserialize(data.value())->apply() ==
+      ccf::kv::ApplyResult::PASS);
     auto tx2 = kv_store2.create_tx();
     auto handle2 = tx2.rw(map2);
 

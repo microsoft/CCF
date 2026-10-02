@@ -261,6 +261,13 @@ def test_custom_endpoints_kv_restrictions(network, args):
     user = network.users[0]
 
     module_name = "restrictions.js"
+    signature_tables = (
+        "public:ccf.internal.signatures",
+        "public:ccf.internal.cose_signatures",
+        "public:ccf.internal.tree",
+    )
+    read_operations = ("get", "has", "getVersionOfPreviousWrite", "forEach", "size")
+    write_operations = ("set", "delete", "clear")
 
     endpoints = {
         "/try_read": {
@@ -273,6 +280,19 @@ def test_custom_endpoints_kv_restrictions(network, args):
             "post": endpoint_properties(
                 js_module=module_name,
                 js_function="try_write",
+                mode="readwrite",
+            )
+        },
+        "/try_operation_ro": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="try_operation",
+            )
+        },
+        "/try_operation_rw": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="try_operation",
                 mode="readwrite",
             )
         },
@@ -292,6 +312,18 @@ def test_custom_endpoints_kv_restrictions(network, args):
             "post": endpoint_properties(
                 js_module=module_name,
                 js_function="try_read_current_via_historical_handle",
+            )
+        },
+        "/try_read_historical_via_current_handle": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="try_read_historical_via_current_handle",
+            )
+        },
+        "/read_historical_signature_tables": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="read_historical_signature_tables",
             )
         },
     }
@@ -398,6 +430,59 @@ def test_custom_endpoints_kv_restrictions(network, args):
         r = c.post("/app/try_write", {"table": "public:ccf.internal.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
+        LOG.info("Current signature tables are inaccessible, not merely read-only")
+        for path in ("/app/try_operation_ro", "/app/try_operation_rw"):
+            for table in signature_tables:
+                for operation in read_operations + write_operations:
+                    for receiver in (
+                        {},
+                        {"via": "my_js_table"},
+                        {"via": "my_js_table", "forged": True},
+                    ):
+                        body = {"table": table, "operation": operation, **receiver}
+                        r = c.post(path, body)
+                        assert r.status_code == http.HTTPStatus.BAD_REQUEST, (
+                            path,
+                            body,
+                            r.status_code,
+                            r.body.text(),
+                        )
+                        expected = (
+                            "KV Map Handle object expected"
+                            if receiver.get("forged")
+                            else "inaccessible"
+                        )
+                        assert expected in r.body.text(), (body, r.body.text())
+
+        LOG.info(
+            "Other public internal tables, including neighboring names, remain read-only"
+        )
+        for table in (
+            "public:ccf.internal.foo",
+            "public:ccf.internal.signatures_other",
+            "public:ccf.internal.cose_signatures_other",
+            "public:ccf.internal.tree.nested",
+        ):
+            for operation in read_operations:
+                r = c.post(
+                    "/app/try_operation_ro", {"table": table, "operation": operation}
+                )
+                assert r.status_code == http.HTTPStatus.OK, (
+                    table,
+                    operation,
+                    r.body.text(),
+                )
+            for operation in write_operations:
+                r = c.post(
+                    "/app/try_operation_rw", {"table": table, "operation": operation}
+                )
+                assert r.status_code == http.HTTPStatus.BAD_REQUEST, (
+                    table,
+                    operation,
+                    r.body.text(),
+                )
+                assert "read-only" in r.body.text(), r.body.text()
+
         LOG.info("Cannot grant access to (hypothetical) private gov/internal tables")
         r = c.post("/app/try_read", {"table": "ccf.gov.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
@@ -458,6 +543,13 @@ def test_custom_endpoints_kv_restrictions(network, args):
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
+        r = post_until_available(
+            c,
+            "/app/try_read_historical",
+            {"table": "public:ccf.internal.foo", "seqno": seqno},
+        )
+        assert r.status_code == http.HTTPStatus.OK, (r.status_code, r.body.text())
+
         LOG.info("A historical handle cannot be used against the current KV")
         r = post_until_available(
             c,
@@ -465,6 +557,68 @@ def test_custom_endpoints_kv_restrictions(network, args):
             {"table": "my_js_table", "seqno": seqno},
         )
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        LOG.info("Historical signature tables expose actual entries at a signed seqno")
+        deadline = time.time() + 10
+        while True:
+            r = c.get("/node/state")
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            signed_seqno = r.body.json()["last_signed_seqno"]
+            if signed_seqno >= int(seqno):
+                break
+            assert time.time() < deadline, "No signature covering the test write"
+            time.sleep(0.1)
+        network.wait_for_all_nodes_to_commit(primary=primary)
+
+        r = post_until_available(
+            c, "/app/read_historical_signature_tables", {"seqno": signed_seqno}
+        )
+        assert r.status_code == http.HTTPStatus.OK, (r.status_code, r.body.text())
+        result = r.body.json()
+        assert int(result["transactionId"].split(".")[1]) == signed_seqno, result
+        assert result["isSignatureTransaction"], result
+        assert set(result["tables"]) == set(signature_tables), result
+        required_tables = set(signature_tables[1:])
+        if result["rawSignatureExpected"]:
+            required_tables.add(signature_tables[0])
+        for table, contents in result["tables"].items():
+            assert contents["writeDenied"] == dict.fromkeys(write_operations, True), (
+                table,
+                contents,
+            )
+            assert contents["size"] == len(contents["entries"]), (table, contents)
+            if table not in required_tables:
+                assert contents["size"] == 0, (table, contents)
+                continue
+            assert contents["size"] > 0, (table, contents)
+            assert [0] * 8 in [entry["key"] for entry in contents["entries"]], (
+                table,
+                contents,
+            )
+            if table != signature_tables[1]:
+                assert contents["size"] == 1, (table, contents)
+            for entry in contents["entries"]:
+                assert entry["valueSize"] > 0, (table, entry)
+                assert entry["has"], (table, entry)
+                assert entry["getMatches"], (table, entry)
+                assert entry["version"] == signed_seqno, (table, entry)
+
+        LOG.info("Current and historical signature handles cannot exchange methods")
+        for table in signature_tables:
+            r = post_until_available(
+                c,
+                "/app/try_read_current_via_historical_handle",
+                {"table": table, "via": "my_js_table", "seqno": signed_seqno},
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.body.text()
+            assert "different key-value store" in r.body.text(), r.body.text()
+            r = post_until_available(
+                c,
+                "/app/try_read_historical_via_current_handle",
+                {"table": table, "seqno": signed_seqno},
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.body.text()
+            assert "different key-value store" in r.body.text(), r.body.text()
 
     return network
 

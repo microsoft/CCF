@@ -2214,7 +2214,8 @@ TEST_CASE(
 
   for (const auto& written_signatures : signature_transactions)
   {
-    auto tx = store.create_tx();
+    const auto txid = store.next_txid();
+    auto tx = store.create_reserved_tx(txid);
     auto* signatures = tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
     for (const auto& [identity_type, signature] : written_signatures)
     {
@@ -2222,12 +2223,22 @@ TEST_CASE(
     }
     tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
       ->put({});
-    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    auto info = tx.commit_reserved();
+    REQUIRE(info.success == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(
+      store.commit(
+        txid,
+        std::make_unique<ccf::kv::MovePendingTx>(
+          std::move(info.data),
+          std::move(info.claims_digest),
+          std::move(info.commit_evidence_digest),
+          std::move(info.hooks)),
+        true) == ccf::kv::CommitResult::SUCCESS);
 
-    const auto txid = store.current_txid();
+    REQUIRE(store.current_txid() == txid);
     INFO("Signature transaction: ", txid.to_str());
     {
-      auto read_tx = store.create_read_only_tx();
+      auto read_tx = store.create_read_only_tx_at_replicated_state();
       REQUIRE(
         read_tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)->size() ==
         2);

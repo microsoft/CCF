@@ -16,7 +16,7 @@
 //
 // - Tx A passes Store::commit()'s view check under version_lock, which is
 //   then released.
-// - An election rolls the Store and the ledger history back to seqno 1.
+// - An election rolls the Store and the ledger history back to seqno 2.
 // - A appends its digest to the history, then consensus rejects it.
 
 #include "node/history.h"
@@ -82,16 +82,14 @@ TEST_CASE(
 
   const auto [baseline_txid, baseline_root, _] =
     fixture.history->get_replicated_state_txid_and_root();
-  REQUIRE(baseline_txid.seqno == 1);
+  REQUIRE(baseline_txid.seqno == 2);
+  REQUIRE(read_value(*fixture.store, fixture.table, 0) == 1);
+  REQUIRE(read_signature_seqno(*fixture.store) == baseline_txid.seqno);
 
-  INFO("Apply and serialise A at seqno 2 in the initial view");
+  INFO("Apply and serialise A at seqno 3 in the initial view");
   const auto stale_txid = fixture.store->next_txid();
-  REQUIRE(stale_txid == ccf::TxID(fixture.initial_view, 2));
-  auto stale_info = [&]() {
-    auto tx = fixture.store->create_reserved_tx(stale_txid);
-    tx.rw(fixture.table)->put(1, 2);
-    return tx.commit_reserved();
-  }();
+  REQUIRE(stale_txid == ccf::TxID(fixture.initial_view, 3));
+  auto stale_info = SignaturePendingTx(stale_txid, *fixture.store, 2).call();
   REQUIRE(stale_info.success == ccf::kv::CommitResult::SUCCESS);
 
   INFO("A enters Store::commit, passes its view check, then is descheduled");
@@ -106,12 +104,12 @@ TEST_CASE(
   });
   REQUIRE(commit_pause.wait_until_paused());
 
-  INFO("Lose leadership and win a later election, rolling back to seqno 1");
+  INFO("Lose leadership and win a later election, rolling back to seqno 2");
   fixture.reelect();
   {
     const auto [rolled_back_txid, rolled_back_root, rolled_back_term] =
       fixture.history->get_replicated_state_txid_and_root();
-    REQUIRE(rolled_back_txid.seqno == 1);
+    REQUIRE(rolled_back_txid.seqno == 2);
     REQUIRE(rolled_back_root == baseline_root);
   }
 
@@ -122,7 +120,7 @@ TEST_CASE(
   {
     const auto [observed_txid, observed_root, observed_term] =
       fixture.history->get_replicated_state_txid_and_root();
-    CHECK(observed_txid.seqno == 1);
+    CHECK(observed_txid.seqno == 2);
     CHECK(observed_root == baseline_root);
   }
   fixture.history->pause.release();
@@ -134,10 +132,12 @@ TEST_CASE(
   {
     const auto [final_txid, final_root, final_term] =
       fixture.history->get_replicated_state_txid_and_root();
-    CHECK(final_txid.seqno == 1);
+    CHECK(final_txid.seqno == 2);
     CHECK(final_root == baseline_root);
   }
-  CHECK(fixture.store->current_txid().seqno == 1);
-  CHECK(fixture.raft->get_last_idx() == 1);
-  CHECK(fixture.raft->ledger->ledger.size() == 1);
+  CHECK(fixture.store->current_txid().seqno == 2);
+  CHECK(read_value(*fixture.store, fixture.table, 0) == 1);
+  CHECK(read_signature_seqno(*fixture.store) == baseline_txid.seqno);
+  CHECK(fixture.raft->get_last_idx() == 2);
+  CHECK(fixture.raft->ledger->ledger.size() == 2);
 }

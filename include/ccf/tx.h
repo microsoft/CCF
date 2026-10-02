@@ -3,6 +3,8 @@
 #pragma once
 
 #include "ccf/crypto/sha256_hash.h"
+#include "ccf/kv/map_access.h"
+#include "ccf/kv/version.h"
 #include "ccf/tx_id.h"
 
 #include <list>
@@ -16,6 +18,7 @@ namespace ccf::kv
   class AbstractHandle;
   class AbstractMap;
   class AbstractStore;
+  class Store;
 
   namespace untyped
   {
@@ -45,6 +48,14 @@ namespace ccf::kv
   class BaseTx
   {
   protected:
+    enum class AccessMode
+    {
+      ReadOnly,
+      ReadWrite,
+      WriteOnly,
+      Diff
+    };
+
     struct PrivateImpl;
     std::unique_ptr<PrivateImpl> pimpl;
 
@@ -60,17 +71,25 @@ namespace ccf::kv
       const std::string& map_name, std::unique_ptr<AbstractHandle>&& handle);
 
     MapChanges get_map_and_change_set_by_name(
-      const std::string& map_name, bool track_deletes_on_missing_keys);
+      const std::string& map_name,
+      bool track_deletes_on_missing_keys,
+      AccessMode access);
 
     std::list<AbstractHandle*> get_possible_handles(
       const std::string& map_name);
 
     void compacted_version_conflict(const std::string& map_name);
 
+    void check_map_access(const std::string& map_name, AccessMode access);
+
     template <class THandle>
     THandle* get_handle_by_name(
-      const std::string& map_name, bool track_deletes_on_missing_keys)
+      const std::string& map_name,
+      bool track_deletes_on_missing_keys,
+      AccessMode access)
     {
+      check_map_access(map_name, access);
+
       auto possible_handles = get_possible_handles(map_name);
       for (auto* handle : possible_handles)
       {
@@ -92,8 +111,8 @@ namespace ccf::kv
         retain_handle(map_name, std::move(abstract_handle));
         return typed_handle;
       }
-      auto [abstract_map, change_set] =
-        get_map_and_change_set_by_name(map_name, track_deletes_on_missing_keys);
+      auto [abstract_map, change_set] = get_map_and_change_set_by_name(
+        map_name, track_deletes_on_missing_keys, access);
 
       if (change_set == nullptr)
       {
@@ -128,13 +147,21 @@ namespace ccf::kv
 
   class TxDiff : public BaseTx
   {
+  private:
+    friend class Store;
+    TxDiff(
+      AbstractStore* store_,
+      ccf::SeqNo read_version,
+      Version read_rollback_count);
+
   public:
     using BaseTx::BaseTx;
 
     template <class M>
     typename M::Diff* diff(M& m)
     {
-      return get_handle_by_name<typename M::Diff>(m.get_name(), true);
+      return get_handle_by_name<typename M::Diff>(
+        m.get_name(), true, AccessMode::Diff);
     }
 
     /** Get a diff by map name. Map type must be specified
@@ -145,7 +172,8 @@ namespace ccf::kv
     template <class M>
     typename M::Diff* diff(const std::string& map_name)
     {
-      return get_handle_by_name<typename M::Diff>(map_name, true);
+      return get_handle_by_name<typename M::Diff>(
+        map_name, true, AccessMode::Diff);
     }
   };
 
@@ -157,6 +185,13 @@ namespace ccf::kv
    */
   class ReadOnlyTx : public BaseTx
   {
+  private:
+    friend class Store;
+    ReadOnlyTx(
+      AbstractStore* store_,
+      ccf::SeqNo read_version,
+      Version read_rollback_count);
+
   public:
     using BaseTx::BaseTx;
 
@@ -170,7 +205,8 @@ namespace ccf::kv
       // NB: Always creates a (writeable) MapHandle, which is cast to
       // ReadOnlyHandle on return. This is so that other calls (before or
       // after) can retrieve writeable handles over the same map.
-      return get_handle_by_name<typename M::Handle>(m.get_name(), false);
+      return get_handle_by_name<typename M::Handle>(
+        m.get_name(), false, AccessMode::ReadOnly);
     }
 
     /** Get a read-only handle by map name. Map type must be specified
@@ -181,7 +217,8 @@ namespace ccf::kv
     template <class M>
     typename M::ReadOnlyHandle* ro(const std::string& map_name)
     {
-      return get_handle_by_name<typename M::Handle>(map_name, false);
+      return get_handle_by_name<typename M::Handle>(
+        map_name, false, AccessMode::ReadOnly);
     }
   };
 
@@ -210,7 +247,8 @@ namespace ccf::kv
     template <class M>
     typename M::Handle* rw(M& m)
     {
-      return get_handle_by_name<typename M::Handle>(m.get_name(), false);
+      return get_handle_by_name<typename M::Handle>(
+        m.get_name(), false, AccessMode::ReadWrite);
     }
 
     /** Get a read-write handle by map name. Map type must be specified
@@ -221,7 +259,8 @@ namespace ccf::kv
     template <class M>
     typename M::Handle* rw(const std::string& map_name)
     {
-      return get_handle_by_name<typename M::Handle>(map_name, false);
+      return get_handle_by_name<typename M::Handle>(
+        map_name, false, AccessMode::ReadWrite);
     }
 
     /** Get a write-only handle from a map instance.
@@ -233,7 +272,8 @@ namespace ccf::kv
     {
       // As with ro, this returns a full-featured Handle
       // which is cast to only show its writeable facet.
-      return get_handle_by_name<typename M::Handle>(m.get_name(), false);
+      return get_handle_by_name<typename M::Handle>(
+        m.get_name(), false, AccessMode::WriteOnly);
     }
 
     /** Get a write-only handle by map name. Map type must be specified
@@ -244,7 +284,8 @@ namespace ccf::kv
     template <class M>
     typename M::WriteOnlyHandle* wo(const std::string& map_name)
     {
-      return get_handle_by_name<typename M::Handle>(map_name, false);
+      return get_handle_by_name<typename M::Handle>(
+        map_name, false, AccessMode::WriteOnly);
     }
   };
 }

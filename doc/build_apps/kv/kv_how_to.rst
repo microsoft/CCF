@@ -119,6 +119,17 @@ If you are only reading from or only writing to a given :cpp:type:`ccf::kv::Map`
 
 Note that, as in the sample above, it is possible to acquire different kinds of handles at different points within your transaction's execution. So if you need to read in one location and write in another you can retrieve multiple distinct handles and get local type-safety, while the resulting transaction correctly handles all reads and writes made.
 
+Signature Metadata
+------------------
+
+From CCF 8.0, ordinary live ``Tx``, ``ReadOnlyTx`` and ``TxDiff`` cannot acquire any handle to ``public:ccf.internal.signatures``, ``public:ccf.internal.cose_signatures`` or ``public:ccf.internal.tree``. This includes typed and untyped handles, whether read-only, read/write, write-only or diff handles. The restriction is enforced centrally by the KV API, including for native C++ and Rust applications; read-only endpoints are not exempt. See :ref:`audit/read_write_restrictions:Signature-Transaction Tables` for the corresponding JavaScript permissions and the unchanged permissions for other public internal tables.
+
+For signature data and proofs, use :ref:`historical state <build_apps/example_cpp:Historical Queries>` or :doc:`receipt APIs </use_apps/rpc_api>` instead. Historical JavaScript KV views and native historical read-only stores retain read-only access to these tables, and offline ledger parsing remains supported. For progress metadata, use :http:GET:`/node/state`, whose response is non-transactional and must not be interpreted as part of your KV snapshot.
+
+.. note::
+
+    Framework signature production uses ``ReservedTx``, which is limited to write-only handles on these three tables. It cannot read them or backfill ordinary readable maps. Framework verification, recovery, restore and metadata reads use an independent read-only view pinned to a materialised ledger prefix, selected using existing replication and commit metadata. These internal mechanisms are not ordinary live transaction exemptions or public opt-outs. No new wait for signature publication is introduced for ordinary transactions.
+
 Removing a key
 --------------
 

@@ -1806,7 +1806,8 @@ namespace ccf
                       hook->call(consensus.get());
                     }
 
-                    auto tx = network.tables->create_read_only_tx();
+                    auto tx =
+                      network.tables->create_read_only_tx_at_replicated_state();
                     view = resolve_latest_sig_view(tx);
 
                     if (!resp.network_info->public_only)
@@ -2071,7 +2072,7 @@ namespace ccf
         {
           // If the ledger entry is a signature, it is safe to compact the store
           network.tables->compact(last_recovered_idx);
-          auto tx = network.tables->create_read_only_tx();
+          auto tx = network.tables->create_read_only_tx_at_replicated_state();
 
           ccf::kv::Term sig_view = resolve_latest_sig_view(tx);
 
@@ -2141,7 +2142,7 @@ namespace ccf
         last_recovered_term,
         last_recovered_signed_idx);
 
-      auto tx = network.tables->create_read_only_tx();
+      auto tx = network.tables->create_read_only_tx_at_replicated_state();
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
 
       // Initialise snapshotter after public recovery

@@ -520,6 +520,28 @@ TEST_CASE("Self certificate authentication")
   CHECK(error_reason.contains("before certificate's Not Before"));
 }
 
+TEST_CASE("Node state is explicitly nontransactional metadata")
+{
+  NetworkState network;
+  StubNodeContext context;
+  TestNodeRpcFrontend frontend(network, context);
+  frontend.open();
+
+  ::http::Request request("state", HTTP_GET);
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, std::vector<uint8_t>{});
+  auto rpc_ctx = ccf::make_rpc_context(session, request.build_request());
+  const auto endpoint =
+    frontend.get_node_endpoints().find_endpoint_without_kv(*rpc_ctx);
+  REQUIRE(endpoint != nullptr);
+  CHECK(
+    endpoint->execution_mode == ccf::endpoints::EndpointExecutionMode::Command);
+  CHECK(
+    endpoint->properties.forwarding_required ==
+    ccf::endpoints::ForwardingRequired::Never);
+  CHECK(endpoint->authn_policies.empty());
+}
+
 TEST_CASE("Pending-node cleanup uses renewed client certificates")
 {
   NetworkState network;
