@@ -54,11 +54,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd lean/disaster-recovery
-          lake build disaster-recovery-replay
-          cd ../..
+          cd lean/disaster-recovery/replay
+          lake build
+          cd ../../..
           python3 tests/infra/recovery_trace_mutations.py \
-            lean/disaster-recovery/.lake/build/bin/disaster-recovery-replay \
+            lean/disaster-recovery/replay/.lake/build/bin/disaster-recovery-replay \
             lean/disaster-recovery/replay/fixtures
 
       - name: Check Lean formatting

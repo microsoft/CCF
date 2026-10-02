@@ -1,5 +1,4 @@
 import DisasterRecovery.Model
-import Lean.Data.Json
 
 set_option autoImplicit false
 
@@ -13,7 +12,7 @@ notifications of the node's latest action, with the model.
 
 namespace DisasterRecovery.Replay
 
-open Lean Model.Local
+open Model.Local
 open Shared (Capabilities Outputs)
 open Shared.MultiNodeTransitionSystem (nodeState)
 
@@ -95,36 +94,6 @@ def openKindName : OpenKind → String
   | .quorum => "quorum"
   | .failover => "failover"
 
-private def txidJson (value : TxID) : Json :=
-  Json.mkObj [("view", toJson value.view), ("seqno", toJson value.seqno)]
-
-private def messageJson : Message → Json
-  | .gossip value => Json.mkObj [("kind", toJson "gossip"), ("txid", txidJson value)]
-  | .vote => Json.mkObj [("kind", toJson "vote")]
-  | .iAmOpen => Json.mkObj [("kind", toJson "iAmOpen")]
-
-private def notificationJson : Notification → Json
-  | .opening kind =>
-      Json.mkObj [("kind", toJson "opening"), ("openKind", toJson (openKindName kind))]
-  | .restart chosen => Json.mkObj [("kind", toJson "restart"), ("chosen", toJson chosen)]
-  | .completed => Json.mkObj [("kind", toJson "completed")]
-  | .rejected reason =>
-      Json.mkObj [("kind", toJson "rejected"), ("reason", toJson reason)]
-
-private def gossipsJson (gossips : List (Location × TxID)) : Json :=
-  Json.mkObj (gossips.map fun (location, value) => (location, txidJson value))
-
-private def sentJson (sent : List (Location × Message)) : Json :=
-  toJson
-    (sent.map
-      fun (destination, message) =>
-        Json.mkObj
-          [("destination", toJson destination), ("message", messageJson message)])
-
-private def optionJson {α : Type} (render : α → Json) : Option α → Json
-  | some value => render value
-  | none => Json.null
-
 /-- The node an action runs on, and the local event it runs. -/
 private def localEvent (config : Model.Config) : Model.Action → Location × Event
   | .local node input => (node, (Model.protocol config).internal input)
@@ -153,29 +122,27 @@ private def runAction (config : Model.Config) (state : Model.State)
   | throw s!"disabled model action '{actionName action}'"
   return (next, node, (Id.run (execute.run {})).2)
 
-private def check {α : Type} [BEq α] (key : String) (render : α → Json)
-    (observed : Option α) (model : α)
+private def check {α : Type} [BEq α] [Repr α] (key : String) (observed : Option α)
+    (model : α)
     : Except String Unit :=
   match observed with
   | some value =>
       if value == model then
         pure ()
       else
-        throw
-          s!"{key}: observed {(render value).compress}, model {(render model).compress}"
+        throw s!"{key}: observed {reprStr value}, model {reprStr model}"
   | none => pure ()
 
 private def checkState (fields : StateFields) (state : NodeState)
     : Except String Unit := do
-  check "phase" (toJson ∘ phaseName) fields.phase state.phase
-  check "timeoutState" (toJson ∘ phaseName) fields.timeoutState state.timeoutState
-  check "gossips" gossipsJson fields.gossips
+  check "phase" fields.phase state.phase
+  check "timeoutState" fields.timeoutState state.timeoutState
+  check "gossips" fields.gossips
     (state.gossips.mergeSort fun left right => left.1 <= right.1)
-  check "votes" toJson fields.votes (state.votes.mergeSort (· <= ·))
-  check "chosen" (optionJson toJson) (fields.chosen.map some) state.chosen
-  check "openKind" (optionJson (toJson ∘ openKindName)) (fields.openKind.map some)
-    state.openKind
-  check "restartRequested" toJson fields.restartRequested state.restartRequested
+  check "votes" fields.votes (state.votes.mergeSort (· <= ·))
+  check "chosen" (fields.chosen.map some) state.chosen
+  check "openKind" (fields.openKind.map some) state.openKind
+  check "restartRequested" fields.restartRequested state.restartRequested
 
 structure ReplayState where
   state : Model.State
@@ -197,10 +164,9 @@ private def execute (config : Model.Config) (current : ReplayState)
       | throw "no action precedes this outputs observation"
       unless latest == node do
         throw s!"the latest action ran on '{latest}', not '{node}'"
-      check "sent" sentJson (some sent)
+      check "sent" (some sent)
         (outputs.outgoing.map fun envelope => (envelope.target, envelope.payload))
-      check "notifications" (fun values => toJson (values.map notificationJson))
-        (some notifications) outputs.notifications
+      check "notifications" (some notifications) outputs.notifications
       return current
 
 private def label (origins : List Origin) : String :=
