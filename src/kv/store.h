@@ -1352,8 +1352,8 @@ namespace ccf::kv
       if (is_historical)
       {
         std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
-        return TxDiff(
-          this, std::max(last_replicated, compacted.load()), rollback_count);
+        return {
+          this, std::max(last_replicated, compacted.load()), rollback_count};
       }
       return {this};
     }
@@ -1363,8 +1363,8 @@ namespace ccf::kv
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       // Consensus may compact synchronously in replicate(), before
       // last_replicated is advanced. Both versions are complete prefixes.
-      return ReadOnlyTx(
-        this, std::max(last_replicated, compacted.load()), rollback_count);
+      return {
+        this, std::max(last_replicated, compacted.load()), rollback_count};
     }
 
     CommittableTx create_tx()
