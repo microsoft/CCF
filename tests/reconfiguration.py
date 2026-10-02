@@ -439,11 +439,9 @@ def test_add_node_endorsements_endpoints(network, args):
         return network
 
     args_copy = deepcopy(args)
-    # The Azure cache may not contain the current chip/TCB certificate.
-    # Successful cache configurations need the authoritative AMD fallback.
     test_vectors = [
-        (["Azure:global.acccache.azure.net", "AMD:kdsintf.amd.com"], True),
-        (["Azure:global.acccache.azure.net:443", "AMD:kdsintf.amd.com"], True),
+        (["Azure:global.acccache.azure.net"], True),
+        (["Azure:global.acccache.azure.net:443"], True),
         (["Azure:invalid.azure.net:443"], False),
         (["AMD:kdsintf.amd.com"], True),
         (["AMD:invalid.amd.com"], False),
