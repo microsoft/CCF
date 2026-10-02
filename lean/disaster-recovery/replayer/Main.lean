@@ -1,4 +1,4 @@
-import DisasterRecovery.TraceValidation.Reduction
+import DisasterRecovery.TraceValidation.Dump
 
 set_option autoImplicit false
 
@@ -9,7 +9,15 @@ def completionTimeoutMs : Nat :=
   20000
 
 def usage : String :=
-  "usage: disaster-recovery-replay --participants N [--wait-ms N] LOG..."
+  "usage: disaster-recovery-replay --participants N [--wait-ms N] [--dump FILE] LOG..."
+
+/-- Takes `--dump FILE` out of the arguments. The trace viewer reads the file. -/
+def takeDump : List String → Option System.FilePath × List String
+  | "--dump" :: path :: rest => (some path, (takeDump rest).2)
+  | argument :: rest =>
+      let (dump, others) := takeDump rest
+      (dump, argument :: others)
+  | [] => (none, [])
 
 def parseArgs : List String → Option (Nat × Scenario × List System.FilePath) :=
   let rec go (waitMs : Nat) (participants : Option Nat)
@@ -38,12 +46,16 @@ partial def reduceWhenComplete (scenario : Scenario) (logs : List System.FilePat
       reduceWhenComplete scenario logs deadline
 
 def main (args : List String) : IO UInt32 := do
+  let (dump, args) := takeDump args
   let some (waitMs, scenario, logs) := parseArgs args
   |
     IO.eprintln usage
     return 2
   let deadline := (← IO.monoMsNow) + waitMs
-  match ← reduceWhenComplete scenario logs deadline with
+  let reduced ← reduceWhenComplete scenario logs deadline
+  if let some path := dump then
+    Dump.write path scenario logs reduced
+  match reduced with
   | .error message =>
       IO.eprintln s!"reduction failed: {message}"
       return 1
