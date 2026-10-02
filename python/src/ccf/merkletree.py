@@ -37,6 +37,10 @@ class MerkleTree:
 
     def get_merkle_root(self) -> bytes:
         if self._root is None:
+            # Same restriction as merklecpp::Tree::root(): a tree with no
+            # leaves has no root.
+            if self.get_leaf_count() == 0:
+                raise ValueError("Empty tree does not have a root")
             # Make tree before getting root if root not already calculated
             self._make_tree()
             assert (
@@ -156,6 +160,14 @@ class MerkleTree:
 
         uint64_data, position = read_bytes(position, 8)
         self._num_flushed = struct.unpack(">Q", uint64_data)[0]
+
+        # Same restriction as merklecpp::Tree::deserialise(): a serialisation
+        # which retains no leaves but claims flushed leaves is malformed.
+        # Without this check the flushed subtree roots would be accepted, and
+        # get_merkle_root() would return a value which is not, in general, the
+        # root of the tree over the flushed leaves.
+        if num_leaf_nodes == 0 and self._num_flushed != 0:
+            raise ValueError("Serialised tree has no retained leaves")
 
         # Read leaf hashes into _levels[0]
         for _ in range(num_leaf_nodes):
