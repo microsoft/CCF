@@ -14,7 +14,7 @@ only the replayer and the modules it imports. They import no Mathlib module, so
 the package has no dependencies. Run it from there:
 
 ```bash
-lake exe disaster-recovery-replay --participants N --open-kind QUORUM|FAILOVER [--wait-ms N] LOG...
+lake exe disaster-recovery-replay --participants N --open-kind QUORUM|FAILOVER [--wait-ms N] [--dump FILE] LOG...
 ```
 
 By default it waits up to 20 seconds for the nodes to log a complete
