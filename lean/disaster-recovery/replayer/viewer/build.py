@@ -90,6 +90,12 @@ def replay(run: dict, directory: pathlib.Path) -> dict:
     scenario = json.loads((directory / "scenario.json").read_text())
     run |= {"participants": scenario["participants"]}
     dump = VIEWER / "data" / f"{run['id']}.json"
+    # Ids name dumps in data/, which starts empty and ends with index.json.
+    if dump.exists() or dump.name == "index.json":
+        raise SystemExit(
+            f"run id {run['id']} is taken: rename the --logs directory,"
+            " or drop the repeated --trace"
+        )
     command = [REPLAYER / ".lake/build/bin/disaster-recovery-replay"]
     command += ["--participants", str(run["participants"])]
     command += ["--wait-ms", "0", "--dump", dump]
