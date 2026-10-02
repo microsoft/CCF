@@ -3316,7 +3316,7 @@ def run_merkle_verification_level(args):
             good_data[: source_size // 2]
             + b"\00" * null_block_size
             + good_data[source_size // 2 + null_block_size :],
-            "index out of range",
+            "is smaller than the minimum entry size",
         ),
         (
             "header_offset_too_large",

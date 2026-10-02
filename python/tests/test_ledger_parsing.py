@@ -19,13 +19,16 @@ def length_prefixed(data: bytes) -> bytes:
     return struct.pack("<Q", len(data)) + data
 
 
-def public_domain_prefix(entry_type: ccf.ledger.EntryType) -> bytes:
+def public_domain_prefix(entry_type: ccf.ledger.EntryType, version: int = 1) -> bytes:
     # entry type, version, max conflict version
-    return bytes([entry_type.value]) + struct.pack("<qq", 1, 0)
+    return bytes([entry_type.value]) + struct.pack("<qq", version, 0)
 
 
 def write_set_domain(
-    writes: dict[bytes, bytes], removals: list[bytes], table: str = TABLE
+    writes: dict[bytes, bytes],
+    removals: list[bytes],
+    table: str = TABLE,
+    version: int = 1,
 ) -> bytes:
     body = struct.pack("<qQQ", 0, 0, len(writes))  # read version, reads, writes
     for key, value in writes.items():
@@ -34,7 +37,7 @@ def write_set_domain(
     for key in removals:
         body += length_prefixed(key)
     return (
-        public_domain_prefix(ccf.ledger.EntryType.WRITE_SET)
+        public_domain_prefix(ccf.ledger.EntryType.WRITE_SET, version)
         + length_prefixed(table.encode())
         + body
     )
@@ -254,6 +257,148 @@ class TestLatestPublicState:
         assert ledger._transactions[0].get_public_domain().get_tables() == {
             TABLE: {b"a": b"1"}
         }
+
+
+def gcm_header(seqno: int, view: int = 2) -> bytes:
+    return b"\x00" * ccf.ledger.GCM_SIZE_TAG + struct.pack("<QI", seqno, view)
+
+
+def entry(
+    seqno: int,
+    writes: dict[bytes, bytes],
+    private: bytes = b"",
+    declared_size: int | None = None,
+    declared_domain_size: int | None = None,
+    version: int = ccf.ledger.ENTRY_FORMAT_V1,
+) -> bytes:
+    domain = write_set_domain(writes, [], version=seqno)
+    if declared_domain_size is None:
+        declared_domain_size = len(domain)
+    body = (
+        gcm_header(seqno) + struct.pack("<Q", declared_domain_size) + domain + private
+    )
+    if declared_size is None:
+        declared_size = len(body)
+    return bytes([version, 0]) + declared_size.to_bytes(6, "little") + body
+
+
+def transaction(data: bytes) -> ccf.ledger.Transaction:
+    return ccf.ledger.Transaction(ccf.ledger.SimpleBuffer("test", data))
+
+
+def header(
+    size: int, version: int = ccf.ledger.ENTRY_FORMAT_V1, flags: int = 0
+) -> ccf.ledger.TransactionHeader:
+    return ccf.ledger.TransactionHeader(
+        bytes([version, flags]) + size.to_bytes(6, "little")
+    )
+
+
+class TestEntryFraming:
+    def test_well_formed_entry(self):
+        tx = transaction(entry(1, {b"a": b"1"}, private=b"\x01" * 5))
+        assert tx.get_public_domain().get_tables() == {TABLE: {b"a": b"1"}}
+        assert tx.get_private_domain_size() == 5
+
+    @pytest.mark.parametrize("size", [0, 1, ccf.ledger.MIN_ENTRY_SIZE - 1])
+    def test_entry_smaller_than_fixed_fields_rejected(self, size: int):
+        # Data for a full entry is present, only the declared size is too small
+        data = entry(1, {b"a": b"1"}, declared_size=size)
+        with pytest.raises(ValueError, match="smaller than the minimum entry size"):
+            transaction(data)
+
+    @pytest.mark.parametrize("short_by", [1, 8])
+    def test_public_domain_exceeding_entry_rejected(self, short_by: int):
+        domain_size = len(write_set_domain({b"a": b"1"}, []))
+        data = entry(
+            1,
+            {b"a": b"1"},
+            declared_size=ccf.ledger.MIN_ENTRY_SIZE + domain_size - short_by,
+        )
+        # Bytes from a following entry must not be read as the public domain
+        data += entry(2, {b"b": b"2"})
+        with pytest.raises(ValueError, match="exceeds remaining entry size"):
+            transaction(data)
+
+    @pytest.mark.parametrize("missing", [1, 8, 40])
+    def test_entry_beyond_end_of_data_rejected(self, missing: int):
+        data = entry(1, {b"a": b"1"}, private=b"\x01" * 40)
+        with pytest.raises(ValueError, match="bytes are available"):
+            transaction(data[:-missing])
+
+
+class TestTransactionHeaderValidation:
+    validate = staticmethod(ccf.ledger.LedgerValidator.validate_transaction_header)
+
+    def test_valid_header(self):
+        self.validate(header(ccf.ledger.MIN_ENTRY_SIZE))
+
+    @pytest.mark.parametrize("version", [0, 2, 3, 4, 5, 255])
+    def test_only_format_version_1_accepted(self, version: int):
+        # The node only deserialises entry_format_v1 (src/kv/serialised_entry_format.h)
+        with pytest.raises(ValueError, match="Invalid transaction version"):
+            self.validate(header(ccf.ledger.MIN_ENTRY_SIZE, version=version))
+
+    @pytest.mark.parametrize("size", [0, 1, ccf.ledger.MIN_ENTRY_SIZE - 1])
+    def test_size_below_fixed_fields_rejected(self, size: int):
+        with pytest.raises(ValueError, match="smaller than the minimum entry size"):
+            self.validate(header(size))
+
+    def test_unknown_flags_rejected(self):
+        with pytest.raises(ValueError, match="Invalid transaction flags"):
+            self.validate(header(ccf.ledger.MIN_ENTRY_SIZE, flags=0x80))
+
+
+def write_chunk(directory: str, name: str, entries: list[bytes], cut: int = 0) -> str:
+    # An uncommitted chunk: zero positions-table offset, no positions table
+    data = (0).to_bytes(ccf.ledger.LEDGER_HEADER_SIZE, "little") + b"".join(entries)
+    if cut:
+        data = data[:-cut]
+    path = os.path.join(directory, name)
+    with open(path, "wb") as f:
+        f.write(data)
+    return path
+
+
+class TestTornChunkTail:
+    """
+    An uncommitted chunk whose last entry was only partially written.
+
+    The node drops such an entry when it opens the chunk (LedgerFile in
+    src/host/ledger.h) and the public state must not include it.
+    """
+
+    first = entry(1, {b"a": b"1"}, private=b"\x01" * 16)
+    second = entry(2, {b"b": b"2"}, private=b"\x02" * 32)
+
+    def test_complete_chunk(self, tmp_path):
+        write_chunk(tmp_path, "ledger_1", [self.first, self.second])
+        ledger = ccf.ledger.Ledger([str(tmp_path)], committed_only=False)
+        assert ledger.get_latest_public_state() == (
+            {TABLE: {b"a": b"1", b"b": b"2"}},
+            2,
+        )
+
+    @pytest.mark.parametrize("cut", [1, 16, 32])
+    def test_torn_private_domain_rejected(self, tmp_path, cut: int):
+        path = write_chunk(tmp_path, "ledger_1", [self.first, self.second], cut=cut)
+        chunk = ccf.ledger.LedgerChunk(path)
+        assert chunk[0].get_public_domain().get_tables() == {TABLE: {b"a": b"1"}}
+        with pytest.raises(ValueError, match="bytes are available"):
+            chunk[1]
+
+    @pytest.mark.parametrize("cut", [1, 32, 33, 60, len(second) - 8])
+    def test_torn_entry_excluded_from_public_state(self, tmp_path, cut: int):
+        write_chunk(tmp_path, "ledger_1", [self.first, self.second], cut=cut)
+        ledger = ccf.ledger.Ledger([str(tmp_path)], committed_only=False)
+        assert ledger.get_latest_public_state() == ({TABLE: {b"a": b"1"}}, 1)
+
+    def test_torn_entry_rejected_by_offset_validation(self, tmp_path):
+        path = write_chunk(tmp_path, "ledger_1", [self.first, self.second], cut=1)
+        with pytest.raises(ValueError, match="extends beyond file size"):
+            ccf.ledger.LedgerChunk(
+                path, verification_level=ccf.ledger.VerificationLevel.OFFSETS
+            )
 
 
 def fixture_services() -> list[str]:

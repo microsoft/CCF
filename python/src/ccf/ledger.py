@@ -51,6 +51,13 @@ GCM_SIZE_IV = 12
 LEDGER_DOMAIN_SIZE = 8
 LEDGER_HEADER_SIZE = 8
 
+# Only entry format version written by CCF (see entry_format_v1 in
+# src/kv/serialised_entry_format.h). The node rejects any other value.
+ENTRY_FORMAT_V1 = 1
+# Every entry starts with an AES-GCM header followed by the size of its public
+# domain, so no valid entry can be smaller than this.
+MIN_ENTRY_SIZE = GCM_SIZE_TAG + GCM_SIZE_IV + LEDGER_DOMAIN_SIZE
+
 # Public table names as defined in CCF.
 TREE_TABLE_NAME = "public:ccf.internal.tree"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
@@ -437,6 +444,9 @@ class SimpleBuffer:
     def _safe_loc(self, loc):
         return min(loc, self._len)
 
+    def __len__(self):
+        return self._len
+
     def tell(self):
         return self._loc
 
@@ -593,13 +603,12 @@ class LedgerValidator:
         Validate transaction header has valid version and flags.
         Raises ValueError if header is invalid.
         """
-        # Check version is a known EntryType
-        try:
-            _ = EntryType(header.version)
-        except ValueError:
+        # The header version is the entry format version, of which CCF has
+        # only ever written one. It is not the EntryType of the public domain.
+        if header.version != ENTRY_FORMAT_V1:
             raise ValueError(
                 f"Invalid transaction version: {header.version}. "
-                f"Valid versions are: {[e.value for e in EntryType]}"
+                f"Only version {ENTRY_FORMAT_V1} is valid"
             )
 
         # Check flags are valid (only known flags bits should be set)
@@ -612,9 +621,12 @@ class LedgerValidator:
                 f"Unknown flag bits set."
             )
 
-        # Check size is reasonable (not zero, not too large)
-        if header.size == 0:
-            raise ValueError("Invalid transaction header: size is 0")
+        # Check size is reasonable (not too small, not too large)
+        if header.size < MIN_ENTRY_SIZE:
+            raise ValueError(
+                f"Invalid transaction header: size {header.size} is smaller than "
+                f"the minimum entry size {MIN_ENTRY_SIZE}"
+            )
         # Max size check - 1GB seems like a reasonable maximum
         MAX_TX_SIZE = 1024 * 1024 * 1024
         if header.size > MAX_TX_SIZE:
@@ -866,9 +878,26 @@ class Entry:
 
     def _read_header(self):
         # read the transaction header
+        header_pos = self._file.tell()
         buffer = _byte_read_safe(self._file, TransactionHeader.get_size())
         self._header = TransactionHeader(buffer)
         entry_start_pos = self._file.tell()
+
+        # Mirror the framing checks performed by the node when it deserialises
+        # an entry (GenericDeserialiseWrapper::init in
+        # src/kv/generic_serialise_wrapper.h), so that a malformed entry is
+        # rejected rather than silently read into the bytes that follow it.
+        if self._header.size < MIN_ENTRY_SIZE:
+            raise ValueError(
+                f"Invalid entry at offset {header_pos}: size {self._header.size} "
+                f"is smaller than the minimum entry size {MIN_ENTRY_SIZE}"
+            )
+        entry_end_pos = entry_start_pos + self._header.size
+        if entry_end_pos > len(self._file):
+            raise ValueError(
+                f"Invalid entry at offset {header_pos}: ends at {entry_end_pos} "
+                f"but only {len(self._file)} bytes are available"
+            )
 
         # read the AES GCM header
         buffer = _byte_read_safe(self._file, GcmHeader.size())
@@ -877,6 +906,13 @@ class Entry:
         # read the size of the public domain
         buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
         self._public_domain_size = to_uint_64(buffer)
+        remaining_entry_size = self._header.size - MIN_ENTRY_SIZE
+        if self._public_domain_size > remaining_entry_size:
+            raise ValueError(
+                f"Invalid entry at offset {header_pos}: public domain size "
+                f"{self._public_domain_size} exceeds remaining entry size "
+                f"{remaining_entry_size}"
+            )
 
         return entry_start_pos
 
@@ -901,9 +937,7 @@ class Entry:
         """
         Retrieve the size of the private (i.e. encrypted) domain for that transaction.
         """
-        return self._header.size - (
-            GcmHeader.size() + LEDGER_DOMAIN_SIZE + self._public_domain_size
-        )
+        return self._header.size - (MIN_ENTRY_SIZE + self._public_domain_size)
 
     def get_transaction_header(self) -> TransactionHeader:
         return self._header
