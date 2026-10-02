@@ -4,6 +4,7 @@ pr: none
 variables:
 - name: LinuxContainerImage
   value: mcr.microsoft.com/onebranch/azurelinux/build:3.0
+# Defined in Azure DevOps Library and authorized for this pipeline.
 - group: ccf-esrp-pypi
 
 resources:

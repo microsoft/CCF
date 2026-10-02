@@ -8,7 +8,8 @@ tag, validates its metadata, installs it in a clean environment, and rejects a
 version that already exists on PyPI.
 
 The Azure DevOps pipeline must reference `/.pipelines/pypi.official.yml` and
-have access to a variable group named `ccf-esrp-pypi` containing:
+have access to an Azure DevOps Library variable group named `ccf-esrp-pypi`
+containing:
 
 - `ESRP_SERVICE_CONNECTION`
 - `ESRP_KEY_VAULT_NAME`
