@@ -16,6 +16,7 @@
 #
 import os
 import sys
+import shutil
 import subprocess
 import pathlib
 import re
@@ -106,6 +107,7 @@ linkcheck_ignore = [
     r"https://github.com/.*#",
     r"../js/ccf-app.*",
     r"../doxygen/index.html",
+    r"../trace-viewer/index.html",
     # The rustdoc role checks generated pages and anchors during HTML builds.
     r"(?:\.\./)*rust/ccf_app/.*",
     r"https://nghttp2.org/.*",
@@ -473,6 +475,20 @@ def setup(app):
             subprocess.run(
                 ["cp", "-r", str(doxygen_html_src), doxygen_html_dest], check=True
             )
+
+    # recovery trace viewer, in trees that have one: sphinx-multiversion also
+    # builds older refs, whose sources need not be in this checkout
+    replay_dir = root_dir / "lean/disaster-recovery/replay"
+    if not os.environ.get("SKIP_TRACE_VIEWER") and (replay_dir / "viewer").is_dir():
+        subprocess.run(["lake", "build"], cwd=replay_dir, check=True)
+        subprocess.run([sys.executable, "viewer/build.py"], cwd=replay_dir, check=True)
+        viewer_dest = out_dir / "trace-viewer"
+        shutil.rmtree(viewer_dest, ignore_errors=True)
+        shutil.copytree(
+            replay_dir / "viewer",
+            viewer_dest,
+            ignore=shutil.ignore_patterns("*.py", ".gitignore"),
+        )
 
     # configuration generator
     input_file_path = doc_dir / "host_config_schema/host_config.json"

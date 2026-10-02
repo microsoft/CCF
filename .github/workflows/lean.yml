@@ -61,5 +61,9 @@ jobs:
             lean/disaster-recovery/replay/.lake/build/bin/disaster-recovery-replay \
             lean/disaster-recovery/replay/fixtures
 
+      - name: Dump replays for the trace viewer
+        shell: bash
+        run: python3 lean/disaster-recovery/replay/viewer/build.py
+
       - name: Check Lean formatting
         run: ./scripts/lean-format-checks.sh
