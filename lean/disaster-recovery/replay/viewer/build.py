@@ -41,6 +41,12 @@ DEFAULT_MUTANTS = [
 def replay(run: dict, directory: pathlib.Path, names: list[str]) -> dict:
     """Replays the named logs in `directory`, and returns the run with its dump."""
     dump = VIEWER / "data" / f"{run['id']}.json"
+    # Ids name dumps in data/, which starts empty and ends with index.json.
+    if dump.exists() or dump.name == "index.json":
+        raise SystemExit(
+            f"run id {run['id']} is taken: rename the --logs directory,"
+            " or drop the repeated --mutant"
+        )
     command = [REPLAY / ".lake/build/bin/disaster-recovery-replay"]
     command += ["--participants", str(run["participants"])]
     command += ["--open-kind", run["openKind"], "--wait-ms", "0", "--dump", dump]
