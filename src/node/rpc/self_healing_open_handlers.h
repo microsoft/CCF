@@ -27,9 +27,10 @@ namespace ccf::node
   template <typename Input>
   static HandlerJsonParamsAndForward wrap_recovery_decision_protocol(
     RecoveryDecisionProtocolHandler<Input> cb,
-    ccf::AbstractNodeContext& node_context)
+    ccf::AbstractNodeContext& node_context,
+    const char* trace_kind)
   {
-    return [cb = std::move(cb), &node_context](
+    return [cb = std::move(cb), &node_context, trace_kind](
              endpoints::EndpointContext& args, const nlohmann::json& params) {
       auto config = node_context.get_subsystem<NodeConfigurationSubsystem>();
       auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
@@ -143,20 +144,12 @@ namespace ccf::node
             e.what()));
       }
 
-      const char* trace_kind = "vote_accepted";
       std::optional<ccf::TxID> trace_txid = std::nullopt;
       if constexpr (std::is_same_v<
                       Input,
                       recovery_decision_protocol::GossipRequest>)
       {
-        trace_kind = "gossip_accepted";
         trace_txid = in.txid;
-      }
-      else if constexpr (std::is_same_v<
-                           Input,
-                           recovery_decision_protocol::IAmOpenRequest>)
-      {
-        trace_kind = "iamopen_accepted";
       }
       node_operation->recovery_decision_protocol().prepare_trace_step(
         *args.rpc_ctx, trace_kind, in.info.location.name, trace_txid, trace);
@@ -221,7 +214,7 @@ namespace ccf::node
         HTTP_PUT,
         json_adapter(wrap_recovery_decision_protocol<
                      recovery_decision_protocol::GossipRequest>(
-          recovery_decision_protocol_gossip, node_context)),
+          recovery_decision_protocol_gossip, node_context, "gossip_accepted")),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
@@ -248,7 +241,7 @@ namespace ccf::node
         HTTP_PUT,
         json_adapter(wrap_recovery_decision_protocol<
                      recovery_decision_protocol::TaggedWithNodeInfo>(
-          recovery_decision_protocol_vote, node_context)),
+          recovery_decision_protocol_vote, node_context, "vote_accepted")),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
@@ -321,7 +314,9 @@ namespace ccf::node
         HTTP_PUT,
         json_adapter(wrap_recovery_decision_protocol<
                      recovery_decision_protocol::IAmOpenRequest>(
-          recovery_decision_protocol_iamopen, node_context)),
+          recovery_decision_protocol_iamopen,
+          node_context,
+          "iamopen_accepted")),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
