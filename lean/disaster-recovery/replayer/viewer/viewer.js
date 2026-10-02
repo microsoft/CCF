@@ -655,8 +655,11 @@ function stepHtml(run, s) {
 }
 
 function renderTrace() {
-  for (const tab of document.querySelectorAll(".tabs .tab"))
-    tab.classList.toggle("cur", tab.dataset.mode === ui.mode);
+  for (const tab of document.querySelectorAll(".tabs .tab")) {
+    const cur = tab.dataset.mode === ui.mode;
+    tab.classList.toggle("cur", cur);
+    tab.setAttribute("aria-pressed", cur);
+  }
   const run = ui.run;
   const rows = $("#rows");
   run.rowOf = [];
@@ -708,6 +711,19 @@ function renderTrace() {
   run.rowOf = [...rows.querySelectorAll("tbody tr")];
 }
 
+// Scrolls the rows pane to show a row, as scrollIntoView would with this block
+// alignment, but without moving the point that Tab starts from in Chrome.
+function reveal(tr, block) {
+  const pane = $("#rows");
+  const view = pane.getBoundingClientRect();
+  const { top, bottom } = tr.getBoundingClientRect();
+  const first = view.top + parseFloat(getComputedStyle(tr).scrollMarginTop);
+  const last = view.bottom;
+  if (block === "center") pane.scrollTop += (top + bottom - first - last) / 2;
+  else if (top < first) pane.scrollTop += top - first;
+  else if (bottom > last) pane.scrollTop += bottom - last;
+}
+
 // Highlights the selected step's rows, and scrolls the first into view.
 function markSelection() {
   const run = ui.run;
@@ -720,7 +736,7 @@ function markSelection() {
       : run.steps[ui.step].records.map((r) => run.recordRow.get(r));
   const found = rows.filter((tr) => tr !== undefined);
   found.forEach((tr) => tr.classList.add("sel"));
-  if (found.length) found[0].scrollIntoView({ block: "nearest" });
+  if (found.length) reveal(found[0], "nearest");
 }
 
 // Rows and overview marks linked to a hovered row, from the dumped `consumed`
@@ -880,7 +896,8 @@ function networkHtml(run, cur, prev) {
   return `<div class="note">${keys.join(` ${DOT} `)}</div><div class="matrices">${matrices.join("")}</div>`;
 }
 
-const stepLink = (k) => `<a data-goto="${k}">step ${k + 1}</a>`;
+const stepLink = (k) =>
+  `<button type="button" class="link" data-goto="${k}"><span>step ${k + 1}</span></button>`;
 
 function instructionHtml(run, s, x) {
   const fields = (f) =>
@@ -969,7 +986,7 @@ function recordsHtml(run, records, open) {
   const record = (r) => {
     const rec = run.records[r];
     const shown = ui.recordOpen.has(r) ? ui.recordOpen.get(r) : open.has(r);
-    return `<details data-record-details="${r}"${shown ? " open" : ""}><summary><a data-record="${r}" title="${esc(rec.file)}: show in log order">${esc(originText(run, rec))}</a> <span class="compact">${esc(JSON.stringify(rec.value))}</span></summary><pre class="json">${prettyJson(rec.value)}</pre></details>`;
+    return `<details data-record-details="${r}"${shown ? " open" : ""}><summary><button type="button" class="link" data-record="${r}" title="${esc(rec.file)}: show in log order"><span>${esc(originText(run, rec))}</span></button> <span class="compact">${esc(JSON.stringify(rec.value))}</span></summary><pre class="json">${prettyJson(rec.value)}</pre></details>`;
   };
   return `<div class="records">${records.map(record).join("")}</div>`;
 }
@@ -1045,7 +1062,7 @@ function renderHeader() {
     : "";
   $("#fail").disabled = failedStep < 0 && dump.outcome.stage !== "scenario";
   const toggle = (hide, tip, html) =>
-    `<span class="tog" data-hide="${esc(hide)}" title="${esc(tip)}">${html}</span>`;
+    `<button type="button" class="tog" data-hide="${esc(hide)}" title="${esc(tip)}">${html}</button>`;
   $("#nodes").innerHTML =
     '<span class="sc">nodes</span> ' +
     nodes
@@ -1072,8 +1089,11 @@ function select(k) {
   $("#counter").textContent = run.steps.length
     ? `step ${ui.step + 1} / ${run.steps.length}${filtered}`
     : "no steps";
-  for (const t of document.querySelectorAll("[data-hide]"))
-    t.classList.toggle("off", ui.hidden.has(t.dataset.hide));
+  for (const t of document.querySelectorAll("[data-hide]")) {
+    const shown = !ui.hidden.has(t.dataset.hide);
+    t.classList.toggle("off", !shown);
+    t.setAttribute("aria-pressed", shown);
+  }
   const hash = `#run=${encodeURIComponent(run.meta.id)}${ui.step >= 0 ? "&step=" + (ui.step + 1) : ""}`;
   if (location.hash !== hash) history.replaceState(null, "", hash);
 }
@@ -1124,8 +1144,7 @@ function show(meta, dump, stepNumber) {
     stepNumber ? stepNumber - 1 : run.failedStep >= 0 ? run.failedStep : ending,
   );
   const named = [...failingRecords(run)].map((r) => run.recordRow.get(r));
-  if (!run.steps.length && named[0])
-    named[0].scrollIntoView({ block: "center" });
+  if (!run.steps.length && named[0]) reveal(named[0], "center");
 }
 
 async function openRun(id, stepNumber) {
@@ -1195,7 +1214,7 @@ const MORE_KEYS = {
 // Clicks on any data-* control, a record link or summary, or a row.
 function click(e) {
   const el = e.target.closest(
-    "[data-act], [data-hide], [data-mode], [data-goto], a[data-record], .records summary, #rows tbody tr",
+    "[data-act], [data-hide], [data-mode], [data-goto], button[data-record], .records summary, #rows tbody tr",
   );
   if (!el || !ui.run) return;
   const { act, hide, mode, goto, record, step } = el.dataset;
@@ -1212,13 +1231,13 @@ function click(e) {
   else if (record !== undefined) {
     ui.focusRecord = Number(record);
     const target = ui.run.stepOfRecord.get(ui.focusRecord);
-    if (el.tagName === "A") {
+    if (el.tagName === "BUTTON") {
       e.preventDefault();
       if (ui.mode !== "log") setMode("log");
     }
     if (target !== undefined) select(target);
     const tr = ui.run.recordRow.get(ui.focusRecord);
-    if (el.tagName === "A" && tr) tr.scrollIntoView({ block: "center" });
+    if (el.tagName === "BUTTON" && tr) reveal(tr, "center");
   } else if (step !== undefined) select(Number(step));
 }
 
