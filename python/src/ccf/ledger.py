@@ -58,6 +58,7 @@ ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certifica
 SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 
 COMMITTED_FILE_SUFFIX = ".committed"
+COMMITTED_PREFIX_FILE_SUFFIX = ".committed_prefix"
 RECOVERY_FILE_SUFFIX = ".recovery"
 IGNORED_FILE_SUFFIX = ".ignored"
 
@@ -157,13 +158,25 @@ def unpack_array(buf, fmt):
 
 
 def range_from_filename(filename: str) -> tuple[int, int | None]:
-    elements = (
-        os.path.basename(filename)
-        .replace(COMMITTED_FILE_SUFFIX, "")
-        .replace(RECOVERY_FILE_SUFFIX, "")
-        .replace("ledger_", "")
-        .split("-")
-    )
+    basename = os.path.basename(filename)
+    is_recovery = basename.endswith(RECOVERY_FILE_SUFFIX)
+    basename = basename.removesuffix(RECOVERY_FILE_SUFFIX)
+    if basename.endswith(COMMITTED_PREFIX_FILE_SUFFIX):
+        range_str = basename.removesuffix(COMMITTED_PREFIX_FILE_SUFFIX)
+        elements = range_str.removeprefix("ledger_").split("-")
+        if (
+            is_recovery
+            or not range_str.startswith("ledger_")
+            or len(elements) != 2
+            or not all(element.isascii() and element.isdigit() for element in elements)
+            or int(elements[0]) == 0
+            or int(elements[1]) < int(elements[0])
+        ):
+            raise ValueError(f"Could not read seqno range from ledger file {filename}")
+        return (int(elements[0]), int(elements[1]))
+
+    basename = basename.removesuffix(COMMITTED_FILE_SUFFIX)
+    elements = basename.replace("ledger_", "").split("-")
     if len(elements) == 2:
         return (int(elements[0]), int(elements[1]))
     elif len(elements) == 1:
@@ -1272,6 +1285,12 @@ class Ledger:
                     return
 
             if path.endswith(IGNORED_FILE_SUFFIX):
+                return
+
+            # Committed prefixes are synthetic downloads rather than physical
+            # ledger files. Like the node, never treat them as part of a ledger
+            # directory; read them individually with LedgerChunk instead.
+            if sanitised_path.endswith(COMMITTED_PREFIX_FILE_SUFFIX):
                 return
 
             if committed_only and not sanitised_path.endswith(COMMITTED_FILE_SUFFIX):

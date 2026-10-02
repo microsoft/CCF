@@ -16,15 +16,19 @@
 #include "kv/serialised_entry_format.h"
 #include "ledger/filenames.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
+#include <limits>
 #include <list>
 #include <map>
 #include <memory>
 #include <string>
 #include <sys/types.h>
 #include <tuple>
+#include <utility>
 #include <uv.h>
 #include <vector>
 
@@ -45,6 +49,7 @@ namespace asynchost
       auto f_name = f.path().filename();
       if (
         ccf::ledger::is_ledger_file_name_ignored(f_name) ||
+        ccf::ledger::is_ledger_file_name_committed_prefix(f_name) ||
         (!allow_recovery_files &&
          ccf::ledger::is_ledger_file_name_recovery(f_name)))
       {
@@ -77,6 +82,50 @@ namespace asynchost
   {
     std::vector<uint8_t> data;
     size_t end_idx{};
+  };
+
+  // Owns a file descriptor, and closes it on destruction
+  class UniqueFd
+  {
+  private:
+    int fd = -1;
+
+    void reset() noexcept
+    {
+      if (fd >= 0)
+      {
+        ::close(fd);
+        fd = -1;
+      }
+    }
+
+  public:
+    explicit UniqueFd(int fd_) : fd(fd_) {}
+
+    UniqueFd(const UniqueFd&) = delete;
+    UniqueFd& operator=(const UniqueFd&) = delete;
+
+    UniqueFd(UniqueFd&& other) noexcept : fd(std::exchange(other.fd, -1)) {}
+
+    UniqueFd& operator=(UniqueFd&& other) noexcept
+    {
+      if (this != &other)
+      {
+        reset();
+        fd = std::exchange(other.fd, -1);
+      }
+      return *this;
+    }
+
+    ~UniqueFd()
+    {
+      reset();
+    }
+
+    [[nodiscard]] int get() const
+    {
+      return fd;
+    }
   };
 
   // A single ledger chunk on disk. LedgerFile is not internally synchronised:
@@ -534,6 +583,225 @@ namespace asynchost
       }
 
       return LedgerReadResult{entries, to_};
+    }
+
+    // Random access to a completed-chunk representation of a range of entries:
+    // header, unchanged entry bytes, and positions table. The header and
+    // positions table are small, and are materialised under the ledger locks
+    // when the reader is created. The entry bytes, potentially many megabytes,
+    // are only read when they fall within a requested byte range, without any
+    // ledger lock held. They are read with pread() on a duplicated descriptor:
+    // this never touches the FILE* position used by the writer, and stays
+    // valid even if the LedgerFile closes or reopens its own stream in the
+    // meantime.
+    class CompletedChunkReader
+    {
+    private:
+      std::vector<uint8_t> header;
+      std::vector<uint8_t> positions_table;
+      UniqueFd fd;
+      off_t file_offset = 0;
+      size_t raw_entries_size = 0;
+      std::string description;
+
+      bool read_entry_bytes(
+        uint8_t* out, size_t size, size_t offset_in_entries) const
+      {
+        ccf::ds::TimeBoundLogger log_if_slow(
+          fmt::format("{} - pread({} bytes)", description, size));
+
+        auto remaining = size;
+        auto offset = file_offset + static_cast<off_t>(offset_in_entries);
+        while (remaining > 0)
+        {
+          const auto rc = ::pread(fd.get(), out, remaining, offset);
+          if (rc < 0)
+          {
+            if (errno == EINTR)
+            {
+              continue;
+            }
+            LOG_FAIL_FMT("{}: {}", description, ccf::nonstd::strerror(errno));
+            return false;
+          }
+          if (rc == 0)
+          {
+            LOG_FAIL_FMT(
+              "{}: unexpected end of file with {} bytes remaining",
+              description,
+              remaining);
+            return false;
+          }
+          out += rc;
+          remaining -= static_cast<size_t>(rc);
+          offset += rc;
+        }
+        return true;
+      }
+
+    public:
+      CompletedChunkReader(
+        std::vector<uint8_t>&& header_,
+        std::vector<uint8_t>&& positions_table_,
+        UniqueFd&& fd_,
+        off_t file_offset_,
+        size_t raw_entries_size_,
+        std::string description_) :
+        header(std::move(header_)),
+        positions_table(std::move(positions_table_)),
+        fd(std::move(fd_)),
+        file_offset(file_offset_),
+        raw_entries_size(raw_entries_size_),
+        description(std::move(description_))
+      {}
+
+      [[nodiscard]] size_t size() const
+      {
+        return header.size() + raw_entries_size + positions_table.size();
+      }
+
+      // Returns the bytes [start, end) of the chunk, or nullopt if this range
+      // is not within the chunk or its entries could not be read. Only entry
+      // bytes within this range are read.
+      [[nodiscard]] std::optional<std::vector<uint8_t>> read(
+        size_t start, size_t end) const
+      {
+        if (start > end || end > size())
+        {
+          return std::nullopt;
+        }
+
+        std::vector<uint8_t> out(end - start);
+        const auto entries_start = header.size();
+        const auto entries_end = entries_start + raw_entries_size;
+
+        const auto copy_overlap =
+          [&](const std::vector<uint8_t>& region, size_t region_start) {
+            const auto overlap_start = std::max(start, region_start);
+            const auto overlap_end =
+              std::min(end, region_start + region.size());
+            if (overlap_start < overlap_end)
+            {
+              std::memcpy(
+                out.data() + (overlap_start - start),
+                region.data() + (overlap_start - region_start),
+                overlap_end - overlap_start);
+            }
+          };
+        copy_overlap(header, 0);
+        copy_overlap(positions_table, entries_end);
+
+        const auto overlap_start = std::max(start, entries_start);
+        const auto overlap_end = std::min(end, entries_end);
+        if (
+          overlap_start < overlap_end &&
+          !read_entry_bytes(
+            out.data() + (overlap_start - start),
+            overlap_end - overlap_start,
+            overlap_start - entries_start))
+        {
+          return std::nullopt;
+        }
+
+        return out;
+      }
+    };
+
+    // Materialises the header and positions table of a completed chunk
+    // containing exactly the entries [from, to], and duplicates the file
+    // descriptor so that the entry bytes can be read afterwards without any
+    // ledger lock held. Callers must only request committed entries: every
+    // committable entry is flushed as it is written and every completed file
+    // is flushed on completion, so committed bytes are always visible to
+    // later pread() calls regardless of stdio buffering on the writer's FILE*.
+    // A violation of that invariant surfaces as a failed read, never as
+    // incorrect bytes.
+    std::optional<CompletedChunkReader> make_completed_chunk_reader(
+      size_t from, size_t to)
+    {
+      const auto [raw_entries_size, end_idx] = entries_size(from, to);
+      if (raw_entries_size == 0 || end_idx != to)
+      {
+        return std::nullopt;
+      }
+
+      if (file == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Ledger file {} is not open", file_name));
+      }
+
+      const auto entry_count = to - from + 1;
+      if (
+        raw_entries_size >
+        std::numeric_limits<size_t>::max() - sizeof(positions_offset_header_t))
+      {
+        throw std::logic_error(fmt::format(
+          "Ledger entry range {}-{} is too large to represent as a chunk",
+          from,
+          to));
+      }
+      const auto positions_offset =
+        sizeof(positions_offset_header_t) + raw_entries_size;
+      if (
+        positions_offset > std::numeric_limits<uint32_t>::max() ||
+        entry_count > (std::numeric_limits<size_t>::max() - positions_offset) /
+            sizeof(positions.at(0)))
+      {
+        throw std::logic_error(fmt::format(
+          "Ledger entry range {}-{} is too large to represent as a chunk",
+          from,
+          to));
+      }
+
+      const auto positions_size = entry_count * sizeof(positions.at(0));
+
+      std::vector<uint8_t> header(sizeof(positions_offset_header_t));
+      {
+        auto* out = header.data();
+        auto remaining = header.size();
+        serialized::write(out, remaining, positions_offset);
+      }
+
+      std::vector<uint8_t> positions_table(positions_size);
+      auto* out = positions_table.data();
+      auto remaining = positions_table.size();
+      const auto first_position = positions.at(from - start_idx);
+      for (size_t idx = from; idx <= to; ++idx)
+      {
+        const auto relative_position = sizeof(positions_offset_header_t) +
+          positions.at(idx - start_idx) - first_position;
+        if (relative_position > std::numeric_limits<uint32_t>::max())
+        {
+          throw std::logic_error(fmt::format(
+            "Entry {} offset is too large to represent in a ledger chunk",
+            idx));
+        }
+
+        serialized::write(
+          out, remaining, static_cast<uint32_t>(relative_position));
+      }
+
+      UniqueFd fd(::dup(fileno(file)));
+      if (fd.get() < 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to duplicate descriptor for ledger file {}: {}",
+          file_name,
+          ccf::nonstd::strerror(errno)));
+      }
+
+      return CompletedChunkReader(
+        std::move(header),
+        std::move(positions_table),
+        std::move(fd),
+        static_cast<off_t>(first_position),
+        raw_entries_size,
+        fmt::format(
+          "Reading committed ledger prefix {} to {} from {}",
+          from,
+          to,
+          file_name));
     }
 
     bool truncate(size_t idx, bool remove_file_if_empty = true)
@@ -1741,6 +2009,54 @@ namespace asynchost
       }
 
       return ledger_dir / name.value();
+    }
+
+    [[nodiscard]] std::optional<ccf::ledger::CommittedLedgerPrefixRange>
+    committed_ledger_prefix_range_with_idx(size_t idx)
+    {
+      ccf::ds::MutexGuard guard(state_lock);
+
+      if (idx == 0 || idx <= end_of_committed_files_idx || idx > committed_idx)
+      {
+        return std::nullopt;
+      }
+
+      const auto it = get_it_contains_idx(idx);
+      if (
+        it == files.end() || (*it)->get_start_idx() > idx ||
+        (*it)->is_committed() || (*it)->is_recovery())
+      {
+        return std::nullopt;
+      }
+
+      return ccf::ledger::CommittedLedgerPrefixRange{
+        .start_idx = idx,
+        .end_idx = std::min(committed_idx, (*it)->get_last_idx())};
+    }
+
+    // Only the chunk metadata is materialised under the state lock. The entry
+    // bytes, potentially many megabytes, are read on demand afterwards, and
+    // only for the requested byte ranges, so that serving a prefix does not
+    // stall the ledger writer.
+    [[nodiscard]] std::optional<LedgerFile::CompletedChunkReader>
+    open_committed_ledger_prefix(size_t from, size_t to)
+    {
+      ccf::ds::MutexGuard guard(state_lock);
+
+      if (from == 0 || to < from || to > committed_idx)
+      {
+        return std::nullopt;
+      }
+
+      const auto file = get_file_from_idx(from);
+      if (
+        file == nullptr || file->get_start_idx() > from ||
+        file->get_last_idx() < to || file->is_recovery())
+      {
+        return std::nullopt;
+      }
+
+      return file->make_completed_chunk_reader(from, to);
     }
 
     [[nodiscard]] size_t get_init_idx()
