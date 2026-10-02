@@ -1,5 +1,0 @@
-variables:
-  CI: "true"
-  CDP_DEFINITION_BUILD_COUNT: $[counter('', 0)]
-  LinuxContainerImage: mcr.microsoft.com/onebranch/azurelinux/build:3.0
-  Codeql.Language: cpp,python,javascript
