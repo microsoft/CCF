@@ -336,6 +336,11 @@ function failingRecords(run) {
   return new Set(found.filter((r) => r !== undefined));
 }
 
+// Where the replay stopped: at its failed step, or before step 1 if it failed
+// before running any, as on a configuration that the model rejects.
+const stoppedAt = (run) =>
+  run.failedStep >= 0 ? `at step ${run.failedStep + 1}` : "before step 1";
+
 function outcomeText(run) {
   const o = run.dump.outcome;
   const counts =
@@ -344,7 +349,7 @@ function outcomeText(run) {
       : `replayed ${plural(o.actions, "action")} and ${plural(o.observations, "observation")}`;
   const failure = {
     scenario: `${counts}, but the scenario failed`,
-    replay: `replay failed at step ${run.failedStep + 1}`,
+    replay: `replay failed ${stoppedAt(run)}`,
   }[o.stage];
   if (o.stage === "done") return `${CHECK} ${counts}`;
   return `${CROSS} ${failure || "reduction failed"}: ${o.message}`;
@@ -497,10 +502,7 @@ function renderOverview() {
   const skipped = run.steps.findIndex((s) => s.status === "skipped");
   if (skipped >= 0) {
     const x = geo.x(skipped);
-    const tip =
-      run.failedStep >= 0
-        ? `not replayed: the replay stopped at step ${run.failedStep + 1}`
-        : "not replayed";
+    const tip = `not replayed: the replay stopped ${stoppedAt(run)}`;
     p.push(
       `<rect class="skipped-region" x="${f(x)}" y="${geo.top}" width="${f(geo.end - x)}" height="${geo.bottom - geo.top}">${title(tip)}</rect>`,
     );
@@ -995,7 +997,9 @@ function renderState() {
   ];
   if (s.status === "skipped")
     parts.push(
-      `<div class="banner">The replay stopped at ${stepLink(run.failedStep)}; this shows the state it stopped in.</div>`,
+      run.failedStep >= 0
+        ? `<div class="banner">The replay stopped at ${stepLink(run.failedStep)}; this shows the state it stopped in.</div>`
+        : `<div class="banner">The replay stopped before step 1: ${esc(run.dump.outcome.message)}; this shows the initial state.</div>`,
     );
   if (s.index === run.steps.length - 1 && run.dump.outcome.stage === "scenario")
     parts.push(`<div class="banner">${esc(outcomeText(run))}</div>`);
