@@ -19,8 +19,8 @@ namespace ccf
 {
   // Test-only TxHistory which does not build a Merkle tree or sign anything,
   // but still writes placeholder entries to the signature tables when a
-  // signature is emitted, so that transactions depending on those tables can
-  // be exercised without a real history.
+  // signature is emitted, so that materialised signature reads can be
+  // exercised without a real history.
   class NullTxHistoryPendingTx : public ccf::kv::PendingTx
   {
     ccf::TxID txid;

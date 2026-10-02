@@ -27,7 +27,7 @@ namespace ccf::gov::endpoints
   // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   inline void init_ack_handlers(
     ccf::BaseEndpointRegistry& registry,
-    NetworkState& /*network*/,
+    NetworkState& network,
     ShareManager& share_manager)
   {
     auto get_state_digest = [&](auto& ctx, ApiVersion api_version) {
@@ -138,9 +138,13 @@ namespace ccf::gov::endpoints
             ack = ack_opt.value();
           }
 
-          // Get merkle root state digest from serialised merkle tree
-          auto tree_handle = ctx.tx.template ro<ccf::SerialisedMerkleTree>(
-            Tables::SERIALISED_MERKLE_TREE);
+          // The acknowledged signed prefix is metadata, not this write's
+          // transactional snapshot.
+          auto signed_state =
+            network.tables->create_read_only_tx_at_replicated_state();
+          auto tree_handle =
+            signed_state.template ro<ccf::SerialisedMerkleTree>(
+              Tables::SERIALISED_MERKLE_TREE);
           auto tree = tree_handle->get();
           if (!tree.has_value())
           {

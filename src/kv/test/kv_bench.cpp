@@ -171,6 +171,69 @@ static void tx_diff(picobench::state& s)
     throw std::logic_error("Diff visited unexpected number of entries");
 }
 
+// Minimal read-only transaction: create it, acquire one handle and read one
+// key. Covers transaction creation, map lookup, change set capture and the
+// per-handle access policy, none of which the commit-centric suites time.
+template <ccf::kv::SecurityDomain SD>
+static void ro_tx_single_handle(picobench::state& s)
+{
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
+
+  ccf::kv::Store kv_store;
+  auto secrets = create_ledger_secrets();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  kv_store.set_encryptor(encryptor);
+
+  const auto map0 = build_map_name("map0", SD);
+  const auto key = gen_key(0);
+  {
+    auto tx = kv_store.create_tx();
+    tx.rw<MapType>(map0)->put(key, gen_value(0));
+    auto rc = tx.commit();
+    if (rc != ccf::kv::CommitResult::SUCCESS)
+      throw std::logic_error(
+        "Transaction commit failed: " + std::to_string(rc));
+  }
+
+  s.start_timer();
+  for (int i = 0; i < s.iterations(); i++)
+  {
+    auto tx = kv_store.create_read_only_tx();
+    auto value = tx.ro<MapType>(map0)->get(key);
+    if (!value.has_value())
+      throw std::logic_error("Expected key is missing");
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
+// Re-acquiring a handle already held by the transaction: the cached lookup
+// path, where the access policy check is the dominant cost.
+static void reacquire_cached_handle(picobench::state& s)
+{
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
+
+  ccf::kv::Store kv_store;
+  auto secrets = create_ledger_secrets();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  kv_store.set_encryptor(encryptor);
+
+  const auto map0 = build_map_name("map0", ccf::kv::SecurityDomain::PUBLIC);
+
+  auto tx = kv_store.create_tx();
+  auto* first = tx.rw<MapType>(map0);
+
+  s.start_timer();
+  for (int i = 0; i < s.iterations(); i++)
+  {
+    auto* handle = tx.rw<MapType>(map0);
+    if (handle != first)
+      throw std::logic_error("Cached handle was not reused");
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
 template <size_t S>
 static void commit_latency(picobench::state& s)
 {
@@ -315,6 +378,20 @@ PICOBENCH(deserialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
 
 PICOBENCH_SUITE("tx_diff");
 PICOBENCH(tx_diff).iterations(tx_count).samples(sample_size);
+
+const std::vector<int> handle_count = {1000, 10000};
+
+PICOBENCH_SUITE("handle_acquisition");
+PICOBENCH(ro_tx_single_handle<SD::PUBLIC>)
+  .iterations(handle_count)
+  .samples(sample_size)
+  .baseline();
+PICOBENCH(ro_tx_single_handle<SD::PRIVATE>)
+  .iterations(handle_count)
+  .samples(sample_size);
+PICOBENCH(reacquire_cached_handle)
+  .iterations(handle_count)
+  .samples(sample_size);
 
 const std::vector<int> map_count = {20, 100};
 

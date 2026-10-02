@@ -14,6 +14,7 @@
 //! response status is 2xx. A handler returns an [`EndpointError`] to send an
 //! error response, and `?` on a [`BridgeResult`] sends HTTP 500. Panics are
 //! caught and also sent as HTTP 500, which requires `panic = "unwind"`.
+//! Current KV operations on signature tables return [`BridgeError::AccessDenied`].
 
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 
@@ -60,6 +61,7 @@ enum RawResult {
     InvalidArgument = 2,
     ReadOnly = 3,
     InternalError = 4,
+    AccessDenied = 5,
 }
 
 #[repr(i32)]
@@ -200,6 +202,7 @@ fn decode_result(result: i32) -> Result<(), BridgeError> {
         value if value == RawResult::NotFound as i32 => Err(BridgeError::NotFound),
         value if value == RawResult::InvalidArgument as i32 => Err(BridgeError::InvalidArgument),
         value if value == RawResult::ReadOnly as i32 => Err(BridgeError::ReadOnly),
+        value if value == RawResult::AccessDenied as i32 => Err(BridgeError::AccessDenied),
         _ => Err(BridgeError::Internal),
     }
 }
@@ -232,6 +235,10 @@ pub enum BridgeError {
     Internal,
     /// The SDK and CCF were built with different ABI versions.
     AbiMismatch,
+    /// Current transactions cannot access `public:ccf.internal.signatures`,
+    /// `public:ccf.internal.cose_signatures` or `public:ccf.internal.tree`.
+    /// This applies even if the map or key does not exist.
+    AccessDenied,
 }
 
 /// Result of an SDK call into CCF.
@@ -640,6 +647,8 @@ impl<'ctx> WriteContext<'ctx> {
 }
 
 /// Read-only access to a raw-byte KV map, from [`ReadOnlyContext::map`].
+///
+/// Operations on restricted maps return [`BridgeError::AccessDenied`].
 pub struct ReadOnlyMap<'a, 'ctx> {
     context: &'a mut Context<'ctx>,
     name: &'a str,
@@ -661,6 +670,7 @@ impl ReadOnlyMap<'_, '_> {
 ///
 /// Writes are visible to later reads in the same transaction, and are applied
 /// only if the response status is 2xx.
+/// Operations on restricted maps return [`BridgeError::AccessDenied`].
 pub struct Map<'a, 'ctx> {
     context: &'a mut Context<'ctx>,
     name: &'a str,
@@ -964,7 +974,18 @@ mod tests {
         assert_eq!(decode_result(1), Err(BridgeError::NotFound));
         assert_eq!(decode_result(2), Err(BridgeError::InvalidArgument));
         assert_eq!(decode_result(3), Err(BridgeError::ReadOnly));
+        assert_eq!(decode_result(4), Err(BridgeError::Internal));
+        assert_eq!(decode_result(5), Err(BridgeError::AccessDenied));
+        assert_eq!(decode_result(-1), Err(BridgeError::Internal));
         assert_eq!(decode_result(99), Err(BridgeError::Internal));
+    }
+
+    #[test]
+    fn access_denied_remains_an_http_500_bridge_error() {
+        let error = EndpointError::from(BridgeError::AccessDenied);
+        assert_eq!(error.status, 500);
+        assert_eq!(error.code, "InternalError");
+        assert_eq!(error.message, "CCF bridge error: AccessDenied");
     }
 
     #[test]

@@ -5,12 +5,17 @@
 #include "ccf/js/kv_access_permissions.h"
 #include "ccf/js/namespace_restrictions.h"
 #include "ccf/js/tx_access.h"
+#include "js/extensions/ccf/kv_map_handle_state.h"
+#include "kv/internal_table_names.h"
 #include "kv/kv_types.h"
 
 namespace ccf::js
 {
   static KVAccessPermissions check_kv_map_access(
-    TxAccess execution_context, const std::string& table_name)
+    TxAccess execution_context,
+    const std::string& table_name,
+    extensions::kvhelpers::KVSource source =
+      extensions::kvhelpers::KVSource::CurrentTx)
   {
     // Enforce the restrictions described in the read_write_restrictions page in
     // the docs. Note that table is more readable, so should be considered the
@@ -50,6 +55,13 @@ namespace ccf::js
         {
           case ccf::kv::AccessCategory::INTERNAL:
           {
+            if (
+              source == extensions::kvhelpers::KVSource::CurrentTx &&
+              ccf::kv::is_signature_table(table_name))
+            {
+              return KVAccessPermissions::ILLEGAL;
+            }
+
             return KVAccessPermissions::READ_ONLY;
           }
 

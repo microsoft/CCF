@@ -43,6 +43,7 @@ typedef void (*ccf_rust_drop_callback)(void* user_data);
   inline constexpr ccf_rust_result CCF_RUST_INVALID_ARGUMENT = 2;
   inline constexpr ccf_rust_result CCF_RUST_READ_ONLY = 3;
   inline constexpr ccf_rust_result CCF_RUST_INTERNAL_ERROR = 4;
+  inline constexpr ccf_rust_result CCF_RUST_ACCESS_DENIED = 5;
 
   inline constexpr ccf_rust_auth CCF_RUST_AUTH_NONE = 0;
   inline constexpr ccf_rust_auth CCF_RUST_AUTH_USER_CERT = 1;
@@ -53,7 +54,8 @@ enum
   CCF_RUST_NOT_FOUND = 1,
   CCF_RUST_INVALID_ARGUMENT = 2,
   CCF_RUST_READ_ONLY = 3,
-  CCF_RUST_INTERNAL_ERROR = 4
+  CCF_RUST_INTERNAL_ERROR = 4,
+  CCF_RUST_ACCESS_DENIED = 5
 };
 
 enum

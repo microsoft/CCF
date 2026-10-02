@@ -1923,7 +1923,7 @@ class Network:
         if tx_id is None:
             while time.time() < end_time:
                 with primary.client() as c:
-                    resp = c.get("/node/state")  # Well-known read-only endpoint
+                    resp = c.get("/node/network")
                     tx_id = TxID(resp.view, resp.seqno)
                     if tx_id.valid():
                         break

@@ -384,11 +384,11 @@ DOCTEST_TEST_CASE(
   {
     DOCTEST_INFO("Read full chain of writes");
 
-    // Use ReservedTx as a hack to read historic entries, rather than via
-    // deserialisation
+    // Pin ordinary transactions to each earlier revision of this map.
     for (size_t read_at = 1; read_at < last_write_version; ++read_at)
     {
-      auto tx = kv_store.create_reserved_tx({store_commit_term, read_at + 1});
+      auto tx = kv_store.create_tx();
+      tx.set_read_txid({store_commit_term, read_at}, store_commit_term);
       auto h = tx.ro(map);
 
       auto v = h->get(k);

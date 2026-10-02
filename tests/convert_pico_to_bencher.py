@@ -53,6 +53,18 @@ benchmark_specs = {
             "Benchmark": "des_snap<1000>",
             "D": "100",
         },
+        {
+            "_name": "KV read-only tx handle acquisition",
+            "Suite": "handle_acquisition",
+            "Benchmark": "ro_tx_single_handle<SD::PUBLIC>",
+            "D": "10000",
+        },
+        {
+            "_name": "KV cached handle re-acquisition",
+            "Suite": "handle_acquisition",
+            "Benchmark": "reacquire_cached_handle",
+            "D": "10000",
+        },
     ],
     "map_bench.csv": [
         {

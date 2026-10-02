@@ -679,10 +679,26 @@ TEST_CASE("create_service publishes the classical signing identity")
   INFO("Recovery publishes the new key and preserves legacy recovery state");
   {
     auto tx = kv_store.create_tx();
-    tx.wo<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE)
-      ->put(tree.serialise());
+    REQUIRE_THROWS_WITH_AS(
+      InternalTablesAccess::create_service(
+        tx, recovered_cert, {2, 10}, nullptr, true),
+      "Previous service has no materialised signed root",
+      std::logic_error);
+    REQUIRE(
+      !tx.ro<ccf::PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
+         ->has());
+    REQUIRE(tx.ro<ccf::Service>(Tables::SERVICE)->get()->cert == service_cert);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
     InternalTablesAccess::create_service(
-      tx, recovered_cert, {2, 10}, nullptr, true /* recovering */);
+      tx,
+      recovered_cert,
+      {2, 10},
+      nullptr,
+      true /* recovering */,
+      tree.get_root());
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 

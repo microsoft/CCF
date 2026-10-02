@@ -14,15 +14,15 @@
 //
 // Interleaving, from review of PR #8209 (cjen1-msft, src/consensus/aft/raft.h):
 //
-// - Tx A is applied locally in view V and given TxID V.2. It enters
+// - Tx A is applied locally in view V and given TxID V.3. It enters
 //   Store::commit(), passes the view check, and is descheduled before it
 //   reaches consensus.
 // - An election happens. The node wins in view W > V, and become_leader()
-//   rolls the Store back past A, to seqno 1.
-// - Tx B is applied locally in view W and given TxID W.2. It has not yet
+//   rolls the Store back past A, to seqno 2.
+// - Tx B is applied locally in view W and given TxID W.3. It has not yet
 //   entered Store::commit().
 // - A continues. Consensus rejects it. If that rejection rolls the Store
-//   back to Raft's last_idx (1), it discards B's local application as well.
+//   back to Raft's last_idx (2), it discards B's local application as well.
 // - B enters Store::commit(), passes the view check (W == W), and is
 //   replicated. It is in the ledger, but no longer in the KV.
 
@@ -52,16 +52,12 @@ TEST_CASE(
   Fixture fixture;
   fixture.start();
 
-  INFO("Apply and serialise A at seqno 2 in the initial view");
+  INFO("Apply and serialise A at seqno 3 in the initial view");
   const auto stale_txid = fixture.store->next_txid();
-  REQUIRE(stale_txid == ccf::TxID(fixture.initial_view, 2));
-  auto stale_info = [&]() {
-    auto tx = fixture.store->create_reserved_tx(stale_txid);
-    tx.rw(fixture.table)->put(1, 2);
-    return tx.commit_reserved();
-  }();
+  REQUIRE(stale_txid == ccf::TxID(fixture.initial_view, 3));
+  auto stale_info = SignaturePendingTx(stale_txid, *fixture.store, 2).call();
   REQUIRE(stale_info.success == ccf::kv::CommitResult::SUCCESS);
-  REQUIRE(read_value(*fixture.store, fixture.table, 1) == 2);
+  REQUIRE(read_signature_seqno(*fixture.store) == 2);
 
   INFO("A enters Store::commit, passes its view check, then is descheduled");
   CommitPause stale_pause;
@@ -75,14 +71,15 @@ TEST_CASE(
   });
   REQUIRE(stale_pause.wait_until_paused());
 
-  INFO("Lose leadership and win a later election, rolling back to seqno 1");
+  INFO("Lose leadership and win a later election, rolling back to seqno 2");
   const auto reelection_view = fixture.reelect();
-  REQUIRE(fixture.store->current_txid() == ccf::TxID(fixture.initial_view, 1));
-  REQUIRE_FALSE(read_value(*fixture.store, fixture.table, 1).has_value());
-  REQUIRE(fixture.raft->get_last_idx() == 1);
+  REQUIRE(fixture.store->current_txid() == ccf::TxID(fixture.initial_view, 2));
+  REQUIRE(read_value(*fixture.store, fixture.table, 0) == 1);
+  REQUIRE(read_signature_seqno(*fixture.store) == 2);
+  REQUIRE(fixture.raft->get_last_idx() == 2);
 
   INFO(
-    "B is applied at seqno 2 in the new view, then pauses before "
+    "B is applied at seqno 3 in the new view, then pauses before "
     "Store::commit");
   auto current_tx = fixture.store->create_tx();
   current_tx.rw(fixture.table)->put(2, 3);
@@ -94,8 +91,8 @@ TEST_CASE(
       [&current_pause](const auto&, const auto&) { current_pause.pause(); });
   });
   REQUIRE(current_pause.wait_until_paused());
-  REQUIRE(current_tx.get_txid() == ccf::TxID(reelection_view, 2));
-  REQUIRE(fixture.store->current_txid() == ccf::TxID(reelection_view, 2));
+  REQUIRE(current_tx.get_txid() == ccf::TxID(reelection_view, 3));
+  REQUIRE(fixture.store->current_txid() == ccf::TxID(reelection_view, 3));
   REQUIRE(read_value(*fixture.store, fixture.table, 2) == 3);
 
   INFO(
@@ -106,9 +103,9 @@ TEST_CASE(
   REQUIRE(stale_result.has_value());
   CHECK(stale_result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
   MESSAGE("After A is rejected: " << describe(fixture));
-  CHECK(fixture.raft->get_last_idx() == 1);
-  CHECK(fixture.raft->ledger->ledger.size() == 1);
-  CHECK(fixture.store->current_txid() == ccf::TxID(reelection_view, 2));
+  CHECK(fixture.raft->get_last_idx() == 2);
+  CHECK(fixture.raft->ledger->ledger.size() == 2);
+  CHECK(fixture.store->current_txid() == ccf::TxID(reelection_view, 3));
   CHECK(read_value(*fixture.store, fixture.table, 2) == 3);
 
   INFO("Resume B: whatever consensus decides, KV and ledger must agree");
@@ -117,9 +114,9 @@ TEST_CASE(
   REQUIRE(current_result.has_value());
   CHECK(current_result.value() == ccf::kv::CommitResult::SUCCESS);
   MESSAGE("After B is replicated: " << describe(fixture));
-  CHECK(fixture.raft->get_last_idx() == 2);
-  CHECK(fixture.raft->ledger->ledger.size() == 2);
-  CHECK(fixture.store->current_txid() == ccf::TxID(reelection_view, 2));
+  CHECK(fixture.raft->get_last_idx() == 3);
+  CHECK(fixture.raft->ledger->ledger.size() == 3);
+  CHECK(fixture.store->current_txid() == ccf::TxID(reelection_view, 3));
   CHECK(read_value(*fixture.store, fixture.table, 2) == 3);
 
   INFO("The next transaction gets a fresh seqno and replicates normally");
@@ -131,9 +128,9 @@ TEST_CASE(
     "After next tx " << (next_txid.has_value() ? next_txid->to_str() :
                                                  std::string("none"))
                      << ": " << describe(fixture));
-  CHECK(next_txid == ccf::TxID(reelection_view, 3));
-  CHECK(fixture.store->current_txid() == ccf::TxID(reelection_view, 3));
+  CHECK(next_txid == ccf::TxID(reelection_view, 4));
+  CHECK(fixture.store->current_txid() == ccf::TxID(reelection_view, 4));
   CHECK(read_value(*fixture.store, fixture.table, 3) == 4);
-  CHECK(fixture.raft->get_last_idx() == 3);
-  CHECK(fixture.raft->ledger->ledger.size() == 3);
+  CHECK(fixture.raft->get_last_idx() == 4);
+  CHECK(fixture.raft->ledger->ledger.size() == 4);
 }
