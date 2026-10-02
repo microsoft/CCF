@@ -135,7 +135,7 @@
       "configFile": "lakefile.toml"
     }
   ],
-  "name": "disaster_recovery",
+  "name": "kv",
   "lakeDir": ".lake",
   "fixedToolchain": false
 }

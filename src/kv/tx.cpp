@@ -50,6 +50,9 @@ namespace ccf::kv
     const std::string& map_name, bool track_deletes_on_missing_keys)
   {
     auto& read_txid = pimpl->read_txid;
+#ifdef CCF_KV_TRACING
+    trace::Context trace_context(pimpl->trace_attempt.id);
+#endif
 
     if (!read_txid.has_value())
     {
@@ -131,6 +134,7 @@ namespace ccf::kv
   {
     pimpl = std::make_unique<PrivateImpl>();
     pimpl->store = store_;
+    KV_TRACE(pimpl->trace_attempt.bind(store_));
   }
 
   // Use default destructor, but instantiate here where PrivateImpl is not

@@ -3,12 +3,16 @@
 #pragma once
 
 #include "ccf/tx.h"
+#include "kv/trace.h"
 
 namespace ccf::kv
 {
   struct BaseTx::PrivateImpl
   {
     AbstractStore* store = nullptr;
+#ifdef CCF_KV_TRACING
+    trace::Attempt trace_attempt;
+#endif
 
     // NB: This exists only to maintain the old API, where this Tx stores
     // MapHandles and returns raw pointers to them. It could be removed entirely

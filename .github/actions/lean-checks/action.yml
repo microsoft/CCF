@@ -1,0 +1,38 @@
+name: Check Lean package
+description: Build a Lean package and run its configured axiom audit, tests and formatting check
+
+inputs:
+  working-directory:
+    description: Lean package directory relative to the repository root
+    required: true
+  library:
+    description: Lean library whose generated import root must be complete
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Restore Mathlib cache
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+      run: lake exe cache get
+
+    - name: Build and check Lean package
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+      env:
+        LEAN_LIBRARY: ${{ inputs.library }}
+      run: |
+        set -euo pipefail
+        lake exe mk_all --check --lib "$LEAN_LIBRARY"
+        lake build --wfail
+        lake lint
+        lake test
+
+    - name: Check Lean formatting
+      shell: bash
+      env:
+        LEAN_PACKAGE: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+        "$GITHUB_WORKSPACE/scripts/lean-format-checks.sh" "$LEAN_PACKAGE"

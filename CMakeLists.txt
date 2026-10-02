@@ -321,6 +321,32 @@ add_ccf_static_library(
 )
 
 # CCF kv lib
+option(CCF_KV_TRACING "Enable test-only KV semantic trace capture" OFF)
+set(
+  CCF_KV_TRACE_CHECKER
+  ""
+  CACHE FILEPATH
+  "Existing Lean KV trace checker executable"
+)
+set(
+  CCF_KV_TRACE_TIMEOUT
+  "900"
+  CACHE STRING
+  "Timeout in seconds for each KV trace capture or replay subprocess"
+)
+set(
+  CCF_KV_FUZZ_SEEDS
+  "8"
+  CACHE STRING
+  "Number of bounded concurrent KV fuzz seeds checked by trace replay"
+)
+set(CCF_KV_FUZZ_SEED_START "0" CACHE STRING "First concurrent KV fuzz seed")
+if(CCF_KV_TRACING)
+  # Tracing changes the layout of internal KV types, so every target in the
+  # build must agree on it.
+  add_compile_definitions(CCF_KV_TRACING)
+endif()
+
 add_ccf_static_library(
   ccf_kv
   SRCS
@@ -329,6 +355,9 @@ add_ccf_static_library(
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
   LINK_LIBS ccf_threading
 )
+if(CCF_KV_TRACING)
+  target_sources(ccf_kv PRIVATE ${CCF_DIR}/src/kv/trace.cpp)
+endif()
 
 # CCF endpoints lib
 add_ccf_static_library(
@@ -729,11 +758,25 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_trace.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_fuzzer.cpp
     )
     target_link_libraries(
       kv_test
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser ccf_kv
     )
+    if(CCF_KV_TRACING AND CCF_KV_TRACE_CHECKER)
+      add_test(
+        NAME kv_trace_validation
+        COMMAND
+          python3 ${CMAKE_CURRENT_SOURCE_DIR}/tests/kv_trace_validation.py
+          --binary $<TARGET_FILE:kv_test> --checker ${CCF_KV_TRACE_CHECKER}
+          --output ${CMAKE_CURRENT_BINARY_DIR}/kv-traces --seeds
+          ${CCF_KV_FUZZ_SEEDS} --seed-start ${CCF_KV_FUZZ_SEED_START} --timeout
+          ${CCF_KV_TRACE_TIMEOUT}
+      )
+      set_property(TEST kv_trace_validation PROPERTY LABELS kv_trace)
+    endif()
 
     add_unit_test(
       ds_test

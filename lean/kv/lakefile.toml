@@ -1,14 +1,10 @@
-name = "disaster_recovery"
+name = "kv"
 version = "0.1.0"
-moreLeanArgs = ["-DwarningAsError=true"]
-# Quote the hyphenated executable names for Lean's name parser.
+defaultTargets = ["Kv", "kv_trace_check", "kv_trace_tests"]
+leanOptions = { warningAsError = true }
 lintDriver = "axiomAudit/\u00abaxiom-audit\u00bb"
-lintDriverArgs = ["--root", "DisasterRecovery"]
-testDriver = "\u00abcanonical-checks\u00bb"
-defaultTargets = [
-  "DisasterRecovery",
-  "canonical-checks",
-]
+lintDriverArgs = ["--root", "Kv"]
+testDriver = "kv_trace_tests"
 
 [[require]]
 name = "mathlib"
@@ -26,8 +22,12 @@ git = "https://github.com/duckki/leanfmt.git"
 rev = "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef" # v0.4.5
 
 [[lean_lib]]
-name = "DisasterRecovery"
+name = "Kv"
 
 [[lean_exe]]
-name = "canonical-checks"
-root = "DisasterRecovery.Tests.CanonicalTests"
+name = "kv_trace_check"
+root = "Main"
+
+[[lean_exe]]
+name = "kv_trace_tests"
+root = "Tests"
