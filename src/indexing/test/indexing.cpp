@@ -455,8 +455,50 @@ constexpr size_t multithread_tx_count = 100;
 constexpr size_t multithread_tx_count = 1'000;
 #endif
 
+namespace
+{
+  // Do the fetch for each ledger request written since handled_writes,
+  // simulating an asynchronous fetch by the historical query system
+  void serve_ledger_requests(
+    const std::vector<StubWriter::Write>& writes,
+    size_t& handled_writes,
+    aft::LedgerStubProxy& ledger,
+    ccf::historical::StateCacheImpl& cache)
+  {
+    for (auto it = writes.begin() + handled_writes; it != writes.end(); ++it)
+    {
+      const auto& write = *it;
+
+      const uint8_t* data = write.contents.data();
+      size_t size = write.contents.size();
+      REQUIRE(write.m == ::consensus::ledger_get_range);
+      auto [from_seqno, to_seqno, purpose_] =
+        ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
+      auto& purpose = purpose_;
+      REQUIRE(purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
+
+      std::vector<uint8_t> combined;
+      for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
+      {
+        auto entry = ledger.get_raw_entry_by_idx(seqno);
+        if (!entry.has_value())
+        {
+          // Possible that this operation beat consensus to the ledger, so
+          // pause and retry
+          std::this_thread::sleep_for(std::chrono::milliseconds(50));
+          entry = ledger.get_raw_entry_by_idx(seqno);
+        }
+        REQUIRE(entry.has_value());
+        combined.insert(combined.end(), entry->begin(), entry->end());
+      }
+      cache.handle_ledger_entries(from_seqno, to_seqno, combined);
+    }
+
+    handled_writes = writes.end() - writes.begin();
+  }
+}
+
 // Uses the real classes, and access + update them concurrently
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST_CASE(
   "multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
 {
@@ -581,40 +623,7 @@ TEST_CASE(
       {
         cache->tick(ccf::historical::slow_fetch_threshold / 2);
 
-        // Do the fetch, simulating an asynchronous fetch by the historical
-        // query system
-        for (auto it = writes.begin() + handled_writes; it != writes.end();
-             ++it)
-        {
-          const auto& write = *it;
-
-          const uint8_t* data = write.contents.data();
-          size_t size = write.contents.size();
-          REQUIRE(write.m == ::consensus::ledger_get_range);
-          auto [from_seqno, to_seqno, purpose_] =
-            ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
-          auto& purpose = purpose_;
-          REQUIRE(
-            purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
-
-          std::vector<uint8_t> combined;
-          for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
-          {
-            auto entry = ledger->get_raw_entry_by_idx(seqno);
-            if (!entry.has_value())
-            {
-              // Possible that this operation beat consensus to the ledger, so
-              // pause and retry
-              std::this_thread::sleep_for(std::chrono::milliseconds(50));
-              entry = ledger->get_raw_entry_by_idx(seqno);
-            }
-            REQUIRE(entry.has_value());
-            combined.insert(combined.end(), entry->begin(), entry->end());
-          }
-          cache->handle_ledger_entries(from_seqno, to_seqno, combined);
-        }
-
-        handled_writes = writes.end() - writes.begin();
+        serve_ledger_requests(writes, handled_writes, *ledger, *cache);
 
         if (work_done)
         {
