@@ -3,6 +3,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/cose.h"
 
+#include "ccf/crypto/base64.h"
+#include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
@@ -14,6 +16,8 @@
 #include "crypto/cose.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "crypto/openssl/ec_key_pair.h"
+#include "crypto/openssl/ec_public_key.h"
+#include "crypto/openssl/rsa_public_key.h"
 #include "crypto/test/cbor_printer.h"
 #include "node/cose_common.h"
 
@@ -23,10 +27,15 @@
 #include <doctest/doctest.h>
 #include <exception>
 #include <limits>
+#include <memory>
+#include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tav/cbor.hpp>
 #include <tuple>
+#include <utility>
+#include <variant>
 #include <vector>
 
 // Hardcoded test vectors signed with pycose / Python cryptography (P-384).
@@ -303,6 +312,13 @@ TEST_CASE("COSE ECDSA round trips and algorithm binding")
     std::span<uint8_t> authenticated;
     REQUIRE(verifier->verify(envelope, authenticated));
     CHECK(std::ranges::equal(authenticated, detached_payload));
+    // The same key, through a parsed COSE_Key whose alg is curve.es
+    const auto cose_key_verifier =
+      ccf::crypto::make_cose_verifier_from_key(ccf::crypto::COSEKey::from_cbor(
+        ccf::crypto::COSEKey(
+          ccf::crypto::make_ec_public_key(key->public_key_der()))
+          .to_cbor(curve.es)));
+    CHECK(cose_key_verifier->verify(envelope, authenticated));
 
     for (const auto& candidate : curves)
     {
@@ -352,6 +368,7 @@ TEST_CASE("COSE ECDSA round trips and algorithm binding")
         .det_serialize();
     REQUIRE(verifier->verify(esp_envelope, authenticated));
     CHECK(std::ranges::equal(authenticated, detached_payload));
+    CHECK_FALSE(cose_key_verifier->verify(esp_envelope, authenticated));
   }
 }
 
@@ -410,6 +427,11 @@ TEST_CASE("COSE RSA-PSS verification")
   {
     CAPTURE(alg);
     const auto sig = key->sign(tbs, md, salt);
+    // The same key, through a parsed COSE_Key whose alg is alg
+    CHECK(
+      ccf::crypto::make_cose_verifier_from_key(
+        ccf::crypto::COSEKey::from_cbor(ccf::crypto::COSEKey(key).to_cbor(alg)))
+        ->verify_decomposed(phdr, detached_payload, sig, alg));
     // RFC 8230 requires the PSS salt length to equal the hash length.
     const auto unsalted_sig = key->sign(tbs, md, 0);
     for (const auto& verifier : verifiers)
@@ -850,6 +872,9 @@ TEST_CASE("COSE verifier imports public keys and certificates")
     CHECK_THROWS_AS(
       ccf::crypto::make_cose_verifier_from_der_cert(pem_bytes),
       std::invalid_argument);
+    CHECK_THROWS_AS(
+      std::ignore = ccf::crypto::COSEKey::from_der_cert(pem_bytes),
+      std::invalid_argument);
   }
 
   SUBCASE("DER certificate bytes")
@@ -858,6 +883,9 @@ TEST_CASE("COSE verifier imports public keys and certificates")
     std::span<uint8_t> authned;
     CHECK(verifier->verify(envelope, authned));
     verifier = ccf::crypto::make_cose_verifier_from_der_cert(cert_der);
+    CHECK(verifier->verify(envelope, authned));
+    verifier = ccf::crypto::make_cose_verifier_from_key(
+      ccf::crypto::COSEKey::from_der_cert(cert_der));
     CHECK(verifier->verify(envelope, authned));
   }
 
@@ -886,10 +914,48 @@ TEST_CASE("COSE verifier imports public keys and certificates")
       CHECK_THROWS_AS(
         ccf::crypto::make_cose_verifier_from_pem_cert(unsupported_cert),
         std::invalid_argument);
+      // cert_pem_to_der() throws for Ed25519 keys, so base64-decode the PEM
+      // body to get the DER
+      std::string der_b64;
+      std::istringstream pem_lines(unsupported_cert.str());
+      for (std::string line; std::getline(pem_lines, line);)
+      {
+        if (!line.starts_with("-----"))
+        {
+          der_b64 += line;
+        }
+      }
+      CHECK_THROWS_AS(
+        std::ignore = ccf::crypto::COSEKey::from_der_cert(
+          ccf::crypto::raw_from_b64(der_b64)),
+        std::invalid_argument);
       CHECK_THROWS_AS(
         ccf::crypto::make_cose_verifier_from_key(subject_key),
         std::runtime_error);
     }
+  }
+
+  SUBCASE("RSA key below 2048 bits")
+  {
+    const auto weak_key = ccf::crypto::make_rsa_key_pair(1024);
+    const auto weak_cert = ccf::crypto::create_endorsed_cert(
+      weak_key->public_key_pem(),
+      "CN=1024-bit RSA key",
+      {},
+      "20200101000000Z",
+      "20301231235959Z",
+      kp->private_key_pem(),
+      cert_pem);
+    const auto weak_cert_der = ccf::crypto::cert_pem_to_der(weak_cert);
+    CHECK_THROWS_AS(
+      std::ignore = ccf::crypto::COSEKey::from_der_cert(weak_cert_der),
+      std::invalid_argument);
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_der_cert(weak_cert_der),
+      std::invalid_argument);
+    CHECK_THROWS_AS(
+      ccf::crypto::make_cose_verifier_from_key(weak_key->public_key_der()),
+      std::runtime_error);
   }
 
   SUBCASE("invalid certificate public key")
@@ -907,6 +973,9 @@ TEST_CASE("COSE verifier imports public keys and certificates")
     CHECK_THROWS_WITH_AS(
       ccf::crypto::make_cose_verifier_from_der_cert(invalid_der),
       doctest::Contains("Failed to get certificate public key"),
+      std::invalid_argument);
+    CHECK_THROWS_AS(
+      std::ignore = ccf::crypto::COSEKey::from_der_cert(invalid_der),
       std::invalid_argument);
   }
 
@@ -929,6 +998,12 @@ TEST_CASE("COSE verifier imports public keys and certificates")
       ccf::crypto::make_cose_verifier_any_cert(garbage), std::invalid_argument);
     CHECK_THROWS_AS(
       ccf::crypto::make_cose_verifier_from_der_cert(garbage),
+      std::invalid_argument);
+    CHECK_THROWS_AS(
+      std::ignore = ccf::crypto::COSEKey::from_der_cert(garbage),
+      std::invalid_argument);
+    CHECK_THROWS_AS(
+      std::ignore = ccf::crypto::COSEKey::from_der_cert({}),
       std::invalid_argument);
     CHECK_THROWS_WITH_AS(
       ccf::crypto::make_cose_verifier_from_key(garbage),
@@ -970,4 +1045,493 @@ TEST_CASE("ECDSA algorithm identifiers")
   REQUIRE(ccf::cose::is_rsa_alg(-39)); // PS512
   REQUIRE_FALSE(ccf::cose::is_rsa_alg(-9));
   REQUIRE_FALSE(ccf::cose::is_rsa_alg(-7));
+}
+
+// COSE_Key labels
+constexpr int64_t LABEL_KTY = 1;
+constexpr int64_t LABEL_KID = 2;
+constexpr int64_t LABEL_ALG = 3;
+constexpr int64_t LABEL_KEY_OPS = 4;
+constexpr int64_t LABEL_EC2_CRV = -1;
+constexpr int64_t LABEL_EC2_X = -2;
+constexpr int64_t LABEL_EC2_Y = -3;
+constexpr int64_t LABEL_EC2_D = -4;
+constexpr int64_t LABEL_RSA_N = -1;
+constexpr int64_t LABEL_RSA_E = -2;
+constexpr int64_t LABEL_RSA_D = -3;
+constexpr int64_t LABEL_RSA_PRIVATE_FIRST = -12;
+
+// Values of COSE_Key fields, to build valid and malformed keys
+using CoseKeyField = std::variant<
+  int64_t,
+  std::vector<uint8_t>,
+  std::string,
+  bool,
+  std::vector<int64_t>>;
+using CoseKeyFields = std::vector<std::pair<int64_t, CoseKeyField>>;
+
+template <typename... Fs>
+struct Overloaded : Fs...
+{
+  using Fs::operator()...;
+};
+
+static std::vector<uint8_t> encode_cose_key_fields(
+  const CoseKeyFields& fields,
+  std::optional<tav::cbor::MapItem> extra = std::nullopt)
+{
+  using namespace tav::cbor;
+  const Overloaded to_value{
+    [](int64_t value) { return make_signed(value); },
+    [](const std::vector<uint8_t>& value) { return make_bytes(value); },
+    [](const std::string& value) { return make_string(value); },
+    [](bool value) {
+      return make_simple(value ? SimpleValue::True : SimpleValue::False);
+    },
+    [](const std::vector<int64_t>& values) {
+      std::vector<Value> array;
+      for (const auto value : values)
+      {
+        array.push_back(make_signed(value));
+      }
+      return make_array(std::move(array));
+    }};
+  std::vector<MapItem> items;
+  for (const auto& [label, field] : fields)
+  {
+    items.emplace_back(make_signed(label), std::visit(to_value, field));
+  }
+  if (extra.has_value())
+  {
+    items.push_back(std::move(extra.value()));
+  }
+  return make_map(std::move(items)).nondet_serialize();
+}
+
+// The fields with label set to field
+static std::vector<uint8_t> encode_with(
+  CoseKeyFields fields, int64_t label, CoseKeyField field)
+{
+  std::erase_if(
+    fields, [label](const auto& entry) { return entry.first == label; });
+  fields.emplace_back(label, std::move(field));
+  return encode_cose_key_fields(fields);
+}
+
+// The fields without label
+static std::vector<uint8_t> encode_without(CoseKeyFields fields, int64_t label)
+{
+  std::erase_if(
+    fields, [label](const auto& entry) { return entry.first == label; });
+  return encode_cose_key_fields(fields);
+}
+
+static CoseKeyFields ec2_fields(const ccf::crypto::COSEKey::EC2Parameters& key)
+{
+  return {
+    {LABEL_KTY, int64_t{2}},
+    {LABEL_EC2_CRV, key.crv},
+    {LABEL_EC2_X, key.x},
+    {LABEL_EC2_Y, key.y}};
+}
+
+static CoseKeyFields rsa_fields(const ccf::crypto::COSEKey::RSAParameters& key)
+{
+  return {{LABEL_KTY, int64_t{3}}, {LABEL_RSA_N, key.n}, {LABEL_RSA_E, key.e}};
+}
+
+static ccf::crypto::COSEKey random_ec_cose_key(ccf::crypto::CurveID curve)
+{
+  return ccf::crypto::COSEKey(ccf::crypto::make_ec_public_key(
+    ccf::crypto::make_ec_key_pair(curve)->public_key_der()));
+}
+
+// x + p for P-521, whose prime p = 2^521 - 1 still fits in 66 bytes: the same
+// point, encoded with a coordinate that is not below the field prime.
+static std::vector<uint8_t> add_p521_prime(std::vector<uint8_t> x)
+{
+  REQUIRE(x.size() == 66);
+  unsigned carry = 0;
+  for (size_t i = x.size(); i-- > 0;)
+  {
+    const unsigned p_byte = i == 0 ? 0x01 : 0xff;
+    const unsigned sum = x[i] + p_byte + carry;
+    x[i] = static_cast<uint8_t>(sum & 0xff);
+    carry = sum >> 8;
+  }
+  REQUIRE(carry == 0);
+  return x;
+}
+
+TEST_CASE("COSE_Key encoding and thumbprints")
+{
+  using ccf::crypto::COSEKey;
+  using ccf::ds::from_hex;
+
+  // RFC 9679 Section 6
+  const std::string x =
+    "65eda5a12577c2bae829437fe338701a10aaa375e1bb5b5de108de439c08551d";
+  const std::string y =
+    "1e52ed75701163f7f9e40ddf9f341b3dc9ba860af7e0ca7ca7e9eecd0084d19c";
+  const std::string thumbprint =
+    "496bd8afadf307e5b08c64b0421bf9dc01528a344a43bda88fadd1669da253ec";
+  // {1: 2, -1: 1, -2: x, -3: y, 2: thumbprint}, with no alg
+  const auto ec_key = COSEKey::from_cbor(
+    from_hex("a501022001215820" + x + "225820" + y + "025820" + thumbprint));
+  CHECK_FALSE(ec_key.alg().has_value());
+  CHECK(ec_key.thumbprint_sha256().hex_str() == thumbprint);
+  // {1: 2, 3: -7, -1: 1, -2: x, -3: y}
+  CHECK(
+    ec_key.to_cbor(-7) == from_hex("a5010203262001215820" + x + "225820" + y));
+  // {1: 2, 2: 'kid-1', 3: -7, -1: 1, -2: x, -3: y}
+  CHECK(
+    ec_key.to_cbor(-7, "kid-1") ==
+    from_hex("a6010202456b69642d3103262001215820" + x + "225820" + y));
+  CHECK(
+    ec_key.to_cbor(-7, from_hex("6b69642d31")) == ec_key.to_cbor(-7, "kid-1"));
+  const auto ec2 = ec_key.ec2_parameters().value();
+  CHECK(ec2.crv == 1);
+  CHECK(ec2.x == from_hex(x));
+  CHECK(ec2.y == from_hex(y));
+
+  // RSA-2048, computed independently of this code, with n and e in their
+  // minimal encoding (RFC 8230 Section 4)
+  const std::string n =
+    "d3ee08a208d1f77305370d8caf1573927be7bd07965f386f8b07bff4b489dfad93ed95b5"
+    "b48a5e5e1c541970bc8d9a5c32b7c140e70dc84133e730e74ee9563d64772dc35c8bf816"
+    "e4b12b5b91e662fd903f73e5009f48e1c0317658d0fb869e10852af6bfa1656457185250"
+    "49ea4425f37e891614957be33aac2fe812d7b2f3cb4bcb3356a4939975427e5bc76b871a"
+    "697729eb81ca80b378492849aeee6aa339e97c853dcba5ce2ced58fd6d4bbadcbd12145c"
+    "7fb24f22ae32078efe8a302d856388a79e86aafc33bc129103b757f26455c82d7fbec643"
+    "18ca9bd74635b5a6601c6cbc9ce128a0c8ba9a50c2ba64d413be21f59dc3f38ece21261e"
+    "0b9362d5";
+  // {1: 3, -1: n, -2: h'010001'}
+  const auto rsa_key =
+    COSEKey::from_cbor(from_hex("a3010320590100" + n + "2143010001"));
+  // {1: 3, 3: -37, -1: n, -2: h'010001'}
+  CHECK(
+    rsa_key.to_cbor(-37) ==
+    from_hex("a4010303382420590100" + n + "2143010001"));
+  CHECK(
+    rsa_key.thumbprint_sha256().hex_str() ==
+    "f968d08ed6fabc601c720a0757ef9b75ff9ea079dd1e47a12a7b0fc7fab39112");
+  const auto rsa = rsa_key.rsa_parameters().value();
+  CHECK(rsa.n == from_hex(n));
+  CHECK(rsa.e == std::vector<uint8_t>{0x01, 0x00, 0x01});
+}
+
+TEST_CASE("COSE_Key round trips")
+{
+  using ccf::crypto::COSEKey;
+  using ccf::crypto::COSEKeyType;
+  using ccf::crypto::CurveID;
+
+  for (const auto& [curve, alg, coordinate_size] :
+       {std::tuple{CurveID::SECP256R1, int64_t{-7}, size_t{32}},
+        std::tuple{CurveID::SECP384R1, int64_t{-35}, size_t{48}},
+        std::tuple{CurveID::SECP521R1, int64_t{-36}, size_t{66}}})
+  {
+    CAPTURE(alg);
+    const auto key = random_ec_cose_key(curve);
+    const auto encoded = key.to_cbor(alg, "kid");
+    const auto parsed = COSEKey::from_cbor(encoded);
+    REQUIRE(parsed.kty() == COSEKeyType::EC2);
+    CHECK(parsed.alg() == alg);
+    CHECK(parsed.to_cbor(parsed.alg().value(), "kid") == encoded);
+    CHECK(parsed.thumbprint_sha256() == key.thumbprint_sha256());
+    CHECK(
+      parsed.ec_public_key()->public_key_der() ==
+      key.ec_public_key()->public_key_der());
+    CHECK(parsed.rsa_public_key() == nullptr);
+    CHECK_FALSE(parsed.rsa_parameters().has_value());
+    // Coordinates keep any leading zero octets
+    const auto parameters = parsed.ec2_parameters().value();
+    CHECK(parameters.x.size() == coordinate_size);
+    CHECK(parameters.y.size() == coordinate_size);
+  }
+
+  const COSEKey rsa_key(ccf::crypto::make_rsa_key_pair());
+  const auto encoded = rsa_key.to_cbor(-37, "kid");
+  const auto parsed = COSEKey::from_cbor(encoded);
+  REQUIRE(parsed.kty() == COSEKeyType::RSA);
+  CHECK(parsed.alg() == -37);
+  CHECK(parsed.to_cbor(-37, "kid") == encoded);
+  CHECK(parsed.thumbprint_sha256() == rsa_key.thumbprint_sha256());
+  CHECK(
+    parsed.rsa_public_key()->public_key_der() ==
+    rsa_key.rsa_public_key()->public_key_der());
+  CHECK(parsed.ec_public_key() == nullptr);
+  CHECK_FALSE(parsed.ec2_parameters().has_value());
+
+  CHECK_THROWS_AS(
+    COSEKey(ccf::crypto::ECPublicKeyPtr{}), std::invalid_argument);
+  CHECK_THROWS_AS(
+    COSEKey(ccf::crypto::RSAPublicKeyPtr{}), std::invalid_argument);
+  CHECK_THROWS_AS(
+    COSEKey(ccf::crypto::make_rsa_key_pair(1024)), std::runtime_error);
+
+  // alg must be an algorithm that CCF can verify with the key
+  CHECK_THROWS_AS(std::ignore = rsa_key.to_cbor(-7), std::runtime_error);
+  CHECK_THROWS_AS(std::ignore = rsa_key.to_cbor(-8), std::runtime_error);
+}
+
+TEST_CASE("COSE_Key constructors reject unsupported parameters")
+{
+  using ccf::crypto::COSEKey;
+  using ccf::crypto::CurveID;
+
+  SUBCASE("EC2")
+  {
+    struct ReportedCurveKey : ccf::crypto::ECPublicKey_OpenSSL
+    {
+      using ccf::crypto::ECPublicKey_OpenSSL::ECPublicKey_OpenSSL;
+      CurveID curve = CurveID::SECP256R1;
+
+      CurveID get_curve_id() const override
+      {
+        return curve;
+      }
+    };
+
+    const auto key = std::make_shared<ReportedCurveKey>(
+      ccf::crypto::make_ec_key_pair(CurveID::SECP256R1)->public_key_der());
+    CHECK_NOTHROW(COSEKey{key});
+    for (const auto curve :
+         {CurveID::NONE,
+          CurveID::CURVE25519,
+          CurveID::X25519,
+          static_cast<CurveID>(0xff)})
+    {
+      CAPTURE(curve);
+      key->curve = curve;
+      CHECK_THROWS_WITH_AS(
+        COSEKey{key},
+        doctest::Contains("has no COSE EC2 identifier"),
+        std::runtime_error);
+    }
+  }
+
+  SUBCASE("RSA")
+  {
+    struct ReportedRSAKey : ccf::crypto::RSAPublicKey_OpenSSL
+    {
+      using ccf::crypto::RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL;
+      ccf::crypto::JsonWebKeyRSAPublic parameters;
+
+      ccf::crypto::JsonWebKeyRSAPublic public_key_jwk(
+        const std::optional<std::string>& = std::nullopt) const override
+      {
+        return parameters;
+      }
+    };
+
+    const auto key_pair = ccf::crypto::make_rsa_key_pair();
+    const auto key =
+      std::make_shared<ReportedRSAKey>(key_pair->public_key_der());
+    const auto valid_parameters = key_pair->public_key_jwk();
+    key->parameters = valid_parameters;
+    CHECK_NOTHROW(COSEKey{key});
+
+    key->parameters.n.clear();
+    CHECK_THROWS_WITH_AS(
+      COSEKey{key},
+      doctest::Contains("n must be 2048 to 16384 bits long"),
+      std::runtime_error);
+
+    key->parameters = valid_parameters;
+    key->parameters.e.clear();
+    CHECK_THROWS_WITH_AS(
+      COSEKey{key}, doctest::Contains("e must be odd"), std::runtime_error);
+  }
+}
+
+TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
+{
+  using ccf::crypto::COSEKey;
+  using ccf::crypto::CurveID;
+  using namespace tav::cbor;
+
+  const auto p256 =
+    random_ec_cose_key(CurveID::SECP256R1).ec2_parameters().value();
+  const auto p521 =
+    random_ec_cose_key(CurveID::SECP521R1).ec2_parameters().value();
+  const auto rsa =
+    COSEKey(ccf::crypto::make_rsa_key_pair()).rsa_parameters().value();
+  const auto p256_key = ec2_fields(p256);
+  const auto rsa_key = rsa_fields(rsa);
+  std::vector<Value> mixed_key_ops;
+  mixed_key_ops.push_back(make_string("unknown"));
+  mixed_key_ops.push_back(make_signed(2));
+  std::vector<Value> text_key_ops;
+  text_key_ops.push_back(make_string("2"));
+
+  // Valid keys, and edits of them that are still accepted
+  for (const auto& accepted : {
+         encode_cose_key_fields(p256_key),
+         encode_cose_key_fields(rsa_key),
+         encode_with(p256_key, LABEL_KID, std::vector<uint8_t>{1, 2}),
+         encode_with(p256_key, LABEL_ALG, int64_t{-9}), // ESP256
+         encode_with(p256_key, LABEL_KEY_OPS, std::vector<int64_t>{1, 2}),
+         encode_cose_key_fields(
+           p256_key,
+           MapItem{
+             make_signed(LABEL_KEY_OPS), make_array(std::move(mixed_key_ops))}),
+         encode_with(p256_key, 5, std::vector<uint8_t>{0}), // Base IV
+         encode_with(p256_key, 100, std::string("unknown label")),
+         encode_cose_key_fields(
+           p256_key, MapItem{make_string("unknown"), make_signed(0)}),
+         encode_cose_key_fields(
+           rsa_key, MapItem{make_string("unknown"), make_signed(0)}),
+         encode_with(
+           rsa_key, LABEL_RSA_PRIVATE_FIRST - 1, std::vector<uint8_t>{1}),
+         encode_with(rsa_key, LABEL_ALG, int64_t{-37}), // PS256
+         encode_with(rsa_key, LABEL_RSA_E, std::vector<uint8_t>{3}),
+         encode_with(rsa_key, LABEL_RSA_E, std::vector<uint8_t>(8, 0xff)),
+       })
+  {
+    CHECK_NOTHROW(std::ignore = COSEKey::from_cbor(accepted));
+  }
+
+  auto short_x = p256.x;
+  short_x.erase(short_x.begin());
+  auto long_x = p256.x;
+  long_x.push_back(0);
+  auto short_y = p256.y;
+  short_y.erase(short_y.begin());
+  auto long_y = p256.y;
+  long_y.push_back(0);
+  auto off_curve_y = p256.y;
+  off_curve_y.back() ^= 0xff;
+  auto padded_n = rsa.n;
+  padded_n.insert(padded_n.begin(), 0);
+  auto padded_e = rsa.e;
+  padded_e.insert(padded_e.begin(), 0);
+  const std::vector<uint8_t> short_n(rsa.n.begin(), rsa.n.begin() + 128);
+  const std::vector<uint8_t> long_n(16384 / 8 + 1, 0xff);
+  auto trailing_bytes = encode_cose_key_fields(p256_key);
+  trailing_bytes.push_back(0);
+
+  const std::vector<std::pair<std::string, std::vector<uint8_t>>> rejected = {
+    {"not CBOR", ccf::ds::from_hex("ff")},
+    {"not a map", ccf::ds::from_hex("80")},
+    {"trailing bytes", trailing_bytes},
+    {"kty missing", encode_without(p256_key, LABEL_KTY)},
+    {"kty text", encode_with(p256_key, LABEL_KTY, std::string("EC2"))},
+    {"kty OKP", encode_with(p256_key, LABEL_KTY, int64_t{1})},
+    {"kty Symmetric", encode_with(p256_key, LABEL_KTY, int64_t{4})},
+    {"kid text", encode_with(p256_key, LABEL_KID, std::string("kid"))},
+    {"alg text", encode_with(p256_key, LABEL_ALG, std::string("ES256"))},
+    {"alg EdDSA", encode_with(p256_key, LABEL_ALG, int64_t{-8})},
+    {"alg for P-384", encode_with(p256_key, LABEL_ALG, int64_t{-35})},
+    {"alg for RSA", encode_with(p256_key, LABEL_ALG, int64_t{-37})},
+    {"alg for EC2 on RSA", encode_with(rsa_key, LABEL_ALG, int64_t{-7})},
+    {"key_ops not an array", encode_with(p256_key, LABEL_KEY_OPS, int64_t{2})},
+    {"key_ops empty",
+     encode_with(p256_key, LABEL_KEY_OPS, std::vector<int64_t>{})},
+    {"key_ops without verify",
+     encode_with(p256_key, LABEL_KEY_OPS, std::vector<int64_t>{1})},
+    {"key_ops text does not allow verify",
+     encode_cose_key_fields(
+       p256_key,
+       MapItem{
+         make_signed(LABEL_KEY_OPS), make_array(std::move(text_key_ops))})},
+    {"crv missing", encode_without(p256_key, LABEL_EC2_CRV)},
+    {"crv text", encode_with(p256_key, LABEL_EC2_CRV, std::string("P-256"))},
+    {"crv secp256k1", encode_with(p256_key, LABEL_EC2_CRV, int64_t{8})},
+    {"x missing", encode_without(p256_key, LABEL_EC2_X)},
+    {"x too short", encode_with(p256_key, LABEL_EC2_X, short_x)},
+    {"x too long", encode_with(p256_key, LABEL_EC2_X, long_x)},
+    {"y missing", encode_without(p256_key, LABEL_EC2_Y)},
+    {"y too short", encode_with(p256_key, LABEL_EC2_Y, short_y)},
+    {"y too long", encode_with(p256_key, LABEL_EC2_Y, long_y)},
+    {"y compressed", encode_with(p256_key, LABEL_EC2_Y, true)},
+    {"point not on the curve", encode_with(p256_key, LABEL_EC2_Y, off_curve_y)},
+    {"x not below the field prime",
+     encode_with(ec2_fields(p521), LABEL_EC2_X, add_p521_prime(p521.x))},
+    {"EC2 private key",
+     encode_with(p256_key, LABEL_EC2_D, std::vector<uint8_t>(32, 1))},
+    {"n missing", encode_without(rsa_key, LABEL_RSA_N)},
+    {"n empty", encode_with(rsa_key, LABEL_RSA_N, std::vector<uint8_t>{})},
+    {"n with leading zero", encode_with(rsa_key, LABEL_RSA_N, padded_n)},
+    {"n below 2048 bits", encode_with(rsa_key, LABEL_RSA_N, short_n)},
+    {"n above 16384 bits", encode_with(rsa_key, LABEL_RSA_N, long_n)},
+    {"e empty", encode_with(rsa_key, LABEL_RSA_E, std::vector<uint8_t>{})},
+    {"e with leading zero", encode_with(rsa_key, LABEL_RSA_E, padded_e)},
+    {"e even",
+     encode_with(rsa_key, LABEL_RSA_E, std::vector<uint8_t>{1, 0, 0})},
+    {"e one", encode_with(rsa_key, LABEL_RSA_E, std::vector<uint8_t>{1})},
+    {"e above 64 bits",
+     encode_with(
+       rsa_key, LABEL_RSA_E, std::vector<uint8_t>{1, 0, 0, 0, 0, 0, 0, 0, 1})},
+    {"e equal to n", encode_with(rsa_key, LABEL_RSA_E, rsa.n)},
+    {"RSA private key",
+     encode_with(rsa_key, LABEL_RSA_D, std::vector<uint8_t>{1})},
+    {"RSA private key at lower label boundary",
+     encode_with(rsa_key, LABEL_RSA_PRIVATE_FIRST, std::vector<uint8_t>{1})},
+  };
+  for (const auto& [name, encoded] : rejected)
+  {
+    CAPTURE(name);
+    CHECK_THROWS_AS(
+      std::ignore = COSEKey::from_cbor(encoded), std::invalid_argument);
+  }
+}
+
+TEST_CASE("COSE_Key alg restricts verification")
+{
+  using ccf::crypto::COSEKey;
+
+  SUBCASE("EC2")
+  {
+    const auto key_pair =
+      ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+    // Signed with ES384 (-35)
+    const auto envelope = ccf::cose::sign_endorsement(
+      *key_pair, 1700000000, "2.1", {}, {}, detached_payload);
+    const auto fields =
+      tav::cbor::nondet_parse(envelope).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    const auto phdr = fields.array_at(0).as_bytes();
+    const auto sig = fields.array_at(3).as_bytes();
+
+    const COSEKey key(
+      ccf::crypto::make_ec_public_key(key_pair->public_key_der()));
+    // Restricted to ESP384 (-51)
+    const auto restricted = COSEKey::from_cbor(encode_with(
+      ec2_fields(key.ec2_parameters().value()), LABEL_ALG, int64_t{-51}));
+    CHECK(restricted.alg() == -51);
+    CHECK(COSEKey::from_cbor(restricted.to_cbor(-51)).alg() == -51);
+    // alg is not part of the thumbprint input
+    CHECK(restricted.thumbprint_sha256() == key.thumbprint_sha256());
+
+    std::span<uint8_t> authenticated;
+    CHECK(ccf::crypto::make_cose_verifier_from_key(key)->verify(
+      envelope, authenticated));
+    const auto verifier = ccf::crypto::make_cose_verifier_from_key(restricted);
+    CHECK_FALSE(verifier->verify(envelope, authenticated));
+    CHECK_FALSE(verifier->verify_decomposed(phdr, detached_payload, sig, -35));
+    CHECK(verifier->verify_decomposed(phdr, detached_payload, sig, -51));
+  }
+
+  SUBCASE("RSA")
+  {
+    using ccf::crypto::MDType;
+    const auto key_pair = ccf::crypto::make_rsa_key_pair();
+    const auto phdr = ccf::ds::from_hex("a0");
+    const auto tbs = ccf::cose::make_cose_sign1_tbs(phdr, detached_payload);
+    const auto ps256_sig = key_pair->sign(tbs, MDType::SHA256, 32);
+    const auto ps384_sig = key_pair->sign(tbs, MDType::SHA384, 48);
+
+    const COSEKey key(key_pair);
+    // Restricted to PS256 (-37)
+    const auto restricted = COSEKey::from_cbor(encode_with(
+      rsa_fields(key.rsa_parameters().value()), LABEL_ALG, int64_t{-37}));
+    CHECK(restricted.alg() == -37);
+
+    CHECK(ccf::crypto::make_cose_verifier_from_key(key)->verify_decomposed(
+      phdr, detached_payload, ps384_sig, -38));
+    const auto verifier = ccf::crypto::make_cose_verifier_from_key(restricted);
+    CHECK(verifier->verify_decomposed(phdr, detached_payload, ps256_sig, -37));
+    CHECK_FALSE(
+      verifier->verify_decomposed(phdr, detached_payload, ps384_sig, -38));
+  }
 }
