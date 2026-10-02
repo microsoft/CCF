@@ -272,6 +272,22 @@ jobs:
           python3 tests/infra/platform_detection.py snp genoa
         shell: bash
 
+      - name: "Build Lean recovery trace replayer"
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
+            -o /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          rm /tmp/elan-init.sh
+          export PATH="${HOME}/.elan/bin:${PATH}"
+          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+          # The replayer's own Lake package has no dependencies, so this
+          # fetches no Mathlib.
+          cd lean/disaster-recovery/replay
+          lake build
+        shell: bash
+
       - name: "Build Debug"
         run: |
           set -ex
@@ -294,6 +310,8 @@ jobs:
         shell: bash
         env:
           CCF_TEST_SYNC_AFTER_SETUP: 1
+          CCF_RECOVERY_TRACE: 1
+          CCF_LEAN_TRACE_REPLAYER: ${{ github.workspace }}/lean/disaster-recovery/replay/.lake/build/bin/disaster-recovery-replay
           ELECTION_TIMEOUT_MS: 10000
 
       - name: "Capture dmesg"
