@@ -26,6 +26,9 @@ namespace ccf::gov::endpoints
 
   namespace detail
   {
+    // Endpoint handlers registered by init_ack_handlers(), via forwarding
+    // lambdas. Kept out of the registration function so each handler's
+    // complexity is measured on its own.
     template <typename Ctx>
     inline void get_state_digest(Ctx& ctx, ApiVersion api_version)
     {
