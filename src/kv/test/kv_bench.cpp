@@ -84,6 +84,38 @@ static void serialise(picobench::state& s)
 }
 
 template <ccf::kv::SecurityDomain SD>
+static void serialise_small(picobench::state& s)
+{
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
+  ccf::kv::Store kv_store;
+  auto encryptor =
+    std::make_shared<ccf::NodeEncryptor>(create_ledger_secrets());
+  kv_store.set_encryptor(encryptor);
+  const auto map_name = build_map_name("small", SD);
+
+  std::vector<KeyType> keys;
+  std::vector<ValueType> values;
+  for (int i = 0; i < s.iterations(); ++i)
+  {
+    keys.push_back(gen_key(i));
+    values.push_back(gen_value(i));
+  }
+
+  s.start_timer();
+  for (auto _ : s)
+  {
+    auto tx = kv_store.create_tx();
+    tx.rw<MapType>(map_name)->put(keys[_], values[_]);
+    if (tx.commit() != ccf::kv::CommitResult::SUCCESS)
+    {
+      throw std::logic_error("Transaction commit failed");
+    }
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
+template <ccf::kv::SecurityDomain SD>
 static void deserialise(picobench::state& s)
 {
   ccf::logger::config::level() = ccf::LoggerLevel::INFO;
@@ -305,6 +337,15 @@ PICOBENCH(serialise<SD::PUBLIC>)
   .samples(sample_size)
   .baseline();
 PICOBENCH(serialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
+
+PICOBENCH_SUITE("serialise small transactions");
+PICOBENCH(serialise_small<SD::PUBLIC>)
+  .iterations({100, 1000})
+  .samples(sample_size)
+  .baseline();
+PICOBENCH(serialise_small<SD::PRIVATE>)
+  .iterations({100, 1000})
+  .samples(sample_size);
 
 PICOBENCH_SUITE("deserialise");
 PICOBENCH(deserialise<SD::PUBLIC>)

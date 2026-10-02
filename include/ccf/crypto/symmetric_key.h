@@ -29,6 +29,7 @@ namespace ccf::crypto
 
     [[nodiscard]] size_t serialised_size() const;
     std::vector<uint8_t> serialise();
+    void serialise(std::span<uint8_t> output) const;
 
     void deserialise(const std::vector<uint8_t>& ser);
     void deserialise(const uint8_t*& data, size_t& size);
@@ -92,6 +93,15 @@ namespace ccf::crypto
         std::vector<uint8_t>& cipher,
         uint8_t tag[GCM_SIZE_TAG]) = 0;
 
+      // cipher must be exactly plain.size() bytes. Input and output must not
+      // partially overlap; identical plaintext and ciphertext spans are valid.
+      virtual void encrypt(
+        std::span<const uint8_t> iv,
+        std::span<const uint8_t> plain,
+        std::span<const uint8_t> aad,
+        std::span<uint8_t> cipher,
+        uint8_t tag[GCM_SIZE_TAG]) = 0;
+
       // Replaces plain on success and clears it if authentication fails.
       virtual bool decrypt(
         std::span<const uint8_t> iv,
@@ -116,6 +126,15 @@ namespace ccf::crypto
       std::span<const uint8_t> plain,
       std::span<const uint8_t> aad,
       std::vector<uint8_t>& cipher,
+      uint8_t tag[GCM_SIZE_TAG]) const = 0;
+
+    // cipher must be exactly plain.size() bytes. Input and output must not
+    // partially overlap; identical plaintext and ciphertext spans are valid.
+    virtual void encrypt(
+      std::span<const uint8_t> iv,
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> aad,
+      std::span<uint8_t> cipher,
       uint8_t tag[GCM_SIZE_TAG]) const = 0;
 
     // AES-GCM decryption
