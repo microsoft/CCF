@@ -633,9 +633,13 @@ if(BUILD_TESTS)
         "${DOCS_PYTHON}" -m sphinx --fail-on-warning -b html "${CCF_DIR}/doc"
         "${CCF_DIR}/doc/html"
     )
+    # Its runner has no Lean; the Lean workflow checks the trace viewer's dumps.
     set_tests_properties(
       docs
-      PROPERTIES LABELS "bucket_a;docs" WORKING_DIRECTORY "${CCF_DIR}"
+      PROPERTIES
+        LABELS "bucket_a;docs"
+        WORKING_DIRECTORY "${CCF_DIR}"
+        ENVIRONMENT "SKIP_TRACE_VIEWER=ON"
     )
   endif()
 

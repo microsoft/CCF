@@ -14,7 +14,7 @@ only the replayer and the modules it imports. They import no Mathlib module, so
 the package has no dependencies. Run it from there:
 
 ```bash
-lake exe disaster-recovery-replay --participants N --open-kind QUORUM|FAILOVER [--wait-ms N] LOG...
+lake exe disaster-recovery-replay --participants N --open-kind QUORUM|FAILOVER [--wait-ms N] [--dump FILE] LOG...
 ```
 
 By default it waits up to 20 seconds for the nodes to log a complete
@@ -144,3 +144,9 @@ so the replayer uses a fixed one. A node that never gossips never reads its
 recovered TxID, so the replayer uses `0.0` for it. The model does not store
 notifications in the network state, so the replayer re-runs the node's local
 step to check them, as the properties do.
+
+## Viewer
+
+`--dump FILE` also writes the replay as JSON for the trace viewer in `viewer/`,
+which the [Trace viewer](../../../doc/operations/recovery.rst) section of the
+recovery documentation describes.

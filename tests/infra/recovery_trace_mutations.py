@@ -294,6 +294,27 @@ def _retry_bad_version(state: dict) -> bool:
     return True
 
 
+def _retry_after_end(state: dict) -> bool:
+    """Moves a node's last retry to read the write that took it to Joining or
+    Open, where the model disables retries."""
+    for node in nodes(state):
+        records = [r for _, _, r in seqsorted(state) if r["node"] == node]
+        ended = [
+            r
+            for r in records
+            if r["kind"] in HANDLERS and r["wrote"] and r["post"] in ("Joining", "Open")
+        ]
+        sends = [r for r in records if r["kind"] == "send"]
+        if not ended or not sends:
+            continue
+        batch = [r for r in sends if r["batch"] == sends[-1]["batch"]]
+        if batch[0]["pre_version"] < ended[0]["version"]:
+            for record in batch:
+                record["pre_version"] = ended[0]["version"]
+            return True
+    return False
+
+
 def _delete_send_from_batch(state: dict) -> bool:
     batches = collections.Counter(
         (r["node"], r["batch"]) for _, _, r in recs(state) if r["kind"] == "send"
@@ -566,6 +587,7 @@ COMMIT_ORDER = [
     ("unwrite_read_version", FAIL, _unwrite_read_version),
     ("set_chain_off", FAIL, one(_set_chain_off_pred, dyns("gossips", _set_chain_off))),
     ("retry_bad_version", FAIL, _retry_bad_version),
+    ("retry_after_end", FAIL, _retry_after_end),
     ("extra_final_attempt", FAIL, m_extra_final_attempt),
     ("failed_to_trace_line", FAIL, m_failed_to_trace_line),
 ]

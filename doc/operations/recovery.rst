@@ -212,6 +212,24 @@ This failover path is illustrated below.
 
 If the network fails during reconfiguration, each node will use its latest known configuration to recover. Since reconfiguration requires votes from a majority of nodes, the latest configuration should recover using the election path, however nodes in the previous configuration may recover using the election path.
 
+Trace viewer
+^^^^^^^^^^^^
+
+The `trace viewer <../trace-viewer/index.html>`__ steps through recovery decision protocol traces as the protocol's Lean model replays them.
+For each step, it shows the nodes' records beside the model state that they lead to, and, when the model does not explain a trace, the step that fails and why.
+The published viewer shows the replayer's fixtures, and failing mutants of them.
+
+Nodes trace the protocol when started with the ``CCF_RECOVERY_TRACE`` environment variable set, for example to ``1``, and log each step as an ``RDP_TRACE`` record.
+To view other traces, put each node's log in a directory as a ``.out`` file, with a ``scenario.json`` like those of the replayer's :ccf_repo:`fixtures </lean/disaster-recovery/replay/fixtures>`.
+Then build the replayer with ``lake``, which `elan <https://lean-lang.org/install/>`__ installs, and serve the viewer at ``http://localhost:8000/``:
+
+.. code-block:: bash
+
+    cd lean/disaster-recovery/replay
+    lake build
+    python3 viewer/build.py --logs DIR
+    python3 -m http.server --bind 127.0.0.1 8000 --directory viewer
+
 Local Sealing
 ~~~~~~~~~~~~~
 

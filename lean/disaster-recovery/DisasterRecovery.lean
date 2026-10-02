@@ -18,6 +18,7 @@ import DisasterRecovery.Proofs.Witnesses
 import DisasterRecovery.Properties
 import DisasterRecovery.Properties.Utils
 import DisasterRecovery.Replay
+import DisasterRecovery.Replay.Dump
 import DisasterRecovery.Replay.Records
 import DisasterRecovery.Replay.Reduction
 import DisasterRecovery.Shared.Capabilities
