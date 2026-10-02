@@ -73,17 +73,7 @@ Builds CCF with coverage enabled, runs unit, end to end and partition tests, and
 
 A parallel job on `gha-aci-genoa` builds with coverage and runs the same SEV-SNP tests as the ACI SNP Genoa job in `ci.yml`, excluding benchmarks, then uploads their merged coverage profile. Before generating reports, the Virtual job waits for that job and merges its profile into the overall statistics. This does not lengthen the workflow, because the SNP job normally finishes well before the Virtual tests. Profiles only match binaries built with the same compiler and compile options, so the Virtual job also checks that both jobs used the same compiler version. If the SNP job does not succeed, or its compiler differs, the Virtual job fails rather than report statistics without SNP coverage, which also keeps that run out of the coverage trend.
 
-The Virtual job summary plots line coverage (charcoal) and branch coverage (blue) together on one percentage axis, with the previous successful runs on the same branch recovered from their job logs, followed by the current run. The GitHub-native Mermaid chart labels each series at its final point, with aligned axes and plots inset to leave room for the annotations without adding runs or coverage values. The line label sits above its endpoint, and the branch label below and to the left. It has a white background, subdued labels, no axis lines or tick marks, and no duplicate chart title. Its shared range frames both series, rounded out to five percentage points; it is not necessarily zero-based. A caption gives the latest percentages, and a newest-first table retains exact values and links to every run. Endpoint labels require [Mermaid 11.16 or later](https://mermaid.js.org/syntax/xyChart.html).
-
-Mermaid cannot draw gaps for missing values. If only some runs report branch coverage, the chart includes only runs with both metrics and explicitly notes the omissions; the table still includes all runs, with `-` for unavailable branch coverage. If no run reports branch coverage, the chart shows line coverage alone. At least two comparable runs are required to draw a trend; otherwise, the caption and table show the available values.
-
-The GitHub API sometimes returns an outdated list of runs, so a list is only used if it includes the current run, and is otherwise requested again. If no up-to-date list is returned, the trend only includes the current run, and the job reports a warning.
-
-The summary renderer's regression tests run in `ci.yml` and can be run locally without a CCF build or third-party Python packages:
-
-```bash
-python3 scripts/tests/coverage_summary_test.py
-```
+The Virtual job summary plots line and branch coverage together on a shared percentage axis with endpoint labels, for the previous successful runs on the same branch, recovered from their job logs, followed by the current run. The GitHub API sometimes returns an outdated list of runs, so a list is only used if it includes the current run, and is otherwise requested again. If no up-to-date list is returned, the trend only includes the current run, and the job reports a warning.
 
 File: `coverage.yml`
 3rd party dependencies: None
