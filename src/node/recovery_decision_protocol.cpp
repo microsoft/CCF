@@ -98,7 +98,8 @@ namespace ccf
       nlohmann::json record = {
         {"kind", "send"},
         {"batch", current_trace_batch},
-        {"send", fmt::format("{}:{}", message, target)}};
+        {"message", message},
+        {"target", target}};
       if (current_trace_pre_version.has_value())
       {
         record["pre_version"] = current_trace_pre_version.value();
@@ -313,8 +314,7 @@ namespace ccf
 
           sm_state_handle->put(
             recovery_decision_protocol::StateMachine::VOTING);
-          trace_safely(
-            "chosen", [&]() { trace.chosen = std::get<2>(maximum.value()); });
+          trace.chosen = std::get<2>(maximum.value());
         }
         break;
       }
@@ -420,7 +420,7 @@ namespace ccf
         LOG_INFO_FMT("{}", service_cert.str());
 
         trace.restart = true;
-        trace_safely("chosen", [&]() { trace.chosen = chosen_replica; });
+        trace.chosen = chosen_replica;
         node_state->request_restart();
       }
       case recovery_decision_protocol::StateMachine::OPENING:
