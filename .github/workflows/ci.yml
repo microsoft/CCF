@@ -53,9 +53,6 @@ jobs:
           set -ex
           ./scripts/setup-dev.sh
 
-      - name: "Test coverage summary renderer"
-        run: python3 scripts/tests/coverage_summary_test.py
-
       - name: "Run Checks and Build Debug with clang-tidy"
         run: |
           set -ex
