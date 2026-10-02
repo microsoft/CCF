@@ -31,10 +31,10 @@
       "type": "git",
       "subDir": null,
       "scope": "",
-      "rev": "5ed2965256430c3649e86755f9576b54eca72435",
+      "rev": "d13f23b723b8a846827a245b89c10fc7d3f11612",
       "name": "mathlib",
       "manifestFile": "lake-manifest.json",
-      "inputRev": "v4.34.0",
+      "inputRev": "v4.34.1",
       "inherited": false,
       "configFile": "lakefile.lean"
     },

@@ -61,8 +61,8 @@ jobs:
         shell: bash
     env:
       # Must match lean/kv/lean-toolchain. The digest is the release archive's.
-      LEAN_VERSION: 4.34.0
-      LEAN_SHA256: caaa98356098c85dc0fcbbd28e1ec66f39eb6551829972b752ff20e1286b646b
+      LEAN_VERSION: 4.34.1
+      LEAN_SHA256: 47bf4bbd78f70c2e9670598ab7124d92b6efb7330ff33e5fbb4030f6fd72e4e4
 
     steps:
       - name: Bootstrap checkout dependencies

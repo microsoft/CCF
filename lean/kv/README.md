@@ -1,6 +1,6 @@
 # Executable KV implementation profile
 
-Standalone Lean 4.34.0 project, using the same pinned Mathlib, axiom-audit and
+Standalone Lean 4.34.1 project, using the same pinned Mathlib, axiom-audit and
 leanfmt tooling as the [disaster-recovery model](../disaster-recovery/README.md).
 It does not change CCF behavior or introduce a normal-build dependency. The
 user-facing contract, trace capture and fuzzing campaigns are described in
@@ -19,7 +19,7 @@ lake lint
 lake test
 ```
 
-Elan is optional: putting the official Lean 4.34.0 distribution's `bin`
+Elan is optional: putting the official Lean 4.34.1 distribution's `bin`
 directory on `PATH` is sufficient. Lake dependencies and their transitive
 revisions are pinned in `lake-manifest.json`. From the repository root,
 `scripts/lean-format-checks.sh lean/kv` checks formatting, and `-f` before the
