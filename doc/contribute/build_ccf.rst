@@ -76,6 +76,8 @@ or if there are no Doxygen changes
 
     $ SKIP_DOXYGEN=ON ./livehtml.sh
 
+HTML builds also build the :ref:`trace viewer <operations/recovery:Trace viewer>`, which needs ``lake``; ``SKIP_TRACE_VIEWER=ON`` skips it.
+
 Rust API documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
