@@ -141,7 +141,7 @@ jobs:
           name="coverage-history-${slug}"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           if ! run_ids=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=${name}&per_page=100" \
-            --jq '[.artifacts[] | select(.expired == false and .workflow_run.id != (env.GITHUB_RUN_ID | tonumber))] | sort_by(.created_at) | reverse | .[0:20] | .[].workflow_run.id'); then
+            --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == env.GITHUB_REF_NAME and .workflow_run.id != (env.GITHUB_RUN_ID | tonumber))] | sort_by(.created_at) | reverse | .[0:20] | .[].workflow_run.id'); then
             echo "::warning::Could not list coverage artifacts; starting a new history"
             run_ids=""
           fi
