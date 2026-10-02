@@ -44,8 +44,10 @@ Main continuous integration job. Builds CCF for all target platforms, runs unit,
 
 The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
 
+To compare Kache with an uncached build, manually dispatch `ci.yml` with `kache` disabled for a baseline, then enabled twice for cold and warm cache runs. Only the Virtual B build uses Kache; the other jobs and normal PR builds are unchanged. Compare the Virtual B `Build Debug` step and total job durations across runs, including Kache setup and post-job cache save/restore overhead. The Kache job summary reports object cache hits and misses. The experiment uses a dedicated GitHub Actions cache prefix, not S3, and does not post PR comments.
+
 File: `ci.yml`
-3rd party dependencies: None
+3rd party dependencies: `kunobi-ninja/kache-action@v1` (manual Kache experiment only)
 
 # Continuous Integration AL4
 

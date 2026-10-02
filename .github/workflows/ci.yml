@@ -5,6 +5,11 @@ on:
     - cron: "0 0 * * 0"
   pull_request:
   workflow_dispatch:
+    inputs:
+      kache:
+        description: "Try Kache on the Virtual B build"
+        type: boolean
+        default: false
   merge_group:
 
 concurrency:
@@ -140,6 +145,15 @@ jobs:
           set -ex
           python3 tests/infra/platform_detection.py virtual
         shell: bash
+
+      - name: "Set up Kache (opt-in experiment)"
+        if: github.event_name == 'workflow_dispatch' && inputs.kache
+        uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
+        with:
+          version: v0.28.1
+          cache-c-cpp: "true"
+          cache-key-prefix: ccf-azl3-debug-b
+          pr-comment: "false"
 
       - name: "Build Debug"
         run: |
