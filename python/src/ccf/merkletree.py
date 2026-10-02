@@ -161,11 +161,9 @@ class MerkleTree:
         uint64_data, position = read_bytes(position, 8)
         self._num_flushed = struct.unpack(">Q", uint64_data)[0]
 
-        # Same restriction as merklecpp::Tree::deserialise(): a serialisation
-        # which retains no leaves but claims flushed leaves is malformed.
-        # Without this check the flushed subtree roots would be accepted, and
-        # get_merkle_root() would return a value which is not, in general, the
-        # root of the tree over the flushed leaves.
+        # Same restriction as merklecpp::Tree::deserialise(). Without it, the
+        # flushed subtree roots would be rebuilt into a tree whose root is not,
+        # in general, the root over the flushed leaves.
         if num_leaf_nodes == 0 and self._num_flushed != 0:
             raise ValueError("Serialised tree has no retained leaves")
 

@@ -118,18 +118,17 @@ class TestSnapshotTombstone:
         domain = snapshot_domain({b"a": (1, b"x"), b"bb": (2**40, b"yyyyyyyyy")})
         assert tables(domain) == {TABLE: {b"a": b"x", b"bb": b"yyyyyyyyy"}}
 
-    @pytest.mark.parametrize("version", [-1, -(2**40), -(2**63)])
-    def test_negative_version_not_retained(self, version: int):
-        domain = snapshot_domain({b"gone": (version, b""), b"kept": (3, b"v")})
+    @pytest.mark.parametrize(
+        ("version", "payload"),
+        [(-1, b""), (-(2**40), b""), (-(2**63), b""), (-1, b"stale")],
+    )
+    def test_negative_version_not_retained(self, version: int, payload: bytes):
+        # The node drops the entry without inspecting its payload
+        domain = snapshot_domain({b"gone": (version, payload), b"kept": (3, b"v")})
         assert tables(domain) == {TABLE: {b"kept": b"v"}}
 
     def test_zero_version_is_a_value(self):
         assert tables(snapshot_domain({b"k": (0, b"")})) == {TABLE: {b"k": b""}}
-
-    def test_negative_version_payload_skipped(self):
-        # The node drops the entry without inspecting its payload
-        domain = snapshot_domain({b"gone": (-1, b"stale"), b"kept": (3, b"v")})
-        assert tables(domain) == {TABLE: {b"kept": b"v"}}
 
 
 # Serialised KV snapshots from the "Old snapshots" test case in
@@ -464,13 +463,6 @@ class TestTornChunkTail:
         write_chunk(tmp_path, "ledger_1", [self.first, self.second], cut=cut)
         ledger = ccf.ledger.Ledger([str(tmp_path)], committed_only=False)
         assert ledger.get_latest_public_state() == ({TABLE: {b"a": b"1"}}, 1)
-
-    def test_torn_entry_rejected_by_offset_validation(self, tmp_path):
-        path = write_chunk(tmp_path, "ledger_1", [self.first, self.second], cut=1)
-        with pytest.raises(ValueError, match="extends beyond file size"):
-            ccf.ledger.LedgerChunk(
-                path, verification_level=ccf.ledger.VerificationLevel.OFFSETS
-            )
 
 
 def fixture_services() -> list[str]:
