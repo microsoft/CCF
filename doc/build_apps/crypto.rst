@@ -99,6 +99,21 @@ Verification of signatures is supported via the :cpp:class:`Verifier` class.
   :project: CCF
   :members:
 
+COSE Keys
+---------
+
+EC2 (P-256, P-384 or P-521) and RSA public keys can be held as COSE_Keys (RFC 9052), which are parsed, validated and encoded by :cpp:class:`ccf::crypto::COSEKey`, and verify COSE_Sign1 signatures through a verifier made by :cpp:func:`ccf::crypto::make_cose_verifier_from_key`.
+
+.. doxygenclass:: ccf::crypto::COSEKey
+  :project: CCF
+  :members:
+
+.. doxygenenum:: ccf::crypto::COSEKeyType
+  :project: CCF
+
+.. doxygenfunction:: ccf::crypto::make_cose_verifier_from_key(const COSEKey&)
+  :project: CCF
+
 
 Key Wrapping
 ------------
