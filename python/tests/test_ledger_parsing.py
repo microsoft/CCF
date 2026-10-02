@@ -5,6 +5,7 @@
 
 import base64
 import glob
+import json
 import os
 import struct
 
@@ -24,11 +25,8 @@ def public_domain_prefix(entry_type: ccf.ledger.EntryType, version: int = 1) -> 
     return bytes([entry_type.value]) + struct.pack("<qq", version, 0)
 
 
-def write_set_domain(
-    writes: dict[bytes, bytes],
-    removals: list[bytes],
-    table: str = TABLE,
-    version: int = 1,
+def table_write_set(
+    table: str, writes: dict[bytes, bytes], removals: list[bytes]
 ) -> bytes:
     body = struct.pack("<qQQ", 0, 0, len(writes))  # read version, reads, writes
     for key, value in writes.items():
@@ -36,11 +34,18 @@ def write_set_domain(
     body += struct.pack("<Q", len(removals))
     for key in removals:
         body += length_prefixed(key)
-    return (
-        public_domain_prefix(ccf.ledger.EntryType.WRITE_SET, version)
-        + length_prefixed(table.encode())
-        + body
-    )
+    return length_prefixed(table.encode()) + body
+
+
+def write_set_domain(
+    writes: dict[bytes, bytes],
+    removals: list[bytes],
+    table: str = TABLE,
+    version: int = 1,
+) -> bytes:
+    return public_domain_prefix(
+        ccf.ledger.EntryType.WRITE_SET, version
+    ) + table_write_set(table, writes, removals)
 
 
 def padded(data: bytes) -> bytes:
@@ -270,8 +275,10 @@ def entry(
     declared_size: int | None = None,
     declared_domain_size: int | None = None,
     version: int = ccf.ledger.ENTRY_FORMAT_V1,
+    domain: bytes | None = None,
 ) -> bytes:
-    domain = write_set_domain(writes, [], version=seqno)
+    if domain is None:
+        domain = write_set_domain(writes, [], version=seqno)
     if declared_domain_size is None:
         declared_domain_size = len(domain)
     body = (
@@ -347,6 +354,71 @@ class TestTransactionHeaderValidation:
     def test_unknown_flags_rejected(self):
         with pytest.raises(ValueError, match="Invalid transaction flags"):
             self.validate(header(ccf.ledger.MIN_ENTRY_SIZE, flags=0x80))
+
+
+NODES_TABLE = ccf.ledger.NODES_TABLE_NAME
+ENDORSED_CERTIFICATES_TABLE = ccf.ledger.ENDORSED_NODE_CERTIFICATES_TABLE_NAME
+
+
+def node_info(status: str) -> bytes:
+    return json.dumps({"status": status}).encode()
+
+
+def governance_transaction(seqno: int, *write_sets: bytes) -> ccf.ledger.Transaction:
+    domain = public_domain_prefix(ccf.ledger.EntryType.WRITE_SET, seqno) + b"".join(
+        write_sets
+    )
+    return transaction(entry(seqno, {}, domain=domain))
+
+
+def node_removal(seqno: int, node_id: bytes) -> ccf.ledger.Transaction:
+    # InternalTablesAccess::remove_nodes (src/node/internal_tables_access.h)
+    # removes the node's endorsed certificate alongside its node info
+    return governance_transaction(
+        seqno,
+        table_write_set(NODES_TABLE, {}, [node_id]),
+        table_write_set(ENDORSED_CERTIFICATES_TABLE, {}, [node_id]),
+    )
+
+
+class TestNodeRemoval:
+    """
+    Full verification must accept every node removal the service writes.
+    """
+
+    @staticmethod
+    def full_validator() -> ccf.ledger.LedgerValidator:
+        return ccf.ledger.LedgerValidator(
+            verification_level=ccf.ledger.VerificationLevel.FULL
+        )
+
+    def test_trusted_node_removal(self):
+        validator = self.full_validator()
+        validator.add_transaction(
+            governance_transaction(
+                1,
+                table_write_set(NODES_TABLE, {b"n1": node_info("Trusted")}, []),
+                table_write_set(ENDORSED_CERTIFICATES_TABLE, {b"n1": b"cert"}, []),
+            )
+        )
+        assert validator.node_certificates == {"n1": b"cert"}
+        validator.add_transaction(node_removal(2, b"n1"))
+        assert validator.node_certificates == {}
+        assert "n1" not in validator.node_activity_status
+
+    def test_pending_node_removal(self):
+        # Pending nodes are removed when they expire (pending_node_timeout) and
+        # by disaster recovery, but never had an endorsed certificate written.
+        # The KV serialises the removal of the absent key regardless.
+        validator = self.full_validator()
+        validator.add_transaction(
+            governance_transaction(
+                1, table_write_set(NODES_TABLE, {b"n1": node_info("Pending")}, [])
+            )
+        )
+        validator.add_transaction(node_removal(2, b"n1"))
+        assert validator.node_certificates == {}
+        assert "n1" not in validator.node_activity_status
 
 
 def write_chunk(directory: str, name: str, entries: list[bytes], cut: int = 0) -> str:

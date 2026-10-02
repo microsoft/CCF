@@ -703,8 +703,11 @@ class LedgerValidator:
                 ), f"Only one of node self-signed certificate and endorsed certificate should be recorded for node {node_id}"
 
                 if endorsed_node_cert is None:
-                    # Node has been removed from the store
-                    self.node_certificates.pop(node_id)
+                    # Node has been removed from the store. Pending nodes are
+                    # removed without ever having an endorsed certificate
+                    # (see InternalTablesAccess::remove_nodes), and the KV
+                    # records the removal of the absent key regardless.
+                    self.node_certificates.pop(node_id, None)
                 else:
                     self.node_certificates[node_id] = endorsed_node_cert
 

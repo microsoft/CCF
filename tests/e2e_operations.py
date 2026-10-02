@@ -4974,6 +4974,22 @@ def run_pending_node_expiration(const_args):
         test_pending_node_expiration(network, args)
         test_pending_node_expiration(network, args, failover=True)
 
+        primary, _ = network.find_primary()
+        network.stop_all_nodes(skip_verification=True)
+
+    # Expired Pending nodes are removed along with an endorsed certificate
+    # they never had, which full offline verification must accept
+    validator = ccf.ledger.LedgerValidator()
+    ledger = ccf.ledger.Ledger(
+        primary.remote.ledger_paths(),
+        committed_only=False,
+        contiguous_suffix=True,
+    )
+    for chunk in ledger:
+        for tx in chunk:
+            validator.add_transaction(tx)
+    LOG.info(f"Verified ledger until {validator.last_verified_txid()}")
+
 
 # The operations tests below are split into groups which are run
 # concurrently, as separate ConcurrentRunner sub-tests (see tests/schema.py).
