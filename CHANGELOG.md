@@ -11,12 +11,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- `GET /node/state` is now a non-transactional command endpoint. Its response body schema is unchanged, but it no longer returns `x-ms-ccf-transaction-id`; `last_signed_seqno` reports progress from a coherent materialised ledger prefix, not an application KV snapshot.
+- `GET /node/state` is now a non-transactional command endpoint. Its response body schema is unchanged, but it no longer returns `x-ms-ccf-transaction-id`; `last_signed_seqno` reports progress from a coherent materialised ledger prefix, not an application KV snapshot (#8490).
 
 ### Removed
 
-- Removed ordinary live KV access to `public:ccf.internal.signatures`, `public:ccf.internal.cose_signatures` and `public:ccf.internal.tree` in native C++/Rust and current-KV JavaScript application/governance contexts. `Tx`, `ReadOnlyTx` and `TxDiff` reject all typed and untyped handles to these tables. Use historical state or receipt APIs instead; historical read-only access and offline ledger parsing remain supported. All other table permissions are unchanged.
-  - Copied older constitutions must remove eager raw-signature reads which initialise `ack.state_digest` when adding or resetting members, and use the existing [state-digest update and acknowledgement workflow](doc/governance/adding_member.rst#activating-a-new-member). Default constitutions from 7.0.17 onward already use this workflow.
+- Removed ordinary live KV access to `public:ccf.internal.signatures`, `public:ccf.internal.cose_signatures` and `public:ccf.internal.tree` in native C++/Rust and current-KV JavaScript application/governance contexts. `Tx`, `ReadOnlyTx` and `TxDiff` reject all typed and untyped handles to these tables. Use historical state or receipt APIs instead; historical read-only access and offline ledger parsing remain supported. All other table permissions are unchanged (#8490).
+  - Copied older constitutions must remove eager raw-signature reads which initialise `ack.state_digest` when adding or resetting members, and use the existing [state-digest update and acknowledgement workflow](doc/governance/adding_member.rst#activating-a-new-member). Default constitutions from 7.0.17 onward already use this workflow (#8490).
 
 ## [7.0.18]
 
