@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.19]
+
+[7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
+
+### Added
+
+- Ledger chunk download clients can opt in to immutable `.committed_prefix` resources containing recent committed entries that are not yet available in canonical `.committed` files (#8214).
+
 ## [7.0.18]
 
 [7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18

@@ -352,6 +352,18 @@ if __name__ == "__main__":
         sig_tx_interval=1,
     )
 
+    cr.add(
+        "committed-prefix-download",
+        e2e_operations.run_committed_ledger_prefix_download,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        initial_user_count=1,
+        ledger_chunk_bytes="50MB",
+        # A due snapshot ends the chunk at the next signature regardless of
+        # size, which would promote the file to .committed mid-test.
+        snapshot_tx_interval=100000,
+    )
+
     for name, target in (
         ("download-snapshot", e2e_operations.run_backup_snapshot_download),
         (
