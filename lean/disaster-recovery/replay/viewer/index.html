@@ -82,6 +82,7 @@
       button {
         font: inherit;
         color: inherit;
+        letter-spacing: inherit;
         background: none;
         border: 1px solid var(--hair);
       }
@@ -101,6 +102,13 @@
         color: var(--faint);
         border-color: var(--hair);
         cursor: default;
+      }
+      /* Toggles, tabs and links are buttons, for the keyboard, set as text. */
+      .tog,
+      .tab,
+      .link {
+        border: 0;
+        padding: 0;
       }
       .mono {
         font-family: var(--mono);
@@ -130,14 +138,23 @@
       .tog,
       .tab,
       .lanes tbody tr,
-      .records summary,
-      a[data-goto],
-      a[data-record] {
+      .records summary {
         cursor: pointer;
       }
       .tog {
         padding: 0 3px;
         user-select: none;
+      }
+      /* Out of sight but in the tab order, outlining its label when focused. */
+      #file {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+      }
+      label:has(#file:focus-visible) {
+        outline: auto;
       }
       .tog.off,
       .off {
@@ -275,6 +292,8 @@
       }
       .tab.cur {
         color: var(--ink);
+      }
+      .tab.cur > span {
         border-bottom: 1px solid var(--ink);
       }
       #rows,
@@ -494,10 +513,11 @@
       .records .jk {
         color: var(--grey);
       }
-      a[data-goto],
-      a[data-record] {
+      /* The border is on the text, as it would be on an inline link. */
+      .link {
         color: var(--link);
-        text-decoration: none;
+      }
+      .link > span {
         border-bottom: 1px dotted var(--link);
       }
       .empty {
@@ -522,7 +542,7 @@
         <h1>Recovery trace</h1>
         <select id="run" title="run"></select>
         <label class="tog sc" title="open a dump written by --dump"
-          >open dump<input id="file" type="file" accept=".json" hidden
+          >open dump<input id="file" type="file" accept=".json"
         /></label>
         <span id="outcome"></span>
       </div>
@@ -555,8 +575,22 @@
     <main>
       <section id="trace">
         <div class="tabs sc">
-          <span class="tab" data-mode="steps">replay order</span>
-          <span class="tab" data-mode="log">log order</span>
+          <button
+            type="button"
+            class="tab"
+            data-mode="steps"
+            aria-pressed="false"
+          >
+            <span>replay order</span>
+          </button>
+          <button
+            type="button"
+            class="tab"
+            data-mode="log"
+            aria-pressed="false"
+          >
+            <span>log order</span>
+          </button>
         </div>
         <div id="rows"></div>
       </section>
