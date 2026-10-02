@@ -7,6 +7,7 @@
 #include "ccf/kv/version.h"
 #include "ccf/tx_id.h"
 
+#include <cstdint>
 #include <list>
 #include <map>
 #include <memory>
@@ -48,7 +49,7 @@ namespace ccf::kv
   class BaseTx
   {
   protected:
-    enum class AccessMode
+    enum class AccessMode : std::uint8_t
     {
       ReadOnly,
       ReadWrite,

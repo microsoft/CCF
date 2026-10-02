@@ -19,7 +19,7 @@ namespace ccf::Tables
 
 namespace ccf::kv
 {
-  inline constexpr bool is_signature_table(std::string_view name)
+  constexpr bool is_signature_table(std::string_view name)
   {
     return name == ccf::Tables::SIGNATURES ||
       name == ccf::Tables::COSE_SIGNATURES ||

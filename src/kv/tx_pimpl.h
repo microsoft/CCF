@@ -8,7 +8,7 @@ namespace ccf::kv
 {
   struct BaseTx::PrivateImpl
   {
-    enum class Role
+    enum class Role : std::uint8_t
     {
       Ordinary,
       Reserved,
