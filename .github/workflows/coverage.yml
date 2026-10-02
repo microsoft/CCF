@@ -245,16 +245,24 @@ jobs:
           python3 tests/infra/platform_detection.py snp genoa
         shell: bash
 
-      # Builds and runs the same tests as the ACI SNP Genoa job in ci.yml, with
-      # coverage enabled, except for ledger_bench, since benchmarks are not
-      # included in coverage.
+      - name: "Discover THIM endpoint"
+        run: |
+          set -euo pipefail
+          if ! { cat /proc/*/environ 2>/dev/null || true; } | tr '\000' '\n' | sort -u | grep '^Fabric_NodeIPOrFQDN=.' >> "$GITHUB_ENV"; then
+            echo "::error::Fabric_NodeIPOrFQDN is required for THIM endorsement tests"
+            exit 1
+          fi
+        shell: bash
+
+      # Builds the usual SNP tests plus the full nodes_test suite for coverage.
+      # Benchmarks are excluded from coverage.
       - name: "Build Debug with coverage"
         run: |
           set -ex
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON -DWORKER_THREADS=1 ..
-          ninja snp code_update_test
+          ninja snp code_update_test nodes_test
         shell: bash
 
       - name: "Tests"
@@ -262,7 +270,7 @@ jobs:
           set -ex
           cd build
           ./tests.sh --timeout 360 --output-on-failure -C snp -L snp --no-tests=error
-          ./tests.sh --timeout 360 --output-on-failure -R code_update --no-tests=error
+          ./tests.sh --timeout 360 --output-on-failure -R '^(code_update|nodes)_test$' --no-tests=error
         shell: bash
         env:
           CCF_TEST_SYNC_AFTER_SETUP: 1

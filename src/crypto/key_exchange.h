@@ -92,14 +92,8 @@ namespace tls
       tmp.erase(tmp.begin());
 
       int nid = ccf::crypto::ECPublicKey_OpenSSL::get_openssl_group_id(curve);
-      auto pk = ccf::crypto::key_from_raw_ec_point(tmp, nid);
-
-      if (pk == nullptr)
-      {
-        throw std::runtime_error("Failed to parse peer key share");
-      }
-
-      peer_key = std::make_shared<ccf::crypto::ECPublicKey_OpenSSL>(pk);
+      peer_key = std::make_shared<ccf::crypto::ECPublicKey_OpenSSL>(
+        ccf::crypto::key_from_raw_ec_point(tmp, nid));
       shared_secret.clear();
     }
 
