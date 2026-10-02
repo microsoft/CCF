@@ -142,3 +142,9 @@ refresh quorum _3 _4 _5
 refresh timeout _timeout_3
 refresh multiple-timeout _multiple_timeout_3 _multiple_timeout_4 _multiple_timeout_5
 ```
+
+## Viewer
+
+`--dump FILE` also writes the replay as JSON for the trace viewer in `viewer/`,
+which the [Trace viewer](../../../doc/operations/recovery.rst) section of the
+recovery documentation describes.
