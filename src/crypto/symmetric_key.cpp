@@ -7,6 +7,8 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ds/serialized.h"
 
+#include <algorithm>
+
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
@@ -41,14 +43,22 @@ namespace ccf::crypto
 
   std::vector<uint8_t> GcmHeader::serialise()
   {
-    auto space = serialised_size();
-    std::vector<uint8_t> serial_hdr(space);
-
-    auto* data_ = serial_hdr.data();
-    serialized::write(data_, space, static_cast<uint8_t*>(tag), sizeof(tag));
-    serialized::write(data_, space, iv.data(), iv.size());
-
+    std::vector<uint8_t> serial_hdr(serialised_size());
+    serialise(serial_hdr);
     return serial_hdr;
+  }
+
+  void GcmHeader::serialise(std::span<uint8_t> output) const
+  {
+    if (output.size() != serialised_size())
+    {
+      throw std::logic_error("Incorrect GCM header output size");
+    }
+
+    auto* data_ = output.data();
+    auto space = output.size();
+    serialized::write(data_, space, tag, sizeof(tag));
+    serialized::write(data_, space, iv.data(), iv.size());
   }
 
   void GcmHeader::deserialise(const std::vector<uint8_t>& ser)
@@ -66,6 +76,52 @@ namespace ccf::crypto
       serialized::read(data, size, GCM_SIZE_TAG).data(),
       GCM_SIZE_TAG);
     iv = serialized::read(data, size, iv.size());
+  }
+
+  void KeyAesGcm::Context::encrypt(
+    std::span<const uint8_t> iv,
+    std::span<const uint8_t> plain,
+    std::span<const uint8_t> aad,
+    std::span<uint8_t> cipher,
+    uint8_t tag[GCM_SIZE_TAG])
+  {
+    if (cipher.size() != plain.size())
+    {
+      throw std::logic_error("Incorrect AES-GCM output size");
+    }
+    std::vector<uint8_t> output;
+    encrypt(iv, plain, aad, output, tag);
+    if (output.size() != cipher.size())
+    {
+      throw std::logic_error("Unexpected AES-GCM ciphertext size");
+    }
+    if (!output.empty())
+    {
+      std::copy(output.begin(), output.end(), cipher.begin());
+    }
+  }
+
+  void KeyAesGcm::encrypt(
+    std::span<const uint8_t> iv,
+    std::span<const uint8_t> plain,
+    std::span<const uint8_t> aad,
+    std::span<uint8_t> cipher,
+    uint8_t tag[GCM_SIZE_TAG]) const
+  {
+    if (cipher.size() != plain.size())
+    {
+      throw std::logic_error("Incorrect AES-GCM output size");
+    }
+    std::vector<uint8_t> output;
+    encrypt(iv, plain, aad, output, tag);
+    if (output.size() != cipher.size())
+    {
+      throw std::logic_error("Unexpected AES-GCM ciphertext size");
+    }
+    if (!output.empty())
+    {
+      std::copy(output.begin(), output.end(), cipher.begin());
+    }
   }
 
   /// GcmCipher implementation
