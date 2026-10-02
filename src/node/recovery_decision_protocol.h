@@ -4,11 +4,16 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/locking.h"
+#include "ccf/endpoint_context.h"
 #include "ccf/node/configuration.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
 #include "tasks/task.h"
+
+#include <map>
+#include <set>
+#include <string_view>
 
 namespace ccf::recovery_decision_protocol
 {
@@ -35,6 +40,26 @@ namespace ccf::recovery_decision_protocol
 
   DECLARE_JSON_TYPE_WITH_BASE(IAmOpenRequest, TaggedWithNodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(IAmOpenRequest, prev_service_fingerprint, txid);
+
+  // What one execution of advance() read, wrote and requested. Trace only.
+  struct AdvanceTrace
+  {
+    StateMachine pre = StateMachine::GOSSIPING;
+    StateMachine pre_timeout = StateMachine::GOSSIPING;
+    StateMachine post = StateMachine::GOSSIPING;
+    StateMachine post_timeout = StateMachine::GOSSIPING;
+    std::optional<std::map<sealing_recovery::Name, ccf::TxID>> gossips =
+      std::nullopt;
+    std::optional<std::set<sealing_recovery::Name>> votes = std::nullopt;
+    std::optional<sealing_recovery::Name> chosen = std::nullopt;
+    std::optional<OpenKinds> open_kind = std::nullopt;
+    bool restart = false;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(AdvanceTrace);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    AdvanceTrace, pre, pre_timeout, post, post_timeout);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    AdvanceTrace, gossips, votes, chosen, open_kind, restart);
 }
 
 namespace ccf
@@ -60,10 +85,25 @@ namespace ccf
     RecoveryDecisionProtocolSubsystem(NodeState* node_state);
     void reset_state(ccf::kv::Tx& tx);
     void try_start(ccf::kv::Tx& tx, bool recovering);
-    void advance(ccf::kv::Tx& tx, bool timeout);
+    void advance(
+      ccf::kv::Tx& tx,
+      bool timeout,
+      recovery_decision_protocol::AdvanceTrace& trace);
 
     recovery_decision_protocol::IAmOpenRequest& get_iamopen_request(
       kv::ReadOnlyTx& tx);
+
+    // A handler execution is recorded here, and logged by trace_committed_step
+    // only if its transaction commits
+    void prepare_trace_step(
+      ccf::RpcContext& rpc_ctx,
+      const char* kind,
+      std::string_view source,
+      std::optional<ccf::TxID> txid,
+      const recovery_decision_protocol::AdvanceTrace& trace) noexcept;
+    void trace_committed_step(
+      ccf::endpoints::CommandEndpointContext& ctx,
+      const ccf::TxID& txid) noexcept;
 
   private:
     // Start path
@@ -85,5 +125,11 @@ namespace ccf
     RecoveryDecisionProtocolConfig& get_config();
     sealing_recovery::Location& get_location();
     ccf::TxID get_last_recovered_signed_txid();
+
+    void record_trace_send(
+      const char* message,
+      const sealing_recovery::Name& target,
+      std::optional<ccf::TxID> txid) noexcept;
+    void emit_trace(nlohmann::json&& record);
   };
 }
