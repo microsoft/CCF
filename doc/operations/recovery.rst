@@ -42,7 +42,7 @@ Each node will then immediately restore the public entries of its ledger (``ledg
 
 .. note::
 
-    From CCF 8.0, :http:GET:`/node/state` is a non-transactional command endpoint and no longer returns the ``x-ms-ccf-transaction-id`` response header. Its response body schema is unchanged. The ``last_signed_seqno`` field is read from a coherent, locally materialised ledger prefix. It is progress metadata, independent of application KV snapshots, not a transaction ID for this request.
+    From CCF 8.0, :http:GET:`/node/state` is a non-transactional command endpoint and no longer returns the ``x-ms-ccf-transaction-id`` response header. Its response body schema is unchanged. The ``last_signed_seqno`` field is read from a coherent, locally materialised ledger prefix. It is progress metadata, independent of application KV snapshots, not a transaction ID for this request. The endpoint is served while the node's KV store is not yet ready, so it can be polled throughout public ledger recovery and snapshot installation.
 
 Public-ledger replay temporarily reconstructs the previous service's node entries and consensus configuration. When the recovery service is created, the recovery transaction deletes all previous-service node entries and their associated endorsed certificates and local-sealing records. These nodes do not pass through the normal ``Retired`` and ``retired_committed`` states because the previous service does not participate in the new service's consensus. Consequently, previous-service nodes are absent from both :http:GET:`/node/network/nodes` and :http:GET:`/node/network/removable_nodes` after recovery. See :ref:`architecture/consensus/index:Retirement details` for the normal live-service retirement sequence.
 

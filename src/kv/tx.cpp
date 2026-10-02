@@ -67,9 +67,12 @@ namespace ccf::kv
 
     if (reason != nullptr)
     {
+      // Denials are reported to the caller through the exception. Logging at
+      // a quieter level avoids a FAIL line per request from a probing or
+      // misbehaving application.
       const auto message =
         fmt::format("Access to map '{}' denied: {}", map_name, reason);
-      LOG_FAIL_FMT("{}", message);
+      LOG_DEBUG_FMT("{}", message);
       throw MapAccessDenied(message);
     }
   }

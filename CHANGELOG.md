@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- `GET /node/state` is now a non-transactional command endpoint. Its response body schema is unchanged, but it no longer returns `x-ms-ccf-transaction-id`; `last_signed_seqno` reports progress from a coherent materialised ledger prefix, not an application KV snapshot (#8490).
+- `GET /node/state` is now a non-transactional command endpoint. Its response body schema is unchanged, but it no longer returns `x-ms-ccf-transaction-id`; `last_signed_seqno` reports progress from a coherent materialised ledger prefix, not an application KV snapshot. It is also served while the node's KV store is not yet ready, for example during public ledger recovery or snapshot installation, rather than returning `503 FrontendNotOpen`; `last_signed_seqno` then reports the last recovered signed seqno (#8490).
 
 ### Removed
 
