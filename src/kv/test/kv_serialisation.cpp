@@ -10,6 +10,7 @@
 
 #include <doctest/doctest.h>
 #undef FAIL
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <limits>
@@ -728,6 +729,43 @@ TEST_CASE(
   REQUIRE(tx.ro(private_map)->get("2") == "private");
   REQUIRE(tx.ro(public_map)->get("3") == "public");
   REQUIRE(tx.ro(private_map)->get("3") == "private");
+}
+
+TEST_CASE(
+  "Partial encryption failure cannot replicate an entry" *
+  doctest::test_suite("serialisation"))
+{
+  class FailingEncryptor : public ccf::NodeEncryptor
+  {
+  public:
+    using ccf::NodeEncryptor::NodeEncryptor;
+
+    bool encrypt(
+      std::span<const uint8_t>,
+      std::span<const uint8_t>,
+      std::span<uint8_t> header,
+      std::span<uint8_t> cipher,
+      const ccf::TxID&,
+      ccf::kv::EntryType,
+      bool) override
+    {
+      std::fill(header.begin(), header.end(), 0xAA);
+      std::fill(cipher.begin(), cipher.end(), 0xBB);
+      return false;
+    }
+  };
+
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<FailingEncryptor>(secrets));
+  store.set_consensus(consensus);
+
+  auto tx = store.create_tx();
+  tx.rw<MapTypes::StringString>("private_map")->put("key", "secret");
+  REQUIRE_THROWS_AS(tx.commit(), ccf::kv::KvSerialiserException);
+  REQUIRE_FALSE(consensus->get_latest_data().has_value());
 }
 
 TEST_CASE(
