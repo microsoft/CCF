@@ -9,7 +9,9 @@ node logs -(Replay/Records.lean)-> records
           -(Replay.lean)-> success or discrepancy
 ```
 
-Run it from `lean/disaster-recovery`:
+It has its own Lake package in `lean/disaster-recovery/replay`, which builds
+only the replayer and the modules it imports. They import no Mathlib module, so
+the package has no dependencies. Run it from there:
 
 ```bash
 lake exe disaster-recovery-replay --participants N --open-kind QUORUM|FAILOVER [--wait-ms N] LOG...
@@ -20,9 +22,8 @@ scenario; `--wait-ms 0` makes any incompleteness fail immediately. It replays
 the reduced trace through `Model.transitionSystem`, prints how many actions
 and observations it replayed, and checks the scenario. Malformed records,
 records that no commit order explains, disabled actions and observation
-mismatches fail it immediately. Each
-instruction names the log line and the rule it comes from, so a failure
-points back to both.
+mismatches fail it immediately. Each instruction names the log line and the
+rule it comes from, so a failure points back to both.
 
 The SNP Genoa CI job runs its tests with `CCF_RECOVERY_TRACE=1`, which
 `tests/infra/remote.py` passes on to the nodes, so the recovery decision
@@ -44,7 +45,7 @@ one JSON object. Every record has `node`, `sequence`, a per-node counter from
 | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
 | `start`                                                           | The global hook sees the protocol start in Gossiping, at `version` |
 | `gossip_accepted`, `vote_accepted`, `iamopen_accepted`, `timeout` | The local commit handler of a request whose transaction committed  |
-| `send`                                                            | A retry is about to dispatch one message, named by `send`          |
+| `send`                                                            | A retry is about to dispatch one `message` to its `target`         |
 
 `start` also carries the `expected_locations`. Handler records are logged by
 the endpoint's locally committed function, so only executions that committed
@@ -56,8 +57,9 @@ version it read at otherwise. They hold the phase and timeout phase that
 `restart` it read, wrote or requested. An IAmOpen's `pre` and `chosen` are its
 own Joining writes, before the subsequent `advance()` reads them. Gossip and
 vote records include the execution's own insert in `gossips` or `votes`.
-Receives name their sender in `source`. The sends of one retry share a `batch`
-and the version of the `sm_state` value the retry read, in `pre_version`.
+Receives name their sender in `source`. A send's `message` is `gossip`, `vote`
+or `iamopen`. The sends of one retry share a `batch` and the version of the
+`sm_state` value the retry read, in `pre_version`.
 Gossip records and sends carry the gossiped `txid`, as `"view.seqno"`.
 
 ## Rules
@@ -115,11 +117,11 @@ covered by targeted mutants rather than by sweeping `version` and `wrote`.
 Run it from the repository root after building the replayer:
 
 ```bash
-cd lean/disaster-recovery
-lake build disaster-recovery-replay
-cd ../..
+cd lean/disaster-recovery/replay
+lake build
+cd ../../..
 python3 tests/infra/recovery_trace_mutations.py \
-  lean/disaster-recovery/.lake/build/bin/disaster-recovery-replay \
+  lean/disaster-recovery/replay/.lake/build/bin/disaster-recovery-replay \
   lean/disaster-recovery/replay/fixtures
 ```
 

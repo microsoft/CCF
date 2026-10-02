@@ -1,4 +1,5 @@
 import DisasterRecovery.Replay
+import Lean.Data.Json
 
 set_option autoImplicit false
 
@@ -119,20 +120,6 @@ structure TraceEvent where
   body : Body
 deriving Inhabited
 
-def messageName : Message → String
-  | .gossip _ => "gossip"
-  | .vote => "vote"
-  | .iAmOpen => "iAmOpen"
-
-def TraceEvent.kind (event : TraceEvent) : String :=
-  match event.body with
-  | .start .. => "start"
-  | .send .. => "send"
-  | .timeout .. => "timeout"
-  | .receive _ (.gossip _) _ => "gossip_accepted"
-  | .receive _ .vote _ => "vote_accepted"
-  | .receive _ .iAmOpen _ => "iamopen_accepted"
-
 def TraceEvent.isIAmOpen (event : TraceEvent) : Bool :=
   event.body matches .receive _ .iAmOpen _
 
@@ -159,13 +146,11 @@ private def advanceFields : List String :=
 /-- The required and optional fields of each record kind. -/
 private def fieldsOf : String → Option (List String × List String)
   | "start" => some (common ++ ["version", "expected_locations"], [])
-  | "send" => some (common ++ ["batch", "send", "pre_version"], ["txid"])
+  | "send" => some (common ++ ["batch", "message", "target", "pre_version"], ["txid"])
   | "timeout" => some (executionFields, advanceFields)
-  | "gossip_accepted" =>
-      some (executionFields ++ ["source", "txid"], advanceFields)
+  | "gossip_accepted" => some (executionFields ++ ["source", "txid"], advanceFields)
   | "vote_accepted"
-  | "iamopen_accepted" =>
-      some (executionFields ++ ["source"], advanceFields)
+  | "iamopen_accepted" => some (executionFields ++ ["source"], advanceFields)
   | _ => none
 
 private def digits (text : String) : Option Nat :=
@@ -201,133 +186,119 @@ private def parseTxID (location : String) (value : Json) : Checked TxID := do
 def parseEvent (record : Record) : Checked TraceEvent := do
   let value := record.value
   let location := record.location
+  let invalid (what : String) : Failure := .invalid s!"{location}: {what}"
   let fields : List String :=
     match value with
     | .obj entries => entries.toList.map fun (key, _) => key
     | _ => []
-  let kind := value.getObjValD "kind"
-  let some (required, optional) :=
-    (match kind with
-      | .str name => fieldsOf name
-      | _ => none)
-  | throw (.invalid s!"{location}: unknown record kind {kind.compress}")
-  let kind := kind.getStr?.toOption.getD ""
+  let kind := (value.getObjValD "kind").getStr?.toOption.getD ""
+  let some (required, optional) := fieldsOf kind
+  | throw (invalid s!"unknown record kind {(value.getObjValD "kind").compress}")
   let missing := required.filter (!fields.contains ·)
   require missing.isEmpty s!"{location}: {kind} misses {missing.mergeSort}"
   let unknown := fields.filter fun key => !required.contains key && !optional.contains key
   require unknown.isEmpty s!"{location}: {kind} has unknown fields {unknown}"
+  -- Every required field is present from here on.
   let get (key : String) : Json := value.getObjValD key
-  let optionalField {α : Type} (key : String) (parse : Json → Checked α)
+  let ifPresent {α : Type} (key : String) (parse : Json → Checked α)
       : Checked (Option α) :=
     if fields.contains key then some <$> parse (get key) else pure none
-  let node ← parseName location (get "node")
-  let sequence ← parseNatural location (get "sequence")
-  let pre ← optionalField "pre" (parsePhase location)
-  let preTimeout ← optionalField "pre_timeout" (parsePhase location)
-  let post ← optionalField "post" (parsePhase location)
-  let postTimeout ← optionalField "post_timeout" (parsePhase location)
-  let gossips ←
-    optionalField "gossips"
-      fun
-      | .obj entries =>
-          entries.toList.mapM
-            fun (key, item) => do
-              return (← parseName location (.str key), ← parseTxID location item)
-      | _ => throw (.invalid s!"{location}: invalid gossips")
-  let votes ←
-    optionalField "votes"
-      fun
-      | .arr items => do
-          let names ← items.toList.mapM (parseName location)
-          require (names.eraseDups.length == names.length) s!"{location}: duplicate votes"
-          return names.mergeSort
-      | _ => throw (.invalid s!"{location}: invalid votes")
-  let chosen ← optionalField "chosen" (parseName location)
-  let openKind ←
-    optionalField "open_kind"
-      fun
-      | .str "Quorum" => pure OpenKind.quorum
-      | .str "Failover" => pure OpenKind.failover
-      | _ => throw (.invalid s!"{location}: invalid open_kind")
-  let restart ←
-    optionalField "restart"
-      fun
-      | .bool flag => pure flag
-      | _ => throw (.invalid s!"{location}: invalid restart")
-  let restart := restart.getD false
-  let source ← optionalField "source" (parseName location)
-  let txid ← optionalField "txid" (parseTxID location)
-  let batch ← optionalField "batch" (parseNatural location)
-  let natural (key : String) : Checked Nat := parseNatural location (get key)
-  let event (body : Body) : TraceEvent := { record, node, sequence, body }
-  if kind == "start" then
-    let .arr expected := get "expected_locations"
-    | throw (.invalid s!"{location}: invalid expected_locations")
-    return event
-      (.start (← natural "version") (← expected.toList.mapM (parseName location)))
-  if kind == "send" then
-    let send := get "send"
-    let invalid := Failure.invalid s!"{location}: invalid send {send.compress}"
-    let .str text := send | throw invalid
-    let sendKind :: rest@(_ :: _) := text.splitOn ":" | throw invalid
-    let target := ":".intercalate rest
-    if target.isEmpty then throw invalid
-    let message ←
-      match sendKind, txid with
-      | "gossip", some txid => pure (Message.gossip txid)
-      | "vote", none => pure .vote
-      | "iamopen", none => pure .iAmOpen
-      | "gossip", none
-      | "vote", some _
-      | "iamopen", some _ =>
-          throw (.invalid s!"{location}: only gossip sends carry a txid")
-      | _, _ => throw invalid
-    let some batch := batch | throw (.invalid s!"{location}: send misses batch")
-    return event (.send batch target message (← natural "pre_version"))
-  let (some pre, some preTimeout, some post, some postTimeout) :=
-    (pre, preTimeout, post, postTimeout)
-  | throw (.invalid s!"{location}: {kind} misses its phases")
-  let .bool wrote := get "wrote" | throw (.invalid s!"{location}: invalid wrote")
-  let execution : Execution :=
-    {
-      pre,
-      preTimeout,
-      post,
-      postTimeout,
-      version := ← natural "version",
-      wrote,
-      gossips,
-      votes,
-      chosen,
-      openKind,
-      restart
-    }
-  -- advance() records the maps it evaluates, the node it chooses or joins,
-  -- the open kind it writes and the restart it requests.
-  let advanced := if kind == "iamopen_accepted" then Phase.joining else pre
-  for (key, present)
-      in [
-        ("gossips", advanced == .gossiping),
-        ("votes", advanced == .voting),
-        ("chosen", advanced == .joining || (advanced == .gossiping && post == .voting)),
-        ("open_kind", advanced == .voting && post == .opening)
-      ] do
-    require (fields.contains key == present)
-      s!"{location}: {kind} from {phaseName pre} to {phaseName post} {if present then "must" else "cannot"} record {key}"
-  if kind == "timeout" then
-    return event (.timeout execution)
-  let some source := source | throw (.invalid s!"{location}: {kind} misses source")
-  let message ←
-    match kind, txid with
-    | "gossip_accepted", some txid =>
-        pure (Message.gossip txid)
-    | "vote_accepted", _ => pure .vote
-    | "iamopen_accepted", _ =>
-        -- IAmOpen writes Joining and its sender as the chosen node before advance().
-        require (pre == .joining && post == .joining && chosen == some source)
-          s!"{location}: IAmOpen does not record its Joining write"
-        pure .iAmOpen
-    | _, _ => throw (.invalid s!"{location}: {kind} misses txid")
-  return event (.receive source message execution)
+  let natural (key : String) := parseNatural location (get key)
+  let name (key : String) := parseName location (get key)
+  let phase (key : String) := parsePhase location (get key)
+  let event (body : Body) : Checked TraceEvent := do
+    return { record, node := ← name "node", sequence := ← natural "sequence", body }
+  match kind with
+  | "start" =>
+      let .arr expected := get "expected_locations"
+      | throw (invalid "invalid expected_locations")
+      event (.start (← natural "version") (← expected.toList.mapM (parseName location)))
+  | "send" =>
+      let message ←
+        match get "message", ← ifPresent "txid" (parseTxID location) with
+        | .str "gossip", some txid => pure (Message.gossip txid)
+        | .str "vote", none => pure .vote
+        | .str "iamopen", none => pure .iAmOpen
+        | message, _ =>
+            throw
+              (invalid
+                s!"invalid message {message.compress}, or a txid on one that is not gossip")
+      event
+        (.send (← natural "batch") (← name "target") message (← natural "pre_version"))
+  | _ =>
+      let pre ← phase "pre"
+      let post ← phase "post"
+      let .bool wrote := get "wrote" | throw (invalid "invalid wrote")
+      let gossips ←
+        ifPresent "gossips"
+          fun
+          | .obj entries =>
+              entries.toList.mapM
+                fun (key, item) => do
+                  return (← parseName location (.str key), ← parseTxID location item)
+          | _ => throw (invalid "invalid gossips")
+      let votes ←
+        ifPresent "votes"
+          fun
+          | .arr items => do
+              let names ← items.toList.mapM (parseName location)
+              require (names.eraseDups.length == names.length)
+                s!"{location}: duplicate votes"
+              return names.mergeSort
+          | _ => throw (invalid "invalid votes")
+      let openKind ←
+        ifPresent "open_kind"
+          fun
+          | .str "Quorum" => pure OpenKind.quorum
+          | .str "Failover" => pure OpenKind.failover
+          | _ => throw (invalid "invalid open_kind")
+      let restart ←
+        ifPresent "restart"
+          fun
+          | .bool flag => pure flag
+          | _ => throw (invalid "invalid restart")
+      let chosen ← ifPresent "chosen" (parseName location)
+      let execution : Execution :=
+        {
+          pre,
+          preTimeout := ← phase "pre_timeout",
+          post,
+          postTimeout := ← phase "post_timeout",
+          version := ← natural "version",
+          wrote,
+          gossips,
+          votes,
+          chosen,
+          openKind,
+          restart := restart.getD false
+        }
+      -- advance() records the maps it evaluates, the node it chooses or joins,
+      -- and the open kind it writes.
+      let advanced := if kind == "iamopen_accepted" then Phase.joining else pre
+      for (key, present)
+          in [
+            ("gossips", advanced == .gossiping),
+            ("votes", advanced == .voting),
+            (
+              "chosen",
+              advanced == .joining || (advanced == .gossiping && post == .voting)
+            ),
+            ("open_kind", advanced == .voting && post == .opening)
+          ] do
+        require (fields.contains key == present)
+          s!"{location}: {kind} from {phaseName pre} to {phaseName post} {if present then "must" else "cannot"} record {key}"
+      match kind with
+      | "timeout" => event (.timeout execution)
+      | "gossip_accepted" =>
+          event
+            (.receive (← name "source") (.gossip (← parseTxID location (get "txid")))
+              execution)
+      | "vote_accepted" => event (.receive (← name "source") .vote execution)
+      | _ =>
+          -- IAmOpen writes Joining and its sender as the chosen node before advance().
+          let source ← name "source"
+          require (pre == .joining && post == .joining && chosen == some source)
+            s!"{location}: IAmOpen does not record its Joining write"
+          event (.receive source .iAmOpen execution)
 
 end DisasterRecovery.Replay

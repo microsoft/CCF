@@ -30,8 +30,3 @@ name = "DisasterRecovery"
 [[lean_exe]]
 name = "canonical-checks"
 root = "DisasterRecovery.Tests.CanonicalTests"
-
-[[lean_exe]]
-name = "disaster-recovery-replay"
-srcDir = "replay"
-root = "ReplayMain"

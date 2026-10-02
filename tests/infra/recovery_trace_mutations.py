@@ -115,8 +115,7 @@ def other(state: dict, current: str, pool=None):
 def envelope(record: dict) -> tuple:
     """The (source, target, message) of a send or receive record."""
     if record["kind"] == "send":
-        message, target = record["send"].split(":", 1)
-        return record["node"], target, message, record.get("txid")
+        return record["node"], record["target"], record["message"], record.get("txid")
     message = record["kind"].removesuffix("_accepted")
     return record["source"], record["node"], message, record.get("txid")
 
@@ -141,7 +140,6 @@ def del_field(record: dict, field: str) -> None:
 
 kind_is = lambda *kinds: (lambda r: r["kind"] in kinds)
 has = lambda field: (lambda r: field in r)
-flag = lambda field: (lambda r: r.get(field) is True)
 setf = lambda field, value: (lambda s, r: set_field(r, field, value))
 delf = lambda field: (lambda s, r: del_field(r, field))
 bumpf = lambda field, delta: (lambda s, r: set_field(r, field, r[field] + delta))
@@ -182,11 +180,6 @@ _to_voting = lambda record: (
     and record["post"] == "Voting"
     and "chosen" in record
 )
-
-
-def _capped_next_phase(current: str) -> str:
-    candidate = PHASES[min(PHASES.index(current) + 1, 2)]
-    return candidate if candidate != current else "Joining"
 
 
 def _set_chain_off(state: dict, record: dict) -> dict:
@@ -390,7 +383,8 @@ def m_receive_before_send(state: dict) -> bool:
             for _, _, r in seqsorted(state)
             if r["kind"] == "send"
             and r["node"] == record["node"]
-            and r["send"] == f"vote:{record['node']}"
+            and r["message"] == "vote"
+            and r["target"] == record["node"]
         ]
         if own_votes:
             record["version"] = own_votes[0]["pre_version"] - 1
@@ -521,14 +515,10 @@ def _premature_edit(s, r):
     combine(setf("post", "Voting"), setf("chosen", chosen))(s, r)
 
 
-_is_vote_send = lambda r: r["kind"] == "send" and r["send"].startswith("vote:")
-_vote_to_non_chosen = dyns(
-    "send", lambda s, r: f"vote:{other(s, r['send'].split(':', 1)[1])}"
-)
+_is_vote_send = lambda r: r["kind"] == "send" and r["message"] == "vote"
 _timeout_changed = (
     lambda r: r["kind"] == "timeout" and r["post_timeout"] != r["pre_timeout"]
 )
-_phase_skip = dynf("post_timeout", lambda r: _capped_next_phase(r["post_timeout"]))
 _is_failover = lambda r: r.get("open_kind") == "Failover"
 _pretimeout_edit = dynf(
     "pre_timeout",
@@ -543,10 +533,8 @@ DECISION = [
     ("skip_to_opening", FAIL, one(_to_voting, setf("post", "Opening"))),
     ("no_advance_on_full_gossips", FAIL, one(_to_voting, _no_advance)),
     ("premature_voting", FAIL, one(_premature_pred, _premature_edit)),
-    ("drop_restart", FAIL, one(flag("restart"), delf("restart"))),
     ("add_restart", FAIL, one(kind_is("gossip_accepted"), setf("restart", True))),
-    ("vote_to_non_chosen", FAIL, one(_is_vote_send, _vote_to_non_chosen)),
-    ("timeout_phase_skip", FAIL, one(_timeout_changed, _phase_skip)),
+    ("vote_to_non_chosen", FAIL, one(_is_vote_send, relabel("target"))),
     ("timeout_no_advance", FAIL, one(_timeout_changed, _no_advance_timeout)),
     ("failover_without_valid_timeout", FAIL, one(_is_failover, _pretimeout_edit)),
     ("txid_lie_send_only", FAIL, m_txid_lie_send_only),
@@ -554,12 +542,10 @@ DECISION = [
     ("txid_lower_consistent", PASS, lambda s: _txid_consistent(s, False)),
 ]
 
-_unsent_txid = dynf("txid", lambda r: bump(r["txid"]))
 _source_ne_node = lambda r: r["kind"] == "gossip_accepted" and r["source"] != r["node"]
 _source_mismatch = one(_source_ne_node, kind_is("gossip_accepted"), relabel("source"))
 
 CAUSALITY = [
-    ("receive_unsent_txid", FAIL, one(kind_is("gossip_accepted"), _unsent_txid)),
     ("source_mismatch", FAIL, _source_mismatch),
     ("receive_before_send", FAIL, m_receive_before_send),
 ]
@@ -584,10 +570,6 @@ COMMIT_ORDER = [
     ("failed_to_trace_line", FAIL, m_failed_to_trace_line),
 ]
 
-_shrink_expected_locations = dynf(
-    "expected_locations", lambda r: r["expected_locations"][:-1]
-)
-_expected_locations_changed = one(kind_is("start"), _shrink_expected_locations, nth=1)
 _delete_middle_batch = lambda s: _delete_batch(s, False)
 _delete_tail_batch = lambda s: _delete_batch(s, True)
 
@@ -595,8 +577,6 @@ FORMAT = [
     ("truncated_json", FAIL, _truncated_json),
     ("missing_pre", FAIL, one(kind_is(*HANDLERS), delf("pre"))),
     ("unknown_kind", FAIL, one(kind_is("send"), setf("kind", "bogus"))),
-    ("expected_locations_changed", FAIL, _expected_locations_changed),
-    ("node_misattributed", FAIL, one(kind_is(*HANDLERS), relabel("node"))),
     ("duplicate_sequence", FAIL, one(kind_is("send"), bumpf("sequence", -1), nth=1)),
     ("delete_send_from_batch", FAIL, _delete_send_from_batch),
     ("delete_middle_batch", FAIL, _delete_middle_batch),
@@ -645,7 +625,7 @@ def perturb(state: dict, record: dict, field: str) -> bool:
         record[field] = value + 1
     elif field == "sequence":
         record[field] = value + 1000
-    elif field in ("source", "node", "chosen"):
+    elif field in ("source", "node", "chosen", "target"):
         record[field] = other(state, value)
     elif field == "txid":
         record[field] = bump(value)
@@ -665,9 +645,10 @@ def perturb(state: dict, record: dict, field: str) -> bool:
         record[field] = "Failover" if value == "Quorum" else "Quorum"
     elif field == "restart":
         del record[field]
-    elif field == "send":
-        message, target = value.split(":", 1)
-        record[field] = f"{message}:{other(state, target)}"
+    elif field == "message":
+        record[field] = {"gossip": "vote", "vote": "iamopen", "iamopen": "gossip"}[
+            value
+        ]
     elif field == "expected_locations":
         record[field] = value[:-1]
     elif field == "kind":
