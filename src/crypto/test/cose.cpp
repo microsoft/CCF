@@ -312,12 +312,12 @@ TEST_CASE("COSE ECDSA round trips and algorithm binding")
     std::span<uint8_t> authenticated;
     REQUIRE(verifier->verify(envelope, authenticated));
     CHECK(std::ranges::equal(authenticated, detached_payload));
-    // The same key, through a parsed COSE_Key
+    // The same key, through a parsed COSE_Key whose alg is curve.es
     const auto cose_key_verifier =
       ccf::crypto::make_cose_verifier_from_key(ccf::crypto::COSEKey::from_cbor(
         ccf::crypto::COSEKey(
           ccf::crypto::make_ec_public_key(key->public_key_der()))
-          .to_cbor()));
+          .to_cbor(curve.es)));
     CHECK(cose_key_verifier->verify(envelope, authenticated));
 
     for (const auto& candidate : curves)
@@ -368,7 +368,7 @@ TEST_CASE("COSE ECDSA round trips and algorithm binding")
         .det_serialize();
     REQUIRE(verifier->verify(esp_envelope, authenticated));
     CHECK(std::ranges::equal(authenticated, detached_payload));
-    CHECK(cose_key_verifier->verify(esp_envelope, authenticated));
+    CHECK_FALSE(cose_key_verifier->verify(esp_envelope, authenticated));
   }
 }
 
@@ -416,9 +416,7 @@ TEST_CASE("COSE RSA-PSS verification")
     issuer->self_sign("CN=issuer", "20200101000000Z", "20301231235959Z"));
   const std::array verifiers = {
     ccf::crypto::make_cose_verifier_from_key(key->public_key_der()),
-    ccf::crypto::make_cose_verifier_from_pem_cert(cert),
-    ccf::crypto::make_cose_verifier_from_key(
-      ccf::crypto::COSEKey::from_cbor(ccf::crypto::COSEKey(key).to_cbor()))};
+    ccf::crypto::make_cose_verifier_from_pem_cert(cert)};
   const auto phdr = ccf::ds::from_hex("a0");
   const auto tbs = ccf::cose::make_cose_sign1_tbs(phdr, detached_payload);
 
@@ -429,6 +427,11 @@ TEST_CASE("COSE RSA-PSS verification")
   {
     CAPTURE(alg);
     const auto sig = key->sign(tbs, md, salt);
+    // The same key, through a parsed COSE_Key whose alg is alg
+    CHECK(
+      ccf::crypto::make_cose_verifier_from_key(
+        ccf::crypto::COSEKey::from_cbor(ccf::crypto::COSEKey(key).to_cbor(alg)))
+        ->verify_decomposed(phdr, detached_payload, sig, alg));
     // RFC 8230 requires the PSS salt length to equal the hash length.
     const auto unsalted_sig = key->sign(tbs, md, 0);
     for (const auto& verifier : verifiers)
@@ -1172,17 +1175,20 @@ TEST_CASE("COSE_Key encoding and thumbprints")
     "1e52ed75701163f7f9e40ddf9f341b3dc9ba860af7e0ca7ca7e9eecd0084d19c";
   const std::string thumbprint =
     "496bd8afadf307e5b08c64b0421bf9dc01528a344a43bda88fadd1669da253ec";
-  // {1: 2, -1: 1, -2: x, -3: y, 2: thumbprint}
+  // {1: 2, -1: 1, -2: x, -3: y, 2: thumbprint}, with no alg
   const auto ec_key = COSEKey::from_cbor(
     from_hex("a501022001215820" + x + "225820" + y + "025820" + thumbprint));
-  // The thumbprint input: {1: 2, -1: 1, -2: x, -3: y}
-  CHECK(ec_key.to_cbor() == from_hex("a401022001215820" + x + "225820" + y));
+  CHECK_FALSE(ec_key.alg().has_value());
   CHECK(ec_key.thumbprint_sha256().hex_str() == thumbprint);
-  // {1: 2, 2: 'kid-1', -1: 1, -2: x, -3: y}
+  // {1: 2, 3: -7, -1: 1, -2: x, -3: y}
   CHECK(
-    ec_key.to_cbor("kid-1") ==
-    from_hex("a5010202456b69642d312001215820" + x + "225820" + y));
-  CHECK(ec_key.to_cbor(from_hex("6b69642d31")) == ec_key.to_cbor("kid-1"));
+    ec_key.to_cbor(-7) == from_hex("a5010203262001215820" + x + "225820" + y));
+  // {1: 2, 2: 'kid-1', 3: -7, -1: 1, -2: x, -3: y}
+  CHECK(
+    ec_key.to_cbor(-7, "kid-1") ==
+    from_hex("a6010202456b69642d3103262001215820" + x + "225820" + y));
+  CHECK(
+    ec_key.to_cbor(-7, from_hex("6b69642d31")) == ec_key.to_cbor(-7, "kid-1"));
   const auto ec2 = ec_key.ec2_parameters().value();
   CHECK(ec2.crv == 1);
   CHECK(ec2.x == from_hex(x));
@@ -1200,9 +1206,12 @@ TEST_CASE("COSE_Key encoding and thumbprints")
     "18ca9bd74635b5a6601c6cbc9ce128a0c8ba9a50c2ba64d413be21f59dc3f38ece21261e"
     "0b9362d5";
   // {1: 3, -1: n, -2: h'010001'}
-  const auto rsa_encoded = from_hex("a3010320590100" + n + "2143010001");
-  const auto rsa_key = COSEKey::from_cbor(rsa_encoded);
-  CHECK(rsa_key.to_cbor() == rsa_encoded);
+  const auto rsa_key =
+    COSEKey::from_cbor(from_hex("a3010320590100" + n + "2143010001"));
+  // {1: 3, 3: -37, -1: n, -2: h'010001'}
+  CHECK(
+    rsa_key.to_cbor(-37) ==
+    from_hex("a4010303382420590100" + n + "2143010001"));
   CHECK(
     rsa_key.thumbprint_sha256().hex_str() ==
     "f968d08ed6fabc601c720a0757ef9b75ff9ea079dd1e47a12a7b0fc7fab39112");
@@ -1217,19 +1226,19 @@ TEST_CASE("COSE_Key round trips")
   using ccf::crypto::COSEKeyType;
   using ccf::crypto::CurveID;
 
-  for (const auto& [curve, coordinate_size] :
-       {std::pair{CurveID::SECP256R1, size_t{32}},
-        std::pair{CurveID::SECP384R1, size_t{48}},
-        std::pair{CurveID::SECP521R1, size_t{66}}})
+  for (const auto& [curve, alg, coordinate_size] :
+       {std::tuple{CurveID::SECP256R1, int64_t{-7}, size_t{32}},
+        std::tuple{CurveID::SECP384R1, int64_t{-35}, size_t{48}},
+        std::tuple{CurveID::SECP521R1, int64_t{-36}, size_t{66}}})
   {
-    CAPTURE(coordinate_size);
+    CAPTURE(alg);
     const auto key = random_ec_cose_key(curve);
-    const auto encoded = key.to_cbor("kid");
+    const auto encoded = key.to_cbor(alg, "kid");
     const auto parsed = COSEKey::from_cbor(encoded);
     REQUIRE(parsed.kty() == COSEKeyType::EC2);
-    CHECK_FALSE(parsed.alg().has_value());
-    CHECK(parsed.to_cbor("kid") == encoded);
-    CHECK(parsed.thumbprint_sha256() == ccf::crypto::Sha256Hash(key.to_cbor()));
+    CHECK(parsed.alg() == alg);
+    CHECK(parsed.to_cbor(parsed.alg().value(), "kid") == encoded);
+    CHECK(parsed.thumbprint_sha256() == key.thumbprint_sha256());
     CHECK(
       parsed.ec_public_key()->public_key_der() ==
       key.ec_public_key()->public_key_der());
@@ -1242,13 +1251,12 @@ TEST_CASE("COSE_Key round trips")
   }
 
   const COSEKey rsa_key(ccf::crypto::make_rsa_key_pair());
-  const auto encoded = rsa_key.to_cbor("kid");
+  const auto encoded = rsa_key.to_cbor(-37, "kid");
   const auto parsed = COSEKey::from_cbor(encoded);
   REQUIRE(parsed.kty() == COSEKeyType::RSA);
-  CHECK_FALSE(parsed.alg().has_value());
-  CHECK(parsed.to_cbor("kid") == encoded);
-  CHECK(
-    parsed.thumbprint_sha256() == ccf::crypto::Sha256Hash(rsa_key.to_cbor()));
+  CHECK(parsed.alg() == -37);
+  CHECK(parsed.to_cbor(-37, "kid") == encoded);
+  CHECK(parsed.thumbprint_sha256() == rsa_key.thumbprint_sha256());
   CHECK(
     parsed.rsa_public_key()->public_key_der() ==
     rsa_key.rsa_public_key()->public_key_der());
@@ -1261,6 +1269,10 @@ TEST_CASE("COSE_Key round trips")
     COSEKey(ccf::crypto::RSAPublicKeyPtr{}), std::invalid_argument);
   CHECK_THROWS_AS(
     COSEKey(ccf::crypto::make_rsa_key_pair(1024)), std::runtime_error);
+
+  // alg must be an algorithm that CCF can verify with the key
+  CHECK_THROWS_AS(std::ignore = rsa_key.to_cbor(-7), std::runtime_error);
+  CHECK_THROWS_AS(std::ignore = rsa_key.to_cbor(-8), std::runtime_error);
 }
 
 TEST_CASE("COSE_Key constructors reject unsupported parameters")
@@ -1487,7 +1499,7 @@ TEST_CASE("COSE_Key alg restricts verification")
     const auto restricted = COSEKey::from_cbor(encode_with(
       ec2_fields(key.ec2_parameters().value()), LABEL_ALG, int64_t{-51}));
     CHECK(restricted.alg() == -51);
-    CHECK(COSEKey::from_cbor(restricted.to_cbor()).alg() == -51);
+    CHECK(COSEKey::from_cbor(restricted.to_cbor(-51)).alg() == -51);
     // alg is not part of the thumbprint input
     CHECK(restricted.thumbprint_sha256() == key.thumbprint_sha256());
 

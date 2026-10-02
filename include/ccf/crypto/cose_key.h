@@ -116,24 +116,31 @@ namespace ccf::crypto
 
     /**
      * Deterministically encoded COSE_Key (RFC 8949 Section 4.2.1), with kty,
-     * the key parameters, and alg if set.
+     * the key parameters and alg.
+     *
+     * @param alg Algorithm of the key, such as alg() for a parsed key
+     * @throws std::runtime_error if alg is not an algorithm that CCF can verify
+     * with the key
      */
-    [[nodiscard]] std::vector<uint8_t> to_cbor() const;
+    [[nodiscard]] std::vector<uint8_t> to_cbor(int64_t alg) const;
 
     /**
-     * As to_cbor(), with a key identifier.
+     * As to_cbor(int64_t), with a key identifier.
      *
+     * @param alg Algorithm of the key
      * @param kid Key identifier, encoded as a byte string
      */
     [[nodiscard]] std::vector<uint8_t> to_cbor(
-      std::span<const uint8_t> kid) const;
+      int64_t alg, std::span<const uint8_t> kid) const;
 
     /**
-     * As to_cbor(), with a key identifier.
+     * As to_cbor(int64_t), with a key identifier.
      *
+     * @param alg Algorithm of the key
      * @param kid Key identifier, whose bytes are encoded as a byte string
      */
-    [[nodiscard]] std::vector<uint8_t> to_cbor(std::string_view kid) const;
+    [[nodiscard]] std::vector<uint8_t> to_cbor(
+      int64_t alg, std::string_view kid) const;
 
     /// COSE Key Thumbprint (RFC 9679) with SHA-256.
     [[nodiscard]] Sha256Hash thumbprint_sha256() const;

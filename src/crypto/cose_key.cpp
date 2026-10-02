@@ -389,6 +389,16 @@ namespace
     jwk.e = b64url_from_raw(parameters.e, false /* with_padding */);
     return make_rsa_public_key(jwk);
   }
+
+  void check_alg_matches_key(int64_t alg, const COSEKey& key)
+  {
+    // Throws for algorithms that CCF cannot verify
+    if (!cose_algorithm_matches_key(alg, key))
+    {
+      throw std::runtime_error(
+        fmt::format("COSE algorithm {} does not match the key", alg));
+    }
+  }
 }
 
 namespace ccf::crypto
@@ -517,20 +527,25 @@ namespace ccf::crypto
     return key == nullptr ? nullptr : *key;
   }
 
-  std::vector<uint8_t> COSEKey::to_cbor() const
+  std::vector<uint8_t> COSEKey::to_cbor(int64_t alg) const
   {
-    return encode_cose_key(public_key, key_alg, std::nullopt);
+    check_alg_matches_key(alg, *this);
+    return encode_cose_key(public_key, alg, std::nullopt);
   }
 
-  std::vector<uint8_t> COSEKey::to_cbor(std::span<const uint8_t> kid) const
+  std::vector<uint8_t> COSEKey::to_cbor(
+    int64_t alg, std::span<const uint8_t> kid) const
   {
-    return encode_cose_key(public_key, key_alg, kid);
+    check_alg_matches_key(alg, *this);
+    return encode_cose_key(public_key, alg, kid);
   }
 
-  std::vector<uint8_t> COSEKey::to_cbor(std::string_view kid) const
+  std::vector<uint8_t> COSEKey::to_cbor(int64_t alg, std::string_view kid) const
   {
-    return to_cbor(std::span<const uint8_t>(
-      reinterpret_cast<const uint8_t*>(kid.data()), kid.size()));
+    return to_cbor(
+      alg,
+      std::span<const uint8_t>(
+        reinterpret_cast<const uint8_t*>(kid.data()), kid.size()));
   }
 
   Sha256Hash COSEKey::thumbprint_sha256() const
