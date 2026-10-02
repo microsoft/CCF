@@ -22,6 +22,7 @@
 #include "kv/ledger_chunker_interface.h"
 #include "serialised_entry_format.h"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstring>
@@ -565,7 +566,47 @@ namespace ccf::kv
       std::span<uint8_t> cipher,
       const ccf::TxID& tx_id,
       EntryType entry_type = EntryType::WriteSet,
-      bool historical_hint = false) = 0;
+      bool historical_hint = false)
+    {
+      std::vector<uint8_t> plain_bytes;
+      std::vector<uint8_t> aad_bytes;
+      if (!plain.empty())
+      {
+        plain_bytes.assign(plain.begin(), plain.end());
+      }
+      if (!additional_data.empty())
+      {
+        aad_bytes.assign(additional_data.begin(), additional_data.end());
+      }
+      std::vector<uint8_t> header;
+      std::vector<uint8_t> output;
+      if (!encrypt(
+            plain_bytes,
+            aad_bytes,
+            header,
+            output,
+            tx_id,
+            entry_type,
+            historical_hint))
+      {
+        return false;
+      }
+      if (
+        header.size() != serialised_header.size() ||
+        output.size() != cipher.size())
+      {
+        throw std::logic_error("Incorrect transaction encryption output size");
+      }
+      if (!header.empty())
+      {
+        std::copy(header.begin(), header.end(), serialised_header.begin());
+      }
+      if (!output.empty())
+      {
+        std::copy(output.begin(), output.end(), cipher.begin());
+      }
+      return true;
+    }
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,

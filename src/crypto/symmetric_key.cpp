@@ -7,6 +7,8 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ds/serialized.h"
 
+#include <algorithm>
+
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
@@ -74,6 +76,52 @@ namespace ccf::crypto
       serialized::read(data, size, GCM_SIZE_TAG).data(),
       GCM_SIZE_TAG);
     iv = serialized::read(data, size, iv.size());
+  }
+
+  void KeyAesGcm::Context::encrypt(
+    std::span<const uint8_t> iv,
+    std::span<const uint8_t> plain,
+    std::span<const uint8_t> aad,
+    std::span<uint8_t> cipher,
+    uint8_t tag[GCM_SIZE_TAG])
+  {
+    if (cipher.size() != plain.size())
+    {
+      throw std::logic_error("Incorrect AES-GCM output size");
+    }
+    std::vector<uint8_t> output;
+    encrypt(iv, plain, aad, output, tag);
+    if (output.size() != cipher.size())
+    {
+      throw std::logic_error("Unexpected AES-GCM ciphertext size");
+    }
+    if (!output.empty())
+    {
+      std::copy(output.begin(), output.end(), cipher.begin());
+    }
+  }
+
+  void KeyAesGcm::encrypt(
+    std::span<const uint8_t> iv,
+    std::span<const uint8_t> plain,
+    std::span<const uint8_t> aad,
+    std::span<uint8_t> cipher,
+    uint8_t tag[GCM_SIZE_TAG]) const
+  {
+    if (cipher.size() != plain.size())
+    {
+      throw std::logic_error("Incorrect AES-GCM output size");
+    }
+    std::vector<uint8_t> output;
+    encrypt(iv, plain, aad, output, tag);
+    if (output.size() != cipher.size())
+    {
+      throw std::logic_error("Unexpected AES-GCM ciphertext size");
+    }
+    if (!output.empty())
+    {
+      std::copy(output.begin(), output.end(), cipher.begin());
+    }
   }
 
   /// GcmCipher implementation

@@ -1292,6 +1292,20 @@ TEST_CASE("AES-GCM caller-owned ciphertext")
   REQUIRE(preallocated.data() == original_data);
   REQUIRE(preallocated == expected);
 
+  auto in_place_plain = plain;
+  key->encrypt(
+    iv,
+    std::span<const uint8_t>(in_place_plain),
+    aad,
+    std::span<uint8_t>(in_place_plain),
+    tag);
+  REQUIRE(in_place_plain == expected);
+
+  auto vector_in_place = plain;
+  key->encrypt(
+    iv, std::span<const uint8_t>(vector_in_place), aad, vector_in_place, tag);
+  REQUIRE(vector_in_place == expected);
+
   REQUIRE_THROWS_AS(
     key->encrypt(iv, plain, aad, output.first(output.size() - 1), tag),
     std::logic_error);

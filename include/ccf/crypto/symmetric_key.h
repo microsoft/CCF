@@ -100,7 +100,7 @@ namespace ccf::crypto
         std::span<const uint8_t> plain,
         std::span<const uint8_t> aad,
         std::span<uint8_t> cipher,
-        uint8_t tag[GCM_SIZE_TAG]) = 0;
+        uint8_t tag[GCM_SIZE_TAG]);
 
       // Replaces plain on success and clears it if authentication fails.
       virtual bool decrypt(
@@ -135,7 +135,7 @@ namespace ccf::crypto
       std::span<const uint8_t> plain,
       std::span<const uint8_t> aad,
       std::span<uint8_t> cipher,
-      uint8_t tag[GCM_SIZE_TAG]) const = 0;
+      uint8_t tag[GCM_SIZE_TAG]) const;
 
     // AES-GCM decryption
     // Replaces plain on success and clears it if authentication fails.
