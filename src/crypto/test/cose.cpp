@@ -16,6 +16,8 @@
 #include "crypto/cose.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "crypto/openssl/ec_key_pair.h"
+#include "crypto/openssl/ec_public_key.h"
+#include "crypto/openssl/rsa_public_key.h"
 #include "crypto/test/cbor_printer.h"
 #include "node/cose_common.h"
 
@@ -25,6 +27,8 @@
 #include <doctest/doctest.h>
 #include <exception>
 #include <limits>
+#include <memory>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -1052,6 +1056,7 @@ constexpr int64_t LABEL_EC2_D = -4;
 constexpr int64_t LABEL_RSA_N = -1;
 constexpr int64_t LABEL_RSA_E = -2;
 constexpr int64_t LABEL_RSA_D = -3;
+constexpr int64_t LABEL_RSA_PRIVATE_FIRST = -12;
 
 // Values of COSE_Key fields, to build valid and malformed keys
 using CoseKeyField = std::variant<
@@ -1068,7 +1073,9 @@ struct Overloaded : Fs...
   using Fs::operator()...;
 };
 
-static std::vector<uint8_t> encode_cose_key_fields(const CoseKeyFields& fields)
+static std::vector<uint8_t> encode_cose_key_fields(
+  const CoseKeyFields& fields,
+  std::optional<tav::cbor::MapItem> extra = std::nullopt)
 {
   using namespace tav::cbor;
   const Overloaded to_value{
@@ -1090,6 +1097,10 @@ static std::vector<uint8_t> encode_cose_key_fields(const CoseKeyFields& fields)
   for (const auto& [label, field] : fields)
   {
     items.emplace_back(make_signed(label), std::visit(to_value, field));
+  }
+  if (extra.has_value())
+  {
+    items.push_back(std::move(extra.value()));
   }
   return make_map(std::move(items)).nondet_serialize();
 }
@@ -1252,10 +1263,81 @@ TEST_CASE("COSE_Key round trips")
     COSEKey(ccf::crypto::make_rsa_key_pair(1024)), std::runtime_error);
 }
 
+TEST_CASE("COSE_Key constructors reject unsupported parameters")
+{
+  using ccf::crypto::COSEKey;
+  using ccf::crypto::CurveID;
+
+  SUBCASE("EC2")
+  {
+    struct ReportedCurveKey : ccf::crypto::ECPublicKey_OpenSSL
+    {
+      using ccf::crypto::ECPublicKey_OpenSSL::ECPublicKey_OpenSSL;
+      CurveID curve = CurveID::SECP256R1;
+
+      CurveID get_curve_id() const override
+      {
+        return curve;
+      }
+    };
+
+    const auto key = std::make_shared<ReportedCurveKey>(
+      ccf::crypto::make_ec_key_pair(CurveID::SECP256R1)->public_key_der());
+    CHECK_NOTHROW(COSEKey{key});
+    for (const auto curve :
+         {CurveID::NONE,
+          CurveID::CURVE25519,
+          CurveID::X25519,
+          static_cast<CurveID>(0xff)})
+    {
+      CAPTURE(curve);
+      key->curve = curve;
+      CHECK_THROWS_WITH_AS(
+        COSEKey{key},
+        doctest::Contains("has no COSE EC2 identifier"),
+        std::runtime_error);
+    }
+  }
+
+  SUBCASE("RSA")
+  {
+    struct ReportedRSAKey : ccf::crypto::RSAPublicKey_OpenSSL
+    {
+      using ccf::crypto::RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL;
+      ccf::crypto::JsonWebKeyRSAPublic parameters;
+
+      ccf::crypto::JsonWebKeyRSAPublic public_key_jwk(
+        const std::optional<std::string>& = std::nullopt) const override
+      {
+        return parameters;
+      }
+    };
+
+    const auto key_pair = ccf::crypto::make_rsa_key_pair();
+    const auto key =
+      std::make_shared<ReportedRSAKey>(key_pair->public_key_der());
+    const auto valid_parameters = key_pair->public_key_jwk();
+    key->parameters = valid_parameters;
+    CHECK_NOTHROW(COSEKey{key});
+
+    key->parameters.n.clear();
+    CHECK_THROWS_WITH_AS(
+      COSEKey{key},
+      doctest::Contains("n must be 2048 to 16384 bits long"),
+      std::runtime_error);
+
+    key->parameters = valid_parameters;
+    key->parameters.e.clear();
+    CHECK_THROWS_WITH_AS(
+      COSEKey{key}, doctest::Contains("e must be odd"), std::runtime_error);
+  }
+}
+
 TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
 {
   using ccf::crypto::COSEKey;
   using ccf::crypto::CurveID;
+  using namespace tav::cbor;
 
   const auto p256 =
     random_ec_cose_key(CurveID::SECP256R1).ec2_parameters().value();
@@ -1265,6 +1347,11 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
     COSEKey(ccf::crypto::make_rsa_key_pair()).rsa_parameters().value();
   const auto p256_key = ec2_fields(p256);
   const auto rsa_key = rsa_fields(rsa);
+  std::vector<Value> mixed_key_ops;
+  mixed_key_ops.push_back(make_string("unknown"));
+  mixed_key_ops.push_back(make_signed(2));
+  std::vector<Value> text_key_ops;
+  text_key_ops.push_back(make_string("2"));
 
   // Valid keys, and edits of them that are still accepted
   for (const auto& accepted : {
@@ -1273,9 +1360,20 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
          encode_with(p256_key, LABEL_KID, std::vector<uint8_t>{1, 2}),
          encode_with(p256_key, LABEL_ALG, int64_t{-9}), // ESP256
          encode_with(p256_key, LABEL_KEY_OPS, std::vector<int64_t>{1, 2}),
+         encode_cose_key_fields(
+           p256_key,
+           MapItem{
+             make_signed(LABEL_KEY_OPS), make_array(std::move(mixed_key_ops))}),
          encode_with(p256_key, 5, std::vector<uint8_t>{0}), // Base IV
          encode_with(p256_key, 100, std::string("unknown label")),
+         encode_cose_key_fields(
+           p256_key, MapItem{make_string("unknown"), make_signed(0)}),
+         encode_cose_key_fields(
+           rsa_key, MapItem{make_string("unknown"), make_signed(0)}),
+         encode_with(
+           rsa_key, LABEL_RSA_PRIVATE_FIRST - 1, std::vector<uint8_t>{1}),
          encode_with(rsa_key, LABEL_ALG, int64_t{-37}), // PS256
+         encode_with(rsa_key, LABEL_RSA_E, std::vector<uint8_t>{3}),
          encode_with(rsa_key, LABEL_RSA_E, std::vector<uint8_t>(8, 0xff)),
        })
   {
@@ -1286,6 +1384,10 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
   short_x.erase(short_x.begin());
   auto long_x = p256.x;
   long_x.push_back(0);
+  auto short_y = p256.y;
+  short_y.erase(short_y.begin());
+  auto long_y = p256.y;
+  long_y.push_back(0);
   auto off_curve_y = p256.y;
   off_curve_y.back() ^= 0xff;
   auto padded_n = rsa.n;
@@ -1316,6 +1418,11 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
      encode_with(p256_key, LABEL_KEY_OPS, std::vector<int64_t>{})},
     {"key_ops without verify",
      encode_with(p256_key, LABEL_KEY_OPS, std::vector<int64_t>{1})},
+    {"key_ops text does not allow verify",
+     encode_cose_key_fields(
+       p256_key,
+       MapItem{
+         make_signed(LABEL_KEY_OPS), make_array(std::move(text_key_ops))})},
     {"crv missing", encode_without(p256_key, LABEL_EC2_CRV)},
     {"crv text", encode_with(p256_key, LABEL_EC2_CRV, std::string("P-256"))},
     {"crv secp256k1", encode_with(p256_key, LABEL_EC2_CRV, int64_t{8})},
@@ -1323,6 +1430,8 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
     {"x too short", encode_with(p256_key, LABEL_EC2_X, short_x)},
     {"x too long", encode_with(p256_key, LABEL_EC2_X, long_x)},
     {"y missing", encode_without(p256_key, LABEL_EC2_Y)},
+    {"y too short", encode_with(p256_key, LABEL_EC2_Y, short_y)},
+    {"y too long", encode_with(p256_key, LABEL_EC2_Y, long_y)},
     {"y compressed", encode_with(p256_key, LABEL_EC2_Y, true)},
     {"point not on the curve", encode_with(p256_key, LABEL_EC2_Y, off_curve_y)},
     {"x not below the field prime",
@@ -1330,9 +1439,11 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
     {"EC2 private key",
      encode_with(p256_key, LABEL_EC2_D, std::vector<uint8_t>(32, 1))},
     {"n missing", encode_without(rsa_key, LABEL_RSA_N)},
+    {"n empty", encode_with(rsa_key, LABEL_RSA_N, std::vector<uint8_t>{})},
     {"n with leading zero", encode_with(rsa_key, LABEL_RSA_N, padded_n)},
     {"n below 2048 bits", encode_with(rsa_key, LABEL_RSA_N, short_n)},
     {"n above 16384 bits", encode_with(rsa_key, LABEL_RSA_N, long_n)},
+    {"e empty", encode_with(rsa_key, LABEL_RSA_E, std::vector<uint8_t>{})},
     {"e with leading zero", encode_with(rsa_key, LABEL_RSA_E, padded_e)},
     {"e even",
      encode_with(rsa_key, LABEL_RSA_E, std::vector<uint8_t>{1, 0, 0})},
@@ -1343,6 +1454,8 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
     {"e equal to n", encode_with(rsa_key, LABEL_RSA_E, rsa.n)},
     {"RSA private key",
      encode_with(rsa_key, LABEL_RSA_D, std::vector<uint8_t>{1})},
+    {"RSA private key at lower label boundary",
+     encode_with(rsa_key, LABEL_RSA_PRIVATE_FIRST, std::vector<uint8_t>{1})},
   };
   for (const auto& [name, encoded] : rejected)
   {
