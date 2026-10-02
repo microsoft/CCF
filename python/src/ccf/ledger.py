@@ -288,8 +288,13 @@ class PublicDomain:
 
     def _read_buffer(self, size):
         prev_cursor = self._cursor
-        self._cursor += size
-        return self._buffer[prev_cursor : self._cursor]
+        next_cursor = prev_cursor + size
+        if next_cursor > len(self._buffer):
+            raise ValueError(
+                f"Insufficient public domain data at offset {prev_cursor}: {len(self._buffer) - prev_cursor}/{size} bytes"
+            )
+        self._cursor = next_cursor
+        return self._buffer[prev_cursor:next_cursor]
 
     def _read8(self):
         return self._read_buffer(8)
@@ -309,7 +314,8 @@ class PublicDomain:
     def _read_versioned_value(self, size):
         if size < self.get_version_size():
             raise ValueError(f"Invalid versioned value of size {size}")
-        return (self._read_uint64(), self._read_buffer(size - self.get_version_size()))
+        # Read the version as signed so that legacy negative versions are seen
+        return (self._read_int64(), self._read_buffer(size - self.get_version_size()))
 
     def _read_next_entry(self):
         size = self._read_uint64()
@@ -330,7 +336,7 @@ class PublicDomain:
 
     def _read_snapshot_entry_padding(self, size):
         padding = -size % 8  # Padded to 8 bytes
-        self._cursor += padding
+        self._read_buffer(padding)
 
     def _read_snapshot_key(self):
         size = self._read_uint64()
@@ -338,16 +344,11 @@ class PublicDomain:
         self._read_snapshot_entry_padding(size)
         return key
 
-    def _read_snapshot_versioned_value(self):
+    def _read_snapshot_versioned_value(self) -> tuple[int, bytes]:
         size = self._read_uint64()
         ver, value = self._read_versioned_value(size)
-        if ver < 0:
-            assert (
-                len(value) == 0
-            ), f"Expected empty value for tombstone deletion at {ver}"
-            value = None
         self._read_snapshot_entry_padding(size)
-        return value
+        return ver, value
 
     def _read(self):
         buffer_size = len(self._buffer)
@@ -367,8 +368,12 @@ class PublicDomain:
 
                 while self._cursor - start_map_pos < map_size:
                     k = self._read_snapshot_key()
-                    val = self._read_snapshot_versioned_value()
-                    records[k] = val
+                    ver, val = self._read_snapshot_versioned_value()
+                    # Versions were signed before 3.0, with negative values
+                    # marking deletions. As in deserialize_map_snapshot in
+                    # src/kv/untyped_map.h, parse but do not retain these
+                    if ver >= 0:
+                        records[k] = val
             else:
                 # read_version
                 self._read8()
@@ -469,20 +474,22 @@ def _byte_read_safe(file: SimpleBuffer, num_of_bytes):
 
 def _peek(file: SimpleBuffer, num_bytes, pos=None):
     save_pos = file.tell()
-    if pos is not None:
-        file.seek(pos)
-    buffer = _byte_read_safe(file, num_bytes)
-    file.seek(save_pos)
-    return buffer
+    try:
+        if pos is not None:
+            file.seek(pos)
+        return _byte_read_safe(file, num_bytes)
+    finally:
+        file.seek(save_pos)
 
 
 def _peek_all(file: SimpleBuffer, pos=None):
     save_pos = file.tell()
-    if pos is not None:
-        file.seek(pos)
-    buffer = file.read()
-    file.seek(save_pos)
-    return buffer
+    try:
+        if pos is not None:
+            file.seek(pos)
+        return file.read()
+    finally:
+        file.seek(save_pos)
 
 
 class LedgerValidator:
@@ -1409,16 +1416,13 @@ class Ledger:
                     public_domain = tx.get_public_domain()
                     latest_seqno = public_domain.get_seqno()
                     for table_name, records in public_domain.get_tables().items():
-                        if table_name in public_tables:
-                            public_tables[table_name].update(records)
-                            # Remove deleted keys
-                            public_tables[table_name] = {
-                                k: v
-                                for k, v in public_tables[table_name].items()
-                                if v is not None
-                            }
-                        else:
-                            public_tables[table_name] = records
+                        table = public_tables.setdefault(table_name, {})
+                        for key, value in records.items():
+                            if value is None:
+                                # Remove deleted keys
+                                table.pop(key, None)
+                            else:
+                                table[key] = value
         except Exception as e:
             print(f"Error reading ledger entry. Latest read seqno: {latest_seqno}")
             print(f"Error: {e}")
