@@ -5,14 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [7.0.19]
-
-[7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
-
-### Changed
-
-- Node-to-node traffic no longer passes through the host-enclave ringbuffer. Inbound node messages, consensus ticks and stop notices run in order as critical tasks, which every worker runs before other tasks and which the dispatch thread is now reserved for, so that blocking tasks cannot delay consensus. A node-to-node frame larger than `memory.max_msg_size` now closes the connection it arrived on, rather than terminating the receiving node (#8446).
-
 ## [7.0.18]
 
 [7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
