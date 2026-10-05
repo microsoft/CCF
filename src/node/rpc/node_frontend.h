@@ -488,7 +488,7 @@ namespace ccf
       }
 
       // No service => Internal error
-      auto service = args.tx.rw(this->network.service);
+      auto* service = args.tx.rw(this->network.service);
       auto active_service = service->get();
       if (!active_service.has_value())
       {
@@ -544,7 +544,7 @@ namespace ccf
           payload);
       };
 
-      auto nodes = args.tx.ro(network.nodes);
+      auto* nodes = args.tx.ro(network.nodes);
 
       // If already joined => return equivalent response
       auto existing_node_info = check_node_exists(
@@ -722,7 +722,7 @@ namespace ccf
       }
 
       const auto now = current_time_ms();
-      auto nodes = ctx.tx.rw(network.nodes);
+      auto* nodes = ctx.tx.rw(network.nodes);
       std::map<NodeId, NodeInfo> untimestamped_pending_nodes;
       std::vector<NodeId> expired_pending_nodes;
       nodes->foreach([&](const auto& node_id, const auto& node_info) {
@@ -768,7 +768,7 @@ namespace ccf
     auto set_retired_committed(
       ccf::endpoints::EndpointContext& ctx, nlohmann::json&& /*params*/)
     {
-      auto nodes = ctx.tx.rw(network.nodes);
+      auto* nodes = ctx.tx.rw(network.nodes);
       nodes->foreach([&nodes](const auto& node_id, auto node_info) {
         auto gc_node = nodes->get_globally_committed(node_id);
         if (
@@ -801,7 +801,7 @@ namespace ccf
       result.startup_seqno = this->node_operation.get_startup_snapshot_seqno();
 
       // Read last signed seqno from both raw and COSE signature tables
-      auto signatures = args.tx.ro<Signatures>(Tables::SIGNATURES);
+      auto* signatures = args.tx.ro<Signatures>(Tables::SIGNATURES);
       auto sig = signatures->get();
 
       ccf::kv::Version raw_seqno = 0;
@@ -811,7 +811,7 @@ namespace ccf
       }
 
       ccf::kv::Version cose_seqno = 0;
-      auto cose_signatures =
+      auto* cose_signatures =
         args.tx.ro<CoseSignatures>(Tables::COSE_SIGNATURES);
       auto cose_sig = cose_signatures->get(ccf::IdentityType::CLASSICAL);
       if (cose_sig.has_value() && !cose_sig->empty())
@@ -859,7 +859,7 @@ namespace ccf
         q.format = node_quote_info.format;
         q.uvm_endorsements = node_quote_info.uvm_endorsements;
 
-        auto nodes = args.tx.ro(network.nodes);
+        auto* nodes = args.tx.ro(network.nodes);
         auto node_info = nodes->get(context.get_node_id());
         if (node_info.has_value() && node_info->code_digest.has_value())
         {
@@ -905,7 +905,7 @@ namespace ccf
     {
       GetQuotes::Out result;
 
-      auto nodes = args.tx.ro(network.nodes);
+      auto* nodes = args.tx.ro(network.nodes);
       nodes->foreach(
         [&quotes = result.quotes](const auto& node_id, const auto& node_info) {
           if (node_info.status == ccf::NodeStatus::TRUSTED)
@@ -958,7 +958,7 @@ namespace ccf
       nlohmann::json&& /*params*/)
     {
       GetNetworkInfo::Out out;
-      auto service = args.tx.ro(network.service);
+      auto* service = args.tx.ro(network.service);
       auto service_state = service->get();
       if (service_state.has_value())
       {
@@ -991,7 +991,7 @@ namespace ccf
       ccf::endpoints::ReadOnlyEndpointContext& args,
       nlohmann::json&& /*params*/)
     {
-      auto psi_handle = args.tx.ro<ccf::PreviousServiceIdentity>(
+      auto* psi_handle = args.tx.ro<ccf::PreviousServiceIdentity>(
         ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
       const auto psi = psi_handle->get();
       if (psi.has_value())
@@ -1044,7 +1044,7 @@ namespace ccf
 
       GetNodes::Out out;
 
-      auto nodes = args.tx.ro(this->network.nodes);
+      auto* nodes = args.tx.ro(this->network.nodes);
       auto* current_consensus = get_consensus();
       nodes->foreach([host, port, status, &out, nodes, current_consensus](
                        const NodeId& nid, const NodeInfo& ni) {
@@ -1099,7 +1099,7 @@ namespace ccf
     {
       GetNodes::Out out;
 
-      auto nodes = args.tx.ro(this->network.nodes);
+      auto* nodes = args.tx.ro(this->network.nodes);
       nodes->foreach(
         [&out, nodes](const NodeId& node_id, const NodeInfo& /*ni*/) {
           // Only nodes whose retire_committed status is committed can be
@@ -1141,7 +1141,7 @@ namespace ccf
           HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
       }
 
-      auto nodes = args.tx.rw(this->network.nodes);
+      auto* nodes = args.tx.rw(this->network.nodes);
       if (!nodes->has(node_id))
       {
         return make_error(
@@ -1198,7 +1198,7 @@ namespace ccf
           HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
       }
 
-      auto nodes = args.tx.ro(this->network.nodes);
+      auto* nodes = args.tx.ro(this->network.nodes);
       auto info = nodes->get(node_id);
 
       if (!info)
@@ -1234,7 +1234,7 @@ namespace ccf
       nlohmann::json&& /*params*/)
     {
       auto node_id = this->context.get_node_id();
-      auto nodes = args.tx.ro(this->network.nodes);
+      auto* nodes = args.tx.ro(this->network.nodes);
       auto info = nodes->get(node_id);
 
       bool is_primary = false;
@@ -1299,7 +1299,7 @@ namespace ccf
             "Primary unknown");
         }
 
-        auto nodes = args.tx.ro(this->network.nodes);
+        auto* nodes = args.tx.ro(this->network.nodes);
         auto info = nodes->get(primary_id.value());
         if (!info)
         {
@@ -1454,15 +1454,15 @@ namespace ccf
       ccf::endpoints::ReadOnlyEndpointContext& args,
       nlohmann::json&& /*params*/)
     {
-      auto bytecode_map = args.tx.ro(this->network.modules_quickjs_bytecode);
-      auto version_val = args.tx.ro(this->network.modules_quickjs_version);
+      auto* bytecode_map = args.tx.ro(this->network.modules_quickjs_bytecode);
+      auto* version_val = args.tx.ro(this->network.modules_quickjs_version);
       uint64_t bytecode_size = 0;
       bytecode_map->foreach(
         [&bytecode_size](const auto&, const auto& bytecode) {
           bytecode_size += bytecode.size();
           return true;
         });
-      auto js_engine_map = args.tx.ro(this->network.js_engine);
+      auto* js_engine_map = args.tx.ro(this->network.js_engine);
       JavaScriptMetrics m;
       m.bytecode_size = bytecode_size;
       m.bytecode_used = version_val->get() == std::string(ccf::quickjs_version);
@@ -1544,7 +1544,7 @@ namespace ccf
       else
       {
         // On recovery, force a new ledger chunk
-        auto* tx_ = static_cast<ccf::kv::CommittableTx*>(&ctx.tx);
+        auto* tx_ = dynamic_cast<ccf::kv::CommittableTx*>(&ctx.tx);
         if (tx_ == nullptr)
         {
           throw std::logic_error("Could not cast tx to CommittableTx");
@@ -1553,7 +1553,7 @@ namespace ccf
           ccf::kv::CommittableTx::TxFlag::LEDGER_CHUNK_BEFORE_THIS_TX);
       }
 
-      auto endorsed_certificates =
+      auto* endorsed_certificates =
         ctx.tx.rw(network.node_endorsed_certificates);
       endorsed_certificates->put(in.node_id, in.node_endorsed_certificate);
 
@@ -1692,7 +1692,7 @@ namespace ccf
           "Unable to parse body.");
       }
 
-      auto issuers = ctx.tx.ro(this->network.jwt_issuers);
+      auto* issuers = ctx.tx.ro(this->network.jwt_issuers);
       auto issuer_metadata_ = issuers->get(parsed.issuer);
       if (!issuer_metadata_.has_value())
       {
