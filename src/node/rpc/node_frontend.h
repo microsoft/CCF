@@ -467,8 +467,8 @@ namespace ccf
       }
     }
 
-    template <typename T>
-    auto accept(T& args, const nlohmann::json& params)
+    auto accept(
+      ccf::endpoints::EndpointContext& args, const nlohmann::json& params)
     {
       const auto in = params.get<JoinNetworkNodeToNode::In>();
 
@@ -704,8 +704,8 @@ namespace ccf
         active_service->status);
     }
 
-    template <typename T>
-    auto remove_expired_pending(T& ctx, nlohmann::json&& /*params*/)
+    auto remove_expired_pending(
+      ccf::endpoints::EndpointContext& ctx, nlohmann::json&& /*params*/)
     {
       const auto pending_node_timeout = get_pending_node_timeout();
       if (!pending_node_timeout.has_value())
@@ -765,8 +765,8 @@ namespace ccf
       return make_success(true);
     }
 
-    template <typename T>
-    auto set_retired_committed(T& ctx, nlohmann::json&& /*params*/)
+    auto set_retired_committed(
+      ccf::endpoints::EndpointContext& ctx, nlohmann::json&& /*params*/)
     {
       auto nodes = ctx.tx.rw(network.nodes);
       nodes->foreach([&nodes](const auto& node_id, auto node_info) {
@@ -788,8 +788,9 @@ namespace ccf
       return make_success();
     }
 
-    template <typename T>
-    auto get_state(T& args, nlohmann::json&& /*params*/)
+    auto get_state(
+      ccf::endpoints::ReadOnlyEndpointContext& args,
+      nlohmann::json&& /*params*/)
     {
       GetState::Out result;
       auto [s, rts, lrs] = this->node_operation.state();
@@ -800,7 +801,7 @@ namespace ccf
       result.startup_seqno = this->node_operation.get_startup_snapshot_seqno();
 
       // Read last signed seqno from both raw and COSE signature tables
-      auto signatures = args.tx.template ro<Signatures>(Tables::SIGNATURES);
+      auto signatures = args.tx.ro<Signatures>(Tables::SIGNATURES);
       auto sig = signatures->get();
 
       ccf::kv::Version raw_seqno = 0;
@@ -811,7 +812,7 @@ namespace ccf
 
       ccf::kv::Version cose_seqno = 0;
       auto cose_signatures =
-        args.tx.template ro<CoseSignatures>(Tables::COSE_SIGNATURES);
+        args.tx.ro<CoseSignatures>(Tables::COSE_SIGNATURES);
       auto cose_sig = cose_signatures->get(ccf::IdentityType::CLASSICAL);
       if (cose_sig.has_value() && !cose_sig->empty())
       {
@@ -843,8 +844,9 @@ namespace ccf
       return make_success(result);
     }
 
-    template <typename T>
-    auto get_quote(T& args, nlohmann::json&& /*params*/)
+    auto get_quote(
+      ccf::endpoints::ReadOnlyEndpointContext& args,
+      nlohmann::json&& /*params*/)
     {
       QuoteInfo node_quote_info;
       const auto result = get_quote_for_this_node_v1(args.tx, node_quote_info);
@@ -897,8 +899,9 @@ namespace ccf
         fmt::format("Error code: {}", ccf::api_result_to_str(result)));
     }
 
-    template <typename T>
-    auto get_quotes(T& args, nlohmann::json&& /*params*/)
+    auto get_quotes(
+      ccf::endpoints::ReadOnlyEndpointContext& args,
+      nlohmann::json&& /*params*/)
     {
       GetQuotes::Out result;
 
@@ -935,8 +938,8 @@ namespace ccf
       return make_success(result);
     }
 
-    template <typename T>
-    auto get_attestations(T& args, nlohmann::json&& params)
+    auto get_attestations(
+      ccf::endpoints::ReadOnlyEndpointContext& args, nlohmann::json&& params)
     {
       auto res = get_quotes(args, std::move(params));
       const auto* body = std::get_if<nlohmann::json>(&res);
@@ -950,8 +953,9 @@ namespace ccf
       return res;
     }
 
-    template <typename T>
-    auto network_status(T& args, nlohmann::json&& /*params*/)
+    auto network_status(
+      ccf::endpoints::ReadOnlyEndpointContext& args,
+      nlohmann::json&& /*params*/)
     {
       GetNetworkInfo::Out out;
       auto service = args.tx.ro(network.service);
@@ -983,10 +987,11 @@ namespace ccf
         "Service state not available.");
     }
 
-    template <typename T>
-    static auto service_previous_identity(T& args, nlohmann::json&& /*params*/)
+    static auto service_previous_identity(
+      ccf::endpoints::ReadOnlyEndpointContext& args,
+      nlohmann::json&& /*params*/)
     {
-      auto psi_handle = args.tx.template ro<ccf::PreviousServiceIdentity>(
+      auto psi_handle = args.tx.ro<ccf::PreviousServiceIdentity>(
         ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
       const auto psi = psi_handle->get();
       if (psi.has_value())
@@ -1002,8 +1007,9 @@ namespace ccf
         "This service is not a recovery of a previous service.");
     }
 
-    template <typename T>
-    auto get_nodes(T& args, nlohmann::json&& /*params*/)
+    auto get_nodes(
+      ccf::endpoints::ReadOnlyEndpointContext& args,
+      nlohmann::json&& /*params*/)
     {
       const auto parsed_query =
         http::parse_query(args.rpc_ctx->get_request_query());
@@ -1087,8 +1093,9 @@ namespace ccf
       return make_success(out);
     }
 
-    template <typename T>
-    auto get_removable_nodes(T& args, nlohmann::json&& /*params*/)
+    auto get_removable_nodes(
+      ccf::endpoints::ReadOnlyEndpointContext& args,
+      nlohmann::json&& /*params*/)
     {
       GetNodes::Out out;
 
@@ -1120,8 +1127,8 @@ namespace ccf
       return make_success(out);
     }
 
-    template <typename T>
-    auto delete_retired_committed_node(T& args, nlohmann::json&& /*params*/)
+    auto delete_retired_committed_node(
+      ccf::endpoints::EndpointContext& args, nlohmann::json&& /*params*/)
     {
       GetNodes::Out out;
 
@@ -1170,15 +1177,17 @@ namespace ccf
       return make_success(true);
     }
 
-    template <typename T>
-    auto get_self_signed_certificate(T& /*args*/, nlohmann::json&& /*params*/)
+    auto get_self_signed_certificate(
+      ccf::endpoints::CommandEndpointContext& /*args*/,
+      nlohmann::json&& /*params*/)
     {
       return SelfSignedNodeCertificateInfo{
         this->node_operation.get_self_signed_node_certificate()};
     }
 
-    template <typename T>
-    auto get_node_info(T& args, nlohmann::json&& /*params*/)
+    auto get_node_info(
+      ccf::endpoints::ReadOnlyEndpointContext& args,
+      nlohmann::json&& /*params*/)
     {
       std::string node_id;
       std::string error;
@@ -1220,8 +1229,9 @@ namespace ccf
         nodes->get_version_of_previous_write(node_id).value_or(0)});
     }
 
-    template <typename T>
-    auto get_self_node(T& args, nlohmann::json&& /*params*/)
+    auto get_self_node(
+      ccf::endpoints::ReadOnlyEndpointContext& args,
+      nlohmann::json&& /*params*/)
     {
       auto node_id = this->context.get_node_id();
       auto nodes = args.tx.ro(this->network.nodes);
@@ -1273,8 +1283,9 @@ namespace ccf
         0});
     }
 
-    template <typename T>
-    auto get_primary_node(T& args, nlohmann::json&& /*params*/)
+    auto get_primary_node(
+      ccf::endpoints::ReadOnlyEndpointContext& args,
+      nlohmann::json&& /*params*/)
     {
       auto* current_consensus = get_consensus();
       if (current_consensus != nullptr)
@@ -1315,8 +1326,7 @@ namespace ccf
         "No configured consensus");
     }
 
-    template <typename T>
-    auto head_primary(T& args)
+    auto head_primary(ccf::endpoints::ReadOnlyEndpointContext& args)
     {
       if (this->node_operation.can_replicate())
       {
@@ -1358,8 +1368,7 @@ namespace ccf
       }
     }
 
-    template <typename T>
-    auto get_primary(T& args)
+    auto get_primary(ccf::endpoints::ReadOnlyEndpointContext& args)
     {
       if (this->node_operation.can_replicate())
       {
@@ -1373,8 +1382,7 @@ namespace ccf
         "Node is not primary");
     }
 
-    template <typename T>
-    auto get_backup(T& args)
+    auto get_backup(ccf::endpoints::ReadOnlyEndpointContext& args)
     {
       if (!this->node_operation.can_replicate())
       {
@@ -1388,8 +1396,9 @@ namespace ccf
         "Node is not backup");
     }
 
-    template <typename T>
-    auto consensus_config(T& /*args*/, nlohmann::json&& /*params*/)
+    auto consensus_config(
+      ccf::endpoints::CommandEndpointContext& /*args*/,
+      nlohmann::json&& /*params*/)
     {
       // Query node for configurations, separate current from pending
       auto* current_consensus = get_consensus();
@@ -1413,8 +1422,9 @@ namespace ccf
         "No configured consensus");
     }
 
-    template <typename T>
-    auto consensus_state(T& /*args*/, nlohmann::json&& /*params*/)
+    auto consensus_state(
+      ccf::endpoints::CommandEndpointContext& /*args*/,
+      nlohmann::json&& /*params*/)
     {
       auto* current_consensus = get_consensus();
       if (current_consensus != nullptr)
@@ -1429,8 +1439,7 @@ namespace ccf
         "No configured consensus");
     }
 
-    template <typename T>
-    auto node_metrics(T& args)
+    auto node_metrics(ccf::endpoints::CommandEndpointContext& args)
     {
       NodeMetrics nm;
       nm.sessions = node_operation.get_session_metrics();
@@ -1441,8 +1450,9 @@ namespace ccf
       args.rpc_ctx->set_response_body(nlohmann::json(nm).dump());
     }
 
-    template <typename T>
-    auto js_metrics(T& args, nlohmann::json&& /*params*/)
+    auto js_metrics(
+      ccf::endpoints::ReadOnlyEndpointContext& args,
+      nlohmann::json&& /*params*/)
     {
       auto bytecode_map = args.tx.ro(this->network.modules_quickjs_bytecode);
       auto version_val = args.tx.ro(this->network.modules_quickjs_version);
@@ -1466,8 +1476,9 @@ namespace ccf
       return m;
     }
 
-    template <typename T>
-    static auto version(T& /*args*/, nlohmann::json&& /*params*/)
+    static auto version(
+      ccf::endpoints::CommandEndpointContext& /*args*/,
+      nlohmann::json&& /*params*/)
     {
       GetVersion::Out result;
       result.ccf_version = ccf::ccf_version;
@@ -1477,8 +1488,7 @@ namespace ccf
       return make_success(result);
     }
 
-    template <typename T>
-    auto create(T& ctx, nlohmann::json&& params)
+    auto create(ccf::endpoints::EndpointContext& ctx, nlohmann::json&& params)
     {
       LOG_INFO_FMT("Processing create RPC");
 
@@ -1564,12 +1574,11 @@ namespace ccf
         const auto& [sealing_keys, sealing_recovery_name] =
           in.sealing_recovery_data.value();
         auto* sealed_recovery_keys =
-          ctx.tx.template rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
+          ctx.tx.rw<SealedRecoveryKeys>(Tables::SEALED_RECOVERY_KEYS);
         sealed_recovery_keys->put(in.node_id, sealing_keys);
 
         auto* local_sealing_node_id_map =
-          ctx.tx.template rw<LocalSealingNodeIdMap>(
-            Tables::SEALING_RECOVERY_NAMES);
+          ctx.tx.rw<LocalSealingNodeIdMap>(Tables::SEALING_RECOVERY_NAMES);
         local_sealing_node_id_map->put(sealing_recovery_name, in.node_id);
       }
 
@@ -1643,8 +1652,8 @@ namespace ccf
       return make_success(true);
     }
 
-    template <typename T>
-    auto refresh_jwt_keys(T& ctx, nlohmann::json&& body)
+    auto refresh_jwt_keys(
+      ccf::endpoints::EndpointContext& ctx, nlohmann::json&& body)
     {
       // All errors are server errors since the client is the server.
 
@@ -1659,8 +1668,7 @@ namespace ccf
           "Primary is unknown");
       }
 
-      const auto& sig_auth_ident =
-        ctx.template get_caller<ccf::NodeCertAuthnIdentity>();
+      const auto& sig_auth_ident = ctx.get_caller<ccf::NodeCertAuthnIdentity>();
       if (primary_id.value() != sig_auth_ident.node_id)
       {
         LOG_FAIL_FMT(
@@ -1729,8 +1737,9 @@ namespace ccf
       return make_success(true);
     }
 
-    template <typename T>
-    auto get_jwt_metrics(T& /*args*/, const nlohmann::json& /*params*/)
+    auto get_jwt_metrics(
+      ccf::endpoints::ReadOnlyEndpointContext& /*args*/,
+      const nlohmann::json& /*params*/)
     {
       JWTRefreshMetrics metrics;
       {
@@ -1740,14 +1749,15 @@ namespace ccf
       return make_success(metrics);
     }
 
-    template <typename T>
-    auto service_config_handler(T& args, const nlohmann::json& /*params*/)
+    auto service_config_handler(
+      ccf::endpoints::EndpointContext& args, const nlohmann::json& /*params*/)
     {
       return make_success(args.tx.ro(network.config)->get());
     }
 
-    template <typename T>
-    auto list_indexing_strategies(T& /*args*/, const nlohmann::json& /*params*/)
+    auto list_indexing_strategies(
+      ccf::endpoints::EndpointContext& /*args*/,
+      const nlohmann::json& /*params*/)
     {
       return make_success(this->context.get_indexing_strategies().describe());
     }
@@ -1802,19 +1812,19 @@ namespace ccf
       }
     }
 
-    template <typename T>
-    auto create_snapshot(T& args, nlohmann::json&& /*params*/)
+    auto create_snapshot(
+      ccf::endpoints::EndpointContext& args, nlohmann::json&& /*params*/)
     {
       auto* snapshot_create =
-        args.tx.template rw<ccf::SnapshotCreate>(ccf::Tables::SNAPSHOT_CREATE);
+        args.tx.rw<ccf::SnapshotCreate>(ccf::Tables::SNAPSHOT_CREATE);
       snapshot_create->touch();
       this->node_operation.trigger_snapshot(args.tx);
       return make_success();
     }
 
-    template <typename T>
     auto historical_cache_info(
-      [[maybe_unused]] T& args, [[maybe_unused]] nlohmann::json&& /*params*/)
+      [[maybe_unused]] ccf::endpoints::ReadOnlyEndpointContext& args,
+      [[maybe_unused]] nlohmann::json&& /*params*/)
     {
       GetHistoricalCacheInfo::Out result{};
       result.estimated_size =
@@ -1842,7 +1852,9 @@ namespace ccf
       const auto self_cert_auth_policy =
         std::make_shared<SelfCertAuthnPolicy>(this->context);
 
-      auto accept = [this](auto& args, const nlohmann::json& params) {
+      auto accept = [this](
+                      ccf::endpoints::EndpointContext& args,
+                      const nlohmann::json& params) {
         return this->accept(args, params);
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
@@ -1850,9 +1862,10 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      auto remove_expired_pending = [this](auto& ctx, nlohmann::json&& json) {
-        return this->remove_expired_pending(ctx, std::move(json));
-      };
+      auto remove_expired_pending =
+        [this](ccf::endpoints::EndpointContext& ctx, nlohmann::json&& json) {
+          return this->remove_expired_pending(ctx, std::move(json));
+        };
       make_endpoint(
         "network/nodes/remove_expired_pending",
         HTTP_POST,
@@ -1862,9 +1875,10 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      auto set_retired_committed = [this](auto& ctx, nlohmann::json&& json) {
-        return this->set_retired_committed(ctx, std::move(json));
-      };
+      auto set_retired_committed =
+        [this](ccf::endpoints::EndpointContext& ctx, nlohmann::json&& json) {
+          return this->set_retired_committed(ctx, std::move(json));
+        };
       make_endpoint(
         "network/nodes/set_retired_committed",
         HTTP_POST,
@@ -1873,7 +1887,9 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      auto get_state = [this](auto& args, nlohmann::json&& json) {
+      auto get_state = [this](
+                         ccf::endpoints::ReadOnlyEndpointContext& args,
+                         nlohmann::json&& json) {
         return this->get_state(args, std::move(json));
       };
       make_read_only_endpoint(
@@ -1882,7 +1898,9 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
-      auto get_quote = [this](auto& args, nlohmann::json&& json) {
+      auto get_quote = [this](
+                         ccf::endpoints::ReadOnlyEndpointContext& args,
+                         nlohmann::json&& json) {
         return this->get_quote(args, std::move(json));
       };
       make_read_only_endpoint(
@@ -1902,7 +1920,9 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
-      auto get_quotes = [this](auto& args, nlohmann::json&& json) {
+      auto get_quotes = [this](
+                          ccf::endpoints::ReadOnlyEndpointContext& args,
+                          nlohmann::json&& json) {
         return this->get_quotes(args, std::move(json));
       };
       make_read_only_endpoint(
@@ -1913,7 +1933,9 @@ namespace ccf
         .set_auto_schema<GetQuotes>()
         .install();
 
-      auto get_attestations = [this](auto& args, nlohmann::json&& params) {
+      auto get_attestations = [this](
+                                ccf::endpoints::ReadOnlyEndpointContext& args,
+                                nlohmann::json&& params) {
         return this->get_attestations(args, std::move(params));
       };
       make_read_only_endpoint(
@@ -1924,7 +1946,9 @@ namespace ccf
         .set_auto_schema<GetAttestations>()
         .install();
 
-      auto network_status = [this](auto& args, nlohmann::json&& json) {
+      auto network_status = [this](
+                              ccf::endpoints::ReadOnlyEndpointContext& args,
+                              nlohmann::json&& json) {
         return this->network_status(args, std::move(json));
       };
       make_read_only_endpoint(
@@ -1935,9 +1959,13 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
-      auto service_previous_identity = [](auto& args, nlohmann::json&& json) {
-        return NodeEndpoints::service_previous_identity(args, std::move(json));
-      };
+      auto service_previous_identity =
+        [](
+          ccf::endpoints::ReadOnlyEndpointContext& args,
+          nlohmann::json&& json) {
+          return NodeEndpoints::service_previous_identity(
+            args, std::move(json));
+        };
       make_read_only_endpoint(
         "/service/previous_identity",
         HTTP_GET,
@@ -1946,7 +1974,9 @@ namespace ccf
         .set_auto_schema<void, GetServicePreviousIdentity::Out>()
         .install();
 
-      auto get_nodes = [this](auto& args, nlohmann::json&& json) {
+      auto get_nodes = [this](
+                         ccf::endpoints::ReadOnlyEndpointContext& args,
+                         nlohmann::json&& json) {
         return this->get_nodes(args, std::move(json));
       };
       make_read_only_endpoint(
@@ -1963,9 +1993,12 @@ namespace ccf
           "status", ccf::endpoints::OptionalParameter)
         .install();
 
-      auto get_removable_nodes = [this](auto& args, nlohmann::json&& json) {
-        return this->get_removable_nodes(args, std::move(json));
-      };
+      auto get_removable_nodes =
+        [this](
+          ccf::endpoints::ReadOnlyEndpointContext& args,
+          nlohmann::json&& json) {
+          return this->get_removable_nodes(args, std::move(json));
+        };
 
       make_read_only_endpoint(
         "/network/removable_nodes",
@@ -1976,7 +2009,7 @@ namespace ccf
         .install();
 
       auto delete_retired_committed_node =
-        [this](auto& args, nlohmann::json&& json) {
+        [this](ccf::endpoints::EndpointContext& args, nlohmann::json&& json) {
           return this->delete_retired_committed_node(args, std::move(json));
         };
 
@@ -1989,7 +2022,8 @@ namespace ccf
         .install();
 
       auto get_self_signed_certificate =
-        [this](auto& args, nlohmann::json&& json) {
+        [this](
+          ccf::endpoints::CommandEndpointContext& args, nlohmann::json&& json) {
           return this->get_self_signed_certificate(args, std::move(json));
         };
       make_command_endpoint(
@@ -2001,7 +2035,9 @@ namespace ccf
         .set_auto_schema<void, SelfSignedNodeCertificateInfo>()
         .install();
 
-      auto get_node_info = [this](auto& args, nlohmann::json&& json) {
+      auto get_node_info = [this](
+                             ccf::endpoints::ReadOnlyEndpointContext& args,
+                             nlohmann::json&& json) {
         return this->get_node_info(args, std::move(json));
       };
       make_read_only_endpoint(
@@ -2012,7 +2048,9 @@ namespace ccf
         .set_auto_schema<void, GetNode::Out>()
         .install();
 
-      auto get_self_node = [this](auto& args, nlohmann::json&& json) {
+      auto get_self_node = [this](
+                             ccf::endpoints::ReadOnlyEndpointContext& args,
+                             nlohmann::json&& json) {
         return this->get_self_node(args, std::move(json));
       };
       make_read_only_endpoint(
@@ -2024,7 +2062,9 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
-      auto get_primary_node = [this](auto& args, nlohmann::json&& json) {
+      auto get_primary_node = [this](
+                                ccf::endpoints::ReadOnlyEndpointContext& args,
+                                nlohmann::json&& json) {
         return this->get_primary_node(args, std::move(json));
       };
       make_read_only_endpoint(
@@ -2035,7 +2075,10 @@ namespace ccf
         .set_auto_schema<void, GetNode::Out>()
         .install();
 
-      auto head_primary = [this](auto& args) { this->head_primary(args); };
+      auto head_primary =
+        [this](ccf::endpoints::ReadOnlyEndpointContext& args) {
+          this->head_primary(args);
+        };
       make_read_only_endpoint(
         "/primary", HTTP_HEAD, head_primary, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
@@ -2044,18 +2087,24 @@ namespace ccf
           "Redirect to the current primary node.")
         .install();
 
-      auto get_primary = [this](auto& args) { this->get_primary(args); };
+      auto get_primary = [this](ccf::endpoints::ReadOnlyEndpointContext& args) {
+        this->get_primary(args);
+      };
       make_read_only_endpoint(
         "/primary", HTTP_GET, get_primary, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
-      auto get_backup = [this](auto& args) { this->get_backup(args); };
+      auto get_backup = [this](ccf::endpoints::ReadOnlyEndpointContext& args) {
+        this->get_backup(args);
+      };
       make_read_only_endpoint("/backup", HTTP_GET, get_backup, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
-      auto consensus_config = [this](auto& args, nlohmann::json&& json) {
+      auto consensus_config = [this](
+                                ccf::endpoints::CommandEndpointContext& args,
+                                nlohmann::json&& json) {
         return this->consensus_config(args, std::move(json));
       };
 
@@ -2068,7 +2117,9 @@ namespace ccf
         .set_auto_schema<void, ConsensusConfig>()
         .install();
 
-      auto consensus_state = [this](auto& args, nlohmann::json&& json) {
+      auto consensus_state = [this](
+                               ccf::endpoints::CommandEndpointContext& args,
+                               nlohmann::json&& json) {
         return this->consensus_state(args, std::move(json));
       };
 
@@ -2081,7 +2132,9 @@ namespace ccf
         .set_auto_schema<void, ConsensusConfigDetails>()
         .install();
 
-      auto node_metrics = [this](auto& args) { this->node_metrics(args); };
+      auto node_metrics = [this](ccf::endpoints::CommandEndpointContext& args) {
+        this->node_metrics(args);
+      };
 
       make_command_endpoint(
         "/metrics", HTTP_GET, node_metrics, no_auth_required)
@@ -2089,7 +2142,9 @@ namespace ccf
         .set_auto_schema<void, NodeMetrics>()
         .install();
 
-      auto js_metrics = [this](auto& args, nlohmann::json&& json) {
+      auto js_metrics = [this](
+                          ccf::endpoints::ReadOnlyEndpointContext& args,
+                          nlohmann::json&& json) {
         return this->js_metrics(args, std::move(json));
       };
 
@@ -2101,7 +2156,9 @@ namespace ccf
         .set_auto_schema<void, JavaScriptMetrics>()
         .install();
 
-      auto version = [](auto& args, nlohmann::json&& json) {
+      auto version = [](
+                       ccf::endpoints::CommandEndpointContext& args,
+                       nlohmann::json&& json) {
         return NodeEndpoints::version(args, std::move(json));
       };
 
@@ -2111,18 +2168,20 @@ namespace ccf
         .set_auto_schema<GetVersion>()
         .install();
 
-      auto create = [this](auto& ctx, nlohmann::json&& params) {
-        return this->create(ctx, std::move(params));
-      };
+      auto create =
+        [this](ccf::endpoints::EndpointContext& ctx, nlohmann::json&& params) {
+          return this->create(ctx, std::move(params));
+        };
       make_endpoint(
         "/create", HTTP_POST, json_adapter(create), {self_cert_auth_policy})
         .set_openapi_hidden(true)
         .install();
 
       // Only called from node. See node_state.h.
-      auto refresh_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
-        return this->refresh_jwt_keys(ctx, std::move(body));
-      };
+      auto refresh_jwt_keys =
+        [this](ccf::endpoints::EndpointContext& ctx, nlohmann::json&& body) {
+          return this->refresh_jwt_keys(ctx, std::move(body));
+        };
       make_endpoint(
         "/jwt_keys/refresh",
         HTTP_POST,
@@ -2131,7 +2190,9 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      auto get_jwt_metrics = [this](auto& args, const nlohmann::json& params) {
+      auto get_jwt_metrics = [this](
+                               ccf::endpoints::ReadOnlyEndpointContext& args,
+                               const nlohmann::json& params) {
         return this->get_jwt_metrics(args, params);
       };
       make_read_only_endpoint(
@@ -2142,10 +2203,11 @@ namespace ccf
         .set_auto_schema<void, JWTRefreshMetrics>()
         .install();
 
-      auto service_config_handler =
-        [this](auto& args, const nlohmann::json& params) {
-          return this->service_config_handler(args, params);
-        };
+      auto service_config_handler = [this](
+                                      ccf::endpoints::EndpointContext& args,
+                                      const nlohmann::json& params) {
+        return this->service_config_handler(args, params);
+      };
       make_endpoint(
         "/service/configuration",
         HTTP_GET,
@@ -2155,10 +2217,11 @@ namespace ccf
         .set_auto_schema<void, ServiceConfiguration>()
         .install();
 
-      auto list_indexing_strategies =
-        [this](auto& args, const nlohmann::json& params) {
-          return this->list_indexing_strategies(args, params);
-        };
+      auto list_indexing_strategies = [this](
+                                        ccf::endpoints::EndpointContext& args,
+                                        const nlohmann::json& params) {
+        return this->list_indexing_strategies(args, params);
+      };
 
       make_endpoint(
         "/index/strategies",
@@ -2193,9 +2256,10 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
-      auto create_snapshot = [this](auto& args, nlohmann::json&& json) {
-        return this->create_snapshot(args, std::move(json));
-      };
+      auto create_snapshot =
+        [this](ccf::endpoints::EndpointContext& args, nlohmann::json&& json) {
+          return this->create_snapshot(args, std::move(json));
+        };
       make_endpoint(
         "/snapshot:create",
         HTTP_POST,
@@ -2210,9 +2274,12 @@ namespace ccf
 
       ccf::node::init_file_serving_handlers(*this, context);
 
-      auto historical_cache_info = [this](auto& args, nlohmann::json&& json) {
-        return this->historical_cache_info(args, std::move(json));
-      };
+      auto historical_cache_info =
+        [this](
+          ccf::endpoints::ReadOnlyEndpointContext& args,
+          nlohmann::json&& json) {
+          return this->historical_cache_info(args, std::move(json));
+        };
       make_read_only_endpoint(
         "/historical_cache",
         HTTP_GET,
