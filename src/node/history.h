@@ -8,8 +8,6 @@
 #include "ccf/node/ledger_sign_mode.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
-#include "common/configuration.h"
-#include "cose/cose_rs_ffi.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/hash.h"
@@ -170,7 +168,6 @@ namespace ccf
     std::shared_ptr<const ccf::crypto::Pem> endorsed_cert;
     const ccf::COSESignaturesConfig& cose_signatures_config;
     const ccf::LedgerSignMode ledger_sign_mode;
-    std::unordered_map<std::string, CoseKey>& cose_key_cache;
 
   public:
     MerkleTreeHistoryPendingTx(
@@ -182,8 +179,7 @@ namespace ccf
       ccf::crypto::ECKeyPair_OpenSSL& service_kp_,
       std::shared_ptr<const ccf::crypto::Pem> endorsed_cert_,
       const ccf::COSESignaturesConfig& cose_signatures_config_,
-      ccf::LedgerSignMode ledger_sign_mode_,
-      std::unordered_map<std::string, CoseKey>& cose_key_cache_) :
+      ccf::LedgerSignMode ledger_sign_mode_) :
       txid(txid_),
       store(store_),
       history(history_),
@@ -192,8 +188,7 @@ namespace ccf
       service_kp(service_kp_),
       endorsed_cert(std::move(endorsed_cert_)),
       cose_signatures_config(cose_signatures_config_),
-      ledger_sign_mode(ledger_sign_mode_),
-      cose_key_cache(cose_key_cache_)
+      ledger_sign_mode(ledger_sign_mode_)
     {}
 
     ccf::kv::PendingTxInfo call() override
@@ -234,47 +229,14 @@ namespace ccf
           std::chrono::system_clock::now().time_since_epoch())
           .count();
 
-      auto it = cose_key_cache.find(kid);
-      if (it == cose_key_cache.end())
-      {
-        auto key_der = service_kp.private_key_der();
-        CoseBuffer key_err;
-        auto cose_key =
-          CoseKey::from_private(key_der.data(), key_der.size(), key_err);
-        if (!cose_key.is_set())
-        {
-          throw std::runtime_error(fmt::format(
-            "cose_key_from_der_private failed: {}",
-            key_err.is_set() ? key_err.to_string() : "unknown error"));
-        }
-        auto [inserted, _] = cose_key_cache.emplace(kid, std::move(cose_key));
-        it = inserted;
-      }
-
-      CoseBuffer cose_buf;
-      CoseBuffer cose_err;
-      auto rc = cose_sign_ledger(
-        it->second,
-        reinterpret_cast<const uint8_t*>(kid.data()),
-        kid.size(),
+      auto cose_sign = cose::sign_ledger(
+        service_kp,
+        kid,
         time_since_epoch,
-        reinterpret_cast<const uint8_t*>(cose_signatures_config.issuer.data()),
-        cose_signatures_config.issuer.size(),
-        reinterpret_cast<const uint8_t*>(cose_signatures_config.subject.data()),
-        cose_signatures_config.subject.size(),
-        reinterpret_cast<const uint8_t*>(tx_id.data()),
-        tx_id.size(),
-        root_hash.data(),
-        root_hash.size(),
-        cose_buf,
-        cose_err);
-      if (rc != 0 || !cose_buf.is_set())
-      {
-        throw std::runtime_error(fmt::format(
-          "cose_sign_ledger failed: {}",
-          cose_err.is_set() ? cose_err.to_string() : "unknown error"));
-      }
-      std::vector<uint8_t> cose_sign(cose_buf.to_vector());
+        cose_signatures_config.issuer,
+        cose_signatures_config.subject,
+        tx_id,
+        root_hash);
 
       cose_signatures->put(ccf::IdentityType::CLASSICAL, cose_sign);
 
@@ -442,8 +404,6 @@ namespace ccf
     };
 
     std::optional<ServiceSigningIdentity> signing_identity = std::nullopt;
-
-    std::unordered_map<std::string, CoseKey> cose_key_cache;
 
   public:
     HashedTxHistory(
@@ -816,8 +776,7 @@ namespace ccf
           *signing_identity->service_kp,
           std::move(endorsed_cert_),
           signing_identity->cose_signatures_config,
-          signing_identity->ledger_sign_mode,
-          cose_key_cache),
+          signing_identity->ledger_sign_mode),
         true);
     }
 

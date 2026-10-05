@@ -1535,7 +1535,6 @@ namespace ccf::historical
     {
       // Create a new store and try to deserialise this entry into it
       ccf::kv::StorePtr store = std::make_shared<ccf::kv::Store>(
-        false /* Do not start from very first seqno */,
         true /* Make use of historical secrets */);
 
       // max_transaction_size is deliberately not set on this store. It is a

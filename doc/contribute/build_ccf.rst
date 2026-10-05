@@ -75,3 +75,19 @@ or if there are no Doxygen changes
 .. code-block:: bash
 
     $ SKIP_DOXYGEN=ON ./livehtml.sh
+
+Rust API documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+HTML builds generate the :doc:`Rust API reference </build_apps/rust_api>` by running ``cargo doc`` on ``src/rust/ccf-app``, without building CCF, and publish it in each version's ``rust/`` directory.
+Versions without the SDK are skipped.
+Document the SDK in rustdoc comments, and link to its pages from RST with the ``rustdoc`` role:
+
+.. code-block:: rst
+
+    :rustdoc:`Registry <struct.Registry.html>`
+
+Builds fail on rustdoc warnings and broken ``rustdoc`` links.
+``SKIP_RUSTDOC=ON`` skips generation and these checks, for local previews only.
+Run the SDK doctests with ``cargo test --locked --doc`` in ``src/rust/ccf-app``.
+Doctests are linked without CCF, so examples that call into CCF cannot link, even with ``no_run``.

@@ -12,7 +12,7 @@
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "frontend_test_infra.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/internal_tables_access.h"
 #include "node/network_state.h"
@@ -475,11 +475,12 @@ MemberId invalid_member_id;
 class TestNodeConfiguration : public NodeConfigurationInterface
 {
 private:
-  StartupConfig config;
+  CCFConfig config;
+  const nlohmann::json node_data = nullptr;
   NodeConfigurationState state;
 
 public:
-  TestNodeConfiguration() : state{config, {}, true}
+  TestNodeConfiguration() : state{config, node_data, {}, true}
   {
     NodeInfoNetwork_v2::NetInterface interface;
     interface.redirections = NodeInfoNetwork_v2::NetInterface::Redirections{};
@@ -646,6 +647,39 @@ TEST_CASE("Redirect resolution handles unpublished consensus")
 
   REQUIRE(!rpc_ctx->response_is_pending);
   REQUIRE(rpc_ctx->get_response_status() == HTTP_STATUS_SERVICE_UNAVAILABLE);
+}
+
+TEST_CASE("Endpoints with disabled operator features look like unknown paths")
+{
+  NetworkState network;
+  prepare_callers(network);
+  BaseTestFrontend frontend(*network.tables);
+  frontend.context.install_subsystem(std::make_shared<TestNodeConfiguration>());
+  frontend
+    .make_endpoint(
+      "/gated",
+      HTTP_GET,
+      [](auto& ctx) { ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK); })
+    .require_operator_feature(ccf::endpoints::OperatorFeature::SnapshotRead)
+    .install();
+  frontend.open();
+
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, anonymous_caller_der, "test_interface");
+  for (const std::string path : {"/gated", "/unknown"})
+  {
+    INFO(path);
+    ::http::Request request(path, HTTP_GET);
+    auto rpc_ctx = ccf::make_rpc_context(session, request.build_request());
+    frontend.process(rpc_ctx);
+    const auto response = parse_response(rpc_ctx->serialise_response());
+    CHECK(response.status == HTTP_STATUS_NOT_FOUND);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"] ==
+      nlohmann::json{
+        {"code", ccf::errors::ResourceNotFound},
+        {"message", fmt::format("Unknown path: {}.", path)}});
+  }
 }
 
 TEST_CASE("SignedReq to and from json")

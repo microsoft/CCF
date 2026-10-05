@@ -451,8 +451,45 @@ constexpr size_t multithread_tx_count = 100;
 constexpr size_t multithread_tx_count = 1'000;
 #endif
 
+namespace
+{
+  // Do the fetch for each ledger request written since handled_writes,
+  // simulating an asynchronous fetch by the historical query system
+  void serve_ledger_requests(
+    const std::vector<consensus::test::StubLedgerReader::Request>& writes,
+    size_t& handled_writes,
+    aft::LedgerStubProxy& ledger)
+  {
+    for (auto it = writes.begin() + handled_writes; it != writes.end(); ++it)
+    {
+      const auto& write = *it;
+
+      std::vector<uint8_t> combined;
+      for (auto seqno = write.from; seqno <= write.to; ++seqno)
+      {
+        auto entry = ledger.get_raw_entry_by_idx(seqno);
+        if (!entry.has_value())
+        {
+          // Possible that this operation beat consensus to the ledger, so
+          // pause and retry
+          std::this_thread::sleep_for(std::chrono::milliseconds(50));
+          entry = ledger.get_raw_entry_by_idx(seqno);
+        }
+        REQUIRE(entry.has_value());
+        combined.insert(combined.end(), entry->begin(), entry->end());
+      }
+      write.callback(
+        {write.from,
+         write.to,
+         consensus::LedgerRangeStatus::Found,
+         std::move(combined)});
+    }
+
+    handled_writes = writes.end() - writes.begin();
+  }
+}
+
 // Uses the real classes, and access + update them concurrently
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST_CASE(
   "multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
 {
@@ -577,35 +614,7 @@ TEST_CASE(
       {
         cache->tick(ccf::historical::slow_fetch_threshold / 2);
 
-        // Do the fetch, simulating an asynchronous fetch by the historical
-        // query system
-        for (auto it = writes.begin() + handled_writes; it != writes.end();
-             ++it)
-        {
-          const auto& write = *it;
-
-          std::vector<uint8_t> combined;
-          for (auto seqno = write.from; seqno <= write.to; ++seqno)
-          {
-            auto entry = ledger->get_raw_entry_by_idx(seqno);
-            if (!entry.has_value())
-            {
-              // Possible that this operation beat consensus to the ledger, so
-              // pause and retry
-              std::this_thread::sleep_for(std::chrono::milliseconds(50));
-              entry = ledger->get_raw_entry_by_idx(seqno);
-            }
-            REQUIRE(entry.has_value());
-            combined.insert(combined.end(), entry->begin(), entry->end());
-          }
-          write.callback(
-            {write.from,
-             write.to,
-             consensus::LedgerRangeStatus::Found,
-             std::move(combined)});
-        }
-
-        handled_writes = writes.end() - writes.begin();
+        serve_ledger_requests(writes, handled_writes, *ledger);
 
         if (work_done)
         {
@@ -665,7 +674,6 @@ public:
     ccf::SeqNo seqno, const uint8_t* data, size_t size) override
   {
     auto store = std::make_shared<ccf::kv::Store>(
-      false /* Do not start from very first seqno */,
       true /* Make use of historical secrets */);
 
     store->set_encryptor(encryptor);

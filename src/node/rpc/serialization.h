@@ -85,13 +85,6 @@ namespace ccf
     snp_uvm_endorsements,
     sealing_recovery_data);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::Out);
-  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id);
-  DECLARE_JSON_OPTIONAL_FIELDS(GetCommit::Out, view_history);
-
-  DECLARE_JSON_TYPE(GetTxStatus::Out);
-  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, transaction_id, status);
-
   DECLARE_JSON_TYPE(GetNetworkInfo::Out);
   DECLARE_JSON_REQUIRED_FIELDS(
     GetNetworkInfo::Out,
