@@ -2,9 +2,10 @@
 
 ## PyPI
 
-`pypi.official.yml` publishes the `ccf` wheel through OneBranch and ESRP. The
-pipeline is manually queued from a `ccf-*` tag. It builds the wheel from that
-tag, validates its metadata, installs it in a clean environment, and rejects a
+`pypi.official.yml` publishes the `ccf` wheel through OneBranch and ESRP. After
+the corresponding GitHub Release is reviewed and published, the pipeline is
+manually queued from its `ccf-*` tag. It builds the wheel from that tag,
+validates its metadata, installs it in a clean environment, and rejects a
 version that already exists on PyPI.
 
 The Azure DevOps pipeline must reference `/.pipelines/pypi.official.yml` and
@@ -25,9 +26,11 @@ The service connection, Key Vault, certificates, client registration, owners,
 and approvers must belong to the CCF ESRP PyPI registration. Owners and
 approvers must be different people.
 
-The existing GitHub Actions PyPI workflow remains active while this pipeline is
-validated. Disable the old publisher only after the OneBranch replacement has
-completed a production release successfully.
+The existing GitHub Actions PyPI workflow remains active during non-production
+validation. Before enabling this pipeline for production, disable the GitHub
+Actions PyPI workflow so only one publisher can process a release. If a release
+attempt publishes the wheel but another release artifact fails, do not move or
+recreate that tag; skip the incomplete version and publish a new version.
 
 Before publication, the pipeline verifies that:
 

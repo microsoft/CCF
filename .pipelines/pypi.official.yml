@@ -68,8 +68,9 @@ extends:
                 displayName: Stage wheel for ESRP
                 inputs:
                   sourceFolder: $(Pipeline.Workspace)
-                  contents: "*.whl"
+                  contents: "**/*.whl"
                   targetFolder: $(Pipeline.Workspace)/esrp_dist
+                  flattenFolders: true
               - task: EsrpRelease@10
                 displayName: ESRP release to PyPI
                 inputs:
