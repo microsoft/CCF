@@ -3,9 +3,12 @@
 
 #include "ds/internal_logger.h"
 #include "tasks/basic_task.h"
+#include "tasks/periodic_task_owner.h"
 #include "tasks/task_system.h"
 
 #include <doctest/doctest.h>
+#include <latch>
+#include <thread>
 
 namespace
 {
@@ -40,6 +43,32 @@ namespace
 
         elapsed += polling_period;
       }
+    }
+  };
+
+  class BlockingPeriodicTaskOwner : public ccf::tasks::PeriodicTaskOwner
+  {
+  public:
+    std::latch first_execution_started{1};
+    std::latch release_first_execution{1};
+    std::vector<std::chrono::milliseconds> elapsed;
+
+    void start(
+      ccf::tasks::JobBoard& job_board, std::chrono::milliseconds period)
+    {
+      schedule_periodic_task(
+        job_board,
+        period,
+        [this](std::chrono::milliseconds elapsed_) {
+          const auto is_first = elapsed.empty();
+          elapsed.push_back(elapsed_);
+          if (is_first)
+          {
+            first_execution_started.count_down();
+            release_first_execution.wait();
+          }
+        },
+        "Blocking periodic task");
     }
   };
 }
@@ -237,4 +266,42 @@ TEST_CASE("TickEnqueue" * doctest::test_suite("delayed_tasks"))
   REQUIRE(n.load() == 1);
 
   incrementer->cancel_task();
+}
+
+TEST_CASE(
+  "PeriodicTaskOwner coalesces overlap" * doctest::test_suite("delayed_tasks"))
+{
+  using namespace std::chrono_literals;
+
+  ccf::tasks::JobBoard job_board;
+  auto owner = std::make_shared<BlockingPeriodicTaskOwner>();
+  owner->start(job_board, 1ms);
+
+  job_board.tick(1ms);
+  auto first = job_board.get_task();
+  REQUIRE(first != nullptr);
+  std::thread first_worker([first]() { first->do_task(); });
+  owner->first_execution_started.wait();
+
+  job_board.tick(1ms);
+  auto overlapping = job_board.get_task();
+  REQUIRE(overlapping != nullptr);
+  std::atomic<bool> overlapping_finished = false;
+  std::thread second_worker([&]() {
+    overlapping->do_task();
+    overlapping_finished.store(true);
+  });
+
+  std::this_thread::sleep_for(10ms);
+  const auto overlap_was_coalesced = overlapping_finished.load();
+  owner->release_first_execution.count_down();
+  first_worker.join();
+  second_worker.join();
+  REQUIRE(overlap_was_coalesced);
+
+  job_board.tick(1ms);
+  auto next = job_board.get_task();
+  REQUIRE(next != nullptr);
+  next->do_task();
+  REQUIRE(owner->elapsed == std::vector{1ms, 2ms});
 }
