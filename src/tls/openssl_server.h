@@ -1341,7 +1341,7 @@ namespace ccf::tls
     // Apply worker completions and cross-thread commands on the libuv thread.
     void drain_pending_out() CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
-      bool recheck_all;
+      bool recheck_all = false;
       std::vector<OutItem> items;
       std::vector<DriveResult> completions;
       std::vector<std::pair<std::string, std::string>> certs;
