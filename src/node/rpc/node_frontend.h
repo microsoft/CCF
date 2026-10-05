@@ -467,9 +467,6 @@ namespace ccf
       }
     }
 
-    // Endpoint handlers registered by init_handlers(), via forwarding
-    // lambdas. Kept out of init_handlers() so each handler's cognitive
-    // complexity is measured on its own.
     template <typename T>
     auto accept(T& args, const nlohmann::json& params)
     {

@@ -276,9 +276,6 @@ namespace programmabilityapp
       }
     }
 
-    // Endpoint handlers registered by the constructor, via forwarding
-    // lambdas. Kept out of the constructor so each handler's complexity is
-    // measured on its own.
     void put(ccf::endpoints::EndpointContext& ctx)
     {
       std::string key;
