@@ -78,6 +78,27 @@ namespace ccf::js::extensions
       return ccf::js::core::constants::Undefined;
     }
 
+    // Returns false if value is neither undefined nor an array buffer
+    bool get_service_signing_keys(
+      JSContext* ctx,
+      JSValueConst value,
+      std::optional<ServiceSigningKeys>& keys)
+    {
+      if (JS_IsUndefined(value) != 0)
+      {
+        return true;
+      }
+      size_t size = 0;
+      const auto* bytes = JS_GetArrayBuffer(ctx, &size, value);
+      if (bytes == nullptr)
+      {
+        return false;
+      }
+      keys =
+        ccf::parse_json_safe(bytes, bytes + size).get<ServiceSigningKeys>();
+      return true;
+    }
+
     JSValue js_node_transition_service_to_open(
       JSContext* ctx,
       [[maybe_unused]] JSValueConst this_val,
@@ -147,7 +168,78 @@ namespace ccf::js::extensions
         }
 
         identities.next = ccf::crypto::Pem(next_bytes, next_bytes_sz);
-        GOV_DEBUG_FMT("next service identity: {}", identities.next.str());
+        GOV_DEBUG_FMT("next service identity: {}", identities.next->str());
+
+        gov_effects->transition_service_to_open(*tx_ptr, identities);
+      }
+      catch (const std::exception& e)
+      {
+        GOV_FAIL_FMT("Unable to open service: {}", e.what());
+        return JS_ThrowInternalError(
+          ctx, "Unable to open service: %s", e.what());
+      }
+
+      return ccf::js::core::constants::Undefined;
+    }
+
+    JSValue js_node_transition_service_to_open_with_signing_keys(
+      JSContext* ctx,
+      [[maybe_unused]] JSValueConst this_val,
+      int argc,
+      [[maybe_unused]] JSValueConst* argv)
+    {
+      js::core::Context& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+
+      if (argc != 2)
+      {
+        return JS_ThrowTypeError(
+          ctx, "Passed %d arguments but expected two", argc);
+      }
+
+      auto* extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto* gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto* tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
+      }
+
+      try
+      {
+        AbstractGovernanceEffects::ServiceIdentities identities;
+
+        if (!get_service_signing_keys(
+              ctx, argv[0], identities.previous_signing_keys))
+        {
+          return JS_ThrowTypeError(
+            ctx,
+            "Previous service signing keys argument is not an array buffer");
+        }
+
+        if (JS_IsUndefined(argv[1]) != 0)
+        {
+          return JS_ThrowInternalError(
+            ctx, "Proposal requires the next service signing keys");
+        }
+
+        if (!get_service_signing_keys(
+              ctx, argv[1], identities.next_signing_keys))
+        {
+          return JS_ThrowTypeError(
+            ctx, "Next service signing keys argument is not an array buffer");
+        }
 
         gov_effects->transition_service_to_open(*tx_ptr, identities);
       }
@@ -362,6 +454,12 @@ namespace ccf::js::extensions
       "transitionServiceToOpen",
       ctx.new_c_function(
         js_node_transition_service_to_open, "transitionServiceToOpen", 2)));
+    JS_CHECK_OR_THROW(node.set(
+      "transitionServiceToOpenWithSigningKeys",
+      ctx.new_c_function(
+        js_node_transition_service_to_open_with_signing_keys,
+        "transitionServiceToOpenWithSigningKeys",
+        2)));
     JS_CHECK_OR_THROW(node.set(
       "triggerRecoverySharesRefresh",
       ctx.new_c_function(

@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/node_subsystem_interface.h"
+#include "ccf/service_signing_keys.h"
 #include "ccf/tx.h"
 
 namespace ccf
@@ -18,10 +19,13 @@ namespace ccf
       return "GovernanceEffects";
     }
 
+    // Either certificates or signing keys, never a mix of both
     struct ServiceIdentities
     {
       std::optional<ccf::crypto::Pem> previous;
-      ccf::crypto::Pem next;
+      std::optional<ccf::crypto::Pem> next;
+      std::optional<ServiceSigningKeys> previous_signing_keys = std::nullopt;
+      std::optional<ServiceSigningKeys> next_signing_keys = std::nullopt;
     };
 
     virtual void transition_service_to_open(

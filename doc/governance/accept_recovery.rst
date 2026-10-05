@@ -84,9 +84,33 @@ A member proposes to recover the network and other members can vote on the propo
 
 Once the proposal to recover the network has passed under the rules of the :term:`Constitution`, the recovered service is ready for members to submit their recovery shares.
 
-Note that the ``transition_service_to_open`` proposal takes two parameters: the previous and the next :term:`Service Identity` (X.509 certificates in PEM format). The previous identity must match the identity supplied to the recovery node at startup, while the next identity must match the recovered service's newly generated identity. Snapshot validation is performed earlier at node startup using the configured previous service identity. Since both identities are recorded on the ledger with the proposal, it is always clear at which point the identity changed.
+Members can open the recovered service with either of two proposals. ``transition_service_to_open`` takes ``previous_service_identity`` and ``next_service_identity``, PEM certificates. ``transition_service_to_open_with_signing_keys`` takes ``previous_service_signing_keys`` and ``next_service_signing_keys``, JSON objects mapping identity types to PEM public keys, and does not accept certificates. The previous and next values must match the previous service identity recorded in the ledger and the recovered service, respectively. Each key map must contain a ``CLASSICAL`` key, and only ``CLASSICAL`` keys are compared.
 
-.. note:: The ``previous_service_identity`` argument to the ``transition_service_to_open`` proposal is required for recovery, but must not be provided when opening a new service as there is no previous identity.
+The ``previous_service_identity`` argument is deprecated, so recovery proposals should use ``transition_service_to_open_with_signing_keys``. These identities are recorded on the ledger with the proposal.
+
+Each service writes its signing keys to the files configured by ``command.service_signing_key_files``, by default ``service_signing_key_classical.pem``. A ``transition_service_to_open_with_signing_keys`` proposal uses the previous service's file and the recovered service's file:
+
+.. code-block:: json
+
+    {
+        "actions": [
+            {
+                "name": "transition_service_to_open_with_signing_keys",
+                "args": {
+                    "previous_service_signing_keys": {
+                        "CLASSICAL": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"
+                    },
+                    "next_service_signing_keys": {
+                        "CLASSICAL": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"
+                    }
+                }
+            }
+        ]
+    }
+
+Snapshot validation happens earlier at node startup. Operators must supply ``command.recover.previous_service_signing_key_files`` or the deprecated ``command.recover.previous_service_identity_file``. When key files are supplied, they are used for verification even if a certificate is also supplied, with no fallback to the certificate. The recovered service certificate inherits the subject of the previous certificate when ``command.recover.previous_service_identity_file`` is supplied. Otherwise, ``command.recover.service_cert_subject_name`` is required and sets the subject. See :doc:`/operations/configuration`.
+
+.. note:: Recovery proposals require previous signing keys or a previous service certificate. Neither previous-identity argument is needed when opening a new service.
 
 Submitting Recovery Shares
 --------------------------

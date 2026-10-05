@@ -226,6 +226,7 @@ namespace ccf
     EnclaveConfig& enclave_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
+    ServiceSigningKeys& service_signing_keys,
     std::vector<uint8_t>& rpc_addresses,
     ccf::LoggerLevel log_level,
     ringbuffer::NotifyingWriterFactory& notifying_factory,
@@ -249,6 +250,7 @@ namespace ccf
       config,
       node_cert,
       service_cert,
+      service_signing_keys,
       rpc_addresses,
       config.command.type,
       log_level,
@@ -291,10 +293,11 @@ namespace ccf
     return std::nullopt;
   }
 
-  void write_certificates_to_disk(
+  void write_identity_files_to_disk(
     const ccf::CCFConfig& config,
     const std::vector<uint8_t>& node_cert,
-    const std::vector<uint8_t>& service_cert)
+    const std::vector<uint8_t>& service_cert,
+    const ServiceSigningKeys& service_signing_keys)
   {
     // Write the node and service certs to disk.
     files::dump(node_cert, config.output_files.node_certificate_file);
@@ -310,6 +313,14 @@ namespace ccf
       LOG_INFO_FMT(
         "Output service certificate to {}",
         config.command.service_certificate_file);
+      for (const auto& [identity_type, public_key] : service_signing_keys)
+      {
+        const auto& path =
+          config.command.service_signing_key_files.at(identity_type);
+        files::dump(public_key.raw(), path);
+        LOG_INFO_FMT(
+          "Output {} service signing public key to {}", identity_type, path);
+      }
     }
   }
 
@@ -498,6 +509,7 @@ namespace ccf
     const size_t certificate_size = 4096;
     std::vector<uint8_t> node_cert(certificate_size);
     std::vector<uint8_t> service_cert(certificate_size);
+    ServiceSigningKeys service_signing_keys;
     std::vector<uint8_t> rpc_addresses;
 
     if (ccf::pal::platform == ccf::pal::Platform::Virtual)
@@ -552,6 +564,7 @@ namespace ccf
       enclave_config,
       node_cert,
       service_cert,
+      service_signing_keys,
       rpc_addresses,
       log_level,
       factories.notifying_factory,
@@ -563,8 +576,8 @@ namespace ccf
       return enclave_creation_result;
     }
 
-    // Output certificates to disk
-    write_certificates_to_disk(config, node_cert, service_cert);
+    write_identity_files_to_disk(
+      config, node_cert, service_cert, service_signing_keys);
 
     // Run enclave threads and event loop
     run_enclave_threads(config, *runtime_control);

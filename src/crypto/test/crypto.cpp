@@ -277,6 +277,26 @@ TEST_CASE("Verifier rejects unsupported public key type")
     make_verifier(cert_pem), "unsupported public key type", std::logic_error);
 }
 
+TEST_CASE("Verifier checks a certificate signature with a trusted public key")
+{
+  const auto issuer = make_ec_key_pair();
+  const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto subject = make_ec_key_pair();
+  const auto cert = create_endorsed_cert(
+    subject->public_key_pem(),
+    "CN=subject",
+    {},
+    make_verifier(issuer_cert)->validity_period(),
+    issuer->private_key_pem(),
+    issuer_cert);
+  const Verifier_OpenSSL verifier(cert.raw());
+
+  CHECK(verifier.verify_certificate_signature(issuer->public_key_pem()));
+  CHECK_FALSE(verifier.verify_certificate_signature(subject->public_key_pem()));
+  CHECK_THROWS(
+    std::ignore = verifier.verify_certificate_signature(issuer_cert));
+}
+
 TEST_CASE("Private PEM imports enforce key family")
 {
   const auto ec = make_ec_key_pair();

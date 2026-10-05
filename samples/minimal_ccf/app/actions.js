@@ -394,6 +394,17 @@ function checkX509CertBundle(value, field) {
   }
 }
 
+function checkServiceSigningKeys(value, field) {
+  if (value === null || Array.isArray(value)) {
+    throw new Error(`${field} must be an object`);
+  }
+  checkType(value, "object", field);
+  checkType(value.CLASSICAL, "string", `${field}.CLASSICAL (PEM public key)`);
+  for (const [identityType, key] of Object.entries(value)) {
+    checkType(key, "string", `${field}.${identityType} (PEM public key)`);
+  }
+}
+
 function invalidateOtherOpenProposals(proposalIdToRetain) {
   const proposalsMap = ccf.kv["public:ccf.gov.proposals_info"];
   proposalsMap.forEach((v, k) => {
@@ -911,6 +922,63 @@ const actions = new Map([
             : undefined;
         const next_identity = ccf.strToBuf(args.next_service_identity);
         ccf.node.transitionServiceToOpen(previous_identity, next_identity);
+      },
+    ),
+  ],
+  [
+    "transition_service_to_open_with_signing_keys",
+    new Action(
+      function (args) {
+        if (
+          args.previous_service_identity !== undefined ||
+          args.next_service_identity !== undefined
+        ) {
+          throw new Error(
+            "Service certificates are not accepted, use transition_service_to_open instead",
+          );
+        }
+        checkServiceSigningKeys(
+          args.next_service_signing_keys,
+          "next_service_signing_keys",
+        );
+        if (args.previous_service_signing_keys !== undefined) {
+          checkServiceSigningKeys(
+            args.previous_service_signing_keys,
+            "previous_service_signing_keys",
+          );
+        }
+      },
+
+      function (args) {
+        const service_info = "public:ccf.gov.service.info";
+        const rawService = ccf.kv[service_info].get(getSingletonKvKey());
+        if (rawService === undefined) {
+          throw new Error("Service information could not be found");
+        }
+
+        const service = ccf.bufToJsonCompatible(rawService);
+
+        if (
+          service.status === "Recovering" &&
+          (args.previous_service_signing_keys === undefined ||
+            args.next_service_signing_keys === undefined)
+        ) {
+          throw new Error(
+            `Opening a recovering network requires both, the previous and the next service signing keys`,
+          );
+        }
+
+        const previous_keys =
+          args.previous_service_signing_keys !== undefined
+            ? ccf.jsonCompatibleToBuf(args.previous_service_signing_keys)
+            : undefined;
+        const next_keys = ccf.jsonCompatibleToBuf(
+          args.next_service_signing_keys,
+        );
+        ccf.node.transitionServiceToOpenWithSigningKeys(
+          previous_keys,
+          next_keys,
+        );
       },
     ),
   ],

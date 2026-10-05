@@ -15,7 +15,9 @@
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/self_healing_open.h"
+#include "ccf/service_signing_keys.h"
 
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -225,6 +227,8 @@ namespace ccf
     {
       StartType type = StartType::Start;
       std::string service_certificate_file = "service_cert.pem";
+      std::map<std::string, std::string> service_signing_key_files = {
+        {SigningKeyType::CLASSICAL, "service_signing_key_classical.pem"}};
 
       struct Start
       {
@@ -258,7 +262,11 @@ namespace ccf
       struct Recover
       {
         size_t initial_service_certificate_validity_days = 1;
-        std::string previous_service_identity_file;
+        std::optional<std::string> service_cert_subject_name = std::nullopt;
+        std::optional<std::string> previous_service_identity_file =
+          std::nullopt;
+        std::optional<std::map<std::string, std::string>>
+          previous_service_signing_key_files = std::nullopt;
         bool operator==(const Recover&) const = default;
       };
       Recover recover = {};
@@ -412,12 +420,19 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig::Command::Recover,
     initial_service_certificate_validity_days,
-    previous_service_identity_file);
+    service_cert_subject_name,
+    previous_service_identity_file,
+    previous_service_signing_key_files);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Command, type);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCFConfig::Command, service_certificate_file, start, join, recover);
+    CCFConfig::Command,
+    service_certificate_file,
+    service_signing_key_files,
+    start,
+    join,
+    recover);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network, command);

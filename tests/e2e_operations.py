@@ -2561,7 +2561,8 @@ def run_initial_uvm_descriptor_checks(const_args):
         )
         network.consortium.add_snp_uvm_endorsement(primary, did, feed, bumped_svn)
 
-        network_service_identity_file, _ = network.save_service_identity_to_file()
+        network.save_service_identity(args)
+        network_service_identity_file = args.previous_service_identity_file
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
         LOG.info("Check that the a UVM descriptor is present")
@@ -2680,7 +2681,8 @@ def run_initial_tcb_version_checks(const_args):
             tcb_versions_before_recovery[cpuid]["hexstring"] == tcb_hex_before_recovery
         ), tcb_versions_before_recovery
 
-        network_service_identity_file, _ = network.save_service_identity_to_file()
+        network.save_service_identity(args)
+        network_service_identity_file = args.previous_service_identity_file
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
 

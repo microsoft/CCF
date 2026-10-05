@@ -12,6 +12,7 @@ namespace ccf::js::extensions
    *
    * - ccf.node.triggerLedgerRekey
    * - ccf.node.transitionServiceToOpen
+   * - ccf.node.transitionServiceToOpenWithSigningKeys
    * - ccf.node.triggerRecoverySharesRefresh
    * - ccf.node.triggerLedgerChunk
    * - ccf.node.triggerSnapshot

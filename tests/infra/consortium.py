@@ -497,6 +497,13 @@ class Consortium:
     def get_service_identity(self):
         return slurp_file(os.path.join(self.common_dir, "service_cert.pem"))
 
+    def get_service_signing_keys(self):
+        return {
+            "CLASSICAL": slurp_file(
+                os.path.join(self.common_dir, "service_signing_key_classical.pem")
+            )
+        }
+
     def add_users_and_transition_service_to_open(self, remote_node, users):
         proposal = {"actions": []}
         for user_id in users:
@@ -719,7 +726,12 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def transition_service_to_open(self, remote_node, previous_service_identity=None):
+    def transition_service_to_open(
+        self,
+        remote_node,
+        previous_service_identity=None,
+        previous_service_signing_keys=None,
+    ):
         """
         Assuming a network in state OPENING, this functions creates a new
         proposal and make members vote to transition the network to state
@@ -731,16 +743,25 @@ class Consortium:
             if r.body.json()["state"] == infra.node.State.PART_OF_NETWORK.value:
                 is_recovery = False
 
+        action = "transition_service_to_open"
         args = {}
         if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.0-rc3"):
-            args = {
-                "previous_service_identity": previous_service_identity,
-                "next_service_identity": self.get_service_identity(),
-            }
+            if (
+                remote_node.version is None
+                and previous_service_signing_keys is not None
+            ):
+                action = "transition_service_to_open_with_signing_keys"
+                args = {
+                    "previous_service_signing_keys": previous_service_signing_keys,
+                    "next_service_signing_keys": self.get_service_signing_keys(),
+                }
+            else:
+                args = {
+                    "previous_service_identity": previous_service_identity,
+                    "next_service_identity": self.get_service_identity(),
+                }
 
-        proposal_body, careful_vote = self.make_proposal(
-            "transition_service_to_open", **args
-        )
+        proposal_body, careful_vote = self.make_proposal(action, **args)
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(

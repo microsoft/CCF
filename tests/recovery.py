@@ -41,7 +41,6 @@ from e2e_logging import (
     test_cose_receipt_schema,
     verify_receipt,
 )
-from infra.consortium import slurp_file
 from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 from reconfiguration import assert_no_ipv4_in_node_configs
@@ -256,14 +255,9 @@ def recover_with_primary_dying(args, recovered_network, after_backups_recovered=
         recovered_network.find_random_node()
     )
 
-    prev_service_identity = None
-    if args.previous_service_identity_file:
-        prev_service_identity = slurp_file(args.previous_service_identity_file)
-    LOG.info(f"Prev identity: {prev_service_identity}")
-
     recovered_network.consortium.transition_service_to_open(
         recovered_network.find_random_node(),
-        previous_service_identity=prev_service_identity,
+        **infra.network.get_previous_service_identity(args),
     )
 
     retired_primary, initial_view = recovered_network.find_primary()
@@ -443,7 +437,7 @@ def test_recovery_member_changes_rejected_during_recovery(network, args):
     primary, _ = recovered_network.find_primary()
     recovered_network.consortium.transition_service_to_open(
         primary,
-        previous_service_identity=slurp_file(args.previous_service_identity_file),
+        **infra.network.get_previous_service_identity(args),
     )
     recovered_network.consortium.check_for_service(
         primary,
@@ -556,9 +550,7 @@ def run_reconfiguration_before_recovery_shares(args):
             primary, _ = recovered_network.find_primary()
             recovered_network.consortium.transition_service_to_open(
                 primary,
-                previous_service_identity=slurp_file(
-                    args.previous_service_identity_file
-                ),
+                **infra.network.get_previous_service_identity(args),
             )
             recovered_network.consortium.check_for_service(
                 primary, infra.network.ServiceStatus.WAITING_FOR_RECOVERY_SHARES
@@ -638,6 +630,7 @@ def test_recover_service(
     isolate_latest_snapshot=False,
     election_after_backups_recovered=False,
     recovered_networks=None,
+    signing_keys_only=False,
 ):
     if not from_snapshot and snapshots_dir is not None:
         raise ValueError("snapshots_dir requires from_snapshot=True")
@@ -680,6 +673,7 @@ def test_recover_service(
                 snapshots_dir=isolated_snapshots_dir,
                 election_after_backups_recovered=election_after_backups_recovered,
                 recovered_networks=recovered_networks,
+                signing_keys_only=signing_keys_only,
             )
 
     return _recover_service(
@@ -692,6 +686,7 @@ def test_recover_service(
         snapshots_dir=snapshots_dir,
         election_after_backups_recovered=election_after_backups_recovered,
         recovered_networks=recovered_networks,
+        signing_keys_only=signing_keys_only,
     )
 
 
@@ -711,6 +706,70 @@ def test_recover_service_with_ledger_after_snapshot(network, args):
     return test_recover_service(network, args, snapshots_dir=snapshots_dir)
 
 
+def check_signing_keys_proposal_rejections(network, args, previous_identity):
+    """
+    Signing key proposals carrying certificates are not created, and mismatching
+    signing keys fail when applied, leaving the service recovering.
+    """
+    primary, _ = network.find_primary()
+    consortium = network.consortium
+    action = "transition_service_to_open_with_signing_keys"
+    previous_keys = infra.network.get_previous_service_identity(args)[
+        "previous_service_signing_keys"
+    ]
+    next_keys = consortium.get_service_signing_keys()
+
+    for certificate_args in (
+        {"next_service_identity": consortium.get_service_identity()},
+        {"previous_service_identity": previous_identity},
+    ):
+        body, _ = consortium.make_proposal(
+            action,
+            previous_service_signing_keys=previous_keys,
+            next_service_signing_keys=next_keys,
+            **certificate_args,
+        )
+        try:
+            consortium.get_any_active_member().propose(primary, body)
+            assert False, f"Proposal should not be created: {list(certificate_args)}"
+        except infra.proposal.ProposalNotCreated as e:
+            assert e.response.status_code == http.HTTPStatus.BAD_REQUEST, e.response
+
+    for mismatching_args, expected_error in (
+        (
+            {
+                "previous_service_signing_keys": next_keys,
+                "next_service_signing_keys": next_keys,
+            },
+            "Previous service identity does not match",
+        ),
+        (
+            {
+                "previous_service_signing_keys": previous_keys,
+                "next_service_signing_keys": previous_keys,
+            },
+            (
+                "the next service signing keys in the "
+                "transition_service_to_open_with_signing_keys proposal do not match"
+            ),
+        ),
+    ):
+        body, ballot = consortium.make_proposal(action, **mismatching_args)
+        proposal = consortium.get_any_active_member().propose(primary, body)
+        try:
+            consortium.vote_using_majority(primary, proposal, ballot)
+            assert False, "Mismatching proposal should not be accepted"
+        except infra.proposal.ProposalNotAccepted as e:
+            assert (
+                e.response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
+            ), e.response
+            assert (
+                expected_error in e.response.body.json()["error"]["message"]
+            ), e.response
+
+    consortium.check_for_service(primary, infra.network.ServiceStatus.RECOVERING)
+
+
 def _recover_service(
     network,
     args,
@@ -721,6 +780,7 @@ def _recover_service(
     snapshots_dir=None,
     election_after_backups_recovered=False,
     recovered_networks=None,
+    signing_keys_only=False,
 ):
     network.save_service_identity(args)
     old_node_ids = {node.node_id for node in network.get_joined_nodes()}
@@ -769,6 +829,14 @@ def _recover_service(
         committed_ledger_dirs = None
     else:
         current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    if signing_keys_only:
+        # Without the previous certificate, the recovered service certificate
+        # subject must be configured explicitly
+        args.previous_service_identity_file = None
+        args.recovery_service_cert_subject_name = load_pem_x509_certificate(
+            prev_ident.encode("ascii"), default_backend()
+        ).subject.rfc4514_string()
 
     with tempfile.NamedTemporaryFile(mode="w+") as node_data_tf:
         start_node_data = {"this is a": "recovery node"}
@@ -833,6 +901,9 @@ def _recover_service(
             assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
             r = c.get("/node/ready/app")
             assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value, r
+
+    if signing_keys_only:
+        check_signing_keys_proposal_rejections(recovered_network, args, prev_ident)
 
     if force_election:
         recover_with_primary_dying(
@@ -904,6 +975,17 @@ def _recover_service(
         }
         unexpected_removable_node_ids = old_node_ids & removable_node_ids
         assert not unexpected_removable_node_ids, unexpected_removable_node_ids
+
+    if signing_keys_only:
+        recovered_cert = load_pem_x509_certificate(
+            current_network_info["service_certificate"].encode("ascii"),
+            default_backend(),
+        )
+        assert (
+            recovered_cert.subject.rfc4514_string()
+            == args.recovery_service_cert_subject_name
+        ), recovered_cert.subject
+        args.recovery_service_cert_subject_name = None
 
     return recovered_network
 
@@ -1008,51 +1090,61 @@ def test_recover_service_with_wrong_identity(network, args):
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
-    # Attempt a recovery with the wrong previous service certificate
-    # The mismatch results in all snapshots being ignored
-
-    args.previous_service_identity_file = network.consortium.user_cert_path("user0")
-
-    broken_network = infra.network.Network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        existing_network=network,
-    )
-
-    broken_network.start_in_recovery(
-        args,
-        ledger_dir=current_ledger_dir,
-        committed_ledger_dirs=committed_ledger_dirs,
-        snapshots_dir=snapshots_dir,
-    )
-
-    # The mismatch is only fatal when used in a transition proposal
-    exception = None
-    try:
-        broken_network.recover(args)
-    except Exception as ex:
-        exception = ex
-
-    broken_network.ignoring_shutdown_errors = True
-    broken_network.stop_all_nodes(skip_verification=True)
-
-    if exception is None:
-        raise ValueError("Recovery should have failed")
-
-    if not broken_network.nodes[0].check_log_for_error_message(
-        "Previous service identity does not match the service identity that signed the snapshot"
+    # Each wrong previous identity results in all snapshots being ignored, and
+    # the mismatch is only fatal when used in a transition proposal. Invalid
+    # signing keys must not fall back to the correct previous certificate.
+    wrong_identity_file = network.consortium.user_cert_path("user0")
+    for identity_file, signing_key_files in (
+        (wrong_identity_file, None),
+        (
+            first_service_identity_file,
+            infra.network.save_service_signing_keys(
+                wrong_identity_file, network.common_dir
+            ),
+        ),
     ):
-        raise ValueError("Node log does not contain the expected error message")
+        args.previous_service_identity_file = identity_file
+        args.previous_service_signing_key_files = signing_key_files
 
-    if not broken_network.nodes[0].check_log_for_error_message(
-        "Unable to open service: Previous service identity does not match."
-    ):
-        raise ValueError("Node log does not contain the expected error message")
+        broken_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+        )
 
-    # Recover, now with the correct service identity
+        broken_network.start_in_recovery(
+            args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            snapshots_dir=snapshots_dir,
+        )
+
+        exception = None
+        try:
+            broken_network.recover(args)
+        except Exception as ex:
+            exception = ex
+
+        broken_network.ignoring_shutdown_errors = True
+        broken_network.stop_all_nodes(skip_verification=True)
+
+        if exception is None:
+            raise ValueError("Recovery should have failed")
+
+        for message in (
+            "Previous service identity does not match the service identity that signed the snapshot",
+            "Unable to open service: Previous service identity does not match.",
+        ):
+            if not broken_network.nodes[0].check_log_for_error_message(message):
+                raise ValueError(
+                    f"Node log does not contain the expected error message: {message}"
+                )
+
+    # Recover, now with the correct previous service certificate only
 
     args.previous_service_identity_file = first_service_identity_file
+    args.previous_service_signing_key_files = None
 
     recovered_network = infra.network.Network(
         args.nodes,
@@ -1297,6 +1389,11 @@ def run_recover_service_from_files(
 
         args.previous_service_identity_file = os.path.join(
             old_common, "service_cert.pem"
+        )
+        args.previous_service_signing_key_files = (
+            infra.network.save_service_signing_keys(
+                args.previous_service_identity_file, new_common
+            )
         )
 
         network.start_in_recovery(
@@ -1558,7 +1655,7 @@ def test_share_resilience(network, args, from_snapshot=False):
     primary, _ = recovered_network.find_primary()
     recovered_network.consortium.transition_service_to_open(
         primary,
-        previous_service_identity=slurp_file(args.previous_service_identity_file),
+        **infra.network.get_previous_service_identity(args),
     )
 
     # Submit all required recovery shares minus one. Last recovery share is
@@ -1849,9 +1946,12 @@ def run(args, ipv6=False):
                     network, args, from_snapshot=False
                 )
             else:
-                # Vary nodes certificate elliptic curve
+                # Vary nodes certificate elliptic curve, and recover from the
+                # previous service signing keys only
                 args.curve_id = infra.network.EllipticCurve.secp256r1
-                network = test_recover_service(network, args, from_snapshot=False)
+                network = test_recover_service(
+                    network, args, from_snapshot=False, signing_keys_only=True
+                )
 
             for node in network.get_joined_nodes():
                 node.verify_certificate_validity_period()
@@ -2126,6 +2226,122 @@ def run_recover_snapshot_alone(args):
         # Recover node solely from snapshot
         test_recover_service(network, args, from_snapshot=True, no_ledger=True)
         return network
+
+
+def run_recovery_with_signing_keys_only(args):
+    """
+    Open a new service with transition_service_to_open_with_signing_keys, after
+    malformed signing key maps are rejected. Then recover it with previous
+    signing keys only: a wrong key ignores the snapshot and cannot open the
+    service, while the right key uses the snapshot and opens it.
+    """
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start(args)
+        primary, _ = network.find_primary()
+        consortium = network.consortium
+        consortium.activate(primary)
+        member = consortium.get_any_active_member()
+        action = "transition_service_to_open_with_signing_keys"
+        next_keys = consortium.get_service_signing_keys()
+
+        for malformed_keys in (
+            None,
+            "not an object",
+            [next_keys["CLASSICAL"]],
+            {},
+            {"CLASSICAL": 42},
+        ):
+            body = {
+                "actions": [
+                    {
+                        "name": action,
+                        "args": {"next_service_signing_keys": malformed_keys},
+                    }
+                ]
+            }
+            try:
+                member.propose(primary, body)
+                assert False, f"Proposal should not be created: {malformed_keys}"
+            except infra.proposal.ProposalNotCreated as e:
+                assert e.response.status_code == http.HTTPStatus.BAD_REQUEST, e.response
+
+        body, ballot = consortium.make_proposal(
+            action, next_service_signing_keys={"CLASSICAL": "not a PEM key"}
+        )
+        proposal = member.propose(primary, body)
+        try:
+            consortium.vote_using_majority(primary, proposal, ballot)
+            assert False, "Proposal with a non-PEM key should not be accepted"
+        except infra.proposal.ProposalNotAccepted as e:
+            assert (
+                "PEM constructed with non-PEM data"
+                in e.response.body.json()["error"]["message"]
+            ), e.response
+
+        body, ballot = consortium.make_proposal(
+            action, next_service_signing_keys=next_keys
+        )
+        proposal = member.propose(primary, body)
+        consortium.vote_using_majority(primary, proposal, ballot)
+        consortium.check_for_service(primary, infra.network.ServiceStatus.OPEN)
+
+        snapshots_dir = network.get_committed_snapshots(primary)
+        previous_identity = network.save_service_identity(args)
+        signing_key_files = args.previous_service_signing_key_files
+        args.previous_service_identity_file = None
+        args.recovery_service_cert_subject_name = load_pem_x509_certificate(
+            previous_identity.encode("ascii"), default_backend()
+        ).subject.rfc4514_string()
+        network.stop_all_nodes()
+        ledger_dir, committed_ledger_dirs = primary.get_ledger()
+
+        args.previous_service_signing_key_files = (
+            infra.network.save_service_signing_keys(
+                os.path.join(network.common_dir, f"{member.local_id}_cert.pem"),
+                network.common_dir,
+            )
+        )
+        broken_network = infra.network.Network(
+            args.nodes, args.binary_dir, args.debug_nodes, existing_network=network
+        )
+        try:
+            broken_network.start_in_recovery(
+                args,
+                ledger_dir=ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+                snapshots_dir=snapshots_dir,
+            )
+            broken_network.recover(args)
+            assert False, "Recovery with a wrong previous signing key should fail"
+        except infra.proposal.ProposalNotAccepted:
+            pass
+        finally:
+            broken_network.ignoring_shutdown_errors = True
+            broken_network.stop_all_nodes(skip_verification=True)
+        for message in (
+            "Previous service identity does not match the service identity that signed the snapshot",
+            "Unable to open service: Previous service identity does not match.",
+        ):
+            assert broken_network.nodes[0].check_log_for_error_message(message), message
+
+        args.previous_service_signing_key_files = signing_key_files
+        recovered_network = infra.network.Network(
+            args.nodes, args.binary_dir, args.debug_nodes, existing_network=network
+        )
+        with infra.network.close_on_error(recovered_network):
+            recovered_network.start_in_recovery(
+                args,
+                ledger_dir=ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+                snapshots_dir=snapshots_dir,
+            )
+            assert recovered_network.nodes[0].check_log_for_error_message(
+                "is directly signed by the configured previous service identity"
+            )
+            recovered_network.recover(args)
+        recovered_network.stop_all_nodes()
 
 
 def run_recovery_with_missing_service_data(args):
@@ -2517,6 +2733,9 @@ def run_recovery_after_cose_upgrade(args):
         strict_args.package = cose_strict_package
         strict_args.previous_service_identity_file = (
             recovered_args.previous_service_identity_file
+        )
+        strict_args.previous_service_signing_key_files = (
+            recovered_args.previous_service_signing_key_files
         )
         strict_network = infra.network.Network(
             args.nodes,
@@ -3361,6 +3580,14 @@ checked. Note that the key for each logging message is unique (per table).
         run_recover_snapshot_alone,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_signing_keys_only",
+        run_recovery_with_signing_keys_only,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+        snapshot_tx_interval=10,
     )
 
     cr.add(

@@ -4,6 +4,7 @@
 
 #include "ccf/node/configuration.h"
 #include "ccf/node/start_type.h"
+#include "ccf/service_signing_keys.h"
 #include "common/configuration.h"
 #include "common/enclave_interface_types.h"
 #include "ds/work_beacon.h"
@@ -22,6 +23,7 @@ namespace ccf
     const ccf::CCFConfig& ccf_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
+    ServiceSigningKeys& service_signing_keys,
     std::vector<uint8_t>& rpc_addresses,
     StartType start_type,
     ccf::LoggerLevel log_level,

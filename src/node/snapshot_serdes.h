@@ -9,12 +9,14 @@
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/cose.h"
+#include "crypto/openssl/verifier.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "node/cose_common.h"
 #include "node/history.h"
+#include "node/identity.h"
 #include "node/rpc/network_identity_chain_helpers.h"
 #include "node/tx_receipt_impl.h"
 
@@ -254,14 +256,18 @@ namespace ccf
 
   static void verify_cose_snapshot_receipt(
     const SnapshotSegments& segments,
-    const std::optional<std::vector<uint8_t>>& prev_service_identity)
+    const std::optional<std::vector<uint8_t>>& prev_service_identity,
+    const std::optional<ServiceSigningKeys>& prev_service_signing_keys =
+      std::nullopt)
   {
     const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
 
-    if (prev_service_identity)
+    if (prev_service_signing_keys || prev_service_identity)
     {
-      auto verifier = ccf::crypto::make_cose_verifier_from_pem_cert(
-        ccf::crypto::Pem(*prev_service_identity));
+      const auto key = get_previous_service_classical_signing_key(
+        prev_service_signing_keys, prev_service_identity);
+      auto verifier =
+        ccf::crypto::make_cose_verifier_from_key(key->public_key_der());
       if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
       {
         throw std::logic_error(
@@ -274,7 +280,9 @@ namespace ccf
 
   static void verify_json_snapshot_receipt(
     const SnapshotSegments& segments,
-    const std::optional<std::vector<uint8_t>>& prev_service_identity)
+    const std::optional<std::vector<uint8_t>>& prev_service_identity,
+    const std::optional<ServiceSigningKeys>& prev_service_signing_keys =
+      std::nullopt)
   {
     auto j =
       ccf::parse_json_safe(segments.receipt.begin(), segments.receipt.end());
@@ -299,7 +307,8 @@ namespace ccf
 
     auto root = receipt->calculate_root();
 
-    auto v = ccf::crypto::make_unique_verifier(receipt->cert);
+    auto v =
+      std::make_unique<ccf::crypto::Verifier_OpenSSL>(receipt->cert.raw());
     if (!v->verify_hash(
           root.h.data(),
           root.h.size(),
@@ -311,7 +320,19 @@ namespace ccf
         "Signature verification failed for snapshot receipt");
     }
 
-    if (prev_service_identity)
+    if (prev_service_signing_keys)
+    {
+      const auto key = get_previous_service_classical_signing_key(
+        prev_service_signing_keys, prev_service_identity);
+      if (!v->verify_certificate_signature(key->public_key_pem()))
+      {
+        throw std::logic_error(
+          "Previous service identity does not endorse the node identity "
+          "that signed the snapshot");
+      }
+      LOG_DEBUG_FMT("Previous service signing key endorses snapshot signer");
+    }
+    else if (prev_service_identity)
     {
       ccf::crypto::Pem prev_pem(*prev_service_identity);
       if (!v->verify_certificate(
@@ -328,7 +349,9 @@ namespace ccf
 
   static void verify_snapshot(
     const SnapshotSegments& segments,
-    std::optional<std::vector<uint8_t>> prev_service_identity = std::nullopt)
+    std::optional<std::vector<uint8_t>> prev_service_identity = std::nullopt,
+    const std::optional<ServiceSigningKeys>& prev_service_signing_keys =
+      std::nullopt)
   {
     LOG_INFO_FMT(
       "Deserialising snapshot receipt (size: {}).", segments.receipt.size());
@@ -359,12 +382,14 @@ namespace ccf
     if (first_byte == ENCODED_COSE_SIGN1_TAG)
     {
       LOG_DEBUG_FMT("Snapshot with COSE receipt detected");
-      verify_cose_snapshot_receipt(segments, prev_service_identity);
+      verify_cose_snapshot_receipt(
+        segments, prev_service_identity, prev_service_signing_keys);
     }
     else if (first_byte == '{')
     {
       LOG_DEBUG_FMT("Snapshot with JSON receipt detected");
-      verify_json_snapshot_receipt(segments, prev_service_identity);
+      verify_json_snapshot_receipt(
+        segments, prev_service_identity, prev_service_signing_keys);
     }
     else
     {

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
 
+### Added
+
+- The `transition_service_to_open_with_signing_keys` proposal action opens a service with `previous_service_signing_keys` and `next_service_signing_keys`, maps of identity types to PEM public keys, instead of certificates. The public header `ccf/service_signing_keys.h` declares `ccf::ServiceSigningKeys` and `ccf::SigningKeyType`. See [accepting recovery](https://microsoft.github.io/CCF/main/governance/accept_recovery.html) (#8477).
+
+### Deprecated
+
+- The `previous_service_identity` argument of the `transition_service_to_open` proposal and the `command.recover.previous_service_identity_file` configuration option are deprecated in favour of the `transition_service_to_open_with_signing_keys` proposal and `command.recover.previous_service_signing_key_files` respectively. In C++, `ccf::CCFConfig::Command::Recover::previous_service_identity_file` is now `std::optional<std::string>` (#8477).
+
 ### Fixed
 
 - Paused RPC reads now resume when another interface releases the inbound budget, even if older libuv versions coalesce the notification. Previously, reads could remain paused until an unrelated event triggered a recheck (#8498).

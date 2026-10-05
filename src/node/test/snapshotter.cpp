@@ -3,6 +3,10 @@
 
 #include "node/snapshotter.h"
 
+#include "ccf/ds/x509_time_fmt.h"
+#include "ccf/receipt.h"
+#include "ccf/service/tables/nodes.h"
+#include "ccf/service_signing_keys.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
@@ -151,6 +155,54 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   const auto target_key = ccf::crypto::make_ec_key_pair()->public_key_der();
   REQUIRE_THROWS(ccf::validate_recovery_snapshot_endorsement_chain(
     scan.endorsements, target_key, 1));
+}
+
+TEST_CASE("Legacy JSON snapshot receipts are verified with signing keys")
+{
+  using namespace std::literals;
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 1h);
+  const auto valid_to =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() + 1h);
+
+  const auto service_kp = ccf::crypto::make_ec_key_pair();
+  const auto service_cert =
+    service_kp->self_sign("CN=service", valid_from, valid_to);
+  const auto signer_kp = ccf::crypto::make_ec_key_pair();
+  const std::vector<uint8_t> snapshot = {1, 2, 3};
+
+  auto receipt = std::make_shared<ccf::ProofReceipt>();
+  receipt->cert = service_kp->sign_csr(
+    service_cert, signer_kp->create_csr("CN=node"), valid_from, valid_to);
+  receipt->node_id = ccf::compute_node_id_from_kp(signer_kp);
+  receipt->leaf_components.write_set_digest =
+    ccf::crypto::Sha256Hash(std::string("write set"));
+  receipt->leaf_components.commit_evidence = "ce:2.4:abcd";
+  receipt->leaf_components.claims_digest.set(
+    ccf::crypto::Sha256Hash(snapshot.data(), snapshot.size()));
+  const auto root = receipt->calculate_root();
+  receipt->signature = signer_kp->sign_hash(root.h.data(), root.h.size());
+
+  const auto receipt_str = nlohmann::json(ccf::ReceiptPtr(receipt)).dump();
+  const std::vector<uint8_t> receipt_bytes(
+    receipt_str.begin(), receipt_str.end());
+  const ccf::SnapshotSegments segments{snapshot, receipt_bytes};
+
+  const ccf::ServiceSigningKeys service_keys{
+    {ccf::SigningKeyType::CLASSICAL, service_kp->public_key_pem()}};
+  const ccf::ServiceSigningKeys other_keys{
+    {ccf::SigningKeyType::CLASSICAL,
+     ccf::crypto::make_ec_key_pair()->public_key_pem()}};
+
+  REQUIRE_NOTHROW(ccf::verify_snapshot(segments, std::nullopt, service_keys));
+  REQUIRE_THROWS_WITH(
+    ccf::verify_snapshot(segments, std::nullopt, other_keys),
+    "Previous service identity does not endorse the node identity that "
+    "signed the snapshot");
+
+  INFO("Mismatching keys do not fall back to a matching certificate");
+  REQUIRE_THROWS(
+    ccf::verify_snapshot(segments, service_cert.raw(), other_keys));
 }
 
 TEST_CASE("Recovery snapshot endorsement scan bounds candidate endorsements")

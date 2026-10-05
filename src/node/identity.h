@@ -5,15 +5,43 @@
 #include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/service_signing_keys.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/ec_key_pair.h"
 
+#include <fmt/format.h>
 #include <openssl/crypto.h>
+#include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace ccf
 {
+  inline ccf::crypto::ECPublicKeyPtr get_previous_service_classical_signing_key(
+    const std::optional<ServiceSigningKeys>& keys,
+    const std::optional<std::vector<uint8_t>>& certificate)
+  {
+    if (keys.has_value())
+    {
+      if (!keys->contains(SigningKeyType::CLASSICAL))
+      {
+        throw std::logic_error(fmt::format(
+          "Missing {} previous service signing public key",
+          SigningKeyType::CLASSICAL));
+      }
+      return ccf::crypto::make_ec_public_key(
+        keys->at(SigningKeyType::CLASSICAL));
+    }
+
+    if (!certificate.has_value())
+    {
+      throw std::logic_error("No previous service identity is configured");
+    }
+    return ccf::crypto::make_ec_public_key(
+      ccf::crypto::make_unique_verifier(*certificate)->public_key_der());
+  }
+
   struct NetworkIdentity
   {
     ccf::crypto::Pem priv_key;

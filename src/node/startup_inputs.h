@@ -3,9 +3,11 @@
 #pragma once
 
 #include "ccf/crypto/pem.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/json.h"
 #include "ccf/node/configuration.h"
 #include "ccf/node/start_type.h"
+#include "ccf/service_signing_keys.h"
 #include "ds/internal_logger.h"
 #include "node/rpc/node_call_types.h"
 
@@ -119,7 +121,7 @@ namespace ccf
     return genesis;
   }
 
-  // File-backed inputs from the operator configuration, other than the SNP
+  // Resolved startup inputs from the operator configuration, other than the SNP
   // attestation files (read during quote generation) and the join transparent
   // statement (read on each join attempt).
   struct StartupInputs
@@ -133,7 +135,10 @@ namespace ccf
     // Join only
     std::vector<uint8_t> join_service_cert;
     // Recover only
+    std::string service_cert_subject_name;
     std::optional<std::vector<uint8_t>> previous_service_identity =
+      std::nullopt;
+    std::optional<ServiceSigningKeys> previous_service_signing_keys =
       std::nullopt;
   };
 
@@ -180,17 +185,49 @@ namespace ccf
       {
         const auto& identity_file =
           config.command.recover.previous_service_identity_file;
-        if (identity_file.empty())
+        const auto& key_files =
+          config.command.recover.previous_service_signing_key_files;
+        if (!identity_file.has_value() && !key_files.has_value())
         {
           throw std::logic_error(
-            "Recovery requires the certificate of the previous service "
-            "identity");
+            "Recovery requires previous service signing keys or a previous "
+            "service certificate");
         }
 
-        LOG_INFO_FMT(
-          "Reading previous service identity from {}", identity_file);
-        inputs.previous_service_identity =
-          read_startup_file(identity_file, "previous service identity");
+        if (identity_file.has_value())
+        {
+          LOG_INFO_FMT(
+            "Reading previous service identity from {}", *identity_file);
+          inputs.previous_service_identity =
+            read_startup_file(*identity_file, "previous service identity");
+          // The recovered service certificate inherits the previous subject
+          inputs.service_cert_subject_name = ccf::crypto::get_subject_name(
+            ccf::crypto::Pem(*inputs.previous_service_identity));
+        }
+        else
+        {
+          const auto& configured_subject =
+            config.command.recover.service_cert_subject_name;
+          if (!configured_subject.has_value())
+          {
+            throw std::logic_error(
+              "Recovery without command.recover.previous_service_identity_file "
+              "requires command.recover.service_cert_subject_name");
+          }
+          inputs.service_cert_subject_name = configured_subject.value();
+        }
+        if (key_files.has_value())
+        {
+          auto& keys = inputs.previous_service_signing_keys.emplace();
+          const auto& path = key_files->at(SigningKeyType::CLASSICAL);
+          LOG_INFO_FMT(
+            "Reading previous CLASSICAL service signing public key from {}",
+            path);
+          keys.emplace(
+            SigningKeyType::CLASSICAL,
+            ccf::crypto::Pem(read_startup_file(
+              path, "previous CLASSICAL service signing public key")));
+        }
         break;
       }
       default:

@@ -20,6 +20,7 @@ from typing import ClassVar
 import ccf.ledger
 from ccf.tx_id import TxID
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from cryptography.x509 import load_pem_x509_certificate
 from loguru import logger as LOG
 
@@ -31,6 +32,7 @@ import infra.node
 import infra.openapi
 import infra.path
 import infra.proc
+import infra.remote
 from infra.clients import CCFConnectionException, CCFIOException, flush_info
 from infra.consortium import slurp_file
 from infra.node import CCFVersion
@@ -43,6 +45,56 @@ JOIN_TIMEOUT = 40
 DEFAULT_TIMEOUT_MULTIPLIER = 15
 
 COMMON_FOLDER = "common"
+
+
+def get_previous_service_identity(args):
+    certificate_file = getattr(args, "previous_service_identity_file", None)
+    key_files = getattr(args, "previous_service_signing_key_files", None)
+    return {
+        "previous_service_identity": (
+            slurp_file(certificate_file) if certificate_file else None
+        ),
+        "previous_service_signing_keys": (
+            {
+                identity_type: slurp_file(path)
+                for identity_type, path in key_files.items()
+            }
+            if key_files is not None
+            else None
+        ),
+    }
+
+
+def service_signing_key_from_certificate(certificate):
+    return (
+        load_pem_x509_certificate(certificate.encode("ascii"), default_backend())
+        .public_key()
+        .public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+        .decode("ascii")
+    )
+
+
+def save_service_signing_keys(certificate_file, directory, key_files=None):
+    if key_files is None:
+        # Historical services did not export signing public keys separately.
+        keys = {
+            "CLASSICAL": service_signing_key_from_certificate(
+                slurp_file(certificate_file)
+            )
+        }
+    else:
+        keys = {
+            identity_type: slurp_file(path) for identity_type, path in key_files.items()
+        }
+
+    stem = os.path.splitext(os.path.basename(certificate_file))[0]
+    paths = {}
+    for identity_type, key in keys.items():
+        path = os.path.join(directory, f"{stem}_{identity_type}_pubk.pem")
+        with open(path, "w", encoding="utf-8") as key_file:
+            key_file.write(key)
+        paths[identity_type] = path
+    return paths
 
 
 class NodeRole(Enum):
@@ -216,6 +268,8 @@ class Network:
         "config_file",
         "ubsan_options",
         "previous_service_identity_file",
+        "previous_service_signing_key_files",
+        "recovery_service_cert_subject_name",
         "snp_endorsements_servers",
         "node_to_node_message_limit",
         "historical_cache_soft_limit",
@@ -982,16 +1036,9 @@ class Network:
         # so we make sure that we're running the right one.
         self.consortium.set_constitution(random_node, args.constitution)
 
-        prev_service_identity = None
-        if (
-            args.previous_service_identity_file is not None
-            and args.previous_service_identity_file != ""
-        ):
-            prev_service_identity = slurp_file(args.previous_service_identity_file)
-
         self.consortium.transition_service_to_open(
             self.find_random_node(),
-            previous_service_identity=prev_service_identity,
+            **get_previous_service_identity(args),
         )
 
         if via_local_sealing:
@@ -2500,7 +2547,10 @@ class Network:
     def refresh_service_identity_file(self, args):
         """
         Refresh service_cert.pem from the current primary node, so that future client
-        connections pick up the new service certificate.
+        connections pick up the new service certificate. The service signing key files
+        are copied from the joined node that started or recovered the service, as the
+        files fetched on startup may come from a recovery node whose identity was not
+        retained.
         """
         primary = self.find_random_node()
         with primary.client(verify_ca=False) as c:
@@ -2515,6 +2565,20 @@ class Network:
         LOG.info(f"After refresh, service_cert.pem is sha256:{after_digest}")
         with open(identity_filepath, "w", encoding="utf-8") as f:
             f.write(new_service_identity)
+
+        exporters = [
+            node
+            for node in self.get_joined_nodes()
+            if node.remote.start_type
+            in {infra.remote.StartType.start, infra.remote.StartType.recover}
+        ]
+        assert len(exporters) == 1, [node.local_node_id for node in exporters]
+        (exporter,) = exporters
+        if exporter.remote.supports_service_signing_keys:
+            exporter.remote.get_service_signing_key_files(self.common_dir)
+            LOG.info(
+                f"Refreshed service signing key files from node {exporter.local_node_id}"
+            )
 
     def get_service_identity(self):
         n = self.find_random_node()
@@ -2542,6 +2606,18 @@ class Network:
     def save_service_identity(self, args):
         path, identity = self.save_service_identity_to_file()
         args.previous_service_identity_file = path
+        signing_key_file = os.path.join(
+            self.common_dir, "service_signing_key_classical.pem"
+        )
+        args.previous_service_signing_key_files = save_service_signing_keys(
+            path,
+            self.common_dir,
+            (
+                {"CLASSICAL": signing_key_file}
+                if os.path.exists(signing_key_file)
+                else None
+            ),
+        )
         return identity
 
     def identity(self, name=None):
