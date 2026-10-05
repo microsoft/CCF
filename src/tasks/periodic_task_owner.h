@@ -48,7 +48,12 @@ namespace ccf::tasks
         [&job_board, weak_self, timing, function = std::move(function)]() {
           if (auto owner = weak_self.lock())
           {
-            std::lock_guard<std::mutex> guard(timing->lock);
+            std::unique_lock<std::mutex> guard(timing->lock, std::try_to_lock);
+            if (!guard.owns_lock())
+            {
+              return;
+            }
+
             const auto now = job_board.get_current_time();
             const auto elapsed = now - timing->last_run;
             timing->last_run = now;

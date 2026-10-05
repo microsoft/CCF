@@ -72,9 +72,9 @@ namespace ccf::tasks
 
     void add_delayed_task(Task task, std::chrono::milliseconds delay);
 
-    // A periodic task is enqueued at most once whenever deadlines are
-    // observed, then rescheduled from that observation time. Missed periods
-    // are not replayed.
+    // Each tick enqueues a periodic task at most once, even if that tick spans
+    // multiple periods. Later ticks may enqueue it again while an earlier
+    // execution is still pending or running.
     void add_periodic_task(
       Task task,
       std::chrono::milliseconds initial_delay,
