@@ -4,6 +4,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/rsa_key_pair.h"
+#include "ds/internal_logger.h"
 
 #include <climits>
 #include <openssl/core_names.h>
@@ -50,14 +51,14 @@ namespace ccf::crypto
         "Cannot construct RSAPublicKey_OpenSSL from non-RSA key");
     }
   }
+  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(Unique_PKEY&& pkey) :
+    RSAPublicKey_OpenSSL(pkey.release())
+  {}
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
     key.reset(PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr));
-    if (key == nullptr)
-    {
-      throw std::runtime_error("could not parse PEM");
-    }
+    OpenSSL::CHECKNULL(key);
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
@@ -75,13 +76,14 @@ namespace ccf::crypto
     {
       pp = der.data();
       key.reset(d2i_PublicKey(EVP_PKEY_RSA, nullptr, &pp, der.size()));
+      if (key != nullptr)
+      {
+        // PKCS#1 input fails to parse as SubjectPublicKeyInfo first, and the
+        // errors queued by that attempt must not outlive the fallback.
+        ERR_clear_error();
+      }
     }
-    if (key == nullptr)
-    {
-      unsigned long ec = ERR_get_error();
-      auto msg = OpenSSL::error_string(ec);
-      throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
-    }
+    OpenSSL::CHECKNULL(key);
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
@@ -239,8 +241,15 @@ namespace ccf::crypto
       CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
     }
     CHECKPOSITIVE(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
-    return EVP_PKEY_verify(pctx, signature, signature_size, hash, hash_size) ==
-      1;
+    const auto rc =
+      EVP_PKEY_verify(pctx, signature, signature_size, hash, hash_size);
+    if (rc != 1)
+    {
+      const auto error = OpenSSL::first_error();
+      LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", error);
+      return false;
+    }
+    return true;
   }
 
   Unique_BIGNUM RSAPublicKey_OpenSSL::get_bn_param(const char* key_name) const

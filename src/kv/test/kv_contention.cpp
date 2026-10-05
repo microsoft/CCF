@@ -4,8 +4,8 @@
 #include "ds/internal_logger.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
+#include "kv/null_encryptor.h"
 #include "kv/store.h"
-#include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 
 #include <atomic>

@@ -14,11 +14,43 @@
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/snp_measurements.h"
-#include "node/rpc/call_types.h"
-#include "node/rpc/serialization.h"
+#include "ccf/tx_id.h"
+#include "ccf/tx_status.h"
 
 namespace ccf
 {
+  struct GetCommit
+  {
+    using In = void;
+
+    struct Out
+    {
+      ccf::TxID transaction_id;
+      std::vector<ccf::TxID> view_history;
+    };
+  };
+
+  struct GetTxStatus
+  {
+    struct Out
+    {
+      ccf::TxID transaction_id;
+      TxStatus status{};
+    };
+  };
+
+  struct GetAPI
+  {
+    using Out = nlohmann::json;
+  };
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id);
+  DECLARE_JSON_OPTIONAL_FIELDS(GetCommit::Out, view_history);
+
+  DECLARE_JSON_TYPE(GetTxStatus::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, transaction_id, status);
+
   static constexpr auto tx_id_param_key = "transaction_id";
   static constexpr auto view_history_param_key = "view_history";
   static constexpr auto view_history_since_param_key = "view_history_since";

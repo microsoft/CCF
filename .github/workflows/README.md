@@ -60,6 +60,8 @@ File: `ci-al4.yml`
 
 Builds configurable CCF release install trees on Azure Linux 3 and Azure Linux 4 in parallel, then runs the LTS live-upgrade test directly on a VMSS runner. By default, it upgrades from the previous stable CCF release to the latest stable release; both versions can be overridden using the manual inputs in [`cross-platform-lts.yml`](cross-platform-lts.yml). Separate runtime images install only the required shared-library packages and copy in the matching install tree. Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking. Runs weekly and manually, but not on pull requests because both full builds and the compatibility test are expensive.
 
+Because the upgrade job runs directly on the runner rather than in a container, it first restores ownership of the workspace with `sudo chown`. VMSS runners are reused across jobs, and `--user root` container jobs, including the Azure Linux 3 build in the same run, can leave root-owned files in the shared workspace that would otherwise make `actions/checkout` fail with permission errors.
+
 Shared workflow environment values define the Python version, base images, runner pool labels, install archive filename, and test workspace.
 
 File: `cross-platform-lts.yml`
@@ -67,7 +69,11 @@ File: `cross-platform-lts.yml`
 
 # Coverage
 
-Builds CCF with coverage enabled, runs unit and end to end tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
+Builds CCF with coverage enabled, runs unit, end to end and partition tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
+
+A parallel job on `gha-aci-genoa` builds with coverage and runs the same SEV-SNP tests as the ACI SNP Genoa job in `ci.yml`, excluding benchmarks, then uploads their merged coverage profile. Before generating reports, the Virtual job waits for that job and merges its profile into the overall statistics. This does not lengthen the workflow, because the SNP job normally finishes well before the Virtual tests. Profiles only match binaries built with the same compiler and compile options, so the Virtual job also checks that both jobs used the same compiler version. If the SNP job does not succeed, or its compiler differs, the Virtual job fails rather than report statistics without SNP coverage, which also keeps that run out of the coverage trend.
+
+The Virtual job summary plots line and branch coverage together on a shared percentage axis with endpoint labels, for the previous successful runs on the same branch, recovered from their job logs, followed by the current run. The GitHub API sometimes returns an outdated list of runs, so a list is only used if it includes the current run, and is otherwise requested again. If no up-to-date list is returned, the trend only includes the current run, and the job reports a warning.
 
 File: `coverage.yml`
 3rd party dependencies: None
