@@ -3,13 +3,10 @@
 
 """Render a combined coverage trend chart for the coverage job summary.
 
-The coverage workflow writes an llvm-cov report to its job summary (and, via
-``tee``, to the job logs). GitHub does not expose an API to download a job
-summary directly, so the trend is reconstructed from the logs of previous
-Coverage runs on the same branch, which contain the same report. This script
-extracts the overall line and branch coverage percentages from each of those
-reports and renders a Mermaid xychart with line and branch coverage on the same
-percentage scale, including the current run.
+The coverage workflow stores llvm-cov reports in a per-branch artifact. This
+script extracts the overall line and branch coverage percentages from the
+previous reports and renders a Mermaid xychart with line and branch coverage
+on the same percentage scale, including the current run.
 
 It also aggregates the per-file rows of the current report by source area
 (directory) and lists the files with the most uncovered lines, so that the job
@@ -25,10 +22,9 @@ import re
 import sys
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-# Number of previous runs to include in the trend, in addition to the current
-# run. Overridable via the environment so the coverage workflow can keep this in
-# sync with the number of previous-run logs it downloads.
-HISTORY_POINTS: int = int(os.environ.get("COVERAGE_HISTORY_POINTS") or 9)
+# Maximum number of runs to include in the trend, including the current run.
+# Overridable via the environment to match the workflow's artifact retention.
+HISTORY_POINTS: int = int(os.environ.get("COVERAGE_HISTORY_POINTS") or 30)
 DEFAULT_REPOSITORY = "microsoft/CCF"
 
 # The llvm-cov ``report`` TOTAL line lists, for each of Regions, Functions,
@@ -38,8 +34,7 @@ DEFAULT_REPOSITORY = "microsoft/CCF"
 # coverage the fourth.
 _PERCENT_RE = re.compile(r"(\d+(?:\.\d+)?)%")
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-# Optional leading ISO-8601 timestamp, as prefixed to each GitHub Actions log
-# line (e.g. "2026-07-07T18:12:43.968Z ").
+# Optional leading ISO-8601 timestamp on lines from older job logs.
 _TIMESTAMP_RE = re.compile(r"^\S+T\S+Z\s+")
 _LINE_COVERAGE_INDEX = 2
 _BRANCH_COVERAGE_INDEX = 3
@@ -129,8 +124,7 @@ def extract_coverage(text: str) -> Optional[Tuple[float, Optional[float]]]:
 def extract_file_coverage(text: str) -> List[FileCoverage]:
     """Return the per-file line and branch counts from an llvm-cov report.
 
-    Rows are recognised by their shape rather than by position, as the report
-    is embedded in a job log alongside other output.
+    Rows are recognised by their shape rather than by position.
     """
     files: List[FileCoverage] = []
     for line in text.splitlines():
@@ -245,17 +239,15 @@ def render_top_files(files: List[FileCoverage]) -> str:
 
 
 def _parse_history_name(name: str) -> Optional[Tuple[int, str]]:
-    """Return (run_id, label) parsed from a ``<run_id>-<run_number>.log`` name."""
-    stem: str = name[:-4] if name.endswith(".log") else name
-    run_id, _, run_number = stem.partition("-")
-    if not run_id.isdigit():
+    """Return (run_id, label) from a ``<run_id>-<run_number>.txt`` name."""
+    match: Optional[re.Match[str]] = re.fullmatch(r"(\d+)-(\d+)\.txt", name)
+    if match is None:
         return None
-    label: str = run_number if run_number else run_id
-    return int(run_id), label
+    return int(match.group(1)), match.group(2)
 
 
 def load_history(directory: str) -> List[CoveragePoint]:
-    """Load coverage points from previous-run log files in a directory."""
+    """Load coverage points from previous-run reports in a directory."""
     points: List[CoveragePoint] = []
     if not os.path.isdir(directory):
         return points
@@ -281,12 +273,11 @@ def load_history(directory: str) -> List[CoveragePoint]:
 
 
 def previous_file_coverage(directory: str) -> List[FileCoverage]:
-    """Return the per-file rows of the most recent complete previous-run log.
+    """Return the per-file rows of the most recent complete previous report.
 
-    Previous-run logs are downloaded on a best-effort basis, so the most recent
-    one may be empty or truncated. Logs are tried from the highest run id down,
-    and the first with per-file rows and a TOTAL line (which llvm-cov prints
-    after them) is used.
+    The most recent report may be empty or truncated. Reports are tried from
+    the highest run id down, and the first with per-file rows and a TOTAL line
+    (which llvm-cov prints after them) is used.
     """
     candidates: List[Tuple[int, str]] = []
     if not os.path.isdir(directory):
@@ -459,14 +450,12 @@ def render_trend(points: List[CoveragePoint]) -> str:
 def build_points(
     history: List[CoveragePoint], current: Optional[CoveragePoint]
 ) -> List[CoveragePoint]:
-    """Order history chronologically, keep the most recent, append current."""
+    """Order history chronologically and keep the latest runs, including current."""
     ordered: List[CoveragePoint] = sorted(history, key=lambda point: point.run_id)
     if current is not None:
         ordered = [point for point in ordered if point.run_id != current.run_id]
-    ordered = ordered[-HISTORY_POINTS:]
-    if current is not None:
         ordered.append(current)
-    return ordered
+    return ordered[-HISTORY_POINTS:]
 
 
 def current_point(report_path: str) -> Optional[CoveragePoint]:
@@ -497,7 +486,7 @@ def main() -> int:
         "history",
         nargs="?",
         default="coverage_history",
-        help="Directory of previous-run log files (default: coverage_history).",
+        help="Directory of previous-run reports (default: coverage_history).",
     )
     args: argparse.Namespace = parser.parse_args()
 
