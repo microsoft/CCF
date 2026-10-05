@@ -90,9 +90,10 @@ namespace ccf
   }
 
   // Serial execution domain for node ingress. Inbound peer frames, node ticks
-  // and stop notices are executed in submission order on one critical
-  // OrderedTasks lane, so they are mutually exclusive regardless of which
-  // worker runs them. Must outlive the execution of its lane.
+  // and stop notices are executed in submission order on one OrderedTasks
+  // lane, so they are mutually exclusive regardless of which worker runs them.
+  // The lane is an ordinary task, so it queues behind other ready tasks and
+  // waits for a free worker. Must outlive the execution of its lane.
   class NodeIngress : public NodeInboundHandler
   {
   public:
@@ -106,8 +107,7 @@ namespace ccf
 
   public:
     NodeIngress(ccf::tasks::JobBoard& job_board, Receiver receiver_) :
-      lane(ccf::tasks::OrderedTasks::create(
-        job_board, "Node ingress", ccf::tasks::TaskClass::Critical)),
+      lane(ccf::tasks::OrderedTasks::create(job_board, "Node ingress")),
       receiver(std::move(receiver_))
     {}
 

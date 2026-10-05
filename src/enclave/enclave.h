@@ -386,12 +386,6 @@ namespace ccf
       LOG_DEBUG_FMT("Running main thread");
 
       {
-        // This thread is reserved capacity for critical tasks (node ingress),
-        // so that opaque, potentially-blocking general tasks on the worker
-        // threads cannot stall consensus.
-        auto& job_board = ccf::tasks::get_main_job_board();
-        job_board.set_critical_work_beacon(work_beacon);
-
         messaging::BufferProcessor bp("Enclave");
 
         // reconstruct oversized messages sent to the enclave
@@ -427,10 +421,9 @@ namespace ccf
             }
           });
 
-        // Maximum number of inbound ringbuffer messages, and of critical
-        // tasks, which will be processed in a single iteration
+        // Maximum number of inbound ringbuffer messages which will be
+        // processed in a single iteration
         static constexpr size_t max_messages = 256;
-        static constexpr size_t max_critical_tasks = 256;
 
         bool should_wait_for_work = true;
         while (!stop_requested.load())
@@ -454,37 +447,23 @@ namespace ccf
               "Node stop notice", [this]() { node->stop_notice(); });
           }
 
-          // Read some messages from the ringbuffer
+          // Read some messages from the ringbuffer. This thread is dedicated
+          // to ingress dispatch; task execution, including node ingress,
+          // happens on worker threads (see run_worker), so that opaque,
+          // potentially-blocking tasks never stall this thread.
           auto read = bp.read_n(max_messages, circuit->read_from_outside());
 
-          // Run critical tasks only. General tasks execute on worker threads
-          // (see run_worker), which also prefer critical tasks.
-          size_t ran = 0;
-          while (ran < max_critical_tasks && !stop_requested.load())
-          {
-            auto task = job_board.get_critical_task();
-            if (task == nullptr)
-            {
-              break;
-            }
-            ccf::tasks::try_do_task(*task);
-            ++ran;
-          }
+          // Hitting the read budget may leave queued messages behind.
+          // Continue immediately rather than consuming the only coalesced
+          // wake and then sleeping with unread ringbuffer messages.
+          should_wait_for_work = read < max_messages;
 
-          // Hitting either budget may leave work behind. Continue immediately
-          // rather than consuming the only coalesced wake and then sleeping
-          // with unprocessed work.
-          should_wait_for_work =
-            read < max_messages && ran < max_critical_tasks;
-
-          // If there was nothing to do, idle
-          if (read == 0 && ran == 0)
+          // If no messages were read from the ringbuffer, idle
+          if (read == 0)
           {
             std::this_thread::yield();
           }
         }
-
-        job_board.set_critical_work_beacon(nullptr);
 
         LOG_INFO_FMT("Stopping RPC transports");
         // The host is still running the libuv loop at this point.

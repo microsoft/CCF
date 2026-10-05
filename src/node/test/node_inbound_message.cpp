@@ -198,24 +198,6 @@ TEST_CASE("Node ingress lane" * doctest::test_suite("node_inbound_message"))
     REQUIRE(seen == std::vector<std::string>{"a", "tick", "b"});
   }
 
-  SUBCASE("The lane is a critical task")
-  {
-    ccf::tasks::JobBoard job_board;
-    size_t received = 0;
-    ccf::NodeIngress ingress(
-      job_board,
-      [&](ccf::NodeMsgType, const ccf::NodeId&, const uint8_t*, size_t) {
-        ++received;
-      });
-
-    ingress.recv_node_inbound(ccf::consensus_msg, peer, {});
-    auto task = job_board.get_critical_task();
-    REQUIRE(task != nullptr);
-    REQUIRE(task->get_task_class() == ccf::tasks::TaskClass::Critical);
-    task->do_task();
-    REQUIRE(received == 1);
-  }
-
   SUBCASE("Queued payloads are owned by the lane")
   {
     ccf::tasks::JobBoard job_board;
