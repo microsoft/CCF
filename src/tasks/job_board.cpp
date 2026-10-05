@@ -20,13 +20,7 @@ namespace ccf::tasks
     // Output variable to assign that thread a task
     Task& assigned_task;
 
-    // Reserved executors accept only critical tasks
-    const bool critical_only;
-
-    WaitingWorkerThread(Task& at_, bool critical_only_) :
-      assigned_task(at_),
-      critical_only(critical_only_)
-    {}
+    WaitingWorkerThread(Task& at_) : assigned_task(at_) {}
 
     WaitingWorkerThread(const WaitingWorkerThread&) = delete;
     WaitingWorkerThread& operator=(const WaitingWorkerThread&) = delete;
@@ -71,12 +65,11 @@ namespace ccf::tasks
 
   struct JobBoard::PImpl
   {
-    // Mutex protects access to the pending queues and waiting_worker_threads
+    // Mutex protects access to both pending_tasks and waiting_worker_threads
     ccf::ds::Mutex mutex;
 
-    // Collections of tasks that are ready for execution, by TaskClass
+    // Collection of tasks that are ready for execution
     std::queue<Task> pending_tasks CCF_GUARDED_BY(mutex);
-    std::queue<Task> pending_critical_tasks CCF_GUARDED_BY(mutex);
 
     // Collection describing idle worker threads. This takes shared pointers, to
     // ensure the objects remain valid even if the caller exits exceptionally
@@ -88,7 +81,6 @@ namespace ccf::tasks
       CCF_GUARDED_BY(mutex) = std::make_shared<std::vector<WorkerThreadPtr>>();
 
     ccf::ds::WorkBeaconPtr work_beacon CCF_GUARDED_BY(mutex) = nullptr;
-    ccf::ds::WorkBeaconPtr critical_work_beacon CCF_GUARDED_BY(mutex) = nullptr;
     bool stopping CCF_GUARDED_BY(mutex) = false;
     bool shut_down CCF_GUARDED_BY(mutex) = false;
     std::shared_ptr<Registry> registry = std::make_shared<Registry>();
@@ -102,7 +94,7 @@ namespace ccf::tasks
       {
         ccf::ds::MutexGuard lock(mutex);
         work_beacon = std::move(work_beacon_);
-        if (work_beacon != nullptr && !no_pending_tasks())
+        if (work_beacon != nullptr && !pending_tasks.empty())
         {
           beacon = work_beacon;
         }
@@ -114,66 +106,10 @@ namespace ccf::tasks
       }
     }
 
-    void set_critical_work_beacon(ccf::ds::WorkBeaconPtr work_beacon_)
-    {
-      ccf::ds::WorkBeaconPtr beacon;
-      {
-        ccf::ds::MutexGuard lock(mutex);
-        critical_work_beacon = std::move(work_beacon_);
-        if (critical_work_beacon != nullptr && !pending_critical_tasks.empty())
-        {
-          beacon = critical_work_beacon;
-        }
-      }
-
-      if (beacon != nullptr)
-      {
-        beacon->notify_work_available_coalesced();
-      }
-    }
-
-    [[nodiscard]] bool no_pending_tasks() const CCF_REQUIRES(mutex)
-    {
-      return pending_tasks.empty() && pending_critical_tasks.empty();
-    }
-
-    // Hands task to an idle worker able to run it, preferring critical-only
-    // workers for critical tasks so general capacity stays available.
-    bool assign_to_waiting_worker(Task& task, bool critical) CCF_REQUIRES(mutex)
-    {
-      // NB: Although waiting_worker_threads is modified under lock, it is
-      // possible that a second call to add_task arrives before the notified
-      // thread wakes up and removes itself from this collection. In this case
-      // we must avoid overwriting a previously-assigned task.
-      for (const bool want_critical_only : {true, false})
-      {
-        if (want_critical_only && !critical)
-        {
-          continue;
-        }
-
-        for (WorkerThreadPtr& worker : *waiting_worker_threads)
-        {
-          if (
-            worker->critical_only == want_critical_only &&
-            worker->assigned_task == nullptr)
-          {
-            worker->assigned_task = std::move(task);
-            worker->cv.notify_one();
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-
     // May run shutdown hooks, so callers must not hold board locks.
     void add_task(Task&& task) CCF_EXCLUDES(mutex, delayed.tasks_mutex)
     {
-      const bool critical =
-        task != nullptr && task->get_task_class() == TaskClass::Critical;
       ccf::ds::WorkBeaconPtr beacon;
-      ccf::ds::WorkBeaconPtr critical_beacon;
       Task abandoned;
       {
         // Under lock
@@ -181,30 +117,29 @@ namespace ccf::tasks
         if (!shut_down)
         {
           // First check if there is an idle worker waiting for a task
-          if (assign_to_waiting_worker(task, critical))
+          for (WorkerThreadPtr& worker : *waiting_worker_threads)
           {
-            return;
+            // NB: Although waiting_worker_threads is modified under lock, it is
+            // possible that a second call to add_task arrives before the
+            // notified thread wakes up and removes itself from this collection.
+            // In this case we must avoid overwriting a previously-assigned
+            // task.
+            if (worker->assigned_task == nullptr)
+            {
+              worker->assigned_task = std::move(task);
+              worker->cv.notify_one();
+              return;
+            }
           }
 
-          // There is no idle worker able to run this task, so enqueue it for
-          // later execution. Wake external consumers only when a queue they
-          // read becomes non-empty.
-          if (no_pending_tasks())
+          // There are no waiting_worker_threads currently, or none waiting for
+          // a task, so enqueue this task for later execution. Wake the external
+          // consumer only when the pending queue becomes non-empty.
+          if (pending_tasks.empty())
           {
             beacon = work_beacon;
           }
-          if (critical)
-          {
-            if (pending_critical_tasks.empty())
-            {
-              critical_beacon = critical_work_beacon;
-            }
-            pending_critical_tasks.emplace(std::move(task));
-          }
-          else
-          {
-            pending_tasks.emplace(std::move(task));
-          }
+          pending_tasks.emplace(std::move(task));
         }
         else
         {
@@ -220,20 +155,15 @@ namespace ccf::tasks
       {
         beacon->notify_work_available_coalesced();
       }
-      if (critical_beacon != nullptr)
-      {
-        critical_beacon->notify_work_available_coalesced();
-      }
     }
 
-    Task get_task(bool critical_only = false)
+    Task get_task()
     {
       using namespace std::chrono_literals;
-      return wait_for_task(0ms, critical_only);
+      return wait_for_task(0ms);
     }
 
-    Task wait_for_task(
-      const std::chrono::milliseconds& timeout, bool critical_only = false)
+    Task wait_for_task(const std::chrono::milliseconds& timeout)
     {
       Task to_return = nullptr;
 
@@ -246,29 +176,18 @@ namespace ccf::tasks
         decltype(waiting_worker_threads) worker_threads =
           waiting_worker_threads;
 
-        // Check if there are pending tasks this worker can execute, critical
-        // tasks first
-        if (!pending_critical_tasks.empty())
-        {
-          to_return = pending_critical_tasks.front();
-          pending_critical_tasks.pop();
-        }
-        else if (!critical_only && !pending_tasks.empty())
-        {
-          to_return = pending_tasks.front();
-          pending_tasks.pop();
-        }
-        else
+        // Check if there are pending tasks to be executed
+        if (pending_tasks.empty())
         {
           if (stopping)
           {
             return nullptr;
           }
 
-          // When no task is available, append this thread to
+          // When the task queue is empty, append this thread to
           // waiting_worker_threads and wait on a condition_variable
           WorkerThreadPtr waiting_worker =
-            std::make_shared<WaitingWorkerThread>(to_return, critical_only);
+            std::make_shared<WaitingWorkerThread>(to_return);
 
           // Append local object to central collection
           worker_threads->push_back(waiting_worker);
@@ -286,6 +205,12 @@ namespace ccf::tasks
           auto it = std::find(
             worker_threads->begin(), worker_threads->end(), waiting_worker);
           worker_threads->erase(it);
+        }
+        else
+        {
+          // When the task queue is non-empty, take the first element from it
+          to_return = pending_tasks.front();
+          pending_tasks.pop();
         }
       }
 
@@ -435,7 +360,6 @@ namespace ccf::tasks
   void JobBoard::shutdown()
   {
     std::queue<Task> pending;
-    std::queue<Task> pending_critical;
     Delayed::DelayedTasksByTime delayed;
     decltype(Registry::tasks) registered;
     {
@@ -447,7 +371,6 @@ namespace ccf::tasks
       pimpl->shut_down = true;
       pimpl->stopping = true;
       pending.swap(pimpl->pending_tasks);
-      pending_critical.swap(pimpl->pending_critical_tasks);
     }
     {
       ccf::ds::MutexGuard lock(pimpl->delayed.tasks_mutex);
@@ -475,13 +398,10 @@ namespace ccf::tasks
     {
       task->shutdown();
     }
-    for (auto* queue : {&pending_critical, &pending})
+    while (!pending.empty())
     {
-      while (!queue->empty())
-      {
-        queue->front()->shutdown();
-        queue->pop();
-      }
+      pending.front()->shutdown();
+      pending.pop();
     }
     for (const auto& [_, tasks] : delayed)
     {
@@ -497,11 +417,6 @@ namespace ccf::tasks
     pimpl->set_work_beacon(std::move(work_beacon));
   }
 
-  void JobBoard::set_critical_work_beacon(ccf::ds::WorkBeaconPtr work_beacon)
-  {
-    pimpl->set_critical_work_beacon(std::move(work_beacon));
-  }
-
   void JobBoard::add_task(Task task)
   {
     pimpl->add_task(std::move(task));
@@ -510,11 +425,6 @@ namespace ccf::tasks
   Task JobBoard::get_task()
   {
     return pimpl->get_task();
-  }
-
-  Task JobBoard::get_critical_task()
-  {
-    return pimpl->get_task(true);
   }
 
   Task JobBoard::wait_for_task(const std::chrono::milliseconds& timeout)
@@ -532,8 +442,7 @@ namespace ccf::tasks
     Summary summary{};
     {
       ccf::ds::MutexGuard lock(pimpl->mutex);
-      summary.pending_tasks =
-        pimpl->pending_tasks.size() + pimpl->pending_critical_tasks.size();
+      summary.pending_tasks = pimpl->pending_tasks.size();
       summary.idle_workers = pimpl->waiting_worker_threads->size();
     }
     {

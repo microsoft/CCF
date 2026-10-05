@@ -86,18 +86,14 @@ namespace ccf::tasks
     OrderedTasks(
       Private force_private_constructor,
       JobBoard& job_board,
-      const std::string& name,
-      TaskClass task_class);
+      const std::string& name);
     ~OrderedTasks() override;
 
     static std::shared_ptr<OrderedTasks> create(
-      JobBoard& job_board_,
-      const std::string& name_ = "[Ordered]",
-      TaskClass task_class_ = TaskClass::General);
+      JobBoard& job_board_, const std::string& name_ = "[Ordered]");
 
     ccf::tasks::Resumable pause() override;
     const std::string& get_name() const override;
-    [[nodiscard]] TaskClass get_task_class() const override;
 
     void add_action(TaskAction&& action);
 
