@@ -197,7 +197,6 @@ namespace ccf
 
     ~Enclave()
     {
-      ledger_subsystem->shutdown();
       LOG_TRACE_FMT("Shutting down enclave");
     }
 

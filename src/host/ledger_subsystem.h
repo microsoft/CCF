@@ -261,14 +261,21 @@ namespace asynchost
     // Completes mutations already accepted, then rejects new submissions and
     // waits for in-flight storage actions and callbacks. Idempotent.
     //
-    // The caller must ensure no task worker can be executing the lane when
-    // this is called; the host calls it after the enclave threads have
-    // joined. Draining here is what the old design achieved by reading the
-    // remaining ringbuffer messages before stopping the loop: a mutation which
-    // append() or commit() accepted must reach disk. Queued reads are skipped
-    // and their callbacks never fire: answering them would run receiver code
-    // (and, for recovery, submit further reads) on this thread after the
-    // enclave has stopped.
+    // Ordering requirements on the caller:
+    // - No task worker may be executing the lane: the host calls this after
+    //   the enclave threads have joined.
+    // - The job board must NOT have been shut down yet. JobBoard::shutdown()
+    //   abandons the pending actions of every registered OrderedTasks lane,
+    //   including this one, so calling it first would discard the queued
+    //   mutations this method exists to drain. The host therefore calls this
+    //   before enclave_shutdown_tasks(); see run_enclave_threads in run.cpp.
+    //
+    // Draining here is what the old design achieved by reading the remaining
+    // ringbuffer messages before stopping the loop: a mutation which append()
+    // or commit() accepted must reach disk. Queued reads are skipped and their
+    // callbacks never fire: answering them would run receiver code (and, for
+    // recovery, submit further reads) on this thread after the enclave has
+    // stopped.
     void shutdown() override
     {
       std::call_once(shutdown_once, [this]() {
