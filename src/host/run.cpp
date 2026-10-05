@@ -318,7 +318,8 @@ namespace ccf
 
   void run_enclave_threads(
     const ccf::CCFConfig& config,
-    asynchost::RuntimeControlImpl& runtime_control)
+    asynchost::RuntimeControlImpl& runtime_control,
+    asynchost::LedgerSubsystem& ledger_subsystem)
   {
     auto enclave_thread_start = [&](threading::ThreadID thread_id) {
       threading::set_current_thread_id(thread_id);
@@ -359,6 +360,14 @@ namespace ccf
     {
       thread.join();
     }
+
+    // Workers exit as soon as a stop is requested, so ledger mutations which
+    // append()/commit() accepted may still be queued on the ledger lane. Drain
+    // them to disk now, while no worker can run the lane. This must happen
+    // BEFORE enclave_shutdown_tasks(): shutting down the job board abandons
+    // every registered lane's pending actions, which would silently discard
+    // those writes.
+    ledger_subsystem.shutdown();
 
     // Transports and task workers are quiescent. Release queued actions,
     // including paused session queues, before their dependencies are torn down.
@@ -578,11 +587,13 @@ namespace ccf
     // Output certificates to disk
     write_certificates_to_disk(config, node_cert, service_cert);
 
-    // Run enclave threads and event loop
-    run_enclave_threads(config, *runtime_control);
-    ledger_subsystem->shutdown();
+    // Run enclave threads and event loop. The ledger subsystem is drained
+    // inside, between the enclave threads joining and the job board shutting
+    // down; see run_enclave_threads. Node sends queued on the ledger lane run
+    // during that drain.
+    run_enclave_threads(config, *runtime_control, *ledger_subsystem);
     // The enclave retains the transport, so close its sockets explicitly
-    // before the loop is closed
+    // before the loop is closed. Frames not yet written are discarded.
     node->shutdown();
 
     return std::nullopt;

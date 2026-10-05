@@ -2650,6 +2650,36 @@ TEST_CASE("Typed ledger shutdown completes accepted mutations only")
   run_all_tasks(job_board);
   REQUIRE(ledger.get_last_idx() == 1);
   REQUIRE(callbacks == 0);
+
+  // The host shuts the job board down after the ledger drain. The lane has
+  // already been emptied, so this abandons nothing and the ledger is intact.
+  job_board.shutdown();
+  REQUIRE(ledger.get_last_idx() == 1);
+  REQUIRE(ledger.is_in_committed_file(1));
+  REQUIRE(callbacks == 0);
+}
+
+TEST_CASE("Job board shutdown before the ledger drain abandons mutations")
+{
+  // Documents why run_enclave_threads must drain the ledger subsystem before
+  // enclave_shutdown_tasks(): shutting the board down first discards the
+  // lane's pending actions, so the drain then finds nothing to write. If this
+  // test starts failing because abandoned actions are no longer dropped, the
+  // ordering comments in run.cpp and LedgerSubsystem::shutdown() are stale.
+  auto dir = AutoDeleteFolder(ledger_dir);
+  Ledger ledger(ledger_dir);
+  ccf::tasks::JobBoard job_board;
+  LedgerSubsystem subsystem(ledger, 1024, job_board);
+
+  REQUIRE(subsystem.append(
+    make_ledger_entry(1, ccf::kv::FORCE_LEDGER_CHUNK_AFTER), true));
+  REQUIRE(subsystem.commit(1));
+
+  job_board.shutdown();
+  subsystem.shutdown();
+
+  REQUIRE(ledger.get_last_idx() == 0);
+  REQUIRE_FALSE(ledger.is_in_committed_file(1));
 }
 
 TEST_CASE("Typed ledger read callbacks cannot resubmit during shutdown")

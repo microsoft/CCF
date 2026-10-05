@@ -212,7 +212,6 @@ namespace ccf
     {
       node_ingress->stop();
       node_transport->set_inbound_handler(nullptr);
-      ledger_subsystem->shutdown();
       LOG_TRACE_FMT("Shutting down enclave");
     }
 
