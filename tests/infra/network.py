@@ -1538,8 +1538,30 @@ class Network:
                             r = c.delete(
                                 f"/node/network/nodes/{node_to_retire.node_id}"
                             )
-                            check_commit(r)
-                            break
+                            retry = False
+                            if r.status_code == http.HTTPStatus.BAD_REQUEST:
+                                try:
+                                    retry = (
+                                        r.body.json()["error"]["code"]
+                                        == "NodeNotRetiredCommitted"
+                                    )
+                                except (ValueError, KeyError, TypeError):
+                                    pass
+                            if retry:
+                                LOG.warning(f"Retrying node removal after {r}")
+                                try:
+                                    remote_node, _ = self.find_primary(
+                                        timeout=max(0, end_time - time.time())
+                                    )
+                                except PrimaryNotFound:
+                                    pass
+                            else:
+                                if not 200 <= r.status_code < 300:
+                                    raise RuntimeError(
+                                        f"Failed to remove node {node_to_retire.node_id}: {r}"
+                                    )
+                                check_commit(r)
+                                break
                         else:
                             r = c.get(
                                 f"/node/network/nodes/{node_to_retire.node_id}"
