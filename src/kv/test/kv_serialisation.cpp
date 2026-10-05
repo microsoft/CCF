@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/internal_logger.h"
 #include "kv/kv_serialiser.h"
+#include "kv/null_encryptor.h"
 #include "kv/raw_serialise.h"
 #include "kv/store.h"
-#include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 

@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "cose/cose_rs_ffi.h"
+#include "ccf/crypto/cose_verifier.h"
 #include "crypto/cbor_helpers.h"
 #include "crypto/cbor_tags.h"
 #include "crypto/cose.h"
@@ -78,7 +78,7 @@ static CoseSign1Components decompose(const std::vector<uint8_t>& envelope)
   {
     payload = env.array_at(2).as_bytes();
   }
-  catch (const DecodeError&)
+  catch (const tav::cbor::DecodeError&)
   {
     if (env.array_at(2).as_simple() != tav::cbor::SimpleValue::Null)
     {
@@ -100,33 +100,20 @@ template <CurveID Curve, size_t PayloadSize>
 static void benchmark_cose_sign(picobench::state& s)
 {
   ECKeyPair_OpenSSL kp(Curve);
-  auto priv_der = kp.private_key_der();
-  CoseBuffer key_err;
-  auto cose_key =
-    CoseKey::from_private(priv_der.data(), priv_der.size(), key_err);
   auto payload = make_contents<PayloadSize>();
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    CoseBuffer buf;
-    CoseBuffer sign_err;
-    cose_sign_ledger(
-      cose_key,
-      reinterpret_cast<const uint8_t*>(bench_kid.data()),
-      bench_kid.size(),
+    auto buf = ccf::cose::sign_ledger(
+      kp,
+      bench_kid,
       bench_iat,
-      reinterpret_cast<const uint8_t*>(bench_issuer.data()),
-      bench_issuer.size(),
-      reinterpret_cast<const uint8_t*>(bench_subject.data()),
-      bench_subject.size(),
-      reinterpret_cast<const uint8_t*>(bench_txid.data()),
-      bench_txid.size(),
-      payload.data(),
-      payload.size(),
-      buf,
-      sign_err);
+      bench_issuer,
+      bench_subject,
+      bench_txid,
+      payload);
     do_not_optimize(buf);
     clobber_memory();
   }
@@ -137,52 +124,20 @@ template <CurveID Curve, size_t PayloadSize>
 static void benchmark_cose_verify(picobench::state& s)
 {
   ECKeyPair_OpenSSL kp(Curve);
-  auto priv_der = kp.private_key_der();
   auto pub_der = kp.public_key_der();
-  CoseBuffer key_err;
-  auto cose_key =
-    CoseKey::from_private(priv_der.data(), priv_der.size(), key_err);
-  CoseBuffer vkey_err;
-  auto verify_key =
-    CoseKey::from_public(pub_der.data(), pub_der.size(), vkey_err);
+  auto verifier = make_cose_verifier_from_key(pub_der);
   auto payload = make_contents<PayloadSize>();
 
   // Sign once outside the timed section.
-  CoseBuffer buf;
-  CoseBuffer sign_err;
-  cose_sign_ledger(
-    cose_key,
-    reinterpret_cast<const uint8_t*>(bench_kid.data()),
-    bench_kid.size(),
-    bench_iat,
-    reinterpret_cast<const uint8_t*>(bench_issuer.data()),
-    bench_issuer.size(),
-    reinterpret_cast<const uint8_t*>(bench_subject.data()),
-    bench_subject.size(),
-    reinterpret_cast<const uint8_t*>(bench_txid.data()),
-    bench_txid.size(),
-    payload.data(),
-    payload.size(),
-    buf,
-    sign_err);
-  auto envelope = buf.to_vector();
+  auto envelope = ccf::cose::sign_ledger(
+    kp, bench_kid, bench_iat, bench_issuer, bench_subject, bench_txid, payload);
   auto c = decompose(envelope);
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    CoseBuffer verify_err;
-    auto rc = cose_verify1(
-      verify_key,
-      c.alg,
-      c.phdr.data(),
-      c.phdr.size(),
-      payload.data(),
-      payload.size(),
-      c.sig.data(),
-      c.sig.size(),
-      verify_err);
+    auto rc = verifier->verify_decomposed(c.phdr, payload, c.sig, c.alg);
     do_not_optimize(rc);
     clobber_memory();
   }

@@ -309,6 +309,7 @@ def test_snapshot_create_endpoint(network, args):
     with primary.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
         r = c.post("/node/snapshot:create")
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+        assert r.body.json()["error"]["code"] == "ResourceNotFound", r
 
     with primary.client(
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
@@ -2648,6 +2649,37 @@ def run_initial_tcb_version_checks(const_args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         primary, _ = network.find_primary()
+
+        def get_min_tcb_versions(node):
+            with node.api_versioned_client(api_version=args.gov_api_version) as uc:
+                r = uc.get("/gov/service/join-policy")
+                assert r.status_code == http.HTTPStatus.OK, r
+                return r.body.json()["snp"]["tcbVersions"]
+
+        LOG.info("Fetch current join policy to get the minimum TCB version")
+        tcb_versions = get_min_tcb_versions(primary)
+        assert len(tcb_versions) == 1, tcb_versions
+        cpuid, node_tcb = next(iter(tcb_versions.items()))
+        LOG.info(f"Current minimum TCB version for {cpuid}: {node_tcb}")
+
+        # Lowering microcode, the first byte of the hex string on every product,
+        # gives a minimum that admits the node's TCB version, so recovery must
+        # keep it as is rather than replace it with the node's TCB version
+        node_tcb_hex = node_tcb["hexstring"]
+        microcode = int(node_tcb_hex[:2], 16)
+        assert microcode > 0, node_tcb
+        tcb_hex_before_recovery = f"{microcode - 1:02x}{node_tcb_hex[2:]}"
+        LOG.info(
+            f"Proposing minimum TCB version for {cpuid}: {tcb_hex_before_recovery}"
+        )
+        network.consortium.set_snp_minimum_tcb_version_hex(
+            primary, cpuid, tcb_hex_before_recovery
+        )
+        tcb_versions_before_recovery = get_min_tcb_versions(primary)
+        assert (
+            tcb_versions_before_recovery[cpuid]["hexstring"] == tcb_hex_before_recovery
+        ), tcb_versions_before_recovery
+
         network_service_identity_file, _ = network.save_service_identity_to_file()
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
@@ -2683,7 +2715,13 @@ def run_initial_tcb_version_checks(const_args):
                 snapshots_dir=snapshots_dir,
             )
             recovered_primary, _ = recovered_network.find_primary()
-            LOG.info("Check that the TCB_version is present in the recovery tx")
+            LOG.info("Check that recovery kept the minimum TCB version")
+            tcb_versions = get_min_tcb_versions(recovered_primary)
+            assert (
+                tcb_versions == tcb_versions_before_recovery
+            ), f"Expected minimum TCB versions {tcb_versions_before_recovery} after recovery, got {tcb_versions}"
+
+            LOG.info("Check that the TCB_version is not written by the recovery tx")
             recovery_seqno = None
             with recovered_primary.client() as c:
                 r = c.get("/node/network").body.json()
@@ -2707,14 +2745,14 @@ def run_initial_tcb_version_checks(const_args):
                     if seqno < recovery_seqno:
                         continue
                     else:
+                        assert seqno == recovery_seqno, (seqno, recovery_seqno)
                         tables = tx.get_public_domain().get_tables()
-                        tcb_versions = tables["public:ccf.gov.nodes.snp.tcb_versions"]
-                        assert len(tcb_versions) == 1, tcb_versions
-                        LOG.info(
-                            f"Recovery TCB_version found in ledger: {tcb_versions}"
-                        )
+                        assert "public:ccf.gov.service.info" in tables, tables.keys()
+                        assert (
+                            "public:ccf.gov.nodes.snp.tcb_versions" not in tables
+                        ), tables["public:ccf.gov.nodes.snp.tcb_versions"]
                         return
-            assert False, "No TCB_version found in recovery ledger"
+            assert False, "No recovery tx found in recovery ledger"
 
 
 def run_recovery_local_unsealing(
@@ -3278,7 +3316,7 @@ def run_merkle_verification_level(args):
             good_data[: source_size // 2]
             + b"\00" * null_block_size
             + good_data[source_size // 2 + null_block_size :],
-            "index out of range",
+            "is smaller than the minimum entry size",
         ),
         (
             "header_offset_too_large",
@@ -4935,6 +4973,22 @@ def run_pending_node_expiration(const_args):
         network.wait_for_all_nodes_to_commit(primary)
         test_pending_node_expiration(network, args)
         test_pending_node_expiration(network, args, failover=True)
+
+        primary, _ = network.find_primary()
+        network.stop_all_nodes(skip_verification=True)
+
+    # Expired Pending nodes are removed along with an endorsed certificate
+    # they never had, which full offline verification must accept
+    validator = ccf.ledger.LedgerValidator()
+    ledger = ccf.ledger.Ledger(
+        primary.remote.ledger_paths(),
+        committed_only=False,
+        contiguous_suffix=True,
+    )
+    for chunk in ledger:
+        for tx in chunk:
+            validator.add_transaction(tx)
+    LOG.info(f"Verified ledger until {validator.last_verified_txid()}")
 
 
 # The operations tests below are split into groups which are run

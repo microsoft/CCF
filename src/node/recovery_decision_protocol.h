@@ -4,7 +4,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/locking.h"
-#include "ccf/node/startup_config.h"
+#include "ccf/node/configuration.h"
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"

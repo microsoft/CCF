@@ -24,6 +24,7 @@ namespace ccf::crypto
 
   public:
     ECPublicKey_OpenSSL(EVP_PKEY* key);
+    ECPublicKey_OpenSSL(OpenSSL::Unique_PKEY&& pkey);
     ECPublicKey_OpenSSL(const Pem& pem);
     ECPublicKey_OpenSSL(ECPublicKey_OpenSSL&& key) = default;
     ECPublicKey_OpenSSL(std::span<const uint8_t> der);
@@ -63,6 +64,11 @@ namespace ccf::crypto
       const std::optional<std::string>& kid = std::nullopt) const override;
   };
 
-  OpenSSL::Unique_PKEY key_from_raw_ec_point(
+  /// Public key for an EC point in SEC1 encoding (as public_key_raw() returns)
+  /// on the curve with OpenSSL NID nid. The result is the sole owner of the
+  /// key: move it into an ECPublicKey_OpenSSL rather than passing the raw
+  /// pointer, and do not free it separately.
+  /// @throws std::runtime_error if the point is not valid for the curve
+  [[nodiscard]] OpenSSL::Unique_PKEY key_from_raw_ec_point(
     const std::vector<uint8_t>& raw, int nid);
 }

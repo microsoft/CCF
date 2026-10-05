@@ -1,16 +1,18 @@
-import DisasterRecovery.Protocol.Invariants
+import DisasterRecovery.Proofs.Predicates
 import Mathlib.Tactic
 
 /-!
 Machine-checked proof implementations. Review the system-level statements in
-`DisasterRecovery.Properties` and definitions in `DisasterRecovery.Protocol.Invariants`.
+`DisasterRecovery.Properties` and ghost predicates in `DisasterRecovery.Proofs.Predicates`.
 -/
 
 namespace DisasterRecovery.Proofs.Invariants
 
-open Protocol
-open Model hiding Config
-open Global Protocol.Invariants
+open Execution
+open Execution.Local hiding Config
+open Execution.Global Predicates
+
+attribute [local simp] Execution.Local.transitionSystem rejectionReason guard failure
 
 lemma messageForEffect_source
     {config : Config}
@@ -122,9 +124,14 @@ lemma valid_gossip_uses_recovered_txid
   | rejected reason =>
       simp [messageForEffect] at created
 
-lemma step_preserves_location (config : Model.Config) (state : NodeState) (event : Event)
+lemma step_preserves_location
+    (config : Execution.Local.Config)
+    (state : NodeState)
+    (event : Event)
     : (step config state event).state.location = state.location := by
-  cases event <;>
+  cases event
+  all_goals try cases_type Validation
+  all_goals
     simp [step, rejected, advance, advanceTimeoutLane]
   all_goals repeat first | split | simp_all
 
@@ -155,15 +162,15 @@ lemma initial_well_formed
       : forall node, node ∈ active -> node ∈ config.protocol.expectedLocations)
     : WellFormed config (initial config active) := by
   constructor
-  · simp [Global.initial, initialSystem, Function.comp_def]
-  · simpa [Global.initial, initialSystem, Function.comp_def] using valid.2.1
-  · simp [Global.initial, initialSystem, initialNode]
+  · simp [Execution.Global.initial, initialSystem, Function.comp_def]
+  · simpa [Execution.Global.initial, initialSystem, Function.comp_def] using valid.2.1
+  · simp [Execution.Global.initial, initialSystem, initialNode]
   · exact activeNodup
   · exact activeConfigured
-  · simp [Global.initial]
-  · simp [Global.initial]
-  · simp [Global.initial]
-  · constructor <;> simp [Global.initial]
+  · simp [Execution.Global.initial]
+  · simp [Execution.Global.initial]
+  · simp [Execution.Global.initial]
+  · constructor <;> simp [Execution.Global.initial]
 
 @[simp]
 lemma recordEffects_active
@@ -427,7 +434,7 @@ lemma findNode_replaceNode_ne
       simp [replace, notTarget]
 
 lemma systemStep_node_keys_eq
-    {config : Model.Config}
+    {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -441,7 +448,7 @@ lemma systemStep_node_keys_eq
     (step config node event).state before.nodes
 
 lemma systemStep_preserves_node_locations
-    {config : Model.Config}
+    {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
     {event : Event}
@@ -467,7 +474,7 @@ lemma systemStep_preserves_node_locations
               entry.1 == target) found)
 
 lemma systemStep_other_node_eq
-    {config : Model.Config}
+    {config : Execution.Local.Config}
     {before after : SystemState}
     {target other : Location}
     {event : Event}
@@ -825,7 +832,8 @@ lemma reachable_well_formed
     (reachable : Reachable config state)
     : WellFormed config state := by
   induction reachable with
-  | initial active valid nodup configured =>
+  | initial initialized =>
+      rcases initialized with ⟨active, valid, nodup, configured, rfl⟩
       exact initial_well_formed config active valid nodup configured
   | step reachable transition wellFormed =>
       exact next_preserves_well_formed wellFormed transition
@@ -836,7 +844,9 @@ lemma reachable_config_valid
     (reachable : Reachable config state)
     : config.Valid := by
   induction reachable with
-  | initial active valid nodup configured => exact valid
+  | initial initialized =>
+      rcases initialized with ⟨_, valid, _⟩
+      exact valid
   | step reachable transition valid => exact valid
 
 end DisasterRecovery.Proofs.Invariants
