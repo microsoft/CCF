@@ -1522,7 +1522,7 @@ class Network:
 
     @staticmethod
     def _is_retryable_node_removal_response(response):
-        """Retry only uncommitted retirement or unknown-primary forwarding errors."""
+        """Retry uncommitted retirement and primary-routing failures by error code."""
         if response.status_code not in (
             http.HTTPStatus.BAD_REQUEST,
             http.HTTPStatus.SERVICE_UNAVAILABLE,
@@ -1535,8 +1535,7 @@ class Network:
                 and error["code"] == "NodeNotRetiredCommitted"
             ) or (
                 response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
-                and error["code"] == "InternalError"
-                and error["message"] == "RPC could not be forwarded to unknown primary."
+                and error["code"] in ("InternalError", "PrimaryNotFound")
             )
         except (ValueError, KeyError, TypeError):
             return False
