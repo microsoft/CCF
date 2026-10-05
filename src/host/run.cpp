@@ -553,6 +553,7 @@ namespace ccf
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
+    // Create the enclave node
     auto enclave_creation_result = create_enclave_node(
       config,
       buffer_processor,
