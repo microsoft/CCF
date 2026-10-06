@@ -747,7 +747,7 @@ class Consortium:
         args = {}
         if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.0-rc3"):
             if (
-                remote_node.version is None
+                CCFVersion(remote_node.version) > CCFVersion("ccf-7.0.18")
                 and previous_service_signing_keys is not None
             ):
                 action = "transition_service_to_open_with_signing_keys"
