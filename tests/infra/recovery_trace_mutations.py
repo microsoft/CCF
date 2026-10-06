@@ -10,12 +10,11 @@ multiple-timeout recovery-decision-protocol scenarios. The harness checks
 baseline replay, curated mutants grouped by kind with explicit pass/fail
 expectations, and a systematic sweep that perturbs one field of sampled
 records, every one of which must fail. Commit order is covered by targeted
-mutants rather than by sweeping `version` and `wrote`.
+mutants rather than by sweeping `version`.
 """
 
 import collections
 import copy
-import itertools
 import json
 import os
 import pathlib
@@ -230,28 +229,39 @@ def _start_twice(state: dict) -> bool:
     return True
 
 
+def _wrote(record: dict) -> bool:
+    # Mirrors Records.lean: votes and IAmOpens always write, and any other
+    # write the replayer can observe changes a phase.
+    return (
+        record["kind"] in ("vote_accepted", "iamopen_accepted")
+        or record["pre"] != record["post"]
+        or record["pre_timeout"] != record["post_timeout"]
+    )
+
+
 def _writes(state: dict, node: str) -> list:
     return sorted(
-        (r for _, _, r in recs(state) if r["node"] == node and r.get("wrote")),
+        (
+            r
+            for _, _, r in recs(state)
+            if r["node"] == node and r["kind"] in HANDLERS and _wrote(r)
+        ),
         key=lambda r: r["version"],
     )
 
 
-def _swap_gossip_writes(state: dict) -> bool:
+def _swap_writes(state: dict) -> bool:
+    # The sweep never perturbs version, so this is the only test that two of a
+    # node's writes, swapped out of order, are caught.
     for node in nodes(state):
         writes = _writes(state, node)
-        for first, second in itertools.pairwise(writes):
-            if (
-                first["kind"] == second["kind"] == "gossip_accepted"
-                and first["pre"] == first["post"] == "Gossiping"
-                and second["pre"] == "Gossiping"
-                and second["post"] == "Voting"
-            ):
-                first["version"], second["version"] = (
-                    second["version"],
-                    first["version"],
-                )
-                return True
+        if len(writes) > 1:
+            first, second = writes[0], writes[1]
+            first["version"], second["version"] = (
+                second["version"],
+                first["version"],
+            )
+            return True
     return False
 
 
@@ -266,23 +276,12 @@ def _duplicate_write_version(state: dict) -> bool:
 
 def _read_only_before_its_write(state: dict) -> bool:
     for _, _, record in seqsorted(state):
-        if record["kind"] != "gossip_accepted" or record.get("wrote") is not False:
+        if record["kind"] != "gossip_accepted" or _wrote(record):
             continue
         written = {r["version"]: r for r in _writes(state, record["node"])}
         writer = written.get(record["version"])
         if writer and writer["kind"] == "gossip_accepted":
             record["version"] -= 1
-            return True
-    return False
-
-
-def _unwrite_read_version(state: dict) -> bool:
-    read = {
-        (r["node"], r["pre_version"]) for _, _, r in recs(state) if r["kind"] == "send"
-    }
-    for _, _, record in seqsorted(state):
-        if record.get("wrote") and (record["node"], record["version"]) in read:
-            record["wrote"] = False
             return True
     return False
 
@@ -393,7 +392,6 @@ def m_receive_before_send(state: dict) -> bool:
         ]
         if own_votes:
             record["version"] = own_votes[0]["pre_version"] - 1
-            record["wrote"] = False
             return True
     return False
 
@@ -546,10 +544,9 @@ COMMIT_ORDER = [
     ("start_drop", FAIL, _start_drop),
     ("start_version", FAIL, one(kind_is("start"), bumpf("version", 1))),
     ("start_twice", FAIL, _start_twice),
-    ("swap_gossip_writes", FAIL, _swap_gossip_writes),
+    ("swap_writes", FAIL, _swap_writes),
     ("duplicate_write_version", FAIL, _duplicate_write_version),
     ("read_only_before_its_write", FAIL, _read_only_before_its_write),
-    ("unwrite_read_version", FAIL, _unwrite_read_version),
     ("retry_bad_version", FAIL, _retry_bad_version),
     ("extra_final_attempt", FAIL, m_extra_final_attempt),
     ("failed_to_trace_line", FAIL, m_failed_to_trace_line),

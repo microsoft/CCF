@@ -136,7 +136,7 @@ private def common : List String :=
   ["node", "sequence", "kind"]
 
 private def executionFields : List String :=
-  common ++ ["pre", "pre_timeout", "post", "post_timeout", "version", "wrote"]
+  common ++ ["pre", "pre_timeout", "post", "post_timeout", "version"]
 
 private def advanceFields : List String :=
   ["chosen", "open_kind", "restart"]
@@ -226,7 +226,18 @@ def parseEvent (record : Record) : Checked TraceEvent := do
   | _ =>
       let pre ← phase "pre"
       let post ← phase "post"
-      let .bool wrote := get "wrote" | throw (invalid "invalid wrote")
+      let preTimeout ← phase "pre_timeout"
+      let postTimeout ← phase "post_timeout"
+      -- Votes and IAmOpens always write: a vote is a Set::insert, and an
+      -- IAmOpen puts Joining and the chosen node. Any other write the
+      -- replayer can observe changes a phase. A write that changes no
+      -- phase, such as storing a new gossip or node info, is not
+      -- observable here, so treating it as a read changes nothing.
+      let wrote :=
+        kind == "vote_accepted"
+        || kind == "iamopen_accepted"
+        || pre != post
+        || preTimeout != postTimeout
       let openKind ←
         ifPresent "open_kind"
           fun
@@ -242,9 +253,9 @@ def parseEvent (record : Record) : Checked TraceEvent := do
       let execution : Execution :=
         {
           pre,
-          preTimeout := ← phase "pre_timeout",
+          preTimeout,
           post,
-          postTimeout := ← phase "post_timeout",
+          postTimeout,
           version := ← natural "version",
           wrote,
           chosen,

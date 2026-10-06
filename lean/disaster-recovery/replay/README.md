@@ -50,8 +50,11 @@ one JSON object. Every record has `node`, `sequence`, a per-node counter from
 `start` also carries the `expected_locations`. Handler records are logged by
 the endpoint's locally committed function, so only executions that committed
 are logged. Their `version` is the seqno of the TxID that CCF reported for the
-transaction: the version it committed at if it wrote, as `wrote` says, and the
-version it read at otherwise. They hold the phase and timeout phase that
+transaction: the version it committed at if it wrote, and the
+version it read at otherwise. Whether it wrote is derived, not recorded: a
+vote or IAmOpen always writes, and any other write the replayer can observe
+changes a phase, so the replayer treats a record whose phase and timeout
+phase are unchanged as a read. They hold the phase and timeout phase that
 `advance()` read and wrote (`pre`, `pre_timeout`, `post`, `post_timeout`), and
 any `chosen` node, `open_kind` or `restart` it read, wrote or requested. An
 IAmOpen's `pre` and `chosen` are its own Joining writes, before the subsequent
@@ -111,9 +114,9 @@ for the validator. It replays the committed fixtures in
 `lean/disaster-recovery/replay/fixtures/`, checks targeted negative and benign
 mutations with explicit expectations, and then sweeps sampled records with
 single-field perturbations, every one of which must fail. Commit order is
-covered by targeted mutants rather than by sweeping `version` and `wrote`,
-and a gossip's `source` is only relabeled to a location that never sent its
-txid, since any other would describe another valid trace.
+covered by targeted mutants rather than by sweeping `version`, and a
+gossip's `source` is only relabeled to a location that never sent its txid,
+since any other would describe another valid trace.
 
 Run it from the repository root after building the replayer:
 
