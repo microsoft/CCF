@@ -151,7 +151,11 @@ namespace ccf
                 endpoint->full_uri_path,
                 required_feature,
                 *interface_id);
-              ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+              // Respond as find_endpoint() does for an unknown path
+              ctx->set_error(
+                HTTP_STATUS_NOT_FOUND,
+                ccf::errors::ResourceNotFound,
+                fmt::format("Unknown path: {}.", ctx->get_method()));
               return false;
             }
           }

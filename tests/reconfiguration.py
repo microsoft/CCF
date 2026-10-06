@@ -439,9 +439,8 @@ def test_add_node_endorsements_endpoints(network, args):
         return network
 
     args_copy = deepcopy(args)
+    # The public Azure cache returns 404 for the Genoa chip/TCB pairs used in CI.
     test_vectors = [
-        (["Azure:global.acccache.azure.net"], True),
-        (["Azure:global.acccache.azure.net:443"], True),
         (["Azure:invalid.azure.net:443"], False),
         (["AMD:kdsintf.amd.com"], True),
         (["AMD:invalid.amd.com"], False),

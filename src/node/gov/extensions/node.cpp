@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "js/extensions/ccf/node.h"
+#include "node/gov/extensions/node.h"
 
 #include "ccf/js/core/context.h"
 #include "ccf/service/tables/service.h"
+#include "ds/gov_logging.h"
 #include "js/checks.h"
-#include "node/rpc/gov_logging.h"
 
 #include <quickjs/quickjs.h>
 

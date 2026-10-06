@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.19]
+
+[7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
+
+### Fixed
+
+- Paused RPC reads now resume when another interface releases the inbound budget, even if older libuv versions coalesce the notification. Previously, reads could remain paused until an unrelated event triggered a recheck (#8498).
+
 ## [7.0.18]
 
 [7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
@@ -12,6 +20,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - TAV's CBOR C++ API (`<tav/cbor.hpp>`) is now installed with CCF's headers (#8467).
+- `ccf::crypto::OpenSSL::first_error()`, in the public header `ccf/crypto/openssl/openssl_wrappers.h`, reads the oldest error on the calling thread's OpenSSL error queue, usually the root cause, then removes every entry from the queue and returns the error string (#8474).
+- `ccf::crypto::COSEKey` (`ccf/crypto/cose_key.h`) parses and validates EC2 and RSA COSE_Keys, encodes them with a required `alg`, and computes their RFC 9679 thumbprint. `ccf::crypto::make_cose_verifier_from_key()` accepts one (#8480).
 
 ### Changed
 
@@ -21,6 +31,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf::crypto::make_cose_verifier_from_pem_cert()` and `ccf::crypto::make_cose_verifier_any_cert()` now require PEM certificates to start with `-----BEGIN CERTIFICATE-----`; leading text is no longer skipped (#8459).
 - `ccf::make_net_address()` and `ccf::split_net_address()` are now declared in the new public header `ccf/ds/net_address.h`. `ccf/service/node_info_network.h` still includes it, so existing includers are unaffected (#8463).
 - `ccf::COSESignaturesConfig` and `ccf::ReconfigurationType` are unchanged, but are now declared in the new public headers `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively (#8463).
+- On recovery, the minimum SNP TCB version stored for the recovering node's CPUID in `public:ccf.gov.nodes.snp.tcb_versions` is now kept if it admits the TCB version reported in the node's startup attestation, as it would for a joining node, rather than being overwritten with that TCB version. Otherwise, including when no minimum is stored for that CPUID, or when the stored minimum is higher than the reported TCB version in only some components, the reported TCB version is stored as the minimum, as before. On start, the behaviour is unchanged (#8468).
+- Requests to an endpoint whose required operator feature is not enabled on the receiving RPC interface now get the same `404` `ResourceNotFound` error as requests to an unknown path, rather than a `404` with an empty body (#8481).
+- `ccf::crypto::make_cose_verifier_*()` now reject RSA keys of fewer than 2048 or more than 16384 bits, or whose public exponent is even, 1 or longer than 64 bits (#8480).
 
 ### Deprecated
 
@@ -38,6 +51,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - A node which applied an opening of a recovered service that an election then rolled back could keep that opening's seqno, rather than the seqno of the opening which committed, as the version at which the last ledger secret before recovery is stored. That version is recorded in the recovery shares and sealed recovery shares information, and sent to joining nodes (#8452).
 - `ccf::crypto::Verifier::remaining_seconds()` now returns 0 once the certificate has expired. Previously, the negative remaining duration wrapped around to a very large unsigned value (#8430).
 - `ccf::crypto::ECKeyPair::sign()` and `sign_hash()`, and therefore `ccf.crypto.sign()`, no longer fail with an OpenSSL "output buffer too small" error when signing with a P-521 key loaded from PEM under OpenSSL providers such as SymCrypt (#8428).
+- Where `ccf::crypto` reports an OpenSSL error, it now reads the oldest error on the calling thread's OpenSSL error queue, usually the root cause, then clears the queue, rather than leaving entries behind for a later, unrelated failure to report. Errors that other code leaves on the queue can still be reported by the next such failure (#8474).
+- Miscellaneous bug fixes in the `ccf.ledger` and `ccf.merkletree` Python modules (#8495).
 
 ## [7.0.17]
 

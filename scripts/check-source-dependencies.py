@@ -3,6 +3,7 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
+import graphlib
 import json
 import re
 import sys
@@ -139,6 +140,22 @@ def main():
         print(f"Unknown component in dependency policy: {unknown}", file=sys.stderr)
         return 1
 
+    # Every source component must have a policy, and the policies must not
+    # allow a cycle. Since every include is then checked against a policy, no
+    # cycle can form between source components.
+    missing_policies = source_components - set(allowed_dependencies)
+    if missing_policies:
+        missing = ", ".join(sorted(missing_policies))
+        print(f"Missing dependency policy for: {missing}", file=sys.stderr)
+        return 1
+
+    try:
+        graphlib.TopologicalSorter(allowed_dependencies).prepare()
+    except graphlib.CycleError as error:
+        cycle = " -> ".join(reversed(error.args[1]))
+        print(f"Dependency policy allows a cycle: {cycle}", file=sys.stderr)
+        return 1
+
     edges = {}
     errors = []
     source_files = sorted(
@@ -213,10 +230,7 @@ def main():
 
     violations = []
     for (source, target), evidence in sorted(edges.items()):
-        if (
-            source in allowed_dependencies
-            and target not in allowed_dependencies[source]
-        ):
+        if target not in allowed_dependencies[source]:
             violations.append((source, target, evidence))
 
     if violations:
