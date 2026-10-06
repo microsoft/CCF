@@ -20,8 +20,10 @@ mkdir -p "$output_dir"
 python3 -c 'import sys; sys.exit("CCF requires Python 3.12 or newer") if sys.version_info < (3, 12) else None'
 ./scripts/extract-release-notes.py --target-git-version >/dev/null
 
-bash scripts/install_uv.sh /tmp/ccf-uv
-uv=/tmp/ccf-uv/uv
+uv_install_dir=/tmp/ccf-uv
+export PATH="$uv_install_dir:$PATH"
+bash scripts/install_uv.sh "$uv_install_dir"
+uv=$(command -v uv)
 
 package_version=$(
     python3 -c \
