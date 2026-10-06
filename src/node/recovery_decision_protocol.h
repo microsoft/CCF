@@ -11,8 +11,6 @@
 #include "ccf/tx_id.h"
 #include "tasks/task.h"
 
-#include <map>
-#include <set>
 #include <string_view>
 
 namespace ccf::recovery_decision_protocol
@@ -48,9 +46,6 @@ namespace ccf::recovery_decision_protocol
     StateMachine pre_timeout = StateMachine::GOSSIPING;
     StateMachine post = StateMachine::GOSSIPING;
     StateMachine post_timeout = StateMachine::GOSSIPING;
-    std::optional<std::map<sealing_recovery::Name, ccf::TxID>> gossips =
-      std::nullopt;
-    std::optional<std::set<sealing_recovery::Name>> votes = std::nullopt;
     std::optional<sealing_recovery::Name> chosen = std::nullopt;
     std::optional<OpenKinds> open_kind = std::nullopt;
     bool restart = false;
@@ -58,8 +53,7 @@ namespace ccf::recovery_decision_protocol
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(AdvanceTrace);
   DECLARE_JSON_REQUIRED_FIELDS(
     AdvanceTrace, pre, pre_timeout, post, post_timeout);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    AdvanceTrace, gossips, votes, chosen, open_kind, restart);
+  DECLARE_JSON_OPTIONAL_FIELDS(AdvanceTrace, chosen, open_kind, restart);
 }
 
 namespace ccf

@@ -277,14 +277,6 @@ namespace ccf
         auto* gossip_handle = tx.ro<recovery_decision_protocol::Gossips>(
           Tables::RECOVERY_DECISION_PROTOCOL_GOSSIPS);
         auto quorum_size = config.expected_locations.size();
-        // Iterating adds the same whole-map read dependency as size() below
-        trace_safely("gossips", [&]() {
-          auto& gossips = trace.gossips.emplace();
-          gossip_handle->foreach([&](const auto& location, const auto& txid) {
-            gossips.emplace(location, txid);
-            return true;
-          });
-        });
         if (gossip_handle->size() >= quorum_size || valid_timeout)
         {
           if (gossip_handle->size() == 0)
@@ -322,14 +314,6 @@ namespace ccf
       {
         auto* votes = tx.rw<recovery_decision_protocol::Votes>(
           Tables::RECOVERY_DECISION_PROTOCOL_VOTES);
-        // Iterating adds the same whole-map read dependency as size() below
-        trace_safely("votes", [&]() {
-          auto& observed = trace.votes.emplace();
-          votes->foreach([&](const auto& location) {
-            observed.insert(location);
-            return true;
-          });
-        });
 
         auto sufficient_quorum =
           votes->size() >= config.expected_locations.size() / 2 + 1;
