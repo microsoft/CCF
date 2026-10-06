@@ -1303,6 +1303,141 @@ struct PrimaryAndBackup
 };
 
 DOCTEST_TEST_CASE(
+  "Ledger overload drops AppendEntries before processing" *
+  doctest::test_suite("multiple"))
+{
+  PrimaryAndBackup n;
+  n.replicate(1, 1);
+  n.r0.periodic(request_timeout);
+  const auto first = n.with_payload(n.take_append_entries_header());
+  const auto ack = n.backup_receives(first);
+  require_ack(ack, 1);
+  n.primary_receives(ack.value());
+
+  n.replicate(2, 2);
+  n.r0.periodic(request_timeout);
+  auto header = read_msg<aft::AppendEntries>(n.take_append_entries_header());
+  auto message = n.with_payload(as_bytes(header));
+  DOCTEST_SUBCASE("New entries") {}
+  DOCTEST_SUBCASE("Duplicate entries")
+  {
+    message = first;
+  }
+  DOCTEST_SUBCASE("Heartbeat with a matching prefix")
+  {
+    header.idx = header.prev_idx;
+    message = as_bytes(header);
+  }
+  DOCTEST_SUBCASE("Heartbeat after a missing batch")
+  {
+    header.prev_idx = header.idx;
+    message = as_bytes(header);
+  }
+  DOCTEST_SUBCASE("Newer term")
+  {
+    ++header.term;
+    message = n.with_payload(as_bytes(header));
+  }
+  DOCTEST_SUBCASE("Older term")
+  {
+    --header.term;
+    message = n.with_payload(as_bytes(header));
+  }
+
+  const auto ledger_before = n.r1.ledger->ledger;
+  const auto view_before = n.r1.get_view();
+  const auto commit_before = n.r1.get_committed_seqno();
+  n.r1.ledger->reset_skip_count();
+  n.r1.ledger->backlogged = true;
+
+  DOCTEST_REQUIRE_FALSE(n.backup_receives(message).has_value());
+  DOCTEST_REQUIRE(n.r1.get_view() == view_before);
+  DOCTEST_REQUIRE(n.r1.get_last_idx() == 1);
+  DOCTEST_REQUIRE(n.r1.get_committed_seqno() == commit_before);
+  DOCTEST_REQUIRE(n.r1.ledger->ledger == ledger_before);
+  DOCTEST_REQUIRE(n.r1.ledger->skip_count == 0);
+}
+
+DOCTEST_TEST_CASE(
+  "Ledger overload clears and the backup catches up without new writes" *
+  doctest::test_suite("multiple"))
+{
+  auto settings = raft_settings;
+  settings.max_uncommitted_tx_count = 1;
+  PrimaryAndBackup n({.settings = settings}, {.settings = settings});
+  n.replicate(1, 2);
+  n.r0.periodic(request_timeout);
+  const auto batch = n.with_payload(n.take_append_entries_header());
+
+  n.r1.ledger->backlogged = true;
+  DOCTEST_REQUIRE_FALSE(n.backup_receives(batch).has_value());
+  n.r0.periodic(request_timeout);
+  auto heartbeat = n.take_append_entries_header();
+  auto ae = read_msg<aft::AppendEntries>(heartbeat);
+  DOCTEST_REQUIRE(ae.prev_idx == 2);
+  DOCTEST_REQUIRE(ae.idx == ae.prev_idx);
+  DOCTEST_REQUIRE_FALSE(n.backup_receives(heartbeat).has_value());
+  DOCTEST_REQUIRE(n.r1.get_last_idx() == 0);
+  DOCTEST_REQUIRE(n.r0.get_details().acks.at(n.id1).seqno == 0);
+  DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 0);
+
+  // Once IO catches up, the normal heartbeat detects the missing batch.
+  n.r1.ledger->backlogged = false;
+  n.r0.periodic(request_timeout);
+  auto response = n.backup_receives(n.take_append_entries_header());
+  require_nack(response, 0);
+  n.primary_receives(response.value());
+  n.r0.periodic(request_timeout);
+  response = n.backup_receives(n.with_payload(n.take_append_entries_header()));
+  require_ack(response, 2);
+  n.primary_receives(response.value());
+  DOCTEST_REQUIRE(n.r0.get_last_idx() == 2);
+  DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 2);
+  DOCTEST_REQUIRE(n.r1.ledger->ledger == n.r0.ledger->ledger);
+
+  // Uncommitted-count pressure must not drop the commit-carrying heartbeat.
+  DOCTEST_REQUIRE(n.r1.should_apply_backpressure());
+  n.r0.periodic(request_timeout);
+  heartbeat = n.take_append_entries_header();
+  n.r1.ledger->backlogged = true;
+  DOCTEST_REQUIRE_FALSE(n.backup_receives(heartbeat).has_value());
+  n.r1.ledger->backlogged = false;
+  require_ack(n.backup_receives(heartbeat), 2);
+  DOCTEST_REQUIRE(n.r1.get_committed_seqno() == 2);
+  DOCTEST_REQUIRE_FALSE(n.r1.should_apply_backpressure());
+}
+
+DOCTEST_TEST_CASE(
+  "Ledger overload does not drop other consensus messages" *
+  doctest::test_suite("multiple"))
+{
+  PrimaryAndBackup n;
+  DOCTEST_SUBCASE("Vote request")
+  {
+    n.r1.ledger->backlogged = true;
+    const auto request = as_bytes(aft::RequestVote{
+      .term = n.r1.get_view() + 1,
+      .last_committable_idx = 0,
+      .term_of_last_committable_idx = 0});
+    n.r1.recv_message(n.id0, request.data(), request.size());
+    DOCTEST_REQUIRE(
+      n.c1->count_messages_with_type(aft::raft_request_vote_response) == 1);
+    DOCTEST_REQUIRE(n.r1.get_view() == n.r0.get_view() + 1);
+  }
+  DOCTEST_SUBCASE("AppendEntries response")
+  {
+    n.replicate(1, 1);
+    n.r0.periodic(request_timeout);
+    const auto response =
+      n.backup_receives(n.with_payload(n.take_append_entries_header()));
+    require_ack(response, 1);
+    n.r0.ledger->backlogged = true;
+    n.primary_receives(response.value());
+    DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 1);
+  }
+}
+
+DOCTEST_TEST_CASE(
   "Backup NACKs AppendEntries whose entries cannot be read or deserialised" *
   doctest::test_suite("multiple"))
 {

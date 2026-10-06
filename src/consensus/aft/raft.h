@@ -733,6 +733,18 @@ namespace aft
             AppendEntries r =
               channels->template recv_authenticated<AppendEntries>(
                 from, data, size);
+            if (ledger->is_backlogged())
+            {
+              // Treat the whole message as lost. Check before term/log
+              // processing so overload does not produce NACKs or reset
+              // election timers, even ignoring heartbeats or potentially
+              // useful leadership/term information, for simplicity. Expect
+              // that normal periodic probes will repair any gap once ledger
+              // IO catches up.
+              RAFT_DEBUG_FMT(
+                "Dropping AppendEntries from {}: ledger write backlog", from);
+              break;
+            }
             recv_append_entries(from, r, data, size);
             break;
           }
