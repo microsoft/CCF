@@ -31,8 +31,7 @@ namespace ccf
     // with a new batch, so that concurrent invocations can be told apart, and
     // with the version of the sm_state value it read.
     thread_local uint64_t current_trace_batch = 0;
-    thread_local std::optional<ccf::kv::Version> current_trace_pre_version =
-      std::nullopt;
+    thread_local ccf::kv::Version current_trace_pre_version = 0;
 
     // Tracing is enabled by setting the CCF_RECOVERY_TRACE environment variable
     // to a non-empty value. It is read once, on first use.
@@ -101,12 +100,9 @@ namespace ccf
       nlohmann::json record = {
         {"kind", "send"},
         {"batch", current_trace_batch},
+        {"pre_version", current_trace_pre_version},
         {"message", message},
         {"target", target}};
-      if (current_trace_pre_version.has_value())
-      {
-        record["pre_version"] = current_trace_pre_version.value();
-      }
       // A gossip's TxID is the only message content in the Lean model
       if (message == "gossip")
       {
@@ -152,7 +148,6 @@ namespace ccf
       // it read at otherwise
       (*record)["version"] = txid.seqno;
       emit_trace(std::move(*record));
-      ctx.rpc_ctx->set_user_data(nullptr);
     });
   }
 
@@ -491,10 +486,8 @@ namespace ccf
         trace_safely([&]() {
           static std::atomic<uint64_t> next_trace_batch = 0;
           current_trace_batch = next_trace_batch.fetch_add(1);
-          // A batch whose version could not be read carries none
-          current_trace_pre_version.reset();
           current_trace_pre_version =
-            sm_state_handle->get_version_of_previous_write();
+            sm_state_handle->get_version_of_previous_write().value();
         });
 
         // Stop if recovery-decision-protocol is complete
