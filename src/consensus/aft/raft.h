@@ -267,20 +267,15 @@ namespace aft
     }
 
     /**
-     * Returns true if the node is primary, max_uncommitted_tx_count is non-zero
-     * and the number of transactions replicated but not yet committed exceeds
-     * max_uncommitted_tx_count.
+     * Returns true if local ledger backlog or the uncommitted transaction
+     * count reaches its configured threshold, regardless of the node's role.
      */
-    bool is_at_max_capacity() override
+    bool should_apply_backpressure() override
     {
-      if (max_uncommitted_tx_count == 0)
-      {
-        return false;
-      }
       std::unique_lock<ccf::ds::Mutex> guard(state->lock);
-      return state->leadership_state.load() ==
-        ccf::kv::LeadershipState::Leader &&
-        (state->last_idx - state->commit_idx >= max_uncommitted_tx_count);
+      return ledger->is_backlogged() ||
+        (max_uncommitted_tx_count != 0 &&
+         state->last_idx - state->commit_idx >= max_uncommitted_tx_count);
     }
 
     Consensus::SignatureDisposition get_signature_disposition() override

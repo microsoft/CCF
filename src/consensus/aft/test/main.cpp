@@ -2089,7 +2089,7 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
-  "Primary is at max capacity while too many entries are uncommitted" *
+  "Nodes apply backpressure while too many entries are uncommitted" *
   doctest::test_suite("multiple"))
 {
   DOCTEST_SUBCASE("A limit of 0 is no limit")
@@ -2097,7 +2097,7 @@ DOCTEST_TEST_CASE(
     PrimaryAndBackup n;
     n.replicate(1, 5);
     DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 0);
-    DOCTEST_REQUIRE_FALSE(n.r0.is_at_max_capacity());
+    DOCTEST_REQUIRE_FALSE(n.r0.should_apply_backpressure());
   }
 
   DOCTEST_SUBCASE("With a limit")
@@ -2108,20 +2108,109 @@ DOCTEST_TEST_CASE(
     PrimaryAndBackup n({.settings = settings}, {.settings = settings});
 
     n.replicate(1, 1);
-    DOCTEST_REQUIRE_FALSE(n.r0.is_at_max_capacity());
+    DOCTEST_REQUIRE_FALSE(n.r0.should_apply_backpressure());
     n.replicate(2, 2);
-    DOCTEST_REQUIRE(n.r0.is_at_max_capacity());
-    DOCTEST_REQUIRE_FALSE(n.r1.is_at_max_capacity());
+    DOCTEST_REQUIRE(n.r0.should_apply_backpressure());
+    DOCTEST_REQUIRE_FALSE(n.r1.should_apply_backpressure());
 
     DOCTEST_INFO("Until the backup acknowledges the entries, and they commit");
     n.r0.periodic(request_timeout);
     const auto response =
       n.backup_receives(n.with_payload(n.take_append_entries_header()));
     require_ack(response, 2);
+    DOCTEST_REQUIRE(n.r1.get_committed_seqno() == 0);
+    DOCTEST_REQUIRE(n.r1.should_apply_backpressure());
     n.primary_receives(response.value());
     DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 2);
-    DOCTEST_REQUIRE_FALSE(n.r0.is_at_max_capacity());
+    DOCTEST_REQUIRE_FALSE(n.r0.should_apply_backpressure());
+
+    // The backup resumes admission when it learns the new commit index.
+    n.r0.periodic(request_timeout);
+    require_ack(
+      n.backup_receives(n.with_payload(n.take_append_entries_header())), 2);
+    DOCTEST_REQUIRE(n.r1.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE_FALSE(n.r1.should_apply_backpressure());
   }
+}
+
+DOCTEST_TEST_CASE(
+  "Ledger backlog applies backpressure independently of commit" *
+  doctest::test_suite("multiple"))
+{
+  auto settings = raft_settings;
+  DOCTEST_SUBCASE("Uncommitted count disabled")
+  {
+    settings.max_uncommitted_tx_count = 0;
+  }
+  DOCTEST_SUBCASE("Uncommitted count enabled")
+  {
+    settings.max_uncommitted_tx_count = 2;
+  }
+  PrimaryAndBackup n({.settings = settings}, {.settings = settings});
+  n.replicate(1, 1);
+  n.r0.periodic(request_timeout);
+  auto ack = n.backup_receives(n.with_payload(n.take_append_entries_header()));
+  require_ack(ack, 1);
+  n.primary_receives(ack.value());
+  DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 1);
+  DOCTEST_REQUIRE_FALSE(n.r0.should_apply_backpressure());
+
+  n.r0.ledger->backlogged = true;
+  n.r1.ledger->backlogged = true;
+  DOCTEST_REQUIRE(n.r0.should_apply_backpressure());
+  DOCTEST_REQUIRE(n.r1.should_apply_backpressure());
+  n.replicate(2, 2); // Already admitted work is not refused by replicate().
+  n.r0.ledger->backlogged = false;
+  DOCTEST_REQUIRE_FALSE(n.r0.should_apply_backpressure());
+  DOCTEST_REQUIRE(n.r1.should_apply_backpressure());
+  n.r1.ledger->backlogged = false;
+  DOCTEST_REQUIRE_FALSE(n.r1.should_apply_backpressure());
+  if (settings.max_uncommitted_tx_count != 0)
+  {
+    // Clearing the storage backlog does not disable uncommitted-count pressure.
+    n.replicate(3, 3);
+    DOCTEST_REQUIRE(n.r0.should_apply_backpressure());
+  }
+}
+
+DOCTEST_TEST_CASE(
+  "Ledger backlog applies backpressure before a node becomes primary" *
+  doctest::test_suite("multiple"))
+{
+  TestNode node(ccf::kv::test::FirstBackupNodeId);
+  auto& raft = node.raft;
+  DOCTEST_REQUIRE_FALSE(raft.is_primary());
+  DOCTEST_REQUIRE_FALSE(raft.should_apply_backpressure());
+  raft.ledger->backlogged = true;
+  DOCTEST_REQUIRE(raft.should_apply_backpressure());
+  raft.ledger->backlogged = false;
+  DOCTEST_REQUIRE_FALSE(raft.should_apply_backpressure());
+}
+
+DOCTEST_TEST_CASE(
+  "Single-node primary applies ledger backpressure despite immediate commit" *
+  doctest::test_suite("single"))
+{
+  const auto id = ccf::kv::test::PrimaryNodeId;
+  TestNode node(id);
+  auto& raft = node.raft;
+  aft::Configuration::Nodes config;
+  config[id] = {};
+  raft.add_configuration(0, config);
+  raft.start_ticking();
+  raft.periodic(election_timeout * 2);
+  DOCTEST_REQUIRE(raft.is_primary());
+
+  auto entry = std::make_shared<std::vector<uint8_t>>(3, 1);
+  DOCTEST_REQUIRE(raft.replicate(
+    ccf::kv::BatchVector{{1, entry, true, hooks}}, raft.get_view()));
+  DOCTEST_REQUIRE(raft.get_committed_seqno() == raft.get_last_idx());
+  DOCTEST_REQUIRE_FALSE(raft.should_apply_backpressure());
+
+  raft.ledger->backlogged = true;
+  DOCTEST_REQUIRE(raft.should_apply_backpressure());
+  raft.ledger->backlogged = false;
+  DOCTEST_REQUIRE_FALSE(raft.should_apply_backpressure());
 }
 
 // Records whether each call to deserialize() was for public domains only

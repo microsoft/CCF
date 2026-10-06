@@ -2405,6 +2405,97 @@ TEST_CASE("Typed mutable reads are ordered with mutations and bounded")
   REQUIRE(missing_completed);
 }
 
+TEST_CASE("Typed ledger write backlog tracks owned append bytes")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  Ledger ledger(ledger_dir);
+  ccf::tasks::JobBoard job_board;
+  const auto entry = make_ledger_entry(1);
+  LedgerSubsystem subsystem(ledger, 1024, job_board, 2 * entry.size());
+
+  REQUIRE(subsystem.init(0, 0));
+  REQUIRE(subsystem.truncate(0, false));
+  REQUIRE(subsystem.commit(0));
+  REQUIRE(subsystem.open());
+  REQUIRE(subsystem.get_range(1, 1, [](consensus::LedgerRangeResult&&) {}));
+  REQUIRE(subsystem.get_pending_write_bytes() == 0);
+  run_all_tasks(job_board);
+
+  for (size_t burst = 0; burst < 2; ++burst)
+  {
+    REQUIRE_FALSE(subsystem.is_backlogged());
+    REQUIRE(subsystem.append(std::vector<uint8_t>(entry), false));
+    REQUIRE(subsystem.get_pending_write_bytes() == entry.size());
+    REQUIRE_FALSE(subsystem.is_backlogged());
+    REQUIRE(
+      subsystem.run_in_mutation_order("Check threshold while draining", [&]() {
+        REQUIRE(subsystem.get_pending_write_bytes() == 2 * entry.size());
+        REQUIRE(subsystem.is_backlogged());
+      }));
+    REQUIRE(subsystem.append(std::vector<uint8_t>(entry), false));
+    REQUIRE(subsystem.get_pending_write_bytes() == 2 * entry.size());
+    REQUIRE(subsystem.is_backlogged());
+    REQUIRE(subsystem.run_in_mutation_order("Check admission resumes", [&]() {
+      REQUIRE(subsystem.get_pending_write_bytes() == entry.size());
+      REQUIRE_FALSE(subsystem.is_backlogged());
+    }));
+    REQUIRE(ledger.get_last_idx() == 3 * burst);
+
+    // An in-flight batch may overshoot the admission threshold.
+    REQUIRE(subsystem.append(std::vector<uint8_t>(entry), false));
+    REQUIRE(subsystem.get_pending_write_bytes() == 3 * entry.size());
+    REQUIRE(subsystem.run_in_mutation_order("Check completed writes", [&]() {
+      REQUIRE(subsystem.get_pending_write_bytes() == 0);
+    }));
+    run_all_tasks(job_board);
+    REQUIRE(subsystem.get_pending_write_bytes() == 0);
+    REQUIRE_FALSE(subsystem.is_backlogged());
+    REQUIRE(ledger.get_last_idx() == 3 * (burst + 1));
+  }
+
+  subsystem.shutdown();
+  REQUIRE_FALSE(subsystem.append(std::vector<uint8_t>(entry), false));
+  REQUIRE(subsystem.get_pending_write_bytes() == 0);
+}
+
+TEST_CASE("Typed ledger write backlog is released on shutdown")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  Ledger ledger(ledger_dir);
+  ccf::tasks::JobBoard job_board;
+  LedgerSubsystem subsystem(ledger, 1024, job_board, 1);
+
+  SUBCASE("Shutdown drains accepted writes")
+  {
+    REQUIRE(subsystem.append(make_ledger_entry(1), false));
+    REQUIRE(subsystem.is_backlogged());
+    subsystem.shutdown();
+    REQUIRE(ledger.get_last_idx() == 1);
+  }
+  SUBCASE("Board cancellation releases abandoned writes")
+  {
+    REQUIRE(subsystem.append(make_ledger_entry(1), false));
+    REQUIRE(subsystem.is_backlogged());
+    job_board.shutdown();
+    REQUIRE(ledger.get_last_idx() == 0);
+  }
+  REQUIRE(subsystem.get_pending_write_bytes() == 0);
+  REQUIRE_FALSE(subsystem.is_backlogged());
+}
+
+TEST_CASE("Typed ledger write backlog can be disabled")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  Ledger ledger(ledger_dir);
+  ccf::tasks::JobBoard job_board;
+  LedgerSubsystem subsystem(ledger, 1024, job_board, 0);
+  REQUIRE(subsystem.append(make_ledger_entry(1), false));
+  REQUIRE(subsystem.get_pending_write_bytes() == make_ledger_entry(1).size());
+  REQUIRE_FALSE(subsystem.is_backlogged());
+  run_all_tasks(job_board);
+  REQUIRE(subsystem.get_pending_write_bytes() == 0);
+}
+
 TEST_CASE("Typed ledger reads report an oversized first entry")
 {
   auto dir = AutoDeleteFolder(ledger_dir);
@@ -2456,7 +2547,7 @@ TEST_CASE("Typed ledger accepts concurrent mutation submissions")
   auto dir = AutoDeleteFolder(ledger_dir);
   Ledger ledger(ledger_dir);
   ccf::tasks::JobBoard job_board;
-  LedgerSubsystem subsystem(ledger, 1024, job_board);
+  LedgerSubsystem subsystem(ledger, 1024, job_board, 1);
   constexpr size_t thread_count = 4;
   constexpr size_t entries_per_thread = 25;
 
@@ -2475,7 +2566,13 @@ TEST_CASE("Typed ledger accepts concurrent mutation submissions")
     submitter.join();
   }
 
+  REQUIRE(
+    subsystem.get_pending_write_bytes() ==
+    thread_count * entries_per_thread * make_ledger_entry(0).size());
+  REQUIRE(subsystem.is_backlogged());
   run_all_tasks(job_board);
+  REQUIRE(subsystem.get_pending_write_bytes() == 0);
+  REQUIRE_FALSE(subsystem.is_backlogged());
   REQUIRE(ledger.get_last_idx() == thread_count * entries_per_thread);
 }
 
