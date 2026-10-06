@@ -98,8 +98,6 @@ structure Execution where
   postTimeout : Phase
   version : Nat
   wrote : Bool
-  gossips : Option (List (Location × TxID))
-  votes : Option (List Location)
   chosen : Option Location
   openKind : Option OpenKind
   restart : Bool
@@ -141,7 +139,7 @@ private def executionFields : List String :=
   common ++ ["pre", "pre_timeout", "post", "post_timeout", "version", "wrote"]
 
 private def advanceFields : List String :=
-  ["gossips", "votes", "chosen", "open_kind", "restart"]
+  ["chosen", "open_kind", "restart"]
 
 /-- The required and optional fields of each record kind. -/
 private def fieldsOf : String → Option (List String × List String)
@@ -229,23 +227,6 @@ def parseEvent (record : Record) : Checked TraceEvent := do
       let pre ← phase "pre"
       let post ← phase "post"
       let .bool wrote := get "wrote" | throw (invalid "invalid wrote")
-      let gossips ←
-        ifPresent "gossips"
-          fun
-          | .obj entries =>
-              entries.toList.mapM
-                fun (key, item) => do
-                  return (← parseName location (.str key), ← parseTxID location item)
-          | _ => throw (invalid "invalid gossips")
-      let votes ←
-        ifPresent "votes"
-          fun
-          | .arr items => do
-              let names ← items.toList.mapM (parseName location)
-              require (names.eraseDups.length == names.length)
-                s!"{location}: duplicate votes"
-              return names.mergeSort
-          | _ => throw (invalid "invalid votes")
       let openKind ←
         ifPresent "open_kind"
           fun
@@ -266,19 +247,15 @@ def parseEvent (record : Record) : Checked TraceEvent := do
           postTimeout := ← phase "post_timeout",
           version := ← natural "version",
           wrote,
-          gossips,
-          votes,
           chosen,
           openKind,
           restart := restart.getD false
         }
-      -- advance() records the maps it evaluates, the node it chooses or joins,
-      -- and the open kind it writes.
+      -- advance() records the node it chooses or joins, and the open kind it
+      -- writes.
       let advanced := if kind == "iamopen_accepted" then Phase.joining else pre
       for (key, present)
           in [
-            ("gossips", advanced == .gossiping),
-            ("votes", advanced == .voting),
             (
               "chosen",
               advanced == .joining || (advanced == .gossiping && post == .voting)

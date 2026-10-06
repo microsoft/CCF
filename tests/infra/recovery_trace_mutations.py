@@ -112,6 +112,20 @@ def other(state: dict, current: str, pool=None):
     return None
 
 
+def _gossip_relabel_source(state: dict, record: dict) -> str | None:
+    # Relabeling to a node that sent the same txid describes another valid
+    # trace, so only a node that never sent it makes an impossible one.
+    sent_by = {
+        r["node"]
+        for _, _, r in recs(state)
+        if r["kind"] == "send"
+        and r["message"] == "gossip"
+        and r["target"] == record["node"]
+        and r["txid"] == record["txid"]
+    }
+    return next((loc for loc in locs(state) if loc not in sent_by), None)
+
+
 def envelope(record: dict) -> tuple:
     """The (source, target, message) of a send or receive record."""
     if record["kind"] == "send":
@@ -147,7 +161,6 @@ flipf = lambda field, mapping: (lambda s, r: set_field(r, field, mapping[r[field
 relabel = lambda field: (lambda s, r: set_field(r, field, other(s, r[field])))
 copyf = lambda dst, src: (lambda s, r: set_field(r, dst, r[src]))
 dynf = lambda field, fn: (lambda s, r: set_field(r, field, fn(r)))
-dyns = lambda field, fn: (lambda s, r: set_field(r, field, fn(s, r)))
 
 
 def combine(*edits):
@@ -180,15 +193,6 @@ _to_voting = lambda record: (
     and record["post"] == "Voting"
     and "chosen" in record
 )
-
-
-def _set_chain_off(state: dict, record: dict) -> dict:
-    txid = record["gossips"][record["source"]]
-    missing = [v for v in locs(state) if v not in record["gossips"]]
-    dropped = next(v for v in record["gossips"] if v != record["source"])
-    return {k: v for k, v in record["gossips"].items() if k != dropped} | {
-        missing[0]: txid
-    }
 
 
 def _truncated_json(state: dict) -> bool:
@@ -237,9 +241,12 @@ def _swap_gossip_writes(state: dict) -> bool:
     for node in nodes(state):
         writes = _writes(state, node)
         for first, second in itertools.pairwise(writes):
-            if first["kind"] == second["kind"] == "gossip_accepted" and len(
-                first["gossips"]
-            ) != len(second["gossips"]):
+            if (
+                first["kind"] == second["kind"] == "gossip_accepted"
+                and first["pre"] == first["post"] == "Gossiping"
+                and second["pre"] == "Gossiping"
+                and second["post"] == "Voting"
+            ):
                 first["version"], second["version"] = (
                     second["version"],
                     first["version"],
@@ -368,8 +375,6 @@ def _txid_consistent(state: dict, raise_it: bool) -> bool:
             record["txid"] = new
         if record["kind"] == "gossip_accepted" and record.get("source") == name:
             record["txid"] = new
-        if name in record.get("gossips", {}):
-            record["gossips"][name] = new
     return True
 
 
@@ -494,25 +499,13 @@ def m_log_order_permuted(state: dict) -> bool:
 OPEN_KIND_FLIP = {"Quorum": "Failover", "Failover": "Quorum"}
 
 
-_votes_over_quorum = (
-    lambda r: r.get("open_kind") == "Quorum" and len(r.get("votes", [])) > 1
-)
-_trim_votes = lambda s, r: set_field(
-    r, "votes", [r["source"]] if r.get("source") in r["votes"] else r["votes"][:1]
-)
-
-
 _no_advance = combine(setf("post", "Gossiping"), delf("chosen"))
 
 
 _premature_pred = lambda r: (
     r["kind"] == "gossip_accepted" and r["pre"] == r["post"] == "Gossiping"
 )
-
-
-def _premature_edit(s, r):
-    chosen = max(r["gossips"].items(), key=lambda i: txkey(i[1], i[0]))[0]
-    combine(setf("post", "Voting"), setf("chosen", chosen))(s, r)
+_premature_edit = combine(setf("post", "Voting"), copyf("chosen", "source"))
 
 
 _is_vote_send = lambda r: r["kind"] == "send" and r["message"] == "vote"
@@ -528,7 +521,6 @@ _no_advance_timeout = copyf("post_timeout", "pre_timeout")
 
 DECISION = [
     ("open_kind_flip", FAIL, one(has("open_kind"), flipf("open_kind", OPEN_KIND_FLIP))),
-    ("open_without_quorum", FAIL, one(_votes_over_quorum, _trim_votes)),
     ("chosen_not_max", FAIL, one(_to_voting, relabel("chosen"))),
     ("skip_to_opening", FAIL, one(_to_voting, setf("post", "Opening"))),
     ("no_advance_on_full_gossips", FAIL, one(_to_voting, _no_advance)),
@@ -550,12 +542,6 @@ CAUSALITY = [
     ("receive_before_send", FAIL, m_receive_before_send),
 ]
 
-_set_chain_off_pred = lambda r: (
-    r["kind"] == "gossip_accepted"
-    and r["post"] == "Gossiping"
-    and len(r["gossips"]) > 1
-)
-
 COMMIT_ORDER = [
     ("start_drop", FAIL, _start_drop),
     ("start_version", FAIL, one(kind_is("start"), bumpf("version", 1))),
@@ -564,7 +550,6 @@ COMMIT_ORDER = [
     ("duplicate_write_version", FAIL, _duplicate_write_version),
     ("read_only_before_its_write", FAIL, _read_only_before_its_write),
     ("unwrite_read_version", FAIL, _unwrite_read_version),
-    ("set_chain_off", FAIL, one(_set_chain_off_pred, dyns("gossips", _set_chain_off))),
     ("retry_bad_version", FAIL, _retry_bad_version),
     ("extra_final_attempt", FAIL, m_extra_final_attempt),
     ("failed_to_trace_line", FAIL, m_failed_to_trace_line),
@@ -626,21 +611,15 @@ def perturb(state: dict, record: dict, field: str) -> bool:
     elif field == "sequence":
         record[field] = value + 1000
     elif field in ("source", "node", "chosen", "target"):
-        record[field] = other(state, value)
+        if field == "source" and "txid" in record:
+            candidate = _gossip_relabel_source(state, record)
+            if candidate is None:
+                return False
+            record[field] = candidate
+        else:
+            record[field] = other(state, value)
     elif field == "txid":
         record[field] = bump(value)
-    elif field == "gossips":
-        if len(value) > 1:
-            value.pop(min(value))
-        else:
-            key = next(iter(value))
-            value[key] = bump(value[key])
-    elif field == "votes":
-        record[field] = (
-            value[1:]
-            if len(value) > 1
-            else sorted(set(value) | {other(state, value[0])})
-        )
     elif field == "open_kind":
         record[field] = "Failover" if value == "Quorum" else "Quorum"
     elif field == "restart":

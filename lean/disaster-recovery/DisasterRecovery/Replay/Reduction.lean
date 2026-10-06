@@ -138,8 +138,6 @@ private def Item.instructions : Item → Array Instruction
             {
               phase := recorded.post
               timeoutState := recorded.postTimeout
-              gossips := recorded.gossips
-              votes := recorded.votes
               chosen := recorded.chosen
               openKind := recorded.openKind
               restartRequested := if recorded.restart then some true else none

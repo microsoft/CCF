@@ -37,8 +37,6 @@ structure Origin where
 structure StateFields where
   phase : Option Phase := none
   timeoutState : Option Phase := none
-  gossips : Option (List (Location × TxID)) := none
-  votes : Option (List Location) := none
   chosen : Option Location := none
   openKind : Option OpenKind := none
   restartRequested : Option Bool := none
@@ -137,9 +135,6 @@ private def checkState (fields : StateFields) (state : NodeState)
     : Except String Unit := do
   check "phase" fields.phase state.phase
   check "timeoutState" fields.timeoutState state.timeoutState
-  check "gossips" fields.gossips
-    (state.gossips.mergeSort fun left right => left.1 <= right.1)
-  check "votes" fields.votes (state.votes.mergeSort (· <= ·))
   check "chosen" (fields.chosen.map some) state.chosen
   check "openKind" (fields.openKind.map some) state.openKind
   check "restartRequested" fields.restartRequested state.restartRequested

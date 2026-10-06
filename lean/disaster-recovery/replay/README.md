@@ -52,11 +52,10 @@ the endpoint's locally committed function, so only executions that committed
 are logged. Their `version` is the seqno of the TxID that CCF reported for the
 transaction: the version it committed at if it wrote, as `wrote` says, and the
 version it read at otherwise. They hold the phase and timeout phase that
-`advance()` read and wrote (`pre`, `pre_timeout`, `post`, `post_timeout`), the
-`gossips` or `votes` it evaluated, and any `chosen` node, `open_kind` or
-`restart` it read, wrote or requested. An IAmOpen's `pre` and `chosen` are its
-own Joining writes, before the subsequent `advance()` reads them. Gossip and
-vote records include the execution's own insert in `gossips` or `votes`.
+`advance()` read and wrote (`pre`, `pre_timeout`, `post`, `post_timeout`), and
+any `chosen` node, `open_kind` or `restart` it read, wrote or requested. An
+IAmOpen's `pre` and `chosen` are its own Joining writes, before the subsequent
+`advance()` reads them.
 Receives name their sender in `source`. A send's `message` is `gossip`, `vote`
 or `iamopen`. The sends of one retry share a `batch` and the version of the
 `sm_state` value the retry read, in `pre_version`.
@@ -112,7 +111,9 @@ for the validator. It replays the committed fixtures in
 `lean/disaster-recovery/replay/fixtures/`, checks targeted negative and benign
 mutations with explicit expectations, and then sweeps sampled records with
 single-field perturbations, every one of which must fail. Commit order is
-covered by targeted mutants rather than by sweeping `version` and `wrote`.
+covered by targeted mutants rather than by sweeping `version` and `wrote`,
+and a gossip's `source` is only relabeled to a location that never sent its
+txid, since any other would describe another valid trace.
 
 Run it from the repository root after building the replayer:
 
