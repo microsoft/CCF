@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/locking.h"
 #include "ccf/endpoint_context.h"
@@ -115,15 +116,22 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const recovery_decision_protocol::NodeInfo& node_info);
     void send_iamopen_unsafe(kv::ReadOnlyTx& tx);
+    // Records the send in the trace, then dispatches it
+    void dispatch_authenticated_message(
+      const nlohmann::json& request,
+      const sealing_recovery::Location& target,
+      const std::string& endpoint,
+      const crypto::Pem& self_signed_node_cert,
+      const crypto::Pem& privkey_pem);
 
     RecoveryDecisionProtocolConfig& get_config();
     sealing_recovery::Location& get_location();
     ccf::TxID get_last_recovered_signed_txid();
 
     void record_trace_send(
-      const char* message,
+      const std::string& message,
       const sealing_recovery::Name& target,
-      std::optional<ccf::TxID> txid) noexcept;
+      const nlohmann::json& request) noexcept;
     void emit_trace(nlohmann::json&& record);
   };
 }

@@ -93,9 +93,9 @@ namespace ccf
   }
 
   void RecoveryDecisionProtocolSubsystem::record_trace_send(
-    const char* message,
+    const std::string& message,
     const sealing_recovery::Name& target,
-    std::optional<ccf::TxID> txid) noexcept
+    const nlohmann::json& request) noexcept
   {
     trace_safely([&]() {
       nlohmann::json record = {
@@ -107,9 +107,10 @@ namespace ccf
       {
         record["pre_version"] = current_trace_pre_version.value();
       }
-      if (txid.has_value())
+      // A gossip's TxID is the only message content in the Lean model
+      if (message == "gossip")
       {
-        record["txid"] = txid.value();
+        record["txid"] = request.at("txid");
       }
       emit_trace(std::move(record));
     });
@@ -657,13 +658,15 @@ namespace ccf
     }
   }
 
-  void dispatch_authenticated_message(
-    nlohmann::json& request,
-    const std::string& target_address,
+  void RecoveryDecisionProtocolSubsystem::dispatch_authenticated_message(
+    const nlohmann::json& request,
+    const sealing_recovery::Location& target,
     const std::string& endpoint,
     const crypto::Pem& self_signed_node_cert,
     const crypto::Pem& privkey_pem)
   {
+    record_trace_send(endpoint, target.name, request);
+
     http_client::UniqueCURL curl_handle;
 
     // disable SSL verification as no confidential information is sent
@@ -683,7 +686,7 @@ namespace ccf
 
     auto url = fmt::format(
       "https://{}/{}/recovery_decision_protocol/{}",
-      target_address,
+      target.address,
       get_actor_prefix(ActorsType::nodes),
       endpoint);
 
@@ -769,11 +772,9 @@ namespace ccf
 
     for (auto& target : config.expected_locations)
     {
-      auto target_address = target.address;
-      record_trace_send("gossip", target.name, request.txid);
       dispatch_authenticated_message(
         request_json,
-        target_address,
+        target,
         "gossip",
         self_signed_node_cert,
         node_private_key);
@@ -794,10 +795,9 @@ namespace ccf
     const auto self_signed_node_cert =
       node_state->get_self_signed_certificate();
 
-    record_trace_send("vote", node_info.location.name, std::nullopt);
     dispatch_authenticated_message(
       request_json,
-      node_info.location.address,
+      node_info.location,
       "vote",
       self_signed_node_cert,
       node_state->node_sign_kp->private_key_pem());
@@ -860,10 +860,9 @@ namespace ccf
         // Don't send to self
         continue;
       }
-      record_trace_send("iamopen", target.name, std::nullopt);
       dispatch_authenticated_message(
         request_json,
-        target.address,
+        target,
         "iamopen",
         self_signed_node_cert,
         node_private_key);
