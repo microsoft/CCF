@@ -18,28 +18,54 @@
 
 namespace ccf
 {
-  inline ccf::crypto::ECPublicKeyPtr get_previous_service_classical_signing_key(
+  inline ServiceSigningKeys service_signing_keys_from_certificate(
+    const std::vector<uint8_t>& certificate)
+  {
+    return {
+      {SigningKeyType::CLASSICAL,
+       ccf::crypto::make_unique_verifier(certificate)->public_key_pem()}};
+  }
+
+  // Signing keys take precedence over the deprecated previous service
+  // certificate, whose public key is used when no keys are configured.
+  inline std::optional<ServiceSigningKeys>
+  resolve_previous_service_signing_keys(
     const std::optional<ServiceSigningKeys>& keys,
     const std::optional<std::vector<uint8_t>>& certificate)
   {
     if (keys.has_value())
     {
-      if (!keys->contains(SigningKeyType::CLASSICAL))
-      {
-        throw std::logic_error(fmt::format(
-          "Missing {} previous service signing public key",
-          SigningKeyType::CLASSICAL));
-      }
-      return ccf::crypto::make_ec_public_key(
-        keys->at(SigningKeyType::CLASSICAL));
+      return keys;
     }
+    if (certificate.has_value())
+    {
+      return service_signing_keys_from_certificate(*certificate);
+    }
+    return std::nullopt;
+  }
 
-    if (!certificate.has_value())
+  inline ccf::crypto::ECPublicKeyPtr get_previous_service_classical_signing_key(
+    const std::optional<ServiceSigningKeys>& keys)
+  {
+    if (!keys.has_value())
     {
       throw std::logic_error("No previous service identity is configured");
     }
-    return ccf::crypto::make_ec_public_key(
-      ccf::crypto::make_unique_verifier(*certificate)->public_key_der());
+    if (!keys->contains(SigningKeyType::CLASSICAL))
+    {
+      throw std::logic_error(fmt::format(
+        "Missing {} previous service signing public key",
+        SigningKeyType::CLASSICAL));
+    }
+    return ccf::crypto::make_ec_public_key(keys->at(SigningKeyType::CLASSICAL));
+  }
+
+  inline ccf::crypto::ECPublicKeyPtr get_previous_service_classical_signing_key(
+    const std::optional<ServiceSigningKeys>& keys,
+    const std::optional<std::vector<uint8_t>>& certificate)
+  {
+    return get_previous_service_classical_signing_key(
+      resolve_previous_service_signing_keys(keys, certificate));
   }
 
   struct NetworkIdentity

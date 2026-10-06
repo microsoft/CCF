@@ -207,7 +207,8 @@ namespace ccf
           {
             const auto segments =
               separate_segments(latest_peer_snapshot->snapshot_data);
-            verify_snapshot(segments, service_cert);
+            verify_snapshot(
+              segments, service_signing_keys_from_certificate(service_cert));
           }
           catch (const std::exception& e)
           {
@@ -579,8 +580,9 @@ namespace ccf
         {
           verify_snapshot(
             segments,
-            startup_inputs.previous_service_identity,
-            startup_inputs.previous_service_signing_keys);
+            resolve_previous_service_signing_keys(
+              startup_inputs.previous_service_signing_keys,
+              startup_inputs.previous_service_identity));
           LOG_INFO_FMT(
             "Recovery snapshot at {} is directly signed by the configured "
             "previous service identity",
@@ -695,7 +697,11 @@ namespace ccf
         try
         {
           const auto segments = separate_segments(snapshot_data);
-          verify_snapshot(segments, startup_inputs.previous_service_identity);
+          verify_snapshot(
+            segments,
+            resolve_previous_service_signing_keys(
+              startup_inputs.previous_service_signing_keys,
+              startup_inputs.previous_service_identity));
         }
         catch (const std::exception& e)
         {

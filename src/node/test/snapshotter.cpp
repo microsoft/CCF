@@ -194,15 +194,83 @@ TEST_CASE("Legacy JSON snapshot receipts are verified with signing keys")
     {ccf::SigningKeyType::CLASSICAL,
      ccf::crypto::make_ec_key_pair()->public_key_pem()}};
 
-  REQUIRE_NOTHROW(ccf::verify_snapshot(segments, std::nullopt, service_keys));
+  REQUIRE_NOTHROW(ccf::verify_snapshot(segments, service_keys));
   REQUIRE_THROWS_WITH(
-    ccf::verify_snapshot(segments, std::nullopt, other_keys),
+    ccf::verify_snapshot(segments, other_keys),
     "Previous service identity does not endorse the node identity that "
     "signed the snapshot");
 
+  INFO("A previous service certificate resolves to its signing key");
+  REQUIRE_NOTHROW(ccf::verify_snapshot(
+    segments,
+    ccf::resolve_previous_service_signing_keys(
+      std::nullopt, service_cert.raw())));
+
   INFO("Mismatching keys do not fall back to a matching certificate");
-  REQUIRE_THROWS(
-    ccf::verify_snapshot(segments, service_cert.raw(), other_keys));
+  REQUIRE_THROWS(ccf::verify_snapshot(
+    segments,
+    ccf::resolve_previous_service_signing_keys(
+      other_keys, service_cert.raw())));
+}
+
+TEST_CASE("COSE snapshot receipts are verified with signing keys")
+{
+  using namespace std::literals;
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 1h);
+  const auto valid_to =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() + 1h);
+
+  const auto service_kp = ccf::crypto::make_ec_key_pair();
+  const std::vector<uint8_t> snapshot = {1, 2, 3};
+
+  // The snapshot evidence transaction is the only leaf after genesis
+  const ccf::crypto::Sha256Hash write_set_digest(std::string("write set"));
+  const std::string commit_evidence = "ce:2.4:abcd";
+  ccf::crypto::Sha256Hash claims_digest(snapshot.data(), snapshot.size());
+  const ccf::kv::Version evidence_seqno = 1;
+  ccf::MerkleTreeHistory tree;
+  tree.append(ccf::crypto::Sha256Hash(
+    write_set_digest, ccf::crypto::Sha256Hash(commit_evidence), claims_digest));
+  const auto root = tree.get_root();
+
+  const ccf::CoseSignatureMap cose_sigs{
+    {ccf::IdentityType::CLASSICAL,
+     ccf::cose::sign_ledger(
+       *service_kp,
+       ccf::crypto::kid_from_key(service_kp->public_key_der()),
+       1700000000,
+       "issuer",
+       "subject",
+       "2.4",
+       root.h)}};
+  const auto receipt_bytes = ccf::build_and_serialise_receipt(
+    cose_sigs,
+    tree.serialise(),
+    evidence_seqno,
+    write_set_digest,
+    commit_evidence,
+    std::move(claims_digest));
+  REQUIRE(receipt_bytes.front() == 0xD2);
+  const ccf::SnapshotSegments segments{snapshot, receipt_bytes};
+
+  const ccf::ServiceSigningKeys service_keys{
+    {ccf::SigningKeyType::CLASSICAL, service_kp->public_key_pem()}};
+  const ccf::ServiceSigningKeys other_keys{
+    {ccf::SigningKeyType::CLASSICAL,
+     ccf::crypto::make_ec_key_pair()->public_key_pem()}};
+
+  REQUIRE_NOTHROW(ccf::verify_snapshot(segments, service_keys));
+  REQUIRE_THROWS_WITH(
+    ccf::verify_snapshot(segments, other_keys),
+    "Previous service identity does not match the service identity that "
+    "signed the snapshot");
+
+  INFO("A joining node derives the signing key from the service certificate");
+  const auto service_cert =
+    service_kp->self_sign("CN=service", valid_from, valid_to);
+  REQUIRE_NOTHROW(ccf::verify_snapshot(
+    segments, ccf::service_signing_keys_from_certificate(service_cert.raw())));
 }
 
 TEST_CASE("Recovery snapshot endorsement scan bounds candidate endorsements")

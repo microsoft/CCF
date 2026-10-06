@@ -256,16 +256,14 @@ namespace ccf
 
   static void verify_cose_snapshot_receipt(
     const SnapshotSegments& segments,
-    const std::optional<std::vector<uint8_t>>& prev_service_identity,
-    const std::optional<ServiceSigningKeys>& prev_service_signing_keys =
-      std::nullopt)
+    const std::optional<ServiceSigningKeys>& prev_service_signing_keys)
   {
     const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
 
-    if (prev_service_signing_keys || prev_service_identity)
+    if (prev_service_signing_keys)
     {
-      const auto key = get_previous_service_classical_signing_key(
-        prev_service_signing_keys, prev_service_identity);
+      const auto key =
+        get_previous_service_classical_signing_key(prev_service_signing_keys);
       auto verifier =
         ccf::crypto::make_cose_verifier_from_key(key->public_key_der());
       if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
@@ -280,9 +278,7 @@ namespace ccf
 
   static void verify_json_snapshot_receipt(
     const SnapshotSegments& segments,
-    const std::optional<std::vector<uint8_t>>& prev_service_identity,
-    const std::optional<ServiceSigningKeys>& prev_service_signing_keys =
-      std::nullopt)
+    const std::optional<ServiceSigningKeys>& prev_service_signing_keys)
   {
     auto j =
       ccf::parse_json_safe(segments.receipt.begin(), segments.receipt.end());
@@ -322,8 +318,8 @@ namespace ccf
 
     if (prev_service_signing_keys)
     {
-      const auto key = get_previous_service_classical_signing_key(
-        prev_service_signing_keys, prev_service_identity);
+      const auto key =
+        get_previous_service_classical_signing_key(prev_service_signing_keys);
       if (!v->verify_certificate_signature(key->public_key_pem()))
       {
         throw std::logic_error(
@@ -332,24 +328,10 @@ namespace ccf
       }
       LOG_DEBUG_FMT("Previous service signing key endorses snapshot signer");
     }
-    else if (prev_service_identity)
-    {
-      ccf::crypto::Pem prev_pem(*prev_service_identity);
-      if (!v->verify_certificate(
-            {&prev_pem}, {}, true /* ignore_time */
-            ))
-      {
-        throw std::logic_error(
-          "Previous service identity does not endorse the node identity "
-          "that signed the snapshot");
-      }
-      LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
-    }
   }
 
   static void verify_snapshot(
     const SnapshotSegments& segments,
-    std::optional<std::vector<uint8_t>> prev_service_identity = std::nullopt,
     const std::optional<ServiceSigningKeys>& prev_service_signing_keys =
       std::nullopt)
   {
@@ -382,14 +364,12 @@ namespace ccf
     if (first_byte == ENCODED_COSE_SIGN1_TAG)
     {
       LOG_DEBUG_FMT("Snapshot with COSE receipt detected");
-      verify_cose_snapshot_receipt(
-        segments, prev_service_identity, prev_service_signing_keys);
+      verify_cose_snapshot_receipt(segments, prev_service_signing_keys);
     }
     else if (first_byte == '{')
     {
       LOG_DEBUG_FMT("Snapshot with JSON receipt detected");
-      verify_json_snapshot_receipt(
-        segments, prev_service_identity, prev_service_signing_keys);
+      verify_json_snapshot_receipt(segments, prev_service_signing_keys);
     }
     else
     {
