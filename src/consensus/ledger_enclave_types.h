@@ -45,7 +45,7 @@ namespace consensus
 
     // Admission signal, not an append rejection: work already in progress
     // must still be accepted without waiting for the task that writes it.
-    virtual bool is_backlogged() const
+    [[nodiscard]] virtual bool is_backlogged() const
     {
       return false;
     }

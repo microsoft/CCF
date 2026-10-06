@@ -81,7 +81,7 @@ namespace consensus
       }
     }
 
-    bool is_backlogged() const
+    [[nodiscard]] bool is_backlogged() const
     {
       return ledger->is_backlogged();
     }

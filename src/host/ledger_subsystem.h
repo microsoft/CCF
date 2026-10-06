@@ -221,12 +221,12 @@ namespace asynchost
         });
     }
 
-    size_t get_pending_write_bytes() const
+    [[nodiscard]] size_t get_pending_write_bytes() const
     {
       return pending_write_bytes->load();
     }
 
-    bool is_backlogged() const override
+    [[nodiscard]] bool is_backlogged() const override
     {
       return max_pending_write_bytes != 0 &&
         get_pending_write_bytes() >= max_pending_write_bytes;
