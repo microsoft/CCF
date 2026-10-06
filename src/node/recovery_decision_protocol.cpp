@@ -16,6 +16,7 @@
 
 #include <atomic>
 #include <cstdlib>
+#include <source_location>
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
@@ -47,9 +48,12 @@ namespace ccf
 
     // All trace work runs through here, so that it is skipped unless tracing
     // is enabled. Tracing only observes the protocol, so trace failures are
-    // logged and never propagated to the protocol code being traced
+    // logged, with the calling line, and never propagated to the protocol code
+    // being traced
     template <typename F>
-    void trace_safely(std::string_view action, F&& f) noexcept
+    void trace_safely(
+      F&& f,
+      std::source_location caller = std::source_location::current()) noexcept
     {
       if (!tracing_enabled())
       {
@@ -62,13 +66,15 @@ namespace ccf
       catch (const std::exception& e)
       {
         LOG_FAIL_FMT(
-          "Failed to trace recovery-decision-protocol {}: {}",
-          action,
+          "Failed to trace recovery-decision-protocol at line {}: {}",
+          caller.line(),
           e.what());
       }
       catch (...)
       {
-        LOG_FAIL_FMT("Failed to trace recovery-decision-protocol {}", action);
+        LOG_FAIL_FMT(
+          "Failed to trace recovery-decision-protocol at line {}",
+          caller.line());
       }
     }
   }
@@ -91,7 +97,7 @@ namespace ccf
     const sealing_recovery::Name& target,
     std::optional<ccf::TxID> txid) noexcept
   {
-    trace_safely("send", [&]() {
+    trace_safely([&]() {
       nlohmann::json record = {
         {"kind", "send"},
         {"batch", current_trace_batch},
@@ -116,7 +122,7 @@ namespace ccf
     std::optional<ccf::TxID> txid,
     const recovery_decision_protocol::AdvanceTrace& trace) noexcept
   {
-    trace_safely(kind, [&]() {
+    trace_safely([&]() {
       rpc_ctx.set_user_data(nullptr);
       auto record = std::make_shared<nlohmann::json>(trace);
       (*record)["kind"] = kind;
@@ -135,7 +141,7 @@ namespace ccf
   void RecoveryDecisionProtocolSubsystem::trace_committed_step(
     ccf::endpoints::CommandEndpointContext& ctx, const ccf::TxID& txid) noexcept
   {
-    trace_safely("commit", [&]() {
+    trace_safely([&]() {
       auto* record = static_cast<nlohmann::json*>(ctx.rpc_ctx->get_user_data());
       if (record == nullptr)
       {
@@ -211,7 +217,7 @@ namespace ccf
             w.has_value() &&
             w.value() == recovery_decision_protocol::StateMachine::GOSSIPING)
           {
-            trace_safely("start", [&]() {
+            trace_safely([&]() {
               nlohmann::json expected_locations = nlohmann::json::array();
               for (const auto& location : get_config().expected_locations)
               {
@@ -438,7 +444,7 @@ namespace ccf
     }
 
     // Adds no read dependency: get() returns own writes, else values read above
-    trace_safely("post", [&]() {
+    trace_safely([&]() {
       trace.post = sm_state_handle->get().value_or(sm_state);
       trace.post_timeout = timeout_state_handle->get().value_or(timeout_state);
     });
@@ -476,7 +482,7 @@ namespace ccf
             "Recovery-decision-protocol state not set, cannot retry protocol");
         }
         auto& sm_state = sm_state_opt.value();
-        trace_safely("batch", [&]() {
+        trace_safely([&]() {
           static std::atomic<uint64_t> next_trace_batch = 0;
           current_trace_batch = next_trace_batch.fetch_add(1);
           // A batch whose version could not be read carries none
