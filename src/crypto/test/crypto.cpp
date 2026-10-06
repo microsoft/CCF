@@ -36,12 +36,14 @@
 #include <ctime>
 #include <doctest/doctest.h>
 #include <exception>
+#include <functional>
 #include <limits>
 #include <mutex>
 #include <optional>
 #include <span>
 #include <tav/cbor.hpp>
 #include <thread>
+#include <utility>
 
 using namespace std;
 using namespace ccf::crypto;
@@ -336,6 +338,122 @@ TEST_CASE("Malformed, wrong-family and unsupported key material is rejected")
     std::logic_error);
 }
 
+TEST_CASE("Reported OpenSSL failures drain the error queue")
+{
+  // OpenSSL queues errors per thread, so an entry left behind by a failure
+  // would be reported by a later, unrelated, failure on this thread.
+  ERR_clear_error();
+  using Failure = std::pair<std::string, std::function<void()>>;
+
+  SUBCASE("Check helpers report the first queued error")
+  {
+    CHECK_THROWS_WITH_AS(
+      OpenSSL::CHECK1(0),
+      "OpenSSL error (rc=0): unknown error",
+      std::runtime_error);
+
+    const std::vector<Failure> checks = {
+      {"OpenSSL error (rc=0): ", []() { OpenSSL::CHECK1(0); }},
+      {"OpenSSL error (rc=2): ", []() { OpenSSL::CHECKEQUAL(1, 2); }},
+      {"OpenSSL error (rc=-1): ", []() { OpenSSL::CHECKPOSITIVE(-1); }},
+      {"OpenSSL error (missing object): ",
+       []() { OpenSSL::CHECKNULL(nullptr); }}};
+    for (const auto& [prefix, fail] : checks)
+    {
+      ERR_raise(ERR_LIB_EVP, EVP_R_BAD_DECRYPT);
+      ERR_raise(ERR_LIB_PEM, PEM_R_NO_START_LINE);
+      const auto expected_message =
+        prefix + "error:03000064:digital envelope routines::bad decrypt";
+      CHECK_THROWS_WITH_AS(
+        fail(), expected_message.c_str(), std::runtime_error);
+      CHECK(ERR_peek_error() == 0);
+    }
+  }
+
+  SUBCASE("Failed key and certificate imports")
+  {
+    const std::vector<uint8_t> garbage = {0xde, 0xad, 0xbe, 0xef};
+    const Pem garbage_public_key(
+      "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n");
+    const Pem garbage_private_key(
+      "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n");
+    const Pem garbage_cert(
+      "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n");
+
+    const std::vector<Failure> imports = {
+      {"EC public key PEM",
+       [&]() { (void)make_ec_public_key(garbage_public_key); }},
+      {"EC public key DER", [&]() { (void)make_ec_public_key(garbage); }},
+      {"RSA public key PEM",
+       [&]() { (void)make_rsa_public_key(garbage_public_key); }},
+      {"RSA public key DER", [&]() { (void)make_rsa_public_key(garbage); }},
+      {"EdDSA public key PEM",
+       [&]() { (void)make_eddsa_public_key(garbage_public_key); }},
+      {"EC key pair PEM",
+       [&]() { (void)make_ec_key_pair(garbage_private_key); }},
+      {"RSA key pair PEM",
+       [&]() { (void)make_rsa_key_pair(garbage_private_key); }},
+      {"EdDSA key pair PEM",
+       [&]() { (void)make_eddsa_key_pair(garbage_private_key); }},
+      {"Certificate DER", [&]() { (void)make_verifier(garbage); }},
+      {"Certificate PEM", [&]() { (void)make_verifier(garbage_cert); }},
+      {"COSE public key PEM",
+       [&]() { (void)make_cose_verifier_from_key(garbage_public_key); }},
+      {"COSE certificate PEM",
+       [&]() { (void)make_cose_verifier_from_pem_cert(garbage_cert); }}};
+    for (const auto& [description, fail] : imports)
+    {
+      INFO(description);
+      CHECK_THROWS(fail());
+      CHECK(ERR_peek_error() == 0);
+    }
+  }
+
+  SUBCASE("Failed signature verification")
+  {
+    const auto ec = make_ec_key_pair();
+    auto ec_signature = ec->sign(contents);
+    corrupt(ec_signature);
+    CHECK_FALSE(ec->verify(contents, ec_signature));
+    CHECK(ERR_peek_error() == 0);
+
+    const auto rsa = make_rsa_key_pair();
+    auto rsa_signature = rsa->sign(contents, MDType::SHA256);
+    corrupt(rsa_signature);
+    CHECK_FALSE(rsa->verify(
+      contents.data(),
+      contents.size(),
+      rsa_signature.data(),
+      rsa_signature.size(),
+      MDType::SHA256));
+    CHECK(ERR_peek_error() == 0);
+
+    const auto eddsa = make_eddsa_key_pair();
+    auto eddsa_signature = eddsa->sign(contents);
+    corrupt(eddsa_signature);
+    CHECK_FALSE(eddsa->verify(contents, eddsa_signature));
+    CHECK(ERR_peek_error() == 0);
+  }
+
+  SUBCASE("PKCS#1 RSA public key import")
+  {
+    // PKCS#1 DER is first tried, and fails to parse, as SubjectPublicKeyInfo.
+    const auto spki = make_rsa_key_pair()->public_key_der();
+    const auto* cursor = spki.data();
+    const OpenSSL::Unique_PKEY decoded(
+      d2i_PUBKEY(nullptr, &cursor, static_cast<long>(spki.size())),
+      EVP_PKEY_free);
+    unsigned char* encoded = nullptr;
+    const auto encoded_size = i2d_PublicKey(decoded, &encoded);
+    REQUIRE(encoded_size > 0);
+    const std::vector<uint8_t> pkcs1(encoded, encoded + encoded_size);
+    OPENSSL_free(encoded);
+
+    CHECK(make_rsa_public_key(pkcs1)->public_key_der() == spki);
+    CHECK(ERR_peek_error() == 0);
+  }
+}
+
 TEST_CASE("Sign, verify, with ECKeyPair")
 {
   for (const auto curve : supported_curves)
@@ -389,6 +507,38 @@ TEST_CASE("Sign, verify, with ECPublicKey")
     const auto public_key = kp->public_key_pem();
     auto pubk = make_ec_public_key(public_key);
     CHECK(pubk->verify(payload, signature));
+  }
+}
+
+TEST_CASE("Public key from a raw EC point")
+{
+  for (const auto curve : supported_curves)
+  {
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
+    auto kp = make_ec_key_pair(curve);
+    const auto nid = ECPublicKey_OpenSSL::get_openssl_group_id(curve);
+    const auto raw = kp->public_key_raw();
+
+    // key_from_raw_ec_point hands over its only reference to the key, so
+    // moving the result into a public key must not leak (checked when this
+    // test runs under LeakSanitizer) and the public key is the sole owner.
+    const auto pubk =
+      std::make_shared<ECPublicKey_OpenSSL>(key_from_raw_ec_point(raw, nid));
+    CHECK(pubk->public_key_der() == kp->public_key_der());
+    CHECK(pubk->get_curve_id() == curve);
+
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    CHECK(pubk->verify(payload, kp->sign(payload)));
+
+    // The raw point is an uncompressed SEC1 encoding, 0x04 || x || y, so
+    // changing its last byte changes y and the point is no longer on the curve
+    const auto coordinate_size = pubk->coordinates().x.size();
+    REQUIRE(raw.size() == 1 + (2 * coordinate_size));
+    REQUIRE(raw.front() == 0x04);
+    auto off_curve = raw;
+    off_curve.back() ^= 0xff;
+    CHECK_THROWS_AS(
+      std::ignore = key_from_raw_ec_point(off_curve, nid), std::runtime_error);
   }
 }
 
@@ -1682,12 +1832,23 @@ TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
   REQUIRE_FALSE(
     verifier->verify_certificate({&root_cert}, {&intermediate_cert}));
 
-  // Unparseable trusted or chain certificates
+  // Unparseable trusted or chain certificates, whose parsing errors must not
+  // be left on the OpenSSL error queue
   const Pem not_a_cert(
     "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n");
   REQUIRE_FALSE(verifier->verify_certificate({&not_a_cert}, {}, true));
+  CHECK(ERR_peek_error() == 0);
   REQUIRE_FALSE(
     verifier->verify_certificate({&root_cert}, {&not_a_cert}, true));
+  CHECK(ERR_peek_error() == 0);
+
+  // Bad leaf signature, which also queues OpenSSL errors
+  auto bad_signature = ccf::crypto::cert_pem_to_der(leaf_cert);
+  bad_signature.back() ^= 1;
+  auto bad_verifier = ccf::crypto::make_verifier(bad_signature);
+  REQUIRE_FALSE(
+    bad_verifier->verify_certificate({&root_cert}, {&intermediate_cert}, true));
+  CHECK(ERR_peek_error() == 0);
 }
 
 TEST_CASE("Do not trust non-ca certs")

@@ -6,9 +6,8 @@
 #include "ccf/ds/json.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/uvm_endorsements.h"
-#include "ccf/service/tables/uvm_endorsements.h"
+#include "crypto/cose_utils.h"
 #include "crypto/openssl/cose_verifier.h"
-#include "node/cose_common.h"
 
 #include <didx509cpp/didx509cpp.h>
 #include <nlohmann/json.hpp>

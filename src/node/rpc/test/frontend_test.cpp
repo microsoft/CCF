@@ -649,6 +649,39 @@ TEST_CASE("Redirect resolution handles unpublished consensus")
   REQUIRE(rpc_ctx->get_response_status() == HTTP_STATUS_SERVICE_UNAVAILABLE);
 }
 
+TEST_CASE("Endpoints with disabled operator features look like unknown paths")
+{
+  NetworkState network;
+  prepare_callers(network);
+  BaseTestFrontend frontend(*network.tables);
+  frontend.context.install_subsystem(std::make_shared<TestNodeConfiguration>());
+  frontend
+    .make_endpoint(
+      "/gated",
+      HTTP_GET,
+      [](auto& ctx) { ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK); })
+    .require_operator_feature(ccf::endpoints::OperatorFeature::SnapshotRead)
+    .install();
+  frontend.open();
+
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, anonymous_caller_der, "test_interface");
+  for (const std::string path : {"/gated", "/unknown"})
+  {
+    INFO(path);
+    ::http::Request request(path, HTTP_GET);
+    auto rpc_ctx = ccf::make_rpc_context(session, request.build_request());
+    frontend.process(rpc_ctx);
+    const auto response = parse_response(rpc_ctx->serialise_response());
+    CHECK(response.status == HTTP_STATUS_NOT_FOUND);
+    CHECK(
+      nlohmann::json::parse(response.body)["error"] ==
+      nlohmann::json{
+        {"code", ccf::errors::ResourceNotFound},
+        {"message", fmt::format("Unknown path: {}.", path)}});
+  }
+}
+
 TEST_CASE("SignedReq to and from json")
 {
   SignedReq sr;

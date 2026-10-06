@@ -10,11 +10,13 @@ on:
 
 permissions: read-all
 
-# Number of previous successful runs to include in the coverage trend charts.
-# Consumed both when downloading previous-run logs below and by
-# scripts/coverage_summary.py, so that the two stay in sync from a single place.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  queue: max
+
+# Maximum number of runs to retain in the coverage history and trend.
 env:
-  COVERAGE_HISTORY_POINTS: "9"
+  COVERAGE_HISTORY_POINTS: "30"
 
 jobs:
   coverage_virtual:
@@ -114,6 +116,7 @@ jobs:
           path: build
 
       - name: "Generate coverage reports"
+        id: coverage_report
         run: |
           set -exo pipefail
           cd build
@@ -127,31 +130,26 @@ jobs:
             --add-profile coverage_snp_genoa.profdata | tee coverage_report.txt
         shell: bash
 
-      - name: "Download previous coverage summaries"
+      - name: "Restore previous coverage reports"
         if: always()
         run: |
-          set -eo pipefail
+          set -euo pipefail
+          mkdir -p build/coverage_history
           cd build
-          mkdir -p coverage_history
-          # GitHub does not expose an API to download a job summary, so the
-          # previous line and branch coverage values are recovered from the logs
-          # of the Coverage Virtual job in the last successful Coverage runs on
-          # this branch, which contain the same llvm-cov report (see the "tee"
-          # above). The number of runs kept here is COVERAGE_HISTORY_POINTS,
-          # which coverage_summary.py also uses when plotting the trend.
-          runs=$(gh api \
-            "repos/${GITHUB_REPOSITORY}/actions/workflows/coverage.yml/runs?branch=${GITHUB_REF_NAME}&per_page=30" \
-            --jq "[.workflow_runs[] | select(.conclusion == \"success\") | select((.id | tostring) != \"${GITHUB_RUN_ID}\")] | .[0:${COVERAGE_HISTORY_POINTS}] | .[] | \"\(.id) \(.run_number)\"" || true)
-          while read -r run_id run_number; do
-            [[ -z "$run_id" ]] && continue
-            job_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs" \
-              --jq '.jobs[] | select(.name == "Coverage Virtual") | .id' || true)
-            [[ -z "$job_id" ]] && continue
-            # Job logs contain ANSI sequences, which gh 2.97+ blocks by default.
-            gh api --allow-escape-sequences \
-              "repos/${GITHUB_REPOSITORY}/actions/jobs/${job_id}/logs" \
-              > "coverage_history/${run_id}-${run_number}.log" || true
-          done <<< "$runs"
+          slug="${GITHUB_REF_NAME//\//-}"
+          echo "COVERAGE_BRANCH_SLUG=${slug}" >> "$GITHUB_ENV"
+          name="coverage-history-${slug}"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          if ! run_ids=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=${name}&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == env.GITHUB_REF_NAME and .workflow_run.id != (env.GITHUB_RUN_ID | tonumber))] | sort_by(.created_at) | reverse | .[0:20] | .[].workflow_run.id'); then
+            echo "::warning::Could not list coverage artifacts; starting a new history"
+            run_ids=""
+          fi
+          for run_id in $run_ids; do
+            if gh run download "$run_id" --name "$name" --dir coverage_history; then
+              break
+            fi
+          done
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -173,6 +171,24 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
         shell: bash
+
+      - name: "Store coverage report"
+        id: store_coverage
+        if: steps.coverage_report.outcome == 'success'
+        run: |
+          set -euo pipefail
+          cd build
+          cp coverage_report.txt "coverage_history/${GITHUB_RUN_ID}-${GITHUB_RUN_NUMBER}.txt"
+          (cd coverage_history && ls -1 *.txt | sort -t- -k1,1n -k2,2n | head -n -"${COVERAGE_HISTORY_POINTS}" | xargs -r rm -f)
+        shell: bash
+
+      - name: "Upload coverage history"
+        if: steps.store_coverage.outcome == 'success' && (success() || failure())
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-history-${{ env.COVERAGE_BRANCH_SLUG }}
+          path: build/coverage_history/
+          if-no-files-found: error
 
       - name: "Upload HTML coverage report"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -213,16 +229,24 @@ jobs:
           python3 tests/infra/platform_detection.py snp genoa
         shell: bash
 
-      # Builds and runs the same tests as the ACI SNP Genoa job in ci.yml, with
-      # coverage enabled, except for ledger_bench, since benchmarks are not
-      # included in coverage.
+      - name: "Discover THIM endpoint"
+        run: |
+          set -euo pipefail
+          if ! { cat /proc/*/environ 2>/dev/null || true; } | tr '\000' '\n' | sort -u | grep '^Fabric_NodeIPOrFQDN=.' >> "$GITHUB_ENV"; then
+            echo "::error::Fabric_NodeIPOrFQDN is required for THIM endorsement tests"
+            exit 1
+          fi
+        shell: bash
+
+      # Builds the usual SNP tests plus the full nodes_test suite for coverage.
+      # Benchmarks are excluded from coverage.
       - name: "Build Debug with coverage"
         run: |
           set -ex
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON -DWORKER_THREADS=1 ..
-          ninja snp code_update_test
+          ninja snp code_update_test nodes_test
         shell: bash
 
       - name: "Tests"
@@ -230,7 +254,7 @@ jobs:
           set -ex
           cd build
           ./tests.sh --timeout 360 --output-on-failure -C snp -L snp --no-tests=error
-          ./tests.sh --timeout 360 --output-on-failure -R code_update --no-tests=error
+          ./tests.sh --timeout 360 --output-on-failure -R '^(code_update|nodes)_test$' --no-tests=error
         shell: bash
         env:
           CCF_TEST_SYNC_AFTER_SETUP: 1

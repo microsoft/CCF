@@ -41,10 +41,7 @@ namespace ccf::crypto
   {
     Unique_BIO mem(pem);
     key.reset(PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr));
-    if (key == nullptr)
-    {
-      throw std::runtime_error("could not parse PEM");
-    }
+    OpenSSL::CHECKNULL(key);
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
@@ -58,10 +55,7 @@ namespace ccf::crypto
   {
     Unique_BIO buf(der);
     key.reset(d2i_PUBKEY_bio(buf, nullptr));
-    if (key == nullptr)
-    {
-      throw std::runtime_error("Could not read DER");
-    }
+    OpenSSL::CHECKNULL(key);
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
@@ -232,10 +226,8 @@ namespace ccf::crypto
     bool ok = rc == 1;
     if (!ok)
     {
-      int ec = ERR_get_error();
-      LOG_DEBUG_FMT(
-        "OpenSSL signature verification failure: {}",
-        OpenSSL::error_string(ec));
+      const auto error = OpenSSL::first_error();
+      LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", error);
     }
 
     return ok;
@@ -301,18 +293,16 @@ namespace ccf::crypto
 
     if (pkey == nullptr)
     {
-      EVP_PKEY_free(pkey);
-
       throw std::logic_error(fmt::format(
         "Error loading public key. Curve: {}, err: {}",
         curve_name,
-        OpenSSL::error_string(ERR_get_error())));
+        OpenSSL::first_error()));
     }
 
-    Unique_PKEY pk(pkey);
-    EVP_PKEY_up_ref(pk);
-    EVP_PKEY_free(pkey);
-    return pk;
+    // Take over the single reference that EVP_PKEY_fromdata returned, rather
+    // than duplicating the key (as Unique_PKEY(EVP_PKEY*) does), so that the
+    // result is the sole owner and no caller has to drop an extra reference.
+    return {pkey, EVP_PKEY_free};
   }
 
   ECPublicKey::Coordinates ECPublicKey_OpenSSL::coordinates() const
