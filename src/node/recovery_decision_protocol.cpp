@@ -261,6 +261,30 @@ namespace ccf
     trace.post = sm_state;
     trace.post_timeout = timeout_state;
 
+    // Protocol state is written through these, so that the trace records each
+    // write
+    auto put_sm_state = [&](recovery_decision_protocol::StateMachine state) {
+      sm_state_handle->put(state);
+      trace.post = state;
+    };
+    auto put_timeout_state =
+      [&](recovery_decision_protocol::StateMachine state) {
+        timeout_state_handle->put(state);
+        trace.post_timeout = state;
+      };
+    auto put_chosen_node = [&](const sealing_recovery::Name& chosen) {
+      tx.rw<recovery_decision_protocol::ChosenNode>(
+          Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
+        ->put(chosen);
+      trace.chosen = chosen;
+    };
+    auto put_open_kind = [&](recovery_decision_protocol::OpenKinds open_kind) {
+      tx.rw<recovery_decision_protocol::OpenKind>(
+          Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
+        ->put(open_kind);
+      trace.open_kind = open_kind;
+    };
+
     bool valid_timeout = timeout && sm_state == timeout_state;
 
     // Advance recovery-decision-protocol SM
@@ -294,13 +318,9 @@ namespace ccf
           {
             throw std::logic_error("No valid gossip addresses provided");
           }
-          tx.rw<recovery_decision_protocol::ChosenNode>(
-              Tables::RECOVERY_DECISION_PROTOCOL_CHOSEN_NODE)
-            ->put(std::get<2>(maximum.value()));
+          put_chosen_node(std::get<2>(maximum.value()));
 
-          sm_state_handle->put(
-            recovery_decision_protocol::StateMachine::VOTING);
-          trace.chosen = std::get<2>(maximum.value());
+          put_sm_state(recovery_decision_protocol::StateMachine::VOTING);
         }
         break;
       }
@@ -328,19 +348,13 @@ namespace ccf
           auto timeout_used = valid_timeout && !sufficient_quorum;
           if (timeout_used)
           {
-            tx.rw<recovery_decision_protocol::OpenKind>(
-                Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
-              ->put(recovery_decision_protocol::OpenKinds::FAILOVER);
-            trace.open_kind = recovery_decision_protocol::OpenKinds::FAILOVER;
+            put_open_kind(recovery_decision_protocol::OpenKinds::FAILOVER);
             LOG_INFO_FMT(
               "Recovery-decision-protocol succeeded on the failover path");
           }
           else
           {
-            tx.rw<recovery_decision_protocol::OpenKind>(
-                Tables::RECOVERY_DECISION_PROTOCOL_OPEN_KIND)
-              ->put(recovery_decision_protocol::OpenKinds::QUORUM);
-            trace.open_kind = recovery_decision_protocol::OpenKinds::QUORUM;
+            put_open_kind(recovery_decision_protocol::OpenKinds::QUORUM);
             LOG_INFO_FMT(
               "Recovery-decision-protocol succeeded on the quorum path");
           }
@@ -359,8 +373,7 @@ namespace ccf
           AbstractGovernanceEffects::ServiceIdentities identities{
             .previous = prev_ident, .next = service_info->cert};
 
-          sm_state_handle->put(
-            recovery_decision_protocol::StateMachine::OPENING);
+          put_sm_state(recovery_decision_protocol::StateMachine::OPENING);
 
           node_state->transition_service_to_open(tx, identities);
         }
@@ -405,7 +418,7 @@ namespace ccf
       {
         if (valid_timeout)
         {
-          sm_state_handle->put(recovery_decision_protocol::StateMachine::OPEN);
+          put_sm_state(recovery_decision_protocol::StateMachine::OPEN);
         }
         break;
       }
@@ -427,13 +440,11 @@ namespace ccf
       {
         case recovery_decision_protocol::StateMachine::GOSSIPING:
           LOG_TRACE_FMT("Advancing timeout SM to VOTING");
-          timeout_state_handle->put(
-            recovery_decision_protocol::StateMachine::VOTING);
+          put_timeout_state(recovery_decision_protocol::StateMachine::VOTING);
           break;
         case recovery_decision_protocol::StateMachine::VOTING:
           LOG_TRACE_FMT("Advancing timeout SM to OPENING");
-          timeout_state_handle->put(
-            recovery_decision_protocol::StateMachine::OPENING);
+          put_timeout_state(recovery_decision_protocol::StateMachine::OPENING);
           break;
         case recovery_decision_protocol::StateMachine::OPENING:
         case recovery_decision_protocol::StateMachine::JOINING:
@@ -442,12 +453,6 @@ namespace ccf
           LOG_TRACE_FMT("Timeout SM complete");
       }
     }
-
-    // Adds no read dependency: get() returns own writes, else values read above
-    trace_safely([&]() {
-      trace.post = sm_state_handle->get().value_or(sm_state);
-      trace.post_timeout = timeout_state_handle->get().value_or(timeout_state);
-    });
   }
 
   void RecoveryDecisionProtocolSubsystem::start_message_retry_timers()
