@@ -5,6 +5,7 @@
 
 #include "ds/messaging.h"
 #include "ds/ring_buffer.h"
+#include "tasks/job_board.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <chrono>
@@ -332,6 +333,8 @@ namespace
 
     std::filesystem::path ledger_dir;
     std::unique_ptr<asynchost::Ledger> ledger;
+    ccf::tasks::JobBoard job_board;
+    std::unique_ptr<asynchost::LedgerSubsystem> ledger_subsystem;
     std::unique_ptr<asynchost::NodeConnectionsImpl<MockSocket>> connections;
 
     ringbuffer::WriterPtr enclave_writer;
@@ -353,10 +356,19 @@ namespace
       port("0")
     {
       std::filesystem::remove_all(ledger_dir);
-      ledger = std::make_unique<asynchost::Ledger>(ledger_dir.string(), wf);
+      ledger = std::make_unique<asynchost::Ledger>(ledger_dir.string());
+      ledger_subsystem =
+        std::make_unique<asynchost::LedgerSubsystem>(*ledger, 1024, job_board);
       connections =
         std::make_unique<asynchost::NodeConnectionsImpl<MockSocket>>(
-          host_bp.get_dispatcher(), *ledger, wf, host, port, std::nullopt, 2s);
+          host_bp.get_dispatcher(),
+          *ledger,
+          *ledger_subsystem,
+          wf,
+          host,
+          port,
+          std::nullopt,
+          2s);
 
       enclave_writer = wf.create_writer_to_outside();
 
@@ -376,13 +388,21 @@ namespace
     ~TestNode()
     {
       connections.reset();
+      ledger_subsystem.reset();
       ledger.reset();
       std::filesystem::remove_all(ledger_dir);
     }
 
+    // Mirrors production: drain the ringbuffer, run the ledger lane, then
+    // apply the results on the (here, only) thread that owns the sockets.
     void drain_to_host()
     {
       host_bp.read_all(circuit.read_from_inside());
+      while (auto task = job_board.get_task())
+      {
+        task->do_task();
+      }
+      connections->flush_outbound();
     }
 
     void drain_to_enclave()
