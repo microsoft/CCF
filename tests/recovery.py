@@ -145,21 +145,6 @@ def get_replacement_package(args):
     )
 
 
-def get_step_down_commit_seqno(node):
-    """Return the commit seqno a node reported when it first stepped down
-    after being sent SIGTERM (a stop notice)."""
-    seen_stop_notice = False
-    with open(node.remote.remote.out, encoding="utf-8") as f:
-        for line in f:
-            if "SIGTERM: Notifying enclave" in line:
-                seen_stop_notice = True
-            elif seen_stop_notice:
-                m = re.search(r"Becoming follower \S+: \d+\.(\d+)", line)
-                if m:
-                    return int(m.group(1))
-    return None
-
-
 def wait_for_recovery_ledger_chunks_renamed(node, timeout=10):
     """Wait until the node's host has renamed the ledger chunks written during
     recovery. They keep a .recovery suffix, and are skipped by ledger reads that
@@ -213,31 +198,15 @@ def find_service_open_seqnos(node, from_seqno):
 
 
 def recover_with_primary_dying(args, recovered_network, after_backups_recovered=False):
-    # Force an election immediately after the final recovery share is accepted
-    # and check recovery still completes and the service is opened exactly
-    # once. Nodes run with ignore_first_sigterm=True, so SIGTERM'ing the
-    # primary makes it nominate a successor and an election happens
-    # immediately, with no election-timeout wait.
+    # Suspend the primary after the final recovery share commits, so a different
+    # node must be elected. A SIGTERM stop notice only nominates a successor:
+    # if that successor is behind, it can lose and the old primary can win again.
     #
-    # Whether the stop notice lands before or after the primary finishes
-    # reading the private ledger, and before or after its opening commits, is
-    # a race the test cannot control from outside the node. A stop notice only
-    # makes the primary nominate a successor, so it stays leader, and can still
-    # commit, until it sees the successor's higher term. The orderings are:
-    # - the primary steps down before opening, and the new primary opens;
-    # - the primary writes the opening and steps down before it commits: the
-    #   new leader rolls it back unless it holds a signature over it, and opens
-    #   the service itself, even if it completed private recovery as a backup;
-    # - the opening commits before the primary steps down, so the election
-    #   follows a completed recovery.
-    # With a short private ledger the second ordering is the usual one. The
-    # checks below hold in all of them: recovery completes, every survivor stays
-    # healthy, and each survivor's ledger opens the recovered service exactly
-    # once. A second opening would be fatal to the node attempting it, since
-    # opening requires the service to still be waiting for shares (that guard
-    # is unit-tested in open_service_test; the check that only the primary
-    # attempts to open lives in NodeState and is exercised here). The ordering
-    # that occurred is logged.
+    # Private recovery and the service opening may finish before suspension.
+    # If the opening survives the election, the new primary must not open again;
+    # otherwise it must open the service itself, even if it completed private
+    # recovery as a backup. Recovery must complete, every survivor must stay
+    # healthy, and each survivor's ledger must open the service exactly once.
     #
     # With after_backups_recovered, the old primary is instead suspended as
     # soon as every backup has begun private recovery, and a backup is elected
@@ -308,19 +277,15 @@ def recover_with_primary_dying(args, recovered_network, after_backups_recovered=
                 f"to complete private recovery in view {initial_view}"
             )
     else:
-        # SIGTERM (not SIGKILL) the primary: thanks to ignore_first_sigterm it
-        # stays up, treats this as a stop notice and immediately nominates a
-        # successor, which is elected rapidly (no election-timeout wait).
-        LOG.info(f"SIGTERM primary {retired_id} to nominate a successor")
-        retired_primary.sigterm()
+        LOG.info(f"Suspend primary {retired_id} to force failover")
+        retired_primary.suspend()
 
     primary, new_view = recovered_network.wait_for_new_primary(retired_primary)
     assert new_view > initial_view, (new_view, initial_view)
     LOG.info(f"New primary {primary.node_id} elected in view {new_view}")
 
-    # SIGKILL the old primary (it ignored the SIGTERM, or is suspended) and
-    # confirm it is gone before dropping it: SIGKILL is asynchronous, and once
-    # removed nothing else will reap it.
+    # SIGKILL the suspended primary and confirm it is gone before dropping it:
+    # SIGKILL is asynchronous, and once removed nothing else will reap it.
     retired_primary.sigkill()
     assert (
         retired_primary.remote.check_done()
@@ -378,19 +343,11 @@ def recover_with_primary_dying(args, recovered_network, after_backups_recovered=
                 f"Service not opened at {new_view}.{open_seqno} by the new "
                 f"primary, so the old primary's opening was kept: {r.body.json()}"
             )
-    else:
-        step_down_commit_seqno = get_step_down_commit_seqno(retired_primary)
-        if step_down_commit_seqno is not None and step_down_commit_seqno < open_seqno:
-            LOG.info(
-                f"Old primary stepped down at commit seqno {step_down_commit_seqno}, "
-                f"before the service opening at seqno {open_seqno} committed"
-            )
-        else:
-            LOG.warning(
-                f"Service opening at seqno {open_seqno} committed before the old "
-                f"primary stepped down (at commit seqno {step_down_commit_seqno}): "
-                "the election followed a completed recovery"
-            )
+
+    LOG.info(
+        f"Recovered service has exactly one opening at seqno {open_seqno}; "
+        f"new primary {primary.node_id} was elected in view {new_view}"
+    )
 
 
 @reqs.description("Recovery members cannot be changed during recovery")
@@ -795,9 +752,6 @@ def _recover_service(
                 committed_ledger_dirs=committed_ledger_dirs,
                 snapshots_dir=snapshots_dir,
                 service_data_json_file=ntf.name,
-                # Lets recover_with_primary_dying SIGTERM the primary to nominate
-                # a successor rather than killing it outright.
-                ignore_first_sigterm=force_election,
             )
             LOG.info("Check that service data has been set")
             primary, _ = recovered_network.find_primary()
@@ -2261,11 +2215,9 @@ def run_recovery_with_election(args, after_backups_recovered=False):
             )
         finally:
             # Recovered nodes are a separate Network (not torn down by the
-            # context manager) and run with ignore_first_sigterm=True; SIGKILL
-            # them, including any suspended or not yet joined, even if the test
-            # failed, so they don't linger as orphans that ignore the first
-            # teardown SIGTERM. SIGKILL is asynchronous, so confirm each one is
-            # gone (which also reaps it).
+            # context manager). SIGKILL them, including any suspended or not yet
+            # joined, even if the test failed. SIGKILL is asynchronous, so confirm
+            # each one is gone (which also reaps it).
             recovered_nodes = [
                 node
                 for recovered_network in recovered_networks
