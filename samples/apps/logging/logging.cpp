@@ -1438,7 +1438,6 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       }
     }
-    // SNIPPET_END: get_historical_with_receipt
 
     static void handle_get_historical_with_receipt_and_claims(
       ccf::endpoints::ReadOnlyEndpointContext& ctx,
@@ -1483,6 +1482,7 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       }
     }
+    // SNIPPET_END: get_historical_with_receipt
 
     void handle_get_historical_range(
       ccf::endpoints::EndpointContext& ctx,
@@ -2623,7 +2623,6 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
-      // SNIPPET_END: get_historical_with_receipt
 
       static constexpr auto get_historical_range_path =
         "/log/public/historical/range";
