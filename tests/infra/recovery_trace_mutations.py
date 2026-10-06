@@ -30,8 +30,8 @@ PHASES = ["Gossiping", "Voting", "Opening", "Joining", "Open"]
 HANDLERS = {"gossip_accepted", "vote_accepted", "iamopen_accepted", "timeout"}
 PASS, FAIL = "PASS", "FAIL"
 FAILED_TO_TRACE_LINE = (
-    "2026-09-30T07:50:00.000000Z 1   [fail ] de/recovery_decision_protocol.cpp:60"
-    " | Failed to trace recovery-decision-protocol send: injected\n"
+    "2026-09-30T07:50:00.000000Z 1   [fail ] de/recovery_decision_protocol.cpp:68"
+    " | Failed to trace recovery-decision-protocol at line 100: injected\n"
 )
 
 
