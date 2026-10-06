@@ -317,9 +317,11 @@ namespace ccf
       {
         const auto& path =
           config.command.service_signing_key_files.at(identity_type);
-        files::dump(public_key.raw(), path);
+        files::dump(public_key, path);
         LOG_INFO_FMT(
-          "Output {} service signing public key to {}", identity_type, path);
+          "Output {} service signing public key (COSE_Key) to {}",
+          identity_type,
+          path);
       }
     }
   }

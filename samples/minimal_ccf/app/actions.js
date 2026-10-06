@@ -399,9 +399,17 @@ function checkServiceSigningKeys(value, field) {
     throw new Error(`${field} must be an object`);
   }
   checkType(value, "object", field);
-  checkType(value.CLASSICAL, "string", `${field}.CLASSICAL (PEM public key)`);
+  checkType(
+    value.CLASSICAL,
+    "string",
+    `${field}.CLASSICAL (base64-encoded COSE_Key)`,
+  );
   for (const [identityType, key] of Object.entries(value)) {
-    checkType(key, "string", `${field}.${identityType} (PEM public key)`);
+    checkType(
+      key,
+      "string",
+      `${field}.${identityType} (base64-encoded COSE_Key)`,
+    );
   }
 }
 

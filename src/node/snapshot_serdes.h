@@ -264,8 +264,7 @@ namespace ccf
     {
       const auto key =
         get_previous_service_classical_signing_key(prev_service_signing_keys);
-      auto verifier =
-        ccf::crypto::make_cose_verifier_from_key(key->public_key_der());
+      auto verifier = ccf::crypto::make_cose_verifier_from_key(key);
       if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
       {
         throw std::logic_error(
@@ -320,7 +319,8 @@ namespace ccf
     {
       const auto key =
         get_previous_service_classical_signing_key(prev_service_signing_keys);
-      if (!v->verify_certificate_signature(key->public_key_pem()))
+      if (!v->verify_certificate_signature(
+            key.ec_public_key()->public_key_pem()))
       {
         throw std::logic_error(
           "Previous service identity does not endorse the node identity "

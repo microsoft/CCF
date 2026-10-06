@@ -3,10 +3,12 @@
 
 #include "service/tables/identity_types.h"
 
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/kv/unit.h"
 #include "ccf/node/configuration.h"
 #include "ccf/service_signing_keys.h"
 #include "crypto/openssl/ec_key_pair.h"
+#include "node/identity.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <array>
@@ -103,15 +105,15 @@ TEST_CASE("Service signing key files are a JSON object keyed by identity name")
   const nlohmann::json paths = command.service_signing_key_files;
   REQUIRE(
     paths ==
-    nlohmann::json{{"CLASSICAL", "service_signing_key_classical.pem"}});
+    nlohmann::json{{"CLASSICAL", "service_signing_key_classical.cbor"}});
 
   const nlohmann::json custom = {
     {"type", "Start"},
-    {"service_signing_key_files", {{"CLASSICAL", "custom_signing_key.pem"}}}};
+    {"service_signing_key_files", {{"CLASSICAL", "custom_signing_key.cbor"}}}};
   const auto parsed = custom.get<ccf::CCFConfig::Command>();
   REQUIRE(
     parsed.service_signing_key_files.at(ccf::SigningKeyType::CLASSICAL) ==
-    "custom_signing_key.pem");
+    "custom_signing_key.cbor");
   const nlohmann::json round_trip = parsed;
   REQUIRE(
     round_trip.at("service_signing_key_files") ==
@@ -119,15 +121,36 @@ TEST_CASE("Service signing key files are a JSON object keyed by identity name")
 }
 
 TEST_CASE(
-  "Service signing public keys round-trip as PEM strings in a JSON object")
+  "Service signing public keys round-trip as base64 COSE_Keys in a JSON "
+  "object")
 {
   const ccf::crypto::ECKeyPair_OpenSSL key_pair(
     ccf::crypto::CurveID::SECP384R1);
-  const auto public_key = key_pair.public_key_pem();
-  const ccf::ServiceSigningKeys keys{
-    {ccf::SigningKeyType::CLASSICAL, public_key}};
+  const auto public_key =
+    ccf::crypto::make_ec_public_key(key_pair.public_key_der());
+  const auto keys = ccf::service_signing_keys_from_public_key(public_key);
+
+  const auto& cose_key = keys.at(ccf::SigningKeyType::CLASSICAL);
+  const auto parsed = ccf::crypto::COSEKey::from_cbor(cose_key);
+  REQUIRE(parsed.alg() == ccf::cose::alg::ES384);
+  REQUIRE(
+    parsed.ec_public_key()->public_key_der() == public_key->public_key_der());
+  REQUIRE(
+    ccf::parse_classical_signing_key(cose_key)
+      .ec_public_key()
+      ->public_key_der() == public_key->public_key_der());
 
   const nlohmann::json j = keys;
-  REQUIRE(j == nlohmann::json{{"CLASSICAL", public_key.str()}});
+  REQUIRE(
+    j == nlohmann::json{{"CLASSICAL", ccf::crypto::b64_from_raw(cose_key)}});
   REQUIRE(j.get<ccf::ServiceSigningKeys>() == keys);
+
+  INFO("Only EC2 COSE_Keys are CLASSICAL signing keys");
+  REQUIRE_THROWS_AS(
+    ccf::parse_classical_signing_key(
+      ccf::crypto::COSEKey(ccf::crypto::make_rsa_key_pair()).to_cbor(-37)),
+    std::invalid_argument);
+  REQUIRE_THROWS_AS(
+    ccf::parse_classical_signing_key({'n', 'o', 't', ' ', 'c', 'b', 'o', 'r'}),
+    std::invalid_argument);
 }

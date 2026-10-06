@@ -3,10 +3,12 @@
 #pragma once
 
 #include "ccf/cose_signatures_config.h"
+#include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/service_signing_keys.h"
 #include "crypto/certs.h"
+#include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
 
 #include <fmt/format.h>
@@ -18,12 +20,40 @@
 
 namespace ccf
 {
+  // The CLASSICAL service signing key as a COSE_Key, whose alg is the
+  // algorithm of the ledger's COSE signatures with that key
+  inline std::vector<uint8_t> classical_signing_key_cbor(
+    const ccf::crypto::ECPublicKeyPtr& key)
+  {
+    return ccf::crypto::COSEKey(key).to_cbor(
+      ccf::cose::algorithm_for_curve(key->get_curve_id()).alg);
+  }
+
+  // Parses a CLASSICAL service signing key, which may be untrusted
+  inline ccf::crypto::COSEKey parse_classical_signing_key(
+    const std::vector<uint8_t>& cose_key)
+  {
+    auto key = ccf::crypto::COSEKey::from_cbor(cose_key);
+    if (key.kty() != ccf::crypto::COSEKeyType::EC2)
+    {
+      throw std::invalid_argument(fmt::format(
+        "{} service signing key is not an EC2 COSE_Key",
+        SigningKeyType::CLASSICAL));
+    }
+    return key;
+  }
+
+  inline ServiceSigningKeys service_signing_keys_from_public_key(
+    const ccf::crypto::ECPublicKeyPtr& key)
+  {
+    return {{SigningKeyType::CLASSICAL, classical_signing_key_cbor(key)}};
+  }
+
   inline ServiceSigningKeys service_signing_keys_from_certificate(
     const std::vector<uint8_t>& certificate)
   {
-    return {
-      {SigningKeyType::CLASSICAL,
-       ccf::crypto::make_unique_verifier(certificate)->public_key_pem()}};
+    return service_signing_keys_from_public_key(ccf::crypto::make_ec_public_key(
+      ccf::crypto::make_unique_verifier(certificate)->public_key_der()));
   }
 
   // Signing keys take precedence over the deprecated previous service
@@ -44,23 +74,24 @@ namespace ccf
     return std::nullopt;
   }
 
-  inline ccf::crypto::ECPublicKeyPtr get_previous_service_classical_signing_key(
+  inline ccf::crypto::COSEKey get_previous_service_classical_signing_key(
     const std::optional<ServiceSigningKeys>& keys)
   {
     if (!keys.has_value())
     {
       throw std::logic_error("No previous service identity is configured");
     }
-    if (!keys->contains(SigningKeyType::CLASSICAL))
+    const auto key = keys->find(SigningKeyType::CLASSICAL);
+    if (key == keys->end())
     {
       throw std::logic_error(fmt::format(
         "Missing {} previous service signing public key",
         SigningKeyType::CLASSICAL));
     }
-    return ccf::crypto::make_ec_public_key(keys->at(SigningKeyType::CLASSICAL));
+    return parse_classical_signing_key(key->second);
   }
 
-  inline ccf::crypto::ECPublicKeyPtr get_previous_service_classical_signing_key(
+  inline ccf::crypto::COSEKey get_previous_service_classical_signing_key(
     const std::optional<ServiceSigningKeys>& keys,
     const std::optional<std::vector<uint8_t>>& certificate)
   {

@@ -17,10 +17,10 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum, IntEnum, auto
 from typing import ClassVar
 
+import cbor2
 import ccf.ledger
 from ccf.tx_id import TxID
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from cryptography.x509 import load_pem_x509_certificate
 from loguru import logger as LOG
 
@@ -34,7 +34,7 @@ import infra.path
 import infra.proc
 import infra.remote
 from infra.clients import CCFConnectionException, CCFIOException, flush_info
-from infra.consortium import slurp_file
+from infra.consortium import slurp_b64, slurp_bytes, slurp_file
 from infra.node import CCFVersion
 from infra.tx_status import TxStatus
 
@@ -56,7 +56,7 @@ def get_previous_service_identity(args):
         ),
         "previous_service_signing_keys": (
             {
-                identity_type: slurp_file(path)
+                identity_type: slurp_b64(path)
                 for identity_type, path in key_files.items()
             }
             if key_files is not None
@@ -65,12 +65,35 @@ def get_previous_service_identity(args):
     }
 
 
+# COSE curve, signature algorithm and coordinate size by curve name (RFC 9053)
+COSE_EC_CURVES = {
+    "secp256r1": (1, -7, 32),
+    "secp384r1": (2, -35, 48),
+    "secp521r1": (3, -36, 66),
+}
+
+
+def cose_key_from_ec_public_key(public_key):
+    """CBOR-encoded COSE_Key (RFC 9052 Section 7) of an EC public key"""
+    crv, alg, size = COSE_EC_CURVES[public_key.curve.name]
+    numbers = public_key.public_numbers()
+    return cbor2.dumps(
+        {
+            1: 2,  # kty: EC2
+            3: alg,
+            -1: crv,
+            -2: numbers.x.to_bytes(size, "big"),
+            -3: numbers.y.to_bytes(size, "big"),
+        },
+        canonical=True,
+    )
+
+
 def service_signing_key_from_certificate(certificate):
-    return (
-        load_pem_x509_certificate(certificate.encode("ascii"), default_backend())
-        .public_key()
-        .public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
-        .decode("ascii")
+    return cose_key_from_ec_public_key(
+        load_pem_x509_certificate(
+            certificate.encode("ascii"), default_backend()
+        ).public_key()
     )
 
 
@@ -84,14 +107,15 @@ def save_service_signing_keys(certificate_file, directory, key_files=None):
         }
     else:
         keys = {
-            identity_type: slurp_file(path) for identity_type, path in key_files.items()
+            identity_type: slurp_bytes(path)
+            for identity_type, path in key_files.items()
         }
 
     stem = os.path.splitext(os.path.basename(certificate_file))[0]
     paths = {}
     for identity_type, key in keys.items():
-        path = os.path.join(directory, f"{stem}_{identity_type}_pubk.pem")
-        with open(path, "w", encoding="utf-8") as key_file:
+        path = os.path.join(directory, f"{stem}_{identity_type}_pubk.cbor")
+        with open(path, "wb") as key_file:
             key_file.write(key)
         paths[identity_type] = path
     return paths

@@ -220,13 +220,12 @@ namespace ccf
         {
           auto& keys = inputs.previous_service_signing_keys.emplace();
           const auto& path = key_files->at(SigningKeyType::CLASSICAL);
-          LOG_INFO_FMT(
-            "Reading previous CLASSICAL service signing public key from {}",
-            path);
+          const auto description = fmt::format(
+            "previous {} service signing public key",
+            SigningKeyType::CLASSICAL);
+          LOG_INFO_FMT("Reading {} from {}", description, path);
           keys.emplace(
-            SigningKeyType::CLASSICAL,
-            ccf::crypto::Pem(read_startup_file(
-              path, "previous CLASSICAL service signing public key")));
+            SigningKeyType::CLASSICAL, read_startup_file(path, description));
         }
         break;
       }

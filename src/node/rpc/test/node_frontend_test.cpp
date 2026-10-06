@@ -416,7 +416,11 @@ TEST_CASE("Startup inputs are resolved by start type")
     keys_only.command.recover.previous_service_signing_key_files =
       std::map<std::string, std::string>{
         {SigningKeyType::CLASSICAL,
-         write_test_file(dir, "previous_key.pem", kp->public_key_pem().str())}};
+         write_test_file(dir, "previous_key.cbor", [&]() {
+           const auto cose_key = classical_signing_key_cbor(
+             ccf::crypto::make_ec_public_key(kp->public_key_der()));
+           return std::string(cose_key.begin(), cose_key.end());
+         }())}};
     keys_only.command.recover.service_cert_subject_name =
       "CN=Recovered Service";
     const auto inputs = resolve(keys_only, StartType::Recover);

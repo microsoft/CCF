@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import base64
 import datetime
 import glob
 import http
@@ -27,6 +28,15 @@ from infra.proposal import ProposalState
 
 def slurp_file(path):
     return open(path, encoding="utf-8").read()
+
+
+def slurp_bytes(path):
+    with open(path, "rb") as f:
+        return f.read()
+
+
+def slurp_b64(path):
+    return base64.b64encode(slurp_bytes(path)).decode("ascii")
 
 
 def slurp_json(path):
@@ -499,8 +509,8 @@ class Consortium:
 
     def get_service_signing_keys(self):
         return {
-            "CLASSICAL": slurp_file(
-                os.path.join(self.common_dir, "service_signing_key_classical.pem")
+            "CLASSICAL": slurp_b64(
+                os.path.join(self.common_dir, "service_signing_key_classical.cbor")
             )
         }
 

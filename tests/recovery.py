@@ -2267,18 +2267,26 @@ def run_recovery_with_signing_keys_only(args):
             except infra.proposal.ProposalNotCreated as e:
                 assert e.response.status_code == http.HTTPStatus.BAD_REQUEST, e.response
 
-        body, ballot = consortium.make_proposal(
-            action, next_service_signing_keys={"CLASSICAL": "not a PEM key"}
-        )
-        proposal = member.propose(primary, body)
-        try:
-            consortium.vote_using_majority(primary, proposal, ballot)
-            assert False, "Proposal with a non-PEM key should not be accepted"
-        except infra.proposal.ProposalNotAccepted as e:
-            assert (
-                "PEM constructed with non-PEM data"
-                in e.response.body.json()["error"]["message"]
-            ), e.response
+        for malformed_key, expected_error in (
+            ("not base64!", "is not valid base64"),
+            (
+                base64.b64encode(b"not a COSE_Key").decode("ascii"),
+                "Invalid COSE_Key",
+            ),
+        ):
+            body, ballot = consortium.make_proposal(
+                action, next_service_signing_keys={"CLASSICAL": malformed_key}
+            )
+            proposal = member.propose(primary, body)
+            try:
+                consortium.vote_using_majority(primary, proposal, ballot)
+                assert (
+                    False
+                ), f"Proposal with key {malformed_key} should not be accepted"
+            except infra.proposal.ProposalNotAccepted as e:
+                assert (
+                    expected_error in e.response.body.json()["error"]["message"]
+                ), e.response
 
         body, ballot = consortium.make_proposal(
             action, next_service_signing_keys=next_keys

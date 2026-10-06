@@ -28,6 +28,12 @@
 
 auto node_kp = ccf::crypto::make_ec_key_pair();
 
+ccf::ServiceSigningKeys signing_keys_of(const ccf::crypto::ECKeyPairPtr& kp)
+{
+  return ccf::service_signing_keys_from_public_key(
+    ccf::crypto::make_ec_public_key(kp->public_key_der()));
+}
+
 using StringString = ccf::kv::Map<std::string, std::string>;
 namespace fs = std::filesystem;
 
@@ -188,11 +194,8 @@ TEST_CASE("Legacy JSON snapshot receipts are verified with signing keys")
     receipt_str.begin(), receipt_str.end());
   const ccf::SnapshotSegments segments{snapshot, receipt_bytes};
 
-  const ccf::ServiceSigningKeys service_keys{
-    {ccf::SigningKeyType::CLASSICAL, service_kp->public_key_pem()}};
-  const ccf::ServiceSigningKeys other_keys{
-    {ccf::SigningKeyType::CLASSICAL,
-     ccf::crypto::make_ec_key_pair()->public_key_pem()}};
+  const auto service_keys = signing_keys_of(service_kp);
+  const auto other_keys = signing_keys_of(ccf::crypto::make_ec_key_pair());
 
   REQUIRE_NOTHROW(ccf::verify_snapshot(segments, service_keys));
   REQUIRE_THROWS_WITH(
@@ -254,11 +257,8 @@ TEST_CASE("COSE snapshot receipts are verified with signing keys")
   REQUIRE(receipt_bytes.front() == 0xD2);
   const ccf::SnapshotSegments segments{snapshot, receipt_bytes};
 
-  const ccf::ServiceSigningKeys service_keys{
-    {ccf::SigningKeyType::CLASSICAL, service_kp->public_key_pem()}};
-  const ccf::ServiceSigningKeys other_keys{
-    {ccf::SigningKeyType::CLASSICAL,
-     ccf::crypto::make_ec_key_pair()->public_key_pem()}};
+  const auto service_keys = signing_keys_of(service_kp);
+  const auto other_keys = signing_keys_of(ccf::crypto::make_ec_key_pair());
 
   REQUIRE_NOTHROW(ccf::verify_snapshot(segments, service_keys));
   REQUIRE_THROWS_WITH(

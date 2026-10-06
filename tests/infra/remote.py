@@ -873,7 +873,7 @@ class CCFRemote:
                 self.get_service_signing_key_files(dst_path, timeout=timeout)
 
     def get_service_signing_key_files(self, dst_path, timeout=FILE_TIMEOUT_S):
-        self.remote.get("service_signing_key_classical.pem", dst_path, timeout=timeout)
+        self.remote.get("service_signing_key_classical.cbor", dst_path, timeout=timeout)
 
     def debug_node_cmd(self):
         return self.remote.debug_node_cmd()

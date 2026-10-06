@@ -172,12 +172,12 @@
         },
         "service_signing_key_files": {
           "type": "object",
-          "default": { "CLASSICAL": "service_signing_key_classical.pem" },
+          "default": { "CLASSICAL": "service_signing_key_classical.cbor" },
           "properties": {
             "CLASSICAL": {
               "type": "string",
               "minLength": 1,
-              "description": "Output path for the classical service signing public key (PEM)"
+              "description": "Output path for the classical service signing public key (CBOR COSE_Key)"
             }
           },
           "required": ["CLASSICAL"],
@@ -394,7 +394,7 @@
                       "CLASSICAL": {
                         "type": "string",
                         "minLength": 1,
-                        "description": "Path to the previous classical service signing public key (PEM)"
+                        "description": "Path to the previous classical service signing public key (CBOR COSE_Key)"
                       }
                     },
                     "required": ["CLASSICAL"],

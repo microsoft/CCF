@@ -29,7 +29,7 @@
     "type": "Start",
     "service_certificate_file": "service_cert.pem",
     "service_signing_key_files": {
-      "CLASSICAL": "service_signing_key_classical.pem"
+      "CLASSICAL": "service_signing_key_classical.cbor"
     },
     "start": {
       "constitution_files": [

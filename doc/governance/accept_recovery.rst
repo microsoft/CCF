@@ -84,11 +84,11 @@ A member proposes to recover the network and other members can vote on the propo
 
 Once the proposal to recover the network has passed under the rules of the :term:`Constitution`, the recovered service is ready for members to submit their recovery shares.
 
-Members can open the recovered service with either of two proposals. ``transition_service_to_open`` takes ``previous_service_identity`` and ``next_service_identity``, PEM certificates. ``transition_service_to_open_with_signing_keys`` takes ``previous_service_signing_keys`` and ``next_service_signing_keys``, JSON objects mapping identity types to PEM public keys, and does not accept certificates. The previous and next values must match the previous service identity recorded in the ledger and the recovered service, respectively. Each key map must contain a ``CLASSICAL`` key, and only ``CLASSICAL`` keys are compared.
+Members can open the recovered service with either of two proposals. ``transition_service_to_open`` takes ``previous_service_identity`` and ``next_service_identity``, PEM certificates. ``transition_service_to_open_with_signing_keys`` takes ``previous_service_signing_keys`` and ``next_service_signing_keys``, JSON objects mapping identity types to base64-encoded `COSE_Key <https://www.rfc-editor.org/rfc/rfc9052#section-7>`_ public keys, and does not accept certificates. The previous and next values must match the previous service identity recorded in the ledger and the recovered service, respectively. Each key map must contain a ``CLASSICAL`` key, an EC2 ``COSE_Key``, and only ``CLASSICAL`` keys are compared.
 
 The ``previous_service_identity`` argument is deprecated, so recovery proposals should use ``transition_service_to_open_with_signing_keys``. These identities are recorded on the ledger with the proposal.
 
-Each service writes its signing keys to the files configured by ``command.service_signing_key_files``, by default ``service_signing_key_classical.pem``. A ``transition_service_to_open_with_signing_keys`` proposal uses the previous service's file and the recovered service's file:
+Each service writes its signing keys to the files configured by ``command.service_signing_key_files``, by default ``service_signing_key_classical.cbor``. Each file is a CBOR-encoded ``COSE_Key`` whose ``alg`` is the algorithm of the ledger's COSE signatures. A ``transition_service_to_open_with_signing_keys`` proposal uses the base64 encoding of the previous service's file and of the recovered service's file:
 
 .. code-block:: json
 
@@ -98,10 +98,10 @@ Each service writes its signing keys to the files configured by ``command.servic
                 "name": "transition_service_to_open_with_signing_keys",
                 "args": {
                     "previous_service_signing_keys": {
-                        "CLASSICAL": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"
+                        "CLASSICAL": "pAECAzgiIAIhWDA..."
                     },
                     "next_service_signing_keys": {
-                        "CLASSICAL": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"
+                        "CLASSICAL": "pAECAzgiIAIhWDB..."
                     }
                 }
             }

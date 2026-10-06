@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include "ccf/crypto/curve.h"
+#include "ccf/crypto/md_type.h"
+
 #include <cstdint>
 #include <span>
 #include <string>
@@ -18,6 +21,16 @@ namespace ccf
 {
   namespace cose
   {
+    /// COSE algorithm, and its digest, of ECDSA signatures by a key on a curve
+    struct SigningAlgorithm
+    {
+      int64_t alg;
+      crypto::MDType md;
+    };
+
+    /// @throws std::runtime_error if curve is not P-256, P-384 or P-521
+    SigningAlgorithm algorithm_for_curve(crypto::CurveID curve);
+
     std::vector<uint8_t> make_cose_sign1_tbs(
       std::span<const uint8_t> protected_header,
       std::span<const uint8_t> payload);

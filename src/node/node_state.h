@@ -567,10 +567,10 @@ namespace ccf
     void verify_recovery_snapshot_candidate_unsafe(
       const SnapshotSegments& segments, ccf::kv::Version snapshot_seqno)
     {
-      const auto target_key = get_previous_service_classical_signing_key(
-                                startup_inputs.previous_service_signing_keys,
-                                startup_inputs.previous_service_identity)
-                                ->public_key_der();
+      const auto previous_key = get_previous_service_classical_signing_key(
+        startup_inputs.previous_service_signing_keys,
+        startup_inputs.previous_service_identity);
+      const auto target_key = previous_key.ec_public_key()->public_key_der();
       verify_snapshot_seqno(
         segments, network.tables->get_encryptor(), snapshot_seqno);
 
@@ -603,7 +603,7 @@ namespace ccf
       try
       {
         const auto verifier =
-          ccf::crypto::make_cose_verifier_from_key(target_key);
+          ccf::crypto::make_cose_verifier_from_key(previous_key);
         if (verifier->verify_detached(segments.receipt, receipt.merkle_root))
         {
           LOG_INFO_FMT(
@@ -1372,9 +1372,9 @@ namespace ccf
         }
       }
 
-      ServiceSigningKeys service_signing_keys{
-        {SigningKeyType::CLASSICAL,
-         network.identity->get_key_pair()->public_key_pem()}};
+      const auto service_signing_keys =
+        service_signing_keys_from_public_key(ccf::crypto::make_ec_public_key(
+          network.identity->get_key_pair()->public_key_der()));
       return {
         new_self_signed_node_cert,
         network.identity->cert,
@@ -2799,7 +2799,7 @@ namespace ccf
     }
 
     static std::vector<uint8_t> classical_signing_key_der(
-      const ServiceSigningKeys& keys, const char* name)
+      const ServiceSigningKeys& keys, std::string_view role)
     {
       const auto key = keys.find(SigningKeyType::CLASSICAL);
       if (key == keys.end())
@@ -2807,9 +2807,11 @@ namespace ccf
         throw std::logic_error(fmt::format(
           "Missing {} {} service signing key",
           SigningKeyType::CLASSICAL,
-          name));
+          role));
       }
-      return ccf::crypto::make_ec_public_key(key->second)->public_key_der();
+      return parse_classical_signing_key(key->second)
+        .ec_public_key()
+        ->public_key_der();
     }
 
     // Checks the identities in a transition_service_to_open_with_signing_keys

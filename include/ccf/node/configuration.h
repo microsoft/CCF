@@ -228,7 +228,7 @@ namespace ccf
       StartType type = StartType::Start;
       std::string service_certificate_file = "service_cert.pem";
       std::map<std::string, std::string> service_signing_key_files = {
-        {SigningKeyType::CLASSICAL, "service_signing_key_classical.pem"}};
+        {SigningKeyType::CLASSICAL, "service_signing_key_classical.cbor"}};
 
       struct Start
       {

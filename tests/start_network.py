@@ -129,7 +129,7 @@ def run(args):
                 shutil.copy(previous_service_cert, backup_location)
                 args.previous_service_identity_file = backup_location
                 signing_key_file = os.path.join(
-                    args.common_dir, "service_signing_key_classical.pem"
+                    args.common_dir, "service_signing_key_classical.cbor"
                 )
                 args.previous_service_signing_key_files = (
                     infra.network.save_service_signing_keys(
