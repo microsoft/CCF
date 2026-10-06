@@ -372,7 +372,8 @@ namespace ccf::tls
     // Loop-owned connections affected by commands or worker completions.
     std::vector<std::shared_ptr<Conn>> dirty_connections;
     // Remember resumption even if saturation clears between loop passes.
-    std::atomic<bool> recheck_read_interest{false};
+    // Share the queue mutex so a coalesced wake cannot miss a later recheck.
+    bool recheck_read_interest CCF_GUARDED_BY(out_mutex) = false;
 
     // Cross-thread server-cert (re)load requests (deferred cert / rotation),
     // applied on the loop thread so `ctx` is only ever touched there.
@@ -1340,13 +1341,13 @@ namespace ccf::tls
     // Apply worker completions and cross-thread commands on the libuv thread.
     void drain_pending_out() CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
-      const bool recheck_all =
-        recheck_read_interest.exchange(false, std::memory_order_acq_rel);
+      bool recheck_all = false;
       std::vector<OutItem> items;
       std::vector<DriveResult> completions;
       std::vector<std::pair<std::string, std::string>> certs;
       {
         ccf::ds::MutexGuard g(out_mutex);
+        recheck_all = std::exchange(recheck_read_interest, false);
         std::swap(items, pending_out);
         std::swap(completions, completed_drives);
         std::swap(certs, pending_certs);
@@ -1877,8 +1878,10 @@ namespace ccf::tls
           inbound_admission->register_waker([weak = weak_from_this()]() {
             if (auto self = weak.lock())
             {
-              self->recheck_read_interest.store(
-                true, std::memory_order_release);
+              {
+                ccf::ds::MutexGuard g(self->out_mutex);
+                self->recheck_read_interest = true;
+              }
               self->wake();
             }
           });

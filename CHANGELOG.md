@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Ledger chunk download clients can opt in to immutable `.committed_prefix` resources containing recent committed entries that are not yet available in canonical `.committed` files (#8214).
 
+### Fixed
+
+- Paused RPC reads now resume when another interface releases the inbound budget, even if older libuv versions coalesce the notification. Previously, reads could remain paused until an unrelated event triggered a recheck (#8498).
+
 ## [7.0.18]
 
 [7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
@@ -52,6 +56,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf::crypto::Verifier::remaining_seconds()` now returns 0 once the certificate has expired. Previously, the negative remaining duration wrapped around to a very large unsigned value (#8430).
 - `ccf::crypto::ECKeyPair::sign()` and `sign_hash()`, and therefore `ccf.crypto.sign()`, no longer fail with an OpenSSL "output buffer too small" error when signing with a P-521 key loaded from PEM under OpenSSL providers such as SymCrypt (#8428).
 - Where `ccf::crypto` reports an OpenSSL error, it now reads the oldest error on the calling thread's OpenSSL error queue, usually the root cause, then clears the queue, rather than leaving entries behind for a later, unrelated failure to report. Errors that other code leaves on the queue can still be reported by the next such failure (#8474).
+- Miscellaneous bug fixes in the `ccf.ledger` and `ccf.merkletree` Python modules (#8495).
 
 ## [7.0.17]
 
