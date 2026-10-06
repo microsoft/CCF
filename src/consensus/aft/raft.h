@@ -272,10 +272,16 @@ namespace aft
      */
     bool should_apply_backpressure() override
     {
+      if (ledger->is_backlogged())
+      {
+        return true;
+      }
+      if (max_uncommitted_tx_count == 0)
+      {
+        return false;
+      }
       std::unique_lock<ccf::ds::Mutex> guard(state->lock);
-      return ledger->is_backlogged() ||
-        (max_uncommitted_tx_count != 0 &&
-         state->last_idx - state->commit_idx >= max_uncommitted_tx_count);
+      return state->last_idx - state->commit_idx >= max_uncommitted_tx_count;
     }
 
     Consensus::SignatureDisposition get_signature_disposition() override

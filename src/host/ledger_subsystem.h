@@ -216,6 +216,7 @@ namespace asynchost
          committable]() mutable {
           ledger.write_entry(
             pending->entry.data(), pending->entry.size(), committable);
+          // The lane retains completed actions until its whole batch finishes.
           pending.reset();
         });
     }
