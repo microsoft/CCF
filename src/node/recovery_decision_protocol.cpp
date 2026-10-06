@@ -10,7 +10,6 @@
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
 #include "http_client/curl.h"
-#include "kv/committable_tx.h"
 #include "node_state.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
@@ -146,16 +145,7 @@ namespace ccf
       }
       // CCF reports the commit TxID of a transaction that wrote, and the TxID
       // it read at otherwise
-      auto* endpoint_ctx = dynamic_cast<ccf::endpoints::EndpointContext*>(&ctx);
-      auto* tx = endpoint_ctx == nullptr ?
-        nullptr :
-        dynamic_cast<ccf::kv::CommittableTx*>(&endpoint_ctx->tx);
-      if (tx == nullptr)
-      {
-        throw std::logic_error("Committed request has no transaction");
-      }
       (*record)["version"] = txid.seqno;
-      (*record)["wrote"] = tx->commit_version() != ccf::kv::NoVersion;
       emit_trace(std::move(*record));
       ctx.rpc_ctx->set_user_data(nullptr);
     });
