@@ -29,12 +29,9 @@ namespace ccf
     // Sends are only made by the retry task. Each invocation tags its sends
     // with a new batch, so that concurrent invocations can be told apart, and
     // with the version of the sm_state value it read.
-    std::atomic<uint64_t> next_trace_batch = 0;
     thread_local uint64_t current_trace_batch = 0;
     thread_local std::optional<ccf::kv::Version> current_trace_pre_version =
       std::nullopt;
-
-    std::atomic<uint64_t> next_trace_sequence = 0;
 
     // Tracing is enabled by setting the CCF_RECOVERY_TRACE environment variable
     // to a non-empty value. It is read once, on first use.
@@ -83,6 +80,7 @@ namespace ccf
 
   void RecoveryDecisionProtocolSubsystem::emit_trace(nlohmann::json&& record)
   {
+    static std::atomic<uint64_t> next_trace_sequence = 0;
     record["node"] = get_location().name;
     record["sequence"] = next_trace_sequence.fetch_add(1);
     LOG_INFO_FMT("{} {}", recovery_trace_marker, record.dump());
@@ -479,6 +477,7 @@ namespace ccf
         }
         auto& sm_state = sm_state_opt.value();
         trace_safely("batch", [&]() {
+          static std::atomic<uint64_t> next_trace_batch = 0;
           current_trace_batch = next_trace_batch.fetch_add(1);
           // A batch whose version could not be read carries none
           current_trace_pre_version.reset();
