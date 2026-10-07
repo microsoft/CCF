@@ -53,6 +53,7 @@
 #include "node/recovery_snapshot_ledger.h"
 #include "node/retired_nodes_cleanup.h"
 #include "node/rpc/abstract_rpc_sessions.h"
+#include "node/rpc/ledger_interface.h"
 #include "node/runtime_control.h"
 #include "node/signature_cache_subsystem.h"
 #include "node/snapshotter.h"
@@ -69,6 +70,7 @@
 #include "share_manager.h"
 #include "snapshots/fetch.h"
 #include "snapshots/filenames.h"
+#include "tasks/job_board.h"
 
 #include <arpa/inet.h>
 #include <optional>
@@ -450,7 +452,7 @@ namespace ccf
     // kv store, replication, and I/O
     //
     ringbuffer::AbstractWriterFactory& writer_factory;
-    ringbuffer::WriterPtr to_host;
+    std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem;
     ccf::consensus::Configuration consensus_config;
     size_t sig_tx_interval = 0;
     size_t sig_ms_interval = 0;
@@ -830,7 +832,8 @@ namespace ccf
       NetworkState& network,
       std::shared_ptr<AbstractRPCSessions> rpcsessions,
       ccf::crypto::CurveID curve_id_,
-      ccf::AbstractRuntimeControl& runtime_control_) :
+      ccf::AbstractRuntimeControl& runtime_control_,
+      std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(curve_id_)),
@@ -838,7 +841,7 @@ namespace ccf
       node_encrypt_kp(ccf::crypto::make_rsa_key_pair()),
       runtime_control(runtime_control_),
       writer_factory(writer_factory),
-      to_host(writer_factory.create_writer_to_outside()),
+      ledger_subsystem(std::move(ledger_subsystem_)),
       network(network),
       rpcsessions(std::move(rpcsessions)),
       share_manager(network.ledger_secrets),
@@ -875,7 +878,9 @@ namespace ccf
       std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks_,
       std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache_,
       size_t sig_tx_interval_,
-      size_t sig_ms_interval_)
+      size_t sig_ms_interval_,
+      ccf::tasks::JobBoard& job_board_,
+      std::chrono::milliseconds tick_interval_)
     {
       std::lock_guard<ds::Mutex> guard(lock);
       sm.expect(NodeStartupState::uninitialized);
@@ -900,6 +905,7 @@ namespace ccf
       {
         fe->set_sig_intervals(sig_tx_interval, sig_ms_interval);
         fe->set_cmd_forwarder(cmd_forwarder);
+        fe->start_periodic_tick(job_board_, tick_interval_);
       }
     }
 
@@ -2132,7 +2138,7 @@ namespace ccf
       // Note: KV term must be set before the first Tx is committed
       network.tables->rollback(
         {last_recovered_term, last_recovered_signed_idx}, new_term);
-      ledger_truncate(last_recovered_signed_idx, true);
+      truncate_ledger(last_recovered_signed_idx, true);
       snapshotter->rollback(last_recovered_signed_idx);
 
       LOG_INFO_FMT(
@@ -3567,7 +3573,10 @@ namespace ccf
         recovered_service_opening = RecoveredServiceOpening::Committed;
         open_frontend_async(ActorsType::users);
 
-        RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_open, to_host);
+        if (!ledger_subsystem->open())
+        {
+          throw std::logic_error("Ledger rejected open");
+        }
         LOG_INFO_FMT("Service open at seqno {}", hook_version);
       }
     }
@@ -3753,7 +3762,7 @@ namespace ccf
       consensus = std::make_shared<RaftType>(
         consensus_config,
         std::make_unique<aft::Adaptor<ccf::kv::Store>>(network.tables),
-        std::make_unique<::consensus::LedgerEnclave>(writer_factory),
+        std::make_unique<::consensus::LedgerEnclave>(ledger_subsystem),
         n2n_channels,
         shared_state,
         [retired_node_cleanup]() { retired_node_cleanup->cleanup(); },
@@ -3924,18 +3933,46 @@ namespace ccf
 
     void read_ledger_entries(::consensus::Index from, ::consensus::Index to)
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        ::consensus::ledger_get_range,
-        to_host,
-        from,
-        to,
-        ::consensus::LedgerRequestPurpose::Recovery);
+      if (!ledger_subsystem->get_range(
+            from, to, [this](::consensus::LedgerRangeResult&& result) {
+              if (result.status == ::consensus::LedgerRangeStatus::NotFound)
+              {
+                recover_ledger_end();
+              }
+              else if (
+                result.status == ::consensus::LedgerRangeStatus::TooLarge)
+              {
+                throw std::logic_error(fmt::format(
+                  "Ledger entry at {} exceeds the ledger range read budget "
+                  "(memory.max_msg_size minus response metadata)",
+                  result.from));
+              }
+              else if (is_reading_public_ledger())
+              {
+                recover_public_ledger_entries(result.entries);
+              }
+              else if (is_reading_private_ledger())
+              {
+                recover_private_ledger_entries(result.entries);
+              }
+              else
+              {
+                auto [s, _, __] = state();
+                LOG_FAIL_FMT(
+                  "Cannot recover ledger entry: Unexpected node state {}", s);
+              }
+            }))
+      {
+        throw std::logic_error("Ledger rejected recovery range read");
+      }
     }
 
-    void ledger_truncate(::consensus::Index idx, bool recovery_mode = false)
+    void truncate_ledger(::consensus::Index idx, bool recovery_mode = false)
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        ::consensus::ledger_truncate, to_host, idx, recovery_mode);
+      if (!ledger_subsystem->truncate(idx, recovery_mode))
+      {
+        throw std::logic_error("Ledger rejected recovery truncation");
+      }
     }
 
   public:

@@ -37,6 +37,7 @@
 #include "pal/quote_generation.h"
 #include "runtime_control.h"
 #include "sig_term.h"
+#include "task_ticker.h"
 #include "tcp.h"
 #include "ticker.h"
 
@@ -230,7 +231,7 @@ namespace ccf
     ccf::LoggerLevel log_level,
     ringbuffer::NotifyingWriterFactory& notifying_factory,
     ccf::AbstractRuntimeControl& runtime_control,
-    const std::shared_ptr<asynchost::ReadLedgerSubsystem>& ledger_subsystem)
+    const std::shared_ptr<asynchost::LedgerSubsystem>& ledger_subsystem)
   {
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;
@@ -315,7 +316,8 @@ namespace ccf
 
   void run_enclave_threads(
     const ccf::CCFConfig& config,
-    asynchost::RuntimeControlImpl& runtime_control)
+    asynchost::RuntimeControlImpl& runtime_control,
+    asynchost::LedgerSubsystem& ledger_subsystem)
   {
     auto enclave_thread_start = [&](threading::ThreadID thread_id) {
       threading::set_current_thread_id(thread_id);
@@ -357,6 +359,14 @@ namespace ccf
       thread.join();
     }
 
+    // Workers exit as soon as a stop is requested, so ledger mutations which
+    // append()/commit() accepted may still be queued on the ledger lane. Drain
+    // them to disk now, while no worker can run the lane. This must happen
+    // BEFORE enclave_shutdown_tasks(): shutting down the job board abandons
+    // every registered lane's pending actions, which would silently discard
+    // those writes.
+    ledger_subsystem.shutdown();
+
     // Transports and task workers are quiescent. Release queued actions,
     // including paused session queues, before their dependencies are torn down.
     enclave_shutdown_tasks();
@@ -374,6 +384,8 @@ namespace ccf
     // Construct hierarchy of ringbuffer writer factories
     WriterFactories factories(circuit, enclave_config.writer_config);
     auto& writer_factory = factories.writer_factory;
+
+    const asynchost::TaskTicker task_ticker(config.tick_interval);
 
     // provide regular ticks to the enclave
     const asynchost::Ticker ticker(config.tick_interval, writer_factory);
@@ -406,10 +418,17 @@ namespace ccf
 
     asynchost::Ledger ledger(
       config.ledger.directory,
-      writer_factory,
       asynchost::ledger_max_read_cache_files_default,
       config.ledger.read_only_directories);
-    ledger.register_message_handlers(buffer_processor.get_dispatcher());
+
+    // Typed ledger access for the enclave. Only valid while the ledger above
+    // is alive, and shut down before it is destroyed.
+    auto ledger_subsystem = std::make_shared<asynchost::LedgerSubsystem>(
+      ledger,
+      config.memory.max_msg_size.count_bytes() -
+        ::consensus::ledger_range_response_metadata_size,
+      ccf::tasks::get_main_job_board(),
+      config.memory.circuit_size.count_bytes());
 
     if (config.snapshots.read_only_directory.has_value())
     {
@@ -433,17 +452,21 @@ namespace ccf
         config.files_cleanup.max_committed_ledger_chunks);
     }
 
-    // Setup node-to-node connections
+    // Setup node-to-node connections. Outbound messages are ordered behind
+    // the ledger mutations emitted before them, then written on the loop
+    // thread at the same cadence as the ringbuffer is drained.
     auto [node_host, node_port] =
       cli::validate_address(config.network.node_to_node_interface.bind_address);
     asynchost::NodeConnections node(
       buffer_processor.get_dispatcher(),
       ledger,
+      *ledger_subsystem,
       writer_factory,
       node_host,
       node_port,
       config.node_client_interface,
       config.client_connection_timeout);
+    const asynchost::FlushNodeOutbound flush_node_outbound(1ms, node);
     config.network.node_to_node_interface.bind_address =
       ccf::make_net_address(node_host, node_port);
     if (config.network.node_to_node_interface.published_address.empty())
@@ -541,10 +564,7 @@ namespace ccf
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
-    // Create the enclave node. The read-only ledger view is installed as a
-    // node subsystem, and is only valid while the ledger above is alive.
-    auto ledger_subsystem =
-      std::make_shared<asynchost::ReadLedgerSubsystem>(ledger);
+    // Create the enclave node
     auto enclave_creation_result = create_enclave_node(
       config,
       buffer_processor,
@@ -566,8 +586,10 @@ namespace ccf
     // Output certificates to disk
     write_certificates_to_disk(config, node_cert, service_cert);
 
-    // Run enclave threads and event loop
-    run_enclave_threads(config, *runtime_control);
+    // Run enclave threads and event loop. The ledger subsystem is drained
+    // inside, between the enclave threads joining and the job board shutting
+    // down; see run_enclave_threads.
+    run_enclave_threads(config, *runtime_control, *ledger_subsystem);
 
     return std::nullopt;
   }
@@ -832,6 +854,8 @@ namespace ccf
 
     {
       EnclaveConfig enclave_config;
+      enclave_config.tick_interval =
+        std::chrono::milliseconds(config.tick_interval);
       enclave_config.to_enclave_buffer_start = to_enclave_def.data;
       enclave_config.to_enclave_buffer_size = to_enclave_def.size;
       enclave_config.to_enclave_buffer_offsets = &to_enclave_offsets;

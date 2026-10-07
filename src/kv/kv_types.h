@@ -432,7 +432,10 @@ namespace ccf::kv
     virtual bool is_backup() = 0;
     virtual bool is_candidate() = 0;
     virtual bool can_replicate() = 0;
-    virtual bool is_at_max_capacity() = 0;
+
+    // Whether frontends should shed new requests due to local overload.
+    // This does not prevent consensus from processing replication traffic.
+    virtual bool should_apply_backpressure() = 0;
 
     enum class SignatureDisposition : uint8_t
     {

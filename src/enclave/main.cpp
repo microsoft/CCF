@@ -36,8 +36,7 @@ namespace ccf
     size_t num_worker_threads,
     const ccf::ds::WorkBeaconPtr& work_beacon,
     ccf::AbstractRuntimeControl& runtime_control,
-    const std::shared_ptr<AbstractReadLedgerSubsystemInterface>&
-      ledger_subsystem)
+    const std::shared_ptr<AbstractLedgerSubsystemInterface>& ledger_subsystem)
   {
     std::lock_guard<ccf::ds::Mutex> guard(create_lock);
 
@@ -116,6 +115,7 @@ namespace ccf
         std::move(writer_factory),
         ccf_config.ledger_signatures.tx_count,
         ccf_config.ledger_signatures.delay.count_ms(),
+        enclave_config.tick_interval,
         ccf_config.ledger.chunk_size,
         ccf_config.ledger.max_transaction_size,
         ccf_config.consensus,

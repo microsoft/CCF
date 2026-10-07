@@ -21,6 +21,7 @@
 #include "node/internal_tables_access.h"
 #include "node/node_configuration_subsystem.h"
 #include "node/rpc/rpc_handler.h"
+#include "tasks/periodic_task_owner.h"
 
 #define FMT_HEADER_ONLY
 
@@ -31,7 +32,9 @@
 
 namespace ccf
 {
-  class RpcFrontend : public RpcHandler, public ForwardedRpcHandler
+  class RpcFrontend : public RpcHandler,
+                      public ForwardedRpcHandler,
+                      public ccf::tasks::PeriodicTaskOwner
   {
   protected:
     ccf::kv::Store& tables;
@@ -736,7 +739,7 @@ namespace ccf
         {
           if (
             endpoints.apply_uncommitted_tx_backpressure() &&
-            current_consensus->is_at_max_capacity())
+            current_consensus->should_apply_backpressure())
           {
             ctx->set_error(
               HTTP_STATUS_SERVICE_UNAVAILABLE,
@@ -1176,6 +1179,17 @@ namespace ccf
       {
         endpoints.tick(elapsed);
       }
+    }
+
+    void start_periodic_tick(
+      ccf::tasks::JobBoard& job_board,
+      std::chrono::milliseconds period) override
+    {
+      schedule_periodic_task(
+        job_board,
+        period,
+        [this](std::chrono::milliseconds elapsed) { tick(elapsed); },
+        "RPC frontend tick");
     }
   };
 }
