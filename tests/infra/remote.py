@@ -32,6 +32,19 @@ FILE_TIMEOUT_S = 60
 DEFAULT_PERF_RECORD_ARGS = "-m 16 -e task-clock:u -F 99 -g --call-graph dwarf --quiet"
 
 
+def supports_service_signing_keys(version):
+    """
+    Whether nodes of this version write service signing key files, accept
+    command.recover.previous_service_signing_key_files, and open with
+    transition_service_to_open_with_signing_keys. These were introduced after
+    7.0.18; development builds describe themselves as post-releases of the
+    last tag, so this compares against that release rather than the next.
+    """
+    if version is None:
+        return True
+    return ccf._versionifier.to_python_version(version) > Version("7.0.18")
+
+
 class CmdMixin:
     perfable = True
 
@@ -552,7 +565,7 @@ class CCFRemote:
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
-        self.supports_service_signing_keys = version is None
+        self.supports_service_signing_keys = supports_service_signing_keys(version)
         self.local_node_id = local_node_id
         self.pem = f"{local_node_id}.pem"
         self.node_address_file = f"{local_node_id}.node_address"

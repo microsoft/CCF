@@ -2631,7 +2631,7 @@ class Network:
         path, identity = self.save_service_identity_to_file()
         args.previous_service_identity_file = path
         signing_key_file = os.path.join(
-            self.common_dir, "service_signing_key_classical.pem"
+            self.common_dir, "service_signing_key_classical.cbor"
         )
         args.previous_service_signing_key_files = save_service_signing_keys(
             path,

@@ -22,6 +22,7 @@ import infra.member
 import infra.network
 import infra.node
 import infra.proc
+import infra.remote
 from infra.node import CCFVersion
 from infra.proposal import ProposalState
 
@@ -757,7 +758,7 @@ class Consortium:
         args = {}
         if CCFVersion(remote_node.version) > CCFVersion("ccf-2.0.0-rc3"):
             if (
-                CCFVersion(remote_node.version) > CCFVersion("ccf-7.0.18")
+                infra.remote.supports_service_signing_keys(remote_node.version)
                 and previous_service_signing_keys is not None
             ):
                 action = "transition_service_to_open_with_signing_keys"

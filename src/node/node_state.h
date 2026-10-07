@@ -1372,7 +1372,7 @@ namespace ccf
         }
       }
 
-      const auto service_signing_keys =
+      auto service_signing_keys =
         service_signing_keys_from_public_key(ccf::crypto::make_ec_public_key(
           network.identity->get_key_pair()->public_key_der()));
       return {
