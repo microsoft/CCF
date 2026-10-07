@@ -689,6 +689,19 @@ def test_join_rollback_on_primary_isolation(network, args):
 @reqs.description("Forwarding across a partition may trigger a timeout")
 @reqs.at_least_n_nodes(3)
 def test_forwarding_timeout(network, args):
+    def check_timeout_response(response, target):
+        assert response.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, response
+        assert response.headers["content-type"] == "application/json", response
+        error = response.body.json()["error"]
+        assert error["code"] == "ForwardingTimeout", response
+        timeout_ms = backup.host.rpc_interfaces[
+            infra.interfaces.PRIMARY_RPC_INTERFACE
+        ].forwarding_timeout_ms
+        assert error["message"] == (
+            f"Request was forwarded to node n[{target.node_id}], but no response "
+            f"was received after {timeout_ms}ms"
+        ), response
+
     primary, backups = network.find_nodes()
     backup = backups[0]
     key = 42
@@ -709,7 +722,7 @@ def test_forwarding_timeout(network, args):
             # partitioned backups will have an election, and then requests will
             # succeed again
             r = c.post("/app/log/public", {"id": key, "msg": val_b})
-            assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
+            check_timeout_response(r, primary)
 
             network.wait_for_new_primary(primary, nodes=backups)
 
@@ -739,7 +752,7 @@ def test_forwarding_timeout(network, args):
         # NB: Although this backup reports a timeout, the operation was actually
         # successfully forwarded!
         r = c.post("/app/log/public", {"id": key, "msg": val_b})
-        assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
+        check_timeout_response(r, primary)
 
     with primary.client("user0") as c:
         r = c.get(f"/app/log/public?id={key}")

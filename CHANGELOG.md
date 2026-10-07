@@ -13,12 +13,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The `transition_service_to_open_with_signing_keys` proposal action opens a service with `previous_service_signing_keys` and `next_service_signing_keys`, base64-encoded [COSE_Key](https://www.rfc-editor.org/rfc/rfc9052#section-7) public keys, instead of certificates. Nodes write these keys to the files configured by `command.service_signing_key_files`, which recovery accepts through `command.recover.previous_service_signing_key_files`, and return them from `GET /node/service/signing_keys` (#8477).
 
+### Changed
+
+- Ledger writes and reads of uncommitted ledger entries no longer travel over the host-enclave ringbuffer. The number of ledger entries the host has accepted but not yet written to disk was previously bounded by the ringbuffer filling up and stalling the enclave. It is now bounded by a backpressure threshold instead: a node returns `503` `TooManyPendingTransactions` for application and governance requests while the bytes of pending ledger appends are at or above `memory.circuit_size` (16MB by default), and drops incoming `AppendEntries` replication messages, including heartbeats, until the backlog clears. `/node` endpoints are exempt. Threshold crossings are logged. See the Backpressure section of the Resource Usage operations documentation (#8405).
+- The `503` `TooManyPendingTransactions` check for `consensus.max_uncommitted_tx_count` now applies on backups as well as the primary, so a backup whose uncommitted transaction count reaches the limit rejects requests, including reads, rather than serving or forwarding them. Setting `consensus.max_uncommitted_tx_count` to `0` disables only this count-based check, not the ledger write backpressure above (#8405).
+
 ### Deprecated
 
 - The `previous_service_identity` argument of the `transition_service_to_open` proposal and the `command.recover.previous_service_identity_file` configuration option are deprecated in favour of the `transition_service_to_open_with_signing_keys` proposal and `command.recover.previous_service_signing_key_files` respectively. In C++, `ccf::CCFConfig::Command::Recover::previous_service_identity_file` is now `std::optional<std::string>` (#8477).
 
 ### Fixed
 
+- Forwarding timeouts now return HTTP `504` with an `application/json` CCF error envelope and the `ForwardingTimeout` error code, conforming to the governance OpenAPI error schema. The message still identifies the target node and timeout duration (#8518).
 - Paused RPC reads now resume when another interface releases the inbound budget, even if older libuv versions coalesce the notification. Previously, reads could remain paused until an unrelated event triggered a recheck (#8498).
 
 ## [7.0.18]

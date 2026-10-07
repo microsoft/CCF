@@ -682,6 +682,88 @@ TEST_CASE("Endpoints with disabled operator features look like unknown paths")
   }
 }
 
+TEST_CASE("Backpressure sheds reads and writes but exempts node endpoints")
+{
+  struct BackpressureConsensus : public ccf::kv::test::StubConsensus
+  {
+    bool backpressure_required = false;
+
+    bool should_apply_backpressure() override
+    {
+      return backpressure_required;
+    }
+  };
+
+  NetworkState network;
+  prepare_callers(network);
+  auto consensus = std::make_shared<BackpressureConsensus>();
+  network.tables->set_consensus(consensus);
+  StubNodeContext context;
+  UserEndpointRegistry user_registry(context);
+  NodeEndpoints node_registry(network, context);
+  endpoints::EndpointRegistry* registry = &user_registry;
+  bool exempt = false;
+  SUBCASE("Application endpoints") {}
+  SUBCASE("Node endpoints")
+  {
+    registry = &node_registry;
+    exempt = true;
+  }
+
+  size_t executed = 0;
+  auto handler = [&](auto& ctx) {
+    ++executed;
+    ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+  };
+  registry
+    ->make_read_only_endpoint("/read", HTTP_GET, handler, no_auth_required)
+    .set_forwarding_required(endpoints::ForwardingRequired::Never)
+    .install();
+  registry->make_endpoint("/write", HTTP_POST, handler, no_auth_required)
+    .set_forwarding_required(endpoints::ForwardingRequired::Never)
+    .install();
+  RpcFrontend frontend(*network.tables, *registry, context);
+  frontend.open();
+  publish_frontend_state(frontend, network);
+
+  for (auto role :
+       {BackpressureConsensus::Primary,
+        BackpressureConsensus::Backup,
+        BackpressureConsensus::Candidate})
+  {
+    consensus->state = role;
+    for (bool overloaded : {false, true, false})
+    {
+      consensus->backpressure_required = overloaded;
+      for (const auto& [path, verb] :
+           {std::pair{"/read", HTTP_GET}, std::pair{"/write", HTTP_POST}})
+      {
+        INFO(role, overloaded, path);
+        const auto before = executed;
+        ::http::Request request(path, verb);
+        auto ctx =
+          ccf::make_rpc_context(anonymous_session, request.build_request());
+        frontend.process(ctx);
+        REQUIRE_FALSE(ctx->response_is_pending);
+        const auto response = parse_response(ctx->serialise_response());
+        if (overloaded && !exempt)
+        {
+          CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+          CHECK(
+            nlohmann::json::parse(response.body)["error"]["code"] ==
+            ccf::errors::TooManyPendingTransactions);
+          CHECK(executed == before);
+        }
+        else
+        {
+          CHECK(response.status == HTTP_STATUS_OK);
+          CHECK(executed == before + 1);
+        }
+      }
+    }
+  }
+}
+
 TEST_CASE("SignedReq to and from json")
 {
   SignedReq sr;
@@ -1318,6 +1400,66 @@ TEST_CASE("Forwarded request target limit" * doctest::test_suite("forwarding"))
       std::string_view(target).substr(target.find('?') + 1));
     CHECK(forwarded->get_serialised_request() == packed);
   }
+}
+
+TEST_CASE("Forwarding timeout" * doctest::test_suite("forwarding"))
+{
+  struct RecordingResponder : public ccf::AbstractRPCResponder
+  {
+    int64_t session_id = ccf::InvalidSessionId;
+    bool terminate_session = true;
+    std::vector<uint8_t> response;
+
+    bool reply_async(
+      int64_t id,
+      bool terminate_after_reply,
+      std::vector<uint8_t>&& data) override
+    {
+      session_id = id;
+      terminate_session = terminate_after_reply;
+      response = std::move(data);
+      return true;
+    }
+  };
+
+  auto responder = std::make_shared<RecordingResponder>();
+  auto channel = std::make_shared<ChannelStubProxy>();
+  Forwarder<ChannelStubProxy> forwarder(responder, channel, {});
+  constexpr size_t session_id = 42;
+  const NodeId primary_id{"primary"};
+  const std::chrono::milliseconds timeout(50);
+  auto session =
+    std::make_shared<ccf::SessionContext>(session_id, std::vector<uint8_t>{});
+  session->active_view = 1;
+  auto ctx =
+    ccf::make_rpc_context(session, create_simple_request().build_request());
+
+  REQUIRE(forwarder.forward_command(ctx, primary_id, {}, timeout));
+  REQUIRE(channel->size() == 1);
+  CHECK(responder->response.empty());
+
+  ccf::tasks::tick(timeout - std::chrono::milliseconds(1));
+  CHECK(ccf::tasks::get_main_job_board().get_task() == nullptr);
+  CHECK(responder->response.empty());
+
+  ccf::tasks::tick(std::chrono::milliseconds(1));
+  auto task = ccf::tasks::get_main_job_board().get_task();
+  REQUIRE(task != nullptr);
+  task->do_task();
+
+  CHECK(responder->session_id == session_id);
+  CHECK_FALSE(responder->terminate_session);
+  const auto response = parse_response(responder->response);
+  CHECK(response.status == HTTP_STATUS_GATEWAY_TIMEOUT);
+  REQUIRE(
+    response.headers.at(ccf::http::headers::CONTENT_TYPE) ==
+    ccf::http::headervalues::contenttype::JSON);
+  const auto body = nlohmann::json::parse(response.body);
+  CHECK(body["error"]["code"] == "ForwardingTimeout");
+  CHECK(
+    body["error"]["message"] ==
+    "Request was forwarded to node n[primary], but no response was received "
+    "after 50ms");
 }
 
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
