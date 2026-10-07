@@ -629,8 +629,12 @@ namespace ccf::historical
     // same underlying state (and benefit from faster lookup)
     AllRequestedStores all_stores;
 
-    // StatePtr owns payloads, not StoreDetails. Cache-owned wrapper mutations
-    // must schedule a sweep, including supporting and secret-fetch owners.
+    // StatePtr owns payloads, not StoreDetails, so entries in all_stores can
+    // only be created or orphaned under requests_lock. Set when a request is
+    // created, renewed or erased. A sweep which finds a pending fetch re-arms
+    // itself, so handling a fetched entry (which requires a live pending
+    // fetch) and dropping requests for a missing entry (via lru_evict) are
+    // already covered.
     bool store_sweep_required = true;
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
@@ -1114,7 +1118,6 @@ namespace ccf::historical
         std::chrono::duration_cast<std::chrono::milliseconds>(
           seconds_until_expiry);
       const auto expiry_at = add_cache_time(cache_time, ms_until_expiry);
-      const auto previous_next_expiry = next_expiry;
 
       store_sweep_required = true;
 
@@ -1123,11 +1126,12 @@ namespace ccf::historical
       {
         // This is a new handle - insert a newly created Request for it
         it = requests.emplace_hint(it, handle, Request(all_stores));
-        // Keep its initial zero lifetime if constructing the request throws.
-        it->second.expiry_at = cache_time;
-        next_expiry = std::min(next_expiry.value_or(cache_time), cache_time);
         HISTORICAL_LOG("First time I've seen handle {}", handle);
       }
+
+      // Reset the expiry timer as this has just been requested
+      it->second.expiry_at = expiry_at;
+      next_expiry = std::min(next_expiry.value_or(expiry_at), expiry_at);
 
       lru_promote(handle);
 
@@ -1160,11 +1164,6 @@ namespace ccf::historical
       // previous historical ledger secret.
       request.awaiting_ledger_secrets =
         fetch_supporting_secret_if_needed(request.first_requested_seqno());
-
-      // Reset the expiry timer as this has just been requested
-      request.expiry_at = expiry_at;
-      next_expiry =
-        std::min(previous_next_expiry.value_or(expiry_at), expiry_at);
 
       std::vector<StatePtr> trusted_states;
 
@@ -1395,8 +1394,6 @@ namespace ccf::historical
         return false;
       }
 
-      store_sweep_required = true;
-
       ccf::kv::ApplyResult deserialise_result = ccf::kv::ApplyResult::FAIL;
       ccf::ClaimsDigest claims_digest;
       bool has_commit_evidence = false;
@@ -1551,8 +1548,6 @@ namespace ccf::historical
     {
       std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
 
-      store_sweep_required = true;
-
       LOG_TRACE_FMT("handle_no_entry_range({}, {})", from_seqno, to_seqno);
 
       for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
@@ -1656,7 +1651,7 @@ namespace ccf::historical
 
       if (next_expiry.has_value() && cache_time >= *next_expiry)
       {
-        next_expiry.reset();
+        std::optional<std::chrono::milliseconds> earliest_remaining;
         auto it = requests.begin();
         while (it != requests.end())
         {
@@ -1670,19 +1665,16 @@ namespace ccf::historical
           }
           else
           {
-            next_expiry = std::min(
-              next_expiry.value_or(request.expiry_at), request.expiry_at);
+            earliest_remaining = std::min(
+              earliest_remaining.value_or(request.expiry_at),
+              request.expiry_at);
             ++it;
           }
         }
+        next_expiry = earliest_remaining;
       }
 
       lru_shrink_to_fit(soft_store_cache_limit);
-
-      if (requests.empty())
-      {
-        next_expiry.reset();
-      }
 
       if (store_sweep_required)
       {

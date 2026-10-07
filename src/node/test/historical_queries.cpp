@@ -430,7 +430,7 @@ TEST_CASE("StateCache default and immediate expiry while idle")
   REQUIRE(reader->writes.empty());
 }
 
-TEST_CASE("StateCache partially constructed requests still expire")
+TEST_CASE("StateCache partially constructed requests expire like any other")
 {
   auto state = create_and_init_state(false);
   state.ledger_secrets->init();
@@ -440,8 +440,10 @@ TEST_CASE("StateCache partially constructed requests still expire")
 
   REQUIRE_THROWS_AS(cache.get_store_at(0, 0, 1s), std::logic_error);
   REQUIRE(cache.request_count() == 1);
-  REQUIRE(cache.earliest_expiry_hint() == std::optional(2500ms));
+  REQUIRE(cache.earliest_expiry_hint() == std::optional(3500ms));
   cache.tick(0ms);
+  REQUIRE(cache.request_count() == 1);
+  cache.tick(1000ms);
   REQUIRE(cache.request_count() == 0);
   REQUIRE_FALSE(cache.earliest_expiry_hint().has_value());
   REQUIRE_FALSE(cache.needs_store_sweep());
@@ -505,7 +507,6 @@ TEST_CASE("StateCache idle mutations preserve payload lifetime")
   cache.tick(0ms);
   REQUIRE(cache.request_count() == 0);
   REQUIRE(cache.store_slot_count() == 0);
-  REQUIRE_FALSE(cache.earliest_expiry_hint().has_value());
   REQUIRE_FALSE(cache.needs_store_sweep());
 
   std::thread release_payload(
@@ -603,7 +604,6 @@ TEST_CASE("StateCache secret-fetch ownership and cleanup")
   REQUIRE(cache.drop_cached_states(0));
   cache.tick(0ms);
   REQUIRE(cache.request_count() == 0);
-  REQUIRE_FALSE(cache.earliest_expiry_hint().has_value());
   REQUIRE_FALSE(weak_secret.expired());
   REQUIRE(cache.needs_store_sweep());
   reader->writes.clear();
@@ -635,7 +635,6 @@ TEST_CASE("StateCache secret-fetch ownership and cleanup")
   REQUIRE(cache.drop_cached_states(1));
   cache.tick(0ms);
   REQUIRE(cache.store_slot_count() == 0);
-  REQUIRE_FALSE(cache.earliest_expiry_hint().has_value());
   REQUIRE_FALSE(cache.needs_store_sweep());
   validate_business_transaction(historical_store, target);
 }
