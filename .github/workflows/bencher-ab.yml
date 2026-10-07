@@ -21,7 +21,7 @@ jobs:
   benchmark_pr:
     name: Benchmark PR
     runs-on: [gha-vmss-d16av7-ci]
-    if: ${{ (github.event.action == 'labeled' && github.event.label.name == 'bench-ab') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'bench-ab')) }}
+    if: ${{ github.head_ref != 'agents/gh-rate-limit-mitigation-strategies' && ((github.event.action == 'labeled' && github.event.label.name == 'bench-ab') || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'bench-ab'))) }}
     env:
       BRANCH_PERF_ARTIFACT: perf-bench-virtual-pr-${{ github.event.pull_request.number }}
     container:

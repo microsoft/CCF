@@ -23,6 +23,7 @@ env:
 
 jobs:
   vmss-virtual-a:
+    if: github.head_ref != 'agents/gh-rate-limit-mitigation-strategies'
     name: "VMSS Virtual A" # CI Checks, Clang Tidy, Python package tests, Doc build, Unit tests, e2e (bucket_a)
     runs-on: [gha-vmss-d16av7-ci]
     container:
@@ -109,6 +110,7 @@ jobs:
         if: success() || failure()
 
   vmss-virtual-b:
+    if: github.head_ref != 'agents/gh-rate-limit-mitigation-strategies'
     name: "VMSS Virtual B" # End-to-end tests (bucket_b)
     runs-on: [gha-vmss-d16av7-ci-b]
     container:
@@ -182,9 +184,14 @@ jobs:
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
+    env:
+      # Temporary DNS-only PR; remove this wiring before merging.
+      DNS_PROBE: ${{ github.head_ref == 'agents/gh-rate-limit-mitigation-strategies' }}
+      DNS_PROBE_OUTPUT: /tmp/ccf-dns-probe-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
       - name: "Checkout dependencies"
+        if: env.DNS_PROBE != 'true'
         shell: bash
         run: |
           set -ex
@@ -192,14 +199,47 @@ jobs:
           tdnf -y update
           tdnf -y install ca-certificates git
 
+      - name: "Install DNS probe tools"
+        if: env.DNS_PROBE == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$DNS_PROBE_OUTPUT"
+          date -u > "$DNS_PROBE_OUTPUT/setup-start.txt"
+          cp /etc/resolv.conf "$DNS_PROBE_OUTPUT/setup-resolv.conf"
+          {
+            gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+            tdnf -y update
+            tdnf -y install ca-certificates git python3 bind-utils
+          } 2>&1 | tee "$DNS_PROBE_OUTPUT/setup.log"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
+      - name: "Probe DNS"
+        if: env.DNS_PROBE == 'true'
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/dns_probe.py 2>&1 | tee "$DNS_PROBE_OUTPUT/probe.log"
+
+      - name: "Upload DNS diagnostics"
+        if: always() && env.DNS_PROBE == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dns-probe-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.DNS_PROBE_OUTPUT }}
+          if-no-files-found: error
+          retention-days: 7
+
       - name: "Install dependencies"
+        if: env.DNS_PROBE != 'true'
         uses: ./.github/actions/install-ci-dependencies
 
       - name: "Build Debug"
+        if: env.DNS_PROBE != 'true'
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
@@ -210,6 +250,7 @@ jobs:
         shell: bash
 
       - name: "Test virtual"
+        if: env.DNS_PROBE != 'true'
         run: |
           set -ex
           cd build
@@ -220,6 +261,7 @@ jobs:
         shell: bash
 
       - name: "Run partitions tests"
+        if: env.DNS_PROBE != 'true'
         run: |
           set -ex
           cd build
@@ -238,9 +280,10 @@ jobs:
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
-        if: success() || failure()
+        if: (success() || failure()) && env.DNS_PROBE != 'true'
 
   aci_snp_genoa:
+    if: github.head_ref != 'agents/gh-rate-limit-mitigation-strategies'
     name: "ACI SNP Genoa"
     runs-on: [gha-aci-genoa]
 
