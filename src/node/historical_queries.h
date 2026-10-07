@@ -14,6 +14,7 @@
 #include "node/rpc/node_interface.h"
 #include "node/tx_receipt_impl.h"
 #include "service/tables/node_signature.h"
+#include "tasks/periodic_task_owner.h"
 
 #include <list>
 #include <map>
@@ -1740,7 +1741,9 @@ namespace ccf::historical
     }
   };
 
-  class StateCache : public StateCacheImpl, public AbstractStateCache
+  class StateCache : public StateCacheImpl,
+                     public AbstractStateCache,
+                     public ccf::tasks::PeriodicTaskOwner
   {
   protected:
     CompoundHandle make_compound_handle(RequestHandle rh)
@@ -1752,6 +1755,16 @@ namespace ccf::historical
     template <typename... Ts>
     StateCache(Ts&&... ts) : StateCacheImpl(std::forward<Ts>(ts)...)
     {}
+
+    void start_periodic_tick(
+      ccf::tasks::JobBoard& job_board, std::chrono::milliseconds period)
+    {
+      schedule_periodic_task(
+        job_board,
+        period,
+        [this](std::chrono::milliseconds elapsed) { tick(elapsed); },
+        "Historical state cache tick");
+    }
 
     ccf::kv::ReadOnlyStorePtr get_store_at(
       RequestHandle handle,

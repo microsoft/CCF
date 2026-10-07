@@ -54,7 +54,391 @@ namespace ccf::js
     return std::string(sv);
   }
 
-  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
+  namespace
+  {
+    std::string error_message_or_timeout(
+      const ccf::js::core::Context& ctx, std::string error_msg)
+    {
+      if (ctx.interrupt_data.request_timed_out)
+      {
+        return "Operation took too long to complete.";
+      }
+      return error_msg;
+    }
+
+    // Sets a 500 response for a JS exception, including the exception's
+    // details only if the runtime options allow it.
+    void set_js_exception_error(
+      const ccf::js::core::Context& ctx,
+      const ccf::endpoints::EndpointContext& endpoint_ctx,
+      const ccf::JSRuntimeOptions& options,
+      const std::string& reason,
+      const std::optional<std::string>& trace,
+      const std::string& error_msg)
+    {
+      if (options.return_exception_details)
+      {
+        std::vector<nlohmann::json> details = {ccf::ODataJSExceptionDetails{
+          ccf::errors::JSException, reason, trace}};
+        endpoint_ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          error_message_or_timeout(ctx, error_msg),
+          details);
+      }
+      else
+      {
+        endpoint_ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          error_message_or_timeout(ctx, error_msg));
+      }
+    }
+
+    void report_js_exception(
+      const ccf::js::core::Context& ctx,
+      const ccf::endpoints::EndpointContext& endpoint_ctx,
+      const ccf::JSRuntimeOptions& options,
+      const std::string& reason,
+      const std::optional<std::string>& trace,
+      const std::string& error_msg)
+    {
+      if (options.log_exception_details)
+      {
+        CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
+      }
+
+      set_js_exception_error(
+        ctx, endpoint_ctx, options, reason, trace, error_msg);
+    }
+
+    void set_execution_error(
+      ccf::js::core::Context& ctx,
+      const ccf::endpoints::EndpointContext& endpoint_ctx,
+      const ccf::JSRuntimeOptions& options,
+      const std::string& reason)
+    {
+      // If a JavaScript exception is still pending (for instance because
+      // JS_CHECK_OR_THROW fired inside an extension's install(), or because
+      // create_request_obj tripped a limit), drain it so this cached
+      // interpreter is not returned to the pool with a stale exception, and
+      // fold its details into the reported error under the same gating as
+      // other error paths.
+      std::string full_reason = reason;
+      std::optional<std::string> trace = std::nullopt;
+      if (JS_HasException(ctx) != 0)
+      {
+        auto [js_reason, js_trace] = ctx.error_message();
+        full_reason = fmt::format("{}: {}", reason, js_reason);
+        trace = std::move(js_trace);
+      }
+
+      if (options.log_exception_details)
+      {
+        CCF_APP_FAIL("{}", full_reason);
+      }
+
+      set_js_exception_error(
+        ctx,
+        endpoint_ctx,
+        options,
+        full_reason,
+        trace,
+        "Exception thrown while executing.");
+    }
+
+    // Reports the pending JS exception raised while reading the endpoint
+    // function's return value.
+    void set_response_error(
+      ccf::js::core::Context& ctx,
+      const ccf::endpoints::EndpointContext& endpoint_ctx,
+      const ccf::JSRuntimeOptions& options,
+      const std::string& error_msg)
+    {
+      auto [reason, trace] = ctx.error_message();
+      report_js_exception(ctx, endpoint_ctx, options, reason, trace, error_msg);
+    }
+
+    void set_body_conversion_error(
+      ccf::js::core::Context& ctx,
+      const ccf::endpoints::EndpointContext& endpoint_ctx,
+      const ccf::JSRuntimeOptions& options,
+      const std::string& error_msg)
+    {
+      auto [reason, trace] = ctx.error_message();
+
+      if (options.log_exception_details)
+      {
+        CCF_APP_FAIL(
+          "Failed to convert return value to JSON:{} {}",
+          reason,
+          trace.value_or("<no trace>"));
+      }
+
+      set_js_exception_error(
+        ctx, endpoint_ctx, options, reason, trace, error_msg);
+    }
+
+    // Converts a response body which is neither a TypedArray nor an
+    // ArrayBuffer to a string, setting the matching content-type header.
+    // Returns nullopt if an error response was set instead.
+    std::optional<std::string> body_to_string(
+      ccf::js::core::Context& ctx,
+      const ccf::endpoints::EndpointContext& endpoint_ctx,
+      const ccf::JSRuntimeOptions& options,
+      const ccf::js::core::JSWrappedValue& response_body_js)
+    {
+      std::optional<std::string> str;
+      if (response_body_js.is_str())
+      {
+        endpoint_ctx.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        str = ctx.to_str(response_body_js);
+      }
+      else
+      {
+        endpoint_ctx.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        auto rval = ctx.json_stringify(response_body_js);
+        if (rval.is_exception())
+        {
+          // Unlike the other body errors, this message has no trailing period
+          // when exception details are returned.
+          set_body_conversion_error(
+            ctx,
+            endpoint_ctx,
+            options,
+            options.return_exception_details ?
+              "Invalid endpoint function return value (error during JSON "
+              "conversion of body)" :
+              "Invalid endpoint function return value (error during JSON "
+              "conversion of body).");
+          return std::nullopt;
+        }
+        str = ctx.to_str(rval);
+      }
+
+      if (!str)
+      {
+        set_body_conversion_error(
+          ctx,
+          endpoint_ctx,
+          options,
+          "Invalid endpoint function return value (error during string "
+          "conversion of body).");
+      }
+      return str;
+    }
+
+    // Sets the response body, and a default content-type header, from the
+    // endpoint function's return value. Returns false if an error response was
+    // set instead.
+    bool set_response_body_from_js(
+      ccf::js::core::Context& ctx,
+      const ccf::endpoints::EndpointContext& endpoint_ctx,
+      const ccf::JSRuntimeOptions& options,
+      const ccf::js::core::JSWrappedValue& val)
+    {
+      auto response_body_js = val["body"];
+      if (response_body_js.is_exception())
+      {
+        set_response_error(
+          ctx,
+          endpoint_ctx,
+          options,
+          "Invalid endpoint function return value (error reading body).");
+        return false;
+      }
+
+      if (!response_body_js.is_undefined())
+      {
+        std::vector<uint8_t> response_body;
+        size_t buf_size = 0;
+        size_t buf_offset = 0;
+        auto typed_array_buffer = ctx.get_typed_array_buffer(
+          response_body_js, &buf_offset, &buf_size, nullptr);
+        uint8_t* array_buffer = nullptr;
+        if (!typed_array_buffer.is_exception())
+        {
+          size_t buf_size_total = 0;
+          array_buffer =
+            JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer.val);
+          if (array_buffer != nullptr)
+          {
+            // JS_GetTypedArrayBuffer returns the typed array's construction-
+            // time byte length, which for length-tracking views over a
+            // resizable ArrayBuffer can exceed the buffer's current size
+            // after a resize()/transfer(). Additionally, a script-side
+            // byteLength getter override must not be able to widen the copy.
+            // Clamp the copy strictly against the backing buffer's real
+            // current size, treating an out-of-bounds byteOffset as an
+            // empty view (matching how QuickJS treats out-of-bounds views).
+            // Only advance the pointer by an in-bounds offset; advancing a
+            // pointer past one-past-the-end is undefined behaviour, so in
+            // the OOB case clamp the offset to buf_size_total (which is
+            // one-past-the-end of the allocation) and set buf_size to 0.
+            if (buf_offset > buf_size_total)
+            {
+              buf_offset = buf_size_total;
+              buf_size = 0;
+            }
+            else
+            {
+              buf_size = std::min(buf_size, buf_size_total - buf_offset);
+            }
+            array_buffer += buf_offset;
+          }
+        }
+        else
+        {
+          array_buffer =
+            JS_GetArrayBuffer(ctx, &buf_size, response_body_js.val);
+        }
+        if (array_buffer != nullptr)
+        {
+          endpoint_ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE,
+            http::headervalues::contenttype::OCTET_STREAM);
+          response_body =
+            std::vector<uint8_t>(array_buffer, array_buffer + buf_size);
+        }
+        else
+        {
+          auto str =
+            body_to_string(ctx, endpoint_ctx, options, response_body_js);
+          if (!str)
+          {
+            return false;
+          }
+
+          response_body = std::vector<uint8_t>(str->begin(), str->end());
+        }
+        endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
+      }
+
+      return true;
+    }
+
+    // Sets response headers from the endpoint function's return value.
+    // Returns false if an error response was set instead.
+    bool set_response_headers_from_js(
+      ccf::js::core::Context& ctx,
+      const ccf::endpoints::EndpointContext& endpoint_ctx,
+      const ccf::JSRuntimeOptions& options,
+      const ccf::js::core::JSWrappedValue& val)
+    {
+      auto response_headers_js = val["headers"];
+      if (response_headers_js.is_exception())
+      {
+        set_response_error(
+          ctx,
+          endpoint_ctx,
+          options,
+          "Invalid endpoint function return value (error reading headers).");
+        return false;
+      }
+
+      if (response_headers_js.is_obj())
+      {
+        try
+        {
+          ccf::js::core::JSWrappedPropertyEnum prop_enum(
+            ctx, response_headers_js);
+          for (size_t i = 0; i < prop_enum.size(); i++)
+          {
+            auto prop_name = ctx.to_str(prop_enum[i]);
+            if (!prop_name)
+            {
+              set_response_error(
+                ctx,
+                endpoint_ctx,
+                options,
+                "Invalid endpoint function return value (header type).");
+              return false;
+            }
+            auto prop_val = response_headers_js[*prop_name];
+            if (prop_val.is_exception())
+            {
+              set_response_error(
+                ctx,
+                endpoint_ctx,
+                options,
+                "Invalid endpoint function return value (error reading header "
+                "value).");
+              return false;
+            }
+
+            auto prop_val_str = ctx.to_str(prop_val);
+            if (!prop_val_str)
+            {
+              set_response_error(
+                ctx,
+                endpoint_ctx,
+                options,
+                "Invalid endpoint function return value (header value type).");
+              return false;
+            }
+            endpoint_ctx.rpc_ctx->set_response_header(
+              *prop_name, *prop_val_str);
+          }
+        }
+        catch (const std::logic_error&)
+        {
+          set_response_error(
+            ctx,
+            endpoint_ctx,
+            options,
+            "Invalid endpoint function return value (error reading header "
+            "names).");
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    // Sets the response status code from the endpoint function's return
+    // value, defaulting to 200. Returns the status code, or nullopt if an
+    // error response was set instead.
+    std::optional<int> set_response_status_from_js(
+      ccf::js::core::Context& ctx,
+      const ccf::endpoints::EndpointContext& endpoint_ctx,
+      const ccf::JSRuntimeOptions& options,
+      const ccf::js::core::JSWrappedValue& val)
+    {
+      int response_status_code = HTTP_STATUS_OK;
+      auto status_code_js = val["statusCode"];
+      if (status_code_js.is_exception())
+      {
+        set_response_error(
+          ctx,
+          endpoint_ctx,
+          options,
+          "Invalid endpoint function return value (error reading status "
+          "code).");
+        return std::nullopt;
+      }
+
+      if (
+        !status_code_js.is_undefined() && (JS_IsNull(status_code_js.val) == 0))
+      {
+        if (JS_VALUE_GET_TAG(status_code_js.val) != JS_TAG_INT)
+        {
+          endpoint_ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            error_message_or_timeout(
+              ctx,
+              "Invalid endpoint function return value (status code type)."));
+          return std::nullopt;
+        }
+        response_status_code = JS_VALUE_GET_INT(status_code_js.val);
+      }
+      endpoint_ctx.rpc_ctx->set_response_status(response_status_code);
+      return response_status_code;
+    }
+  }
+
   void BaseDynamicJSEndpointRegistry::do_execute_request(
     const CustomJSEndpoint* endpoint,
     ccf::endpoints::EndpointContext& endpoint_ctx,
@@ -123,54 +507,6 @@ namespace ccf::js
     const auto options = options_opt.value_or(ccf::JSRuntimeOptions());
     const ccf::js::core::RuntimeLimitsScope runtime_limits(
       ctx, options, ccf::js::core::RuntimeLimitsPolicy::NONE);
-
-    const auto error_message_or_timeout = [&](std::string error_msg) {
-      if (ctx.interrupt_data.request_timed_out)
-      {
-        return std::string("Operation took too long to complete.");
-      }
-      return error_msg;
-    };
-
-    const auto set_execution_error = [&](const std::string& reason) {
-      // If a JavaScript exception is still pending (for instance because
-      // JS_CHECK_OR_THROW fired inside an extension's install(), or because
-      // create_request_obj tripped a limit), drain it so this cached
-      // interpreter is not returned to the pool with a stale exception, and
-      // fold its details into the reported error under the same gating as
-      // other error paths.
-      std::string full_reason = reason;
-      std::optional<std::string> trace = std::nullopt;
-      if (JS_HasException(ctx) != 0)
-      {
-        auto [js_reason, js_trace] = ctx.error_message();
-        full_reason = fmt::format("{}: {}", reason, js_reason);
-        trace = std::move(js_trace);
-      }
-
-      if (options.log_exception_details)
-      {
-        CCF_APP_FAIL("{}", full_reason);
-      }
-
-      if (options.return_exception_details)
-      {
-        std::vector<nlohmann::json> details = {ccf::ODataJSExceptionDetails{
-          ccf::errors::JSException, full_reason, trace}};
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          error_message_or_timeout("Exception thrown while executing."),
-          details);
-      }
-      else
-      {
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          error_message_or_timeout("Exception thrown while executing."));
-      }
-    };
 
     // Extensions with a dependency on this endpoint context (invocation),
     // which must be removed after execution.
@@ -281,7 +617,7 @@ namespace ccf::js
       }
       catch (const std::exception& exc)
       {
-        set_execution_error(exc.what());
+        set_execution_error(ctx, endpoint_ctx, options, exc.what());
         return;
       }
     }
@@ -305,59 +641,15 @@ namespace ccf::js
     if (js_error.has_value())
     {
       auto& [reason, trace] = js_error.value();
-
-      if (options.log_exception_details)
-      {
-        CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
-      }
-
-      if (options.return_exception_details)
-      {
-        std::vector<nlohmann::json> details = {ccf::ODataJSExceptionDetails{
-          ccf::errors::JSException, reason, trace}};
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          error_message_or_timeout("Exception thrown while executing."),
-          details);
-      }
-      else
-      {
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          error_message_or_timeout("Exception thrown while executing."));
-      }
-
+      report_js_exception(
+        ctx,
+        endpoint_ctx,
+        options,
+        reason,
+        trace,
+        "Exception thrown while executing.");
       return;
     }
-
-    const auto set_response_error = [&](const std::string& error_msg) {
-      auto [reason, trace] = ctx.error_message();
-
-      if (options.log_exception_details)
-      {
-        CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
-      }
-
-      if (options.return_exception_details)
-      {
-        std::vector<nlohmann::json> details = {ccf::ODataJSExceptionDetails{
-          ccf::errors::JSException, reason, trace}};
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          error_message_or_timeout(error_msg),
-          details);
-      }
-      else
-      {
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          error_message_or_timeout(error_msg));
-      }
-    };
 
     // Handle return value: {body, headers, statusCode}
     if (!val.is_obj())
@@ -370,247 +662,21 @@ namespace ccf::js
     }
 
     // Response body (also sets a default response content-type header)
+    if (!set_response_body_from_js(ctx, endpoint_ctx, options, val))
     {
-      auto response_body_js = val["body"];
-      if (response_body_js.is_exception())
-      {
-        set_response_error(
-          "Invalid endpoint function return value (error reading body).");
-        return;
-      }
-
-      if (!response_body_js.is_undefined())
-      {
-        std::vector<uint8_t> response_body;
-        size_t buf_size = 0;
-        size_t buf_offset = 0;
-        auto typed_array_buffer = ctx.get_typed_array_buffer(
-          response_body_js, &buf_offset, &buf_size, nullptr);
-        uint8_t* array_buffer = nullptr;
-        if (!typed_array_buffer.is_exception())
-        {
-          size_t buf_size_total = 0;
-          array_buffer =
-            JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer.val);
-          if (array_buffer != nullptr)
-          {
-            // JS_GetTypedArrayBuffer returns the typed array's construction-
-            // time byte length, which for length-tracking views over a
-            // resizable ArrayBuffer can exceed the buffer's current size
-            // after a resize()/transfer(). Additionally, a script-side
-            // byteLength getter override must not be able to widen the copy.
-            // Clamp the copy strictly against the backing buffer's real
-            // current size, treating an out-of-bounds byteOffset as an
-            // empty view (matching how QuickJS treats out-of-bounds views).
-            // Only advance the pointer by an in-bounds offset; advancing a
-            // pointer past one-past-the-end is undefined behaviour, so in
-            // the OOB case clamp the offset to buf_size_total (which is
-            // one-past-the-end of the allocation) and set buf_size to 0.
-            if (buf_offset > buf_size_total)
-            {
-              buf_offset = buf_size_total;
-              buf_size = 0;
-            }
-            else
-            {
-              buf_size = std::min(buf_size, buf_size_total - buf_offset);
-            }
-            array_buffer += buf_offset;
-          }
-        }
-        else
-        {
-          array_buffer =
-            JS_GetArrayBuffer(ctx, &buf_size, response_body_js.val);
-        }
-        if (array_buffer != nullptr)
-        {
-          endpoint_ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE,
-            http::headervalues::contenttype::OCTET_STREAM);
-          response_body =
-            std::vector<uint8_t>(array_buffer, array_buffer + buf_size);
-        }
-        else
-        {
-          std::optional<std::string> str;
-          if (response_body_js.is_str())
-          {
-            endpoint_ctx.rpc_ctx->set_response_header(
-              http::headers::CONTENT_TYPE,
-              http::headervalues::contenttype::TEXT);
-            str = ctx.to_str(response_body_js);
-          }
-          else
-          {
-            endpoint_ctx.rpc_ctx->set_response_header(
-              http::headers::CONTENT_TYPE,
-              http::headervalues::contenttype::JSON);
-            auto rval = ctx.json_stringify(response_body_js);
-            if (rval.is_exception())
-            {
-              auto [reason, trace] = ctx.error_message();
-
-              if (options.log_exception_details)
-              {
-                CCF_APP_FAIL(
-                  "Failed to convert return value to JSON:{} {}",
-                  reason,
-                  trace.value_or("<no trace>"));
-              }
-
-              if (options.return_exception_details)
-              {
-                std::vector<nlohmann::json> details = {
-                  ccf::ODataJSExceptionDetails{
-                    ccf::errors::JSException, reason, trace}};
-                endpoint_ctx.rpc_ctx->set_error(
-                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                  ccf::errors::InternalError,
-                  error_message_or_timeout(
-                    "Invalid endpoint function return value (error during JSON "
-                    "conversion of body)"),
-                  details);
-              }
-              else
-              {
-                endpoint_ctx.rpc_ctx->set_error(
-                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                  ccf::errors::InternalError,
-                  error_message_or_timeout(
-                    "Invalid endpoint function return value (error during JSON "
-                    "conversion of body)."));
-              }
-              return;
-            }
-            str = ctx.to_str(rval);
-          }
-
-          if (!str)
-          {
-            auto [reason, trace] = ctx.error_message();
-
-            if (options.log_exception_details)
-            {
-              CCF_APP_FAIL(
-                "Failed to convert return value to JSON:{} {}",
-                reason,
-                trace.value_or("<no trace>"));
-            }
-
-            if (options.return_exception_details)
-            {
-              std::vector<nlohmann::json> details = {
-                ccf::ODataJSExceptionDetails{
-                  ccf::errors::JSException, reason, trace}};
-              endpoint_ctx.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                error_message_or_timeout(
-                  "Invalid endpoint function return value (error during string "
-                  "conversion of body)."),
-                details);
-            }
-            else
-            {
-              endpoint_ctx.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                error_message_or_timeout(
-                  "Invalid endpoint function return value (error during string "
-                  "conversion of body)."));
-            }
-            return;
-          }
-
-          response_body = std::vector<uint8_t>(str->begin(), str->end());
-        }
-        endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
-      }
+      return;
     }
 
-    // Response headers
+    if (!set_response_headers_from_js(ctx, endpoint_ctx, options, val))
     {
-      auto response_headers_js = val["headers"];
-      if (response_headers_js.is_exception())
-      {
-        set_response_error(
-          "Invalid endpoint function return value (error reading headers).");
-        return;
-      }
-
-      if (response_headers_js.is_obj())
-      {
-        try
-        {
-          ccf::js::core::JSWrappedPropertyEnum prop_enum(
-            ctx, response_headers_js);
-          for (size_t i = 0; i < prop_enum.size(); i++)
-          {
-            auto prop_name = ctx.to_str(prop_enum[i]);
-            if (!prop_name)
-            {
-              set_response_error(
-                "Invalid endpoint function return value (header type).");
-              return;
-            }
-            auto prop_val = response_headers_js[*prop_name];
-            if (prop_val.is_exception())
-            {
-              set_response_error(
-                "Invalid endpoint function return value (error reading header "
-                "value).");
-              return;
-            }
-
-            auto prop_val_str = ctx.to_str(prop_val);
-            if (!prop_val_str)
-            {
-              set_response_error(
-                "Invalid endpoint function return value (header value type).");
-              return;
-            }
-            endpoint_ctx.rpc_ctx->set_response_header(
-              *prop_name, *prop_val_str);
-          }
-        }
-        catch (const std::logic_error&)
-        {
-          set_response_error(
-            "Invalid endpoint function return value (error reading header "
-            "names).");
-          return;
-        }
-      }
+      return;
     }
 
-    // Response status code
-    int response_status_code = HTTP_STATUS_OK;
+    const auto response_status_code =
+      set_response_status_from_js(ctx, endpoint_ctx, options, val);
+    if (!response_status_code.has_value())
     {
-      auto status_code_js = val["statusCode"];
-      if (status_code_js.is_exception())
-      {
-        set_response_error(
-          "Invalid endpoint function return value (error reading status "
-          "code).");
-        return;
-      }
-
-      if (
-        !status_code_js.is_undefined() && (JS_IsNull(status_code_js.val) == 0))
-      {
-        if (JS_VALUE_GET_TAG(status_code_js.val) != JS_TAG_INT)
-        {
-          endpoint_ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            error_message_or_timeout(
-              "Invalid endpoint function return value (status code type)."));
-          return;
-        }
-        response_status_code = JS_VALUE_GET_INT(status_code_js.val);
-      }
-      endpoint_ctx.rpc_ctx->set_response_status(response_status_code);
+      return;
     }
 
     // Log execution metrics
@@ -627,7 +693,7 @@ namespace ccf::js
        "ExecMilliseconds={}",
        endpoint->dispatch.verb.c_str(),
        endpoint->full_uri_path,
-       response_status_code,
+       response_status_code.value(),
        exec_time.count());
     }
   }
