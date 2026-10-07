@@ -775,13 +775,6 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
     )
     target_link_libraries(ledger_test PRIVATE ccf_tasks)
-    target_link_options(
-      ledger_test
-      PRIVATE
-        "LINKER:--wrap=fseeko"
-        "LINKER:--wrap=fread"
-        "LINKER:--wrap=fwrite"
-    )
 
     add_unit_test(
       worker_shutdown_gate_test
