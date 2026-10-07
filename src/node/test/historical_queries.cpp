@@ -1298,7 +1298,7 @@ namespace
   // finished is set
   void serve_ledger_requests_until_finished(
     const std::atomic<bool>& finished,
-    consensus::test::StubLedgerReader& reader,
+    consensus::test::StubLedgerReader& writer,
     ccf::historical::StateCache& cache,
     const std::shared_ptr<ccf::kv::Consensus>& consensus)
   {
@@ -1306,9 +1306,9 @@ namespace
 
     while (!finished)
     {
-      while (reader.size() > 0)
+      while (writer.size() > 0)
       {
-        auto request = reader.pop_request();
+        auto request = writer.pop_request();
         std::vector<uint8_t> combined;
         for (auto seqno = request.from; seqno <= request.to; ++seqno)
         {
@@ -1317,7 +1317,7 @@ namespace
           combined.insert(combined.end(), it->second.begin(), it->second.end());
         }
         const auto response_to = request.to;
-        reader.respond(std::move(request), response_to, std::move(combined));
+        writer.respond(std::move(request), response_to, std::move(combined));
       }
 
       cache.tick(std::chrono::milliseconds(100));

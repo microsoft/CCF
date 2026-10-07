@@ -85,3 +85,16 @@ TEST_CASE("Enclave rejects stopped ledger")
   REQUIRE_THROWS_AS(enclave.truncate(0), std::logic_error);
   REQUIRE_THROWS_AS(enclave.commit(0), std::logic_error);
 }
+
+TEST_CASE("Enclave forwards ledger backlog without rejecting in-flight work")
+{
+  auto writer = std::make_shared<consensus::test::StubLedgerWriter>();
+  LedgerEnclave enclave(writer);
+  REQUIRE_FALSE(enclave.is_backlogged());
+  writer->backlogged = true;
+  REQUIRE(enclave.is_backlogged());
+  enclave.put_entry(std::vector<uint8_t>{'a'}, false, 1, 1);
+  REQUIRE(writer->appends.size() == 1);
+  writer->backlogged = false;
+  REQUIRE_FALSE(enclave.is_backlogged());
+}

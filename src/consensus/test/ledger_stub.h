@@ -23,6 +23,12 @@ namespace consensus::test
     std::vector<Index> commits;
     size_t opens = 0;
     bool accepting = true;
+    bool backlogged = false;
+
+    bool is_backlogged() const override
+    {
+      return backlogged;
+    }
 
     bool init(Index idx, Index recovery_start_idx) override
     {

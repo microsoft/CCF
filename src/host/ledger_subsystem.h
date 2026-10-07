@@ -30,6 +30,50 @@ namespace asynchost
   private:
     Ledger& ledger;
     const size_t max_read_size;
+    const size_t max_pending_write_bytes;
+    std::shared_ptr<std::atomic<size_t>> pending_write_bytes =
+      std::make_shared<std::atomic<size_t>>(0);
+
+    // Accounting follows ownership, including rejected/abandoned actions and
+    // exceptions. The shared counter also outlives any discarded task capture.
+    struct PendingAppend
+    {
+      const std::vector<uint8_t> entry;
+      const std::shared_ptr<std::atomic<size_t>> pending;
+      const size_t limit;
+
+      PendingAppend(
+        std::vector<uint8_t>&& entry_,
+        std::shared_ptr<std::atomic<size_t>> pending_,
+        size_t limit_) :
+        entry(std::move(entry_)),
+        pending(std::move(pending_)),
+        limit(limit_)
+      {
+        const auto before = pending->fetch_add(entry.size());
+        const auto after = before + entry.size();
+        if (limit != 0 && before < limit && after >= limit)
+        {
+          LOG_INFO_FMT(
+            "Ledger write backlog reached {} bytes (threshold {} bytes)",
+            after,
+            limit);
+        }
+      }
+
+      ~PendingAppend()
+      {
+        const auto before = pending->fetch_sub(entry.size());
+        const auto after = before - entry.size();
+        if (limit != 0 && before >= limit && after < limit)
+        {
+          LOG_INFO_FMT(
+            "Ledger write backlog fell to {} bytes (threshold {} bytes)",
+            after,
+            limit);
+        }
+      }
+    };
 
     ccf::tasks::JobBoard& job_board;
     std::shared_ptr<ccf::tasks::OrderedTasks> ordered_tasks;
@@ -118,12 +162,15 @@ namespace asynchost
 
   public:
     // Tests may supply a caller-driven job board for deterministic execution.
+    // A zero write threshold disables backlog signalling.
     LedgerSubsystem(
       Ledger& ledger_,
       size_t max_read_size_,
-      ccf::tasks::JobBoard& job_board_ = ccf::tasks::get_main_job_board()) :
+      ccf::tasks::JobBoard& job_board_ = ccf::tasks::get_main_job_board(),
+      size_t max_pending_write_bytes_ = 0) :
       ledger(ledger_),
       max_read_size(max_read_size_),
+      max_pending_write_bytes(max_pending_write_bytes_),
       job_board(job_board_),
       ordered_tasks(
         ccf::tasks::OrderedTasks::create(job_board, "Ledger operations"))
@@ -162,9 +209,27 @@ namespace asynchost
     bool append(std::vector<uint8_t>&& entry, bool committable) override
     {
       return submit_ordered(
-        "Ledger append", [this, entry = std::move(entry), committable]() {
-          ledger.write_entry(entry.data(), entry.size(), committable);
+        "Ledger append",
+        [this,
+         pending = std::make_shared<PendingAppend>(
+           std::move(entry), pending_write_bytes, max_pending_write_bytes),
+         committable]() mutable {
+          ledger.write_entry(
+            pending->entry.data(), pending->entry.size(), committable);
+          // The lane retains completed actions until its whole batch finishes.
+          pending.reset();
         });
+    }
+
+    [[nodiscard]] size_t get_pending_write_bytes() const
+    {
+      return pending_write_bytes->load();
+    }
+
+    [[nodiscard]] bool is_backlogged() const override
+    {
+      return max_pending_write_bytes != 0 &&
+        get_pending_write_bytes() >= max_pending_write_bytes;
     }
 
     bool truncate(::consensus::Index idx, bool recovery_mode) override
@@ -261,14 +326,21 @@ namespace asynchost
     // Completes mutations already accepted, then rejects new submissions and
     // waits for in-flight storage actions and callbacks. Idempotent.
     //
-    // The caller must ensure no task worker can be executing the lane when
-    // this is called; the host calls it after the enclave threads have
-    // joined. Draining here is what the old design achieved by reading the
-    // remaining ringbuffer messages before stopping the loop: a mutation which
-    // append() or commit() accepted must reach disk. Queued reads are skipped
-    // and their callbacks never fire: answering them would run receiver code
-    // (and, for recovery, submit further reads) on this thread after the
-    // enclave has stopped.
+    // Ordering requirements on the caller:
+    // - No task worker may be executing the lane: the host calls this after
+    //   the enclave threads have joined.
+    // - The job board must NOT have been shut down yet. JobBoard::shutdown()
+    //   abandons the pending actions of every registered OrderedTasks lane,
+    //   including this one, so calling it first would discard the queued
+    //   mutations this method exists to drain. The host therefore calls this
+    //   before enclave_shutdown_tasks(); see run_enclave_threads in run.cpp.
+    //
+    // Draining here is what the old design achieved by reading the remaining
+    // ringbuffer messages before stopping the loop: a mutation which append()
+    // or commit() accepted must reach disk. Queued reads are skipped and their
+    // callbacks never fire: answering them would run receiver code (and, for
+    // recovery, submit further reads) on this thread after the enclave has
+    // stopped.
     void shutdown() override
     {
       std::call_once(shutdown_once, [this]() {

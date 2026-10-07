@@ -81,6 +81,11 @@ namespace consensus
       }
     }
 
+    [[nodiscard]] bool is_backlogged() const
+    {
+      return ledger->is_backlogged();
+    }
+
     /**
      * Put a single entry to be written to the ledger, when primary.
      *

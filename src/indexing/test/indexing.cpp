@@ -453,19 +453,19 @@ constexpr size_t multithread_tx_count = 1'000;
 
 namespace
 {
-  // Do the fetch for each pending ledger request, simulating an asynchronous
-  // fetch by the historical query system
+  // Do the fetch for each ledger request written since handled_writes,
+  // simulating an asynchronous fetch by the historical query system
   void serve_ledger_requests(
-    consensus::test::StubLedgerReader& reader,
-    aft::LedgerStubProxy& ledger,
-    ccf::historical::StateCacheImpl& cache)
+    const std::vector<consensus::test::StubLedgerReader::Request>& writes,
+    size_t& handled_writes,
+    aft::LedgerStubProxy& ledger)
   {
-    while (reader.size() > 0)
+    for (auto it = writes.begin() + handled_writes; it != writes.end(); ++it)
     {
-      auto request = reader.pop_request();
+      const auto& write = *it;
 
       std::vector<uint8_t> combined;
-      for (auto seqno = request.from; seqno <= request.to; ++seqno)
+      for (auto seqno = write.from; seqno <= write.to; ++seqno)
       {
         auto entry = ledger.get_raw_entry_by_idx(seqno);
         if (!entry.has_value())
@@ -478,9 +478,14 @@ namespace
         REQUIRE(entry.has_value());
         combined.insert(combined.end(), entry->begin(), entry->end());
       }
-      const auto response_to = request.to;
-      reader.respond(std::move(request), response_to, std::move(combined));
+      write.callback(
+        {write.from,
+         write.to,
+         consensus::LedgerRangeStatus::Found,
+         std::move(combined)});
     }
+
+    handled_writes = writes.end() - writes.begin();
   }
 }
 
@@ -565,6 +570,9 @@ TEST_CASE(
     finished = true;
   };
 
+  size_t handled_writes = 0;
+  const auto& writes = stub_writer->writes;
+
   auto fetch_index_a = [&]() {
     while (true)
     {
@@ -602,11 +610,11 @@ TEST_CASE(
     {
       size_t post_work_done_loops = 0;
       while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
-             stub_writer->size() > 0)
+             handled_writes < writes.size())
       {
         cache->tick(ccf::historical::slow_fetch_threshold / 2);
 
-        serve_ledger_requests(*stub_writer, *ledger, *cache);
+        serve_ledger_requests(writes, handled_writes, *ledger);
 
         if (work_done)
         {
