@@ -19,8 +19,9 @@
 #include "node/commit_callback_subsystem.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
+#include "node/node_inbound_message.h"
 #include "node/node_state.h"
-#include "node/node_types.h"
+#include "node/node_transport.h"
 #include "node/rpc/cosesigconfig_subsystem.h"
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/rpc/forwarder.h"
@@ -45,13 +46,13 @@ namespace ccf
   {
   private:
     std::unique_ptr<ringbuffer::Circuit> circuit;
-    std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory;
-    std::unique_ptr<oversized::WriterFactory> writer_factory;
     ccf::ds::WorkBeaconPtr work_beacon;
     ccf::AbstractRuntimeControl& runtime_control;
     ccf::NetworkState network;
     std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem =
       nullptr;
+    std::shared_ptr<AbstractNodeTransport> node_transport = nullptr;
+    std::shared_ptr<NodeIngress> node_ingress = nullptr;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCConnectionManager> rpcsessions;
     std::unique_ptr<ccf::NodeState> node;
@@ -83,8 +84,6 @@ namespace ccf
   public:
     Enclave(
       std::unique_ptr<ringbuffer::Circuit> circuit_,
-      std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory_,
-      std::unique_ptr<oversized::WriterFactory> writer_factory_,
       size_t sig_tx_interval,
       size_t sig_ms_interval,
       std::chrono::milliseconds tick_interval,
@@ -94,14 +93,13 @@ namespace ccf
       const ccf::crypto::CurveID& curve_id,
       ccf::ds::WorkBeaconPtr work_beacon_,
       ccf::AbstractRuntimeControl& runtime_control_,
-      const std::shared_ptr<AbstractLedgerSubsystemInterface>&
-        ledger_subsystem) :
+      const std::shared_ptr<AbstractLedgerSubsystemInterface>& ledger_subsystem,
+      const std::shared_ptr<AbstractNodeTransport>& node_transport) :
       circuit(std::move(circuit_)),
-      basic_writer_factory(std::move(basic_writer_factory_)),
-      writer_factory(std::move(writer_factory_)),
       work_beacon(std::move(work_beacon_)),
       runtime_control(runtime_control_),
       ledger_subsystem(ledger_subsystem),
+      node_transport(node_transport),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCConnectionManager>(rpc_map))
     {
@@ -114,7 +112,7 @@ namespace ccf
 
       LOG_TRACE_FMT("Creating node");
       node = std::make_unique<ccf::NodeState>(
-        *writer_factory,
+        this->node_transport,
         network,
         rpcsessions,
         curve_id,
@@ -199,15 +197,27 @@ namespace ccf
         tick_interval);
 
       historical_state_cache->start_periodic_tick(job_board, tick_interval);
+
+      node_ingress = std::make_shared<NodeIngress>(
+        job_board,
+        [this](
+          NodeMsgType type,
+          const NodeId& from,
+          const uint8_t* data,
+          size_t size) { node->recv_node_inbound(type, from, data, size); });
+      this->node_transport->set_inbound_handler(node_ingress);
     }
 
     ~Enclave()
     {
+      node_ingress->stop();
+      node_transport->set_inbound_handler(nullptr);
       LOG_TRACE_FMT("Shutting down enclave");
     }
 
     void request_stop()
     {
+      node_ingress->stop();
       stop_requested.store(true);
       work_beacon->notify_work_available_coalesced();
       ccf::tasks::get_main_job_board().stop_waiters();
@@ -395,27 +405,18 @@ namespace ccf
             {
               last_tick_time += elapsed_ms;
 
-              node->tick(elapsed_ms);
-              // Indexing strategies follow the commit point, which is only
-              // meaningful once the node is part of the network
-              const auto committed = node->get_committed_txid();
-              if (committed.has_value())
-              {
-                indexer->update_strategies(elapsed_ms, committed.value());
-              }
-            }
-          });
-
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, ccf::node_inbound, [this](const uint8_t* data, size_t size) {
-            try
-            {
-              node->recv_node_inbound(data, size);
-            }
-            catch (const std::exception& e)
-            {
-              LOG_DEBUG_FMT(
-                "Ignoring node_inbound message due to exception: {}", e.what());
+              // Ordered with inbound node messages, as when both were read
+              // from the ringbuffer by this thread
+              node_ingress->submit("Node tick", [this, elapsed_ms]() {
+                node->tick(elapsed_ms);
+                // Indexing strategies follow the commit point, which is only
+                // meaningful once the node is part of the network
+                const auto committed = node->get_committed_txid();
+                if (committed.has_value())
+                {
+                  indexer->update_strategies(elapsed_ms, committed.value());
+                }
+              });
             }
           });
 
@@ -441,13 +442,14 @@ namespace ccf
 
           if (stop_notice_requested.exchange(false))
           {
-            node->stop_notice();
+            node_ingress->submit(
+              "Node stop notice", [this]() { node->stop_notice(); });
           }
 
           // Read some messages from the ringbuffer. This thread is dedicated
-          // to ingress dispatch; task execution happens on worker threads
-          // (see run_worker), so that opaque, potentially-blocking tasks never
-          // stall consensus ingress.
+          // to ingress dispatch; task execution, including node ingress,
+          // happens on worker threads (see run_worker), so that opaque,
+          // potentially-blocking tasks never stall this thread.
           auto read = bp.read_n(max_messages, circuit->read_from_outside());
 
           // Hitting the read budget may leave queued messages behind.

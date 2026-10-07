@@ -6,14 +6,14 @@
 #include "channels.h"
 #include "ds/ccf_assert.h"
 #include "node/node_to_node.h"
+#include "node/node_transport.h"
 
 namespace ccf
 {
   class NodeToNodeChannelManager : public NodeToNode
   {
   private:
-    ringbuffer::AbstractWriterFactory& writer_factory;
-    ringbuffer::WriterPtr to_host;
+    std::shared_ptr<AbstractNodeTransport> transport;
 
     struct ChannelInfo
     {
@@ -86,7 +86,7 @@ namespace ccf
 
       // Create channel
       auto channel = std::make_shared<Channel>(
-        writer_factory,
+        transport,
         this_node->service_cert,
         this_node->node_kp,
         *endorsed_node_cert,
@@ -100,9 +100,8 @@ namespace ccf
 
   public:
     NodeToNodeChannelManager(
-      ringbuffer::AbstractWriterFactory& writer_factory_) :
-      writer_factory(writer_factory_),
-      to_host(writer_factory_.create_writer_to_outside())
+      std::shared_ptr<AbstractNodeTransport> transport_) :
+      transport(std::move(transport_))
     {}
 
     void initialize(
@@ -183,12 +182,7 @@ namespace ccf
       const std::string& peer_hostname,
       const std::string& peer_service) override
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        ccf::associate_node_address,
-        to_host,
-        peer_id.value(),
-        peer_hostname,
-        peer_service);
+      transport->associate_node_address(peer_id, peer_hostname, peer_service);
     }
 
     bool have_channel(const ccf::NodeId& nid) override

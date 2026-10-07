@@ -3,15 +3,17 @@
 #pragma once
 
 #include "consensus/aft/raft_types.h"
-#include "ds/messaging.h"
+#include "ds/serialized.h"
 #include "ledger.h"
 #include "ledger_subsystem.h"
+#include "node/node_transport.h"
 #include "node/node_types.h"
 #include "tcp.h"
 #include "timer.h"
 
 #include <chrono>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <variant>
@@ -24,17 +26,21 @@ namespace asynchost
   static constexpr auto default_simultaneous_connect_window =
     std::chrono::seconds(2);
 
-  // Outbound node messages are handled in two steps. Ledger mutations no
-  // longer share a queue with these messages, so an AppendEntries message
-  // must not read the ledger until the appends the enclave emitted before it
-  // have been applied. Each message is therefore first submitted to the same
-  // lane as ledger mutations, where any ledger entries are read and the frame
-  // is assembled; the result is queued for the libuv thread, which owns the
-  // sockets and drains the queue from flush_outbound(). Address and close
-  // updates take the same path so that their order relative to sends is
-  // preserved. Temporary until node-to-node transport leaves the ringbuffer.
+  // Host implementation of the node-to-node transport.
+  //
+  // Outbound operations may be called from any thread and are handled in two
+  // steps. An AppendEntries message must not read the ledger until the appends
+  // the node submitted before it have been applied, so each operation is first
+  // submitted to the same lane as ledger mutations, where any ledger entries
+  // are read and the frame is assembled. The result is queued for the libuv
+  // thread, which owns the sockets and drains the queue from flush_outbound().
+  // Address and close updates take the same path so that their order relative
+  // to sends is preserved. All other state is confined to the libuv thread.
+  //
+  // Inbound frames are copied into owned storage and passed to the inbound
+  // handler on the libuv thread.
   template <class ConnType>
-  class NodeConnectionsImpl
+  class NodeConnectionsImpl : public ccf::AbstractNodeTransport
   {
   private:
     // Identifies the current connection with a peer, whether we opened it, and
@@ -89,6 +95,19 @@ namespace asynchost
             }
 
             msg_size = serialized::read<uint32_t>(data, size);
+
+            // Reject before buffering the body, since the size is
+            // peer-controlled
+            if (msg_size.value() > parent.max_inbound_frame_size)
+            {
+              LOG_FAIL_FMT(
+                "Received node-to-node frame of {} bytes from {}, exceeding "
+                "the maximum of {}. Closing connection.",
+                msg_size.value(),
+                node.value_or(UnassociatedNode),
+                parent.max_inbound_frame_size);
+              return false;
+            }
           }
 
           if (size < msg_size.value())
@@ -162,12 +181,8 @@ namespace asynchost
             msg_size.value(),
             msg_type);
 
-          RINGBUFFER_WRITE_MESSAGE(
-            ccf::node_inbound,
-            parent.to_enclave,
-            msg_type,
-            from.value(),
-            serializer::ByteRange{data, payload_size});
+          parent.deliver_inbound(
+            msg_type, from, std::vector<uint8_t>(data, data + payload_size));
 
           data += payload_size;
           size -= payload_size;
@@ -358,7 +373,11 @@ namespace asynchost
     std::unordered_map<size_t, ConnType> unassociated_incoming;
     size_t next_id = 1;
 
-    ringbuffer::WriterPtr to_enclave;
+    // Declared frame sizes above this are rejected and the connection closed.
+    size_t max_inbound_frame_size;
+
+    std::mutex inbound_handler_mutex;
+    std::shared_ptr<ccf::NodeInboundHandler> inbound_handler;
 
     std::optional<std::string> client_interface = std::nullopt;
     std::optional<std::chrono::milliseconds> client_connection_timeout =
@@ -380,6 +399,7 @@ namespace asynchost
     struct SendFrame
     {
       ccf::NodeId to;
+      ccf::NodeId from;
       std::vector<uint8_t> frame;
     };
     using OutboundItem =
@@ -405,19 +425,39 @@ namespace asynchost
       outbound_ready.push_back(std::move(item));
     }
 
+    void deliver_inbound(
+      ccf::NodeMsgType msg_type,
+      const ccf::NodeId& from,
+      std::vector<uint8_t>&& payload)
+    {
+      std::shared_ptr<ccf::NodeInboundHandler> handler;
+      {
+        std::lock_guard guard(inbound_handler_mutex);
+        handler = inbound_handler;
+      }
+
+      if (handler == nullptr)
+      {
+        LOG_DEBUG_FMT(
+          "Ignoring node message from {}: no inbound handler", from);
+        return;
+      }
+
+      handler->recv_node_inbound(msg_type, from, std::move(payload));
+    }
+
   public:
     NodeConnectionsImpl(
-      messaging::Dispatcher<ringbuffer::Message>& disp,
       Ledger& ledger,
       LedgerSubsystem& ledger_subsystem_,
-      ringbuffer::AbstractWriterFactory& writer_factory,
       std::string& host,
       std::string& port,
+      size_t max_inbound_frame_size_,
       const std::optional<std::string>& client_interface = std::nullopt,
       std::optional<std::chrono::milliseconds> client_connection_timeout_ =
         std::nullopt) :
       ledger(ledger),
-      to_enclave(writer_factory.create_writer_to_inside()),
+      max_inbound_frame_size(max_inbound_frame_size_),
       client_interface(client_interface),
       client_connection_timeout(client_connection_timeout_),
       ledger_subsystem(ledger_subsystem_)
@@ -426,8 +466,6 @@ namespace asynchost
       listener->listen(host, port);
       host = listener->get_host();
       port = listener->get_port();
-
-      register_message_handlers(disp);
     }
 
     // Only used by tests, to exercise the behaviour either side of the window
@@ -437,72 +475,62 @@ namespace asynchost
       simultaneous_connect_window = window;
     }
 
-    void register_message_handlers(
-      messaging::Dispatcher<ringbuffer::Message>& disp)
+    void set_inbound_handler(
+      std::shared_ptr<ccf::NodeInboundHandler> handler) override
     {
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        disp,
-        ccf::associate_node_address,
-        [this](const uint8_t* data, size_t size) {
-          auto [node_id, hostname, port] =
-            ringbuffer::read_message<ccf::associate_node_address>(data, size);
+      std::lock_guard guard(inbound_handler_mutex);
+      inbound_handler = std::move(handler);
+    }
 
-          ordered("associate_node_address", [this, node_id, hostname, port]() {
-            enqueue_ready(AssociateAddress{node_id, hostname, port});
-          });
-        });
+    void associate_node_address(
+      const ccf::NodeId& node_id,
+      const std::string& hostname,
+      const std::string& port) override
+    {
+      ordered("Node address association", [this, node_id, hostname, port]() {
+        enqueue_ready(AssociateAddress{node_id, hostname, port});
+      });
+    }
 
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        disp,
-        ccf::close_node_outbound,
-        [this](const uint8_t* data, size_t size) {
-          auto [node_id] =
-            ringbuffer::read_message<ccf::close_node_outbound>(data, size);
+    void close(const ccf::NodeId& node_id) override
+    {
+      ordered("Node connection close", [this, node_id]() {
+        enqueue_ready(CloseOutbound{node_id});
+      });
+    }
 
-          ordered("close_node_outbound", [this, node_id]() {
-            enqueue_ready(CloseOutbound{node_id});
-          });
-        });
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ccf::node_outbound, [this](const uint8_t* data, size_t size) {
-          // Read piece-by-piece rather than all at once
-          ccf::NodeId to = serialized::read<ccf::NodeId::Value>(data, size);
-
-          // Peek at the sender ID without consuming it. This is the only place
-          // the host learns its own node ID, which is needed to resolve
-          // simultaneous connects consistently on both sides.
-          if (!self_node_id.has_value())
+    void send(
+      const ccf::NodeId& to,
+      ccf::NodeMsgType msg_type,
+      const ccf::NodeId& from,
+      std::vector<uint8_t>&& payload) override
+    {
+      ordered(
+        "Node send",
+        [this, to, msg_type, from, payload = std::move(payload)]() {
+          auto frame = assemble_frame(to, msg_type, from, payload);
+          if (frame.has_value())
           {
-            const uint8_t* peek = data;
-            size_t peek_size = size;
-            try
-            {
-              serialized::read<ccf::NodeMsgType>(peek, peek_size);
-              self_node_id = ccf::NodeId(
-                serialized::read<ccf::NodeId::Value>(peek, peek_size));
-            }
-            catch (const std::exception& e)
-            {
-              LOG_DEBUG_FMT(
-                "Unable to read own node ID from outbound: {}", e.what());
-            }
+            enqueue_ready(SendFrame{to, from, std::move(frame.value())});
           }
-
-          // The message bytes (msg_type, from_id, payload) are forwarded as
-          // they are already serialised, so copy them out of the ringbuffer.
-          std::vector<uint8_t> message(data, data + size);
-
-          ordered(
-            "node_outbound",
-            [this, to = std::move(to), message = std::move(message)]() {
-              auto frame = assemble_frame(to, message);
-              if (frame.has_value())
-              {
-                enqueue_ready(SendFrame{to, std::move(frame.value())});
-              }
-            });
         });
+    }
+
+    // Loop thread, once the loop has exited and the node has stopped. Closes
+    // every socket now rather than when the last owner releases this object,
+    // since the node may retain its reference until process exit. Frames not
+    // yet written are discarded, as when the loop stops with them queued.
+    void shutdown()
+    {
+      set_inbound_handler(nullptr);
+      {
+        std::lock_guard guard(outbound_mutex);
+        outbound_ready.clear();
+      }
+      connections.clear();
+      unassociated_incoming.clear();
+      node_addresses.clear();
+      listener = nullptr;
     }
 
     // Loop thread: apply everything the ledger lane has finished, in order.
@@ -529,6 +557,13 @@ namespace asynchost
             }
             else
             {
+              // The sender field of outbound messages is the only place the
+              // host learns its own node ID, which is needed to resolve
+              // simultaneous connects consistently on both sides.
+              if (!self_node_id.has_value())
+              {
+                self_node_id = it.from;
+              }
               send_frame(it.to, it.frame);
             }
           },
@@ -540,17 +575,30 @@ namespace asynchost
     // Ordered step: for an AppendEntries message, read the ledger entries it
     // refers to and append them to the message. Returns the complete framed
     // bytes to write to the peer, or nullopt if the message must be dropped.
+    //
+    // Wire format: [u32 frame size][msg type][sender ID][payload][entries].
     std::optional<std::vector<uint8_t>> assemble_frame(
-      const ccf::NodeId& to, const std::vector<uint8_t>& message)
+      const ccf::NodeId& to,
+      ccf::NodeMsgType msg_type,
+      const ccf::NodeId& from,
+      const std::vector<uint8_t>& payload)
     {
-      const uint8_t* data = message.data();
-      size_t size = message.size();
+      const auto& from_value = from.value();
+      std::vector<uint8_t> header(
+        sizeof(msg_type) + sizeof(size_t) + from_value.size());
+      {
+        auto* hdata = header.data();
+        auto hsize = header.size();
+        serialized::write(hdata, hsize, msg_type);
+        serialized::write(hdata, hsize, from_value);
+      }
+
+      const uint8_t* data = payload.data();
+      size_t size = payload.size();
 
       std::vector<uint8_t> entries;
       std::optional<::consensus::AppendEntriesIndex> ae_index;
 
-      auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
-      serialized::read<ccf::NodeId::Value>(data, size); // Ignore from_id
       if (
         msg_type == ccf::NodeMsgType::consensus_msg &&
         (serialized::read<aft::RaftMsgType>(data, size) ==
@@ -592,14 +640,15 @@ namespace asynchost
       }
 
       const auto frame_size =
-        static_cast<uint32_t>(message.size() + entries.size());
+        static_cast<uint32_t>(header.size() + payload.size() + entries.size());
       std::vector<uint8_t> frame;
       frame.reserve(sizeof(frame_size) + frame_size);
       frame.insert(
         frame.end(),
         reinterpret_cast<const uint8_t*>(&frame_size),
         reinterpret_cast<const uint8_t*>(&frame_size) + sizeof(frame_size));
-      frame.insert(frame.end(), message.begin(), message.end());
+      frame.insert(frame.end(), header.begin(), header.end());
+      frame.insert(frame.end(), payload.begin(), payload.end());
       frame.insert(frame.end(), entries.begin(), entries.end());
 
       if (ae_index.has_value())
@@ -629,7 +678,7 @@ namespace asynchost
         const auto address_it = node_addresses.find(to);
         if (address_it == node_addresses.end())
         {
-          LOG_TRACE_FMT("Ignoring node_outbound to unknown node {}", to);
+          LOG_TRACE_FMT("Ignoring node send to unknown node {}", to);
           return;
         }
 
