@@ -1186,11 +1186,35 @@ namespace asynchost
 
       if (fs::is_directory(ledger_dir))
       {
-        // If the ledger directory exists, populate this->files with the
-        // writeable files from it. These must have no suffix, and must not
-        // end-before the current committed_idx found from the read-only
-        // directories
         LOG_INFO_FMT("Recovering main ledger directory {}", ledger_dir);
+
+        // Establish the final committed frontier before admitting mutable
+        // files, independently of directory iteration order.
+        for (auto const& f : fs::directory_iterator(ledger_dir))
+        {
+          auto file_name = f.path().filename();
+          if (
+            ccf::ledger::is_ledger_file_ignored(file_name) ||
+            !ccf::ledger::is_ledger_file_name_committed(file_name))
+          {
+            continue;
+          }
+
+          const auto file_end_idx =
+            ccf::ledger::get_last_idx_from_file_name(file_name);
+          if (!file_end_idx.has_value())
+          {
+            LOG_FAIL_FMT(
+              "Unexpected file {} in {}: committed but not completed",
+              file_name,
+              ledger_dir);
+          }
+          else if (file_end_idx.value() > committed_idx)
+          {
+            committed_idx = file_end_idx.value();
+            end_of_committed_files_idx = file_end_idx.value();
+          }
+        }
 
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
@@ -1206,40 +1230,8 @@ namespace asynchost
             continue;
           }
 
-          const auto file_end_idx =
-            ccf::ledger::get_last_idx_from_file_name(file_name);
-
           if (ccf::ledger::is_ledger_file_name_committed(file_name))
           {
-            if (!file_end_idx.has_value())
-            {
-              LOG_FAIL_FMT(
-                "Unexpected file {} in {}: committed but not completed",
-                file_name,
-                ledger_dir);
-            }
-            else
-            {
-              if (file_end_idx.value() > committed_idx)
-              {
-                committed_idx = file_end_idx.value();
-                end_of_committed_files_idx = file_end_idx.value();
-              }
-            }
-
-            continue;
-          }
-
-          if (file_end_idx.has_value() && file_end_idx.value() <= committed_idx)
-          {
-            LOG_INFO_FMT(
-              "Ignoring ledger file {} in main ledger directory - already "
-              "discovered commit up to {} from read-only directories",
-              file_name,
-              committed_idx);
-
-            ignore_ledger_file(file_name);
-
             continue;
           }
 
@@ -1263,6 +1255,19 @@ namespace asynchost
             LOG_FAIL_FMT(
               "Error reading ledger file {}: {}", file_name, e.what());
             // Ignore file if it cannot be recovered.
+            ignore_ledger_file(file_name);
+            continue;
+          }
+
+          if (ledger_file->get_last_idx() <= committed_idx)
+          {
+            LOG_INFO_FMT(
+              "Ignoring ledger file {} in main ledger directory - already "
+              "discovered commit up to {}",
+              file_name,
+              committed_idx);
+
+            ledger_file.reset();
             ignore_ledger_file(file_name);
             continue;
           }

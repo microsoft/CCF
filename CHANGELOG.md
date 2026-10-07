@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Paused RPC reads now resume when another interface releases the inbound budget, even if older libuv versions coalesce the notification. Previously, reads could remain paused until an unrelated event triggered a recheck (#8498).
+- Recovered services no longer reuse stale incomplete ledger chunks behind the committed frontier after service opening, which could misplace later transactions and leave backup application frontends closed. See the [Disaster Recovery](doc/operations/recovery.rst) operations documentation.
 
 ## [7.0.18]
 

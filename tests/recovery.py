@@ -668,6 +668,73 @@ def test_recover_service_with_ledger_after_snapshot(network, args):
     return test_recover_service(network, args, snapshots_dir=snapshots_dir)
 
 
+@reqs.description("Recover with a stale incomplete chunk behind committed history")
+@reqs.recover(number_txs=2)
+def test_recover_service_with_stale_incomplete_ledger(
+    network, args, recovered_networks=None
+):
+    primary, _ = network.find_primary()
+    network.create_and_wait_for_ledger_chunk(primary)
+    snapshot_trigger = primary.trigger_snapshot()
+    snapshots_dir = network.get_committed_snapshots(
+        primary,
+        target_seqno=snapshot_trigger.seqno,
+        wait_for_target_seqno=True,
+    )
+    snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
+    assert snapshot_name is not None
+    snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
+
+    stale_entries = None
+    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths())
+    for chunk in ledger:
+        _, end_seqno = chunk.get_seqnos()
+        if end_seqno is None or end_seqno >= snapshot_seqno:
+            continue
+        entries = [
+            (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
+        ]
+        if len(entries) > 1:
+            stale_entries = entries[:-1]
+            break
+    assert stale_entries is not None, "No old committed chunk for the stale fixture"
+
+    network.txs.issue(network, number_txs=2)
+    network.create_and_wait_for_ledger_chunk(primary)
+    network = _recover_service(
+        network,
+        args,
+        snapshots_dir=snapshots_dir,
+        recovered_networks=recovered_networks,
+        stale_ledger_entries=stale_entries,
+    )
+
+    primary, _ = network.find_primary()
+    wait_for_recovery_ledger_chunks_renamed(primary)
+    ignored_path = os.path.join(
+        primary.remote.current_ledger_path(),
+        f"ledger_{stale_entries[0][0]}{ccf.ledger.IGNORED_FILE_SUFFIX}",
+    )
+    expected_stale_bytes = b"\0" * ccf.ledger.LEDGER_HEADER_SIZE + b"".join(
+        raw_tx for _, raw_tx in stale_entries
+    )
+    with open(ignored_path, "rb") as ignored_file:
+        assert ignored_file.read() == expected_stale_bytes
+
+    opening_seqnos = find_service_open_seqnos(primary, snapshot_seqno)
+    assert len(opening_seqnos) == 1, opening_seqnos
+    ledger = ccf.ledger.Ledger(
+        primary.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
+    )
+    opening_txid = ledger.get_transaction(opening_seqnos[0]).get_txid()
+    network.wait_for_all_nodes_to_commit(tx_id=opening_txid)
+    for node in network.get_joined_nodes():
+        with node.client() as c:
+            response = c.get("/node/ready/app")
+            assert response.status_code == http.HTTPStatus.NO_CONTENT, response
+    return network
+
+
 def _recover_service(
     network,
     args,
@@ -678,6 +745,7 @@ def _recover_service(
     snapshots_dir=None,
     election_after_backups_recovered=False,
     recovered_networks=None,
+    stale_ledger_entries=None,
 ):
     network.save_service_identity(args)
     old_node_ids = {node.node_id for node in network.get_joined_nodes()}
@@ -726,6 +794,28 @@ def _recover_service(
         committed_ledger_dirs = None
     else:
         current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    if stale_ledger_entries is not None:
+        assert current_ledger_dir is not None
+        committed_chunks = list(ccf.ledger.Ledger(committed_ledger_dirs))
+        assert len(committed_chunks) > 1
+        latest_chunk = committed_chunks[-1]
+        tail_entries = [
+            (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in latest_chunk
+        ]
+        assert tail_entries[0][0] > stale_ledger_entries[-1][0]
+        # Keep a valid incomplete tail above the committed prefix, so public
+        # recovery completes that tail rather than the stale chunk.
+        infra.utils.write_ledger_chunk(
+            current_ledger_dir, tail_entries, tail_entries[-1][0], complete=False
+        )
+        os.remove(latest_chunk.filename())
+        infra.utils.write_ledger_chunk(
+            current_ledger_dir,
+            stale_ledger_entries,
+            stale_ledger_entries[-1][0],
+            complete=False,
+        )
 
     with tempfile.NamedTemporaryFile(mode="w+") as node_data_tf:
         start_node_data = {"this is a": "recovery node"}
@@ -2261,6 +2351,57 @@ def run_recovery_with_incomplete_ledger(args):
         return network
 
 
+def run_recovery_with_stale_incomplete_ledger(args):
+    txs = app.LoggingTxs("user0")
+    recovered_networks = []
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb, txs=txs
+    ) as network:
+        try:
+            network.start_and_open(args)
+            network = test_recover_service_with_stale_incomplete_ledger(
+                network, args, recovered_networks=recovered_networks
+            )
+            post_opening_txid = network.txs.issue(network, number_txs=3)
+            network.wait_for_all_nodes_to_commit(tx_id=post_opening_txid)
+            primary, _ = network.find_primary()
+            network.create_and_wait_for_ledger_chunk(primary)
+            ledger = ccf.ledger.Ledger(primary.remote.ledger_paths())
+            post_opening_bytes = ledger.get_transaction(
+                post_opening_txid.seqno
+            ).get_raw_tx()
+
+            network = test_recover_service(
+                network,
+                args,
+                from_snapshot=False,
+                recovered_networks=recovered_networks,
+            )
+            primary, _ = network.find_primary()
+            network.stop_all_nodes()
+            validator = ccf.ledger.LedgerValidator(accept_deprecated_entry_types=False)
+            ledger = ccf.ledger.Ledger(
+                primary.remote.ledger_paths(),
+                committed_only=False,
+                contiguous_suffix=True,
+            )
+            found_post_opening_tx = False
+            for chunk in ledger:
+                for tx in chunk:
+                    validator.add_transaction(tx)
+                    if tx.get_txid() == post_opening_txid:
+                        assert tx.get_raw_tx() == post_opening_bytes
+                        found_post_opening_tx = True
+            assert found_post_opening_tx, post_opening_txid
+        finally:
+            for recovered_network in reversed(recovered_networks):
+                recovered_network.stop_all_nodes(
+                    skip_verification=True,
+                    check_file_invariants=False,
+                    skip_verify_chunking=True,
+                )
+
+
 def run_recover_via_initial_recovery_owner(args):
     """
     Recover a service using the recovery owner added as part of service creation, without requiring any other recovery members to participate.
@@ -3373,6 +3514,15 @@ checked. Note that the key for each logging message is unique (per table).
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=10000,
+    )
+
+    cr.add(
+        "recovery_with_stale_incomplete_ledger",
+        run_recovery_with_stale_incomplete_ledger,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.nodes(cr.args, 2),
+        ledger_chunk_bytes="1B",
+        snapshot_tx_interval=30,
     )
 
     cr.add(
