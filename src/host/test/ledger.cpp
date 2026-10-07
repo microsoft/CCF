@@ -245,6 +245,23 @@ std::vector<uint8_t> make_ledger_entry(size_t idx, uint8_t header_flags = 0)
   return framed_entry;
 }
 
+void write_test_ledger_file(
+  const fs::path& dir, size_t from, size_t to, bool committed = false)
+{
+  LedgerFile file(dir, from);
+  for (size_t idx = from; idx <= to; ++idx)
+  {
+    const auto entry = make_ledger_entry(
+      idx, committed && idx == to ? ccf::kv::FORCE_LEDGER_CHUNK_AFTER : 0);
+    REQUIRE(file.write_entry(entry.data(), entry.size(), true).first == idx);
+  }
+  if (committed)
+  {
+    file.complete();
+    REQUIRE(file.commit(to));
+  }
+}
+
 // Keeps track of ledger entries written to the ledger.
 // An entry submitted at index i has for value i so that it is easy to verify
 // that the ledger entry read from the ledger at a specific index is right.
@@ -2225,6 +2242,178 @@ TEST_CASE("Recover both ledger dirs")
     read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
     ledger.commit(ledger.get_last_idx());
   }
+}
+
+TEST_CASE("Restore stale incomplete chunks before completing recovery")
+{
+  bool open_before_commit = true;
+  SUBCASE("Open before commit") {}
+  SUBCASE("Commit before open")
+  {
+    open_before_commit = false;
+  }
+
+  static constexpr auto ledger_dir_read_only_2 = "ledger_dir_ro_2";
+  for (const bool committed_in_main : {false, true})
+  {
+    for (const bool reverse_order : {false, true})
+    {
+      CAPTURE(committed_in_main);
+      CAPTURE(reverse_order);
+      CAPTURE(open_before_commit);
+      auto dir = AutoDeleteFolder(ledger_dir);
+      auto read_dir = AutoDeleteFolder(ledger_dir_read_only);
+      auto read_dir_2 = AutoDeleteFolder(ledger_dir_read_only_2);
+      fs::create_directory(ledger_dir);
+      fs::create_directory(ledger_dir_read_only);
+      fs::create_directory(ledger_dir_read_only_2);
+
+      if (reverse_order)
+      {
+        write_test_ledger_file(ledger_dir, 5, 6);
+      }
+      write_test_ledger_file(ledger_dir_read_only, 1, 4, true);
+      const fs::path committed_dir =
+        committed_in_main ? ledger_dir : ledger_dir_read_only_2;
+      write_test_ledger_file(ledger_dir_read_only_2, 5, 8, true);
+      if (committed_in_main)
+      {
+        fs::rename(
+          fs::path(ledger_dir_read_only_2) / "ledger_5-8.committed",
+          committed_dir / "ledger_5-8.committed");
+      }
+      if (!reverse_order)
+      {
+        write_test_ledger_file(ledger_dir, 5, 6);
+      }
+      write_test_ledger_file(ledger_dir, 9, 10);
+
+      std::vector<std::string> read_dirs = {ledger_dir_read_only};
+      if (!committed_in_main)
+      {
+        read_dirs.emplace_back(ledger_dir_read_only_2);
+      }
+      if (reverse_order)
+      {
+        std::reverse(read_dirs.begin(), read_dirs.end());
+      }
+      const auto stale_path = fs::path(ledger_dir) / "ledger_5";
+      const auto stale_bytes = files::slurp(stale_path);
+      const auto committed_path = committed_dir / "ledger_5-8.committed";
+      const auto committed_bytes = files::slurp(committed_path);
+
+      {
+        Ledger ledger(ledger_dir, 2, read_dirs);
+        REQUIRE(ledger.get_last_idx() == 10);
+        CHECK_FALSE(fs::exists(stale_path));
+        read_entries_range_from_ledger(ledger, 1, 10);
+
+        ledger.truncate(10, true);
+        ledger.set_recovery_start_idx(10);
+        ledger.truncate(10);
+        TestEntrySubmitter submitter(ledger, 1000, 10);
+        submitter.write(true);
+        submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+        ledger.commit(12);
+        submitter.write(true);
+        submitter.write(true, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+
+        if (open_before_commit)
+        {
+          ledger.complete_recovery();
+          ledger.commit(14);
+        }
+        else
+        {
+          ledger.commit(14);
+          ledger.complete_recovery();
+        }
+        REQUIRE(ledger.get_last_idx() == 14);
+        REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
+
+        auto expected_suffix = make_ledger_entry(15);
+        const auto final_entry =
+          make_ledger_entry(16, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
+        REQUIRE(
+          ledger.write_entry(
+            expected_suffix.data(), expected_suffix.size(), true) == 15);
+        REQUIRE(
+          ledger.write_entry(final_entry.data(), final_entry.size(), true) ==
+          16);
+        expected_suffix.insert(
+          expected_suffix.end(), final_entry.begin(), final_entry.end());
+        const auto suffix = ledger.read_entries(15, 16);
+        REQUIRE(suffix.has_value());
+        REQUIRE(suffix->end_idx == 16);
+        REQUIRE(suffix->data == expected_suffix);
+        REQUIRE(ledger.get_last_idx() == 16);
+        ledger.commit(16);
+        read_entries_range_from_ledger(ledger, 1, 16);
+      }
+
+      REQUIRE(
+        files::slurp(stale_path.string() + ledger_ignored_file_suffix) ==
+        stale_bytes);
+      REQUIRE(files::slurp(committed_path) == committed_bytes);
+      Ledger restored(ledger_dir, 2, read_dirs);
+      REQUIRE(restored.get_last_idx() == 16);
+      read_entries_range_from_ledger(restored, 1, 16);
+    }
+  }
+}
+
+TEST_CASE("Restored incomplete chunks respect the committed frontier")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  auto read_dir = AutoDeleteFolder(ledger_dir_read_only);
+  fs::create_directory(ledger_dir);
+  fs::create_directory(ledger_dir_read_only);
+  write_test_ledger_file(ledger_dir_read_only, 1, 8, true);
+  write_test_ledger_file(ledger_dir, 5, 8);
+  const auto stale_bytes = files::slurp(fs::path(ledger_dir) / "ledger_5");
+  const auto committed_path =
+    fs::path(ledger_dir_read_only) / "ledger_1-8.committed";
+  const auto committed_bytes = files::slurp(committed_path);
+
+  size_t restored_last_idx = 8;
+  SUBCASE("No mutable file remains") {}
+  SUBCASE("An overlapping incomplete chunk is retained")
+  {
+    write_test_ledger_file(ledger_dir, 7, 10);
+    restored_last_idx = 10;
+  }
+
+  Ledger ledger(ledger_dir, 2, {ledger_dir_read_only});
+  REQUIRE(ledger.get_last_idx() == restored_last_idx);
+  REQUIRE(ledger.is_in_committed_file(8));
+  REQUIRE_FALSE(ledger.is_in_committed_file(9));
+  read_entries_range_from_ledger(ledger, 1, restored_last_idx);
+  REQUIRE(fs::exists(fs::path(ledger_dir) / "ledger_5.ignored"));
+  REQUIRE(
+    files::slurp(fs::path(ledger_dir) / "ledger_5.ignored") == stale_bytes);
+  if (restored_last_idx > 8)
+  {
+    REQUIRE(fs::exists(fs::path(ledger_dir) / "ledger_7"));
+  }
+
+  ledger.truncate(7);
+  REQUIRE(ledger.get_last_idx() == restored_last_idx);
+  TestEntrySubmitter submitter(ledger, 1000, restored_last_idx);
+  submitter.write(true);
+  submitter.write(true);
+  ledger.truncate(restored_last_idx + 1);
+  REQUIRE(ledger.get_last_idx() == restored_last_idx + 1);
+  TestEntrySubmitter rollback_submitter(ledger, 1000, restored_last_idx + 1);
+  rollback_submitter.write(true);
+
+  ledger.init(8);
+  TestEntrySubmitter replay_submitter(ledger, 1000, 8);
+  while (ledger.get_last_idx() < restored_last_idx + 2)
+  {
+    replay_submitter.write(true);
+  }
+  read_entries_range_from_ledger(ledger, 1, restored_last_idx + 2);
+  REQUIRE(files::slurp(committed_path) == committed_bytes);
 }
 
 TEST_CASE("Ledger init with existing files")
