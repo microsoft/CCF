@@ -15,6 +15,8 @@
 #include "node/recovery_decision_protocol.h"
 #include "node/rpc/node_frontend_utils.h"
 
+#include <type_traits>
+
 namespace ccf::node
 {
   template <typename Input>
@@ -25,9 +27,10 @@ namespace ccf::node
   template <typename Input>
   static HandlerJsonParamsAndForward wrap_recovery_decision_protocol(
     RecoveryDecisionProtocolHandler<Input> cb,
-    ccf::AbstractNodeContext& node_context)
+    ccf::AbstractNodeContext& node_context,
+    const char* trace_kind)
   {
-    return [cb = std::move(cb), &node_context](
+    return [cb = std::move(cb), &node_context, trace_kind](
              endpoints::EndpointContext& args, const nlohmann::json& params) {
       auto config = node_context.get_subsystem<NodeConfigurationSubsystem>();
       auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
@@ -123,9 +126,11 @@ namespace ccf::node
 
       // ---- Advance state machine ----
 
+      recovery_decision_protocol::AdvanceTrace trace;
       try
       {
-        node_operation->recovery_decision_protocol().advance(args.tx, false);
+        node_operation->recovery_decision_protocol().advance(
+          args.tx, false, trace);
       }
       catch (const std::logic_error& e)
       {
@@ -139,6 +144,15 @@ namespace ccf::node
             e.what()));
       }
 
+      std::optional<ccf::TxID> trace_txid = std::nullopt;
+      if constexpr (std::is_same_v<
+                      Input,
+                      recovery_decision_protocol::GossipRequest>)
+      {
+        trace_txid = in.txid;
+      }
+      node_operation->recovery_decision_protocol().prepare_trace_step(
+        *args.rpc_ctx, trace_kind, in.info.location.name, trace_txid, trace);
       return make_success();
     };
   }
@@ -147,6 +161,20 @@ namespace ccf::node
     endpoints::EndpointRegistry& registry,
     ccf::AbstractNodeContext& node_context)
   {
+    // Logs each successful execution once its transaction commits, with the
+    // TxID CCF reports for it
+    auto trace_on_commit = [&node_context](
+                             endpoints::CommandEndpointContext& ctx,
+                             const ccf::TxID& txid) {
+      endpoints::default_locally_committed_func(ctx, txid);
+      auto node_operation = node_context.get_subsystem<AbstractNodeOperation>();
+      if (node_operation != nullptr)
+      {
+        node_operation->recovery_decision_protocol().trace_committed_step(
+          ctx, txid);
+      }
+    };
+
     auto recovery_decision_protocol_gossip =
       [](auto& args, recovery_decision_protocol::GossipRequest in)
       -> std::optional<ErrorDetails> {
@@ -186,10 +214,11 @@ namespace ccf::node
         HTTP_PUT,
         json_adapter(wrap_recovery_decision_protocol<
                      recovery_decision_protocol::GossipRequest>(
-          recovery_decision_protocol_gossip, node_context)),
+          recovery_decision_protocol_gossip, node_context, "gossip_accepted")),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
+      .set_locally_committed_function(trace_on_commit)
       .install();
 
     auto recovery_decision_protocol_vote =
@@ -212,10 +241,11 @@ namespace ccf::node
         HTTP_PUT,
         json_adapter(wrap_recovery_decision_protocol<
                      recovery_decision_protocol::TaggedWithNodeInfo>(
-          recovery_decision_protocol_vote, node_context)),
+          recovery_decision_protocol_vote, node_context, "vote_accepted")),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
+      .set_locally_committed_function(trace_on_commit)
       .install();
 
     auto recovery_decision_protocol_iamopen =
@@ -284,10 +314,13 @@ namespace ccf::node
         HTTP_PUT,
         json_adapter(wrap_recovery_decision_protocol<
                      recovery_decision_protocol::IAmOpenRequest>(
-          recovery_decision_protocol_iamopen, node_context)),
+          recovery_decision_protocol_iamopen,
+          node_context,
+          "iamopen_accepted")),
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
+      .set_locally_committed_function(trace_on_commit)
       .install();
 
     auto recovery_decision_protocol_timeout = [&](
@@ -341,9 +374,11 @@ namespace ccf::node
           "Request does not originate from primary.");
       }
 
+      recovery_decision_protocol::AdvanceTrace trace;
       try
       {
-        node_operation->recovery_decision_protocol().advance(args.tx, true);
+        node_operation->recovery_decision_protocol().advance(
+          args.tx, true, trace);
       }
       catch (const std::logic_error& e)
       {
@@ -356,6 +391,8 @@ namespace ccf::node
             "Failed to advance recovery-decision-protocol state: {}",
             e.what()));
       }
+      node_operation->recovery_decision_protocol().prepare_trace_step(
+        *args.rpc_ctx, "timeout", {}, std::nullopt, trace);
       return make_success(
         "Recovery-decision-protocol timeout processed successfully");
     };
@@ -367,6 +404,7 @@ namespace ccf::node
         {std::make_shared<NodeCertAuthnPolicy>()})
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
       .set_openapi_hidden(true)
+      .set_locally_committed_function(trace_on_commit)
       .install();
   }
 }
