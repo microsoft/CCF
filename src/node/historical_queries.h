@@ -212,7 +212,7 @@ namespace ccf::historical
       AllRequestedStores& all_stores;
 
       RequestedStores my_stores;
-      std::chrono::milliseconds time_to_expiry{};
+      std::chrono::milliseconds expiry_at{};
 
       bool include_receipts = false;
 
@@ -620,10 +620,18 @@ namespace ccf::historical
     // Track all things currently requested by external callers
     std::map<CompoundHandle, Request> requests;
 
+    std::chrono::milliseconds cache_time{};
+    // Renewal/removal can leave an early hint, but never a late one.
+    std::optional<std::chrono::milliseconds> next_expiry = std::nullopt;
+
     // A map containing (weak pointers to) _all_ of the stores for active
     // requests, allowing distinct requests for the same seqnos to share the
     // same underlying state (and benefit from faster lookup)
     AllRequestedStores all_stores;
+
+    // StatePtr owns payloads, not StoreDetails. Cache-owned wrapper mutations
+    // must schedule a sweep, including supporting and secret-fetch owners.
+    bool store_sweep_required = true;
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
@@ -639,6 +647,20 @@ namespace ccf::historical
 
     CacheSize soft_store_cache_limit{std::numeric_limits<size_t>::max()};
     CacheSize estimated_store_cache_size{0};
+
+    static std::chrono::milliseconds add_cache_time(
+      std::chrono::milliseconds time, std::chrono::milliseconds duration)
+    {
+      if (
+        (duration.count() > 0 &&
+         time > std::chrono::milliseconds::max() - duration) ||
+        (duration.count() < 0 &&
+         time < std::chrono::milliseconds::min() - duration))
+      {
+        throw std::overflow_error("Historical cache time overflow");
+      }
+      return time + duration;
+    }
 
     void add_request_ref(SeqNo seq, CompoundHandle handle)
     {
@@ -729,6 +751,7 @@ namespace ccf::historical
         remove_request_refs(handle);
         lru_lookup.erase(handle);
 
+        store_sweep_required = true;
         requests.erase(handle);
         lru_requests.pop_back();
       }
@@ -739,6 +762,7 @@ namespace ccf::historical
       auto it = lru_lookup.find(handle);
       if (it != lru_lookup.end())
       {
+        store_sweep_required = true;
         remove_request_refs(handle);
         lru_requests.erase(it->second);
         lru_lookup.erase(it);
@@ -1077,15 +1101,31 @@ namespace ccf::historical
 
       std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
 
+      if (
+        seconds_until_expiry > std::chrono::duration_cast<ExpiryDuration>(
+                                 std::chrono::milliseconds::max()) ||
+        seconds_until_expiry < std::chrono::duration_cast<ExpiryDuration>(
+                                 std::chrono::milliseconds::min()))
+      {
+        throw std::overflow_error(
+          "Historical cache expiry duration is out of range");
+      }
       const auto ms_until_expiry =
         std::chrono::duration_cast<std::chrono::milliseconds>(
           seconds_until_expiry);
+      const auto expiry_at = add_cache_time(cache_time, ms_until_expiry);
+      const auto previous_next_expiry = next_expiry;
+
+      store_sweep_required = true;
 
       auto it = requests.find(handle);
       if (it == requests.end())
       {
         // This is a new handle - insert a newly created Request for it
         it = requests.emplace_hint(it, handle, Request(all_stores));
+        // Keep its initial zero lifetime if constructing the request throws.
+        it->second.expiry_at = cache_time;
+        next_expiry = std::min(next_expiry.value_or(cache_time), cache_time);
         HISTORICAL_LOG("First time I've seen handle {}", handle);
       }
 
@@ -1122,7 +1162,9 @@ namespace ccf::historical
         fetch_supporting_secret_if_needed(request.first_requested_seqno());
 
       // Reset the expiry timer as this has just been requested
-      request.time_to_expiry = ms_until_expiry;
+      request.expiry_at = expiry_at;
+      next_expiry =
+        std::min(previous_next_expiry.value_or(expiry_at), expiry_at);
 
       std::vector<StatePtr> trusted_states;
 
@@ -1353,6 +1395,8 @@ namespace ccf::historical
         return false;
       }
 
+      store_sweep_required = true;
+
       ccf::kv::ApplyResult deserialise_result = ccf::kv::ApplyResult::FAIL;
       ccf::ClaimsDigest claims_digest;
       bool has_commit_evidence = false;
@@ -1507,6 +1551,8 @@ namespace ccf::historical
     {
       std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
 
+      store_sweep_required = true;
+
       LOG_TRACE_FMT("handle_no_entry_range({}, {})", from_seqno, to_seqno);
 
       for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
@@ -1606,12 +1652,16 @@ namespace ccf::historical
     {
       std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
 
+      cache_time = add_cache_time(cache_time, elapsed_ms);
+
+      if (next_expiry.has_value() && cache_time >= *next_expiry)
       {
+        next_expiry.reset();
         auto it = requests.begin();
         while (it != requests.end())
         {
           auto& request = it->second;
-          if (elapsed_ms >= request.time_to_expiry)
+          if (cache_time >= request.expiry_at)
           {
             LOG_DEBUG_FMT(
               "Dropping expired historical query with handle {}", it->first);
@@ -1620,7 +1670,8 @@ namespace ccf::historical
           }
           else
           {
-            request.time_to_expiry -= elapsed_ms;
+            next_expiry = std::min(
+              next_expiry.value_or(request.expiry_at), request.expiry_at);
             ++it;
           }
         }
@@ -1628,7 +1679,14 @@ namespace ccf::historical
 
       lru_shrink_to_fit(soft_store_cache_limit);
 
+      if (requests.empty())
       {
+        next_expiry.reset();
+      }
+
+      if (store_sweep_required)
+      {
+        bool has_pending_fetch = false;
         auto it = all_stores.begin();
         std::optional<std::pair<ccf::SeqNo, ccf::SeqNo>> range_to_request =
           std::nullopt;
@@ -1643,6 +1701,7 @@ namespace ccf::historical
           {
             if (details->current_stage == StoreStage::Fetching)
             {
+              has_pending_fetch = true;
               details->time_until_fetch -= elapsed_ms;
               if (details->time_until_fetch.count() <= 0)
               {
@@ -1683,6 +1742,8 @@ namespace ccf::historical
           auto range = range_val.value();
           fetch_entries_range(range.first, range.second);
         }
+
+        store_sweep_required = has_pending_fetch;
       }
     }
   };

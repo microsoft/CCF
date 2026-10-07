@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Forwarding timeouts now return HTTP `504` with an `application/json` CCF error envelope and the `ForwardingTimeout` error code, conforming to the governance OpenAPI error schema. The message still identifies the target node and timeout duration (#8518).
 - Paused RPC reads now resume when another interface releases the inbound budget, even if older libuv versions coalesce the notification. Previously, reads could remain paused until an unrelated event triggered a recheck (#8498).
 - Concurrent first requests to JavaScript endpoints now safely initialise the named authentication policy registry. Previously, requests could fail with `Unknown auth policy` while another worker was still populating the registry (#8520).
+- Historical query cache ticks no longer repeatedly scan retained requests and trusted stores after cleanup is complete, while no expiry or eviction is due and no ledger fetch remains pending. Request expiry, fetch retries, and cache-owned weak-entry cleanup retain their existing timing. Unrepresentable cache times or expiry deadlines now throw instead of overflowing.
 
 ## [7.0.18]
 

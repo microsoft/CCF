@@ -304,6 +304,365 @@ MerkleProofData decode_merkle_proof(const std::vector<uint8_t>& encoded)
   return data;
 }
 
+struct MaintenanceCache : public ccf::historical::StateCache
+{
+  using StateCache::StateCache;
+
+  size_t request_count()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return requests.size();
+  }
+
+  size_t store_slot_count()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return all_stores.size();
+  }
+
+  bool needs_store_sweep()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return store_sweep_required;
+  }
+
+  auto earliest_expiry_hint()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return next_expiry;
+  }
+
+  bool is_accounted(ccf::SeqNo seqno)
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return store_to_requests.contains(seqno);
+  }
+
+  auto weak_store_details(ccf::SeqNo seqno)
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return all_stores.at(seqno);
+  }
+};
+
+TEST_CASE("StateCache idle expiry deadlines")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  const auto seqno = write_transactions_and_signature(*state.kv_store, 1);
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+
+  REQUIRE(cache.get_store_at(0, seqno, 1s) == nullptr);
+  REQUIRE(cache.earliest_expiry_hint() == std::optional(1000ms));
+  REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  REQUIRE(cache.get_store_at(1, seqno, 10s) != nullptr);
+  cache.tick(0ms);
+  REQUIRE_FALSE(cache.needs_store_sweep());
+
+  cache.tick(999ms);
+  REQUIRE(cache.request_count() == 2);
+  cache.tick(1ms);
+  REQUIRE(cache.request_count() == 1);
+  REQUIRE(cache.store_slot_count() == 1);
+
+  REQUIRE(cache.get_store_at(1, seqno, 2s) != nullptr);
+  cache.tick(0ms);
+  cache.tick(500ms);
+  REQUIRE(cache.get_store_at(1, seqno, 10s) != nullptr);
+  cache.tick(0ms);
+  cache.tick(1500ms);
+  REQUIRE(cache.request_count() == 1);
+  REQUIRE_FALSE(cache.needs_store_sweep());
+
+  REQUIRE(cache.get_store_at(2, seqno, 1s) != nullptr);
+  REQUIRE(cache.earliest_expiry_hint() == std::optional(4000ms));
+  cache.tick(999ms);
+  REQUIRE(cache.request_count() == 2);
+  cache.tick(1ms);
+  REQUIRE(cache.request_count() == 1);
+  cache.tick(7499ms);
+  REQUIRE(cache.request_count() == 1);
+  cache.tick(1ms);
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE(cache.store_slot_count() == 0);
+  REQUIRE_FALSE(cache.needs_store_sweep());
+  REQUIRE_FALSE(cache.earliest_expiry_hint().has_value());
+  REQUIRE(reader->writes.empty());
+}
+
+TEST_CASE("StateCache default and immediate expiry while idle")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  const auto seqno = write_transactions_and_signature(*state.kv_store, 1);
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+
+  cache.set_default_expiry_duration(2s);
+  REQUIRE(cache.get_store_at(0, seqno) == nullptr);
+  REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  cache.tick(0ms);
+  cache.set_default_expiry_duration(1s);
+  cache.tick(1500ms);
+  REQUIRE(cache.request_count() == 1);
+  cache.tick(500ms);
+  REQUIRE(cache.request_count() == 0);
+
+  REQUIRE(cache.get_store_at(0, seqno) == nullptr);
+  REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  cache.tick(0ms);
+  cache.tick(999ms);
+  REQUIRE(cache.request_count() == 1);
+  cache.tick(1ms);
+  REQUIRE(cache.request_count() == 0);
+
+  for (const auto expiry : {0s, -1s})
+  {
+    REQUIRE(cache.get_store_at(0, seqno, expiry) == nullptr);
+    cache.tick(0ms);
+    REQUIRE(cache.request_count() == 0);
+    REQUIRE(cache.store_slot_count() == 0);
+    REQUIRE_FALSE(cache.needs_store_sweep());
+  }
+  REQUIRE(reader->writes.empty());
+}
+
+TEST_CASE("StateCache partially constructed requests still expire")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+  cache.tick(2500ms);
+
+  REQUIRE_THROWS_AS(cache.get_store_at(0, 0, 1s), std::logic_error);
+  REQUIRE(cache.request_count() == 1);
+  REQUIRE(cache.earliest_expiry_hint() == std::optional(2500ms));
+  cache.tick(0ms);
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE_FALSE(cache.earliest_expiry_hint().has_value());
+  REQUIRE_FALSE(cache.needs_store_sweep());
+}
+
+TEST_CASE("StateCache idle mutations preserve payload lifetime")
+{
+  auto state = create_and_init_state();
+  const auto signature = write_transactions_and_signature(*state.kv_store, 3);
+  const auto target = signature - 3;
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+
+  REQUIRE(cache.get_store_range(1, target, signature, 5s).empty());
+  REQUIRE(cache.get_state_at(0, target, 5s) == nullptr);
+  for (auto seqno = target; seqno <= signature; ++seqno)
+  {
+    REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  }
+  auto returned_state = cache.get_state_at(0, target, 5s);
+  REQUIRE(returned_state != nullptr);
+  cache.tick(0ms);
+  REQUIRE_FALSE(cache.needs_store_sweep());
+
+  auto weak_signature = cache.weak_store_details(signature);
+  REQUIRE(cache.drop_cached_states(1));
+  cache.tick(0ms);
+  REQUIRE(cache.store_slot_count() == 2);
+  REQUIRE_FALSE(cache.is_accounted(signature));
+  REQUIRE_FALSE(weak_signature.expired());
+  REQUIRE_FALSE(cache.needs_store_sweep());
+
+  REQUIRE(cache.get_store_at(0, target, 5s) != nullptr);
+  REQUIRE(weak_signature.expired());
+  cache.tick(0ms);
+  REQUIRE(cache.store_slot_count() == 1);
+  REQUIRE_FALSE(cache.needs_store_sweep());
+
+  auto weak_details = cache.weak_store_details(target);
+  auto weak_payload = std::weak_ptr(returned_state->store);
+  SUBCASE("Dropping the final handle")
+  {
+    REQUIRE(cache.drop_cached_states(0));
+    REQUIRE(cache.needs_store_sweep());
+  }
+  SUBCASE("Expiring the final handle")
+  {
+    cache.tick(5s);
+  }
+  SUBCASE("Evicting the final handle")
+  {
+    cache.set_soft_cache_limit(0);
+    cache.tick(0ms);
+  }
+
+  REQUIRE(weak_details.expired());
+  REQUIRE_FALSE(weak_payload.expired());
+  validate_business_transaction(returned_state, target);
+  REQUIRE(ccf::describe_merkle_proof_v1(*returned_state->receipt).has_value());
+  cache.tick(0ms);
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE(cache.store_slot_count() == 0);
+  REQUIRE_FALSE(cache.earliest_expiry_hint().has_value());
+  REQUIRE_FALSE(cache.needs_store_sweep());
+
+  std::thread release_payload(
+    [returned_state = std::move(returned_state)]() mutable {
+      returned_state.reset();
+    });
+  release_payload.join();
+  REQUIRE(weak_payload.expired());
+  cache.tick(1000ms);
+  REQUIRE(cache.store_slot_count() == 0);
+  REQUIRE_FALSE(cache.needs_store_sweep());
+  REQUIRE(reader->writes.empty());
+}
+
+TEST_CASE("StateCache resumes fetches and reaps a late failed range")
+{
+  auto state = create_and_init_state();
+  const auto signature = write_transactions_and_signature(*state.kv_store, 3);
+  const auto target = signature - 3;
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+  cache.tick(0ms);
+  REQUIRE_FALSE(cache.needs_store_sweep());
+
+  REQUIRE(cache.get_store_range(0, target, signature - 1, 10s).empty());
+  cache.tick(0ms);
+  REQUIRE(reader->writes.size() == 1);
+  REQUIRE(reader->writes.front().from == target);
+  REQUIRE(reader->writes.front().to == signature - 1);
+  reader->writes.clear();
+  cache.tick(999ms);
+  REQUIRE(reader->writes.empty());
+  cache.tick(1ms);
+  REQUIRE(reader->writes.size() == 1);
+  REQUIRE(reader->writes.front().from == target);
+  REQUIRE(reader->writes.front().to == signature - 1);
+  reader->writes.clear();
+
+  for (auto seqno = target; seqno < signature; ++seqno)
+  {
+    REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  }
+  cache.tick(0ms);
+  REQUIRE_FALSE(cache.needs_store_sweep());
+
+  REQUIRE(cache.get_store_range(0, target, signature, 10s).empty());
+  cache.tick(0ms);
+  REQUIRE(reader->writes.size() == 1);
+  REQUIRE(reader->writes.front().from == signature);
+  REQUIRE(reader->writes.front().to == signature);
+  reader->writes.clear();
+  REQUIRE(cache.handle_ledger_entry(signature, ledger.at(signature)));
+  cache.tick(0ms);
+  REQUIRE_FALSE(cache.needs_store_sweep());
+
+  cache.handle_no_entry_range(target, signature - 1);
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE(cache.store_slot_count() == 1);
+  cache.tick(0ms);
+  REQUIRE(cache.store_slot_count() == 0);
+  REQUIRE_FALSE(cache.needs_store_sweep());
+  REQUIRE_FALSE(cache.handle_ledger_entry(signature, ledger.at(signature)));
+  cache.tick(0ms);
+  REQUIRE_FALSE(cache.needs_store_sweep());
+  REQUIRE(reader->writes.empty());
+}
+
+TEST_CASE("StateCache secret-fetch ownership and cleanup")
+{
+  auto state = create_and_init_state();
+  write_transactions(*state.kv_store, 3);
+  const auto first_rekey = rekey(*state.kv_store, state.ledger_secrets);
+  write_transactions(*state.kv_store, 3);
+  const auto second_rekey = rekey(*state.kv_store, state.ledger_secrets);
+  write_transactions_and_signature(*state.kv_store, 1);
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+
+  auto recovered_state = create_and_init_state(false);
+  auto tx = recovered_state.kv_store->create_read_only_tx();
+  ccf::LedgerSecretsMap recovered_secrets;
+  recovered_secrets.emplace(state.ledger_secrets->get_latest(tx));
+  recovered_state.ledger_secrets->restore_historical(
+    std::move(recovered_secrets));
+
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(
+    *recovered_state.kv_store, recovered_state.ledger_secrets, reader);
+  const auto target = first_rekey - 1;
+  REQUIRE(cache.get_store_at(0, target, 60s) == nullptr);
+  auto weak_secret = cache.weak_store_details(second_rekey);
+  REQUIRE_FALSE(cache.is_accounted(second_rekey));
+  cache.tick(0ms);
+
+  REQUIRE(cache.drop_cached_states(0));
+  cache.tick(0ms);
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE_FALSE(cache.earliest_expiry_hint().has_value());
+  REQUIRE_FALSE(weak_secret.expired());
+  REQUIRE(cache.needs_store_sweep());
+  reader->writes.clear();
+  cache.tick(999ms);
+  REQUIRE(reader->writes.empty());
+  cache.tick(1ms);
+  REQUIRE(reader->writes.size() == 1);
+  REQUIRE(reader->writes.front().from == second_rekey);
+  REQUIRE(reader->writes.front().to == second_rekey);
+  reader->writes.clear();
+
+  REQUIRE(cache.get_store_at(1, target, 60s) == nullptr);
+  REQUIRE(cache.handle_ledger_entry(second_rekey, ledger.at(second_rekey)));
+  REQUIRE(weak_secret.expired());
+  cache.tick(0ms);
+  REQUIRE(cache.store_slot_count() == 1);
+  weak_secret = cache.weak_store_details(first_rekey);
+  REQUIRE_FALSE(cache.is_accounted(first_rekey));
+  REQUIRE(cache.handle_ledger_entry(first_rekey, ledger.at(first_rekey)));
+  REQUIRE(weak_secret.expired());
+  cache.tick(0ms);
+  REQUIRE(cache.store_slot_count() == 1);
+  REQUIRE(cache.handle_ledger_entry(target, ledger.at(target)));
+  auto historical_store = cache.get_store_at(1, target, 60s);
+  validate_business_transaction(historical_store, target);
+  cache.tick(0ms);
+  REQUIRE_FALSE(cache.needs_store_sweep());
+
+  REQUIRE(cache.drop_cached_states(1));
+  cache.tick(0ms);
+  REQUIRE(cache.store_slot_count() == 0);
+  REQUIRE_FALSE(cache.earliest_expiry_hint().has_value());
+  REQUIRE_FALSE(cache.needs_store_sweep());
+  validate_business_transaction(historical_store, target);
+}
+
+TEST_CASE("StateCache deadline arithmetic is checked")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+  REQUIRE_THROWS_AS(
+    cache.get_store_at(0, 1, ccf::historical::ExpiryDuration::max()),
+    std::overflow_error);
+  REQUIRE_THROWS_AS(
+    cache.get_store_at(0, 1, ccf::historical::ExpiryDuration::min()),
+    std::overflow_error);
+  REQUIRE(cache.request_count() == 0);
+
+  cache.tick(std::chrono::milliseconds::max());
+  REQUIRE_THROWS_AS(cache.tick(1ms), std::overflow_error);
+  REQUIRE_THROWS_AS(cache.get_store_at(0, 1, 1s), std::overflow_error);
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE(cache.get_store_at(0, 1, -1s) == nullptr);
+  cache.tick(0ms);
+  REQUIRE(cache.request_count() == 0);
+}
+
 TEST_CASE("StateCache point queries")
 {
   auto state = create_and_init_state();
@@ -2278,6 +2637,80 @@ TEST_CASE("Legacy COSE receipt descriptions select CLASSICAL, not PQ")
   REQUIRE_FALSE(
     ccf::historical::select_described_cose_signature(receipt.cose_signatures)
       .has_value());
+}
+
+TEST_CASE("StateCache idle tick benchmark" * doctest::skip())
+{
+  struct BenchmarkCache : public ccf::historical::StateCache
+  {
+    using StateCache::StateCache;
+
+    std::pair<size_t, size_t> get_shape()
+    {
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+      return {requests.size(), all_stores.size()};
+    }
+
+    void trust_all_stores()
+    {
+      std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+      for (const auto& [_, weak_details] : all_stores)
+      {
+        auto details = weak_details.lock();
+        REQUIRE(details != nullptr);
+        details->current_stage = StoreStage::Trusted;
+      }
+    }
+  };
+
+  constexpr size_t ticks_per_sample = 1000;
+  constexpr size_t sample_count = 7;
+
+  for (size_t request_count : {0, 7300, 14600})
+  {
+    auto state = create_and_init_state(false);
+    state.ledger_secrets->init();
+    auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+    BenchmarkCache cache(*state.kv_store, state.ledger_secrets, reader);
+
+    for (ccf::historical::RequestHandle handle = 0; handle < request_count;
+         ++handle)
+    {
+      const ccf::SeqNo first = 3 * handle + 1;
+      cache.get_store_range(handle, first, first + 2);
+    }
+
+    // Tick only inspects wrapper metadata, so payloads need not be populated.
+    cache.trust_all_stores();
+    cache.tick(0ms);
+    REQUIRE(
+      cache.get_shape() == std::make_pair(request_count, 3 * request_count));
+
+    std::vector<double> samples;
+    for (size_t sample = 0; sample < sample_count; ++sample)
+    {
+      const auto start = std::chrono::steady_clock::now();
+      for (size_t tick = 0; tick < ticks_per_sample; ++tick)
+      {
+        cache.tick(10ms);
+      }
+      const auto elapsed = std::chrono::steady_clock::now() - start;
+      samples.push_back(
+        std::chrono::duration<double, std::nano>(elapsed).count() /
+        ticks_per_sample);
+    }
+
+    std::sort(samples.begin(), samples.end());
+    fmt::print(
+      "Idle tick benchmark: requests={}, stores={}, "
+      "median_ns_per_tick={:.1f}\n",
+      request_count,
+      3 * request_count,
+      samples[sample_count / 2]);
+    REQUIRE(
+      cache.get_shape() == std::make_pair(request_count, 3 * request_count));
+    REQUIRE(reader->writes.empty());
+  }
 }
 
 int main(int argc, char** argv)
