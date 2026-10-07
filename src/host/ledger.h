@@ -13,6 +13,7 @@
 #include "kv/serialised_entry_format.h"
 #include "ledger/filenames.h"
 
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
@@ -107,6 +108,22 @@ namespace asynchost
     // checked against the existing ones, until a divergence is found.
     bool from_existing_file = false;
 
+    void checked_seek(off_t offset, int whence)
+    {
+      if (fseeko(file, offset, whence) != 0)
+      {
+        const auto seek_errno = errno;
+        throw std::logic_error(fmt::format(
+          "Failed to seek ledger file {} to offset {} (whence {}): {} (errno "
+          "{})",
+          dir / file_name,
+          offset,
+          whence,
+          ccf::nonstd::strerror(seek_errno),
+          seek_errno));
+      }
+    }
+
     int close()
     {
       if (file == nullptr)
@@ -163,10 +180,12 @@ namespace asynchost
           file_path,
           ccf::nonstd::strerror(errno)));
       }
+      std::unique_ptr<FILE, decltype(&fclose)> file_guard(file, fclose);
 
       // Header reserved for the offset to the position table
-      fseeko(file, sizeof(positions_offset_header_t), SEEK_SET);
+      checked_seek(sizeof(positions_offset_header_t), SEEK_SET);
       total_len = sizeof(positions_offset_header_t);
+      file_guard.release();
     }
 
     // Used when recovering an existing ledger file
@@ -199,13 +218,14 @@ namespace asynchost
           file_path,
           ccf::nonstd::strerror(errno)));
       }
+      std::unique_ptr<FILE, decltype(&fclose)> file_guard(file, fclose);
 
       // First, get full size of file
-      fseeko(file, 0, SEEK_END);
+      checked_seek(0, SEEK_END);
       size_t total_file_size = ftello(file);
 
       // Second, read offset to header table
-      fseeko(file, 0, SEEK_SET);
+      checked_seek(0, SEEK_SET);
       positions_offset_header_t table_offset = 0;
       {
         ccf::ds::TimeBoundLogger log_if_slow(
@@ -232,6 +252,7 @@ namespace asynchost
         // When recovering a file from persistence, do not recover entries to
         // start with as these are expected to be written again at a later
         // point.
+        file_guard.release();
         return;
       }
 
@@ -239,7 +260,7 @@ namespace asynchost
       {
         // If the chunk was completed, read positions table from file directly
         total_len = table_offset;
-        fseeko(file, table_offset, SEEK_SET);
+        checked_seek(table_offset, SEEK_SET);
 
         if (table_offset > total_file_size)
         {
@@ -295,6 +316,7 @@ namespace asynchost
               "Failed to read entry header from ledger file {} at seqno {}",
               file_path,
               current_idx);
+            file_guard.release();
             return;
           }
 
@@ -310,10 +332,11 @@ namespace asynchost
               current_idx,
               entry_size,
               len);
+            file_guard.release();
             return;
           }
 
-          fseeko(file, entry_size, SEEK_CUR);
+          checked_seek(entry_size, SEEK_CUR);
           len -= entry_size;
 
           LOG_TRACE_FMT(
@@ -327,6 +350,7 @@ namespace asynchost
         }
         completed = false;
       }
+      file_guard.release();
     }
 
     ~LedgerFile()
@@ -369,7 +393,7 @@ namespace asynchost
     std::pair<size_t, bool> write_entry(
       const uint8_t* data, size_t size, bool committable)
     {
-      fseeko(file, total_len, SEEK_SET);
+      checked_seek(total_len, SEEK_SET);
 
       bool should_write = true;
       bool has_truncated = false;
@@ -511,7 +535,7 @@ namespace asynchost
         return LedgerReadResult{{}, from, true};
       }
       std::vector<uint8_t> entries(size);
-      fseeko(file, positions.at(from - start_idx), SEEK_SET);
+      checked_seek(positions.at(from - start_idx), SEEK_SET);
 
       {
         ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
@@ -560,7 +584,7 @@ namespace asynchost
       }
 
       // Reset positions offset header
-      fseeko(file, 0, SEEK_SET);
+      checked_seek(0, SEEK_SET);
       positions_offset_header_t table_offset = 0;
       {
         ccf::ds::TimeBoundLogger log_if_slow(
@@ -598,7 +622,7 @@ namespace asynchost
         }
       }
 
-      fseeko(file, total_len, SEEK_SET);
+      checked_seek(total_len, SEEK_SET);
       LOG_TRACE_FMT("Truncated ledger file {} at seqno {}", file_name, idx);
       return false;
     }
@@ -622,7 +646,7 @@ namespace asynchost
         truncate(get_last_idx(), /* remove_file_if_empty = */ false);
       }
 
-      fseeko(file, total_len, SEEK_SET);
+      checked_seek(total_len, SEEK_SET);
       size_t table_offset = ftello(file);
 
       {
@@ -642,10 +666,7 @@ namespace asynchost
       }
 
       // Write positions table offset at start of file
-      if (fseeko(file, 0, SEEK_SET) != 0)
-      {
-        throw std::logic_error("Failed to set file offset to 0");
-      }
+      checked_seek(0, SEEK_SET);
 
       {
         ccf::ds::TimeBoundLogger log_if_slow(fmt::format(

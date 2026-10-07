@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Paused RPC reads now resume when another interface releases the inbound budget, even if older libuv versions coalesce the notification. Previously, reads could remain paused until an unrelated event triggered a recheck (#8498).
+- Ledger file operations now check seek failures before continuing with dependent reads or writes, and report the filename, requested offset, seek origin and errno.
 
 ## [7.0.18]
 

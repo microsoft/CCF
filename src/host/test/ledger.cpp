@@ -16,6 +16,7 @@
 #include "snapshots/snapshot_writer.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include <cerrno>
 #include <condition_variable>
 #include <doctest/doctest.h>
 #include <fcntl.h>
@@ -24,6 +25,106 @@
 #include <string>
 #include <sys/file.h>
 #include <unistd.h>
+
+namespace
+{
+  struct SeekFailure;
+  thread_local SeekFailure* seek_failure = nullptr;
+
+  struct SeekFailure
+  {
+    const size_t fail_on_call;
+    size_t seek_calls = 0;
+    FILE* failed_file = nullptr;
+    off_t failed_offset = 0;
+    int failed_whence = 0;
+    size_t reads_after_failure = 0;
+    size_t writes_after_failure = 0;
+    SeekFailure* previous;
+
+    explicit SeekFailure(size_t fail_on_call) :
+      fail_on_call(fail_on_call),
+      previous(seek_failure)
+    {
+      seek_failure = this;
+    }
+
+    ~SeekFailure()
+    {
+      seek_failure = previous;
+    }
+  };
+}
+
+// Linker wrapping confines fault injection to this test executable.
+extern "C" int __real_fseeko(FILE* stream, off_t offset, int whence);
+extern "C" size_t __real_fread(
+  void* data, size_t size, size_t count, FILE* stream);
+extern "C" size_t __real_fwrite(
+  const void* data, size_t size, size_t count, FILE* stream);
+
+extern "C" int __wrap_fseeko(FILE* stream, off_t offset, int whence)
+{
+  if (
+    seek_failure != nullptr &&
+    ++seek_failure->seek_calls == seek_failure->fail_on_call)
+  {
+    seek_failure->failed_file = stream;
+    seek_failure->failed_offset = offset;
+    seek_failure->failed_whence = whence;
+    errno = EIO;
+    return -1;
+  }
+  return __real_fseeko(stream, offset, whence);
+}
+
+extern "C" size_t __wrap_fread(
+  void* data, size_t size, size_t count, FILE* stream)
+{
+  if (seek_failure != nullptr && seek_failure->failed_file == stream)
+  {
+    ++seek_failure->reads_after_failure;
+  }
+  return __real_fread(data, size, count, stream);
+}
+
+extern "C" size_t __wrap_fwrite(
+  const void* data, size_t size, size_t count, FILE* stream)
+{
+  if (seek_failure != nullptr && seek_failure->failed_file == stream)
+  {
+    ++seek_failure->writes_after_failure;
+  }
+  return __real_fwrite(data, size, count, stream);
+}
+
+template <typename F>
+void require_seek_failure(
+  const fs::path& file_path,
+  off_t offset,
+  int whence,
+  F&& operation,
+  size_t fail_on_call = 1)
+{
+  SeekFailure failure(fail_on_call);
+  REQUIRE_THROWS_WITH_AS(
+    operation(),
+    fmt::format(
+      "Failed to seek ledger file {} to offset {} (whence {}): {} (errno {})",
+      file_path,
+      offset,
+      whence,
+      ccf::nonstd::strerror(EIO),
+      EIO)
+      .c_str(),
+    std::logic_error);
+  CHECK(failure.seek_calls == fail_on_call);
+  CHECK(failure.failed_file != nullptr);
+  CHECK(failure.failed_offset == offset);
+  CHECK(failure.failed_whence == whence);
+  CHECK(failure.reads_after_failure == 0);
+  CHECK(failure.writes_after_failure == 0);
+}
 
 using namespace asynchost;
 using namespace ccf::ledger;
@@ -1147,6 +1248,163 @@ size_t number_open_fd()
     fd_count++;
   }
   return fd_count;
+}
+
+TEST_CASE("Ledger file construction stops on seek failure")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  files::create_directory(ledger_dir);
+  const auto file_path = fs::path(ledger_dir) / "ledger_1";
+  const auto fd_count = number_open_fd();
+
+  require_seek_failure(file_path, sizeof(size_t), SEEK_SET, []() {
+    LedgerFile file(ledger_dir, 1);
+  });
+
+  CHECK(number_open_fd() == fd_count);
+  CHECK(fs::file_size(file_path) == 0);
+}
+
+TEST_CASE("Ledger file recovery stops on seek failure")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  files::create_directory(ledger_dir);
+  const auto file_path = fs::path(ledger_dir) / "ledger_1";
+  const auto entry = make_ledger_entry(1);
+  bool complete = false;
+  size_t fail_on_call = 1;
+  off_t offset = 0;
+  int whence = SEEK_END;
+
+  SUBCASE("Measuring file size") {}
+  SUBCASE("Reading positions offset")
+  {
+    fail_on_call = 2;
+    whence = SEEK_SET;
+  }
+  SUBCASE("Reading positions table")
+  {
+    complete = true;
+    fail_on_call = 3;
+    offset = sizeof(size_t) + 2 * entry.size();
+    whence = SEEK_SET;
+  }
+  SUBCASE("Skipping first incomplete entry")
+  {
+    fail_on_call = 3;
+    offset = sizeof(TestLedgerEntry);
+    whence = SEEK_CUR;
+  }
+  SUBCASE("Skipping later incomplete entry")
+  {
+    fail_on_call = 4;
+    offset = sizeof(TestLedgerEntry);
+    whence = SEEK_CUR;
+  }
+
+  {
+    LedgerFile file(ledger_dir, 1);
+    file.write_entry(entry.data(), entry.size(), true);
+    file.write_entry(entry.data(), entry.size(), true);
+    if (complete)
+    {
+      file.complete();
+    }
+  }
+  const auto contents = files::slurp(file_path);
+  const auto fd_count = number_open_fd();
+
+  require_seek_failure(
+    file_path,
+    offset,
+    whence,
+    []() { LedgerFile file(ledger_dir, "ledger_1"); },
+    fail_on_call);
+
+  CHECK(number_open_fd() == fd_count);
+  CHECK(files::slurp(file_path) == contents);
+}
+
+TEST_CASE("Ledger file operations stop on seek failure")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  files::create_directory(ledger_dir);
+  const auto file_path = fs::path(ledger_dir) / "ledger_1";
+  LedgerFile file(ledger_dir, 1);
+  const auto entry = make_ledger_entry(1);
+  file.write_entry(entry.data(), entry.size(), true);
+  file.write_entry(entry.data(), entry.size(), true);
+  const auto total_len = file.get_current_size();
+  const auto contents = files::slurp(file_path);
+
+  SUBCASE("Read entries")
+  {
+    require_seek_failure(
+      file_path, sizeof(size_t), SEEK_SET, [&]() { file.read_entries(1, 2); });
+  }
+  SUBCASE("Write entry")
+  {
+    require_seek_failure(file_path, total_len, SEEK_SET, [&]() {
+      file.write_entry(entry.data(), entry.size(), true);
+    });
+  }
+  SUBCASE("Compare existing entry")
+  {
+    LedgerFile existing(ledger_dir, "ledger_1", true);
+    require_seek_failure(file_path, sizeof(size_t), SEEK_SET, [&]() {
+      existing.write_entry(entry.data(), entry.size(), true);
+    });
+    CHECK(existing.get_last_idx() == 0);
+    CHECK(existing.get_current_size() == sizeof(size_t));
+  }
+  SUBCASE("Reset positions offset on truncation")
+  {
+    require_seek_failure(file_path, 0, SEEK_SET, [&]() { file.truncate(1); });
+  }
+  SUBCASE("Write positions table on completion")
+  {
+    require_seek_failure(
+      file_path, total_len, SEEK_SET, [&]() { file.complete(); });
+  }
+
+  CHECK(file.get_last_idx() == 2);
+  CHECK(file.get_current_size() == total_len);
+  CHECK_FALSE(file.is_complete());
+  CHECK(files::slurp(file_path) == contents);
+  REQUIRE(file.read_entries(1, 1).value().data == entry);
+}
+
+TEST_CASE("Ledger file final seeks report failures")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  files::create_directory(ledger_dir);
+  const auto file_path = fs::path(ledger_dir) / "ledger_1";
+  LedgerFile file(ledger_dir, 1);
+  const auto entry = make_ledger_entry(1);
+  file.write_entry(entry.data(), entry.size(), true);
+  file.write_entry(entry.data(), entry.size(), true);
+
+  SUBCASE("Reposition after truncation")
+  {
+    const auto truncated_len = sizeof(size_t) + entry.size();
+    require_seek_failure(
+      file_path, truncated_len, SEEK_SET, [&]() { file.truncate(1); }, 2);
+    CHECK(file.get_last_idx() == 1);
+    CHECK(fs::file_size(file_path) == truncated_len);
+  }
+  SUBCASE("Write positions offset on completion")
+  {
+    require_seek_failure(file_path, 0, SEEK_SET, [&]() { file.complete(); }, 2);
+    CHECK(file.get_last_idx() == 2);
+  }
+
+  CHECK_FALSE(file.is_complete());
+  REQUIRE(file.read_entries(1, 1).value().data == entry);
+  file.complete();
+  CHECK(file.is_complete());
+  LedgerFile recovered(ledger_dir, "ledger_1");
+  CHECK(recovered.get_last_idx() == file.get_last_idx());
+  REQUIRE(recovered.read_entries(1, 1).value().data == entry);
 }
 
 int get_open_fd_for_file(const fs::path& file)
