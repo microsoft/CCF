@@ -48,17 +48,17 @@ namespace ccf
       auto rpc_responder_shared = rpcresponder.lock();
       if (rpc_responder_shared)
       {
-        auto response = ::http::Response(HTTP_STATUS_GATEWAY_TIMEOUT);
-        auto body = fmt::format(
-          "Request was forwarded to node {}, but no response was received "
-          "after {}ms",
-          to,
-          timeout.count());
-        response.set_body(body);
-        response.set_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
         rpc_responder_shared->reply_async(
-          client_session_id, false, response.build_response());
+          client_session_id,
+          false,
+          ::http::error(
+            HTTP_STATUS_GATEWAY_TIMEOUT,
+            ccf::errors::ForwardingTimeout,
+            fmt::format(
+              "Request was forwarded to node {}, but no response was received "
+              "after {}ms",
+              to,
+              timeout.count())));
       }
     }
 
