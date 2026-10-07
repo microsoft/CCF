@@ -133,11 +133,10 @@ The build and audit include both the human-reviewed model and system properties 
 The standard `mk_all --check` command ensures that the audit root imports every library module, so newly added proofs cannot silently escape the checks.
 
 The job also builds `disaster-recovery-replay`, from its own Lake package in
-`lean/disaster-recovery/replay`, which has no dependencies, and runs
-`tests/infra/recovery_trace_mutations.py` against committed quorum, failover,
-and multiple-timeout trace fixtures. The harness replays the unmodified traces,
-checks targeted negative and benign mutations, and sweeps sampled records for
-single-field perturbations, every one of which must fail.
+`lean/disaster-recovery/replay`, which has no dependencies, and runs its
+`check-fixtures.sh`. That replays committed quorum, failover and
+multiple-timeout trace fixtures, which must pass, and stored mutants of them,
+each of which must fail or pass as its directory says.
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, also
 builds the replayer the same way and replays the protocol's e2e scenarios

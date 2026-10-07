@@ -1,0 +1,5 @@
+--- a/scenario.json
++++ b/scenario.json
+@@ -2 +2 @@
+-  "participants": 3,
++  "participants": 2,

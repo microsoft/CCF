@@ -31,8 +31,7 @@ passes it on to the nodes. After the quorum, failover and multiple-timeout
 scenarios in `tests/e2e_operations.py`, `tests/infra/recovery_trace.py` runs
 the replayer on the nodes' logs.
 `.github/workflows/lean.yml` also builds the replayer and runs
-`tests/infra/recovery_trace_mutations.py` against committed fixtures of those
-three scenarios.
+`check-fixtures.sh` on committed fixtures of those three scenarios.
 
 ## Records
 
@@ -106,30 +105,27 @@ A successful replay shows that one model execution explains every record:
 each action is enabled, and each observation matches. It does not show
 behaviour that no record shows, or liveness.
 
-## Mutation test
+## Fixtures
 
-`tests/infra/recovery_trace_mutations.py` tests the replayer. It replays the
-committed fixtures in `lean/disaster-recovery/replay/fixtures/`, checks
-targeted negative and benign mutations with explicit expectations, and then
-sweeps sampled records with single-field perturbations, every one of which
-must fail. Commit order is covered by targeted mutants rather than by sweeping
-`version`, and a gossip's `source` is only relabeled to a location that never
-sent its txid, since any other would describe another valid trace.
-
-Run it from the repository root after building the replayer:
+`fixtures/` holds the trace lines of the quorum, failover and multiple-timeout
+scenarios of one SNP run. Each scenario's `mutants/fail` and `mutants/pass`
+hold diffs of its traces that the replayer must reject or accept.
+`sweep.KIND.FIELD.N.diff` changes `FIELD` in the `N`th record of `KIND`, and
+the others make the targeted change that they are named after. Commit order is
+covered by targeted mutants rather than by changing `version` alone.
+`check-fixtures.sh` replays each fixture, which must pass, and each mutant:
 
 ```bash
 cd lean/disaster-recovery/replay
 lake build
-cd ../../..
-python3 tests/infra/recovery_trace_mutations.py \
-  lean/disaster-recovery/replay/.lake/build/bin/disaster-recovery-replay \
-  lean/disaster-recovery/replay/fixtures
+./check-fixtures.sh
 ```
 
 To refresh the fixtures from a traced SNP run, download its
 `logs-caci-snp-genoa` artifact and keep the `RDP_TRACE` part of each line of
-the three scenarios' node logs. The `scenario.json` files do not change.
+the three scenarios' node logs. The `scenario.json` files do not change. The
+mutants are diffs against these fixtures, so refreshing them means
+regenerating the mutants, with the generator in the history of #8282.
 
 ```bash
 gh run download RUN_ID --repo microsoft/CCF --name logs-caci-snp-genoa --dir artifact

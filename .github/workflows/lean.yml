@@ -6,7 +6,6 @@ on:
       - "lean/**"
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
-      - "tests/infra/recovery_trace_mutations.py"
       - ".github/workflows/lean.yml"
 
 concurrency:
@@ -49,16 +48,13 @@ jobs:
           lake lint
           lake exe canonical-checks
 
-      - name: Build and mutate-check disaster recovery replay
+      - name: Build and check disaster recovery replay
         shell: bash
         run: |
           set -euo pipefail
           cd lean/disaster-recovery/replay
           lake build
-          cd ../../..
-          python3 tests/infra/recovery_trace_mutations.py \
-            lean/disaster-recovery/replay/.lake/build/bin/disaster-recovery-replay \
-            lean/disaster-recovery/replay/fixtures
+          ./check-fixtures.sh
 
       - name: Check Lean formatting
         run: ./scripts/lean-format-checks.sh
