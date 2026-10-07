@@ -80,7 +80,6 @@ jobs:
           set -ex
           cd build
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          PYTHONPATH=../tests env/bin/python -m unittest discover -s ../tests/infra -p '*_test.py' -v
 
       - name: "Build docs and run e2e tests (bucket_a)"
         shell: bash

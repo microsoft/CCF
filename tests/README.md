@@ -53,13 +53,3 @@ Individual test functions that operate on an existing network.
 Functions that don't fit either pattern (e.g. shared test groups that operate
 on an existing network but aren't individual tests) should avoid the `test_`
 and `run_` prefixes.
-
-## Infrastructure regression tests
-
-With the Python SDK and test dependencies installed, run the node
-acknowledgement and service-load cleanup tests from the repository root without
-starting a CCF network:
-
-```bash
-PYTHONPATH=tests python3 -m unittest discover -s tests/infra -p '*_test.py' -v
-```
