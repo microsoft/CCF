@@ -60,7 +60,7 @@ CCF ensures that governance audit is possible offline from a ledger, by consider
     If this table is moved, make sure the source is updated in-sync.
     (Ctrl+Shift+F: read_write_restrictions)
 
-The possible access permissions are elaborated in the table below:
+The possible access permissions are elaborated in the table below. The public internal column excludes the :ref:`signature-transaction tables <audit/read_write_restrictions:Signature-Transaction Tables>` described below.
 
 .. table:: KV permissions in different execution contexts
     :widths: auto
@@ -80,3 +80,18 @@ The possible access permissions are elaborated in the table below:
     +--------------------------+------------+------------+------------+------------+------------+------------+
 
 Any violation of these restrictions (eg - calling ``set`` on a `Read-only` table, or ``has`` on a `None` table) results in an exception being thrown.
+
+Signature-Transaction Tables
+----------------------------
+
+From CCF 8.0, the following public internal tables have no current-KV access in any application or governance context, including read-only endpoints, ballots and all constitution functions:
+
+- ``public:ccf.internal.signatures``
+- ``public:ccf.internal.cose_signatures``
+- ``public:ccf.internal.tree``
+
+These tables are maintained by framework signature transactions and must not be treated as part of an ordinary live transaction's KV snapshot. This restriction applies to exactly these names, not the entire ``public:ccf.internal`` namespace. Other public internal tables retain the read-only permissions shown above.
+
+The restriction is enforced by the native KV API as well as JavaScript permissions, so also applies to C++ and Rust applications. See :doc:`/build_apps/kv/kv_how_to` for the native transaction restrictions. Historical read-only access to these tables remains supported, including JavaScript historical KV views and native historical read-only stores. :doc:`Receipt APIs </use_apps/rpc_api>` and :doc:`offline ledger parsing </audit/python_library>` are unaffected.
+
+Applications needing signature data should use historical state or receipt APIs instead of the current KV. For non-transactional progress metadata, use :http:GET:`/node/state`; this metadata is independent of an application's KV snapshot. Older copied constitutions which eagerly initialise member acknowledgement state digests from raw signatures must migrate to the :ref:`state-digest update and acknowledgement workflow <governance/adding_member:Activating a New Member>`.

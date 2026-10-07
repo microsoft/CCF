@@ -75,7 +75,8 @@ namespace ccf::gov::endpoints
     }
 
     template <typename Ctx>
-    inline void update_state_digest(Ctx& ctx, ApiVersion api_version)
+    inline void update_state_digest(
+      Ctx& ctx, ApiVersion api_version, NetworkState& network)
     {
       switch (api_version)
       {
@@ -129,9 +130,13 @@ namespace ccf::gov::endpoints
             ack = ack_opt.value();
           }
 
-          // Get merkle root state digest from serialised merkle tree
-          auto tree_handle = ctx.tx.template ro<ccf::SerialisedMerkleTree>(
-            Tables::SERIALISED_MERKLE_TREE);
+          // The acknowledged signed prefix is metadata, not this write's
+          // transactional snapshot.
+          auto signed_state =
+            network.tables->create_read_only_tx_at_replicated_state();
+          auto* tree_handle =
+            signed_state.template ro<ccf::SerialisedMerkleTree>(
+              Tables::SERIALISED_MERKLE_TREE);
           auto tree = tree_handle->get();
           if (!tree.has_value())
           {
@@ -348,7 +353,7 @@ namespace ccf::gov::endpoints
 
   inline void init_ack_handlers(
     ccf::BaseEndpointRegistry& registry,
-    NetworkState& /*network*/,
+    NetworkState& network,
     ShareManager& share_manager)
   {
     auto get_state_digest = [](auto& ctx, ApiVersion api_version) {
@@ -364,8 +369,8 @@ namespace ccf::gov::endpoints
       .set_openapi_summary("Get a member's state digest")
       .install();
 
-    auto update_state_digest = [](auto& ctx, ApiVersion api_version) {
-      detail::update_state_digest(ctx, api_version);
+    auto update_state_digest = [&network](auto& ctx, ApiVersion api_version) {
+      detail::update_state_digest(ctx, api_version, network);
     };
     registry
       .make_endpoint(

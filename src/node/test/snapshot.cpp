@@ -67,7 +67,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   {
     // No snapshot here, only verify that a fresh tree can be started from the
     // mini-tree in a signature and the hash of the signature
-    auto tx = source_store.create_read_only_tx();
+    auto tx = source_store.create_read_only_tx_at_replicated_state();
     auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
     REQUIRE(signatures->has());
     auto sig = signatures->get().value();

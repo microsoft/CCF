@@ -5,6 +5,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/http_status.h"
 #include "ccf/kv/map.h"
+#include "ccf/kv/map_access.h"
 #include "ccf/odata_error.h"
 #include "ccf/rust_ffi.h"
 #include "kv/compacted_version_conflict.h"
@@ -302,6 +303,10 @@ namespace
       {
         ctx->compacted_version_conflict = e;
         return CCF_RUST_INTERNAL_ERROR;
+      }
+      catch (const ccf::kv::MapAccessDenied&)
+      {
+        return CCF_RUST_ACCESS_DENIED;
       }
     });
   }

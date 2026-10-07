@@ -10,10 +10,26 @@ const COMPACTION_DELAY_MS: u64 = 2_000;
 const COMPACTION_MARKER: &str = "compaction_marker";
 const COMPACTION_RECORDS: &str = "compaction_records";
 const RECORDS: &str = "records";
+const SIGNATURE_TABLE_KEY: &[u8] = &[0; 8];
 static COMPACTION_READY: AtomicBool = AtomicBool::new(false);
 
 fn required_key(value: Result<Option<String>, BridgeError>) -> Result<String, EndpointError> {
     value?.ok_or_else(|| EndpointError::new(400, "InvalidResourceName", "Missing key"))
+}
+
+fn signature_table_name(
+    value: Result<Option<String>, BridgeError>,
+) -> Result<&'static str, EndpointError> {
+    match value?.as_deref() {
+        Some("signatures") => Ok("public:ccf.internal.signatures"),
+        Some("cose_signatures") => Ok("public:ccf.internal.cose_signatures"),
+        Some("tree") => Ok("public:ccf.internal.tree"),
+        _ => Err(EndpointError::new(
+            400,
+            "InvalidResourceName",
+            "Unknown signature table",
+        )),
+    }
 }
 
 fn register(registry: &mut Registry) -> Result<(), BridgeError> {
@@ -51,6 +67,64 @@ fn register(registry: &mut Registry) -> Result<(), BridgeError> {
         },
     )?;
     // SNIPPET_END: rust_get_record
+
+    registry.read_only(
+        "/signature-table-access/{table}/{operation}",
+        "GET",
+        Auth::None,
+        |context| -> EndpointResult {
+            let table = signature_table_name(context.path_param("table"))?;
+            let operation = required_key(context.path_param("operation"))?;
+            match operation.as_str() {
+                "get" => {
+                    let _ = context.map(table).get(SIGNATURE_TABLE_KEY)?;
+                }
+                "has" => {
+                    let _ = context.map(table).has(SIGNATURE_TABLE_KEY)?;
+                }
+                _ => {
+                    return Err(EndpointError::new(
+                        400,
+                        "InvalidOperation",
+                        "Unknown read operation",
+                    ));
+                }
+            }
+            Err(EndpointError::internal(
+                "Signature table access was permitted",
+            ))
+        },
+    )?;
+
+    registry.read_write(
+        "/signature-table-access/{table}/{operation}",
+        "POST",
+        Auth::None,
+        |context| -> EndpointResult {
+            let table = signature_table_name(context.path_param("table"))?;
+            let operation = required_key(context.path_param("operation"))?;
+            match operation.as_str() {
+                "get" => {
+                    let _ = context.map(table).get(SIGNATURE_TABLE_KEY)?;
+                }
+                "has" => {
+                    let _ = context.map(table).has(SIGNATURE_TABLE_KEY)?;
+                }
+                "put" => context.map(table).put(SIGNATURE_TABLE_KEY, b"probe")?,
+                "remove" => context.map(table).remove(SIGNATURE_TABLE_KEY)?,
+                _ => {
+                    return Err(EndpointError::new(
+                        400,
+                        "InvalidOperation",
+                        "Unknown KV operation",
+                    ));
+                }
+            }
+            Err(EndpointError::internal(
+                "Signature table access was permitted",
+            ))
+        },
+    )?;
 
     registry.read_write("/compaction/marker", "POST", Auth::None, |context| {
         COMPACTION_READY.store(false, Ordering::Release);

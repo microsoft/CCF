@@ -758,14 +758,25 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
   {
     // It is necessary to record a signature for the snapshot to be
     // deserialisable by the backup store
-    auto tx = network.tables->create_tx();
-    auto sigs = tx.rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
+    const auto txid = network.tables->next_txid();
+    auto tx = network.tables->create_reserved_tx(txid);
+    auto sigs = tx.wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
     auto trees =
-      tx.rw<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
+      tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
     sigs->put({ccf::kv::test::PrimaryNodeId, 0, 0, {}, {}, {}, {}});
     auto tree = history->serialise_tree(snapshot_idx - 1);
     trees->put(tree);
-    tx.commit();
+    auto info = tx.commit_reserved();
+    REQUIRE(info.success == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(
+      network.tables->commit(
+        txid,
+        std::make_unique<ccf::kv::MovePendingTx>(
+          std::move(info.data),
+          std::move(info.claims_digest),
+          std::move(info.commit_evidence_digest),
+          std::move(info.hooks)),
+        false) == ccf::kv::CommitResult::SUCCESS);
 
     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);

@@ -57,6 +57,12 @@ First, the new member should update and retrieve the latest state digest via the
 
 No state digest is recorded when a member is added. Until the member calls this ``:update`` endpoint, :http:GET:`/gov/members/state-digests/{memberId}` returns ``404 Not Found`` and the member cannot acknowledge a state digest.
 
+The signed root used by ``:update`` is obtained from an independent read-only view pinned to a materialised ledger prefix, rather than by reading signature metadata through its governance write transaction. The request and response schemas of the ``:update`` and ``:ack`` endpoints are unchanged.
+
+.. note::
+
+    The default constitution has used this workflow since CCF 7.0.17. Copied older constitutions may still eagerly read ``public:ccf.internal.signatures`` or ``public:ccf.internal.cose_signatures`` to initialise ``ack.state_digest`` when adding or resetting a member. From CCF 8.0, these reads fail under the :doc:`current-KV access restrictions </audit/read_write_restrictions>`. Remove that eager initialisation and follow the existing ``:update`` and ``:ack`` workflow described here instead.
+
 .. code-block:: bash
 
     $ touch empty_file

@@ -8,6 +8,7 @@
 
 #include "kv/null_encryptor.h"
 #include "kv/store.h"
+#include "service/tables/signatures.h"
 #include "test_common.h"
 
 #include <chrono>
@@ -23,24 +24,29 @@ namespace straddling
   using TestMap = ccf::kv::Map<size_t, size_t>;
   using Raft = aft::Aft<aft::LedgerStubProxy>;
 
-  class BaselinePendingTx : public ccf::kv::PendingTx
+  class SignaturePendingTx : public ccf::kv::PendingTx
   {
     ccf::TxID txid;
     ccf::kv::Store& store;
-    TestMap& table;
+    uint8_t marker;
 
   public:
-    BaselinePendingTx(
-      ccf::TxID txid_, ccf::kv::Store& store_, TestMap& table_) :
+    SignaturePendingTx(
+      ccf::TxID txid_, ccf::kv::Store& store_, uint8_t marker_) :
       txid(txid_),
       store(store_),
-      table(table_)
+      marker(marker_)
     {}
 
     ccf::kv::PendingTxInfo call() override
     {
       auto tx = store.create_reserved_tx(txid);
-      tx.rw(table)->put(0, 1);
+      tx.wo<ccf::Signatures>(ccf::Tables::SIGNATURES)
+        ->put(ccf::PrimarySignature(ccf::kv::test::PrimaryNodeId, txid.seqno));
+      tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)
+        ->put(ccf::IdentityType::CLASSICAL, {marker});
+      tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+        ->put({marker});
       return tx.commit_reserved();
     }
   };
@@ -159,6 +165,18 @@ namespace straddling
     return tx.ro(table)->get(key);
   }
 
+  static std::optional<ccf::SeqNo> read_signature_seqno(ccf::kv::Store& store)
+  {
+    auto tx = store.create_read_only_tx_at_replicated_state();
+    const auto signature =
+      tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get();
+    if (!signature.has_value())
+    {
+      return std::nullopt;
+    }
+    return signature->seqno;
+  }
+
   struct Fixture
   {
     const ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
@@ -191,19 +209,24 @@ namespace straddling
       raft->force_become_primary();
       initial_view = raft->get_view();
 
+      {
+        auto tx = store->create_tx();
+        tx.rw(table)->put(0, 1);
+        REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+      }
       const auto baseline_txid = store->next_txid();
       REQUIRE(
         store->commit(
           baseline_txid,
-          std::make_unique<BaselinePendingTx>(baseline_txid, *store, table),
+          std::make_unique<SignaturePendingTx>(baseline_txid, *store, 1),
           true) == ccf::kv::CommitResult::SUCCESS);
-      REQUIRE(store->current_txid() == ccf::TxID(initial_view, 1));
-      REQUIRE(raft->get_committed_seqno() == 1);
-      REQUIRE(raft->ledger->ledger.size() == 1);
+      REQUIRE(store->current_txid() == ccf::TxID(initial_view, 2));
+      REQUIRE(raft->get_committed_seqno() == 2);
+      REQUIRE(raft->ledger->ledger.size() == 2);
     }
 
     // Lose leadership, then win a later election. become_leader() rolls the
-    // Store back to the last committable index (1) under the new view.
+    // Store back to the last committable index (2) under the new view.
     ccf::View reelect()
     {
       raft->become_aware_of_new_term(raft->get_view() + 1);

@@ -6,6 +6,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/tx.h"
 #include "ds/internal_logger.h"
+#include "kv/internal_table_names.h"
 #include "kv/tx_pimpl.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
@@ -491,6 +492,7 @@ namespace ccf::kv
       rollback_count(rollback_count_)
     {
       version = reserved_tx_id.seqno;
+      pimpl->role = PrivateImpl::Role::Reserved;
       pimpl->commit_view = reserved_tx_id.view;
       pimpl->read_txid = TxID(read_term, reserved_tx_id.seqno - 1);
     }
@@ -501,6 +503,28 @@ namespace ccf::kv
       if (committed)
       {
         throw std::logic_error("Transaction already committed");
+      }
+
+      for (const auto& [map_name, changes] : all_changes)
+      {
+        if (!is_signature_table(map_name))
+        {
+          const auto message = fmt::format(
+            "Reserved transaction cannot write to map '{}'", map_name);
+          LOG_FAIL_FMT("{}", message);
+          throw MapAccessDenied(message);
+        }
+
+        if (
+          changes.changeset->read_version.has_value() ||
+          !changes.changeset->reads.empty())
+        {
+          const auto message = fmt::format(
+            "Reserved transaction cannot depend on reads from map '{}'",
+            map_name);
+          LOG_FAIL_FMT("{}", message);
+          throw MapAccessDenied(message);
+        }
       }
 
       // A reserved transaction must fill its version with a ledger entry, so

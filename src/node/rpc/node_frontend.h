@@ -789,7 +789,7 @@ namespace ccf
     }
 
     auto get_state(
-      ccf::endpoints::ReadOnlyEndpointContext& args,
+      ccf::endpoints::CommandEndpointContext& /*args*/,
       nlohmann::json&& /*params*/)
     {
       GetState::Out result;
@@ -800,34 +800,44 @@ namespace ccf
       result.last_recovered_seqno = lrs;
       result.startup_seqno = this->node_operation.get_startup_snapshot_seqno();
 
-      // Read last signed seqno from both raw and COSE signature tables
-      auto* signatures = args.tx.ro<Signatures>(Tables::SIGNATURES);
-      auto sig = signatures->get();
-
-      ccf::kv::Version raw_seqno = 0;
-      if (sig.has_value())
+      if (network.tables->is_ready())
       {
-        raw_seqno = sig.value().seqno;
-      }
+        auto signed_state =
+          network.tables->create_read_only_tx_at_replicated_state();
+        auto* signatures = signed_state.ro<Signatures>(Tables::SIGNATURES);
+        auto sig = signatures->get();
 
-      ccf::kv::Version cose_seqno = 0;
-      auto* cose_signatures =
-        args.tx.ro<CoseSignatures>(Tables::COSE_SIGNATURES);
-      auto cose_sig = cose_signatures->get(ccf::IdentityType::CLASSICAL);
-      if (cose_sig.has_value() && !cose_sig->empty())
-      {
-        auto receipt = ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
-        auto txid = ccf::TxID::from_str(receipt.phdr.ccf.txid);
-        if (!txid.has_value())
+        ccf::kv::Version raw_seqno = 0;
+        if (sig.has_value())
         {
-          throw std::logic_error(fmt::format(
-            "Failed to parse txid from COSE signature: {}",
-            receipt.phdr.ccf.txid));
+          raw_seqno = sig.value().seqno;
         }
-        cose_seqno = txid->seqno;
-      }
 
-      result.last_signed_seqno = std::max(raw_seqno, cose_seqno);
+        ccf::kv::Version cose_seqno = 0;
+        auto* cose_signatures =
+          signed_state.ro<CoseSignatures>(Tables::COSE_SIGNATURES);
+        auto cose_sig = cose_signatures->get(ccf::IdentityType::CLASSICAL);
+        if (cose_sig.has_value() && !cose_sig->empty())
+        {
+          auto receipt = ccf::cose::decode_ccf_receipt(cose_sig.value(), false);
+          auto txid = ccf::TxID::from_str(receipt.phdr.ccf.txid);
+          if (!txid.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to parse txid from COSE signature: {}",
+              receipt.phdr.ccf.txid));
+          }
+          cose_seqno = txid->seqno;
+        }
+
+        result.last_signed_seqno = std::max(raw_seqno, cose_seqno);
+      }
+      else
+      {
+        result.last_signed_seqno = std::max(
+          this->node_operation.get_last_recovered_signed_idx(),
+          result.startup_seqno);
+      }
 
       auto node_configuration_subsystem =
         this->context.get_subsystem<NodeConfigurationSubsystem>();
@@ -1515,8 +1525,32 @@ namespace ccf
           "Service is already created.");
       }
 
+      std::optional<ccf::crypto::Sha256Hash> previous_signed_root;
+      if (ctx.tx.ro(network.service)->has())
+      {
+        auto signed_state =
+          network.tables->create_read_only_tx_at_replicated_state();
+        const auto tree =
+          signed_state
+            .ro<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE)
+            ->get();
+        if (!tree.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Previous service has no materialised signed root");
+        }
+        previous_signed_root = ccf::MerkleTreeHistory(tree.value()).get_root();
+      }
+
       InternalTablesAccess::create_service(
-        ctx.tx, in.service_cert, in.create_txid, in.service_data, recovering);
+        ctx.tx,
+        in.service_cert,
+        in.create_txid,
+        in.service_data,
+        recovering,
+        previous_signed_root);
 
       if (recovering)
       {
@@ -1888,12 +1922,12 @@ namespace ccf
         .install();
 
       auto get_state = [this](
-                         ccf::endpoints::ReadOnlyEndpointContext& args,
+                         ccf::endpoints::CommandEndpointContext& args,
                          nlohmann::json&& json) {
         return this->get_state(args, std::move(json));
       };
-      make_read_only_endpoint(
-        "/state", HTTP_GET, json_read_only_adapter(get_state), no_auth_required)
+      make_command_endpoint(
+        "/state", HTTP_GET, json_command_adapter(get_state), no_auth_required)
         .set_auto_schema<GetState>()
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();

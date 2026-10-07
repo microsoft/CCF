@@ -1558,6 +1558,8 @@ def test_ledger_chunk_redirect_gap(network, args):
 
     with new_node.client(interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE) as c:
         r = c.get("/node/state")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert infra.clients.CCF_TX_ID_HEADER not in r.headers, r.headers
         startup_seqno = r.body.json()["startup_seqno"]
         # The new node should have started from a snapshot taken after the commit at the start of the test
         assert (

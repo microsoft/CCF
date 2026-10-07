@@ -1328,17 +1328,43 @@ namespace ccf::kv
 
     ReadOnlyTx create_read_only_tx() override
     {
+      if (is_historical)
+      {
+        return create_read_only_tx_at_replicated_state();
+      }
       return {this};
     }
 
     std::unique_ptr<ReadOnlyTx> create_read_only_tx_ptr() override
     {
+      if (is_historical)
+      {
+        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        return std::unique_ptr<ReadOnlyTx>(new ReadOnlyTx(
+          this, std::max(last_replicated, compacted.load()), rollback_count));
+      }
       return std::make_unique<ReadOnlyTx>(this);
     }
 
     TxDiff create_tx_diff() override
     {
+      if (is_historical)
+      {
+        std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+        return {
+          this, std::max(last_replicated, compacted.load()), rollback_count};
+      }
       return {this};
+    }
+
+    ReadOnlyTx create_read_only_tx_at_replicated_state()
+    {
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      // Consensus may compact synchronously in replicate(), before
+      // last_replicated is advanced. Both versions are complete prefixes.
+      return {
+        this, std::max(last_replicated, compacted.load()), rollback_count};
     }
 
     CommittableTx create_tx()

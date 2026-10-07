@@ -25,6 +25,7 @@
 #include "node/rpc/http_rpc_context.h"
 #include "node/rpc/test/node_stub.h"
 #include "node/tx_receipt_impl.h"
+#include "service/tables/signatures.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <condition_variable>
@@ -507,6 +508,44 @@ TEST_CASE("Check KV Map access")
     }
   }
 
+  for (const auto access :
+       {TxAccess::APP_RO, TxAccess::APP_RW, TxAccess::GOV_RO, TxAccess::GOV_RW})
+  {
+    CAPTURE(access);
+    for (const auto* table :
+         {ccf::Tables::SIGNATURES,
+          ccf::Tables::COSE_SIGNATURES,
+          ccf::Tables::SERIALISED_MERKLE_TREE})
+    {
+      CAPTURE(table);
+      CHECK(check_kv_map_access(access, table) == KVAccessPermissions::ILLEGAL);
+      CHECK(
+        check_kv_map_access(
+          access, table, extensions::kvhelpers::KVSource::CurrentTx) ==
+        KVAccessPermissions::ILLEGAL);
+      CHECK(
+        check_kv_map_access(
+          access, table, extensions::kvhelpers::KVSource::Historical) ==
+        KVAccessPermissions::READ_ONLY);
+    }
+
+    for (const auto* table :
+         {"public:ccf.internal.table",
+          "public:ccf.internal.signatures_other",
+          "public:ccf.internal.signatures.nested",
+          "public:ccf.internal.cose_signatures_other",
+          "public:ccf.internal.tree_other"})
+    {
+      CAPTURE(table);
+      CHECK(
+        check_kv_map_access(access, table) == KVAccessPermissions::READ_ONLY);
+      CHECK(
+        check_kv_map_access(
+          access, table, extensions::kvhelpers::KVSource::Historical) ==
+        KVAccessPermissions::READ_ONLY);
+    }
+  }
+
   {
     INFO("Every permission is described accurately");
     REQUIRE(
@@ -573,10 +612,14 @@ using KVMap = ccf::kv::untyped::Map;
 
 // Returns an error message if the JS script throws.
 std::optional<std::string> run_kv_script(
-  ccf::kv::Tx& tx, TxAccess access, const std::string& body)
+  ccf::kv::Tx& tx,
+  TxAccess access,
+  const std::string& body,
+  ccf::js::NamespaceRestriction namespace_restriction = {})
 {
   ccf::js::core::Context ctx(access);
-  ctx.add_extension(std::make_shared<ccf::js::extensions::KvExtension>(&tx));
+  ctx.add_extension(std::make_shared<ccf::js::extensions::KvExtension>(
+    &tx, std::move(namespace_restriction)));
 
   const auto module = fmt::format("export function run() {{\n{}\n}}", body);
   auto func = ctx.get_exported_function(module, "run", "/test/kv_script");
@@ -2207,6 +2250,8 @@ namespace
   public:
     size_t tx_creations = 0;
 
+    CountingStore() : ccf::kv::Store(true) {}
+
     std::unique_ptr<ccf::kv::ReadOnlyTx> create_read_only_tx_ptr() override
     {
       ++tx_creations;
@@ -2223,6 +2268,281 @@ namespace
       nullptr,
       ccf::NodeId("test-node"),
       std::nullopt);
+  }
+
+  std::vector<uint8_t> make_test_signature_transaction(ccf::kv::Store& store)
+  {
+    const auto txid = store.next_txid();
+    auto tx = store.create_reserved_tx(txid);
+    tx.wo<ccf::Signatures>(ccf::Tables::SIGNATURES)
+      ->put(ccf::PrimarySignature(ccf::NodeId("test-node"), txid.seqno));
+    tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)
+      ->put(ccf::IdentityType::CLASSICAL, {1, 2, 3});
+    tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->put({4, 5, 6});
+    auto info = tx.commit_reserved();
+    REQUIRE(info.success == ccf::kv::CommitResult::SUCCESS);
+    return std::move(info.data);
+  }
+
+  constexpr auto signature_table_test_prelude = R"JS(
+const signatureTables = [
+  "public:ccf.internal.signatures",
+  "public:ccf.internal.cose_signatures",
+  "public:ccf.internal.tree"
+];
+const key = new ArrayBuffer(8);
+const value = new Uint8Array([118]).buffer;
+function expectTypeError(operation, ...fragments) {
+  try {
+    operation();
+  } catch (e) {
+    if (!(e instanceof TypeError) ||
+        fragments.some(fragment => !e.message.includes(fragment))) {
+      throw new Error(`Unexpected error: ${e}`);
+    }
+    return;
+  }
+  throw new Error(`Operation was permitted: ${fragments.join(", ")}`);
+}
+function readOperations(donor) {
+  return [
+    ["get", target => donor.get.call(target, key)],
+    ["has", target => donor.has.call(target, key)],
+    ["getVersionOfPreviousWrite",
+     target => donor.getVersionOfPreviousWrite.call(target, key)],
+    ["forEach", target => donor.forEach.call(target, () => {})],
+    ["size", target =>
+      Object.getOwnPropertyDescriptor(donor, "size").get.call(target)]
+  ];
+}
+function writeOperations(donor) {
+  return [
+    ["set", target => donor.set.call(target, key, value)],
+    ["delete", target => donor.delete.call(target, key)],
+    ["clear", target => donor.clear.call(target)]
+  ];
+}
+)JS";
+}
+
+TEST_CASE("Current JS signature table handles deny every operation")
+{
+  NamespaceRestriction namespace_restriction;
+  SUBCASE("Default namespace policy") {}
+  SUBCASE("A namespace callback cannot grant signature table access")
+  {
+    namespace_restriction = [](const std::string&, std::string&) {
+      return KVAccessPermissions::READ_WRITE;
+    };
+  }
+
+  for (const bool populated : {false, true})
+  {
+    CAPTURE(populated);
+    ccf::kv::Store store;
+    store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    if (populated)
+    {
+      make_test_signature_transaction(store);
+    }
+
+    for (const auto access :
+         {TxAccess::APP_RO,
+          TxAccess::APP_RW,
+          TxAccess::GOV_RO,
+          TxAccess::GOV_RW})
+    {
+      CAPTURE(access);
+      auto tx = store.create_tx();
+      const auto body = std::string(signature_table_test_prelude) + R"JS(
+const reader = ccf.kv["public:ccf.internal.table"];
+const writer = ccf.kv["public:signature_permission_probe"];
+for (const table of signatureTables) {
+  const indirectName = ["public:ccf", "internal", table.split(".").pop()].join(".");
+  const handle = Reflect.get(ccf.kv, indirectName);
+  handle._map_name = "public:ccf.internal.table";
+  handle._source = "Historical";
+  handle._seqno = 1;
+  const direct = [...readOperations(handle), ...writeOperations(handle)];
+  const borrowed = [...readOperations(reader), ...writeOperations(writer)];
+  for (const [name, operation] of direct) {
+    expectTypeError(() => operation(handle), table, "inaccessible");
+  }
+  for (const [name, operation] of borrowed) {
+    expectTypeError(() => operation(handle), table, "inaccessible");
+    for (const forged of [
+      {_map_name: table},
+      Object.create(handle),
+      new Proxy(handle, {})
+    ]) {
+      expectTypeError(() => operation(forged), "KV Map Handle object expected");
+    }
+  }
+}
+for (const table of [
+  "public:ccf.internal.table",
+  "public:ccf.internal.signatures_other",
+  "public:ccf.internal.cose_signatures.nested",
+  "public:ccf.internal.tree_other"
+]) {
+  const handle = ccf.kv[table];
+  for (const [name, operation] of readOperations(handle)) {
+    operation(handle);
+  }
+  for (const [name, operation] of writeOperations(handle)) {
+    expectTypeError(() => operation(handle), table, "read-only");
+  }
+}
+)JS";
+      const auto error = run_kv_script(tx, access, body, namespace_restriction);
+      CHECK_MESSAGE(!error.has_value(), error.value_or(""));
+      for (const auto* table :
+           {ccf::Tables::SIGNATURES,
+            ccf::Tables::COSE_SIGNATURES,
+            ccf::Tables::SERIALISED_MERKLE_TREE})
+      {
+        CHECK(
+          (store.get_map(store.current_version(), table) != nullptr) ==
+          populated);
+      }
+    }
+  }
+}
+
+TEST_CASE("Historical JS signature table handles retain read-only access")
+{
+  bool restricted = false;
+  SUBCASE("Permitted historical reads") {}
+  SUBCASE("Namespace restrictions can deny historical signature reads")
+  {
+    restricted = true;
+  }
+
+  for (const bool populated : {false, true})
+  {
+    CAPTURE(populated);
+    ccf::kv::Store source;
+    source.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    auto historical_store = std::make_shared<ccf::kv::Store>(true);
+    historical_store->set_encryptor(
+      std::make_shared<ccf::kv::NullTxEncryptor>());
+    if (populated)
+    {
+      const auto data = make_test_signature_transaction(source);
+      REQUIRE(
+        historical_store->deserialize(data)->apply() ==
+        ccf::kv::ApplyResult::PASS_SIGNATURE);
+    }
+
+    auto state = std::make_shared<ccf::historical::State>(
+      historical_store, make_test_receipt(), ccf::TxID{1, 1});
+    for (const auto access :
+         {TxAccess::APP_RO,
+          TxAccess::APP_RW,
+          TxAccess::GOV_RO,
+          TxAccess::GOV_RW})
+    {
+      CAPTURE(access);
+      ccf::js::core::Context ctx(access);
+      auto tx = source.create_tx();
+      ctx.add_extension(std::make_shared<ccf::js::extensions::KvExtension>(
+        &tx, [restricted](const std::string& name, std::string& explanation) {
+          if (restricted && ccf::kv::is_signature_table(name))
+          {
+            explanation = "Restricted test signature table";
+            return KVAccessPermissions::ILLEGAL;
+          }
+          return KVAccessPermissions::READ_WRITE;
+        }));
+      auto historical =
+        std::make_shared<ccf::js::extensions::HistoricalExtension>(nullptr);
+      ctx.add_extension(historical);
+      auto js_state = historical->create_historical_state_object(ctx, state);
+      REQUIRE_FALSE(js_state.is_exception());
+      REQUIRE(ctx.get_global_obj().set("testState", std::move(js_state)) == 1);
+
+      const auto script = fmt::format(
+                            "const populated = {};\nconst restricted = {};\n",
+                            populated,
+                            restricted) +
+        signature_table_test_prelude + R"JS(
+export function run() {
+  const currentReader = ccf.kv["public:ccf.internal.table"];
+  for (const table of signatureTables) {
+    const handle = testState.kv[table];
+    if (restricted) {
+      for (const [name, operation] of [
+        ...readOperations(handle), ...writeOperations(handle)
+      ]) {
+        expectTypeError(
+          () => operation(handle), table, "Restricted test signature table");
+      }
+      continue;
+    }
+    if (handle.size !== (populated ? 1 : 0)) {
+      throw new Error(`Unexpected size for ${table}`);
+    }
+    if (handle.has(key) !== populated ||
+        (handle.get(key) !== undefined) !== populated ||
+        (handle.getVersionOfPreviousWrite(key) !== undefined) !== populated) {
+      throw new Error(`Unexpected singleton lookup for ${table}`);
+    }
+    let seen = 0;
+    handle.forEach((value, entryKey) => {
+      const storedValue = handle.get(entryKey);
+      if (!handle.has(entryKey) || value.byteLength === 0 ||
+          storedValue === undefined ||
+          handle.getVersionOfPreviousWrite(entryKey) !== 1) {
+        throw new Error(`Unreadable historical entry for ${table}`);
+      }
+      const bytes = new Uint8Array(value);
+      const storedBytes = new Uint8Array(storedValue);
+      if (bytes.length !== storedBytes.length ||
+          !bytes.every((byte, i) => byte === storedBytes[i])) {
+        throw new Error(`Mismatched historical value for ${table}`);
+      }
+      seen++;
+    });
+    if (seen !== handle.size) {
+      throw new Error(`Unexpected iteration count for ${table}`);
+    }
+    for (const [name, operation] of writeOperations(handle)) {
+      expectTypeError(() => operation(handle), table, "read-only");
+    }
+
+    const current = ccf.kv[table];
+    for (const [name, operation] of readOperations(currentReader)) {
+      expectTypeError(() => operation(handle), "different key-value store");
+    }
+    for (const [name, operation] of readOperations(handle)) {
+      expectTypeError(() => operation(current), "different key-value store");
+      expectTypeError(
+        () => operation({_map_name: table, _seqno: 1}),
+        "KV Map Handle object expected");
+    }
+    handle._map_name = "public:ccf.internal.table";
+    handle._source = "CurrentTx";
+    if (handle.size !== (populated ? 1 : 0)) {
+      throw new Error(`Historical handle identity changed for ${table}`);
+    }
+    for (const [name, operation] of readOperations(currentReader)) {
+      expectTypeError(() => operation(handle), "different key-value store");
+    }
+  }
+}
+)JS";
+      auto func = ctx.get_exported_function(
+        script, "run", "/test/historical-signature-tables.js");
+      const auto result = ctx.call_with_rt_options(
+        func, {}, std::nullopt, ccf::js::core::RuntimeLimitsPolicy::NONE);
+      if (result.is_exception())
+      {
+        const auto [reason, trace] = ctx.error_message();
+        FAIL_CHECK(reason);
+      }
+      CHECK(JS_HasException(ctx) == 0);
+    }
   }
 }
 
