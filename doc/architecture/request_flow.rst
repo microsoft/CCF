@@ -63,6 +63,8 @@ When the primary B receives the forwarded command, it executes the same dispatch
 
 When follower A receives the forwarded response, it writes this to the TLS session that was maintained earlier, and marks the pending response as completed.
 
+If no response arrives within the RPC interface's ``forwarding_timeout_ms``, the follower returns HTTP ``504 Gateway Timeout`` with ``Content-Type: application/json`` and the standard CCF error envelope. The error code is ``ForwardingTimeout``, and the message identifies the target node and timeout duration. This does not imply that the primary failed to execute the request: the request may have succeeded but its response was delayed or lost.
+
 .. mermaid::
 
   sequenceDiagram

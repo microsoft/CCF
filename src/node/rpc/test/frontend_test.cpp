@@ -1439,6 +1439,66 @@ TEST_CASE("Forwarded request target limit" * doctest::test_suite("forwarding"))
   }
 }
 
+TEST_CASE("Forwarding timeout" * doctest::test_suite("forwarding"))
+{
+  struct RecordingResponder : public ccf::AbstractRPCResponder
+  {
+    int64_t session_id = ccf::InvalidSessionId;
+    bool terminate_session = true;
+    std::vector<uint8_t> response;
+
+    bool reply_async(
+      int64_t id,
+      bool terminate_after_reply,
+      std::vector<uint8_t>&& data) override
+    {
+      session_id = id;
+      terminate_session = terminate_after_reply;
+      response = std::move(data);
+      return true;
+    }
+  };
+
+  auto responder = std::make_shared<RecordingResponder>();
+  auto channel = std::make_shared<ChannelStubProxy>();
+  Forwarder<ChannelStubProxy> forwarder(responder, channel, {});
+  constexpr size_t session_id = 42;
+  const NodeId primary_id{"primary"};
+  const std::chrono::milliseconds timeout(50);
+  auto session =
+    std::make_shared<ccf::SessionContext>(session_id, std::vector<uint8_t>{});
+  session->active_view = 1;
+  auto ctx =
+    ccf::make_rpc_context(session, create_simple_request().build_request());
+
+  REQUIRE(forwarder.forward_command(ctx, primary_id, {}, timeout));
+  REQUIRE(channel->size() == 1);
+  CHECK(responder->response.empty());
+
+  ccf::tasks::tick(timeout - std::chrono::milliseconds(1));
+  CHECK(ccf::tasks::get_main_job_board().get_task() == nullptr);
+  CHECK(responder->response.empty());
+
+  ccf::tasks::tick(std::chrono::milliseconds(1));
+  auto task = ccf::tasks::get_main_job_board().get_task();
+  REQUIRE(task != nullptr);
+  task->do_task();
+
+  CHECK(responder->session_id == session_id);
+  CHECK_FALSE(responder->terminate_session);
+  const auto response = parse_response(responder->response);
+  CHECK(response.status == HTTP_STATUS_GATEWAY_TIMEOUT);
+  REQUIRE(
+    response.headers.at(ccf::http::headers::CONTENT_TYPE) ==
+    ccf::http::headervalues::contenttype::JSON);
+  const auto body = nlohmann::json::parse(response.body);
+  CHECK(body["error"]["code"] == "ForwardingTimeout");
+  CHECK(
+    body["error"]["message"] ==
+    "Request was forwarded to node n[primary], but no response was received "
+    "after 50ms");
+}
+
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 {
   NetworkState network_primary;

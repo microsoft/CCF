@@ -1012,7 +1012,7 @@ namespace ccf::js
       endpoint_def->properties = it.value();
       endpoint_def->full_uri_path =
         fmt::format("/{}{}", method_prefix, endpoint_def->dispatch.uri_path);
-      ccf::instantiate_authn_policies(*endpoint_def);
+      ccf::detail::js_authentication::instantiate_authn_policies(*endpoint_def);
       return endpoint_def;
     }
 
@@ -1064,7 +1064,8 @@ namespace ccf::js
                 endpoint->full_uri_path = fmt::format(
                   "/{}{}", method_prefix, endpoint->dispatch.uri_path);
                 endpoint->properties = endpoints->get(other_key).value();
-                ccf::instantiate_authn_policies(*endpoint);
+                ccf::detail::js_authentication::instantiate_authn_policies(
+                  *endpoint);
                 matches.push_back(endpoint);
               }
             }
