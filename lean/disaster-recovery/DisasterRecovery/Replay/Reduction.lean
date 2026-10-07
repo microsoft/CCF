@@ -5,9 +5,10 @@ set_option autoImplicit false
 /-!
 Orders the records of one recovery-decision-protocol run as the nodes committed
 them, and tells logs that are still growing from logs that no order explains.
-Each execution record carries the TxID that CCF reported when its transaction
-committed, so a node's commit order is TxID order. The replay checks everything
-else. `replay/README.md` gives the rules.
+Each execution record carries the version that CCF reported for its
+transaction, so a node's commit order is version order, with each write before
+the executions that read at its version. The replay checks everything else.
+`replay/README.md` gives the rules.
 -/
 
 namespace DisasterRecovery.Replay
@@ -19,10 +20,10 @@ structure Scenario where
   participants : Nat
   openKind : OpenKind
 
-/-- A replay unit: one retry's sends, or one execution and the rule that placed it. -/
+/-- A replay unit: one retry's sends, or one execution. -/
 inductive Item where
   | retry (sends : Array TraceEvent)
-  | execution (rule : String) (event : TraceEvent)
+  | execution (event : TraceEvent)
 deriving Inhabited
 
 /-- Each node's records by sequence, which runs from 0 without repeats. -/
@@ -52,7 +53,8 @@ private def retryBatches (locations : List Location) (records : Array TraceEvent
       let (_, version, first) := batched[0]!
       require (batched.all (·.2.1 == version))
         s!"{first.record.location}: batch read two versions"
-      -- A retry votes and gossips to every location, or sends IAmOpen to every other one.
+      -- A retry gossips to every location, after voting if it is in Voting, or
+      -- sends IAmOpen to every other location.
       let size :=
         match first.body with
         | .send _ _ .vote _ => locations.length + 1
@@ -66,7 +68,8 @@ private def retryBatches (locations : List Location) (records : Array TraceEvent
 private def reduceNode (node : Location) (records : Array TraceEvent)
     (retries : List (Nat × Array TraceEvent))
     : Checked (Array Item × Phase × Option OpenKind) := do
-  -- start: the transaction that began the protocol wrote the initial versions.
+  -- start: the protocol starts at the version of the transaction that wrote its
+  -- initial phases.
   let starts :=
     records.filterMap
       fun event =>
@@ -76,8 +79,9 @@ private def reduceNode (node : Location) (records : Array TraceEvent)
   let some (start, initial) := starts[0]?
   | throw (.incomplete s!"node {node} has no start record yet")
   require (starts.size == 1) s!"{start.record.location}: node {node} started twice"
-  -- commit-order: CCF assigns each write a new version in commit order, and
-  -- reports the version that a transaction without writes read, after that write.
+  -- commit-order: CCF reports the version a transaction committed at if it
+  -- wrote, and the version it read at otherwise, so a write comes before the
+  -- reads at its version.
   let executions :=
     (records.filterMap fun event => event.execution?.map ((event, ·.2))).qsort
       fun (_, x) (_, y) =>
@@ -101,7 +105,7 @@ private def reduceNode (node : Location) (records : Array TraceEvent)
   let mut phase := Phase.gossiping
   let mut openKind : Option OpenKind := none
   for (event, x) in executions do
-    items := items.push (.execution "commit-order" event)
+    items := items.push (.execution event)
     phase := x.post
     openKind := x.openKind <|> openKind
     if x.wrote then
@@ -122,17 +126,16 @@ private def Item.instructions : Item → Array Instruction
         .action (.local node .retry) (sends.toList.map (·.origin "retry")),
         .outputs node sent [] (sends.toList.map (·.origin "retry-outputs"))
       ]
-  | .execution rule event =>
+  | .execution event =>
       match event.execution? with
       | none => #[]
       | some (action, recorded) =>
-          -- IAmOpen records its own Joining write, not the phase it read.
-          let read := if event.isIAmOpen then none else some recorded.pre
+          -- IAmOpen records its own Joining write as `pre`, not the phase it
+          -- was received in.
           let pre : StateFields :=
             {
-              phase := read
+              phase := if event.isIAmOpen then none else some recorded.pre
               timeoutState := recorded.preTimeout
-              chosen := if read == some .joining then recorded.chosen else none
             }
           let post : StateFields :=
             {
@@ -142,6 +145,7 @@ private def Item.instructions : Item → Array Instruction
               openKind := recorded.openKind
               restartRequested := if recorded.restart then some true else none
             }
+          -- Nodes do not log notifications, which follow from what advance() wrote.
           let notifications : List Notification :=
             if let some kind := recorded.openKind then
               [.opening kind]
@@ -152,10 +156,10 @@ private def Item.instructions : Item → Array Instruction
             else
               []
           #[
-            .state event.node pre [event.origin s!"{rule}-pre"],
-            .action action [event.origin rule],
-            .outputs event.node [] notifications [event.origin s!"{rule}-outputs"],
-            .state event.node post [event.origin s!"{rule}-post"]
+            .state event.node pre [event.origin "commit-order-pre"],
+            .action action [event.origin "commit-order"],
+            .outputs event.node [] notifications [event.origin "commit-order-outputs"],
+            .state event.node post [event.origin "commit-order-post"]
           ]
 
 /--
@@ -182,7 +186,7 @@ private def linearize (queues : Array (Array Item)) : Checked (Array Instruction
                     match event.body with
                     | .send _ target message _ => some (event.node, target, message)
                     | _ => none
-        | .execution _ event =>
+        | .execution event =>
             if let .receive source message _ := event.body then
               let envelope := (source, event.node, message)
               if !queued.contains envelope then

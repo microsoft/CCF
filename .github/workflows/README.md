@@ -139,9 +139,9 @@ and multiple-timeout trace fixtures. The harness replays the unmodified traces,
 checks targeted negative and benign mutations, and sweeps sampled records for
 single-field perturbations, every one of which must fail.
 
-The Genoa SNP job in `ci.yml` builds the replayer the same way, runs its tests with
-`CCF_RECOVERY_TRACE=1` so that recovering nodes log their recovery decision
-protocol traces, and replays the protocol's e2e scenarios against the model.
+The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, also
+builds the replayer the same way and replays the protocol's e2e scenarios
+against the model.
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean`
 file with the pinned leanfmt dependency. The workflow runs on pull requests

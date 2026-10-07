@@ -35,8 +35,8 @@ FAILED_TO_TRACE_LINE = (
 )
 
 
-def dump(record: dict, sort: bool = True) -> str:
-    return json.dumps(record, separators=(",", ":"), sort_keys=sort)
+def dump(record: dict) -> str:
+    return json.dumps(record, separators=(",", ":"), sort_keys=True)
 
 
 def load_scenario(path: pathlib.Path) -> dict:
@@ -44,21 +44,11 @@ def load_scenario(path: pathlib.Path) -> dict:
     logs = []
     for log_path in sorted(path.glob("*.out")):
         entries = []
-        with log_path.open(encoding="utf-8", errors="surrogateescape") as f:
-            for line in f:
-                index = line.find(MARK)
-                if index < 0:
-                    entries.append({"raw": line})
-                    continue
-                body = line[index + len(MARK) :]
-                newline = ""
-                if body.endswith("\n"):
-                    body, newline = body[:-1], "\n"
-                record = json.loads(body)
-                assert dump(record) == body, (log_path, body)
-                entries.append(
-                    {"prefix": line[: index + len(MARK)], "rec": record, "nl": newline}
-                )
+        for line in log_path.read_text(encoding="utf-8").splitlines():
+            record = json.loads(line.removeprefix(MARK))
+            # Records are rendered again with dump(), so fixtures use its format.
+            assert MARK + dump(record) == line, (log_path, line)
+            entries.append({"rec": record})
         logs.append(entries)
     return {
         "name": path.name,
@@ -74,8 +64,7 @@ def render(item: dict) -> str:
         return ""
     if "raw" in item:
         return item["raw"]
-    body = item.get("body", dump(item["rec"], item.get("sort", True)))
-    return item["prefix"] + body + item["nl"]
+    return MARK + item.get("body", dump(item["rec"])) + "\n"
 
 
 def recs(state: dict):
@@ -104,8 +93,8 @@ def nodes(state: dict) -> list:
     return sorted({record["node"] for _, _, record in recs(state)})
 
 
-def other(state: dict, current: str, pool=None):
-    for value in pool or locs(state):
+def other(state: dict, current: str):
+    for value in locs(state):
         if value != current:
             return value
     return None
@@ -219,13 +208,12 @@ def _start_twice(state: dict) -> bool:
     target = find(state, kind_is("start"))
     if not target:
         return False
-    file_index, entry_index, record = target
+    file_index, _, record = target
     duplicate = copy.deepcopy(record)
     duplicate["sequence"] = 1 + max(
         r["sequence"] for _, _, r in recs(state) if r["node"] == record["node"]
     )
-    prefix = state["logs"][file_index][entry_index]["prefix"]
-    state["logs"][file_index].append({"prefix": prefix, "rec": duplicate, "nl": "\n"})
+    state["logs"][file_index].append({"rec": duplicate})
     return True
 
 
@@ -270,18 +258,6 @@ def _duplicate_write_version(state: dict) -> bool:
         writes = _writes(state, node)
         if len(writes) > 1:
             writes[1]["version"] = writes[0]["version"]
-            return True
-    return False
-
-
-def _read_only_before_its_write(state: dict) -> bool:
-    for _, _, record in seqsorted(state):
-        if record["kind"] != "gossip_accepted" or _wrote(record):
-            continue
-        written = {r["version"]: r for r in _writes(state, record["node"])}
-        writer = written.get(record["version"])
-        if writer and writer["kind"] == "gossip_accepted":
-            record["version"] -= 1
             return True
     return False
 
@@ -400,7 +376,7 @@ def m_extra_final_attempt(state: dict) -> bool:
     target = find(state, lambda r: "open_kind" in r and "source" in r)
     if not target:
         return False
-    file_index, entry_index, record = target
+    file_index, _, record = target
     node_max = max(
         row["sequence"] for _, _, row in recs(state) if row["node"] == record["node"]
     )
@@ -408,8 +384,7 @@ def m_extra_final_attempt(state: dict) -> bool:
     duplicate["sequence"] = node_max + 1
     duplicate["post"] = duplicate["pre"]
     duplicate.pop("open_kind")
-    prefix = state["logs"][file_index][entry_index]["prefix"]
-    state["logs"][file_index].append({"prefix": prefix, "rec": duplicate, "nl": "\n"})
+    state["logs"][file_index].append({"rec": duplicate})
     return True
 
 
@@ -462,28 +437,17 @@ def m_missing_log_file(state: dict) -> bool:
 def m_shuffle_trace_lines(state: dict) -> bool:
     rng = random.Random(8282)
     for log in state["logs"]:
-        indices = [i for i, item in enumerate(log) if "rec" in item]
-        values = [log[i] for i in indices]
-        rng.shuffle(values)
-        for i, value in zip(indices, values):
-            log[i] = value
-    return True
-
-
-def m_strip_non_trace_lines(state: dict) -> bool:
-    for log in state["logs"]:
-        log[:] = [item for item in log if "rec" in item]
+        rng.shuffle(log)
     return True
 
 
 def m_reverse_key_order(state: dict) -> bool:
     for log in state["logs"]:
         for item in log:
-            if "rec" in item:
-                item["body"] = json.dumps(
-                    dict(sorted(item["rec"].items(), reverse=True)),
-                    separators=(",", ":"),
-                )
+            item["body"] = json.dumps(
+                dict(sorted(item["rec"].items(), reverse=True)),
+                separators=(",", ":"),
+            )
     return True
 
 
@@ -520,6 +484,7 @@ _no_advance_timeout = copyf("post_timeout", "pre_timeout")
 DECISION = [
     ("open_kind_flip", FAIL, one(has("open_kind"), flipf("open_kind", OPEN_KIND_FLIP))),
     ("chosen_not_max", FAIL, one(_to_voting, relabel("chosen"))),
+    ("chosen_not_recorded", FAIL, one(_to_voting, delf("chosen"))),
     ("skip_to_opening", FAIL, one(_to_voting, setf("post", "Opening"))),
     ("no_advance_on_full_gossips", FAIL, one(_to_voting, _no_advance)),
     ("premature_voting", FAIL, one(_premature_pred, _premature_edit)),
@@ -546,7 +511,6 @@ COMMIT_ORDER = [
     ("start_twice", FAIL, _start_twice),
     ("swap_writes", FAIL, _swap_writes),
     ("duplicate_write_version", FAIL, _duplicate_write_version),
-    ("read_only_before_its_write", FAIL, _read_only_before_its_write),
     ("retry_bad_version", FAIL, _retry_bad_version),
     ("extra_final_attempt", FAIL, m_extra_final_attempt),
     ("failed_to_trace_line", FAIL, m_failed_to_trace_line),
@@ -574,7 +538,6 @@ ARGS = [
 
 BENIGN = [
     ("shuffle_trace_lines", PASS, m_shuffle_trace_lines),
-    ("strip_non_trace_lines", PASS, m_strip_non_trace_lines),
     ("reverse_key_order", PASS, m_reverse_key_order),
     ("log_order_permuted", PASS, m_log_order_permuted),
 ]

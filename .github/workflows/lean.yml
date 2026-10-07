@@ -5,7 +5,6 @@ on:
     paths:
       - "lean/**"
       - "**/*.lean"
-      - "lean/disaster-recovery/replay/fixtures/**"
       - "scripts/lean-format-checks.sh"
       - "tests/infra/recovery_trace_mutations.py"
       - ".github/workflows/lean.yml"

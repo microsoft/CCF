@@ -176,7 +176,7 @@ structure Result where
 def replay (header : Header) (instructions : Array Instruction)
     : Except String Result := do
   unless header.config.protocol.isValid do
-    throw "expected locations must be nonempty, without empty names"
+    throw "expected locations must be nonempty and distinct, with nonempty names"
   let mut current : ReplayState := { state := header.initial }
   let mut actions := 0
   for instruction in instructions, index in [:instructions.size] do
