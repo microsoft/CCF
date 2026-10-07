@@ -2540,138 +2540,136 @@ def test_cose_config(network, args):
     return network
 
 
-class CommitPoller(infra.concurrency.StoppableThread):
-    def __init__(
-        self,
-        node,
-        shutdown_timeout=(
-            infra.clients.DEFAULT_CONNECTION_TIMEOUT_SEC
-            + infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC
-        ),
-    ):
-        super().__init__(name="commit poller")
-        self.node = node
-        self.known_commit_times = []
-        self._condition = threading.Condition()
-        self._failure = None
-        self._finished = False
-        self._shutdown_timeout = shutdown_timeout
-
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, exc, traceback):
-        errors = [exc] if exc is not None else []
-        try:
-            self.stop()
-        except BaseException as error:
-            errors.append(error)
-        finally:
-            try:
-                self.join(timeout=self._shutdown_timeout)
-            except BaseException as error:
-                errors.append(error)
-
-        with self._condition:
-            if self._failure is not None and self._failure is not exc:
-                errors.append(self._failure)
-            if self.is_alive():
-                errors.append(
-                    TimeoutError(
-                        f"Commit poller still alive after {self._shutdown_timeout}s "
-                        f"shutdown: {self._describe()}"
-                    )
-                )
-
-        if len(errors) > 1:
-            raise BaseExceptionGroup("Commit observation and cleanup failed", errors)
-        if errors and errors[0] is not exc:
-            raise errors[0]
-        return False
-
-    def _describe(self):
-        last_txid = self.known_commit_times[-1][1] if self.known_commit_times else None
-        return (
-            f"last sample={last_txid}, samples={len(self.known_commit_times)}, "
-            f"finished={self._finished}"
-        )
-
-    def _has_observed(self, target):
-        for _, txid in self.known_commit_times:
-            if txid.view < target.view:
-                continue
-            assert txid.view == target.view, (
-                f"Commit observation requires a single view: "
-                f"observed {txid} before covering {target}"
-            )
-            if txid.seqno >= target.seqno:
-                return True
-        return False
-
-    def wait_for_observation(
-        self, response_txids, timeout=infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC
-    ):
-        assert response_txids, "No response transactions to observe"
-        target = response_txids[-1]
-        assert all(txid.valid() for txid in response_txids), response_txids
-        assert all(txid.view == target.view for txid in response_txids), (
-            f"Commit latency measurement requires a single response view: "
-            f"{response_txids}"
-        )
-        assert all(
-            txid.seqno <= target.seqno for txid in response_txids
-        ), f"Final response {target} does not cover all responses: {response_txids}"
-
-        with self._condition:
-            self._condition.wait_for(
-                lambda: self._failure is not None
-                or self._finished
-                or self._has_observed(target),
-                timeout=timeout,
-            )
-            if self._failure is not None:
-                raise self._failure
-            if self._has_observed(target):
-                return
-            if self._finished:
-                raise RuntimeError(
-                    f"Commit poller stopped before observing {target}: "
-                    f"{self._describe()}"
-                )
-            raise TimeoutError(
-                f"Commit poller did not observe {target} within {timeout}s: "
-                f"{self._describe()}"
-            )
-
-    def run(self):
-        try:
-            with self.node.client() as c:
-                prev_txid = None
-                while not self.is_stopped():
-                    r = c.get("/node/commit", log_capture=[])
-                    assert r.status_code == http.HTTPStatus.OK, r.status_code
-                    transaction_id = r.body.json()["transaction_id"]
-                    txid = TxID.from_str(transaction_id)
-                    assert txid.valid(), f"Invalid commit ID: {transaction_id!r}"
-                    if txid != prev_txid:
-                        now = datetime.now(timezone.utc)
-                        with self._condition:
-                            self.known_commit_times.append((now, txid))
-                            self._condition.notify_all()
-                        prev_txid = txid
-        except BaseException as error:
-            # Propagate worker failures on the test thread, including during cleanup.
-            with self._condition:
-                self._failure = error
-        finally:
-            with self._condition:
-                self._finished = True
-                self._condition.notify_all()
-
-
 def test_blocking_calls(network, args):
     primary, _ = network.find_nodes()
+
+    class CommitPoller(infra.concurrency.StoppableThread):
+        def __init__(self, node):
+            super().__init__(name="commit poller")
+            self.node = node
+            self.known_commit_times = []
+            self._condition = threading.Condition()
+            self._failure = None
+            self._finished = False
+
+        def __enter__(self):
+            self.start()
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            shutdown_timeout = (
+                infra.clients.DEFAULT_CONNECTION_TIMEOUT_SEC
+                + infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC
+            )
+            errors = [exc] if exc is not None else []
+            try:
+                self.stop()
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                try:
+                    self.join(timeout=shutdown_timeout)
+                except BaseException as error:
+                    errors.append(error)
+
+            with self._condition:
+                if self._failure is not None and self._failure is not exc:
+                    errors.append(self._failure)
+                if self.is_alive():
+                    errors.append(
+                        TimeoutError(
+                            f"Commit poller still alive after {shutdown_timeout}s "
+                            f"shutdown: {self._describe()}"
+                        )
+                    )
+
+            if len(errors) > 1:
+                raise BaseExceptionGroup(
+                    "Commit observation and cleanup failed", errors
+                )
+            if errors and errors[0] is not exc:
+                raise errors[0]
+            return False
+
+        def _describe(self):
+            last_txid = (
+                self.known_commit_times[-1][1] if self.known_commit_times else None
+            )
+            return (
+                f"last sample={last_txid}, samples={len(self.known_commit_times)}, "
+                f"finished={self._finished}"
+            )
+
+        def _has_observed(self, target):
+            for _, txid in self.known_commit_times:
+                if txid.view < target.view:
+                    continue
+                assert txid.view == target.view, (
+                    f"Commit observation requires a single view: "
+                    f"observed {txid} before covering {target}"
+                )
+                if txid.seqno >= target.seqno:
+                    return True
+            return False
+
+        def wait_for_observation(self, response_txids):
+            target = response_txids[-1]
+            assert all(txid.valid() for txid in response_txids), response_txids
+            assert all(txid.view == target.view for txid in response_txids), (
+                f"Commit latency measurement requires a single response view: "
+                f"{response_txids}"
+            )
+            assert all(
+                txid.seqno <= target.seqno for txid in response_txids
+            ), f"Final response {target} does not cover all responses: {response_txids}"
+
+            timeout = infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC
+            with self._condition:
+                self._condition.wait_for(
+                    lambda: self._failure is not None
+                    or self._finished
+                    or self._has_observed(target),
+                    timeout=timeout,
+                )
+                if self._failure is not None:
+                    raise self._failure
+                if self._has_observed(target):
+                    return
+                if self._finished:
+                    raise RuntimeError(
+                        f"Commit poller stopped before observing {target}: "
+                        f"{self._describe()}"
+                    )
+                raise TimeoutError(
+                    f"Commit poller did not observe {target} within {timeout}s: "
+                    f"{self._describe()}"
+                )
+
+        def run(self):
+            try:
+                with self.node.client() as c:
+                    prev_txid = None
+                    while not self.is_stopped():
+                        r = c.get("/node/commit", log_capture=[])
+                        assert r.status_code == http.HTTPStatus.OK, r.status_code
+                        transaction_id = r.body.json()["transaction_id"]
+                        txid = TxID.from_str(transaction_id)
+                        assert txid.valid(), f"Invalid commit ID: {transaction_id!r}"
+                        if txid != prev_txid:
+                            now = datetime.now(timezone.utc)
+                            with self._condition:
+                                self.known_commit_times.append((now, txid))
+                                self._condition.notify_all()
+                            prev_txid = txid
+            except BaseException as error:
+                # Propagate worker failures on the test thread, including during cleanup.
+                with self._condition:
+                    self._failure = error
+            finally:
+                with self._condition:
+                    self._finished = True
+                    self._condition.notify_all()
+
     response_times = []
 
     paths = [
@@ -2835,10 +2833,7 @@ def run_parsing_errors(args):
 
 
 if __name__ == "__main__":
-    from commit_poller_test import run as run_commit_poller_tests
-
     cr = ConcurrentRunner()
-    run_commit_poller_tests(cr.args)
 
     app_space_js_election_timeout_ms = cr.args.election_timeout_ms
     if os.getenv("CCF_GLIBCXX_DEBUG") or os.getenv("ASAN_SYMBOLIZER_PATH"):
