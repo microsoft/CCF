@@ -637,7 +637,7 @@
         "max_uncommitted_tx_count": {
           "type": "integer",
           "default": 10000,
-          "description": "Maximum number of uncommitted transactions allowed before the primary refuses new transactions. Unlimited if set to 0."
+          "description": "Local uncommitted transaction count at which a node rejects application and governance requests, including reads, with 503 TooManyPendingTransactions. Node endpoints remain exempt. A value of 0 disables this count threshold, but not ledger backlog backpressure."
         }
       },
       "description": "This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service)",
@@ -740,7 +740,7 @@
         "circuit_size": {
           "type": "string",
           "default": "16MB",
-          "description": "Size (size string) of the internal host-enclave ringbuffers (must be a power of 2)"
+          "description": "Size (size string) of the internal host-enclave ringbuffers (must be a power of 2). Also sets the pending ledger append byte threshold for backpressure; see Resource Usage. Already-admitted work may exceed this threshold."
         },
         "max_msg_size": {
           "type": "string",
