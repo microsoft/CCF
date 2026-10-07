@@ -4,13 +4,106 @@
 
 #include "ccf/endpoint_registry.h"
 
+#include "ccf/endpoints/authentication/js.h"
 #include "ds/internal_logger.h"
 #include "ds/nonstd.h"
 #include "endpoint_utils.h"
 
+#include <array>
 #include <doctest/doctest.h>
+#include <exception>
+#include <latch>
+#include <thread>
 
 using namespace ccf::endpoints;
+
+TEST_CASE("Concurrent first JS auth policy lookups")
+{
+  const std::vector<nlohmann::json> policy_names = {
+    "jwt",
+    "user_cert",
+    "member_cert",
+    "any_cert",
+    "user_cose_sign1",
+    "no_auth"};
+  const ccf::AuthnPolicies expected = {
+    ccf::jwt_auth_policy,
+    ccf::user_cert_auth_policy,
+    ccf::member_cert_auth_policy,
+    ccf::any_cert_auth_policy,
+    ccf::user_cose_sign1_auth_policy,
+    ccf::empty_auth_policy};
+
+  constexpr size_t worker_count = 16;
+  std::latch start(worker_count);
+  std::array<ccf::AuthnPolicies, worker_count> results;
+  std::array<std::exception_ptr, worker_count> errors;
+  std::vector<std::thread> workers;
+  for (size_t i = 0; i < worker_count; ++i)
+  {
+    workers.emplace_back([&, i]() {
+      EndpointDefinition endpoint;
+      endpoint.properties.authn_policies = policy_names;
+      // No lookup in this translation unit precedes these concurrent calls.
+      start.arrive_and_wait();
+      try
+      {
+        ccf::instantiate_authn_policies(endpoint);
+        results[i] = std::move(endpoint.authn_policies);
+      }
+      catch (...)
+      {
+        errors[i] = std::current_exception();
+      }
+    });
+  }
+  for (auto& worker : workers)
+  {
+    worker.join();
+  }
+  for (size_t i = 0; i < worker_count; ++i)
+  {
+    INFO("worker ", i);
+    if (errors[i] != nullptr)
+    {
+      REQUIRE_NOTHROW(std::rethrow_exception(errors[i]));
+    }
+    REQUIRE(results[i] == expected);
+  }
+
+  const auto& policies = ccf::auth_policies_by_name();
+  REQUIRE(policies.size() == expected.size());
+  for (size_t i = 0; i < policy_names.size(); ++i)
+  {
+    REQUIRE(
+      ccf::get_policy_by_name(policy_names[i].get<std::string>()) ==
+      expected[i]);
+  }
+  REQUIRE(ccf::get_policy_by_name("unknown") == nullptr);
+
+  EndpointDefinition composite;
+  composite.properties.authn_policies = {
+    nlohmann::json{{"all_of", {"jwt", "user_cert"}}}};
+  REQUIRE_NOTHROW(ccf::instantiate_authn_policies(composite));
+  REQUIRE(composite.authn_policies.size() == 1);
+  const auto all_of = std::dynamic_pointer_cast<ccf::AllOfAuthnPolicy>(
+    composite.authn_policies.front());
+  REQUIRE(all_of != nullptr);
+  REQUIRE(all_of->get_security_scheme_name() == "jwt+user_cert");
+
+  EndpointDefinition unknown;
+  unknown.properties.authn_policies = {"unknown"};
+  REQUIRE_THROWS_WITH_AS(
+    ccf::instantiate_authn_policies(unknown),
+    "Unknown auth policy: unknown",
+    std::logic_error);
+  unknown.properties.authn_policies = {
+    nlohmann::json{{"all_of", {"jwt", "unknown"}}}};
+  REQUIRE_THROWS_WITH_AS(
+    ccf::instantiate_authn_policies(unknown),
+    "Unknown auth policy: unknown",
+    std::logic_error);
+}
 
 std::optional<PathTemplateSpec> require_parsed_components(
   const std::string& s, const std::vector<std::string>& expected_components)

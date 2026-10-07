@@ -11,33 +11,19 @@ namespace ccf
   using NamedAuthPolicies =
     std::unordered_map<std::string, std::shared_ptr<ccf::AuthnPolicy>>;
 
-  static inline NamedAuthPolicies& auth_policies_by_name()
+  static inline const NamedAuthPolicies& auth_policies_by_name()
   {
-    static NamedAuthPolicies policies;
-    if (policies.empty())
-    {
-      policies.emplace(
-        ccf::UserCertAuthnPolicy::SECURITY_SCHEME_NAME,
-        ccf::user_cert_auth_policy);
-
-      policies.emplace(
-        ccf::MemberCertAuthnPolicy::SECURITY_SCHEME_NAME,
-        ccf::member_cert_auth_policy);
-
-      policies.emplace(
-        ccf::AnyCertAuthnPolicy::SECURITY_SCHEME_NAME,
-        ccf::any_cert_auth_policy);
-
-      policies.emplace(
-        ccf::JwtAuthnPolicy::SECURITY_SCHEME_NAME, ccf::jwt_auth_policy);
-
-      policies.emplace(
-        ccf::UserCOSESign1AuthnPolicy::SECURITY_SCHEME_NAME,
-        ccf::user_cose_sign1_auth_policy);
-
-      policies.emplace(
-        ccf::EmptyAuthnPolicy::SECURITY_SCHEME_NAME, ccf::empty_auth_policy);
-    }
+    static const NamedAuthPolicies policies = {
+      {ccf::UserCertAuthnPolicy::SECURITY_SCHEME_NAME,
+       ccf::user_cert_auth_policy},
+      {ccf::MemberCertAuthnPolicy::SECURITY_SCHEME_NAME,
+       ccf::member_cert_auth_policy},
+      {ccf::AnyCertAuthnPolicy::SECURITY_SCHEME_NAME,
+       ccf::any_cert_auth_policy},
+      {ccf::JwtAuthnPolicy::SECURITY_SCHEME_NAME, ccf::jwt_auth_policy},
+      {ccf::UserCOSESign1AuthnPolicy::SECURITY_SCHEME_NAME,
+       ccf::user_cose_sign1_auth_policy},
+      {ccf::EmptyAuthnPolicy::SECURITY_SCHEME_NAME, ccf::empty_auth_policy}};
 
     return policies;
   }
