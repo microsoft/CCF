@@ -1447,7 +1447,7 @@ void corrupt_ledger_file(
 {
   auto file = fopen(ledger_file.c_str(), "r+b");
   REQUIRE(file);
-  fseeko(file, 0, SEEK_SET);
+  REQUIRE(fseeko(file, 0, SEEK_SET) == 0);
   size_t table_offset = 0;
 
   if (corrupt_table_offset)

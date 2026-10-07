@@ -151,6 +151,75 @@ endif()
 if(CLANG_TIDY)
   find_program(CLANG_TIDY_EXE NAMES "clang-tidy-18" "clang-tidy" REQUIRED)
   message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
+  set(CLANG_TIDY_COMMAND "${CLANG_TIDY_EXE}")
+
+  execute_process(
+    COMMAND ${CLANG_TIDY_EXE} --version
+    OUTPUT_VARIABLE CLANG_TIDY_VERSION_OUTPUT
+    COMMAND_ERROR_IS_FATAL ANY
+  )
+  string(REGEX MATCH "LLVM version ([0-9]+)" _ "${CLANG_TIDY_VERSION_OUTPUT}")
+  set(CLANG_TIDY_MAJOR_VERSION "${CMAKE_MATCH_1}")
+  if(NOT CLANG_TIDY_MAJOR_VERSION)
+    message(FATAL_ERROR "Unable to determine clang-tidy version")
+  endif()
+
+  # .clang-tidy spells bugprone-unused-return-value.CheckedFunctions as
+  # anchored regular expressions, which is how clang-tidy 19 and later
+  # interpret entries. Older versions treat entries as exact names and so would
+  # match nothing. For them, derive an equivalent exact-name list from the
+  # effective .clang-tidy configuration and layer it on top via --config-file.
+  if(CLANG_TIDY_MAJOR_VERSION LESS 19)
+    execute_process(
+      COMMAND ${CLANG_TIDY_EXE} --dump-config
+      WORKING_DIRECTORY ${CCF_DIR}
+      OUTPUT_VARIABLE CLANG_TIDY_DUMPED_CONFIG
+      COMMAND_ERROR_IS_FATAL ANY
+    )
+    string(
+      REGEX MATCH "bugprone-unused-return-value.CheckedFunctions: *'([^']*)'"
+      _
+      "${CLANG_TIDY_DUMPED_CONFIG}"
+    )
+    set(CLANG_TIDY_CHECKED_FUNCTIONS "${CMAKE_MATCH_1}")
+    if(NOT CLANG_TIDY_CHECKED_FUNCTIONS)
+      message(
+        FATAL_ERROR
+        "Unable to read bugprone-unused-return-value.CheckedFunctions from .clang-tidy"
+      )
+    endif()
+    string(
+      REGEX REPLACE "[ \t\r\n]"
+      ""
+      CLANG_TIDY_CHECKED_FUNCTIONS
+      "${CLANG_TIDY_CHECKED_FUNCTIONS}"
+    )
+    string(
+      REPLACE "^"
+      ""
+      CLANG_TIDY_CHECKED_FUNCTIONS
+      "${CLANG_TIDY_CHECKED_FUNCTIONS}"
+    )
+    string(
+      REPLACE "$"
+      ""
+      CLANG_TIDY_CHECKED_FUNCTIONS
+      "${CLANG_TIDY_CHECKED_FUNCTIONS}"
+    )
+    set(CLANG_TIDY_COMPAT_CONFIG "${CMAKE_BINARY_DIR}/clang-tidy-compat.yaml")
+    file(
+      WRITE "${CLANG_TIDY_COMPAT_CONFIG}"
+      "InheritParentConfig: true\n"
+      "CheckOptions:\n"
+      "  - key: bugprone-unused-return-value.CheckedFunctions\n"
+      "    value: '${CLANG_TIDY_CHECKED_FUNCTIONS}'\n"
+    )
+    list(APPEND CLANG_TIDY_COMMAND "--config-file=${CLANG_TIDY_COMPAT_CONFIG}")
+    message(
+      STATUS
+      "clang-tidy ${CLANG_TIDY_MAJOR_VERSION} detected, using ${CLANG_TIDY_COMPAT_CONFIG}"
+    )
+  endif()
 endif()
 
 if(SAN OR TSAN)

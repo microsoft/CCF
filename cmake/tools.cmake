@@ -109,8 +109,8 @@ function(add_tidy name)
   set_target_properties(
     ${name}
     PROPERTIES
-      C_CLANG_TIDY "${CLANG_TIDY_EXE}"
-      CXX_CLANG_TIDY "${CLANG_TIDY_EXE}"
+      C_CLANG_TIDY "${CLANG_TIDY_COMMAND}"
+      CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}"
   )
 endfunction()
 
