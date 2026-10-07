@@ -185,7 +185,7 @@ namespace asynchost
       // Header reserved for the offset to the position table
       checked_seek(sizeof(positions_offset_header_t), SEEK_SET);
       total_len = sizeof(positions_offset_header_t);
-      file_guard.release();
+      file = file_guard.release();
     }
 
     // Used when recovering an existing ledger file
@@ -252,7 +252,7 @@ namespace asynchost
         // When recovering a file from persistence, do not recover entries to
         // start with as these are expected to be written again at a later
         // point.
-        file_guard.release();
+        file = file_guard.release();
         return;
       }
 
@@ -316,7 +316,7 @@ namespace asynchost
               "Failed to read entry header from ledger file {} at seqno {}",
               file_path,
               current_idx);
-            file_guard.release();
+            file = file_guard.release();
             return;
           }
 
@@ -332,7 +332,7 @@ namespace asynchost
               current_idx,
               entry_size,
               len);
-            file_guard.release();
+            file = file_guard.release();
             return;
           }
 
@@ -350,7 +350,7 @@ namespace asynchost
         }
         completed = false;
       }
-      file_guard.release();
+      file = file_guard.release();
     }
 
     ~LedgerFile()
