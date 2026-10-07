@@ -581,6 +581,43 @@ TEST_CASE("Frontend opens atomically")
   REQUIRE(registry.tick_count.load() == 1);
 }
 
+TEST_CASE("Frontend owns its periodic tick")
+{
+  using namespace std::chrono_literals;
+
+  NetworkState network;
+  prepare_callers(network);
+  ccf::StubNodeContext context;
+  std::latch init_started(1);
+  std::latch continue_init(1);
+  BlockingUserEndpointRegistry registry(context, init_started, continue_init);
+  auto frontend =
+    std::make_shared<RpcFrontend>(*network.tables, registry, context);
+  ccf::tasks::JobBoard job_board;
+
+  frontend->start_periodic_tick(job_board, 1ms);
+  job_board.tick(1ms);
+  auto tick = job_board.get_task();
+  REQUIRE(tick != nullptr);
+  tick->do_task();
+  REQUIRE(registry.tick_count.load() == 0);
+
+  std::thread opener([frontend]() { frontend->open(); });
+  init_started.wait();
+  continue_init.count_down();
+  opener.join();
+
+  job_board.tick(1ms);
+  tick = job_board.get_task();
+  REQUIRE(tick != nullptr);
+  tick->do_task();
+  REQUIRE(registry.tick_count.load() == 1);
+
+  frontend.reset();
+  job_board.tick(1ms);
+  REQUIRE(job_board.get_task() == nullptr);
+}
+
 TEST_CASE("Frontend state publication is thread-safe")
 {
   NetworkState network;
@@ -1400,6 +1437,66 @@ TEST_CASE("Forwarded request target limit" * doctest::test_suite("forwarding"))
       std::string_view(target).substr(target.find('?') + 1));
     CHECK(forwarded->get_serialised_request() == packed);
   }
+}
+
+TEST_CASE("Forwarding timeout" * doctest::test_suite("forwarding"))
+{
+  struct RecordingResponder : public ccf::AbstractRPCResponder
+  {
+    int64_t session_id = ccf::InvalidSessionId;
+    bool terminate_session = true;
+    std::vector<uint8_t> response;
+
+    bool reply_async(
+      int64_t id,
+      bool terminate_after_reply,
+      std::vector<uint8_t>&& data) override
+    {
+      session_id = id;
+      terminate_session = terminate_after_reply;
+      response = std::move(data);
+      return true;
+    }
+  };
+
+  auto responder = std::make_shared<RecordingResponder>();
+  auto channel = std::make_shared<ChannelStubProxy>();
+  Forwarder<ChannelStubProxy> forwarder(responder, channel, {});
+  constexpr size_t session_id = 42;
+  const NodeId primary_id{"primary"};
+  const std::chrono::milliseconds timeout(50);
+  auto session =
+    std::make_shared<ccf::SessionContext>(session_id, std::vector<uint8_t>{});
+  session->active_view = 1;
+  auto ctx =
+    ccf::make_rpc_context(session, create_simple_request().build_request());
+
+  REQUIRE(forwarder.forward_command(ctx, primary_id, {}, timeout));
+  REQUIRE(channel->size() == 1);
+  CHECK(responder->response.empty());
+
+  ccf::tasks::tick(timeout - std::chrono::milliseconds(1));
+  CHECK(ccf::tasks::get_main_job_board().get_task() == nullptr);
+  CHECK(responder->response.empty());
+
+  ccf::tasks::tick(std::chrono::milliseconds(1));
+  auto task = ccf::tasks::get_main_job_board().get_task();
+  REQUIRE(task != nullptr);
+  task->do_task();
+
+  CHECK(responder->session_id == session_id);
+  CHECK_FALSE(responder->terminate_session);
+  const auto response = parse_response(responder->response);
+  CHECK(response.status == HTTP_STATUS_GATEWAY_TIMEOUT);
+  REQUIRE(
+    response.headers.at(ccf::http::headers::CONTENT_TYPE) ==
+    ccf::http::headervalues::contenttype::JSON);
+  const auto body = nlohmann::json::parse(response.body);
+  CHECK(body["error"]["code"] == "ForwardingTimeout");
+  CHECK(
+    body["error"]["message"] ==
+    "Request was forwarded to node n[primary], but no response was received "
+    "after 50ms");
 }
 
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))

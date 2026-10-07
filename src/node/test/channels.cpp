@@ -8,15 +8,17 @@
 #include "ccf/ds/hex.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/x509_time.h"
-#include "ds/non_blocking.h"
-#include "ds/ring_buffer.h"
 #include "node/node_to_node_channel_manager.h"
+#include "node/node_transport.h"
 #include "node/node_types.h"
 
 #include <algorithm>
 #include <cstring>
+#include <mutex>
 #include <queue>
 #include <random>
+#include <thread>
+#include <variant>
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -27,30 +29,86 @@ void sleep_to_reinitiate()
     2 * ccf::Channel::min_gap_between_initiation_attempts());
 }
 
-class IORingbuffersFixture
+using namespace ccf;
+
+// Stands in for the host: records every transport operation, in the single
+// order in which the transport received them. Thread-safe, as the real
+// transport is.
+class RecordingTransport : public AbstractNodeTransport
 {
-protected:
-  static constexpr size_t buffer_size = 1024 * 8;
+public:
+  struct Send
+  {
+    NodeId to;
+    NodeMsgType type;
+    NodeId from;
+    std::vector<uint8_t> payload;
+  };
 
-  std::unique_ptr<ringbuffer::TestBuffer> in_buffer_1 =
-    std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  std::unique_ptr<ringbuffer::TestBuffer> out_buffer_1 =
-    std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  ringbuffer::Circuit eio1 =
-    ringbuffer::Circuit(in_buffer_1->bd, out_buffer_1->bd);
+  struct Associate
+  {
+    NodeId peer_id;
+    std::string hostname;
+    std::string service;
+  };
 
-  std::unique_ptr<ringbuffer::TestBuffer> in_buffer_2 =
-    std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  std::unique_ptr<ringbuffer::TestBuffer> out_buffer_2 =
-    std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  ringbuffer::Circuit eio2 =
-    ringbuffer::Circuit(in_buffer_2->bd, out_buffer_2->bd);
+  struct Close
+  {
+    NodeId peer_id;
+  };
 
-  ringbuffer::WriterFactory wf1 = ringbuffer::WriterFactory(eio1);
-  ringbuffer::WriterFactory wf2 = ringbuffer::WriterFactory(eio2);
+  using Op = std::variant<Send, Associate, Close>;
+
+private:
+  std::mutex mutex;
+  std::vector<Op> ops;
+
+public:
+  void associate_node_address(
+    const NodeId& peer_id,
+    const std::string& peer_hostname,
+    const std::string& peer_service) override
+  {
+    std::lock_guard guard(mutex);
+    ops.emplace_back(Associate{peer_id, peer_hostname, peer_service});
+  }
+
+  void send(
+    const NodeId& to,
+    NodeMsgType type,
+    const NodeId& from,
+    std::vector<uint8_t>&& payload) override
+  {
+    std::lock_guard guard(mutex);
+    ops.emplace_back(Send{to, type, from, std::move(payload)});
+  }
+
+  void close(const NodeId& peer_id) override
+  {
+    std::lock_guard guard(mutex);
+    ops.emplace_back(Close{peer_id});
+  }
+
+  void set_inbound_handler(std::shared_ptr<NodeInboundHandler>) override {}
+
+  std::vector<Op> take()
+  {
+    std::lock_guard guard(mutex);
+    return std::exchange(ops, {});
+  }
 };
 
-using namespace ccf;
+class TransportsFixture
+{
+protected:
+  std::shared_ptr<RecordingTransport> transport1 =
+    std::make_shared<RecordingTransport>();
+  std::shared_ptr<RecordingTransport> transport2 =
+    std::make_shared<RecordingTransport>();
+
+  RecordingTransport& host1 = *transport1;
+  RecordingTransport& host2 = *transport2;
+};
 
 // Use fixed-size messages as channels messages are not length-prefixed since
 // the type of the authenticated header is known in advance (e.g. AppendEntries)
@@ -139,90 +197,60 @@ struct NodeOutboundMsg
 };
 
 template <typename T>
-auto read_outbound_msgs(ringbuffer::Circuit& circuit)
+NodeOutboundMsg<T> to_outbound_msg(const RecordingTransport::Send& send)
+{
+  const uint8_t* data = send.payload.data();
+  size_t size = send.payload.size();
+  T aad;
+  if (size > sizeof(T))
+    aad = serialized::read<T>(data, size);
+  auto payload = serialized::read(data, size, size);
+  return NodeOutboundMsg<T>{send.from, send.to, send.type, aad, payload};
+}
+
+template <typename T>
+auto read_outbound_msgs(RecordingTransport& transport)
 {
   std::vector<NodeOutboundMsg<T>> msgs;
 
-  // A call to ringbuffer::Reader::read() may return 0 when there are still
-  // messages to read, when it reaches the end of the buffer. The next call to
-  // read() will correctly start at the beginning of the buffer and read these
-  // messages. So to make sure we always get the messages we expect in this
-  // test, read twice.
-  for (size_t i = 0; i < 2; ++i)
+  for (const auto& op : transport.take())
   {
-    circuit.read_from_inside().read(
-      -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
-        switch (m)
-        {
-          case node_outbound:
-          {
-            NodeId to = serialized::read<NodeId::Value>(data, size);
-            auto msg_type = serialized::read<NodeMsgType>(data, size);
-            NodeId from = serialized::read<NodeId::Value>(data, size);
-            T aad;
-            if (size > sizeof(T))
-              aad = serialized::read<T>(data, size);
-            auto payload = serialized::read(data, size, size);
-            msgs.push_back(
-              NodeOutboundMsg<T>{from, to, msg_type, aad, payload});
-            break;
-          }
-          case associate_node_address:
-          case close_node_outbound:
-          {
-            // Ignored
-            break;
-          }
-          default:
-          {
-            LOG_INFO_FMT("Outbound message is not expected: {}", m);
-            REQUIRE(false);
-          }
-        }
-      });
+    if (const auto* send = std::get_if<RecordingTransport::Send>(&op))
+    {
+      msgs.push_back(to_outbound_msg<T>(*send));
+    }
+    // Address associations and closes are ignored
   }
 
   return msgs;
 }
 
-auto read_node_msgs(ringbuffer::Circuit& circuit)
+auto read_node_msgs(RecordingTransport& transport)
 {
   std::vector<std::tuple<NodeId, std::string, std::string>> add_node_msgs;
 
-  circuit.read_from_inside().read(
-    -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
-      switch (m)
-      {
-        case ccf::associate_node_address:
-        {
-          auto [id, hostname, service] =
-            ringbuffer::read_message<ccf::associate_node_address>(data, size);
-          add_node_msgs.push_back(std::make_tuple(id, hostname, service));
-
-          break;
-        }
-        default:
-        {
-          LOG_INFO_FMT("Outbound message is not expected: {}", m);
-          REQUIRE(false);
-        }
-      }
-    });
+  for (const auto& op : transport.take())
+  {
+    const auto* associate = std::get_if<RecordingTransport::Associate>(&op);
+    REQUIRE(associate != nullptr);
+    add_node_msgs.push_back(std::make_tuple(
+      associate->peer_id, associate->hostname, associate->service));
+  }
 
   return add_node_msgs;
 }
 
 NodeOutboundMsg<MsgType> get_first(
-  ringbuffer::Circuit& circuit, NodeMsgType msg_type)
+  RecordingTransport& transport, NodeMsgType msg_type)
 {
-  auto outbound_msgs = read_outbound_msgs<MsgType>(circuit);
+  auto outbound_msgs = read_outbound_msgs<MsgType>(transport);
   REQUIRE(outbound_msgs.size() >= 1);
   auto msg = outbound_msgs[0];
   REQUIRE(msg.type == msg_type);
   return msg;
 }
 
-TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
+TEST_CASE_FIXTURE(TransportsFixture, "Client/Server key exchange")
 {
   auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -242,9 +270,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
 
   REQUIRE(!make_verifier(channel2_cert)->is_self_signed());
 
-  auto channels1 = NodeToNodeChannelManager(wf1);
+  auto channels1 = NodeToNodeChannelManager(transport1);
   channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
-  auto channels2 = NodeToNodeChannelManager(wf2);
+  auto channels2 = NodeToNodeChannelManager(transport2);
   channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
 
   MsgType msg;
@@ -265,11 +293,11 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
   INFO("Extract key share, signature, certificate from messages");
   {
     // Attempting to send has produced a new channel establishment message
-    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    auto msgs = read_outbound_msgs<MsgType>(host1);
     REQUIRE(msgs.size() == 2);
     REQUIRE(msgs[0].type == channel_msg);
     REQUIRE(msgs[1].type == channel_msg);
-    REQUIRE(read_outbound_msgs<MsgType>(eio2).size() == 0);
+    REQUIRE(read_outbound_msgs<MsgType>(host2).size() == 0);
 
 #ifndef DETERMINISTIC_ECDSA
     // Signing twice should have produced different signatures
@@ -293,11 +321,11 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
   INFO("Extract responder signature over both key shares from messages");
   {
     // Messages sent before channel was established are flushed, so only 1 each.
-    auto msgs = read_outbound_msgs<MsgType>(eio2);
+    auto msgs = read_outbound_msgs<MsgType>(host2);
     REQUIRE(msgs.size() == 1);
     REQUIRE(msgs[0].type == channel_msg);
     channel2_signed_key_share = msgs[0].data();
-    REQUIRE(read_outbound_msgs<MsgType>(eio1).size() == 0);
+    REQUIRE(read_outbound_msgs<MsgType>(host1).size() == 0);
   }
 
   INFO("Load responder key share and check signature");
@@ -313,7 +341,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
 
   INFO("Extract responder signature from message");
   {
-    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    auto msgs = read_outbound_msgs<MsgType>(host1);
     REQUIRE(msgs.size() == 2);
     REQUIRE(msgs[0].type == channel_msg);
     REQUIRE(msgs[1].type == consensus_msg);
@@ -349,7 +377,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
   {
     REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
-    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    auto outbound_msgs = read_outbound_msgs<MsgType>(host1);
     REQUIRE(outbound_msgs.size() == 1);
     auto msg_ = outbound_msgs[0];
     const auto* data_ = msg_.payload.data();
@@ -367,7 +395,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
   {
     REQUIRE(channels2.send_authenticated(
       nid1, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
-    auto outbound_msgs = read_outbound_msgs<MsgType>(eio2);
+    auto outbound_msgs = read_outbound_msgs<MsgType>(host2);
     REQUIRE(outbound_msgs.size() == 1);
     auto msg_ = outbound_msgs[0];
     const auto* data_ = msg_.payload.data();
@@ -385,7 +413,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
   {
     REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
-    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    auto outbound_msgs = read_outbound_msgs<MsgType>(host1);
     REQUIRE(outbound_msgs.size() == 1);
     auto msg_ = outbound_msgs[0];
     msg_.payload[0] += 1; // Tamper with message
@@ -406,7 +434,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
     REQUIRE(channels1.send_encrypted(
       nid2, NodeMsgType::consensus_msg, {msg.begin(), msg.size()}, plain_text));
 
-    auto msg_ = get_first(eio1, NodeMsgType::consensus_msg);
+    auto msg_ = get_first(host1, NodeMsgType::consensus_msg);
     auto decrypted = channels2.recv_encrypted(
       nid1,
       {msg_.authenticated_hdr.data(), msg_.authenticated_hdr.size()},
@@ -422,7 +450,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
     REQUIRE(channels2.send_encrypted(
       nid1, NodeMsgType::consensus_msg, {msg.begin(), msg.size()}, plain_text));
 
-    auto msg_ = get_first(eio2, NodeMsgType::consensus_msg);
+    auto msg_ = get_first(host2, NodeMsgType::consensus_msg);
     auto decrypted = channels1.recv_encrypted(
       nid2,
       {msg_.authenticated_hdr.data(), msg_.authenticated_hdr.size()},
@@ -433,7 +461,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
   }
 }
 
-TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
+TEST_CASE_FIXTURE(TransportsFixture, "Replay and out-of-order")
 {
   auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -446,9 +474,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
   auto channel2_cert =
     generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, service_cert);
 
-  auto channels1 = NodeToNodeChannelManager(wf1);
+  auto channels1 = NodeToNodeChannelManager(transport1);
   channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
-  auto channels2 = NodeToNodeChannelManager(wf2);
+  auto channels2 = NodeToNodeChannelManager(transport2);
   channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
 
   MsgType msg;
@@ -459,7 +487,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
     channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
-    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    auto msgs = read_outbound_msgs<MsgType>(host1);
     REQUIRE(msgs.size() == 1);
     REQUIRE(msgs[0].type == channel_msg);
     auto channel1_signed_key_share = msgs[0].data();
@@ -467,14 +495,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
     REQUIRE(channels2.recv_channel_message(
       nid1, std::move(channel1_signed_key_share)));
 
-    msgs = read_outbound_msgs<MsgType>(eio2);
+    msgs = read_outbound_msgs<MsgType>(host2);
     REQUIRE(msgs.size() == 1);
     REQUIRE(msgs[0].type == channel_msg);
     auto channel2_signed_key_share = msgs[0].data();
     REQUIRE(channels1.recv_channel_message(
       nid2, std::move(channel2_signed_key_share)));
 
-    msgs = read_outbound_msgs<MsgType>(eio1);
+    msgs = read_outbound_msgs<MsgType>(host1);
     REQUIRE(msgs.size() == 2);
     REQUIRE(msgs[0].type == channel_msg);
     auto initiator_signature = msgs[0].data();
@@ -501,7 +529,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
   {
     REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
-    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    auto outbound_msgs = read_outbound_msgs<MsgType>(host1);
     REQUIRE(outbound_msgs.size() == 1);
     first_msg = outbound_msgs[0];
     REQUIRE(first_msg.from == nid1);
@@ -532,15 +560,15 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
   {
     REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
-    REQUIRE(read_outbound_msgs<MsgType>(eio1).size() == 1);
+    REQUIRE(read_outbound_msgs<MsgType>(host1).size() == 1);
 
     REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
-    REQUIRE(read_outbound_msgs<MsgType>(eio1).size() == 1);
+    REQUIRE(read_outbound_msgs<MsgType>(host1).size() == 1);
 
     REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
-    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    auto outbound_msgs = read_outbound_msgs<MsgType>(host1);
     REQUIRE(outbound_msgs.size() == 1);
     auto msg_ = outbound_msgs[0];
     const auto* data_ = msg_.payload.data();
@@ -565,8 +593,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
 
   INFO("Trigger new key exchange");
   {
-    auto n = read_outbound_msgs<MsgType>(eio1).size() +
-      read_outbound_msgs<MsgType>(eio2).size();
+    auto n = read_outbound_msgs<MsgType>(host1).size() +
+      read_outbound_msgs<MsgType>(host2).size();
     REQUIRE(n == 0);
 
     channels1.close_channel(nid2);
@@ -579,17 +607,17 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
     REQUIRE(channels2.channel_open(nid1));
 
     REQUIRE(channels2.recv_channel_message(
-      nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
+      nid1, get_first(host1, NodeMsgType::channel_msg).data()));
     REQUIRE_FALSE(channels1.channel_open(nid2));
     // Node 2 still believes channel is open, using previously agreed keys
     REQUIRE(channels2.channel_open(nid1));
 
     REQUIRE(channels1.recv_channel_message(
-      nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
+      nid2, get_first(host2, NodeMsgType::channel_msg).data()));
     REQUIRE(channels1.channel_open(nid2));
     REQUIRE(channels2.channel_open(nid1));
 
-    auto messages_1to2 = read_outbound_msgs<MsgType>(eio1);
+    auto messages_1to2 = read_outbound_msgs<MsgType>(host1);
     REQUIRE(messages_1to2.size() == 2);
     REQUIRE(messages_1to2[0].type == NodeMsgType::channel_msg);
     REQUIRE(channels2.recv_channel_message(nid1, messages_1to2[0].data()));
@@ -609,7 +637,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
   }
 }
 
-TEST_CASE_FIXTURE(IORingbuffersFixture, "Host connections")
+TEST_CASE_FIXTURE(TransportsFixture, "Host connections")
 {
   auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -618,13 +646,13 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Host connections")
   auto channel_cert =
     generate_endorsed_cert(channel_kp, "CN=Node", network_kp, service_cert);
 
-  auto channel_manager = NodeToNodeChannelManager(wf1);
+  auto channel_manager = NodeToNodeChannelManager(transport1);
   channel_manager.initialize(nid1, service_cert, channel_kp, channel_cert);
 
-  INFO("New node association is sent as ringbuffer message");
+  INFO("New node association is passed to the transport");
   {
     channel_manager.associate_node_address(nid2, "hostname", "port");
-    auto add_node_msgs = read_node_msgs(eio1);
+    auto add_node_msgs = read_node_msgs(host1);
     REQUIRE(add_node_msgs.size() == 1);
     REQUIRE(std::get<0>(add_node_msgs[0]) == nid2);
     REQUIRE(std::get<1>(add_node_msgs[0]) == "hostname");
@@ -640,25 +668,25 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Host connections")
     msg.fill(0x42);
     channel_manager.send_authenticated(
       unknown_peer_id, NodeMsgType::consensus_msg, msg.data(), msg.size());
-    auto outbound = read_outbound_msgs<MsgType>(eio1);
+    auto outbound = read_outbound_msgs<MsgType>(host1);
     REQUIRE(outbound.size() == 1);
     REQUIRE(outbound[0].type == channel_msg);
   }
 }
 
 static std::vector<NodeOutboundMsg<MsgType>> get_all_msgs(
-  std::set<ringbuffer::Circuit*> eios)
+  std::set<RecordingTransport*> hosts)
 {
   std::vector<NodeOutboundMsg<MsgType>> res;
-  for (auto& eio : eios)
+  for (auto& host : hosts)
   {
-    auto msgs = read_outbound_msgs<MsgType>(*eio);
+    auto msgs = read_outbound_msgs<MsgType>(*host);
     res.insert(res.end(), msgs.begin(), msgs.end());
   }
   return res;
 }
 
-TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
+TEST_CASE_FIXTURE(TransportsFixture, "Concurrent key exchange init")
 {
   auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -671,9 +699,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
   auto channel2_cert =
     generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, service_cert);
 
-  auto channels1 = NodeToNodeChannelManager(wf1);
+  auto channels1 = NodeToNodeChannelManager(transport1);
   channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
-  auto channels2 = NodeToNodeChannelManager(wf2);
+  auto channels2 = NodeToNodeChannelManager(transport2);
   channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
 
   MsgType msg;
@@ -689,8 +717,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     REQUIRE_FALSE(channels1.channel_open(nid2));
     REQUIRE_FALSE(channels2.channel_open(nid1));
 
-    auto fst1 = get_first(eio1, NodeMsgType::channel_msg);
-    auto fst2 = get_first(eio2, NodeMsgType::channel_msg);
+    auto fst1 = get_first(host1, NodeMsgType::channel_msg);
+    auto fst2 = get_first(host2, NodeMsgType::channel_msg);
 
     REQUIRE(channels1.recv_channel_message(nid2, fst2.data()));
     REQUIRE(channels2.recv_channel_message(nid1, fst1.data()));
@@ -698,11 +726,11 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     REQUIRE_FALSE(channels1.channel_open(nid2));
     REQUIRE_FALSE(channels2.channel_open(nid1));
 
-    fst1 = get_first(eio1, NodeMsgType::channel_msg);
+    fst1 = get_first(host1, NodeMsgType::channel_msg);
 
     REQUIRE(channels2.recv_channel_message(nid1, fst1.data()));
 
-    fst2 = get_first(eio2, NodeMsgType::channel_msg);
+    fst2 = get_first(host2, NodeMsgType::channel_msg);
 
     REQUIRE(channels1.recv_channel_message(nid2, fst2.data()));
 
@@ -713,8 +741,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
   channels1.close_channel(nid2);
   channels2.close_channel(nid1);
 
-  read_outbound_msgs<MsgType>(eio1);
-  read_outbound_msgs<MsgType>(eio2);
+  read_outbound_msgs<MsgType>(host1);
+  read_outbound_msgs<MsgType>(host2);
 
   {
     INFO("Channel 1 wins");
@@ -729,7 +757,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     REQUIRE_FALSE(channels2.channel_open(nid1));
 
     // Node 2 receives the init _before_ any excuse to init themselves
-    auto fst1 = get_first(eio1, NodeMsgType::channel_msg);
+    auto fst1 = get_first(host1, NodeMsgType::channel_msg);
     REQUIRE(channels2.recv_channel_message(nid1, fst1.data()));
     channels2.send_authenticated(
       nid1, NodeMsgType::consensus_msg, msg.data(), msg.size());
@@ -737,11 +765,11 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     REQUIRE_FALSE(channels1.channel_open(nid2));
     REQUIRE_FALSE(channels2.channel_open(nid1));
 
-    auto fst2 = get_first(eio2, NodeMsgType::channel_msg);
+    auto fst2 = get_first(host2, NodeMsgType::channel_msg);
 
     REQUIRE(channels1.recv_channel_message(nid2, fst2.data()));
 
-    fst1 = get_first(eio1, NodeMsgType::channel_msg);
+    fst1 = get_first(host1, NodeMsgType::channel_msg);
 
     REQUIRE(channels2.recv_channel_message(nid1, fst1.data()));
 
@@ -749,7 +777,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     REQUIRE(channels2.channel_open(nid1));
   }
 
-  get_all_msgs({&eio1, &eio2});
+  get_all_msgs({&host1, &host2});
 }
 
 struct CurveChoices
@@ -759,7 +787,7 @@ struct CurveChoices
   ccf::crypto::CurveID node_2;
 };
 
-TEST_CASE_FIXTURE(IORingbuffersFixture, "Full NodeToNode test")
+TEST_CASE_FIXTURE(TransportsFixture, "Full NodeToNode test")
 {
   constexpr auto all_256 = CurveChoices{
     ccf::crypto::CurveID::SECP256R1,
@@ -804,7 +832,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Full NodeToNode test")
     msg.fill(0x42);
 
     INFO("Set up channels");
-    NodeToNodeChannelManager n2n1(wf1), n2n2(wf2);
+    NodeToNodeChannelManager n2n1(transport1), n2n2(transport2);
 
     n2n1.initialize(ni1, service_cert, channel1_kp, channel1_cert);
     n2n1.set_message_limit(message_limit);
@@ -833,7 +861,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Full NodeToNode test")
             ni1, NodeMsgType::consensus_msg, msg.data(), msg.size());
         }
 
-        auto msgs = get_all_msgs({&eio1, &eio2});
+        auto msgs = get_all_msgs({&host1, &host2});
         do
         {
           for (auto m : msgs)
@@ -870,7 +898,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Full NodeToNode test")
             }
           }
 
-          msgs = get_all_msgs({&eio1, &eio2});
+          msgs = get_all_msgs({&host1, &host2});
         } while (msgs.size() > 0);
       }
 
@@ -879,7 +907,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Full NodeToNode test")
   }
 }
 
-TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
+TEST_CASE_FIXTURE(TransportsFixture, "Interrupted key exchange")
 {
   auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -892,9 +920,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
   auto channel2_cert =
     generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, service_cert);
 
-  auto channels1 = NodeToNodeChannelManager(wf1);
+  auto channels1 = NodeToNodeChannelManager(transport1);
   channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
-  auto channels2 = NodeToNodeChannelManager(wf2);
+  auto channels2 = NodeToNodeChannelManager(transport2);
   channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
 
   std::vector<uint8_t> msg;
@@ -920,8 +948,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
   {
     INFO("Drop stage is ", (size_t)drop_stage);
 
-    auto n = read_outbound_msgs<MsgType>(eio1).size() +
-      read_outbound_msgs<MsgType>(eio2).size();
+    auto n = read_outbound_msgs<MsgType>(host1).size() +
+      read_outbound_msgs<MsgType>(host2).size();
     REQUIRE(n == 0);
 
     channels1.close_channel(nid2);
@@ -935,7 +963,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
     REQUIRE_FALSE(channels1.channel_open(nid2));
     REQUIRE_FALSE(channels2.channel_open(nid1));
 
-    auto initiator_key_share_msg = get_first(eio1, NodeMsgType::channel_msg);
+    auto initiator_key_share_msg = get_first(host1, NodeMsgType::channel_msg);
     if (drop_stage > DropStage::InitiationMessage)
     {
       REQUIRE(
@@ -944,7 +972,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
       REQUIRE_FALSE(channels1.channel_open(nid2));
       REQUIRE_FALSE(channels2.channel_open(nid1));
 
-      auto responder_key_share_msg = get_first(eio2, NodeMsgType::channel_msg);
+      auto responder_key_share_msg = get_first(host2, NodeMsgType::channel_msg);
       if (drop_stage > DropStage::ResponseMessage)
       {
         REQUIRE(
@@ -954,7 +982,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
         REQUIRE_FALSE(channels2.channel_open(nid1));
 
         auto initiator_key_exchange_final_msg =
-          get_first(eio1, NodeMsgType::channel_msg);
+          get_first(host1, NodeMsgType::channel_msg);
         if (drop_stage > DropStage::FinalMessage)
         {
           REQUIRE(channels2.recv_channel_message(
@@ -979,11 +1007,11 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
           nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
         REQUIRE(channels2.recv_channel_message(
-          nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
+          nid1, get_first(host1, NodeMsgType::channel_msg).data()));
         REQUIRE(channels1.recv_channel_message(
-          nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
+          nid2, get_first(host2, NodeMsgType::channel_msg).data()));
         REQUIRE(channels2.recv_channel_message(
-          nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
+          nid1, get_first(host1, NodeMsgType::channel_msg).data()));
       }
       else
       {
@@ -992,11 +1020,11 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
           nid1, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
         REQUIRE(channels1.recv_channel_message(
-          nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
+          nid2, get_first(host2, NodeMsgType::channel_msg).data()));
         REQUIRE(channels2.recv_channel_message(
-          nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
+          nid1, get_first(host1, NodeMsgType::channel_msg).data()));
         REQUIRE(channels1.recv_channel_message(
-          nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
+          nid2, get_first(host2, NodeMsgType::channel_msg).data()));
       }
       REQUIRE(channels1.channel_open(nid2));
       REQUIRE(channels2.channel_open(nid1));
@@ -1006,7 +1034,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
 
       REQUIRE(channels1.send_encrypted(
         nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, msg));
-      auto msg1 = get_first(eio1, NodeMsgType::consensus_msg);
+      auto msg1 = get_first(host1, NodeMsgType::consensus_msg);
       auto decrypted1 = channels2.recv_encrypted(
         nid1,
         {msg1.authenticated_hdr.data(), msg1.authenticated_hdr.size()},
@@ -1016,7 +1044,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
 
       REQUIRE(channels2.send_encrypted(
         nid1, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, msg));
-      auto msg2 = get_first(eio2, NodeMsgType::consensus_msg);
+      auto msg2 = get_first(host2, NodeMsgType::consensus_msg);
       auto decrypted2 = channels1.recv_encrypted(
         nid2,
         {msg2.authenticated_hdr.data(), msg2.authenticated_hdr.size()},
@@ -1027,7 +1055,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
   }
 }
 
-TEST_CASE_FIXTURE(IORingbuffersFixture, "Stuttering handshake")
+TEST_CASE_FIXTURE(TransportsFixture, "Stuttering handshake")
 {
   MsgType aad;
   aad.fill(0x10);
@@ -1043,9 +1071,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Stuttering handshake")
   auto channel2_cert =
     generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, service_cert);
 
-  auto channels1 = NodeToNodeChannelManager(wf1);
+  auto channels1 = NodeToNodeChannelManager(transport1);
   channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
-  auto channels2 = NodeToNodeChannelManager(wf2);
+  auto channels2 = NodeToNodeChannelManager(transport2);
   channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
 
   std::vector<uint8_t> msg_body;
@@ -1064,7 +1092,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Stuttering handshake")
     nid2, NodeMsgType::forwarded_msg, {aad.begin(), aad.size()}, msg_body));
 
   INFO("Receive first init message");
-  auto q = read_outbound_msgs<MsgType>(eio1);
+  auto q = read_outbound_msgs<MsgType>(host1);
   REQUIRE(q.size() == 2);
 
   const auto init1 = q[0];
@@ -1072,7 +1100,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Stuttering handshake")
   REQUIRE(channels2.recv_channel_message(init1.from, init1.data()));
 
   INFO("Receive response to first handshake");
-  const auto resp1 = get_first(eio2, NodeMsgType::channel_msg);
+  const auto resp1 = get_first(host2, NodeMsgType::channel_msg);
   REQUIRE_FALSE(channels1.recv_channel_message(resp1.from, resp1.data()));
 
   INFO("Receive second init message");
@@ -1081,11 +1109,11 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Stuttering handshake")
   REQUIRE(channels2.recv_channel_message(init2.from, init2.data()));
 
   INFO("Receive response to second handshake");
-  const auto resp2 = get_first(eio2, NodeMsgType::channel_msg);
+  const auto resp2 = get_first(host2, NodeMsgType::channel_msg);
   REQUIRE(channels1.recv_channel_message(resp2.from, resp2.data()));
 
   INFO("Receive final");
-  q = read_outbound_msgs<MsgType>(eio1);
+  q = read_outbound_msgs<MsgType>(host1);
   REQUIRE(q.size() == 3);
 
   const auto fin = q[0];
@@ -1104,7 +1132,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Stuttering handshake")
   REQUIRE(decrypted == msg_body);
 }
 
-TEST_CASE_FIXTURE(IORingbuffersFixture, "Expired certs")
+TEST_CASE_FIXTURE(TransportsFixture, "Expired certs")
 {
   auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
   auto channel1_kp = ccf::crypto::make_ec_key_pair(default_curve);
@@ -1141,10 +1169,10 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Expired certs")
       true);
   }
 
-  auto channels1 = NodeToNodeChannelManager(wf1);
+  auto channels1 = NodeToNodeChannelManager(transport1);
   channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
 
-  auto channels2 = NodeToNodeChannelManager(wf2);
+  auto channels2 = NodeToNodeChannelManager(transport2);
   channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
 
   std::vector<uint8_t> payload;
@@ -1156,14 +1184,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Expired certs")
   channels1.send_authenticated(
     nid2, NodeMsgType::consensus_msg, payload.data(), payload.size());
 
-  auto msgs = read_outbound_msgs<MsgType>(eio1);
+  auto msgs = read_outbound_msgs<MsgType>(host1);
   for (const auto& msg : msgs)
   {
     REQUIRE(channels2.recv_channel_message(nid1, msg.data()));
   }
 }
 
-TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
+TEST_CASE_FIXTURE(TransportsFixture, "Robust key exchange")
 {
   auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -1178,9 +1206,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
   const NodeId nid3 = std::string("nid3");
 
-  auto channels1 = NodeToNodeChannelManager(wf1);
+  auto channels1 = NodeToNodeChannelManager(transport1);
   channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
-  auto channels2 = NodeToNodeChannelManager(wf2);
+  auto channels2 = NodeToNodeChannelManager(transport2);
   channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
 
   MsgType aad;
@@ -1206,7 +1234,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
     channels1.send_encrypted(
       nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
 
-    auto outbound = read_outbound_msgs<MsgType>(eio1);
+    auto outbound = read_outbound_msgs<MsgType>(host1);
     REQUIRE(outbound.size() >= 2);
     for (size_t i = 0; i < outbound.size(); ++i)
     {
@@ -1225,7 +1253,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
     channels1.send_encrypted(
       nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
 
-    outbound = read_outbound_msgs<MsgType>(eio1);
+    outbound = read_outbound_msgs<MsgType>(host1);
     REQUIRE(outbound.size() >= 1);
     auto kex_init = outbound.back();
     REQUIRE(kex_init.type == NodeMsgType::channel_msg);
@@ -1244,7 +1272,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
     channels2.send_encrypted(
       nid3, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
 
-    outbound = read_outbound_msgs<MsgType>(eio2);
+    outbound = read_outbound_msgs<MsgType>(host2);
     for (size_t i = 0; i < outbound.size(); ++i)
     {
       const auto& msg = outbound[i];
@@ -1261,7 +1289,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
     // succeed we must deliver that instance
     REQUIRE(channels2.recv_channel_message(nid1, kex_init.data()));
 
-    outbound = read_outbound_msgs<MsgType>(eio2);
+    outbound = read_outbound_msgs<MsgType>(host2);
     REQUIRE(outbound.size() >= 2);
     auto kex_response = outbound.back();
     REQUIRE(kex_response.type == NodeMsgType::channel_msg);
@@ -1274,7 +1302,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
     REQUIRE(channels1.recv_channel_message(nid2, kex_response.data()));
     REQUIRE_FALSE(channels1.recv_channel_message(nid2, kex_response.data()));
 
-    outbound = read_outbound_msgs<MsgType>(eio1);
+    outbound = read_outbound_msgs<MsgType>(host1);
     REQUIRE(outbound.size() == 2);
     auto kex_final = outbound[0];
     REQUIRE(kex_final.type == NodeMsgType::channel_msg);
@@ -1300,14 +1328,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
     channels2.send_encrypted(
       nid3, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
 
-    outbound = read_outbound_msgs<MsgType>(eio1);
+    outbound = read_outbound_msgs<MsgType>(host1);
     for (size_t i = 0; i < outbound.size(); ++i)
     {
       const auto& msg = outbound[i];
       old_messages.push_back(std::make_tuple("tailing junk A", i, msg.data()));
     }
 
-    outbound = read_outbound_msgs<MsgType>(eio2);
+    outbound = read_outbound_msgs<MsgType>(host2);
     for (size_t i = 0; i < outbound.size(); ++i)
     {
       const auto& msg = outbound[i];
@@ -1335,9 +1363,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
         auto msg_2 = msg;
         channels2.recv_channel_message(nid1, std::move(msg_2));
 
-        // Remove anything they responded with from the ringbuffer
-        read_outbound_msgs<MsgType>(eio1);
-        read_outbound_msgs<MsgType>(eio2);
+        // Remove anything they responded with from the transport
+        read_outbound_msgs<MsgType>(host1);
+        read_outbound_msgs<MsgType>(host2);
       }
     };
 
@@ -1353,7 +1381,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
     channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, payload.data(), payload.size());
-    auto kex_init = get_first(eio1, NodeMsgType::channel_msg);
+    auto kex_init = get_first(host1, NodeMsgType::channel_msg);
 
     REQUIRE(channels2.recv_channel_message(nid1, kex_init.data()));
 
@@ -1364,9 +1392,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
     channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, payload.data(), payload.size());
-    kex_init = get_first(eio1, NodeMsgType::channel_msg);
+    kex_init = get_first(host1, NodeMsgType::channel_msg);
     REQUIRE(channels2.recv_channel_message(nid1, kex_init.data()));
-    auto kex_response = get_first(eio2, NodeMsgType::channel_msg);
+    auto kex_response = get_first(host2, NodeMsgType::channel_msg);
 
     REQUIRE(channels1.recv_channel_message(nid2, kex_response.data()));
 
@@ -1377,12 +1405,12 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
     channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, payload.data(), payload.size());
-    kex_init = get_first(eio1, NodeMsgType::channel_msg);
+    kex_init = get_first(host1, NodeMsgType::channel_msg);
     REQUIRE(channels2.recv_channel_message(nid1, kex_init.data()));
-    kex_response = get_first(eio2, NodeMsgType::channel_msg);
+    kex_response = get_first(host2, NodeMsgType::channel_msg);
 
     REQUIRE(channels1.recv_channel_message(nid2, kex_response.data()));
-    auto kex_final = get_first(eio1, NodeMsgType::channel_msg);
+    auto kex_final = get_first(host1, NodeMsgType::channel_msg);
 
     REQUIRE(channels2.recv_channel_message(nid1, kex_final.data()));
 
@@ -1402,7 +1430,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 // Run separate threads simulating each node, sending many messages in both
 // direction. Goal is that the message stream is largely uninterrupted, despite
 // multiple key rotation exchanges happening during the sequence
-TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
+TEST_CASE_FIXTURE(TransportsFixture, "Key rotation")
 {
   auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -1421,8 +1449,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   {
     ccf::NodeId my_node_id;
     ccf::NodeId peer_node_id;
-    ringbuffer::Circuit& source_buffer;
-    ringbuffer::NonBlockingWriterFactory& nbwf;
+    RecordingTransport& source_buffer;
     NodeToNodeChannelManager& channels;
     SendQueue& send_queue;
 
@@ -1431,14 +1458,12 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     TmpChannel(
       ccf::NodeId my_node_id_,
       ccf::NodeId peer_node_id_,
-      ringbuffer::Circuit& source_buffer_,
-      ringbuffer::NonBlockingWriterFactory& nbwf_,
+      RecordingTransport& source_buffer_,
       NodeToNodeChannelManager& channels_,
       SendQueue& send_queue_) :
       my_node_id(my_node_id_),
       peer_node_id(peer_node_id_),
       source_buffer(source_buffer_),
-      nbwf(nbwf_),
       channels(channels_),
       send_queue(send_queue_)
     {}
@@ -1544,8 +1569,6 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
         messages_each - send_queue.size(),
         received_results.size(),
         messages_each);
-
-      nbwf.flush_all_outbound();
     }
   };
 
@@ -1559,11 +1582,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   };
 
   SendQueue to_send_from_1;
-  ringbuffer::NonBlockingWriterFactory nbwf1(wf1);
   ReceivedMessages expected_received_by_1;
 
   SendQueue to_send_from_2;
-  ringbuffer::NonBlockingWriterFactory nbwf2(wf2);
   ReceivedMessages expected_received_by_2;
 
   // Submit a randomly generated workload
@@ -1588,7 +1609,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   }
 
   auto kp1 = ccf::crypto::make_ec_key_pair(default_curve);
-  NodeToNodeChannelManager channels1(nbwf1);
+  NodeToNodeChannelManager channels1(transport1);
   channels1.initialize(
     nid1,
     service_cert,
@@ -1596,17 +1617,17 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     generate_endorsed_cert(
       kp1, fmt::format("CN={}", nid1), network_kp, service_cert));
   channels1.set_message_limit(message_limit);
-  TmpChannel tc1(nid1, nid2, eio2, nbwf1, channels1, to_send_from_1);
+  TmpChannel tc1(nid1, nid2, host2, channels1, to_send_from_1);
 
   auto kp2 = ccf::crypto::make_ec_key_pair(default_curve);
-  NodeToNodeChannelManager channels2(nbwf2);
+  NodeToNodeChannelManager channels2(transport2);
   channels2.initialize(
     nid2,
     service_cert,
     kp2,
     generate_endorsed_cert(
       kp2, fmt::format("CN={}", nid2), network_kp, service_cert));
-  TmpChannel tc2(nid2, nid1, eio1, nbwf2, channels2, to_send_from_2);
+  TmpChannel tc2(nid2, nid1, host1, channels2, to_send_from_2);
 
   std::thread thread1(run_channel, std::ref(tc1));
   std::thread thread2(run_channel, std::ref(tc2));
@@ -1637,8 +1658,6 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     LOG_INFO_FMT("Catchup loop #{}/{}", i, worst_case);
     tc1.process(finished_reading, true);
     tc2.process(finished_reading, true);
-    nbwf1.flush_all_outbound();
-    nbwf2.flush_all_outbound();
 
     if (
       to_send_from_1.empty() && to_send_from_2.empty() &&
@@ -1672,7 +1691,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   equal_modulo_holes(tc2.received_results, expected_received_by_2);
 }
 
-TEST_CASE_FIXTURE(IORingbuffersFixture, "Timeout idle channels")
+TEST_CASE_FIXTURE(TransportsFixture, "Timeout idle channels")
 {
   auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -1688,11 +1707,11 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Timeout idle channels")
   const auto idle_timeout = std::chrono::milliseconds(10);
   const auto not_quite_idle = 2 * idle_timeout / 3;
 
-  auto channels1 = NodeToNodeChannelManager(wf1);
+  auto channels1 = NodeToNodeChannelManager(transport1);
   channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
   channels1.set_idle_timeout(idle_timeout);
 
-  auto channels2 = NodeToNodeChannelManager(wf2);
+  auto channels2 = NodeToNodeChannelManager(transport2);
   channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
   channels2.set_idle_timeout(idle_timeout);
 
@@ -1725,8 +1744,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Timeout idle channels")
     REQUIRE_FALSE(channels2.have_channel(nid1));
 
     // Flush previous messages
-    read_outbound_msgs<MsgType>(eio1);
-    read_outbound_msgs<MsgType>(eio2);
+    read_outbound_msgs<MsgType>(host1);
+    read_outbound_msgs<MsgType>(host2);
   }
 
   // Send some messages from 1 to 2. Confirm that those keep the channel (on
@@ -1738,7 +1757,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Timeout idle channels")
     REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
 
-    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    auto msgs = read_outbound_msgs<MsgType>(host1);
     for (const auto& m : msgs)
     {
       switch (m.type)
@@ -1769,7 +1788,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Timeout idle channels")
     if (!handshake_complete)
     {
       // Deliver any responses from 2 to 1, to complete handshake
-      msgs = read_outbound_msgs<MsgType>(eio2);
+      msgs = read_outbound_msgs<MsgType>(host2);
       if (msgs.empty())
       {
         handshake_complete = true;
@@ -1820,6 +1839,162 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Timeout idle channels")
     channels2.tick(not_quite_idle);
     REQUIRE_FALSE(channels2.have_channel(nid1));
   }
+}
+
+// Delivers key exchange messages between the two managers until neither has
+// anything more to say, leaving any other messages undelivered.
+static void complete_handshake(
+  RecordingTransport& host1,
+  NodeToNodeChannelManager& channels1,
+  RecordingTransport& host2,
+  NodeToNodeChannelManager& channels2)
+{
+  for (size_t round = 0; round < 8; ++round)
+  {
+    bool delivered = false;
+    for (const auto& m : read_outbound_msgs<MsgType>(host1))
+    {
+      if (m.type == NodeMsgType::channel_msg)
+      {
+        channels2.recv_channel_message(m.from, m.data());
+        delivered = true;
+      }
+    }
+    for (const auto& m : read_outbound_msgs<MsgType>(host2))
+    {
+      if (m.type == NodeMsgType::channel_msg)
+      {
+        channels1.recv_channel_message(m.from, m.data());
+        delivered = true;
+      }
+    }
+    if (!delivered)
+    {
+      break;
+    }
+  }
+}
+
+TEST_CASE_FIXTURE(
+  TransportsFixture, "Concurrent sends reach the transport in nonce order")
+{
+  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
+
+  auto channel1_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
+  auto channel2_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, service_cert);
+
+  auto channels1 = NodeToNodeChannelManager(transport1);
+  channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
+  auto channels2 = NodeToNodeChannelManager(transport2);
+  channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
+
+  MsgType msg;
+  msg.fill(0x42);
+  REQUIRE(channels1.send_authenticated(
+    nid2, NodeMsgType::consensus_msg, msg.data(), msg.size()));
+  complete_handshake(host1, channels1, host2, channels2);
+  REQUIRE(channels1.channel_open(nid2));
+  REQUIRE(channels2.channel_open(nid1));
+  read_outbound_msgs<MsgType>(host1);
+
+  // The receiver drops any nonce not above the last one it accepted, so these
+  // all verify only if the transport saw them in the order they were
+  // encrypted, despite racing senders.
+  constexpr size_t num_threads = 4;
+  constexpr size_t sends_each = 50;
+  std::vector<std::thread> senders;
+  for (size_t t = 0; t < num_threads; ++t)
+  {
+    senders.emplace_back([&channels1, t]() {
+      for (size_t i = 0; i < sends_each; ++i)
+      {
+        MsgType body;
+        body.fill(static_cast<uint8_t>(t));
+        channels1.send_authenticated(
+          nid2, NodeMsgType::consensus_msg, body.data(), body.size());
+      }
+    });
+  }
+  for (auto& sender : senders)
+  {
+    sender.join();
+  }
+
+  const auto sent = read_outbound_msgs<MsgType>(host1);
+  REQUIRE(sent.size() == num_threads * sends_each);
+  for (const auto& m : sent)
+  {
+    REQUIRE(m.type == NodeMsgType::consensus_msg);
+    const auto* data = m.payload.data();
+    auto size = m.payload.size();
+    REQUIRE(channels2.recv_authenticated(
+      nid1,
+      {m.authenticated_hdr.data(), m.authenticated_hdr.size()},
+      data,
+      size));
+  }
+}
+
+TEST_CASE_FIXTURE(
+  TransportsFixture,
+  "Idle close is ordered between old and new channel traffic")
+{
+  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
+
+  auto channel1_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
+  auto channel2_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, service_cert);
+
+  const auto idle_timeout = std::chrono::milliseconds(10);
+
+  auto channels1 = NodeToNodeChannelManager(transport1);
+  channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
+  channels1.set_idle_timeout(idle_timeout);
+  auto channels2 = NodeToNodeChannelManager(transport2);
+  channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
+
+  MsgType msg;
+  msg.fill(0x42);
+  REQUIRE(channels1.send_authenticated(
+    nid2, NodeMsgType::consensus_msg, msg.data(), msg.size()));
+  complete_handshake(host1, channels1, host2, channels2);
+  REQUIRE(channels1.channel_open(nid2));
+  read_outbound_msgs<MsgType>(host1);
+
+  REQUIRE(channels1.send_authenticated(
+    nid2, NodeMsgType::consensus_msg, msg.data(), msg.size()));
+  channels1.tick(idle_timeout);
+  REQUIRE_FALSE(channels1.have_channel(nid2));
+  REQUIRE(channels1.send_authenticated(
+    nid2, NodeMsgType::consensus_msg, msg.data(), msg.size()));
+
+  // The old channel's send, then its close, then the replacement channel's
+  // key exchange init (its consensus message is held until established)
+  const auto ops = host1.take();
+  REQUIRE(ops.size() == 3);
+
+  const auto* old_send = std::get_if<RecordingTransport::Send>(&ops[0]);
+  REQUIRE(old_send != nullptr);
+  REQUIRE(old_send->type == NodeMsgType::consensus_msg);
+
+  const auto* close = std::get_if<RecordingTransport::Close>(&ops[1]);
+  REQUIRE(close != nullptr);
+  REQUIRE(close->peer_id == nid2);
+
+  const auto* new_init = std::get_if<RecordingTransport::Send>(&ops[2]);
+  REQUIRE(new_init != nullptr);
+  REQUIRE(new_init->type == NodeMsgType::channel_msg);
+  REQUIRE(new_init->to == nid2);
+  REQUIRE(new_init->from == nid1);
 }
 
 int main(int argc, char** argv)
