@@ -2369,7 +2369,7 @@ TEST_CASE("Restored incomplete chunks respect the committed frontier")
   fs::create_directory(ledger_dir);
   fs::create_directory(ledger_dir_read_only);
   write_test_ledger_file(ledger_dir_read_only, 1, 8, true);
-  write_test_ledger_file(ledger_dir, 5, 6);
+  write_test_ledger_file(ledger_dir, 5, 8);
   const auto stale_bytes = files::slurp(fs::path(ledger_dir) / "ledger_5");
   const auto committed_path =
     fs::path(ledger_dir_read_only) / "ledger_1-8.committed";
