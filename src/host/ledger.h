@@ -16,6 +16,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <filesystem>
 #include <list>
 #include <map>
@@ -83,6 +84,30 @@ namespace asynchost
   class LedgerFile
   {
   private:
+    class FileGuardOnException
+    {
+    public:
+      explicit FileGuardOnException(FILE* file) noexcept : file(file, fclose) {}
+
+      FileGuardOnException(const FileGuardOnException&) = delete;
+      FileGuardOnException& operator=(const FileGuardOnException&) = delete;
+      FileGuardOnException(FileGuardOnException&&) = delete;
+      FileGuardOnException& operator=(FileGuardOnException&&) = delete;
+
+      ~FileGuardOnException() noexcept
+      {
+        if (std::uncaught_exceptions() <= exception_count)
+        {
+          // The enclosing LedgerFile owns the stream on normal return.
+          std::ignore = file.release();
+        }
+      }
+
+    private:
+      std::unique_ptr<FILE, decltype(&fclose)> file;
+      const int exception_count = std::uncaught_exceptions();
+    };
+
     using positions_offset_header_t = size_t;
     static constexpr auto file_name_prefix = "ledger";
 
@@ -180,12 +205,11 @@ namespace asynchost
           file_path,
           ccf::nonstd::strerror(errno)));
       }
-      std::unique_ptr<FILE, decltype(&fclose)> file_guard(file, fclose);
+      FileGuardOnException file_guard(file);
 
       // Header reserved for the offset to the position table
       checked_seek(sizeof(positions_offset_header_t), SEEK_SET);
       total_len = sizeof(positions_offset_header_t);
-      file = file_guard.release();
     }
 
     // Used when recovering an existing ledger file
@@ -218,7 +242,7 @@ namespace asynchost
           file_path,
           ccf::nonstd::strerror(errno)));
       }
-      std::unique_ptr<FILE, decltype(&fclose)> file_guard(file, fclose);
+      FileGuardOnException file_guard(file);
 
       // First, get full size of file
       checked_seek(0, SEEK_END);
@@ -252,7 +276,6 @@ namespace asynchost
         // When recovering a file from persistence, do not recover entries to
         // start with as these are expected to be written again at a later
         // point.
-        file = file_guard.release();
         return;
       }
 
@@ -316,7 +339,6 @@ namespace asynchost
               "Failed to read entry header from ledger file {} at seqno {}",
               file_path,
               current_idx);
-            file = file_guard.release();
             return;
           }
 
@@ -332,7 +354,6 @@ namespace asynchost
               current_idx,
               entry_size,
               len);
-            file = file_guard.release();
             return;
           }
 
@@ -350,7 +371,6 @@ namespace asynchost
         }
         completed = false;
       }
-      file = file_guard.release();
     }
 
     ~LedgerFile()
