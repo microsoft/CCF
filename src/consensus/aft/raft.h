@@ -1890,6 +1890,16 @@ namespace aft
         RequestVoteResponse response{
           .term = state->current_view, .vote_granted = answer};
 
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "send_request_vote_response";
+        j["packet"] = response;
+        j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
+        j["to_node_id"] = to;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
+
         RAFT_INFO_FMT(
           "Send {} from {} to {}: {}",
           response.msg,
@@ -1903,6 +1913,16 @@ namespace aft
       {
         RequestPreVoteResponse response{
           .term = state->current_view, .vote_granted = answer};
+
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "send_request_vote_response";
+        j["packet"] = response;
+        j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
+        j["to_node_id"] = to;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
 
         RAFT_INFO_FMT(
           "Send {} from {} to {}: {}",
@@ -2783,6 +2803,7 @@ namespace aft
 #ifdef CCF_RAFT_TRACING
         nlohmann::json j = {};
         j["function"] = "step_down_and_nominate_successor";
+        j["to_node_id"] = successor.value();
         j["state"] = *state;
         COMMITTABLE_INDICES(j["state"], state);
         j["configurations"] = configurations;
