@@ -2245,6 +2245,13 @@ def run_recovery_with_signing_keys_only(args):
         member = consortium.get_any_active_member()
         action = "transition_service_to_open_with_signing_keys"
         next_keys = consortium.get_service_signing_keys()
+        assert {
+            identity_type: base64.b64decode(key)
+            for identity_type, key in next_keys.items()
+        } == network.get_service_signing_keys(), (
+            "Service signing key files written by the node do not match "
+            "GET /node/service/signing_keys"
+        )
 
         for malformed_keys in (
             None,

@@ -22,6 +22,7 @@
 #include "ds/std_formatters.h"
 #include "frontend.h"
 #include "node/cose_common.h"
+#include "node/identity.h"
 #include "node/internal_tables_access.h"
 #include "node/network_state.h"
 #include "node/rpc/file_serving_handlers.h"
@@ -35,6 +36,7 @@
 #include "node_interface.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/previous_service_identity.h"
+#include "service/tables/signing_identities.h"
 #include "service/tables/snapshot_status.h"
 #include "snapshots/filenames.h"
 
@@ -191,6 +193,18 @@ namespace ccf
   DECLARE_JSON_TYPE(GetServicePreviousIdentity::Out);
   DECLARE_JSON_REQUIRED_FIELDS(
     GetServicePreviousIdentity::Out, previous_service_identity);
+
+  struct GetServiceSigningKeys
+  {
+    struct Out
+    {
+      ServiceSigningKeys service_signing_keys;
+    };
+  };
+
+  DECLARE_JSON_TYPE(GetServiceSigningKeys::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetServiceSigningKeys::Out, service_signing_keys);
 
   class NodeEndpoints : public CommonEndpointRegistry
   {
@@ -1005,6 +1019,26 @@ namespace ccf
         HTTP_STATUS_NOT_FOUND,
         ccf::errors::ResourceNotFound,
         "This service is not a recovery of a previous service.");
+    }
+
+    static auto service_signing_keys(
+      ccf::endpoints::ReadOnlyEndpointContext& args,
+      nlohmann::json&& /*params*/)
+    {
+      const auto identity =
+        get_service_signing_identity(args.tx, IdentityType::CLASSICAL);
+      if (!identity.has_value())
+      {
+        return make_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::ResourceNotFound,
+          "Service signing keys not available.");
+      }
+
+      GetServiceSigningKeys::Out out;
+      out.service_signing_keys = service_signing_keys_from_public_key(
+        ccf::crypto::make_ec_public_key(identity->value));
+      return make_success(out);
     }
 
     auto get_nodes(
@@ -1842,7 +1876,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.8";
+      openapi_info.document_version = "5.0.9";
     }
 
     void init_handlers() override
@@ -1972,6 +2006,20 @@ namespace ccf
         json_read_only_adapter(service_previous_identity),
         no_auth_required)
         .set_auto_schema<void, GetServicePreviousIdentity::Out>()
+        .install();
+
+      auto service_signing_keys =
+        [](
+          ccf::endpoints::ReadOnlyEndpointContext& args,
+          nlohmann::json&& json) {
+          return NodeEndpoints::service_signing_keys(args, std::move(json));
+        };
+      make_read_only_endpoint(
+        "/service/signing_keys",
+        HTTP_GET,
+        json_read_only_adapter(service_signing_keys),
+        no_auth_required)
+        .set_auto_schema<void, GetServiceSigningKeys::Out>()
         .install();
 
       auto get_nodes = [this](

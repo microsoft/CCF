@@ -34,7 +34,7 @@ import infra.path
 import infra.proc
 import infra.remote
 from infra.clients import CCFConnectionException, CCFIOException, flush_info
-from infra.consortium import slurp_b64, slurp_bytes, slurp_file
+from infra.consortium import slurp_b64, slurp_file
 from infra.node import CCFVersion
 from infra.tx_status import TxStatus
 
@@ -97,18 +97,18 @@ def service_signing_key_from_certificate(certificate):
     )
 
 
-def save_service_signing_keys(certificate_file, directory, key_files=None):
-    if key_files is None:
-        # Historical services did not export signing public keys separately.
+def save_service_signing_keys(certificate_file, directory, keys=None):
+    """
+    Writes the CBOR COSE_Key of each service signing key next to the service
+    certificate file, and returns their paths by identity type. Keys are derived
+    from the certificate when none are given, as for services run by releases
+    which do not expose them.
+    """
+    if keys is None:
         keys = {
             "CLASSICAL": service_signing_key_from_certificate(
                 slurp_file(certificate_file)
             )
-        }
-    else:
-        keys = {
-            identity_type: slurp_bytes(path)
-            for identity_type, path in key_files.items()
         }
 
     stem = os.path.splitext(os.path.basename(certificate_file))[0]
@@ -2627,20 +2627,32 @@ class Network:
             f.write(current_ident)
         return previous_identity_file, current_ident
 
+    def get_service_signing_keys(self):
+        """
+        The service signing keys as CBOR COSE_Keys by identity type, from
+        GET /node/service/signing_keys. Releases without it have a single
+        CLASSICAL key, which is that of the service certificate.
+        """
+        n = self.find_random_node()
+        if not infra.remote.supports_service_signing_keys(n.version):
+            return {
+                "CLASSICAL": service_signing_key_from_certificate(
+                    self.get_service_identity()
+                )
+            }
+        with n.client() as c:
+            r = c.get("/node/service/signing_keys")
+            assert r.status_code == 200, r
+            return {
+                identity_type: base64.b64decode(key)
+                for identity_type, key in r.body.json()["service_signing_keys"].items()
+            }
+
     def save_service_identity(self, args):
         path, identity = self.save_service_identity_to_file()
         args.previous_service_identity_file = path
-        signing_key_file = os.path.join(
-            self.common_dir, "service_signing_key_classical.cbor"
-        )
         args.previous_service_signing_key_files = save_service_signing_keys(
-            path,
-            self.common_dir,
-            (
-                {"CLASSICAL": signing_key_file}
-                if os.path.exists(signing_key_file)
-                else None
-            ),
+            path, self.common_dir, self.get_service_signing_keys()
         )
         return identity
 

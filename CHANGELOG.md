@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- The `transition_service_to_open_with_signing_keys` proposal action opens a service with `previous_service_signing_keys` and `next_service_signing_keys`, base64-encoded [COSE_Key](https://www.rfc-editor.org/rfc/rfc9052#section-7) public keys, instead of certificates. Nodes write these keys to the files configured by `command.service_signing_key_files`, which recovery accepts through `command.recover.previous_service_signing_key_files` (#8477).
+- The `transition_service_to_open_with_signing_keys` proposal action opens a service with `previous_service_signing_keys` and `next_service_signing_keys`, base64-encoded [COSE_Key](https://www.rfc-editor.org/rfc/rfc9052#section-7) public keys, instead of certificates. Nodes write these keys to the files configured by `command.service_signing_key_files`, which recovery accepts through `command.recover.previous_service_signing_key_files`, and return them from `GET /node/service/signing_keys` (#8477).
 
 ### Deprecated
 

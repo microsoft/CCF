@@ -402,6 +402,17 @@
         ],
         "type": "object"
       },
+      "GetServiceSigningKeys__Out": {
+        "properties": {
+          "service_signing_keys": {
+            "$ref": "#/components/schemas/string_to_base64string"
+          }
+        },
+        "required": [
+          "service_signing_keys"
+        ],
+        "type": "object"
+      },
       "GetState__Out": {
         "properties": {
           "last_recovered_seqno": {
@@ -941,6 +952,12 @@
         },
         "type": "object"
       },
+      "string_to_base64string": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/base64string"
+        },
+        "type": "object"
+      },
       "uint32": {
         "maximum": 4294967295,
         "minimum": 0,
@@ -970,7 +987,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.8"
+    "version": "5.0.9"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1854,6 +1871,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetServicePreviousIdentity__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/node/service/signing_keys": {
+      "get": {
+        "operationId": "GetNodeServiceSigningKeys",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetServiceSigningKeys__Out"
                 }
               }
             },

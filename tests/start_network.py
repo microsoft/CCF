@@ -8,6 +8,7 @@ import shutil
 import sys
 import time
 
+import infra.consortium
 import infra.e2e_args
 import infra.interfaces
 import infra.network
@@ -136,7 +137,11 @@ def run(args):
                         backup_location,
                         args.common_dir,
                         (
-                            {"CLASSICAL": signing_key_file}
+                            {
+                                "CLASSICAL": infra.consortium.slurp_bytes(
+                                    signing_key_file
+                                )
+                            }
                             if os.path.exists(signing_key_file)
                             else None
                         ),
