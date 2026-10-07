@@ -31,8 +31,8 @@ namespace ccf
   static inline std::shared_ptr<ccf::AuthnPolicy> get_policy_by_name(
     const std::string& name)
   {
-    auto& policies = auth_policies_by_name();
-    auto it = policies.find(name);
+    const auto& policies = auth_policies_by_name();
+    const auto it = policies.find(name);
     if (it == policies.end())
     {
       return nullptr;
