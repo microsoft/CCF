@@ -1520,6 +1520,26 @@ class Network:
         if not no_wait:
             self.wait_for_all_nodes_to_commit(primary=primary)
 
+    @staticmethod
+    def _is_retryable_node_removal_response(response):
+        """Retry uncommitted retirement and primary-routing failures by error code."""
+        if response.status_code not in (
+            http.HTTPStatus.BAD_REQUEST,
+            http.HTTPStatus.SERVICE_UNAVAILABLE,
+        ):
+            return False
+        try:
+            error = response.body.json()["error"]
+            return (
+                response.status_code == http.HTTPStatus.BAD_REQUEST
+                and error["code"] == "NodeNotRetiredCommitted"
+            ) or (
+                response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
+                and error["code"] in ("InternalError", "PrimaryNotFound")
+            )
+        except (ValueError, KeyError, TypeError):
+            return False
+
     def retire_node(self, remote_node, node_to_retire, timeout=10):
         pending = self.consortium.retire_node(
             remote_node, node_to_retire, timeout=timeout
@@ -1538,16 +1558,7 @@ class Network:
                             r = c.delete(
                                 f"/node/network/nodes/{node_to_retire.node_id}"
                             )
-                            retry = False
-                            if r.status_code == http.HTTPStatus.BAD_REQUEST:
-                                try:
-                                    retry = (
-                                        r.body.json()["error"]["code"]
-                                        == "NodeNotRetiredCommitted"
-                                    )
-                                except (ValueError, KeyError, TypeError):
-                                    pass
-                            if retry:
+                            if self._is_retryable_node_removal_response(r):
                                 LOG.warning(f"Retrying node removal after {r}")
                                 try:
                                     remote_node, _ = self.find_primary(
@@ -1702,8 +1713,21 @@ class Network:
                     if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
                         check_commit = infra.checker.Checker(c)
                         r = c.delete(f"/node/network/nodes/{node_to_retire.node_id}")
-                        check_commit(r)
-                        break
+                        if self._is_retryable_node_removal_response(r):
+                            LOG.warning(f"Retrying node removal after {r}")
+                            try:
+                                primary, _ = self.find_primary(
+                                    timeout=max(0, end_time - time.time())
+                                )
+                            except PrimaryNotFound:
+                                pass
+                        else:
+                            if not 200 <= r.status_code < 300:
+                                raise RuntimeError(
+                                    f"Failed to remove node {node_to_retire.node_id}: {r}"
+                                )
+                            check_commit(r)
+                            break
                     else:
                         r = c.get(
                             f"/node/network/nodes/{node_to_retire.node_id}"

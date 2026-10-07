@@ -719,6 +719,88 @@ TEST_CASE("Endpoints with disabled operator features look like unknown paths")
   }
 }
 
+TEST_CASE("Backpressure sheds reads and writes but exempts node endpoints")
+{
+  struct BackpressureConsensus : public ccf::kv::test::StubConsensus
+  {
+    bool backpressure_required = false;
+
+    bool should_apply_backpressure() override
+    {
+      return backpressure_required;
+    }
+  };
+
+  NetworkState network;
+  prepare_callers(network);
+  auto consensus = std::make_shared<BackpressureConsensus>();
+  network.tables->set_consensus(consensus);
+  StubNodeContext context;
+  UserEndpointRegistry user_registry(context);
+  NodeEndpoints node_registry(network, context);
+  endpoints::EndpointRegistry* registry = &user_registry;
+  bool exempt = false;
+  SUBCASE("Application endpoints") {}
+  SUBCASE("Node endpoints")
+  {
+    registry = &node_registry;
+    exempt = true;
+  }
+
+  size_t executed = 0;
+  auto handler = [&](auto& ctx) {
+    ++executed;
+    ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+  };
+  registry
+    ->make_read_only_endpoint("/read", HTTP_GET, handler, no_auth_required)
+    .set_forwarding_required(endpoints::ForwardingRequired::Never)
+    .install();
+  registry->make_endpoint("/write", HTTP_POST, handler, no_auth_required)
+    .set_forwarding_required(endpoints::ForwardingRequired::Never)
+    .install();
+  RpcFrontend frontend(*network.tables, *registry, context);
+  frontend.open();
+  publish_frontend_state(frontend, network);
+
+  for (auto role :
+       {BackpressureConsensus::Primary,
+        BackpressureConsensus::Backup,
+        BackpressureConsensus::Candidate})
+  {
+    consensus->state = role;
+    for (bool overloaded : {false, true, false})
+    {
+      consensus->backpressure_required = overloaded;
+      for (const auto& [path, verb] :
+           {std::pair{"/read", HTTP_GET}, std::pair{"/write", HTTP_POST}})
+      {
+        INFO(role, overloaded, path);
+        const auto before = executed;
+        ::http::Request request(path, verb);
+        auto ctx =
+          ccf::make_rpc_context(anonymous_session, request.build_request());
+        frontend.process(ctx);
+        REQUIRE_FALSE(ctx->response_is_pending);
+        const auto response = parse_response(ctx->serialise_response());
+        if (overloaded && !exempt)
+        {
+          CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+          CHECK(
+            nlohmann::json::parse(response.body)["error"]["code"] ==
+            ccf::errors::TooManyPendingTransactions);
+          CHECK(executed == before);
+        }
+        else
+        {
+          CHECK(response.status == HTTP_STATUS_OK);
+          CHECK(executed == before + 1);
+        }
+      }
+    }
+  }
+}
+
 TEST_CASE("SignedReq to and from json")
 {
   SignedReq sr;

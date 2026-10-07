@@ -42,6 +42,13 @@ namespace consensus
     virtual bool truncate(Index idx, bool recovery_mode) = 0;
     virtual bool commit(Index idx) = 0;
     virtual bool open() = 0;
+
+    // Admission signal, not an append rejection: work already in progress
+    // must still be accepted without waiting for the task that writes it.
+    [[nodiscard]] virtual bool is_backlogged() const
+    {
+      return false;
+    }
   };
 
   class AbstractLedgerReader

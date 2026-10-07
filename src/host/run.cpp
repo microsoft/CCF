@@ -428,7 +428,9 @@ namespace ccf
     auto ledger_subsystem = std::make_shared<asynchost::LedgerSubsystem>(
       ledger,
       config.memory.max_msg_size.count_bytes() -
-        ::consensus::ledger_range_response_metadata_size);
+        ::consensus::ledger_range_response_metadata_size,
+      ccf::tasks::get_main_job_board(),
+      config.memory.circuit_size.count_bytes());
 
     if (config.snapshots.read_only_directory.has_value())
     {

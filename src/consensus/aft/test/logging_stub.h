@@ -26,6 +26,12 @@ namespace aft
   public:
     std::vector<std::vector<uint8_t>> ledger;
     uint64_t skip_count = 0;
+    bool backlogged = false;
+
+    bool is_backlogged() const
+    {
+      return backlogged;
+    }
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
