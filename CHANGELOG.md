@@ -18,6 +18,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Removed ordinary live KV access to `public:ccf.internal.signatures`, `public:ccf.internal.cose_signatures` and `public:ccf.internal.tree` in native C++/Rust and current-KV JavaScript application/governance contexts. `Tx`, `ReadOnlyTx` and `TxDiff` reject all typed and untyped handles to these tables. Use historical state or receipt APIs instead; historical read-only access and offline ledger parsing remain supported. All other table permissions are unchanged (#8490).
   - Copied older constitutions must remove eager raw-signature reads which initialise `ack.state_digest` when adding or resetting members, and use the existing [state-digest update and acknowledgement workflow](doc/governance/adding_member.rst#activating-a-new-member). Default constitutions from 7.0.17 onward already use this workflow (#8490).
 
+## [7.0.19]
+
+[7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
+
+### Changed
+
+- Ledger writes and reads of uncommitted ledger entries no longer travel over the host-enclave ringbuffer. The number of ledger entries the host has accepted but not yet written to disk was previously bounded by the ringbuffer filling up and stalling the enclave. It is now bounded by a backpressure threshold instead: a node returns `503` `TooManyPendingTransactions` for application and governance requests while the bytes of pending ledger appends are at or above `memory.circuit_size` (16MB by default), and drops incoming `AppendEntries` replication messages, including heartbeats, until the backlog clears. `/node` endpoints are exempt. Threshold crossings are logged. See the Backpressure section of the Resource Usage operations documentation (#8405).
+- The `503` `TooManyPendingTransactions` check for `consensus.max_uncommitted_tx_count` now applies on backups as well as the primary, so a backup whose uncommitted transaction count reaches the limit rejects requests, including reads, rather than serving or forwarding them. Setting `consensus.max_uncommitted_tx_count` to `0` disables only this count-based check, not the ledger write backpressure above (#8405).
+
+### Fixed
+
+- Paused RPC reads now resume when another interface releases the inbound budget, even if older libuv versions coalesce the notification. Previously, reads could remain paused until an unrelated event triggered a recheck (#8498).
+
 ## [7.0.18]
 
 [7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
@@ -26,6 +39,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - TAV's CBOR C++ API (`<tav/cbor.hpp>`) is now installed with CCF's headers (#8467).
 - `ccf::crypto::OpenSSL::first_error()`, in the public header `ccf/crypto/openssl/openssl_wrappers.h`, reads the oldest error on the calling thread's OpenSSL error queue, usually the root cause, then removes every entry from the queue and returns the error string (#8474).
+- `ccf::crypto::COSEKey` (`ccf/crypto/cose_key.h`) parses and validates EC2 and RSA COSE_Keys, encodes them with a required `alg`, and computes their RFC 9679 thumbprint. `ccf::crypto::make_cose_verifier_from_key()` accepts one (#8480).
 
 ### Changed
 
@@ -37,6 +51,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf::COSESignaturesConfig` and `ccf::ReconfigurationType` are unchanged, but are now declared in the new public headers `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively (#8463).
 - On recovery, the minimum SNP TCB version stored for the recovering node's CPUID in `public:ccf.gov.nodes.snp.tcb_versions` is now kept if it admits the TCB version reported in the node's startup attestation, as it would for a joining node, rather than being overwritten with that TCB version. Otherwise, including when no minimum is stored for that CPUID, or when the stored minimum is higher than the reported TCB version in only some components, the reported TCB version is stored as the minimum, as before. On start, the behaviour is unchanged (#8468).
 - Requests to an endpoint whose required operator feature is not enabled on the receiving RPC interface now get the same `404` `ResourceNotFound` error as requests to an unknown path, rather than a `404` with an empty body (#8481).
+- `ccf::crypto::make_cose_verifier_*()` now reject RSA keys of fewer than 2048 or more than 16384 bits, or whose public exponent is even, 1 or longer than 64 bits (#8480).
 
 ### Deprecated
 
@@ -55,6 +70,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf::crypto::Verifier::remaining_seconds()` now returns 0 once the certificate has expired. Previously, the negative remaining duration wrapped around to a very large unsigned value (#8430).
 - `ccf::crypto::ECKeyPair::sign()` and `sign_hash()`, and therefore `ccf.crypto.sign()`, no longer fail with an OpenSSL "output buffer too small" error when signing with a P-521 key loaded from PEM under OpenSSL providers such as SymCrypt (#8428).
 - Where `ccf::crypto` reports an OpenSSL error, it now reads the oldest error on the calling thread's OpenSSL error queue, usually the root cause, then clears the queue, rather than leaving entries behind for a later, unrelated failure to report. Errors that other code leaves on the queue can still be reported by the next such failure (#8474).
+- Miscellaneous bug fixes in the `ccf.ledger` and `ccf.merkletree` Python modules (#8495).
 
 ## [7.0.17]
 
