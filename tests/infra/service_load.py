@@ -232,6 +232,8 @@ class ServiceLoad(infra.concurrency.StoppableThread):
 
     def end(self):
         super().stop()
+        if self.is_alive():
+            self.join()
         if self.client:
             self.client.stop()
         LOG.info("Service load stopped")
@@ -280,5 +282,7 @@ class ServiceLoad(infra.concurrency.StoppableThread):
 @contextmanager
 def load(*args, **kwargs):
     s = ServiceLoad(*args, **kwargs)
-    yield s
-    s.end()
+    try:
+        yield s
+    finally:
+        s.end()
