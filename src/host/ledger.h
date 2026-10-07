@@ -13,8 +13,10 @@
 #include "kv/serialised_entry_format.h"
 #include "ledger/filenames.h"
 
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <filesystem>
 #include <list>
 #include <map>
@@ -82,6 +84,30 @@ namespace asynchost
   class LedgerFile
   {
   private:
+    class FileGuardOnException
+    {
+    public:
+      explicit FileGuardOnException(FILE* file) noexcept : file(file, fclose) {}
+
+      FileGuardOnException(const FileGuardOnException&) = delete;
+      FileGuardOnException& operator=(const FileGuardOnException&) = delete;
+      FileGuardOnException(FileGuardOnException&&) = delete;
+      FileGuardOnException& operator=(FileGuardOnException&&) = delete;
+
+      ~FileGuardOnException() noexcept
+      {
+        if (std::uncaught_exceptions() <= exception_count)
+        {
+          // The enclosing LedgerFile owns the stream on normal return.
+          std::ignore = file.release();
+        }
+      }
+
+    private:
+      std::unique_ptr<FILE, decltype(&fclose)> file;
+      const int exception_count = std::uncaught_exceptions();
+    };
+
     using positions_offset_header_t = size_t;
     static constexpr auto file_name_prefix = "ledger";
 
@@ -189,6 +215,7 @@ namespace asynchost
           file_path,
           ccf::nonstd::strerror(errno)));
       }
+      FileGuardOnException file_guard(file);
 
       // Header reserved for the offset to the position table
       seek(sizeof(positions_offset_header_t), SEEK_SET);
@@ -225,6 +252,7 @@ namespace asynchost
           file_path,
           ccf::nonstd::strerror(errno)));
       }
+      FileGuardOnException file_guard(file);
 
       // First, get full size of file
       seek(0, SEEK_END);
