@@ -17,6 +17,9 @@ namespace ccf::tasks
   class PeriodicTaskOwner
     : public std::enable_shared_from_this<PeriodicTaskOwner>
   {
+    // Scheduling is intentionally unsynchronised: tasks must be registered
+    // during owner initialisation, after shared_ptr ownership is established
+    // and before the owner is accessed concurrently.
     std::vector<Task> periodic_tasks;
 
   protected:
