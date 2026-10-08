@@ -28,6 +28,13 @@ To ensure session consistency, commands that originate from the same connection 
 It is strongly advised that during the execution of a command the application does not mutate any global state outside of the key-value store.
 Any inter-command communication must be performed via the key-value store, to ensure that CCF can rollback commands or change the primary as required.
 
+Node-to-Node Ingress
+~~~~~~~~~~~~~~~~~~~~
+
+Messages from other nodes, consensus ticks and stop notices execute in order on a single ``OrderedTasks`` lane, so they never run concurrently with each other.
+This lane is an ordinary task on the shared worker pool, so it waits behind other ready tasks and needs a free worker to run.
+Tasks which block for long periods, such as outbound HTTP requests or slow file access, can therefore delay consensus while they occupy every worker.
+
 Task Shutdown
 ~~~~~~~~~~~~~
 

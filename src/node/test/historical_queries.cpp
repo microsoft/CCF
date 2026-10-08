@@ -304,6 +304,31 @@ MerkleProofData decode_merkle_proof(const std::vector<uint8_t>& encoded)
   return data;
 }
 
+TEST_CASE("StateCache periodic tick")
+{
+  using namespace std::chrono_literals;
+
+  auto state = create_and_init_state();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
+  auto cache = std::make_shared<ccf::historical::StateCache>(
+    *state.kv_store, state.ledger_secrets, stub_writer);
+  REQUIRE(cache->get_state_at(0, 1) == nullptr);
+
+  ccf::tasks::JobBoard job_board;
+  cache->start_periodic_tick(job_board, 10ms);
+
+  job_board.tick(10ms);
+  REQUIRE(stub_writer->writes.empty());
+  auto task = job_board.get_task();
+  REQUIRE(task != nullptr);
+  task->do_task();
+  REQUIRE(!stub_writer->writes.empty());
+
+  cache.reset();
+  job_board.tick(10ms);
+  REQUIRE(job_board.get_task() == nullptr);
+}
+
 TEST_CASE("StateCache point queries")
 {
   auto state = create_and_init_state();
