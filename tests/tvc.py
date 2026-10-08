@@ -59,7 +59,7 @@ def retry(call, urls, **kwargs):
 
 
 def run(targets, cacert):
-    session = httpx.Client(verify=cacert)
+    session = httpx.Client(verify=cacert, follow_redirects=True)
     tx = -1
     key_urls = [f"{target}/records/{KEY}" for target in targets]
     while True:
