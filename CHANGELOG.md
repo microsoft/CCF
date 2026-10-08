@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 
-- Built-in HTTP/2 server support has been removed. Built-in HTTP RPC interfaces now use HTTP/1.1.
+- Built-in HTTP/2 server support has been removed. Built-in HTTP RPC interfaces now use HTTP/1.1 (#8536).
 
 ### Fixed
 
