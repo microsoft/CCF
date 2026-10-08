@@ -44,7 +44,7 @@ namespace ccf
       retry_interval(retry_interval_)
     {}
 
-    const std::string& get_name() const override
+    [[nodiscard]] const std::string& get_name() const override
     {
       return name;
     }
