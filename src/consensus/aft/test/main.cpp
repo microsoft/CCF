@@ -62,14 +62,16 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
-  "Consensus maintenance can overlap inbound processing and stop notices" *
+  "Consensus maintenance, inbound processing and notices concurrency smoke" *
   doctest::test_suite("concurrent"))
 {
   const auto self = ccf::kv::test::PrimaryNodeId;
   const auto peer = ccf::kv::test::FirstBackupNodeId;
   auto kv_store = std::make_shared<Store>(self);
+  auto settings = raft_settings;
+  settings.election_timeout = ccf::ds::TimeString{"1s"};
   TRaft raft(
-    raft_settings,
+    settings,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(self),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -85,6 +87,8 @@ DOCTEST_TEST_CASE(
   vote.term = raft.get_view();
   std::barrier start{4};
   constexpr size_t iterations = 200;
+  // The barrier creates competing calls, not a guaranteed lock interleaving.
+  // Keep leadership for the whole workload so responses/notices are observable.
   std::thread maintenance([&]() {
     start.arrive_and_wait();
     for (size_t i = 0; i < iterations; ++i)
@@ -111,8 +115,12 @@ DOCTEST_TEST_CASE(
   maintenance.join();
   inbound.join();
   notices.join();
-  DOCTEST_REQUIRE(raft.get_last_idx() == 0);
-  DOCTEST_REQUIRE(raft.get_committed_seqno() == 0);
+  DOCTEST_REQUIRE(
+    channel_stub_proxy(raft)->count_messages_with_type(
+      aft::raft_request_vote_response) == iterations);
+  DOCTEST_REQUIRE(
+    channel_stub_proxy(raft)->count_messages_with_type(
+      aft::raft_propose_request_vote) == iterations);
 }
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))

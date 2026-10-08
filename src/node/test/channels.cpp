@@ -1747,7 +1747,8 @@ TEST_CASE_FIXTURE(
 }
 
 TEST_CASE_FIXTURE(
-  TransportsFixture, "Channel maintenance can overlap sends and receives")
+  TransportsFixture,
+  "Channel maintenance and authenticated traffic concurrency smoke")
 {
   auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -1760,13 +1761,31 @@ TEST_CASE_FIXTURE(
   NodeToNodeChannelManager channels1(transport1), channels2(transport2);
   channels1.initialize(nid1, service_cert, kp1, cert1);
   channels2.initialize(nid2, service_cert, kp2, cert2);
-  channels2.set_idle_timeout(std::chrono::milliseconds(10));
+  channels2.set_idle_timeout(std::chrono::milliseconds(1000));
   MsgType message{};
   REQUIRE(channels1.send_authenticated(
     nid2, NodeMsgType::consensus_msg, message.data(), message.size()));
-  const auto initiation = get_first(host1, NodeMsgType::channel_msg).data();
-  std::barrier start{4};
+  REQUIRE(channels2.recv_channel_message(
+    nid1, get_first(host1, NodeMsgType::channel_msg).data()));
+  REQUIRE(channels1.recv_channel_message(
+    nid2, get_first(host2, NodeMsgType::channel_msg).data()));
+  REQUIRE(channels2.recv_channel_message(
+    nid1, get_first(host1, NodeMsgType::channel_msg).data()));
+  REQUIRE(channels2.channel_open(nid1));
+  host1.take();
+  host2.take();
   constexpr size_t iterations = 100;
+  for (size_t i = 0; i < iterations; ++i)
+  {
+    REQUIRE(channels1.send_authenticated(
+      nid2, NodeMsgType::consensus_msg, message.data(), message.size()));
+  }
+  const auto messages = read_outbound_msgs<MsgType>(host1);
+  REQUIRE(messages.size() == iterations);
+  size_t received = 0, sent = 0;
+  // Exercise real authenticated traffic under TSAN without promising a
+  // particular lock interleaving. Idle eviction has separate boundary tests.
+  std::barrier start{4};
   std::thread maintenance([&]() {
     start.arrive_and_wait();
     for (size_t i = 0; i < iterations; ++i)
@@ -1778,16 +1797,24 @@ TEST_CASE_FIXTURE(
     start.arrive_and_wait();
     for (size_t i = 0; i < iterations; ++i)
     {
-      channels2.recv_channel_message(
-        nid1, initiation.data(), initiation.size());
+      const auto& msg = messages[i];
+      const auto* data = msg.payload.data();
+      auto size = msg.payload.size();
+      if (channels2.recv_authenticated(nid1, msg.authenticated_hdr, data, size))
+      {
+        ++received;
+      }
     }
   });
   std::thread outbound([&]() {
     start.arrive_and_wait();
     for (size_t i = 0; i < iterations; ++i)
     {
-      channels2.send_authenticated(
-        nid1, NodeMsgType::consensus_msg, message.data(), message.size());
+      if (channels2.send_authenticated(
+            nid1, NodeMsgType::consensus_msg, message.data(), message.size()))
+      {
+        ++sent;
+      }
     }
   });
   start.arrive_and_wait();
@@ -1795,11 +1822,18 @@ TEST_CASE_FIXTURE(
   inbound.join();
   outbound.join();
 
-  channels2.close_channel(nid1);
-  REQUIRE_FALSE(channels2.have_channel(nid1));
-  REQUIRE(channels2.send_authenticated(
-    nid1, NodeMsgType::consensus_msg, message.data(), message.size()));
-  REQUIRE(channels2.have_channel(nid1));
+  REQUIRE(received == iterations);
+  REQUIRE(sent == iterations);
+  REQUIRE(channels2.channel_open(nid1));
+  const auto responses = read_outbound_msgs<MsgType>(host2);
+  REQUIRE(responses.size() == iterations);
+  for (const auto& response : responses)
+  {
+    const auto* data = response.payload.data();
+    auto size = response.payload.size();
+    REQUIRE(channels1.recv_authenticated(
+      nid2, response.authenticated_hdr, data, size));
+  }
 }
 
 TEST_CASE_FIXTURE(TransportsFixture, "Timeout idle channels")

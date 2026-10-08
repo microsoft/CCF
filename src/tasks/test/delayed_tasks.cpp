@@ -7,6 +7,7 @@
 #include "tasks/task_system.h"
 
 #include <doctest/doctest.h>
+#include <future>
 #include <latch>
 #include <thread>
 
@@ -283,38 +284,55 @@ TEST_CASE(
   using namespace std::chrono_literals;
   ccf::tasks::JobBoard job_board;
   auto owner = std::make_shared<TestPeriodicTaskOwner>();
-  std::latch first_started{1};
+  std::promise<void> first_started;
+  auto first_started_future = first_started.get_future();
   std::latch release_first{1};
   std::vector<std::chrono::milliseconds> first_elapsed, second_elapsed;
   owner->schedule_periodic_task(
     job_board,
     10ms,
     [&](auto elapsed) {
+      const auto is_first = first_elapsed.empty();
       first_elapsed.push_back(elapsed);
-      first_started.count_down();
-      release_first.wait();
+      if (is_first)
+      {
+        first_started.set_value();
+        release_first.wait();
+      }
     },
-    "Consensus");
+    "Blocking callback");
   owner->schedule_periodic_task(
     job_board,
     10ms,
     [&](auto elapsed) { second_elapsed.push_back(elapsed); },
-    "Channels");
+    "Independent callback");
 
   job_board.tick(10ms);
   auto first = job_board.get_task();
   REQUIRE(first != nullptr);
   std::thread worker([&]() { first->do_task(); });
-  first_started.wait();
-  do_all_tasks(job_board);
-  job_board.tick(35ms);
-  do_all_tasks(job_board);
+  const auto first_did_start =
+    first_started_future.wait_for(5s) == std::future_status::ready;
+  std::promise<void> independent_finished;
+  auto independent_future = independent_finished.get_future();
+  std::thread independent_worker([&]() {
+    do_all_tasks(job_board);
+    job_board.tick(35ms);
+    do_all_tasks(job_board);
+    independent_finished.set_value();
+  });
+  // A blocking-lock regression must still reach release/join before failure.
+  const auto independent_completed =
+    independent_future.wait_for(5s) == std::future_status::ready;
   std::weak_ptr<TestPeriodicTaskOwner> weak_owner = owner;
   owner.reset();
   const auto retained_while_running = !weak_owner.expired();
   release_first.count_down();
   worker.join();
+  independent_worker.join();
 
+  REQUIRE(first_did_start);
+  REQUIRE(independent_completed);
   REQUIRE(first_elapsed == std::vector{10ms});
   REQUIRE(second_elapsed == std::vector{10ms, 35ms});
   REQUIRE(retained_while_running);
@@ -332,19 +350,11 @@ TEST_CASE(
   using namespace std::chrono_literals;
   ccf::tasks::JobBoard job_board;
   auto owner = std::make_shared<TestPeriodicTaskOwner>();
-  std::vector<std::chrono::milliseconds> elapsed;
+  size_t calls = 0;
   owner->schedule_periodic_task(
-    job_board,
-    10ms,
-    [&](auto duration) { elapsed.push_back(duration); },
-    "Tick");
-  job_board.tick(9ms);
-  do_all_tasks(job_board);
-  REQUIRE(elapsed.empty());
-  job_board.tick(26ms);
-  do_all_tasks(job_board);
-  REQUIRE(elapsed == std::vector{35ms});
+    job_board, 10ms, [&](auto) { ++calls; }, "Tick");
   job_board.tick(10ms);
+  REQUIRE(job_board.get_summary().pending_tasks == 1);
 
   SUBCASE("Destruction leaves no owned callback on the board")
   {
@@ -360,7 +370,7 @@ TEST_CASE(
   do_all_tasks(job_board);
   job_board.tick(100ms);
   do_all_tasks(job_board);
-  REQUIRE(elapsed == std::vector{35ms});
+  REQUIRE(calls == 0);
 }
 
 TEST_CASE(

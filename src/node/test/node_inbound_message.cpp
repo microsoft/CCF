@@ -41,6 +41,8 @@ namespace
     }
   };
 
+  // Exercises retry scheduling, not NodeState's opening/rollback policy,
+  // which is covered by recovery e2e tests.
   struct StubRecoveryNode
   {
     std::function<bool()> attempt;

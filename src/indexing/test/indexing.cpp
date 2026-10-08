@@ -42,6 +42,19 @@ public:
   }
 };
 
+// Inspect the commit point consumed by the real update path, including its
+// view.
+class ObservedIndexer : public ccf::indexing::Indexer
+{
+public:
+  using Indexer::Indexer;
+
+  ccf::TxID observed_commit() const
+  {
+    return committed;
+  }
+};
+
 static std::vector<ActionDesc> create_actions(
   ExpectedSeqNos& seqnos_hello,
   ExpectedSeqNos& seqnos_saluton,
@@ -195,7 +208,7 @@ TEST_CASE(
     "Periodic indexing requires the CommitPoint subsystem");
   auto commit_point = std::make_shared<StubCommitPoint>();
   context->install_subsystem(commit_point);
-  auto indexer = std::make_shared<ccf::indexing::Indexer>(fetcher, *context);
+  auto indexer = std::make_shared<ObservedIndexer>(fetcher, *context);
   indexer->register_periodic_tasks(job_board, 10ms);
   // Registry access is complete at construction; ticks do not need the context.
   context.reset();
@@ -221,11 +234,13 @@ TEST_CASE(
   run_all();
   REQUIRE(commit_point->polls == 2);
   REQUIRE(check_seqnos({1, 2, 3}, fetcher->requested));
+  REQUIRE(indexer->observed_commit() == ccf::TxID{2, 3});
 
-  commit_point->committed = ccf::TxID{2, 5};
+  commit_point->committed = ccf::TxID{4, 5};
   job_board.tick(10ms);
   run_all();
   REQUIRE(check_seqnos({1, 2, 3, 4, 5}, fetcher->requested));
+  REQUIRE(indexer->observed_commit() == ccf::TxID{4, 5});
   const auto before_stop = commit_point->polls;
   job_board.tick(10ms);
 
