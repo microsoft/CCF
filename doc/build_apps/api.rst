@@ -126,6 +126,15 @@ Supporting Types
 Historical Queries
 ------------------
 
+The historical cache shares fetched stores across request handles. Ledger replies
+are routed only to handles depending on that entry, including supporting
+signatures and older ledger secrets, rather than scanning unrelated retained
+requests. Processing still scales with actual consumers and their requested
+ranges. The routing index holds non-owning per-dependency metadata; it does not
+change request expiry, store retention, or the lifetime of returned historical
+states. This metadata and temporary reply snapshots add memory overhead beyond
+the cache's estimated ledger-entry size.
+
 .. doxygenfunction:: ccf::historical::read_only_adapter_v4
    :project: CCF
 
