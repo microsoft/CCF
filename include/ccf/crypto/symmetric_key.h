@@ -28,7 +28,7 @@ namespace ccf::crypto
     [[nodiscard]] std::span<const uint8_t> get_iv() const;
 
     [[nodiscard]] size_t serialised_size() const;
-    std::vector<uint8_t> serialise() const;
+    [[nodiscard]] std::vector<uint8_t> serialise() const;
     void serialise(std::span<uint8_t> output) const;
 
     void deserialise(const std::vector<uint8_t>& ser);
