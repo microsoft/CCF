@@ -240,17 +240,17 @@ namespace ccf::endpoints
     const ReadOnlyEndpointFunction& f,
     const AuthnPolicies& ap)
   {
-    return make_endpoint(
-             method,
-             verb,
-             [f](EndpointContext& ctx) {
-               ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
-               ro_ctx.caller = std::move(ctx.caller);
-               f(ro_ctx);
-             },
-             ap)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_redirection_strategy(RedirectionStrategy::None);
+    auto endpoint = make_endpoint(
+      method,
+      verb,
+      [f](EndpointContext& ctx) {
+        ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
+        ro_ctx.caller = std::move(ctx.caller);
+        f(ro_ctx);
+      },
+      ap);
+    endpoint.properties.forwarding_required = ForwardingRequired::Sometimes;
+    return endpoint.set_redirection_strategy(RedirectionStrategy::None);
   }
 
   Endpoint EndpointRegistry::make_command_endpoint(
@@ -263,8 +263,8 @@ namespace ccf::endpoints
       make_endpoint(method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap);
     endpoint.execution_mode = EndpointExecutionMode::Command;
     endpoint.command_func = f;
-    return endpoint.set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_redirection_strategy(RedirectionStrategy::None);
+    endpoint.properties.forwarding_required = ForwardingRequired::Sometimes;
+    return endpoint.set_redirection_strategy(RedirectionStrategy::None);
   }
 
   void EndpointRegistry::install(Endpoint& endpoint)

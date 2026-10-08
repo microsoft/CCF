@@ -57,9 +57,11 @@ namespace basicapp
         records_handle->put(key, ctx.rpc_ctx->get_request_body());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
-      make_endpoint(
-        "/records/{key}", HTTP_PUT, put, {ccf::user_cert_auth_policy})
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+      auto put_endpoint = make_endpoint(
+        "/records/{key}", HTTP_PUT, put, {ccf::user_cert_auth_policy});
+      put_endpoint.properties.forwarding_required =
+        ccf::endpoints::ForwardingRequired::Never;
+      put_endpoint
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
@@ -68,12 +70,14 @@ namespace basicapp
           ccf::samples::default_respond_on_commit);
         put(ctx);
       };
-      make_endpoint(
+      auto blocking_put_endpoint = make_endpoint(
         "/records/blocking/{key}",
         HTTP_PUT,
         blocking_put,
-        {ccf::user_cert_auth_policy})
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        {ccf::user_cert_auth_policy});
+      blocking_put_endpoint.properties.forwarding_required =
+        ccf::endpoints::ForwardingRequired::Never;
+      blocking_put_endpoint
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
@@ -108,9 +112,11 @@ namespace basicapp
           ccf::errors::InvalidResourceName,
           "No such key");
       };
-      make_read_only_endpoint(
-        "/records/{key}", HTTP_GET, get, {ccf::user_cert_auth_policy})
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+      auto get_endpoint = make_read_only_endpoint(
+        "/records/{key}", HTTP_GET, get, {ccf::user_cert_auth_policy});
+      get_endpoint.properties.forwarding_required =
+        ccf::endpoints::ForwardingRequired::Never;
+      get_endpoint
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
@@ -119,12 +125,14 @@ namespace basicapp
           ccf::samples::default_respond_on_commit);
         get(ctx);
       };
-      make_read_only_endpoint(
+      auto blocking_get_endpoint = make_read_only_endpoint(
         "/records/blocking/{key}",
         HTTP_GET,
         blocking_get,
-        {ccf::user_cert_auth_policy})
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        {ccf::user_cert_auth_policy});
+      blocking_get_endpoint.properties.forwarding_required =
+        ccf::endpoints::ForwardingRequired::Never;
+      blocking_get_endpoint
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
