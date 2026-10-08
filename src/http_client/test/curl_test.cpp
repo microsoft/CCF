@@ -675,6 +675,8 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
   retry_requests.insert(retry_requests.begin(), discovery_request);
   CHECK(get_requests() == retry_requests);
 
+  // redirect_loop: 20 discovery redirects, then one range request that fails
+  // on its unexpected 308 status
   const std::vector<std::pair<std::string, size_t>> failures = {
     {"discovery_error", 1},
     {"unexpected_status", 1},
@@ -684,7 +686,7 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
     {"wrong_end", 3},
     {"chunk_error", 4},
   };
-  for (const auto& [mode, maximum_requests] : failures)
+  for (const auto& [mode, request_count] : failures)
   {
     INFO(mode);
     configure(mode);
@@ -693,15 +695,7 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
         .has_value());
     const auto requests = get_requests();
     REQUIRE_FALSE(requests.empty());
-    if (mode == "redirect_loop")
-    {
-      CHECK(requests.size() > 1);
-      CHECK(requests.size() <= maximum_requests);
-    }
-    else
-    {
-      CHECK(requests.size() == maximum_requests);
-    }
+    CHECK(requests.size() == request_count);
     CHECK(requests.front().at("path") == "/node/snapshot");
     CHECK(requests.front().at("range") == initial_range);
   }
