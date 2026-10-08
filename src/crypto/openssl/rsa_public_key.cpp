@@ -134,11 +134,12 @@ namespace ccf::crypto
       auto* openssl_label =
         static_cast<unsigned char*>(OPENSSL_malloc(label_size));
       std::copy(label, label + label_size, openssl_label);
-      EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size);
+      OpenSSL::CHECK1(
+        EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size));
     }
     else
     {
-      EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, nullptr, 0);
+      OpenSSL::CHECK1(EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, nullptr, 0));
     }
 
     size_t olen = 0;

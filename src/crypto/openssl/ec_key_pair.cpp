@@ -259,8 +259,8 @@ namespace ccf::crypto
           nullptr,
           NID_subject_alt_name,
           fmt::format("{}", fmt::join(subject_alt_names, ", ")).c_str()));
-      sk_X509_EXTENSION_push(exts, ext);
-      X509_REQ_add_extensions(req, exts);
+      OpenSSL::CHECKPOSITIVE(sk_X509_EXTENSION_push(exts, ext));
+      OpenSSL::CHECK1(X509_REQ_add_extensions(req, exts));
     }
 
     if (key != nullptr)
@@ -339,8 +339,9 @@ namespace ccf::crypto
     OpenSSL::CHECKNULL(bn = BN_new());
     OpenSSL::CHECKNULL(
       BN_bin2bn(static_cast<unsigned char*>(rndbytes), sizeof(rndbytes), bn));
-    ASN1_INTEGER* serial = ASN1_INTEGER_new();
-    BN_to_ASN1_INTEGER(bn, serial);
+    ASN1_INTEGER* serial = nullptr;
+    OpenSSL::CHECKNULL(serial = ASN1_INTEGER_new());
+    OpenSSL::CHECKNULL(BN_to_ASN1_INTEGER(bn, serial));
     OpenSSL::CHECK1(X509_set_serialNumber(crt, serial));
     ASN1_INTEGER_free(serial);
     BN_free(bn);
@@ -381,8 +382,8 @@ namespace ccf::crypto
     OpenSSL::CHECK1(X509_set1_notBefore(crt, not_before));
     OpenSSL::CHECK1(X509_set1_notAfter(crt, not_after));
 
-    X509_set_subject_name(crt, X509_REQ_get_subject_name(csr));
-    X509_set_pubkey(crt, req_pubkey);
+    OpenSSL::CHECK1(X509_set_subject_name(crt, X509_REQ_get_subject_name(csr)));
+    OpenSSL::CHECK1(X509_set_pubkey(crt, req_pubkey));
 
     // Extensions
     X509V3_CTX v3ctx;
