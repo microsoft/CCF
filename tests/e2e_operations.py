@@ -326,7 +326,7 @@ def test_snapshot_create_endpoint(network, args):
 
 
 # https://github.com/microsoft/CCF/issues/1858
-@reqs.description("Generate snapshot larger than ring buffer max message size")
+@reqs.description("Generate snapshot larger than the configured max message")
 def test_large_snapshot(network, args):
     primary, _ = network.find_primary()
 

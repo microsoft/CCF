@@ -4,11 +4,11 @@ Resource Usage
 CPU
 ---
 
-A single CCF node process runs a host event-loop thread, an enclave dispatch thread, and worker threads, along with auxiliary threads. The host manages sockets and files, and handles communication with the enclave via ring-buffers.
-The enclave dispatch thread handles incoming messages, while worker threads execute tasks including TLS termination, cryptography, and application and key value code.
+A single CCF node process runs a host event-loop thread, an enclave coordination thread, and worker threads, along with auxiliary threads. The host manages sockets and files.
+The enclave coordination thread handles lifecycle events, while worker threads execute tasks including TLS termination, cryptography, and application and key value code.
 The ``worker_threads`` configuration entry (see :ref:`operations/configuration:``worker_threads```) defaults to ``1``. CCF starts one more worker than configured, in addition to the dispatch thread, to preserve task execution capacity. For example, ``1`` starts two workers and ``2`` starts three. A configured value of ``0`` starts one worker and logs a warning; positive values are incremented silently.
 
-Consensus timers, idle node-channel cleanup and indexing updates run as independent owner-managed periodic tasks rather than being driven by ringbuffer messages.
+Consensus timers, idle node-channel cleanup and indexing updates run as independent owner-managed periodic tasks.
 These tasks may execute concurrently with each other and inbound node processing, using the relevant subsystem locks rather than an aggregate ordered lane.
 Each periodic task accounts for its own elapsed time, including scheduling delays, and prevents overlapping executions of itself.
 The tasks use the shared worker pool, so blocking all workers can delay consensus.

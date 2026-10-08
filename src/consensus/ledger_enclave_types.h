@@ -8,9 +8,9 @@
 
 namespace consensus
 {
-  // Retained so the ledger range read budget stays equal to the previous
-  // ringbuffer-derived value (memory.max_msg_size minus this allowance) until
-  // the memory configuration is removed.
+  // Retained so the ledger range read budget remains
+  // memory.max_msg_size minus this metadata allowance until the memory
+  // configuration is replaced.
   static constexpr size_t ledger_range_response_metadata_size = 2048;
 
   using Index = uint64_t;

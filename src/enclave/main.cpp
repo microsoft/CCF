@@ -26,7 +26,6 @@ std::atomic<uint16_t> num_complete_threads = 0;
 namespace ccf
 {
   CreateNodeStatus enclave_create_node(
-    const EnclaveConfig& enclave_config,
     const ccf::CCFConfig& ccf_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
@@ -34,7 +33,6 @@ namespace ccf
     StartType start_type,
     ccf::LoggerLevel log_level,
     size_t num_worker_threads,
-    const ccf::ds::WorkBeaconPtr& work_beacon,
     ccf::AbstractRuntimeControl& runtime_control,
     const std::shared_ptr<AbstractLedgerSubsystemInterface>& ledger_subsystem,
     const std::shared_ptr<AbstractNodeTransport>& node_transport)
@@ -57,17 +55,6 @@ namespace ccf
       LOG_FAIL_FMT("A node transport must be provided to create a node");
       return CreateNodeStatus::EnclaveInitFailed;
     }
-
-    // The host-enclave circuit, from which the enclave reads host messages
-    auto circuit = std::make_unique<ringbuffer::Circuit>(
-      ringbuffer::BufferDef{
-        enclave_config.to_enclave_buffer_start,
-        enclave_config.to_enclave_buffer_size,
-        enclave_config.to_enclave_buffer_offsets},
-      ringbuffer::BufferDef{
-        enclave_config.from_enclave_buffer_start,
-        enclave_config.from_enclave_buffer_size,
-        enclave_config.from_enclave_buffer_offsets});
 
     {
       num_pending_threads = (uint16_t)num_worker_threads + 1;
@@ -112,15 +99,13 @@ namespace ccf
     {
       // NOLINTBEGIN(cppcoreguidelines-owning-memory)
       enclave = new ccf::Enclave(
-        std::move(circuit),
         ccf_config.ledger_signatures.tx_count,
         ccf_config.ledger_signatures.delay.count_ms(),
-        enclave_config.tick_interval,
+        std::chrono::milliseconds(ccf_config.tick_interval),
         ccf_config.ledger.chunk_size,
         ccf_config.ledger.max_transaction_size,
         ccf_config.consensus,
         ccf_config.node_certificate.curve_id,
-        work_beacon,
         runtime_control,
         ledger_subsystem,
         node_transport);
