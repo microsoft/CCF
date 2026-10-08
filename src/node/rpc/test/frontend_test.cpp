@@ -76,20 +76,26 @@ public:
     auto empty_function = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint(
-      "/empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
-      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
+    auto empty_function_endpoint = make_endpoint(
+      "/empty_function", HTTP_POST, empty_function, {user_cert_auth_policy});
+    empty_function_endpoint.properties.forwarding_required =
+      ccf::endpoints::ForwardingRequired::Sometimes;
+    empty_function_endpoint
+      .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::ToPrimary)
       .install();
 
     auto empty_function_no_auth = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint(
+    auto empty_function_no_auth_endpoint = make_endpoint(
       "/empty_function_no_auth",
       HTTP_POST,
       empty_function_no_auth,
-      no_auth_required)
-      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
+      no_auth_required);
+    empty_function_no_auth_endpoint.properties.forwarding_required =
+      ccf::endpoints::ForwardingRequired::Sometimes;
+    empty_function_no_auth_endpoint
+      .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::ToPrimary)
       .install();
   }
 };
@@ -212,9 +218,12 @@ public:
     auto command = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    endpoints
-      .make_command_endpoint("/command", HTTP_POST, command, no_auth_required)
-      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+    auto command_endpoint = endpoints.make_command_endpoint(
+      "/command", HTTP_POST, command, no_auth_required);
+    command_endpoint.properties.forwarding_required =
+      ccf::endpoints::ForwardingRequired::Never;
+    command_endpoint
+      .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
       .install();
 
     auto read_only = [](auto& ctx) {
@@ -276,10 +285,12 @@ public:
     auto empty_function = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    member_endpoints
-      .make_endpoint(
-        "/empty_function", HTTP_POST, empty_function, {member_cert_auth_policy})
-      .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
+    auto empty_function_endpoint = member_endpoints.make_endpoint(
+      "/empty_function", HTTP_POST, empty_function, {member_cert_auth_policy});
+    empty_function_endpoint.properties.forwarding_required =
+      endpoints::ForwardingRequired::Sometimes;
+    empty_function_endpoint
+      .set_redirection_strategy(endpoints::RedirectionStrategy::ToPrimary)
       .install();
   }
 };
@@ -299,10 +310,12 @@ public:
     auto empty_function = [](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    endpoints
-      .make_endpoint(
-        "/empty_function", HTTP_POST, empty_function, no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
+    auto empty_function_endpoint = endpoints.make_endpoint(
+      "/empty_function", HTTP_POST, empty_function, no_auth_required);
+    empty_function_endpoint.properties.forwarding_required =
+      endpoints::ForwardingRequired::Sometimes;
+    empty_function_endpoint
+      .set_redirection_strategy(endpoints::RedirectionStrategy::ToPrimary)
       .install();
   }
 };
@@ -450,6 +463,52 @@ void prepare_callers(NetworkState& network)
   member_id = InternalTablesAccess::add_member(tx, member_cert);
   invalid_member_id = InternalTablesAccess::add_member(tx, invalid_caller);
   CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+}
+
+TEST_CASE("Endpoint factories preserve legacy forwarding metadata")
+{
+  endpoints::EndpointRegistry registry("test");
+  auto handler = [](auto&) {};
+  auto write_endpoint =
+    registry.make_endpoint("/write", HTTP_POST, handler, no_auth_required);
+  CHECK(
+    write_endpoint.properties.forwarding_required ==
+    endpoints::ForwardingRequired::Always);
+  CHECK(
+    write_endpoint.properties.redirection_strategy ==
+    endpoints::RedirectionStrategy::ToPrimary);
+
+  auto read_endpoint = registry.make_read_only_endpoint(
+    "/read", HTTP_GET, handler, no_auth_required);
+  auto command_endpoint = registry.make_command_endpoint(
+    "/command", HTTP_GET, handler, no_auth_required);
+  for (const auto* endpoint : {&read_endpoint, &command_endpoint})
+  {
+    CHECK(
+      endpoint->properties.forwarding_required ==
+      endpoints::ForwardingRequired::Sometimes);
+    CHECK(
+      endpoint->properties.redirection_strategy ==
+      endpoints::RedirectionStrategy::None);
+  }
+
+  write_endpoint.properties.forwarding_required =
+    endpoints::ForwardingRequired::Never;
+  write_endpoint.set_redirection_strategy(endpoints::RedirectionStrategy::None);
+  CHECK(
+    write_endpoint.properties.forwarding_required ==
+    endpoints::ForwardingRequired::Never);
+  CHECK(
+    write_endpoint.properties.redirection_strategy ==
+    endpoints::RedirectionStrategy::None);
+  read_endpoint.set_redirection_strategy(
+    endpoints::RedirectionStrategy::ToPrimary);
+  CHECK(
+    read_endpoint.properties.forwarding_required ==
+    endpoints::ForwardingRequired::Sometimes);
+  CHECK(
+    read_endpoint.properties.redirection_strategy ==
+    endpoints::RedirectionStrategy::ToPrimary);
 }
 
 TEST_CASE("Frontend opens atomically")
@@ -751,12 +810,17 @@ TEST_CASE("Backpressure sheds reads and writes but exempts node endpoints")
     ++executed;
     ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
   };
-  registry
-    ->make_read_only_endpoint("/read", HTTP_GET, handler, no_auth_required)
-    .set_forwarding_required(endpoints::ForwardingRequired::Never)
+  auto read_endpoint = registry->make_read_only_endpoint(
+    "/read", HTTP_GET, handler, no_auth_required);
+  read_endpoint.properties.forwarding_required =
+    endpoints::ForwardingRequired::Never;
+  read_endpoint.set_redirection_strategy(endpoints::RedirectionStrategy::None)
     .install();
-  registry->make_endpoint("/write", HTTP_POST, handler, no_auth_required)
-    .set_forwarding_required(endpoints::ForwardingRequired::Never)
+  auto write_endpoint =
+    registry->make_endpoint("/write", HTTP_POST, handler, no_auth_required);
+  write_endpoint.properties.forwarding_required =
+    endpoints::ForwardingRequired::Never;
+  write_endpoint.set_redirection_strategy(endpoints::RedirectionStrategy::None)
     .install();
   RpcFrontend frontend(*network.tables, *registry, context);
   frontend.open();

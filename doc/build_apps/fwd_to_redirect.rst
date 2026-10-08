@@ -80,6 +80,14 @@ Example configuration, redirecting to a static address (such as a load balancer)
 Endpoint definitions
 ~~~~~~~~~~~~~~~~~~~~
 
+The C++ ``Endpoint::set_forwarding_required()`` method emits a compiler
+deprecation warning in CCF 7.x. Use ``set_redirection_strategy()`` instead.
+For interfaces which still use legacy forwarding, preserve the endpoint's
+``properties.forwarding_required`` value directly. The old setter also changed
+``redirection_strategy`` to ``None`` for ``Never`` and ``ToPrimary`` for
+``Sometimes`` or ``Always``; preserve that value, or any subsequent explicit
+override, when replacing a call.
+
 Similar to the ``forwarding_required`` property which specified each endpoint's forwarding behaviour, we introduce a ``redirection_strategy`` property to control the redirection behaviour. This is set by a method on the endpoint in C++:
 
 .. code-block:: cpp
