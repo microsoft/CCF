@@ -637,18 +637,22 @@ namespace programmabilityapp
       auto put = [this](ccf::endpoints::EndpointContext& ctx) {
         this->put(ctx);
       };
-      make_endpoint(
-        "/records/{key}", HTTP_PUT, put, {ccf::user_cert_auth_policy})
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+      auto put_endpoint = make_endpoint(
+        "/records/{key}", HTTP_PUT, put, {ccf::user_cert_auth_policy});
+      put_endpoint.properties.forwarding_required =
+        ccf::endpoints::ForwardingRequired::Never;
+      put_endpoint
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto get = [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
         this->get(ctx);
       };
-      make_read_only_endpoint(
-        "/records/{key}", HTTP_GET, get, {ccf::user_cert_auth_policy})
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+      auto get_endpoint = make_read_only_endpoint(
+        "/records/{key}", HTTP_GET, get, {ccf::user_cert_auth_policy});
+      get_endpoint.properties.forwarding_required =
+        ccf::endpoints::ForwardingRequired::Never;
+      get_endpoint
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
