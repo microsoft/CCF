@@ -10,6 +10,8 @@
 #include "endpoints/rpc_context_impl.h"
 #include "http/http_parser.h"
 
+#include <tuple>
+
 namespace ccf::endpoints
 {
   namespace
@@ -60,11 +62,11 @@ namespace ccf::endpoints
       // defined, assume this can return 200
       if (ds::openapi::responses(path_op).empty())
       {
-        ds::openapi::response(path_op, HTTP_STATUS_OK);
+        std::ignore = ds::openapi::response(path_op, HTTP_STATUS_OK);
       }
 
       // Add a default error response
-      ds::openapi::error_response_default(path_op);
+      std::ignore = ds::openapi::error_response_default(path_op);
 
       // Add summary and description if set
       {
