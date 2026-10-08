@@ -24,6 +24,8 @@
 //     SSL_write_ex().
 // ===========================================================================
 
+#include "tls/socket_utils.h"
+
 #include <arpa/inet.h>
 #include <cerrno>
 #include <condition_variable>
@@ -198,7 +200,7 @@ namespace ccf::tls
       // underneath it.
       if (sock >= 0)
       {
-        ::close(sock);
+        details::close_socket(sock);
         sock = -1;
       }
 
@@ -242,7 +244,7 @@ namespace ccf::tls
           bound = true;
           break;
         }
-        ::close(sock);
+        details::close_socket(sock);
         sock = -1;
       }
       freeaddrinfo(res);
@@ -382,7 +384,7 @@ namespace ccf::tls
     {
       if (sock >= 0)
       {
-        ::close(sock);
+        details::close_socket(sock);
         sock = -1;
       }
     }

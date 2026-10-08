@@ -586,11 +586,10 @@ namespace ccf
 
     // Run enclave threads and event loop. The ledger subsystem is drained
     // inside, between the enclave threads joining and the job board shutting
-    // down; see run_enclave_threads. Node sends queued on the ledger lane run
-    // during that drain.
+    // down; see run_enclave_threads.
     run_enclave_threads(config, *runtime_control, *ledger_subsystem);
     // The enclave retains the transport, so close its sockets explicitly
-    // before the loop is closed. Frames not yet written are discarded.
+    // before the loop is closed
     node->shutdown();
 
     return std::nullopt;

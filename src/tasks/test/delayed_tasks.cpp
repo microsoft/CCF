@@ -397,7 +397,12 @@ TEST_CASE(
     overlapping_finished.store(true);
   });
 
-  std::this_thread::sleep_for(10ms);
+  const auto deadline = std::chrono::steady_clock::now() + 5s;
+  while (!overlapping_finished.load() &&
+         std::chrono::steady_clock::now() < deadline)
+  {
+    std::this_thread::sleep_for(1ms);
+  }
   const auto overlap_was_coalesced = overlapping_finished.load();
   owner->release_first_execution.count_down();
   first_worker.join();

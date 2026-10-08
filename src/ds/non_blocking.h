@@ -8,6 +8,7 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <memory>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -177,7 +178,7 @@ namespace ringbuffer
           break;
         }
 
-        underlying_writer->write_bytes(
+        std::ignore = underlying_writer->write_bytes(
           marker, next.buffer.data(), next.buffer.size());
         underlying_writer->finish(marker);
 
