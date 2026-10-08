@@ -2047,7 +2047,7 @@
         },
         "protocol": {
           "type": "string",
-          "description": "The application layer protocol which the node expects on this interface. Currently supports \"http1\" and \"http2\", more protocols may be added in future."
+          "description": "The application layer protocol which the node expects on this interface. CCF provides built-in support for HTTP1, and applications may add custom protocols."
         }
       },
       "required": [

@@ -778,7 +778,6 @@ export function write(request) {
     INFO(table);
     auto rpc_ctx = std::make_shared<http::HttpRpcContext>(
       std::make_shared<ccf::SessionContext>(0, std::vector<uint8_t>{}),
-      ccf::HttpVersion::HTTP1,
       HTTP_POST,
       "/write",
       ccf::http::HeaderMap{},
@@ -2446,7 +2445,6 @@ export function run(request) {
     auto rpc_ctx = std::make_shared<http::HttpRpcContext>(
       std::make_shared<ccf::SessionContext>(
         ccf::InvalidSessionId, std::vector<uint8_t>{}),
-      ccf::HttpVersion::HTTP1,
       HTTP_GET,
       "/response?" + query,
       ccf::http::HeaderMap{},

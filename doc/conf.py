@@ -98,9 +98,8 @@ exclude_patterns = []
 pygments_style = "default"
 pygments_dark_style = "zenburn"
 
-# Ignore main index file that has clickable images, JS/Doxygen output,
-# github anchors https://github.com/sphinx-doc/sphinx/issues/9016), and nghttp2
-# (which is now HTTP2-only)
+# Ignore main index file that has clickable images, JS/Doxygen output, and
+# github anchors https://github.com/sphinx-doc/sphinx/issues/9016).
 linkcheck_exclude_documents = [r"^index$"]
 linkcheck_ignore = [
     r"https://github.com/.*#",
@@ -108,7 +107,6 @@ linkcheck_ignore = [
     r"../doxygen/index.html",
     # The rustdoc role checks generated pages and anchors during HTML builds.
     r"(?:\.\./)*rust/ccf_app/.*",
-    r"https://nghttp2.org/.*",
     r"https://www.w3.org/Protocols/rfc2616/.*",
 ]
 

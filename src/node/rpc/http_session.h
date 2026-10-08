@@ -141,8 +141,7 @@ namespace http
       llhttp_method verb,
       const std::string_view& url,
       ccf::http::HeaderMap&& headers,
-      std::vector<uint8_t>&& body,
-      int32_t /*stream_id*/) override
+      std::vector<uint8_t>&& body) override
     {
       LOG_TRACE_FMT(
         "Processing msg({}, {} [{} bytes])",
@@ -162,12 +161,7 @@ namespace http
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            session_ctx,
-            ccf::HttpVersion::HTTP1,
-            verb,
-            url,
-            std::move(headers),
-            std::move(body));
+            session_ctx, verb, url, std::move(headers), std::move(body));
         }
         catch (std::exception& e)
         {

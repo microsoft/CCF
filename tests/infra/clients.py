@@ -290,10 +290,6 @@ class Response:
         # But in the case of a redirect, it is multiple concatenated responses.
         # We want the final response, so we keep constructing new responses from this stream until we have reached the end
         while True:
-            # This may contain a stringified HTTP/2 response, which HTTPResponse can't parse.
-            # Replace the HTTP version in the status line in this case - we don't care what version it parses.
-            if raw.startswith(b"HTTP/2"):
-                raw = raw.replace(b"HTTP/2", b"HTTP/1.1", 1)
             sock = FakeSocket(raw)
             response = HTTPResponse(sock)
             response.begin()
@@ -470,8 +466,6 @@ class CurlClient:
             self.ca_curve = None
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
         self.extra_args = []
-        if kwargs.get("http2"):
-            self.extra_args.append("--http2")
         self.cose_header_builder = cose_protected_headers_api_classic
 
     def request(
@@ -607,21 +601,12 @@ class CurlClient:
         pass
 
     @staticmethod
-    def extra_headers_count(http2=False):
+    def extra_headers_count():
         # curl inserts the following headers in every request
-        if http2:
-            #  :method: GET/POST
-            #  :authority: <address>
-            #  :scheme: https
-            #  :path: /path
-            #  accept: */*
-            #  user-agent: curl/<version>
-            return 6
-        else:
-            #  host: <address>
-            #  user-agent: curl/<version>
-            #  accept: */*
-            return 3
+        #  host: <address>
+        #  user-agent: curl/<version>
+        #  accept: */*
+        return 3
 
 
 class HttpxClient:
@@ -813,24 +798,14 @@ class HttpxClient:
         self.session.close()
 
     @staticmethod
-    def extra_headers_count(http2=False):
+    def extra_headers_count():
         # httpx inserts the following headers in every request
-        if http2:
-            #  :method: GET/POST
-            #  :authority: <address>
-            #  :scheme: https
-            #  :path: /path
-            #  accept: */*
-            #  accept-encoding: gzip, deflate, br
-            #  user-agent: python-httpx/<version>
-            return 7
-        else:
-            #  host: <address>
-            #  accept: */*
-            #  accept-encoding: gzip, deflate, br
-            #  connection: keep-alive
-            #  user-agent: python-httpx/<version>
-            return 5
+        #  host: <address>
+        #  accept: */*
+        #  accept-encoding: gzip, deflate, br
+        #  connection: keep-alive
+        #  user-agent: python-httpx/<version>
+        return 5
 
 
 class RawSocketClient:
