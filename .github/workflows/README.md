@@ -12,6 +12,11 @@ At a weekly rollover, restore keys first reuse the latest cache for the same dep
 
 The action also assigns uv a writable cache directory outside `/github/home/.cache`, because some tests clear that directory. A weekly cache persists uv's content-addressed package cache, keyed on the pinned uv installer, `python/pyproject.toml`, and the `python-requirements` input, which each workflow sets to the requirements files it installs so unrelated jobs do not invalidate each other's cache; jobs that do not install Python packages disable this cache entirely with `cache-python-packages: false`. CI dependency setup uses `uv pip` so cached packages remain reusable, with workflows configuring the package index through `UV_INDEX_URL`. Pip is not used for package installation because the PyPI proxy redirects artifacts to short-lived URLs that pip cannot reuse across jobs.
 
+## Lean package checks
+
+The local composite action in `.github/actions/lean-checks/action.yml` restores the Mathlib cache, checks the generated library import root, builds with warnings as errors, runs the package's configured axiom audit and test driver through `lake lint` and `lake test`, and checks the package's formatting with `scripts/lean-format-checks.sh`.
+Each caller supplies a `working-directory` and `library`, and puts the package's pinned Lean toolchain on `PATH` before invoking the action.
+
 # Maintained
 
 ## Bencher
@@ -128,15 +133,14 @@ File: `tla-shallow.yml`
 
 Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
 
-The disaster recovery job builds the canonical model with `lake build --wfail`, audits its transitive axiom dependencies with `lake lint`, and runs its executable canonical behavior checks on Ubuntu 26.04 on relevant pull requests.
+The disaster recovery and KV jobs both use the shared [Lean package checks](#lean-package-checks) action, which also checks the formatting of each package's tracked `.lean` files with its pinned leanfmt dependency.
+Disaster recovery runs its canonical behavior checks on Ubuntu 26.04.
+KV runs in Azure Linux 3: it builds and runs the instrumented C++ KV unit tests before putting the pinned Lean distribution, which bundles its own `clang`, on `PATH`, then checks the generated traces against the Lean model and uploads trace diagnostics as artifacts.
 The build and audit include both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every library module, so newly added proofs cannot silently escape the checks.
 
-After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean`
-file with the pinned leanfmt dependency. The workflow runs on pull requests
-that change `lean/`, any `.lean` file, the formatter script, or the workflow.
-See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting)
-to apply fixes.
+The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, the workflow, or its shared actions. It also runs on changes to the KV implementation and public KV API (`src/kv/`, `include/ccf/kv/`, `include/ccf/tx.h`, and the CHAMP map), the KV trace runner, `tests/tests.sh`, and the CMake build.
+See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
 3rd party dependencies: None
