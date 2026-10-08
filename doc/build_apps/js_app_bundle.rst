@@ -97,6 +97,12 @@ Each endpoint object contains the following information:
   - ``"sometimes"``
   - ``"never"``
 
+  This field remains required in CCF 7.x for compatibility with interfaces which
+  omit ``redirections``. Forwarding is deprecated and will be removed in CCF 8.0.
+  New applications should also explicitly set ``"redirection_strategy"`` to
+  ``"none"``, ``"to_primary"``, or ``"to_backup"`` as appropriate, and enable
+  redirects on their interfaces. See :doc:`fwd_to_redirect`.
+
 - ``"mode"``: A string indicating whether the endpoint requires read/write or read-only access to the Key-Value Store, or whether it is a historical endpoint that sees the state written in a specific transaction. Possible values are:
 
   - ``"readwrite"``

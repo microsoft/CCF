@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Deprecated
 
+- Request forwarding is deprecated and will be removed in 8.0. First-party node configuration tools now enable redirects by default; manually configured interfaces without `redirections` retain legacy forwarding. See [Migrating from forwarding to redirection](https://microsoft.github.io/CCF/main/build_apps/fwd_to_redirect.html).
+
 - The helper functions in `ccf/endpoints/authentication/js.h` are deprecated and will be removed in 8.0. Their signatures are unchanged. Applications using these helpers for JavaScript endpoint dispatch can use the extensible registries in `ccf/js/registry.h` (#8520).
 
 ### Fixed
