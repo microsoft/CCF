@@ -664,27 +664,21 @@ def run_live_compatibility_with_latest(
 
 @reqs.description("Run ledger compatibility since first LTS")
 def run_ledger_compatibility_since_first(
-    args, local_branch, use_snapshot, test_jwt_cleanup
+    args, repo, lts_releases, use_snapshot, test_jwt_cleanup
 ):
     """
     Tests that a service from the very first LTS can be recovered
     to the next LTS, and so forth, until the version of the local checkout.
 
-    The recovery process uses snapshot is `use_snapshot` is True. Otherwise, the
-    entire historical ledger is used.
+    The supplied release selection is shared between the ledger and snapshot passes.
+    Snapshots are used if `use_snapshot` is True. Otherwise, the entire historical
+    ledger is used.
     """
 
     LOG.info("Use snapshot: {}", use_snapshot)
-    repo = infra.github.Repository()
-    lts_releases = repo.get_supported_lts_releases(local_branch)
-
-    LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
+    LOG.info(f"LTS releases: {list(lts_releases.values())}")
 
     lts_versions = []
-
-    # Add an empty entry to release to indicate local checkout
-    # Note: dicts are ordered from Python3.7
-    lts_releases[None] = None
 
     # These variables are the previous service's info
     ledger_dir = None
@@ -697,7 +691,8 @@ def run_ledger_compatibility_since_first(
     )
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
-        for idx, (_, lts_release) in enumerate(lts_releases.items()):
+        # None is the final local-checkout step.
+        for idx, lts_release in enumerate([*lts_releases.values(), None]):
             if lts_release:
                 version, install_path = repo.install_release(
                     lts_release,
@@ -928,7 +923,6 @@ if __name__ == "__main__":
     # Hardcoded because host only accepts info log on release builds
     args.log_level = "info"
 
-    repo = infra.github.Repository()
     local_branch = infra.github.GitEnv.local_branch()
 
     if args.dry_run:
@@ -948,7 +942,7 @@ if __name__ == "__main__":
     if args.release_install_path:
         version = run_live_compatibility_with_latest(
             args,
-            repo,
+            None,
             local_branch,
             lts_install_path=args.release_install_path,
             lts_container_image=args.release_install_image,
@@ -959,6 +953,7 @@ if __name__ == "__main__":
             {f"with release ({args.release_install_path})": version}
         )
     else:
+        repo = infra.github.Repository()
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
         latest_lts_version = run_live_compatibility_with_latest(
@@ -989,9 +984,11 @@ if __name__ == "__main__":
 
         if args.check_ledger_compatibility:
             compatibility_report["data compatibility"] = {}
+            lts_releases = repo.get_supported_lts_releases(local_branch)
             lts_versions = run_ledger_compatibility_since_first(
                 args,
-                local_branch,
+                repo,
+                lts_releases,
                 use_snapshot=False,
                 test_jwt_cleanup=False,
             )
@@ -1000,7 +997,8 @@ if __name__ == "__main__":
             )
             lts_versions = run_ledger_compatibility_since_first(
                 args,
-                local_branch,
+                repo,
+                lts_releases,
                 use_snapshot=True,
                 test_jwt_cleanup=True,
             )

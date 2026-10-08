@@ -185,11 +185,6 @@ class GitEnv:
             for tag in self.g.ls_remote(REMOTE_URL).split("\n")
             if f"tags/{TAG_RELEASE_PREFIX}" in tag
         ]
-        self.release_branches = [
-            branch.split("heads/")[-1]
-            for branch in self.g.ls_remote(REMOTE_URL).split("\n")
-            if "heads/release" in branch
-        ]
         repo = git.Repo(os.getcwd(), search_parent_directories=True)
         current_commit = repo.head.commit
         self.tags_for_current_commit = [
@@ -405,13 +400,7 @@ class Repository:
         branch = sanitise_branch_name(branch)
         if is_release_branch(branch):
             LOG.debug(f"{branch} is release branch")
-
-            tags = self.get_tags_for_release_branch(
-                get_release_branch_from_branch_name(branch)
-            )
-            if tags and this_release_branch_only:
-                return tags[0]
-            elif not this_release_branch_only:
+            if not this_release_branch_only:
                 branch_major_version = get_major_version_from_release_branch_name(
                     branch
                 )
@@ -419,15 +408,20 @@ class Repository:
                     LOG.warning(f"No previous major version for {branch}")
                     return None
                 return self.get_latest_tag_for_major_version(branch_major_version - 1)
-            else:
-                LOG.warning(f"Release branch {branch} has no release yet")
-                return None
-        else:
-            LOG.debug(f"{branch} is development branch")
-            # For development branches (e.g. main), only consider non-final tags (e.g. -rc or -dev)
-            # that have not been superseded by a later final release when testing compatibility with
-            # same branch
-            return self.get_latest_tag(final_only=not this_release_branch_only)
+
+            tags = self.get_tags_for_release_branch(
+                get_release_branch_from_branch_name(branch)
+            )
+            if tags:
+                return tags[0]
+            LOG.warning(f"Release branch {branch} has no release yet")
+            return None
+
+        LOG.debug(f"{branch} is development branch")
+        # For development branches (e.g. main), only consider non-final tags (e.g. -rc or -dev)
+        # that have not been superseded by a later final release when testing compatibility with
+        # same branch
+        return self.get_latest_tag(final_only=not this_release_branch_only)
 
     def get_first_tag_for_next_release_branch(self, branch):
         """
