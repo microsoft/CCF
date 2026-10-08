@@ -107,9 +107,6 @@ namespace ccf
       /// this interface. std::nullopt means everything is accepted.
       std::optional<std::vector<std::string>> accepted_endpoints = std::nullopt;
 
-      /// Timeout for forwarded RPC calls (in milliseconds)
-      std::optional<size_t> forwarding_timeout_ms = std::nullopt;
-
       /// Features enabled for this interface. Any endpoint with required
       /// features will be inaccessible (on this interface) if this does not
       /// contain those features.
@@ -139,7 +136,6 @@ namespace ccf
           endorsement == other.endorsement &&
           http_configuration == other.http_configuration &&
           accepted_endpoints == other.accepted_endpoints &&
-          forwarding_timeout_ms == other.forwarding_timeout_ms &&
           enabled_operator_features == other.enabled_operator_features &&
           redirections == other.redirections;
       }
@@ -172,7 +168,6 @@ namespace ccf
     app_protocol,
     http_configuration,
     accepted_endpoints,
-    forwarding_timeout_ms,
     enabled_operator_features,
     redirections);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2);

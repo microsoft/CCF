@@ -106,7 +106,6 @@ def test_module_access(network, args):
     endpoint_def_camelcased = {
         "js_module": "jsModule",
         "js_function": "jsFunction",
-        "forwarding_required": "forwardingRequired",
         "redirection_strategy": "redirectionStrategy",
         "authn_policies": "authnPolicies",
         "openapi": "openApi",

@@ -211,13 +211,6 @@ namespace ccf
     // established
     std::optional<OutgoingMsg> outgoing_consensus_msg;
 
-    // Used to buffer a small number of messages sent on the channel before it
-    // is established. If this queue fills, then additional send attempts while
-    // the channel is still being established will not be buffered, and the
-    // caller should react appropriately.
-    static constexpr size_t outgoing_forwarding_queue_size = 10;
-    std::vector<OutgoingMsg> outgoing_forwarding_msgs;
-
     // Used to prevent replayed messages.
     // Set to the latest successfully received nonce.
     MsgNonce local_recv_nonce = {0};
@@ -796,14 +789,6 @@ namespace ccf
           outgoing_consensus_msg->raw_plain);
         outgoing_consensus_msg.reset();
       }
-
-      for (auto& outgoing_msg : outgoing_forwarding_msgs)
-      {
-        send_unsafe(
-          outgoing_msg.type, outgoing_msg.raw_aad, outgoing_msg.raw_plain);
-        CHANNEL_SEND_TRACE("Flushing previously queued forwarding message");
-      }
-      outgoing_forwarding_msgs.clear();
     }
 
     void initiate()
@@ -862,27 +847,6 @@ namespace ccf
             }
             outgoing_consensus_msg = OutgoingMsg(type, aad, plain);
             return true;
-          }
-
-          case (NodeMsgType::forwarded_msg):
-          {
-            if (
-              outgoing_forwarding_msgs.size() < outgoing_forwarding_queue_size)
-            {
-              outgoing_forwarding_msgs.emplace_back(type, aad, plain);
-              CHANNEL_SEND_TRACE(
-                "Queueing outgoing forwarding message - the is the {}/{} "
-                "buffered message",
-                outgoing_forwarding_msgs.size(),
-                outgoing_forwarding_queue_size);
-              return true;
-            }
-
-            CHANNEL_SEND_FAIL(
-              "Unable to queue outgoing forwarding message - already queued "
-              "maximum {} messages",
-              outgoing_forwarding_queue_size);
-            return false;
           }
 
           case (NodeMsgType::channel_msg):

@@ -18,7 +18,6 @@
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
-#include "node/test/channel_stub.h"
 #include "node_stub.h"
 
 #include <doctest/doctest.h>
@@ -78,7 +77,7 @@ public:
     };
     make_endpoint(
       "/empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
-      .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::ToPrimary)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::ToPrimary)
       .install();
 
     auto empty_function_no_auth = [](auto& ctx) {
@@ -89,7 +88,7 @@ public:
       HTTP_POST,
       empty_function_no_auth,
       no_auth_required)
-      .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::ToPrimary)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::ToPrimary)
       .install();
   }
 };
@@ -214,7 +213,7 @@ public:
     };
     endpoints
       .make_command_endpoint("/command", HTTP_POST, command, no_auth_required)
-      .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .install();
 
     auto read_only = [](auto& ctx) {
@@ -351,6 +350,8 @@ auto anonymous_caller_der = std::vector<uint8_t>();
 
 auto user_session =
   make_shared<ccf::SessionContext>(ccf::InvalidSessionId, user_caller_der);
+auto backup_user_session =
+  make_shared<ccf::SessionContext>(ccf::InvalidSessionId, user_caller_der);
 auto invalid_session =
   make_shared<ccf::SessionContext>(ccf::InvalidSessionId, invalid_caller_der);
 auto member_session =
@@ -452,41 +453,141 @@ void prepare_callers(NetworkState& network)
   CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 }
 
-TEST_CASE("Redirection policies infer legacy forwarding")
+TEST_CASE("External requests default to redirection")
 {
-  using namespace ccf::endpoints;
-  for (const auto strategy :
-       {RedirectionStrategy::None,
-        RedirectionStrategy::ToPrimary,
-        RedirectionStrategy::ToBackup})
+  NetworkState network;
+  prepare_callers(network);
+  BaseTestFrontend frontend(*network.tables);
+  auto config = std::make_shared<TestNodeConfiguration>(std::nullopt);
+  std::string primary_address = "primary.example.test:8000";
+  std::string backup_address = "backup.example.test:8000";
+  SUBCASE("Omitted redirections") {}
+  SUBCASE("Omitted individual resolvers")
   {
-    const auto expected = strategy == RedirectionStrategy::ToPrimary ?
-      ForwardingRequired::Always :
-      ForwardingRequired::Never;
-    Endpoint endpoint;
-    endpoint.set_redirection_strategy(strategy);
-    CHECK(endpoint.properties.redirection_strategy == strategy);
-    CHECK(endpoint.properties.forwarding_required == expected);
-
-    for (const auto legacy :
-         {ForwardingRequired::Never,
-          ForwardingRequired::Sometimes,
-          ForwardingRequired::Always})
-    {
-      Endpoint explicit_endpoint;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-      explicit_endpoint.set_forwarding_required(legacy);
-#pragma GCC diagnostic pop
-      explicit_endpoint.set_redirection_strategy(strategy);
-      CHECK(explicit_endpoint.properties.forwarding_required == legacy);
-      CHECK(explicit_endpoint.properties.redirection_strategy == strategy);
-
-      auto copied_endpoint = explicit_endpoint;
-      copied_endpoint.set_redirection_strategy(RedirectionStrategy::None);
-      CHECK(copied_endpoint.properties.forwarding_required == legacy);
-    }
+    config = std::make_shared<TestNodeConfiguration>(
+      nlohmann::json::object()
+        .get<NodeInfoNetwork_v2::NetInterface::Redirections>());
   }
+  SUBCASE("Explicit resolver overrides")
+  {
+    NodeInfoNetwork_v2::NetInterface::Redirections redirections;
+    redirections.to_primary = {
+      RedirectionResolutionKind::StaticAddress,
+      {{"address", "primary.override.test:9000"}}};
+    redirections.to_backup = {
+      RedirectionResolutionKind::StaticAddress,
+      {{"address", "backup.override.test:9000"}}};
+    config = std::make_shared<TestNodeConfiguration>(redirections);
+    primary_address = "primary.override.test:9000";
+    backup_address = "backup.override.test:9000";
+  }
+  frontend.context.install_subsystem(config);
+
+  size_t executions = 0;
+  const auto handler = [&executions](auto& ctx) {
+    ++executions;
+    ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+  };
+  frontend.make_endpoint("/write", HTTP_POST, handler).install();
+  frontend.registry
+    .make_read_only_endpoint("/read", HTTP_GET, handler, no_auth_required)
+    .install();
+  frontend.registry
+    .make_read_only_endpoint("/backup", HTTP_GET, handler, no_auth_required)
+    .set_redirection_strategy(endpoints::RedirectionStrategy::ToBackup)
+    .install();
+  frontend.open();
+
+  {
+    auto tx = network.tables->create_tx();
+    auto nodes = tx.rw(network.nodes);
+    NodeInfo primary_info;
+    primary_info.status = NodeStatus::TRUSTED;
+    primary_info.encryption_pub_key = kp->public_key_pem();
+    primary_info.rpc_interfaces["test_interface"].published_address =
+      "primary.example.test:8000";
+    nodes->put(ccf::kv::test::PrimaryNodeId, primary_info);
+    NodeInfo backup_info = primary_info;
+    backup_info.rpc_interfaces["test_interface"].published_address =
+      "backup.example.test:8000";
+    nodes->put(ccf::kv::test::FirstBackupNodeId, backup_info);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  network.tables->set_consensus(consensus);
+  publish_frontend_state(frontend, network);
+  for (const auto version : {HttpVersion::HTTP1, HttpVersion::HTTP2})
+  {
+    INFO((version == HttpVersion::HTTP1 ? "HTTP1" : "HTTP2"));
+    auto session = std::make_shared<SessionContext>(
+      InvalidSessionId, anonymous_caller_der, "test_interface");
+    const auto call = [&](const std::string& path, llhttp_method verb) {
+      auto ctx = std::make_shared<::http::HttpRpcContext>(
+        session,
+        version,
+        verb,
+        "/app" + path,
+        ccf::http::HeaderMap{},
+        std::vector<uint8_t>{});
+      ::http::extract_actor(*ctx);
+      frontend.process(ctx);
+      return parse_response(ctx->serialise_response());
+    };
+
+    consensus->state = ccf::kv::test::StubConsensus::Backup;
+    auto response = call("/write?key=a%26b", HTTP_POST);
+    INFO(std::string(response.body.begin(), response.body.end()));
+    REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
+    CHECK(
+      response.headers.at(ccf::http::headers::LOCATION) ==
+      "https://" + primary_address + "/app/write?key=a%26b");
+    CHECK(executions == 0);
+    CHECK(call("/read", HTTP_GET).status == HTTP_STATUS_OK);
+    CHECK(call("/backup", HTTP_GET).status == HTTP_STATUS_OK);
+    CHECK(executions == 2);
+
+    consensus->state = ccf::kv::test::StubConsensus::Primary;
+    CHECK(call("/write", HTTP_POST).status == HTTP_STATUS_OK);
+    response = call("/backup", HTTP_GET);
+    REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
+    CHECK(
+      response.headers.at(ccf::http::headers::LOCATION) ==
+      "https://" + backup_address + "/app/backup");
+    CHECK(executions == 3);
+    executions = 0;
+  }
+}
+
+TEST_CASE("Redirection resolver JSON defaults")
+{
+  using Redirections = NodeInfoNetwork_v2::NetInterface::Redirections;
+  const RedirectionResolverConfig primary_default{};
+  const RedirectionResolverConfig backup_default{
+    RedirectionResolutionKind::NodeByRole, {{"role", "backup"}}};
+  const RedirectionResolverConfig static_override{
+    RedirectionResolutionKind::StaticAddress, {{"address", "override.test"}}};
+
+  auto config = nlohmann::json::object();
+  auto expected_primary = primary_default;
+  auto expected_backup = backup_default;
+  SUBCASE("Empty configuration") {}
+  SUBCASE("Only primary resolver configured")
+  {
+    config["to_primary"] = static_override;
+    expected_primary = static_override;
+  }
+  SUBCASE("Only backup resolver configured")
+  {
+    config["to_backup"] = static_override;
+    expected_backup = static_override;
+  }
+
+  const auto redirections = config.get<Redirections>();
+  CHECK(redirections.to_primary == expected_primary);
+  CHECK(redirections.to_backup == expected_backup);
+  const nlohmann::json serialised = redirections;
+  CHECK(serialised.get<Redirections>() == redirections);
 }
 
 TEST_CASE("Frontend opens atomically")
@@ -617,109 +718,7 @@ TEST_CASE("Redirect resolution handles unpublished consensus")
 
   frontend.process(rpc_ctx);
 
-  REQUIRE(!rpc_ctx->response_is_pending);
   REQUIRE(rpc_ctx->get_response_status() == HTTP_STATUS_SERVICE_UNAVAILABLE);
-}
-
-TEST_CASE("Explicit redirections use default resolvers and overrides")
-{
-  NetworkState network;
-  prepare_callers(network);
-  BaseTestFrontend frontend(*network.tables);
-  auto config = std::make_shared<TestNodeConfiguration>(
-    nlohmann::json::object()
-      .get<NodeInfoNetwork_v2::NetInterface::Redirections>());
-  std::string primary_address = "primary.example.test:8000";
-  std::string backup_address = "backup.example.test:8000";
-  SUBCASE("Explicit resolver overrides")
-  {
-    NodeInfoNetwork_v2::NetInterface::Redirections redirections;
-    redirections.to_primary = {
-      RedirectionResolutionKind::StaticAddress,
-      {{"address", "primary.override.test:9000"}}};
-    redirections.to_backup = {
-      RedirectionResolutionKind::StaticAddress,
-      {{"address", "backup.override.test:9000"}}};
-    config = std::make_shared<TestNodeConfiguration>(redirections);
-    primary_address = "primary.override.test:9000";
-    backup_address = "backup.override.test:9000";
-  }
-  frontend.context.install_subsystem(config);
-
-  size_t executions = 0;
-  const auto handler = [&executions](auto& ctx) {
-    ++executions;
-    ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-  };
-  frontend.make_endpoint("/write", HTTP_POST, handler).install();
-  frontend.registry
-    .make_read_only_endpoint("/read", HTTP_GET, handler, no_auth_required)
-    .install();
-  frontend.registry
-    .make_read_only_endpoint("/backup", HTTP_GET, handler, no_auth_required)
-    .set_redirection_strategy(endpoints::RedirectionStrategy::ToBackup)
-    .install();
-  frontend.open();
-
-  {
-    auto tx = network.tables->create_tx();
-    auto nodes = tx.rw(network.nodes);
-    NodeInfo primary_info;
-    primary_info.status = NodeStatus::TRUSTED;
-    primary_info.encryption_pub_key = kp->public_key_pem();
-    primary_info.rpc_interfaces["test_interface"].published_address =
-      "primary.example.test:8000";
-    nodes->put(ccf::kv::test::PrimaryNodeId, primary_info);
-    NodeInfo backup_info = primary_info;
-    backup_info.rpc_interfaces["test_interface"].published_address =
-      "backup.example.test:8000";
-    nodes->put(ccf::kv::test::FirstBackupNodeId, backup_info);
-    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-  }
-
-  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
-  network.tables->set_consensus(consensus);
-  publish_frontend_state(frontend, network);
-  for (const auto version : {HttpVersion::HTTP1, HttpVersion::HTTP2})
-  {
-    INFO((version == HttpVersion::HTTP1 ? "HTTP1" : "HTTP2"));
-    auto session = std::make_shared<SessionContext>(
-      InvalidSessionId, anonymous_caller_der, "test_interface");
-    const auto call = [&](const std::string& path, llhttp_method verb) {
-      auto ctx = std::make_shared<::http::HttpRpcContext>(
-        session,
-        version,
-        verb,
-        "/app" + path,
-        ccf::http::HeaderMap{},
-        std::vector<uint8_t>{});
-      ::http::extract_actor(*ctx);
-      frontend.process(ctx);
-      return parse_response(ctx->serialise_response());
-    };
-
-    consensus->state = ccf::kv::test::StubConsensus::Backup;
-    auto response = call("/write?key=a%26b", HTTP_POST);
-    INFO(std::string(response.body.begin(), response.body.end()));
-    REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
-    CHECK(
-      response.headers.at(ccf::http::headers::LOCATION) ==
-      "https://" + primary_address + "/app/write?key=a%26b");
-    CHECK(executions == 0);
-    CHECK(call("/read", HTTP_GET).status == HTTP_STATUS_OK);
-    CHECK(call("/backup", HTTP_GET).status == HTTP_STATUS_OK);
-    CHECK(executions == 2);
-
-    consensus->state = ccf::kv::test::StubConsensus::Primary;
-    CHECK(call("/write", HTTP_POST).status == HTTP_STATUS_OK);
-    response = call("/backup", HTTP_GET);
-    REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
-    CHECK(
-      response.headers.at(ccf::http::headers::LOCATION) ==
-      "https://" + backup_address + "/app/backup");
-    CHECK(executions == 3);
-    executions = 0;
-  }
 }
 
 TEST_CASE("Endpoints with disabled operator features look like unknown paths")
@@ -817,7 +816,6 @@ TEST_CASE("Backpressure sheds reads and writes but exempts node endpoints")
         auto ctx =
           ccf::make_rpc_context(anonymous_session, request.build_request());
         frontend.process(ctx);
-        REQUIRE_FALSE(ctx->response_is_pending);
         const auto response = parse_response(ctx->serialise_response());
         if (overloaded && !exempt)
         {
@@ -1431,66 +1429,6 @@ TEST_CASE("Decoded Templated paths")
 
     CHECK(expected_mapping == actual_mapping);
   }
-}
-
-TEST_CASE("Forwarding timeout" * doctest::test_suite("forwarding"))
-{
-  struct RecordingResponder : public ccf::AbstractRPCResponder
-  {
-    int64_t session_id = ccf::InvalidSessionId;
-    bool terminate_session = true;
-    std::vector<uint8_t> response;
-
-    bool reply_async(
-      int64_t id,
-      bool terminate_after_reply,
-      std::vector<uint8_t>&& data) override
-    {
-      session_id = id;
-      terminate_session = terminate_after_reply;
-      response = std::move(data);
-      return true;
-    }
-  };
-
-  auto responder = std::make_shared<RecordingResponder>();
-  auto channel = std::make_shared<ChannelStubProxy>();
-  Forwarder<ChannelStubProxy> forwarder(responder, channel, {});
-  constexpr size_t session_id = 42;
-  const NodeId primary_id{"primary"};
-  const std::chrono::milliseconds timeout(50);
-  auto session =
-    std::make_shared<ccf::SessionContext>(session_id, std::vector<uint8_t>{});
-  session->active_view = 1;
-  auto ctx =
-    ccf::make_rpc_context(session, create_simple_request().build_request());
-
-  REQUIRE(forwarder.forward_command(ctx, primary_id, {}, timeout));
-  REQUIRE(channel->size() == 1);
-  CHECK(responder->response.empty());
-
-  ccf::tasks::tick(timeout - std::chrono::milliseconds(1));
-  CHECK(ccf::tasks::get_main_job_board().get_task() == nullptr);
-  CHECK(responder->response.empty());
-
-  ccf::tasks::tick(std::chrono::milliseconds(1));
-  auto task = ccf::tasks::get_main_job_board().get_task();
-  REQUIRE(task != nullptr);
-  task->do_task();
-
-  CHECK(responder->session_id == session_id);
-  CHECK_FALSE(responder->terminate_session);
-  const auto response = parse_response(responder->response);
-  CHECK(response.status == HTTP_STATUS_GATEWAY_TIMEOUT);
-  REQUIRE(
-    response.headers.at(ccf::http::headers::CONTENT_TYPE) ==
-    ccf::http::headervalues::contenttype::JSON);
-  const auto body = nlohmann::json::parse(response.body);
-  CHECK(body["error"]["code"] == "ForwardingTimeout");
-  CHECK(
-    body["error"]["message"] ==
-    "Request was forwarded to node n[primary], but no response was received "
-    "after 50ms");
 }
 
 class TestConflictFrontend : public BaseTestFrontend

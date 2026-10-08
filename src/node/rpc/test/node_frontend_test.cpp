@@ -48,7 +48,6 @@ TResponse frontend_process(
   auto rpc_ctx = ccf::make_rpc_context(session, serialise_request);
   frontend.process(rpc_ctx);
 
-  CHECK(!rpc_ctx->response_is_pending);
   const auto serialised_response = rpc_ctx->serialise_response();
 
   ::http::SimpleResponseProcessor processor;

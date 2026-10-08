@@ -610,8 +610,6 @@ namespace ccf::gov::endpoints
                 {
                   operation["jsModule"] = properties.js_module;
                   operation["jsFunction"] = properties.js_function;
-                  operation["forwardingRequired"] =
-                    properties.forwarding_required;
                   operation["redirectionStrategy"] =
                     properties.redirection_strategy;
 

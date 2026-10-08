@@ -892,7 +892,6 @@ TEST_CASE_FIXTURE(TransportsFixture, "Full NodeToNode test")
                   m.from, {hdr.data(), hdr.size()}, data, size));
                 break;
               }
-              case NodeMsgType::forwarded_msg:
               default:
                 REQUIRE(false);
             }
@@ -1084,12 +1083,13 @@ TEST_CASE_FIXTURE(TransportsFixture, "Stuttering handshake")
 
   INFO("Send an initial request, starting a handshake");
   REQUIRE(channels1.send_encrypted(
-    nid2, NodeMsgType::forwarded_msg, {aad.begin(), aad.size()}, msg_body));
+    nid2, NodeMsgType::consensus_msg, {aad.begin(), aad.size()}, msg_body));
 
   INFO("Send a second request, triggering a second handshake");
   sleep_to_reinitiate();
+  msg_body.back() = 0x43;
   REQUIRE(channels1.send_encrypted(
-    nid2, NodeMsgType::forwarded_msg, {aad.begin(), aad.size()}, msg_body));
+    nid2, NodeMsgType::consensus_msg, {aad.begin(), aad.size()}, msg_body));
 
   INFO("Receive first init message");
   auto q = read_outbound_msgs<MsgType>(host1);
@@ -1114,15 +1114,15 @@ TEST_CASE_FIXTURE(TransportsFixture, "Stuttering handshake")
 
   INFO("Receive final");
   q = read_outbound_msgs<MsgType>(host1);
-  REQUIRE(q.size() == 3);
+  REQUIRE(q.size() == 2);
 
   const auto fin = q[0];
   REQUIRE(fin.type == NodeMsgType::channel_msg);
   REQUIRE(channels2.recv_channel_message(fin.from, fin.data()));
 
-  INFO("Decrypt original message");
+  INFO("Decrypt the most recently buffered message");
   const auto received = q[1];
-  REQUIRE(received.type == NodeMsgType::forwarded_msg);
+  REQUIRE(received.type == NodeMsgType::consensus_msg);
   const auto decrypted = channels2.recv_encrypted(
     received.from,
     {received.authenticated_hdr.data(), received.authenticated_hdr.size()},
@@ -1488,11 +1488,18 @@ TEST_CASE_FIXTURE(TransportsFixture, "Key rotation")
 
           case consensus_msg:
           {
-            break;
-          }
+            if (msg.authenticated_hdr != aad)
+            {
+              const uint8_t* data = msg.payload.data();
+              auto remaining = msg.payload.size();
+              channels.recv_authenticated(
+                msg.from,
+                {msg.authenticated_hdr.data(), msg.authenticated_hdr.size()},
+                data,
+                remaining);
+              break;
+            }
 
-          case forwarded_msg:
-          {
             try
             {
               auto decrypted = channels.recv_encrypted(
@@ -1522,7 +1529,7 @@ TEST_CASE_FIXTURE(TransportsFixture, "Key rotation")
       }
 
       // Send some messages from start of your work queue
-      while (!send_queue.empty())
+      while (!send_queue.empty() && channels.channel_open(peer_node_id))
       {
         // Sometimes randomly give up on sending any more
         if (!wrap_it_up && rand() % 3 == 0)
@@ -1532,7 +1539,7 @@ TEST_CASE_FIXTURE(TransportsFixture, "Key rotation")
 
         if (channels.send_encrypted(
               peer_node_id,
-              NodeMsgType::forwarded_msg,
+              NodeMsgType::consensus_msg,
               {aad.begin(), aad.size()},
               send_queue.front()))
         {
@@ -1544,13 +1551,12 @@ TEST_CASE_FIXTURE(TransportsFixture, "Key rotation")
         }
       }
 
-      if (wrap_it_up || rand() % 5 == 0)
+      if (!channels.channel_open(peer_node_id) || wrap_it_up || rand() % 5 == 0)
       {
-        // Occasionally send a dummy consensus msg to flush the pipes.
-        // Forwarded messages may be queued until something else comes along
-        // to push them, which in a real system is periodic consensus traffic
-        std::vector<uint8_t> dummy_consensus_msg;
-        dummy_consensus_msg.push_back(0x12);
+        // Consensus traffic drives channel establishment while payloads wait
+        // in the test's send queue.
+        MsgType dummy_consensus_msg;
+        dummy_consensus_msg.fill(0x12);
         channels.send_authenticated(
           peer_node_id,
           ccf::NodeMsgType::consensus_msg,
@@ -1777,7 +1783,6 @@ TEST_CASE_FIXTURE(TransportsFixture, "Timeout idle channels")
             m.from, {hdr.data(), hdr.size()}, data, size));
           break;
         }
-        case NodeMsgType::forwarded_msg:
         default:
         {
           REQUIRE(false);
@@ -1805,7 +1810,6 @@ TEST_CASE_FIXTURE(TransportsFixture, "Timeout idle channels")
               break;
             }
             case NodeMsgType::consensus_msg:
-            case NodeMsgType::forwarded_msg:
             default:
             {
               REQUIRE(false);

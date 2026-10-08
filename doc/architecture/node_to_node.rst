@@ -1,10 +1,9 @@
 Node-to-Node Channels
 =====================
 
-CCF nodes communicate over channels which terminate in each node’s enclave. Channels are used for two purposes:
+CCF nodes communicate over channels which terminate in each node's enclave. Channels are used for consensus:
 
 - Sending integrity-protected consensus headers for ledger replication from the primary to backup nodes, or from a candidate node to other replicas during an election.
-- Forwarding encrypted client requests from backups to the primary node for execution.
 
 .. note:: CCF does not use TLS for node-to-node channels for efficiency reasons:
 
@@ -55,9 +54,6 @@ The following diagram shows how this key-exchange protocol executes when a new n
 
         Primary->>+Backup: Consensus headers message (e.g. replication) <br> (integrity protected with channel key)
         Backup->>+Primary: Consensus headers response
-
-        Backup->>+Primary: Forwarded client HTTP request <br> (encrypted with channel key)
-        Primary->>+Backup: Forwarded client HTTP response
 
 This diagram shows the state machine for a channel on each node, with the messages that trigger each transition.
 
@@ -230,4 +226,4 @@ To be robust to this, I think we need to reason about what a node should do in r
 
 This does not yet deal with key rotation, and I believe we need an establishment-attempt nonce to prevent replay attacks that could re-establish an old, overused key. While the summary above says we start a fresh key-exchange protocol, the actual implementation attempts to do this in parallel with encrypted messages over an existing channel. If we build a protocol which can reliably deal with legitimate reconnection attempts, it would be preferable to re-use that for key rotation - deliberately close an existing connection and start fresh with a new channel - rather than building an additional rotation protocol.
 
-An open question here is whether we need to handle channel closures and re-opening. If we do not, then we can consider all dropped messages here as malicious DoS, but perhaps simplify the protections. One option is to avoid ever closing a channel - if a node has opened a channel to another node, it remains communicating with them forever. Another is to determine a point after which a channel can be safely closed - if the channel is used only for consensus and not forwarding, it may be safe to close after a node's retirement.
+An open question here is whether we need to handle channel closures and re-opening. If we do not, then we can consider all dropped messages here as malicious DoS, but perhaps simplify the protections. One option is to avoid ever closing a channel - if a node has opened a channel to another node, it remains communicating with them forever. Another is to determine a point after which a channel can be safely closed - for consensus channels, it may be safe to close after a node's retirement.

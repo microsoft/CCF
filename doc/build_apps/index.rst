@@ -115,7 +115,7 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     :fa:`mail-forward ` :doc:`fwd_to_redirect`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Migrate from forwarding (deprecated) to redirect (recommended) endpoints.
+    Migrate from forwarding (removed in CCF 8.0) to redirect endpoints.
 
 
 .. toctree::

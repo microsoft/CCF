@@ -119,14 +119,9 @@
                 },
                 "description": "An array of regular expressions that specify which URL paths are served on the interface. Optional; if not present, all paths are served"
               },
-              "forwarding_timeout_ms": {
-                "type": "integer",
-                "default": 3000,
-                "description": "Timeout for forwarded RPC calls (in milliseconds)"
-              },
               "redirections": {
                 "type": "object",
-                "description": "Configure how redirect responses should be produced on this interface. If this is omitted, then forwarding will be used instead",
+                "description": "Configure how redirect responses should be produced on this interface. If this is omitted, requests are redirected by node role, using the corresponding interface on the target node",
                 "properties": {
                   "to_primary": {
                     "$ref": "#/$defs/RedirectionResolver",

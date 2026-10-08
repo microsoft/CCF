@@ -110,8 +110,6 @@ namespace ccf
     ERROR(TransactionInvalid)
     ERROR(PrimaryNotFound)
     ERROR(BackupNotFound)
-    ERROR(RequestAlreadyForwarded)
-    ERROR(ForwardingTimeout)
     ERROR(NodeNotRetiredCommitted)
     ERROR(SessionConsistencyLost)
     ERROR(ExecutorDispatchFailed)

@@ -55,7 +55,7 @@ Architecture
     :fa:`paper-plane` :doc:`node_to_node`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Node to node channel protocol used for consensus and forwarding.
+    Node to node channel protocol used for consensus.
 
     ---
 
