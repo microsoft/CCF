@@ -149,6 +149,21 @@ namespace asynchost
       }
     }
 
+    size_t checked_tell()
+    {
+      const auto offset = ftello(file);
+      if (offset < 0)
+      {
+        const auto tell_errno = errno;
+        throw std::logic_error(fmt::format(
+          "Failed to get current offset in ledger file {}: {} (errno {})",
+          dir / file_name,
+          ccf::nonstd::strerror(tell_errno),
+          tell_errno));
+      }
+      return static_cast<size_t>(offset);
+    }
+
     int close()
     {
       if (file == nullptr)
@@ -246,7 +261,7 @@ namespace asynchost
 
       // First, get full size of file
       checked_seek(0, SEEK_END);
-      size_t total_file_size = ftello(file);
+      const size_t total_file_size = checked_tell();
 
       // Second, read offset to header table
       checked_seek(0, SEEK_SET);
@@ -283,7 +298,6 @@ namespace asynchost
       {
         // If the chunk was completed, read positions table from file directly
         total_len = table_offset;
-        checked_seek(table_offset, SEEK_SET);
 
         if (table_offset > total_file_size)
         {
@@ -292,6 +306,8 @@ namespace asynchost
             table_offset,
             total_file_size));
         }
+
+        checked_seek(table_offset, SEEK_SET);
 
         positions.resize(
           (total_file_size - table_offset) / sizeof(positions.at(0)));
@@ -667,7 +683,7 @@ namespace asynchost
       }
 
       checked_seek(total_len, SEEK_SET);
-      size_t table_offset = ftello(file);
+      const size_t table_offset = checked_tell();
 
       {
         ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
