@@ -15,7 +15,6 @@ import threading
 import time
 import urllib.parse
 from collections import defaultdict
-from datetime import datetime, timezone
 from hashlib import sha256
 from http.client import HTTPResponse
 from types import MappingProxyType
@@ -26,7 +25,6 @@ import ccf.receipt
 import e2e_common_endpoints
 import infra.checker
 import infra.clients
-import infra.concurrency
 import infra.crypto
 import infra.e2e_args
 import infra.jwt_issuer
@@ -2478,47 +2476,29 @@ def test_cose_config(network, args):
 
 
 def test_blocking_calls(network, args):
-    primary, _ = network.find_nodes()
-
-    class CommitPoller(infra.concurrency.StoppableThread):
-        def __init__(self, node):
-            super().__init__(name="commit poller")
-            self.node = node
-            self.known_commit_times = []
-
-        def run(self):
-            with self.node.client() as c:
-                prev_txid = None
-                while not self.is_stopped():
-                    r = c.get("/node/commit", log_capture=[])
-                    assert r.status_code == http.HTTPStatus.OK, r.status_code
-                    txid = TxID.from_str(r.body.json()["transaction_id"])
-                    if txid != prev_txid:
-                        self.known_commit_times.append(
-                            (datetime.now(timezone.utc), txid)
-                        )
-                        prev_txid = txid
-
-    cp = CommitPoller(primary)
-    cp.start()
-
-    response_times = []
+    primary, view = network.find_primary()
 
     paths = [
-        "/log/private",
-        "/log/blocking/private",
-        "/log/blocking/private/receipt",
-        "/log/private/optional_commit",
-        "/log/private/optional_commit?wait_for_commit=true",
+        ("/log/private", False),
+        ("/log/blocking/private", True),
+        ("/log/blocking/private/receipt", True),
+        ("/log/private/optional_commit", False),
+        ("/log/private/optional_commit?wait_for_commit=true", True),
     ]
     n_requests = 5
     request_order = paths * n_requests
     random.shuffle(request_order)
 
+    target_seqno = 0
     with primary.client("user0") as c:
-        for path in request_order:
+        for path, should_be_committed in request_order:
             r = c.post(path, {"id": 42, "msg": "Hello world"})
             assert r.status_code == http.HTTPStatus.OK, r.status_code
+            txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
+            assert (
+                txid.valid() and txid.view == view
+            ), f"Expected response in view {view}, got {txid}"
+            target_seqno = max(target_seqno, txid.seqno)
 
             if path == "/log/blocking/private/receipt":
                 # Response is a binary COSE receipt
@@ -2530,59 +2510,35 @@ def test_blocking_calls(network, args):
                     network.cert.public_key(),
                     b"\0" * 32,
                 )
+            else:
+                assert r.body.json() is True, r.body.json()
 
-            now = datetime.now(timezone.utc)
-            txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
-            response_times.append((now, path, txid))
+            if should_be_committed:
+                status = c.get(f"/node/tx?transaction_id={txid}")
+                assert status.status_code == http.HTTPStatus.OK, status.status_code
+                assert (
+                    TxStatus(status.body.json()["status"]) == TxStatus.Committed
+                ), f"Blocking response {txid} is not committed: {status.body.json()}"
 
-        c.wait_for_commit(r)
-
-    cp.stop()
-    cp.join()
-
-    commit_deltas = {p: [] for p in paths}
-
-    for response_time, path, txid in response_times:
-        for commit_time, commit_txid in cp.known_commit_times:
-            assert commit_txid.view == txid.view
-            if commit_txid.seqno >= txid.seqno:
-                delta = (commit_time - response_time).total_seconds()
-                commit_deltas[path].append(delta)
+        commit_txid = None
+        deadline = time.monotonic() + infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC
+        while (remaining := deadline - time.monotonic()) > 0:
+            r = c.get("/node/commit", timeout=remaining)
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            transaction_id = r.body.json()["transaction_id"]
+            commit_txid = TxID.from_str(transaction_id)
+            assert commit_txid.valid(), f"Invalid commit ID: {transaction_id!r}"
+            assert (
+                commit_txid.view == view
+            ), f"Expected commit in view {view}, got {commit_txid}"
+            if commit_txid.seqno >= target_seqno:
                 break
+            time.sleep(0.1)
         else:
-            raise AssertionError(f"No commit found for {txid}")
-
-    mean_commit_deltas = {p: sum(ds) / len(ds) for p, ds in commit_deltas.items()}
-    LOG.info(f"Mean commit deltas: {mean_commit_deltas}")
-
-    # Over a large-enough sample size, we'd expect:
-    # - blocking means (both /blocking/private and /blocking/private/receipt)
-    #   to approach 0. We get a response and see commit advance at exactly
-    #   the same time, because the response is held until global commit.
-    # - non-blocking mean (/private) to approach the signature interval.
-    #   We get responses eagerly, and they're committed later at regular
-    #   signature intervals.
-    # - the receipt endpoint to behave similarly to the plain blocking
-    #   endpoint, since the receipt is constructed inline at commit time
-    #   with negligible overhead.
-    #
-    # Our actual test has far more variation (small sample, timing noise),
-    # so we can only make much broader claims - each blocking mean is
-    # smaller than the non-blocking mean.
-    assert (
-        mean_commit_deltas["/log/blocking/private"] < mean_commit_deltas["/log/private"]
-    )
-    assert (
-        mean_commit_deltas["/log/blocking/private/receipt"]
-        < mean_commit_deltas["/log/private"]
-    )
-    # The optional_commit endpoint with wait_for_commit=true should behave
-    # like the blocking endpoints, while without the parameter it should
-    # behave like the non-blocking endpoint.
-    assert (
-        mean_commit_deltas["/log/private/optional_commit?wait_for_commit=true"]
-        < mean_commit_deltas["/log/private/optional_commit"]
-    )
+            raise TimeoutError(
+                f"Did not observe commit of {view}.{target_seqno} before timing out: "
+                f"last sample={commit_txid}"
+            )
 
     return network
 
