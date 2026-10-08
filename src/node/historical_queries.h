@@ -191,6 +191,33 @@ namespace ccf::historical
     using WeakStoreDetailsPtr = std::weak_ptr<StoreDetails>;
     using AllRequestedStores = std::map<ccf::SeqNo, WeakStoreDetailsPtr>;
 
+    // Bookkeeping which lets tick visit only the stores which need work,
+    // rather than every entry in all_stores. StatePtr owns payloads rather
+    // than StoreDetails, so wrappers are only created and released under
+    // requests_lock, by the cache itself.
+    struct StoreMaintenance
+    {
+      // Weak, seqno-ordered (for range coalescing) view of the stores still
+      // being fetched. Populated whenever a StoreDetails is created, and
+      // trimmed when it becomes trusted, is forgotten, or has expired.
+      AllRequestedStores pending_fetches;
+
+      // Seqnos whose strong owner may have been released since the last tick.
+      // That tick forgets any of these slots which have expired by then, after
+      // temporaries held by the releasing call have been destroyed.
+      std::set<ccf::SeqNo> released_seqnos;
+
+      void track(ccf::SeqNo seqno, const StoreDetailsPtr& details)
+      {
+        pending_fetches.insert_or_assign(seqno, details);
+      }
+
+      void release(ccf::SeqNo seqno)
+      {
+        released_seqnos.insert(seqno);
+      }
+    };
+
     struct VersionedSecret
     {
       ccf::SeqNo valid_from = {};
@@ -207,10 +234,13 @@ namespace ccf::historical
 
     VersionedSecret earliest_secret_;
     StoreDetailsPtr next_secret_fetch_handle = nullptr;
+    // Seqno of next_secret_fetch_handle, so its slot can be released
+    ccf::SeqNo next_secret_fetch_seqno = 0;
 
     struct Request
     {
       AllRequestedStores& all_stores;
+      StoreMaintenance& maintenance;
 
       RequestedStores my_stores;
       std::chrono::milliseconds expiry_at{};
@@ -225,7 +255,10 @@ namespace ccf::historical
       // Only set when recovering ledger secrets
       std::optional<ccf::SeqNo> awaiting_ledger_secrets = std::nullopt;
 
-      Request(AllRequestedStores& all_stores_) : all_stores(all_stores_) {}
+      Request(AllRequestedStores& all_stores_, StoreMaintenance& maintenance_) :
+        all_stores(all_stores_),
+        maintenance(maintenance_)
+      {}
 
       [[nodiscard]] StoreDetailsPtr get_store_details(ccf::SeqNo seqno) const
       {
@@ -316,6 +349,7 @@ namespace ccf::historical
                   HISTORICAL_LOG("{} is newly requested", *new_it);
                   details = std::make_shared<StoreDetails>();
                   all_stores.insert_or_assign(all_it, *new_it, details);
+                  maintenance.track(*new_it, details);
                 }
                 added.push_back(*new_it);
                 prev_it = my_stores.insert_or_assign(prev_it, *new_it, details);
@@ -363,6 +397,10 @@ namespace ccf::historical
 
         HISTORICAL_LOG(
           "Clearing {} supporting signatures", supporting_signatures.size());
+        for (const auto& [seqno, _] : supporting_signatures)
+        {
+          maintenance.release(seqno);
+        }
         supporting_signatures.clear();
         if (should_include_receipts)
         {
@@ -428,7 +466,10 @@ namespace ccf::historical
             // the code much simpler.
 
             HISTORICAL_LOG("{} is not a signature", new_seqno);
-            supporting_signatures.erase(new_seqno);
+            if (supporting_signatures.erase(new_seqno) > 0)
+            {
+              maintenance.release(new_seqno);
+            }
 
             if (new_details->receipt != nullptr)
             {
@@ -464,6 +505,7 @@ namespace ccf::historical
                 }
 
                 all_stores.insert_or_assign(all_it, next_seqno, details);
+                maintenance.track(next_seqno, details);
               }
 
               if (details->store == nullptr)
@@ -475,7 +517,12 @@ namespace ccf::historical
                   "Assigning {} as potential signature for {}",
                   next_seqno,
                   new_seqno);
-                supporting_signatures[next_seqno] = details;
+                auto& supporting = supporting_signatures[next_seqno];
+                if (supporting != nullptr && supporting != details)
+                {
+                  maintenance.release(next_seqno);
+                }
+                supporting = details;
                 return added;
               }
 
@@ -622,21 +669,29 @@ namespace ccf::historical
     std::map<CompoundHandle, Request> requests;
 
     std::chrono::milliseconds cache_time{};
-    // Renewal/removal can leave an early hint, but never a late one.
-    std::optional<std::chrono::milliseconds> next_expiry = std::nullopt;
+
+    // Requests ordered by deadline, so that tick visits only those which are
+    // due. Request::expiry_at is the source of truth, and is used to erase the
+    // exact entry on renewal or removal.
+    std::set<std::pair<std::chrono::milliseconds, CompoundHandle>> expiry_order;
 
     // A map containing (weak pointers to) _all_ of the stores for active
     // requests, allowing distinct requests for the same seqnos to share the
     // same underlying state (and benefit from faster lookup)
     AllRequestedStores all_stores;
+    StoreMaintenance maintenance;
 
-    // StatePtr owns payloads, not StoreDetails, so entries in all_stores can
-    // only be created or orphaned under requests_lock. Set when a request is
-    // created, renewed or erased. A sweep which finds a pending fetch re-arms
-    // itself, so handling a fetched entry (which requires a live pending
-    // fetch) and dropping requests for a missing entry (via lru_evict) are
-    // already covered.
-    bool store_sweep_required = true;
+    // Work done by the most recent tick, for tests and diagnostics. Each
+    // counter is bounded by the corresponding pending work, never by the
+    // number of retained requests or stores.
+    struct TickWork
+    {
+      size_t requests_expired = 0;
+      size_t requests_evicted = 0;
+      size_t released_seqnos_checked = 0;
+      size_t pending_fetches_visited = 0;
+    };
+    TickWork last_tick_work;
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
@@ -753,12 +808,11 @@ namespace ccf::historical
           threshold,
           handle);
 
-        remove_request_refs(handle);
-        lru_lookup.erase(handle);
-
-        store_sweep_required = true;
-        requests.erase(handle);
-        lru_requests.pop_back();
+        if (!erase_request(handle))
+        {
+          throw std::logic_error(
+            fmt::format("LRU entry {} has no matching request", handle));
+        }
       }
     }
 
@@ -767,10 +821,57 @@ namespace ccf::historical
       auto it = lru_lookup.find(handle);
       if (it != lru_lookup.end())
       {
-        store_sweep_required = true;
         remove_request_refs(handle);
         lru_requests.erase(it->second);
         lru_lookup.erase(it);
+      }
+    }
+
+    // Removes a request and all of its bookkeeping. Any store it was the last
+    // owner of is forgotten by the next tick.
+    std::map<CompoundHandle, Request>::iterator erase_request(
+      std::map<CompoundHandle, Request>::iterator it)
+    {
+      const auto& [handle, request] = *it;
+      for (const auto& [seqno, _] : request.my_stores)
+      {
+        maintenance.release(seqno);
+      }
+      for (const auto& [seqno, _] : request.supporting_signatures)
+      {
+        maintenance.release(seqno);
+      }
+      expiry_order.erase({request.expiry_at, handle});
+      lru_evict(handle);
+      return requests.erase(it);
+    }
+
+    bool erase_request(const CompoundHandle& handle)
+    {
+      auto it = requests.find(handle);
+      if (it == requests.end())
+      {
+        return false;
+      }
+      erase_request(it);
+      return true;
+    }
+
+    void release_next_secret_fetch_handle()
+    {
+      if (next_secret_fetch_handle != nullptr)
+      {
+        maintenance.release(next_secret_fetch_seqno);
+        next_secret_fetch_handle = nullptr;
+      }
+    }
+
+    void forget_pending_fetch_if_expired(ccf::SeqNo seqno)
+    {
+      const auto it = maintenance.pending_fetches.find(seqno);
+      if (it != maintenance.pending_fetches.end() && it->second.expired())
+      {
+        maintenance.pending_fetches.erase(it);
       }
     }
 
@@ -863,10 +964,16 @@ namespace ccf::historical
           LOG_TRACE_FMT("Requesting older secret at {} now", seqno_to_fetch);
           details = std::make_shared<StoreDetails>();
           all_stores.insert_or_assign(it, seqno_to_fetch, details);
+          maintenance.track(seqno_to_fetch, details);
           fetch_entry_at(seqno_to_fetch);
         }
 
-        next_secret_fetch_handle = details;
+        if (next_secret_fetch_handle != details)
+        {
+          release_next_secret_fetch_handle();
+          next_secret_fetch_handle = details;
+          next_secret_fetch_seqno = seqno_to_fetch;
+        }
 
         if (too_early)
         {
@@ -889,6 +996,7 @@ namespace ccf::historical
       // Deserialisation includes a GCM integrity check, so all entries
       // have been verified by the time we get here.
       details->current_stage = StoreStage::Trusted;
+      maintenance.pending_fetches.erase(seqno);
       details->has_commit_evidence = has_commit_evidence;
 
       details->entry_digest = entry_digest;
@@ -982,8 +1090,15 @@ namespace ccf::historical
               {
                 store_details = std::make_shared<StoreDetails>();
                 all_stores.insert_or_assign(it, store_seqno, store_details);
+                maintenance.track(store_seqno, store_details);
               }
 
+              if (
+                my_stores_it->second != nullptr &&
+                my_stores_it->second != store_details)
+              {
+                maintenance.release(store_seqno);
+              }
               my_stores_it->second = store_details;
               ++my_stores_it;
             }
@@ -1120,19 +1235,22 @@ namespace ccf::historical
           seconds_until_expiry);
       const auto expiry_at = add_cache_time(cache_time, ms_until_expiry);
 
-      store_sweep_required = true;
-
       auto it = requests.find(handle);
       if (it == requests.end())
       {
         // This is a new handle - insert a newly created Request for it
-        it = requests.emplace_hint(it, handle, Request(all_stores));
+        it =
+          requests.emplace_hint(it, handle, Request(all_stores, maintenance));
         HISTORICAL_LOG("First time I've seen handle {}", handle);
+      }
+      else
+      {
+        expiry_order.erase({it->second.expiry_at, handle});
       }
 
       // Reset the expiry timer as this has just been requested
       it->second.expiry_at = expiry_at;
-      next_expiry = std::min(next_expiry.value_or(expiry_at), expiry_at);
+      expiry_order.insert({expiry_at, handle});
 
       lru_promote(handle);
 
@@ -1154,6 +1272,7 @@ namespace ccf::historical
       for (auto seq : removed)
       {
         remove_request_ref(seq, handle);
+        maintenance.release(seq);
       }
       for (auto seq : added)
       {
@@ -1204,8 +1323,7 @@ namespace ccf::historical
       {
         if (request_it->second.get_store_details(seqno) != nullptr)
         {
-          lru_evict(request_it->first);
-          request_it = requests.erase(request_it);
+          request_it = erase_request(request_it);
         }
         else
         {
@@ -1373,9 +1491,7 @@ namespace ccf::historical
     bool drop_cached_states(const CompoundHandle& handle)
     {
       std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
-      lru_evict(handle);
-      const auto erased_count = requests.erase(handle);
-      return erased_count > 0;
+      return erase_request(handle);
     }
 
     bool handle_ledger_entry(ccf::SeqNo seqno, const std::vector<uint8_t>& data)
@@ -1466,7 +1582,7 @@ namespace ccf::historical
             valid_from,
             seqno);
           handle_encrypted_past_ledger_secret(store, secret);
-          next_secret_fetch_handle = nullptr;
+          release_next_secret_fetch_handle();
         }
       }
 
@@ -1563,6 +1679,7 @@ namespace ccf::historical
           delete_all_interested_requests(seqno);
 
           all_stores.erase(fetches_it);
+          maintenance.pending_fetches.erase(seqno);
         }
       }
     }
@@ -1649,94 +1766,108 @@ namespace ccf::historical
       std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
 
       cache_time = add_cache_time(cache_time, elapsed_ms);
+      last_tick_work = {};
 
-      if (next_expiry.has_value() && cache_time >= *next_expiry)
+      // Drop requests whose deadline has passed, earliest first
+      while (!expiry_order.empty() && cache_time >= expiry_order.begin()->first)
       {
-        std::optional<std::chrono::milliseconds> earliest_remaining;
-        auto it = requests.begin();
-        while (it != requests.end())
+        const auto entry = *expiry_order.begin();
+        const auto& handle = entry.second;
+        LOG_DEBUG_FMT(
+          "Dropping expired historical query with handle {}", handle);
+        if (!erase_request(handle))
         {
-          auto& request = it->second;
-          if (cache_time >= request.expiry_at)
-          {
-            LOG_DEBUG_FMT(
-              "Dropping expired historical query with handle {}", it->first);
-            lru_evict(it->first);
-            it = requests.erase(it);
-          }
-          else
-          {
-            earliest_remaining = std::min(
-              earliest_remaining.value_or(request.expiry_at),
-              request.expiry_at);
-            ++it;
-          }
+          LOG_FAIL_FMT("Expired handle {} has no matching request", handle);
         }
-        next_expiry = earliest_remaining;
+        // erase_request removes the entry for the request's own expiry_at.
+        // Erasing the popped entry as well guarantees progress even if the
+        // two ever disagree, rather than spinning on the dispatch thread.
+        expiry_order.erase(entry);
+        ++last_tick_work.requests_expired;
       }
 
+      const auto requests_before_shrink = requests.size();
       lru_shrink_to_fit(soft_store_cache_limit);
+      last_tick_work.requests_evicted =
+        requests_before_shrink - requests.size();
 
-      if (store_sweep_required)
+      // Forget stores whose last owner was released since the previous tick.
+      // A slot which has since been re-created for the same seqno is live, and
+      // is left alone.
+      for (const auto seqno : maintenance.released_seqnos)
       {
-        bool has_pending_fetch = false;
-        auto it = all_stores.begin();
-        std::optional<std::pair<ccf::SeqNo, ccf::SeqNo>> range_to_request =
-          std::nullopt;
-        while (it != all_stores.end())
+        ++last_tick_work.released_seqnos_checked;
+        const auto it = all_stores.find(seqno);
+        if (it != all_stores.end() && it->second.expired())
         {
-          auto details = it->second.lock();
-          if (details == nullptr)
-          {
-            it = all_stores.erase(it);
-          }
-          else
-          {
-            if (details->current_stage == StoreStage::Fetching)
-            {
-              has_pending_fetch = true;
-              details->time_until_fetch -= elapsed_ms;
-              if (details->time_until_fetch.count() <= 0)
-              {
-                details->time_until_fetch = slow_fetch_threshold;
+          all_stores.erase(it);
+          forget_pending_fetch_if_expired(seqno);
+        }
+      }
+      maintenance.released_seqnos.clear();
 
-                const auto seqno = it->first;
-                if (auto range_val = range_to_request; range_val.has_value())
-                {
-                  auto range = range_val.value();
-                  if (range.second + 1 == seqno)
-                  {
-                    range.second = seqno;
-                    range_to_request = range;
-                  }
-                  else
-                  {
-                    // Submit fetch for previously tracked range
-                    fetch_entries_range(range.first, range.second);
-                    // Track new range
-                    range_to_request = std::make_pair(seqno, seqno);
-                  }
-                }
-                else
-                {
-                  // Track new range
-                  range_to_request = std::make_pair(seqno, seqno);
-                }
+      // Retry pending fetches, coalescing contiguous seqnos into ranges
+      auto it = maintenance.pending_fetches.begin();
+      std::optional<std::pair<ccf::SeqNo, ccf::SeqNo>> range_to_request =
+        std::nullopt;
+      while (it != maintenance.pending_fetches.end())
+      {
+        ++last_tick_work.pending_fetches_visited;
+        auto details = it->second.lock();
+        if (details == nullptr)
+        {
+          // Released while still being fetched
+          const auto slot = all_stores.find(it->first);
+          if (slot != all_stores.end() && slot->second.expired())
+          {
+            all_stores.erase(slot);
+          }
+          it = maintenance.pending_fetches.erase(it);
+        }
+        else if (details->current_stage != StoreStage::Fetching)
+        {
+          it = maintenance.pending_fetches.erase(it);
+        }
+        else
+        {
+          details->time_until_fetch -= elapsed_ms;
+          if (details->time_until_fetch.count() <= 0)
+          {
+            details->time_until_fetch = slow_fetch_threshold;
+
+            const auto seqno = it->first;
+            if (auto range_val = range_to_request; range_val.has_value())
+            {
+              auto range = range_val.value();
+              if (range.second + 1 == seqno)
+              {
+                range.second = seqno;
+                range_to_request = range;
+              }
+              else
+              {
+                // Submit fetch for previously tracked range
+                fetch_entries_range(range.first, range.second);
+                // Track new range
+                range_to_request = std::make_pair(seqno, seqno);
               }
             }
-
-            ++it;
+            else
+            {
+              // Track new range
+              range_to_request = std::make_pair(seqno, seqno);
+            }
           }
-        }
 
-        if (auto range_val = range_to_request; range_val.has_value())
-        {
-          // Submit fetch for final tracked range
-          auto range = range_val.value();
-          fetch_entries_range(range.first, range.second);
+          ++it;
         }
+      }
 
-        store_sweep_required = has_pending_fetch;
+      if (auto range_val = range_to_request; range_val.has_value())
+      {
+        // Submit fetch for final tracked range
+        auto range = range_val.value();
+        fetch_entries_range(range.first, range.second);
       }
     }
   };
