@@ -135,8 +135,8 @@ The standard `mk_all --check` command ensures that the audit root imports every 
 The job also builds `disaster-recovery-replay`, from its own Lake package in
 `lean/disaster-recovery/replay`, which has no dependencies, and runs its
 `check-fixtures.sh`. That replays committed quorum, failover and
-multiple-timeout trace fixtures, which must pass, and stored mutants of them,
-each of which must fail or pass as its directory says.
+multiple-timeout trace fixtures, which must pass, and invalid and valid traces
+stored as diffs against them, which must fail and pass.
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, also
 builds the replayer the same way and replays the protocol's e2e scenarios

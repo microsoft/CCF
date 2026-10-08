@@ -2,8 +2,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# Replays each fixture, which must pass, and each of its mutants, a diff in its
-# mutants/pass or mutants/fail directory, which must pass or fail.
+# Replays each scenario's recorded traces, which must pass, and its valid and
+# invalid traces, diffs against them in its valid/ and invalid/ directories,
+# which must pass and fail.
 
 set -euo pipefail
 shopt -s nullglob
@@ -16,12 +17,14 @@ trap 'rm -rf "$WORK"' EXIT
 runs=0
 failures=0
 for fixture in "$REPLAY_DIR"/fixtures/*/; do
-  for case in "$fixture" "$fixture"mutants/*/*.diff; do
+  for case in "$fixture" "$fixture"valid/*.diff "$fixture"invalid/*.diff; do
     dir=$fixture
     expected=pass
     if [[ $case == *.diff ]]; then
       dir=$WORK/case
-      expected=$(basename "$(dirname "$case")")
+      if [[ $case == "$fixture"invalid/* ]]; then
+        expected=fail
+      fi
       rm -rf "$dir"
       mkdir "$dir"
       cp "$fixture"scenario.json "$fixture"*.out "$dir"
@@ -44,5 +47,5 @@ for fixture in "$REPLAY_DIR"/fixtures/*/; do
     fi
   done
 done
-echo "$((runs - failures))/$runs fixtures and mutants replayed as expected"
+echo "$((runs - failures))/$runs traces replayed as expected"
 [[ $failures -eq 0 ]]

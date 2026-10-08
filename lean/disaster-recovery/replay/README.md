@@ -108,12 +108,12 @@ behaviour that no record shows, or liveness.
 ## Fixtures
 
 `fixtures/` holds the trace lines of the quorum, failover and multiple-timeout
-scenarios of one SNP run. Each scenario's `mutants/fail` and `mutants/pass`
-hold diffs of its traces that the replayer must reject or accept.
-`sweep.KIND.FIELD.N.diff` changes `FIELD` in the `N`th record of `KIND`, and
-the others make the targeted change that they are named after. Commit order is
-covered by targeted mutants rather than by changing `version` alone.
-`check-fixtures.sh` replays each fixture, which must pass, and each mutant:
+scenarios of one SNP run. Each scenario's `invalid/` and `valid/` hold traces
+that the replayer must reject and accept, as diffs against the recorded ones.
+`field.KIND.FIELD.N.diff` differs from them only in `FIELD` of the `N`th `KIND`
+record, and the others are named after how they differ. Commit order is
+covered by named invalid traces rather than by ones that differ only in
+`version`. `check-fixtures.sh` replays the recorded, valid and invalid traces:
 
 ```bash
 cd lean/disaster-recovery/replay
@@ -124,8 +124,9 @@ lake build
 To refresh the fixtures from a traced SNP run, download its
 `logs-caci-snp-genoa` artifact and keep the `RDP_TRACE` part of each line of
 the three scenarios' node logs. The `scenario.json` files do not change. The
-mutants are diffs against these fixtures, so refreshing them means
-regenerating the mutants, with the generator in the history of #8282.
+valid and invalid traces are diffs against the recorded ones, so refreshing
+those means regenerating the diffs, which
+`tests/infra/recovery_trace_mutations.py`, in the history of #8282, generated.
 
 ```bash
 gh run download RUN_ID --repo microsoft/CCF --name logs-caci-snp-genoa --dir artifact
