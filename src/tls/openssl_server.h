@@ -16,6 +16,7 @@
 #include "tasks/worker.h"
 #include "tcp/msg_types.h"
 #include "tls/inbound_admission.h"
+#include "tls/socket_utils.h"
 
 #include <arpa/inet.h>
 #include <atomic>
@@ -1108,7 +1109,7 @@ namespace ccf::tls
       // The poll handle frees itself, so the Conn can be dropped here rather
       // than being parked until the close callback runs.
       close_handle(conn->poll);
-      ::close(fd);
+      details::close_socket(fd);
       conn->fd = -1;
     }
 
@@ -1149,7 +1150,7 @@ namespace ccf::tls
             "setsockopt({}) failed for accepted RPC socket: {}",
             error->option,
             std::generic_category().message(error->error));
-          ::close(cfd);
+          details::close_socket(cfd);
           continue;
         }
 
@@ -1170,7 +1171,7 @@ namespace ccf::tls
           const auto admission = on_accept(cid);
           if (!admission.has_value())
           {
-            ::close(cfd);
+            details::close_socket(cfd);
             continue;
           }
           soft_limited = *admission;
@@ -1209,7 +1210,7 @@ namespace ccf::tls
             // it is otherwise invisible, hence the log.
             LOG_DEBUG_FMT(
               "Refusing connection {}: no server certificate yet", cid);
-            ::close(cfd);
+            details::close_socket(cfd);
             release_admitted();
             continue;
           }
@@ -1229,7 +1230,7 @@ namespace ccf::tls
           // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
           delete c->poll;
           c->poll = nullptr;
-          ::close(cfd);
+          details::close_socket(cfd);
           release_admitted();
           continue;
         }
@@ -1243,7 +1244,7 @@ namespace ccf::tls
             cid,
             uv_strerror(start_rc));
           close_handle(c->poll);
-          ::close(cfd);
+          details::close_socket(cfd);
           release_admitted();
           continue;
         }
@@ -1596,7 +1597,7 @@ namespace ccf::tls
       listening = false;
       if (listen_fd >= 0)
       {
-        ::close(listen_fd);
+        details::close_socket(listen_fd);
         listen_fd = -1;
       }
 
@@ -1739,7 +1740,7 @@ namespace ccf::tls
           setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) !=
           0)
         {
-          ::close(listen_fd);
+          details::close_socket(listen_fd);
           listen_fd = -1;
           continue;
         }
@@ -1748,7 +1749,7 @@ namespace ccf::tls
           bound_ok = true;
           break;
         }
-        ::close(listen_fd);
+        details::close_socket(listen_fd);
         listen_fd = -1;
       }
       freeaddrinfo(res);
@@ -2006,7 +2007,7 @@ namespace ccf::tls
     {
       if (listen_fd >= 0)
       {
-        ::close(listen_fd);
+        details::close_socket(listen_fd);
         listen_fd = -1;
       }
       ctx.reset();
