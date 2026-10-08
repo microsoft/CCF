@@ -48,6 +48,14 @@ jobs:
           lake lint
           lake exe canonical-checks
 
+      - name: Check recovery trace fixtures against their schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y python3-jsonschema
+          python3 lean/disaster-recovery/replay/check-schema.py \
+            lean/disaster-recovery/replay/fixtures/*/*.out
+
       - name: Build and check disaster recovery replay
         shell: bash
         run: |

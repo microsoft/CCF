@@ -132,11 +132,13 @@ The disaster recovery job builds the canonical model with `lake build --wfail`, 
 The build and audit include both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every library module, so newly added proofs cannot silently escape the checks.
 
-The job also builds `disaster-recovery-replay`, from its own Lake package in
-`lean/disaster-recovery/replay`, which has no dependencies, and runs its
-`check-fixtures.sh`. That replays committed quorum, failover and
-multiple-timeout trace fixtures, which must pass, and invalid and valid traces
-stored as diffs against them, which must fail and pass.
+The job also checks the records of the recovery trace fixtures in
+`lean/disaster-recovery/replay/fixtures` against `trace.schema.json`, with
+`check-schema.py`. It then builds `disaster-recovery-replay`, from its own Lake
+package in `lean/disaster-recovery/replay`, which has no dependencies, and runs
+its `check-fixtures.sh`. That replays the fixtures' quorum, failover and
+multiple-timeout traces, which must pass, and invalid and valid traces stored
+as diffs against them, which must fail and pass.
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, also
 builds the replayer the same way and replays the protocol's e2e scenarios

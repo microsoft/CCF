@@ -30,8 +30,9 @@ which sets `CCF_RECOVERY_TRACE=1` for its tests, and `tests/infra/remote.py`
 passes it on to the nodes. After the quorum, failover and multiple-timeout
 scenarios in `tests/e2e_operations.py`, `tests/infra/recovery_trace.py` runs
 the replayer on the nodes' logs.
-`.github/workflows/lean.yml` also builds the replayer and runs
-`check-fixtures.sh` on committed fixtures of those three scenarios.
+`.github/workflows/lean.yml` checks the records of committed fixtures of those
+three scenarios against the schema, then builds the replayer and runs
+`check-fixtures.sh` on them.
 
 ## Records
 
@@ -61,6 +62,11 @@ Receives name their sender in `source`. A send's `message` is `gossip`, `vote`
 or `iamopen`. The sends of one retry share a `batch` and the version of the
 `sm_state` value the retry read, in `pre_version`. Gossip records and sends
 carry the gossiped `txid`, as `"view.seqno"`.
+
+`trace.schema.json` is the JSON Schema of the records: the fields of each kind
+and the values that the C++ writes for them, but none of the protocol's rules,
+which the replay checks. `check-schema.py LOG...`, which needs the `jsonschema`
+Python package, checks the records of node logs against it.
 
 ## Rules
 
