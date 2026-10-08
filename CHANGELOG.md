@@ -25,7 +25,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Paused RPC reads now resume when another interface releases the inbound budget, even if older libuv versions coalesce the notification. Previously, reads could remain paused until an unrelated event triggered a recheck (#8498).
 - Recovered services no longer reuse stale incomplete ledger chunks behind the committed frontier after service opening, which could misplace later transactions and leave backup application frontends closed. See the [Disaster Recovery](doc/operations/recovery.rst) operations documentation (#8522).
 - Concurrent first requests to JavaScript endpoints now safely initialise the named authentication policy registry. Previously, requests could fail with `Unknown auth policy` while another worker was still populating the registry (#8520).
-- `ccf.crypto.sign()` and `ccf.crypto.verifySignature()` with `RSA-PSS` now throw when the `saltLength` property cannot be read or converted to a number, instead of leaving a pending exception and silently using a salt length of 0. OpenSSL failures while exporting EC or EdDSA keys to JWK, adding subject alternative names to a CSR, generating the temporary key for `RSA-OAEP-AES-KWP` wrapping, or setting an RSA-OAEP label now throw rather than silently producing incorrect output (#8528).
 
 ## [7.0.18]
 
