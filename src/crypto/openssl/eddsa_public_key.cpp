@@ -133,7 +133,8 @@ namespace ccf::crypto
     JsonWebKeyEdDSAPublic jwk;
     std::vector<uint8_t> raw_pub(EVP_PKEY_size(key));
     size_t raw_pub_len = raw_pub.size();
-    EVP_PKEY_get_raw_public_key(key, raw_pub.data(), &raw_pub_len);
+    OpenSSL::CHECK1(
+      EVP_PKEY_get_raw_public_key(key, raw_pub.data(), &raw_pub_len));
     raw_pub.resize(raw_pub_len);
     jwk.x = b64url_from_raw(raw_pub, false);
     jwk.crv = curve_id_to_jwk_eddsa_curve(get_curve_id());
