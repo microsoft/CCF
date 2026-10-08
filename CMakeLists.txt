@@ -482,7 +482,7 @@ configure_file(
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
-option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
+option(CLIENT_PROTOCOLS_TEST "Test client TLS configuration" OFF)
 
 option(CCF_RAFT_TRACING "Enable tracing of Raft consensus" OFF)
 if(CCF_RAFT_TRACING)
@@ -509,7 +509,6 @@ add_ccf_static_library(
     ccfcrypto
     ccf_kv
     ccf_tasks
-    nghttp2
     ${CMAKE_THREAD_LIBS_INIT}
     curl
     ccf_pal
@@ -1484,17 +1483,6 @@ if(BUILD_TESTS)
     BUCKET bucket_c
     BUILD_DEPENDS logging js_generic
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-  )
-
-  add_e2e_test(
-    NAME e2e_logging_http2
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    BUCKET bucket_b
-    BUILD_DEPENDS logging logging_cose_only programmability js_generic
-    ADDITIONAL_ARGS
-      --js-app-bundle
-      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-      --http2
   )
 
   add_e2e_test(

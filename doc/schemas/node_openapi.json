@@ -649,16 +649,7 @@
       },
       "ParserConfiguration": {
         "properties": {
-          "initial_window_size": {
-            "$ref": "#/components/schemas/SizeString"
-          },
           "max_body_size": {
-            "$ref": "#/components/schemas/SizeString"
-          },
-          "max_concurrent_streams_count": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "max_frame_size": {
             "$ref": "#/components/schemas/SizeString"
           },
           "max_header_size": {

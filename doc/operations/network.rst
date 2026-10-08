@@ -4,9 +4,7 @@ Networking
 HTTP 
 ----
 
-All RPC interfaces for a given node (see :ref:`operations/configuration:``network.rpc_interfaces```) currently support HTTP/1.1. A specific RPC interface can also support HTTP/2 by setting the ``"app_protocol"`` configuration entry to ``"HTTP2"`` for that interface.
-
-.. warning:: HTTP/2 interfaces do not currently support client requests forwarding. Client requests that require forwarding to the primary node will return a `501 <https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/501>`_  HTTP error.
+All built-in RPC interfaces for a given node (see :ref:`operations/configuration:``network.rpc_interfaces```) use HTTP/1.1. Operators that require HTTP/2 at the public edge can terminate it at a reverse proxy and forward HTTP/1.1 to CCF.
 
 Configuration
 ~~~~~~~~~~~~~

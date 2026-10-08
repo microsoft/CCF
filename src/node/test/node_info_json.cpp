@@ -44,7 +44,7 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
       rpc_b,
       rpc_b_pub,
       "udp",
-      "HTTP2",
+      "CUSTOM",
       300,
       400,
       std::nullopt,

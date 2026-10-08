@@ -30,10 +30,6 @@ DEFAULT_MAX_HTTP_HEADER_SIZE = 16 * 1024
 DEFAULT_MAX_HTTP_REQUEST_TARGET_SIZE = 16 * 1024
 DEFAULT_MAX_HTTP_HEADERS_COUNT = 256
 
-DEFAULT_MAX_CONCURRENT_STREAMS_COUNT = 100
-DEFAULT_INITIAL_WINDOW_SIZE = 64 * 1024
-DEFAULT_MAX_FRAME_SIZE = 16 * 1024
-
 DEFAULT_FORWARDING_TIMEOUT_MS = 3000
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
@@ -187,13 +183,6 @@ class RPCInterface(Interface):
     max_http_headers_count: int | None = field(
         default_factory=lambda: DEFAULT_MAX_HTTP_HEADERS_COUNT
     )
-    max_concurrent_streams_count: int | None = field(
-        default_factory=lambda: DEFAULT_MAX_CONCURRENT_STREAMS_COUNT
-    )
-    initial_window_size: int | None = field(
-        default_factory=lambda: DEFAULT_INITIAL_WINDOW_SIZE
-    )
-    max_frame_size: int | None = field(default_factory=lambda: DEFAULT_MAX_FRAME_SIZE)
     endorsement: Endorsement | None = field(default_factory=lambda: Endorsement())
     accepted_endpoints: str | None = None
     enabled_operator_features: list[str] | None = None
@@ -211,7 +200,7 @@ class RPCInterface(Interface):
         self.max_http_request_target_size = args.max_http_request_target_size
         self.max_http_headers_count = args.max_http_headers_count
         self.forwarding_timeout_ms = args.forwarding_timeout_ms
-        self.app_protocol = "HTTP2" if args.http2 else "HTTP1"
+        self.app_protocol = "HTTP1"
 
     def parse_from_str(self, s):
         # Format: local|ssh(,tcp|udp)://hostname:port
@@ -235,14 +224,6 @@ class RPCInterface(Interface):
             "max_request_target_size": str(interface.max_http_request_target_size),
             "max_headers_count": interface.max_http_headers_count,
         }
-        if interface.app_protocol == "HTTP2":
-            http_config.update(
-                {
-                    "max_concurrent_streams_count": interface.max_concurrent_streams_count,
-                    "initial_window_size": str(interface.initial_window_size),
-                    "max_frame_size": str(interface.max_frame_size),
-                }
-            )
         r = {
             "bind_address": make_address(interface.host, interface.port),
             "protocol": f"{interface.transport}",

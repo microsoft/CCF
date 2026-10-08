@@ -95,10 +95,6 @@ These macros throw; use explicit handling for recoverable transfer errors. They 
 
 Used in `src/http/http_parser.h`. Check `llhttp_execute()` against `HPE_OK`, handling supported pause/upgrade outcomes explicitly. Callback return contracts differ; distinguish intentional pause/upgrade from parse errors using the shipped API. For parse failures, prefer diagnostics from `llhttp_errno_name()` / `llhttp_get_error_reason()`.
 
-## nghttp2 (HTTP/2)
-
-Used in `src/http/http2_callbacks.h` and `src/http/http2_session.h`. Many APIs return 0 on success and negative error codes, but others return counts or identifiers. In particular, `nghttp2_session_mem_recv()` returns consumed bytes on success; account for partial consumption. Check `nghttp2_session_send()` failures and prefer `nghttp2_strerror(rc)` in error diagnostics.
-
 ## QuickJS
 
 Used in `src/js/`, with declarations in `3rdparty/exported/quickjs/quickjs.h`.

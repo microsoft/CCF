@@ -4,7 +4,6 @@
 
 set -exo pipefail
 
-H2SPEC_VERSION="v2.6.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 TDNF_OPTIONS=(-y)
@@ -61,7 +60,6 @@ install_dependencies() {
         which
         openssl-devel
         libuv-devel
-        nghttp2-devel
         curl-devel
         doxygen
         clang-tools-extra-devel
@@ -94,23 +92,10 @@ install_cddl() {
     gem install cddl
 }
 
-install_h2spec() {
-    if ! curl -L --output h2spec_linux_amd64.tar.gz https://github.com/summerwind/h2spec/releases/download/$H2SPEC_VERSION/h2spec_linux_amd64.tar.gz; then
-        echo "Failed to download h2spec"
-        return 1
-    fi
-
-    tar -xvf h2spec_linux_amd64.tar.gz &&
-    mkdir -p /opt/h2spec &&
-    mv h2spec /opt/h2spec/h2spec &&
-    rm h2spec_linux_amd64.tar.gz
-}
-
 install_uv() {
     bash "$SCRIPT_DIR/install_uv.sh" /usr/local/bin
 }
 
 retry "CI RPM dependencies" install_dependencies
 retry "CDDL installation" install_cddl
-retry "h2spec installation" install_h2spec
 retry "uv installation" install_uv

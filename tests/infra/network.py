@@ -663,9 +663,6 @@ class Network:
 
     def open(self, args):
         def get_target_node(args, primary):
-            # HTTP/2 does not currently support forwarding
-            if args.http2:
-                return primary
             return self.find_random_node()
 
         primary, _ = self.find_primary()

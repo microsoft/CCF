@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The helper functions in `ccf/endpoints/authentication/js.h` are deprecated and will be removed in 8.0. Their signatures are unchanged. Applications using these helpers for JavaScript endpoint dispatch can use the extensible registries in `ccf/js/registry.h` (#8520).
 
+### Removed
+
+- Built-in HTTP/2 server support has been removed. Built-in HTTP RPC interfaces now use HTTP/1.1 (#8536).
+
 ### Fixed
 
 - Forwarding timeouts now return HTTP `504` with an `application/json` CCF error envelope and the `ForwardingTimeout` error code, conforming to the governance OpenAPI error schema. The message still identifies the target node and timeout duration (#8518).

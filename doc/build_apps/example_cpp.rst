@@ -390,6 +390,4 @@ The callback receives a ``CommittedTxInfo`` struct containing the ``TxID``, ``Fi
 
 .. note::
 
-    This feature is currently supported on HTTP/1.1 connections only. HTTP/2 sessions send responses immediately regardless of whether a consensus-committed callback is set.
-
     Read-only endpoints may also use this mechanism to confirm that their response reflects committed state. However, attempting to construct a receipt for a read-only transaction will fail with a ``500 Internal Server Error``, since read-only transactions do not produce the write set digest or commit evidence required for receipt construction.

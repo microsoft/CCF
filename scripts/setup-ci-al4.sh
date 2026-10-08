@@ -4,7 +4,6 @@
 
 set -exo pipefail
 
-H2SPEC_VERSION="v2.6.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 retry() {
@@ -64,8 +63,8 @@ install_source_control() {
 
 install_build_dependencies() {
     # To build CCF. Azure Linux 4 uses more explicit package names than Azure
-    # Linux 3: build-essential is not present, and the curl/nghttp2 development
-    # packages are named libcurl-devel and libnghttp2-devel.
+    # Linux 3: build-essential is not present, and the curl development package
+    # is named libcurl-devel.
     dnf -y install  \
         gcc  \
         gcc-c++  \
@@ -79,7 +78,6 @@ install_build_dependencies() {
         openssl  \
         openssl-devel  \
         libuv-devel  \
-        libnghttp2-devel  \
         libcurl-devel  \
         doxygen  \
         clang-tools-extra-devel  \
@@ -104,18 +102,6 @@ install_test_dependencies() {
     )
     dnf -y install "${packages[@]}" &&
     gem install cddl
-}
-
-install_h2spec() {
-    if ! curl -L --output h2spec_linux_amd64.tar.gz https://github.com/summerwind/h2spec/releases/download/$H2SPEC_VERSION/h2spec_linux_amd64.tar.gz; then
-        echo "Failed to download h2spec"
-        return 1
-    fi
-
-    tar -xvf h2spec_linux_amd64.tar.gz &&
-    mkdir -p /opt/h2spec &&
-    mv h2spec /opt/h2spec/h2spec &&
-    rm h2spec_linux_amd64.tar.gz
 }
 
 install_node() {
@@ -149,5 +135,4 @@ retry "Source control dependencies" install_source_control
 retry "Build dependencies" install_build_dependencies
 retry "Test dependencies" install_test_dependencies
 retry "Node.js installation" install_node
-retry "h2spec installation" install_h2spec
 retry "Packaging and Python dependencies" install_packaging_and_python
