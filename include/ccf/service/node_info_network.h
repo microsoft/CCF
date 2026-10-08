@@ -118,8 +118,11 @@ namespace ccf
       struct Redirections
       {
         RedirectionResolverConfig to_primary;
-        RedirectionResolverConfig to_backup = {
-          RedirectionResolutionKind::NodeByRole, {{"role", "backup"}}};
+        RedirectionResolverConfig to_backup;
+
+        Redirections() :
+          to_backup{RedirectionResolutionKind::NodeByRole, {{"role", "backup"}}}
+        {}
 
         bool operator==(const Redirections& other) const = default;
       };
