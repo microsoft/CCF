@@ -14,7 +14,7 @@ only the replayer and the modules it imports. They import no Mathlib module, so
 the package has no dependencies. Run it from there:
 
 ```bash
-lake exe disaster-recovery-replay --participants N --open-kind QUORUM|FAILOVER [--wait-ms N] LOG...
+lake exe disaster-recovery-replay --participants N [--wait-ms N] LOG...
 ```
 
 By default it waits up to 20 seconds for the nodes to log a complete
@@ -74,14 +74,14 @@ The reduction orders each node's records as they committed, and tells logs
 that are still growing, which it waits for, from logs that no order explains,
 which fail. The replay checks everything else.
 
-| Rule           | Effect                                                                                                               |
-| -------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `config`       | Every node's `start` record carries the same `expected_locations`                                                    |
-| `start`        | Each node starts once, and every execution is at or after its start version                                          |
-| `delivery`     | Each receive takes an earlier send of its message from its `source` that no other receive has taken                  |
-| `commit-order` | A node's executions run in version order; an execution that wrote nothing runs after the write at its version        |
-| `retry`        | A retry runs right after the `sm_state` write at the version it read                                                 |
-| `scenario`     | Each participant ends Opening or Open with the expected open kind, or Joining after a restart request, and one opens |
+| Rule           | Effect                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `config`       | Every node's `start` record carries the same `expected_locations`                                                  |
+| `start`        | Each node starts once, and every execution is at or after its start version                                        |
+| `delivery`     | Each receive takes an earlier send of its message from its `source` that no other receive has taken                |
+| `commit-order` | A node's executions run in version order; an execution that wrote nothing runs after the write at its version      |
+| `retry`        | A retry runs right after the `sm_state` write at the version it read                                               |
+| `scenario`     | No more nodes log than the participants, each ends Opening, Open or Joining after a restart request, and one opens |
 
 A replayed execution is its state observation, its action, the notifications
 it emitted and the state it recorded writing. A retry is its action and the
@@ -90,11 +90,11 @@ message is received after it is sent. As in the model's network, any queued
 copy of a message can be the one received, so receives are matched to sends
 by content.
 
-The e2e tests check the open kind, which the move to Opening decides, and do
-not wait for the timeout from Opening to Open, so the scenario accepts
-Opening. An opening of another kind fails the scenario without waiting for
-more records. The scenario is checked after the replay, so its failures report
-how many actions and observations replayed.
+The e2e tests do not wait for the timeout from Opening to Open, so the
+scenario accepts Opening. Which kind of opening a scenario should end with is
+left to the e2e tests: the replay already checks each recorded open kind
+against the model. The scenario is checked after the replay, so its failures
+report how many actions and observations replayed.
 
 ## Why this is the commit order
 

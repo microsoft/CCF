@@ -2952,7 +2952,7 @@ def run_recovery_decision_protocol(const_args):
                 recovery_type == '"Quorum"'
             ), f"Network self-healing open type was {recovery_type} instead of Quorum"
             infra.recovery_trace.validate_recovery_trace_if_enabled(
-                recovered_network, args.label, "QUORUM"
+                recovered_network, args.label
             )
 
 
@@ -3007,7 +3007,7 @@ def run_recovery_decision_protocol_timeout_path(const_args):
                 recovery_type == '"Failover"'
             ), f"Network self-healing open type was {recovery_type} instead of Failover"
             infra.recovery_trace.validate_recovery_trace_if_enabled(
-                recovered_network, args.label, "FAILOVER"
+                recovered_network, args.label
             )
 
 
@@ -3062,7 +3062,7 @@ def run_recovery_decision_protocol_multiple_timeout(const_args):
 
             assert len(recovered_network.get_joined_nodes()) == len(args.nodes)
             infra.recovery_trace.validate_recovery_trace_if_enabled(
-                recovered_network, args.label, "FAILOVER"
+                recovered_network, args.label
             )
 
 

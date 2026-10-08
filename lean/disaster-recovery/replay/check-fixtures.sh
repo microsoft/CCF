@@ -33,7 +33,6 @@ for fixture in "$REPLAY_DIR"/fixtures/*/; do
     status=0
     "$REPLAYER" --wait-ms 0 \
       --participants "$(jq -r .participants "$dir/scenario.json")" \
-      --open-kind "$(jq -r .open_kind "$dir/scenario.json")" \
       "$dir"/*.out >"$WORK/output" 2>&1 || status=$?
     case $status in
     0) outcome=pass ;;

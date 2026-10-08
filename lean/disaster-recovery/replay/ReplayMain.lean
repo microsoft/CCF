@@ -3,35 +3,26 @@ import DisasterRecovery.Replay.Reduction
 set_option autoImplicit false
 
 open DisasterRecovery.Replay
-open DisasterRecovery.Model.Local (OpenKind)
 
 /-- How long the nodes have to finish logging the scenario. -/
 def completionTimeoutMs : Nat :=
   20000
 
 def usage : String :=
-  "usage: disaster-recovery-replay --participants N --open-kind QUORUM|FAILOVER [--wait-ms N] LOG..."
-
-private def parseOpenKind : String → Option OpenKind
-  | "QUORUM" => some OpenKind.quorum
-  | "FAILOVER" => some OpenKind.failover
-  | _ => none
+  "usage: disaster-recovery-replay --participants N [--wait-ms N] LOG..."
 
 def parseArgs : List String → Option (Nat × Scenario × List System.FilePath) :=
-  let rec go (waitMs : Nat) (participants : Option Nat) (openKind : Option OpenKind)
+  let rec go (waitMs : Nat) (participants : Option Nat)
       : List String → Option (Nat × Scenario × List System.FilePath)
     | "--participants" :: count :: rest => do
-        go waitMs (some (← count.toNat?)) openKind rest
-    | "--open-kind" :: kind :: rest => do
-        go waitMs participants (some (← parseOpenKind kind)) rest
+        go waitMs (some (← count.toNat?)) rest
     | "--wait-ms" :: value :: rest => do
-        go (← value.toNat?) participants openKind rest
+        go (← value.toNat?) participants rest
     | logs@(_ :: _) => do
         let participants ← participants
-        let openKind ← openKind
-        return (waitMs, { participants, openKind }, logs.map System.FilePath.mk)
+        return (waitMs, { participants }, logs.map System.FilePath.mk)
     | [] => none
-  go completionTimeoutMs none none
+  go completionTimeoutMs none
 
 /-- Reduces the logs once they record a complete scenario. -/
 partial def reduceWhenComplete (scenario : Scenario) (logs : List System.FilePath)

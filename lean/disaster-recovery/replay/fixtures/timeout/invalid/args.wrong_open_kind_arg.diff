@@ -1,5 +1,0 @@
---- a/scenario.json
-+++ b/scenario.json
-@@ -3 +3 @@
--  "open_kind": "FAILOVER"
-+  "open_kind": "QUORUM"

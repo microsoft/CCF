@@ -15,10 +15,9 @@ namespace DisasterRecovery.Replay
 
 open Lean Model.Local
 
-/-- What the e2e scenario must end with. -/
+/-- How many nodes take part in the e2e scenario. -/
 structure Scenario where
   participants : Nat
-  openKind : OpenKind
 
 /-- A replay unit: one retry's sends, or one execution. -/
 inductive Item where
@@ -235,10 +234,8 @@ def reduce (records : Array Record) (scenario : Scenario) : Checked Reduced := d
         match event.body with
         | .send _ _ (.gossip txid) _ => some (event.node, txid)
         | _ => none
-  -- Participants end once they open or join; an opening of another kind fails already.
-  let failed :=
-    ends.length > scenario.participants
-    || ends.any fun (_, p, k) => p != .joining && k.any (· != scenario.openKind)
+  -- Participants end once they open or join.
+  let failed := ends.length > scenario.participants
   let status :=
     ends.map
       fun (node, phase, kind) =>
@@ -248,12 +245,14 @@ def reduce (records : Array Record) (scenario : Scenario) : Checked Reduced := d
               && ends.any (·.2.2.isSome)
               && ends.all fun (_, phase, _) => phase != .gossiping && phase != .voting do
     throw (.incomplete s!"participants have not all opened or joined: {status}")
-  let expected :=
-    s!"expected participants to open by {openKindName scenario.openKind} or join"
   return {
     header := .make locations (ends.map (·.1)) recovered
     instructions
-    scenario := if failed then some s!"{expected}, but {status}" else none
+    scenario :=
+      if failed then
+        some s!"expected {scenario.participants} participants, but {status}"
+      else
+        none
   }
 
 end DisasterRecovery.Replay
