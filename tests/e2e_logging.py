@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import base64
-import copy
 import hashlib
 import http
 import json
@@ -11,7 +10,6 @@ import re
 import socket
 import ssl
 import subprocess
-import threading
 import time
 import urllib.parse
 from collections import defaultdict
@@ -38,7 +36,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import ObjectIdentifier, load_pem_x509_certificate
 from infra.log_capture import flush_info
-from infra.member import AckException, RecoveryRole
+from infra.member import RecoveryRole
 from infra.runner import ConcurrentRunner
 from infra.tx_status import TxStatus
 from loguru import logger as LOG
@@ -155,13 +153,11 @@ def test(network, args):
         network=network,
         number_txs=1,
     )
-    # HTTP2 doesn't support forwarding
-    if not args.http2:
-        network.txs.issue(
-            network=network,
-            number_txs=1,
-            on_backup=True,
-        )
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
     network.txs.verify()
 
     return network
@@ -280,14 +276,12 @@ def test_illegal(network, args):
         number_txs=1,
     )
 
-    # HTTP/2 does not support forwarding
-    if not args.http2:
-        network.txs.issue(
-            network=network,
-            number_txs=1,
-            on_backup=True,
-        )
-        network.txs.verify()
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
+    network.txs.verify()
 
     return network
 
@@ -426,14 +420,12 @@ def test_protocols(network, args):
         network=network,
         number_txs=1,
     )
-    # HTTP/2 does not support forwarding
-    if not args.http2:
-        network.txs.issue(
-            network=network,
-            number_txs=1,
-            on_backup=True,
-        )
-        network.txs.verify()
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
+    network.txs.verify()
 
     return network
 
@@ -725,10 +717,6 @@ def test_custom_auth(network, args):
 
     nodes = (primary, other)
 
-    if args.http2:
-        # HTTP2 doesn't support forwarding
-        nodes = (primary,)
-
     for node in nodes:
         with node.client() as c:
             LOG.info("Request without custom headers is refused")
@@ -770,10 +758,6 @@ def test_custom_auth_safety(network, args):
     primary, other = network.find_primary_and_any_backup()
 
     nodes = (primary, other)
-
-    if args.http2:
-        # HTTP2 doesn't support forwarding
-        nodes = (primary,)
 
     for node in nodes:
         with node.client() as c:
@@ -1553,191 +1537,6 @@ def escaped_query_tests(c, endpoint):
 
         r = c.get(f"/app/log/{endpoint}?{'&'.join(encoded)}")
         assert r.body.data() == "&".join(raw).encode(), r.body.data()
-
-
-@reqs.description("Testing forwarding on member and user frontends")
-@reqs.supports_methods("/app/log/private")
-@reqs.at_least_n_nodes(2)
-@reqs.no_http2()
-@app.scoped_txs()
-def test_forwarding_frontends(network, args):
-    backup = network.find_any_backup()
-
-    try:
-        with backup.client() as c:
-            check_commit = infra.checker.Checker(c)
-            ack = network.consortium.get_any_active_member().ack(backup)
-            check_commit(ack)
-    except AckException as e:
-        assert args.http2 is True
-        assert e.response.status_code == http.HTTPStatus.NOT_IMPLEMENTED
-        r = e.response.body.json()
-        assert (
-            r["error"]["message"]
-            == "Request cannot be forwarded to primary on HTTP/2 interface."
-        ), r
-    else:
-        assert args.http2 is False
-
-    try:
-        msg = "forwarded_msg"
-        log_id = 7
-        network.txs.issue(
-            network,
-            number_txs=1,
-            on_backup=True,
-            idx=log_id,
-            send_public=False,
-            msg=msg,
-        )
-    except infra.logging_app.LoggingTxsIssueException as e:
-        assert args.http2 is True
-        assert e.response.status_code == http.HTTPStatus.NOT_IMPLEMENTED
-        r = e.response.body.json()
-        assert (
-            r["error"]["message"]
-            == "Request cannot be forwarded to primary on HTTP/2 interface."
-        ), r
-    else:
-        assert args.http2 is False
-
-    if args.package.startswith("samples/apps/logging/logging") and not args.http2:
-        with backup.client("user0") as c:
-            escaped_query_tests(c, "request_query")
-
-    return network
-
-
-@reqs.description("Testing forwarding on user frontends without actor app prefix")
-@reqs.at_least_n_nodes(2)
-@reqs.no_http2()
-def test_forwarding_frontends_without_app_prefix(network, args):
-    msg = "forwarded_msg"
-    log_id = 7
-    network.txs.issue(
-        network,
-        number_txs=1,
-        on_backup=True,
-        idx=log_id,
-        send_public=False,
-        msg=msg,
-        private_url="/log/private",
-    )
-
-    return network
-
-
-@reqs.description("Testing chunked POSTs to the primary")
-@reqs.supports_methods("/app/log/private")
-@reqs.no_http2()
-@app.scoped_txs()
-def test_chunked_requests(network, args):
-    primary, _ = network.find_primary()
-    path = f"/app/log/private?scope={network.txs.scope}"
-    log_id = 0
-    msg = "Chunked message\r\nwith a null: \x00 and Unicode: \u2603"
-    body = json.dumps({"id": log_id, "msg": msg}).encode()
-    chunks = (body[:1], body[1:16], body[16:31], body[31:])
-    encoded_body = (
-        b"".join(f"{len(chunk):x}\r\n".encode() + chunk + b"\r\n" for chunk in chunks)
-        + b"0\r\n\r\n"
-    )
-
-    with primary.client("user0", impl_type=infra.clients.RawSocketClient) as c:
-        sock = c.client_impl.socket
-        sock.settimeout(infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC)
-        # Send the wire body directly, without an automatic Content-Length.
-        infra.clients.RawSocketClient._send_request(
-            ssl_socket=sock,
-            verb="POST",
-            path=path,
-            headers={
-                "host": primary.get_public_rpc_address(),
-                "transfer-encoding": "chunked",
-                "content-type": "application/json",
-            },
-            content=encoded_body,
-        )
-        r = infra.clients.Response.from_socket(sock)
-        assert r.status_code == http.HTTPStatus.OK, r
-        assert r.body.json() is True, r.body.json()
-
-    with primary.client("user0") as c:
-        c.wait_for_commit(r)
-        r = c.get(f"{path}&id={log_id}")
-        assert r.status_code == http.HTTPStatus.OK, r
-        assert r.body.json() == {"msg": msg}, r.body.json()
-
-    return network
-
-
-@reqs.description("Testing forwarding on long-lived connection")
-@reqs.supports_methods("/app/log/private")
-@reqs.at_least_n_nodes(2)
-@reqs.no_http2()
-def test_long_lived_forwarding(network, args):
-    primary, _ = network.find_primary()
-
-    # Create a new node
-    new_node = network.create_node()
-
-    # Message limit must be high enough that the hard limit will not be reached
-    # by the combined work of all threads. Note that each thread produces multiple
-    # node-to-node messages - a forwarded write and response, Raft AEs. If these
-    # arrive too fast, they will trigger the hard cap and the node-to-node keys
-    # will be reset, potentially invalidating in-flight messages and causing client
-    # requests to time out. This margin depends on client request rate, so must
-    # stay comfortably above the concurrent in-flight message burst produced by
-    # n_threads clients sending as fast as the network allows.
-    n_threads = 5
-    message_limit = 90
-
-    new_node_args = copy.deepcopy(args)
-    new_node_args.node_to_node_message_limit = message_limit
-    network.join_node(new_node, args.package, new_node_args, from_snapshot=False)
-    network.trust_node(new_node, new_node_args)
-
-    # Send many messages to new node over long-lived connections,
-    # to confirm that forwarding continues to work during
-    # node-to-node channel key rotations
-    def fn(worker_id, request_count, should_log):
-        with new_node.client("user0") as c:
-            msg = "Will be forwarded"
-            log_id = 42
-            for i in range(request_count):
-                logs = []
-                if should_log and i % 10 == 0:
-                    LOG.info(f"Sending {i} / {request_count}")
-                    logs = None
-                r = c.post(
-                    f"/app/log/private?scope=long-lived-forwarding-{worker_id}",
-                    {"id": log_id, "msg": msg},
-                    log_capture=logs,
-                )
-                assert r.status_code == http.HTTPStatus.OK, r
-
-    threads = []
-    current_thread_name = threading.current_thread().name
-    for i in range(n_threads):
-        threads.append(
-            threading.Thread(
-                target=fn,
-                args=(i, 3 * message_limit, i == 0),
-                name=f"{current_thread_name}:worker-{i}",
-            )
-        )
-
-    for thread in threads:
-        thread.start()
-
-    for thread in threads:
-        thread.join()
-
-    # Remove temporary new node
-    network.retire_node(primary, new_node)
-    new_node.stop()
-
-    return network
 
 
 @reqs.description("Test user-data used for access permissions")
@@ -2745,13 +2544,13 @@ def do_main_tests(network, args):
         test_cose_signature_schema(network, args)
         test_cose_receipt_schema(network, args)
 
-    # HTTP/2 supports neither chunked transfer encoding nor forwarding.
+    # HTTP/2 does not support chunked transfer encoding.
     if not args.http2:
         test_chunked_requests(network, args)
-        test_forwarding_frontends(network, args)
-        test_forwarding_frontends_without_app_prefix(network, args)
-        if not os.getenv("TSAN_OPTIONS"):
-            test_long_lived_forwarding(network, args)
+    if args.package.startswith("samples/apps/logging/logging"):
+        primary, _ = network.find_primary()
+        with primary.client("user0") as c:
+            escaped_query_tests(c, "request_query")
     test_user_data_ACL(network, args)
     test_cert_prefix(network, args)
     test_anonymous_caller(network, args)

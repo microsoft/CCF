@@ -60,6 +60,7 @@ namespace basicapp
       make_endpoint(
         "/records/{key}", HTTP_PUT, put, {ccf::user_cert_auth_policy})
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto blocking_put = [put](ccf::endpoints::EndpointContext& ctx) {
@@ -73,6 +74,7 @@ namespace basicapp
         blocking_put,
         {ccf::user_cert_auth_policy})
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto get = [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
@@ -109,6 +111,7 @@ namespace basicapp
       make_read_only_endpoint(
         "/records/{key}", HTTP_GET, get, {ccf::user_cert_auth_policy})
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto blocking_get = [get](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
@@ -122,6 +125,7 @@ namespace basicapp
         blocking_get,
         {ccf::user_cert_auth_policy})
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto post = [](ccf::endpoints::EndpointContext& ctx) {

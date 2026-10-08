@@ -1122,6 +1122,7 @@ namespace ccf::node
       .make_read_only_endpoint(
         "/snapshot", HTTP_HEAD, find_snapshot, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::OptionalParameter)
       .add_openapi_response(
@@ -1134,6 +1135,7 @@ namespace ccf::node
       .make_read_only_endpoint(
         "/snapshot", HTTP_GET, find_snapshot, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::OptionalParameter)
       .add_openapi_response(
@@ -1155,6 +1157,7 @@ namespace ccf::node
       .make_read_only_endpoint(
         "/ledger_chunk", HTTP_HEAD, find_chunk, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
       .add_query_parameter<bool>(
@@ -1180,6 +1183,7 @@ namespace ccf::node
       .make_read_only_endpoint(
         "/ledger_chunk", HTTP_GET, find_chunk, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
       .add_query_parameter<bool>(
@@ -1209,6 +1213,7 @@ namespace ccf::node
       .make_command_endpoint(
         "/snapshot/{snapshot_name}", HTTP_HEAD, get_snapshot, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response(
         HTTP_STATUS_OK, "Metadata for the requested snapshot.")
       .add_openapi_response(
@@ -1224,6 +1229,7 @@ namespace ccf::node
       .make_command_endpoint(
         "/snapshot/{snapshot_name}", HTTP_GET, get_snapshot, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response<ds::openapi::Binary>(
         HTTP_STATUS_OK, "The requested snapshot.")
       .add_openapi_response<ds::openapi::Binary>(
@@ -1246,6 +1252,7 @@ namespace ccf::node
         get_ledger_chunk,
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response(
         HTTP_STATUS_OK, "Metadata for the requested ledger chunk.")
       .add_openapi_response(
@@ -1268,6 +1275,7 @@ namespace ccf::node
         get_ledger_chunk,
         no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response<ds::openapi::Binary>(
         HTTP_STATUS_OK, "The requested ledger chunk.")
       .add_openapi_response<ds::openapi::Binary>(

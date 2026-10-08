@@ -45,7 +45,7 @@ def tx_id(string):
 def retry(call, urls, **kwargs):
     """
     Retry http calls if they time out (process suspended during execution),
-    or return a non-200/204 code (unable to forward because primary unknown).
+    or return a non-200/204 code (unable to redirect because primary unknown).
     Pick a random URL, to avoid getting stuck too long on a suspended node.
     """
     response = None
