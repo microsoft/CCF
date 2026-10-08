@@ -25,6 +25,7 @@ import ccf.receipt
 import e2e_common_endpoints
 import infra.checker
 import infra.clients
+import infra.concurrency
 import infra.crypto
 import infra.e2e_args
 import infra.jwt_issuer
@@ -1666,7 +1667,7 @@ def test_long_lived_forwarding(network, args):
     current_thread_name = threading.current_thread().name
     for i in range(n_threads):
         threads.append(
-            threading.Thread(
+            infra.concurrency.Thread(
                 target=fn,
                 args=(i, 3 * message_limit, i == 0),
                 name=f"{current_thread_name}:worker-{i}",

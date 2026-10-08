@@ -13,6 +13,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 import ccf.ledger
+import infra.concurrency
 import infra.e2e_args
 import infra.interfaces
 import infra.logging_app as app
@@ -797,7 +798,7 @@ def _test_invalidated_blocking_call(network, args, blocking_path):
                 == f"While waiting for TxID {tx_id} to commit, it was invalidated"
             )
 
-    send_thread = threading.Thread(target=blocking_send, name="blocking")
+    send_thread = infra.concurrency.Thread(target=blocking_send, name="blocking")
     send_thread.start()
 
     with network.partitioner.partition(backups):

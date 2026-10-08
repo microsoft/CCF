@@ -248,7 +248,10 @@ function(add_e2e_test)
     set_property(
       TEST ${PARSED_ARGS_NAME}
       APPEND
-      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+      PROPERTY
+        ENVIRONMENT
+          "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+          "CCF_CTEST_NAME=${PARSED_ARGS_NAME}"
     )
 
     if(SHUFFLE_SUITE)

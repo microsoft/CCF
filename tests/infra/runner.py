@@ -20,6 +20,7 @@ import infra.jwt_issuer
 import infra.network
 import infra.proc
 import infra.remote_client
+import infra.test_reporting as reporting
 
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
@@ -192,6 +193,11 @@ def log_exception(args: threading.ExceptHookArgs):
             )
         )
     )
+    reporting.record_failure(
+        args.exc_value,
+        context=getattr(args.thread, "test_context", None),
+        thread=args.thread.name,
+    )
 
 
 threading.excepthook = log_exception
@@ -272,11 +278,21 @@ class ConcurrentRunner:
         return max(1, min(limits))
 
     @staticmethod
-    def _run_one(name, target, args):
+    def _run_one(name, target, args, ctest_name):
         # Sub-tests are identified by thread name in the log format, so restore
         # it here: pool workers are reused and carry the previous name.
         threading.current_thread().name = name
-        target(args)
+        context = reporting.TestContext(
+            ctest=ctest_name,
+            runner=name,
+            workspace=os.path.join(args.workspace, args.label),
+        )
+        with reporting.test_context(context):
+            try:
+                target(args)
+            except Exception as exc:
+                reporting.record_failure(exc)
+                raise
 
     def run(self, max_concurrent=None):
         config = {
@@ -315,7 +331,7 @@ class ConcurrentRunner:
         failures = []
         with ThreadPoolExecutor(max_workers=max_concurrent) as pool:
             futures = {
-                pool.submit(self._run_one, name, target, args): name
+                pool.submit(self._run_one, name, target, args, self.args.label): name
                 for name, target, args in tests
             }
             for future in as_completed(futures):
@@ -335,4 +351,6 @@ class ConcurrentRunner:
         # themselves, which do not surface through the pool's futures.
         failures.extend(FAILURES)
         if failures:
-            raise RuntimeError(failures)
+            error = RuntimeError(failures)
+            error._ccf_reported = True
+            raise error
