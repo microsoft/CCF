@@ -15,7 +15,6 @@ import threading
 import time
 import urllib.parse
 from collections import defaultdict
-from datetime import datetime, timezone
 from hashlib import sha256
 from http.client import HTTPResponse
 from types import MappingProxyType
@@ -2540,13 +2539,13 @@ def test_cose_config(network, args):
 
 
 def test_blocking_calls(network, args):
-    primary, _ = network.find_nodes()
+    primary, view = network.find_primary()
 
     class CommitPoller(infra.concurrency.StoppableThread):
         def __init__(self, node):
             super().__init__(name="commit poller")
             self.node = node
-            self.known_commit_times = []
+            self.latest_commit = None
             self._condition = threading.Condition()
             self._finished = False
 
@@ -2554,44 +2553,50 @@ def test_blocking_calls(network, args):
             # ConcurrentRunner collects uncaught worker errors.
             try:
                 with self.node.client() as c:
-                    prev_txid = None
                     while not self.is_stopped():
                         r = c.get("/node/commit", log_capture=[])
                         assert r.status_code == http.HTTPStatus.OK, r.status_code
                         transaction_id = r.body.json()["transaction_id"]
                         txid = TxID.from_str(transaction_id)
                         assert txid.valid(), f"Invalid commit ID: {transaction_id!r}"
-                        if txid != prev_txid:
-                            now = datetime.now(timezone.utc)
-                            with self._condition:
-                                self.known_commit_times.append((now, txid))
+                        assert (
+                            txid.view == view
+                        ), f"Expected commit in view {view}, got {txid}"
+                        with self._condition:
+                            if txid != self.latest_commit:
+                                self.latest_commit = txid
                                 self._condition.notify_all()
-                            prev_txid = txid
             finally:
                 with self._condition:
                     self._finished = True
                     self._condition.notify_all()
 
-    response_times = []
-
     paths = [
-        "/log/private",
-        "/log/blocking/private",
-        "/log/blocking/private/receipt",
-        "/log/private/optional_commit",
-        "/log/private/optional_commit?wait_for_commit=true",
+        ("/log/private", False),
+        ("/log/blocking/private", True),
+        ("/log/blocking/private/receipt", True),
+        ("/log/private/optional_commit", False),
+        ("/log/private/optional_commit?wait_for_commit=true", True),
     ]
     n_requests = 5
     request_order = paths * n_requests
     random.shuffle(request_order)
 
+    target_seqno = 0
     cp = CommitPoller(primary)
     cp.start()
     try:
         with primary.client("user0") as c:
-            for path in request_order:
+            for path, should_be_committed in request_order:
+                with cp._condition:
+                    assert not cp._finished, "Commit poller exited during requests"
                 r = c.post(path, {"id": 42, "msg": "Hello world"})
                 assert r.status_code == http.HTTPStatus.OK, r.status_code
+                txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
+                assert (
+                    txid.valid() and txid.view == view
+                ), f"Expected response in view {view}, got {txid}"
+                target_seqno = max(target_seqno, txid.seqno)
 
                 if path == "/log/blocking/private/receipt":
                     # Response is a binary COSE receipt
@@ -2603,47 +2608,33 @@ def test_blocking_calls(network, args):
                         network.cert.public_key(),
                         b"\0" * 32,
                     )
+                else:
+                    assert r.body.json() is True, r.body.json()
 
-                now = datetime.now(timezone.utc)
-                txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
-                response_times.append((now, path, txid))
+                if should_be_committed:
+                    status = c.get(f"/node/tx?transaction_id={txid}")
+                    assert status.status_code == http.HTTPStatus.OK, status.status_code
+                    assert (
+                        TxStatus(status.body.json()["status"]) == TxStatus.Committed
+                    ), f"Blocking response {txid} is not committed: {status.body.json()}"
 
             c.wait_for_commit(r)
 
-        response_txids = [txid for _, _, txid in response_times]
-        target = response_txids[-1]
-        assert all(
-            txid.valid() and txid.view == target.view for txid in response_txids
-        ), f"Commit latency measurement requires valid responses in one view: {response_txids}"
-        assert all(
-            txid.seqno <= target.seqno for txid in response_txids
-        ), f"Final response {target} does not cover all responses: {response_txids}"
-
-        def has_observed_target():
-            newer_view_txid = None
-            for _, txid in reversed(cp.known_commit_times):
-                if txid.view > target.view:
-                    newer_view_txid = txid
-                    continue
-                if txid.view == target.view and txid.seqno >= target.seqno:
-                    return True
-                # Older commit samples cannot cover the target.
-                break
-            assert newer_view_txid is None, (
-                f"Commit observer changed view before covering {target}: "
-                f"{newer_view_txid}"
-            )
-            return False
-
         with cp._condition:
             cp._condition.wait_for(
-                lambda: cp._finished or has_observed_target(),
+                lambda: cp._finished
+                or (
+                    cp.latest_commit is not None
+                    and cp.latest_commit.seqno >= target_seqno
+                ),
                 timeout=infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC,
             )
-            assert has_observed_target(), (
-                f"Commit poller did not observe {target} before stopping or timing out: "
-                f"last sample={cp.known_commit_times[-1][1] if cp.known_commit_times else None}, "
-                f"samples={len(cp.known_commit_times)}, finished={cp._finished}"
+            assert not cp._finished, "Commit poller exited before draining"
+            assert cp.latest_commit is not None and (
+                cp.latest_commit.seqno >= target_seqno
+            ), (
+                f"Commit poller did not observe {view}.{target_seqno} before timing out: "
+                f"last sample={cp.latest_commit}"
             )
     finally:
         cp.stop()
@@ -2653,55 +2644,6 @@ def test_blocking_calls(network, args):
         )
         cp.join(timeout=shutdown_timeout)
         assert not cp.is_alive(), f"Commit poller still alive after {shutdown_timeout}s"
-
-    commit_deltas = {p: [] for p in paths}
-
-    for response_time, path, txid in response_times:
-        for commit_time, commit_txid in cp.known_commit_times:
-            if commit_txid.view < txid.view:
-                continue
-            assert commit_txid.view == txid.view, (
-                f"Commit latency measurement requires a single view: "
-                f"{commit_txid} does not cover {txid}"
-            )
-            if commit_txid.seqno >= txid.seqno:
-                delta = (commit_time - response_time).total_seconds()
-                commit_deltas[path].append(delta)
-                break
-        else:
-            raise AssertionError(f"No commit found for {txid}")
-
-    mean_commit_deltas = {p: sum(ds) / len(ds) for p, ds in commit_deltas.items()}
-    LOG.info(f"Mean commit deltas: {mean_commit_deltas}")
-
-    # Over a large-enough sample size, we'd expect:
-    # - blocking means (both /blocking/private and /blocking/private/receipt)
-    #   to approach 0. We get a response and see commit advance at exactly
-    #   the same time, because the response is held until global commit.
-    # - non-blocking mean (/private) to approach the signature interval.
-    #   We get responses eagerly, and they're committed later at regular
-    #   signature intervals.
-    # - the receipt endpoint to behave similarly to the plain blocking
-    #   endpoint, since the receipt is constructed inline at commit time
-    #   with negligible overhead.
-    #
-    # Our actual test has far more variation (small sample, timing noise),
-    # so we can only make much broader claims - each blocking mean is
-    # smaller than the non-blocking mean.
-    assert (
-        mean_commit_deltas["/log/blocking/private"] < mean_commit_deltas["/log/private"]
-    )
-    assert (
-        mean_commit_deltas["/log/blocking/private/receipt"]
-        < mean_commit_deltas["/log/private"]
-    )
-    # The optional_commit endpoint with wait_for_commit=true should behave
-    # like the blocking endpoints, while without the parameter it should
-    # behave like the non-blocking endpoint.
-    assert (
-        mean_commit_deltas["/log/private/optional_commit?wait_for_commit=true"]
-        < mean_commit_deltas["/log/private/optional_commit"]
-    )
 
     return network
 
