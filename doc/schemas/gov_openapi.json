@@ -769,26 +769,12 @@
         "minimum": 0,
         "type": "integer"
       }
-    },
-    "x-ccf-forwarding": {
-      "always": {
-        "description": "If this request is made to a backup node, it will be forwarded to the primary node for execution.",
-        "value": "always"
-      },
-      "never": {
-        "description": "This call will never be forwarded, and is always executed on the receiving node, potentially breaking session consistency. If this attempts to write on a backup, this will fail.",
-        "value": "never"
-      },
-      "sometimes": {
-        "description": "If this request is made to a backup node, it may be forwarded to the primary node for execution. Specifically, if this request is sent as part of a session which was already forwarded, then it will also be forwarded.",
-        "value": "sometimes"
-      }
     }
   },
   "info": {
     "description": "The governance API implemented by this CCF build. This document describes the moving 'latest' API and does not guarantee that older document versions remain available.",
     "title": "CCF Governance",
-    "version": "5.0.0"
+    "version": "6.0.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -810,10 +796,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "OpenAPI schema",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "OpenAPI schema"
       },
       "parameters": [
         {
@@ -865,10 +848,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Current commit level",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Current commit level"
       },
       "parameters": [
         {
@@ -901,10 +881,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "List governance proposals",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "List governance proposals"
       },
       "parameters": [
         {
@@ -937,10 +914,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get a governance proposal",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get a governance proposal"
       },
       "parameters": [
         {
@@ -982,10 +956,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get a proposal's actions",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get a proposal's actions"
       },
       "parameters": [
         {
@@ -1027,10 +998,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get a member's ballot",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get a member's ballot"
       },
       "parameters": [
         {
@@ -1122,10 +1090,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Submit a ballot",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
-        }
+        "summary": "Submit a ballot"
       }
     },
     "/gov/members/proposals/{proposalId}:withdraw": {
@@ -1181,10 +1146,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Withdraw a governance proposal",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
-        }
+        "summary": "Withdraw a governance proposal"
       }
     },
     "/gov/members/proposals:create": {
@@ -1228,10 +1190,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Create a governance proposal",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
-        }
+        "summary": "Create a governance proposal"
       }
     },
     "/gov/members/state-digests/{memberId}": {
@@ -1252,10 +1211,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get a member's state digest",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get a member's state digest"
       },
       "parameters": [
         {
@@ -1322,10 +1278,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Acknowledge a member's state digest",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
-        }
+        "summary": "Acknowledge a member's state digest"
       }
     },
     "/gov/members/state-digests/{memberId}:update": {
@@ -1378,10 +1331,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Update a member's state digest",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
-        }
+        "summary": "Update a member's state digest"
       }
     },
     "/gov/receipt": {
@@ -1423,10 +1373,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Receipt for a transaction",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Receipt for a transaction"
       },
       "parameters": [
         {
@@ -1480,10 +1427,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "COSE receipt for a transaction",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "COSE receipt for a transaction"
       },
       "parameters": [
         {
@@ -1516,10 +1460,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get an encrypted recovery share",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get an encrypted recovery share"
       },
       "parameters": [
         {
@@ -1593,10 +1534,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Submit a recovery share",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
-        }
+        "summary": "Submit a recovery share"
       }
     },
     "/gov/service/constitution": {
@@ -1617,10 +1555,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get the service constitution",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get the service constitution"
       },
       "parameters": [
         {
@@ -1653,10 +1588,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get service information",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get service information"
       },
       "parameters": [
         {
@@ -1699,10 +1631,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get the installed JavaScript application",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get the installed JavaScript application"
       },
       "parameters": [
         {
@@ -1735,10 +1664,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "List JavaScript modules",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "List JavaScript modules"
       },
       "parameters": [
         {
@@ -1771,10 +1697,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get a JavaScript module",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get a JavaScript module"
       },
       "parameters": [
         {
@@ -1815,10 +1738,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get the service join policy",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get the service join policy"
       },
       "parameters": [
         {
@@ -1851,10 +1771,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get accepted JWT issuers and keys",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get accepted JWT issuers and keys"
       },
       "parameters": [
         {
@@ -1887,10 +1804,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "List consortium members",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "List consortium members"
       },
       "parameters": [
         {
@@ -1923,10 +1837,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get a consortium member",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get a consortium member"
       },
       "parameters": [
         {
@@ -1968,10 +1879,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "List service nodes",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "List service nodes"
       },
       "parameters": [
         {
@@ -2004,10 +1912,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get a service node",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get a service node"
       },
       "parameters": [
         {
@@ -2049,10 +1954,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get the latest committed transaction",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get the latest committed transaction"
       },
       "parameters": [
         {
@@ -2085,10 +1987,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get transaction status",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get transaction status"
       },
       "parameters": [
         {
@@ -2130,10 +2029,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "List application users",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "List application users"
       },
       "parameters": [
         {
@@ -2166,10 +2062,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Get an application user",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Get an application user"
       },
       "parameters": [
         {
@@ -2222,10 +2115,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Current status of a transaction",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Current status of a transaction"
       },
       "parameters": [
         {

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/common_endpoint_registry.h"
+#include "ds/actors.h"
 #include "node/gov/api_schema.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/acks.h"
@@ -17,7 +18,7 @@ namespace ccf
   class GovEndpointRegistry : public CommonEndpointRegistry
   {
   private:
-    static constexpr auto LATEST_API_DOCUMENT_VERSION = "5.0.0";
+    static constexpr auto LATEST_API_DOCUMENT_VERSION = "6.0.0";
 
     NetworkState& network;
     ShareManager share_manager;

@@ -10,6 +10,7 @@ import ccf.ledger
 import infra.crypto
 import infra.e2e_args
 import infra.github
+import infra.interfaces
 import infra.jwt_issuer
 import infra.logging_app as app
 import infra.network
@@ -114,7 +115,7 @@ def issue_activity_on_live_service(network, args):
     # At least one transaction that will require historical fetching
     network.txs.issue(network, number_txs=1, repeat=True)
 
-    # At least one transaction that will require forwarding
+    # At least one transaction sent to a backup for redirection
     network.txs.issue(network, number_txs=1, on_backup=True)
 
 
@@ -360,6 +361,11 @@ def run_code_upgrade_from(
     )
 
     set_js_args(args, from_install_path, to_install_path)
+
+    # Older peers must redirect before joining a forwarding-free service.
+    for host in args.nodes:
+        for interface in host.rpc_interfaces.values():
+            interface.redirections = infra.interfaces.RedirectionConfig()
 
     service_subject_name = "CN=LTS custom service name"
 

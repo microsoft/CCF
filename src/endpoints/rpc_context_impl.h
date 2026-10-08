@@ -116,7 +116,6 @@ namespace ccf
       consensus_committed_func = std::move(func);
     }
 
-    bool response_is_pending = false;
     bool terminate_session = false;
 
     struct RespondOnCommitInfo
@@ -132,6 +131,5 @@ namespace ccf
     [[nodiscard]] virtual bool should_apply_writes() const = 0;
     virtual void reset_response() = 0;
     [[nodiscard]] virtual std::vector<uint8_t> serialise_response() const = 0;
-    virtual const std::vector<uint8_t>& get_serialised_request() = 0;
   };
 }

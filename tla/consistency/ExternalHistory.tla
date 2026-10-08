@@ -8,7 +8,7 @@ EXTENDS Naturals, Sequences, SequencesExt, FiniteSets, FiniteSetsExt
 \* Event types recorded in the history
 \* Note that transaction status requests are not modelled to reduce state space
 \* Currently only read-write (Rw) transactions and read-only (Ro) transactions are modelled
-\* Both transaction types are modelled as forward-always transactions
+\* Both transaction types are modelled as transactions routed to the primary
 \* This could be extended to support more types of read-only transactions
 CONSTANTS RwTxRequest, RwTxResponse, RoTxRequest, RoTxResponse, TxStatusReceived
 

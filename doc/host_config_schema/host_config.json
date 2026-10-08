@@ -123,23 +123,17 @@
                 },
                 "description": "An array of regular expressions that specify which URL paths are served on the interface. Optional; if not present, all paths are served"
               },
-              "forwarding_timeout_ms": {
-                "type": "integer",
-                "default": 3000,
-                "minimum": 0,
-                "description": "Timeout for forwarded RPC calls (in milliseconds)"
-              },
               "redirections": {
                 "type": "object",
-                "description": "Configure how redirect responses should be produced on this interface. If this is omitted, then forwarding will be used instead. An empty object selects the default NodeByRole resolvers for to_primary and to_backup",
+                "description": "Configure how redirect responses should be produced on this interface. If this is omitted, requests are redirected by node role, using the corresponding interface on the target node",
                 "properties": {
                   "to_primary": {
                     "$ref": "#/$defs/RedirectionResolver",
-                    "description": "Configures how the Location header should be populated, when requests arrive on this interface that must be served by a primary while the receiving node is not a primary. If omitted, defaults to a NodeByRole resolver targeting the primary"
+                    "description": "Configures how the Location header should be populated, when requests arrive on this interface that must be served by a primary while the receiving node is not a primary"
                   },
                   "to_backup": {
                     "$ref": "#/$defs/RedirectionResolver",
-                    "description": "Configures how the Location header should be populated, when requests arrive on this interface that must be served by a backup while the receiving node is currently a primary. If omitted, defaults to a NodeByRole resolver targeting a backup"
+                    "description": "Configures how the Location header should be populated, when requests arrive on this interface that must be served by a backup while the receiving node is currently a primary"
                   }
                 },
                 "additionalProperties": false
@@ -890,7 +884,7 @@
                 "properties": {
                   "role": {
                     "enum": ["primary", "backup"],
-                    "description": "Role of the node to redirect to. If omitted, defaults to the role of the field this resolver configures: primary for to_primary, backup for to_backup"
+                    "default": "primary"
                   }
                 },
                 "additionalProperties": false

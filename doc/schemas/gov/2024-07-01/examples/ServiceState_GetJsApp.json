@@ -12,7 +12,6 @@
             "post": {
               "jsModule": "math.js",
               "jsFunction": "compute",
-              "forwardingRequired": "sometimes",
               "authnPolicies": [
                 "user_cert"
               ],

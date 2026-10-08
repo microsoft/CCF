@@ -184,13 +184,6 @@ namespace http
 
         search->process(rpc_ctx);
 
-        if (rpc_ctx->response_is_pending)
-        {
-          // If the RPC is pending, hold the connection.
-          LOG_TRACE_FMT("Pending");
-          return;
-        }
-
         const auto& respond_on_commit = rpc_ctx->respond_on_commit;
         if (respond_on_commit.has_value())
         {

@@ -576,9 +576,6 @@
           "endorsement": {
             "$ref": "#/components/schemas/Endorsement"
           },
-          "forwarding_timeout_ms": {
-            "$ref": "#/components/schemas/uint64"
-          },
           "http_configuration": {
             "$ref": "#/components/schemas/ParserConfiguration"
           },
@@ -951,26 +948,12 @@
         "minimum": 0,
         "type": "integer"
       }
-    },
-    "x-ccf-forwarding": {
-      "always": {
-        "description": "If this request is made to a backup node, it will be forwarded to the primary node for execution.",
-        "value": "always"
-      },
-      "never": {
-        "description": "This call will never be forwarded, and is always executed on the receiving node, potentially breaking session consistency. If this attempts to write on a backup, this will fail.",
-        "value": "never"
-      },
-      "sometimes": {
-        "description": "If this request is made to a backup node, it may be forwarded to the primary node for execution. Specifically, if this request is sent as part of a session which was already forwarded, then it will also be forwarded.",
-        "value": "sometimes"
-      }
     }
   },
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.9"
+    "version": "6.0.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -992,10 +975,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "OpenAPI schema",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "OpenAPI schema"
       }
     },
     "/node/attestations": {
@@ -1015,9 +995,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1038,9 +1015,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1054,9 +1028,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1097,10 +1068,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Current commit level",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Current commit level"
       }
     },
     "/node/config": {
@@ -1120,9 +1088,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1143,9 +1108,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1166,9 +1128,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1189,9 +1148,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1212,9 +1168,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1235,9 +1188,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1277,10 +1227,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Download ledger chunk",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
-        }
+        "summary": "Download ledger chunk"
       },
       "head": {
         "description": "Redirect to the corresponding /node/ledger_chunk/{chunk_name} endpoint for the ledger chunk including the sequence number specified in the 'since' query parameter. If 'include_committed_prefix' is true and no committed file is available, this may temporarily redirect to a synthetic committed-prefix resource.",
@@ -1317,10 +1264,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Ledger chunk metadata",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
-        }
+        "summary": "Ledger chunk metadata"
       }
     },
     "/node/ledger_chunk/committed_prefix/{chunk_name}": {
@@ -1358,10 +1302,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Download committed ledger prefix",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
-        }
+        "summary": "Download committed ledger prefix"
       },
       "head": {
         "description": "Metadata about a synthetic chunk containing only committed ledger entries. The resource is not a canonical .committed ledger file.",
@@ -1383,10 +1324,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Committed ledger prefix metadata",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
-        }
+        "summary": "Committed ledger prefix metadata"
       },
       "parameters": [
         {
@@ -1434,10 +1372,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Download ledger chunk",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
-        }
+        "summary": "Download ledger chunk"
       },
       "head": {
         "description": "Metadata about a specific ledger chunk (Content-Length and x-ms-ccf-ledger-chunk-name)",
@@ -1459,10 +1394,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Ledger chunk metadata",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
-        }
+        "summary": "Ledger chunk metadata"
       },
       "parameters": [
         {
@@ -1492,9 +1424,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1515,9 +1444,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1564,9 +1490,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1587,9 +1510,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1610,9 +1530,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1633,9 +1550,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
         }
       },
       "get": {
@@ -1654,9 +1568,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       },
       "parameters": [
@@ -1687,9 +1598,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1703,9 +1611,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       },
       "head": {
@@ -1717,9 +1622,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1740,9 +1642,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1763,9 +1662,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1782,9 +1678,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1801,9 +1694,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1846,10 +1736,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Receipt for a transaction",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Receipt for a transaction"
       }
     },
     "/node/receipt/cose": {
@@ -1891,10 +1778,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "COSE receipt for a transaction",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "COSE receipt for a transaction"
       }
     },
     "/node/self_signed_certificate": {
@@ -1914,9 +1798,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1937,9 +1818,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1960,9 +1838,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1989,9 +1864,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       },
       "head": {
@@ -2016,9 +1888,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -2055,9 +1924,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       },
       "head": {
@@ -2078,9 +1944,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       },
       "parameters": [
@@ -2107,9 +1970,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -2130,9 +1990,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -2165,10 +2022,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Current status of a transaction",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
+        "summary": "Current status of a transaction"
       }
     },
     "/node/version": {
@@ -2188,9 +2042,6 @@
           "default": {
             "$ref": "#/components/responses/default"
           }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     }

@@ -34,30 +34,17 @@ namespace ccf
 
   // Dispatches an inbound node message to the appropriate handler. Callers
   // must check can_process_node_inbound_message() before calling this.
-  template <typename TForwarder, typename TChannels, typename TConsensus>
+  template <typename TChannels, typename TConsensus>
   void recv_node_inbound_message(
     NodeMsgType msg_type,
     const NodeId& from,
     const uint8_t* payload_data,
     size_t payload_size,
-    TForwarder* cmd_forwarder,
     TChannels* n2n_channels,
     TConsensus* consensus)
   {
     switch (msg_type)
     {
-      case forwarded_msg:
-      {
-        if (cmd_forwarder == nullptr)
-        {
-          LOG_FAIL_FMT(
-            "Ignoring forwarded node message: command forwarder not "
-            "initialised");
-          return;
-        }
-        cmd_forwarder->recv_message(from, payload_data, payload_size);
-        return;
-      }
       case channel_msg:
       {
         if (n2n_channels == nullptr)

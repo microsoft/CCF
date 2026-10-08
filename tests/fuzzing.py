@@ -207,9 +207,6 @@ def run(args):
         network.ignore_error_pattern_on_shutdown(
             "Exception in bool ccf::Channel::recv_key_exchange_message"
         )
-        network.ignore_error_pattern_on_shutdown(
-            "Exception in void ccf::Forwarder<ccf::NodeToNode>::recv_message"
-        )
         network.ignore_error_pattern_on_shutdown("Unknown node message type")
         network.ignore_error_pattern_on_shutdown("Unhandled AFT message type")
         network.ignore_error_pattern_on_shutdown("Unknown frontend msg type")

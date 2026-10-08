@@ -270,7 +270,7 @@ RoTxRequestAction ==
     /\ action' = "RoTxRequest"
 
 \* Response to a read-only transaction request
-\* Assumes read-only transactions are always forwarded
+\* Assumes read-only transactions are always routed to the primary
 RoTxResponseAction(i) ==
 \* RoTxResponseAction ==
 \*     /\ \E i \in DOMAIN history :

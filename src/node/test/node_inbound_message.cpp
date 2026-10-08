@@ -200,31 +200,8 @@ TEST_CASE(
     }
   }
 
-  SUBCASE("Forwarded commands dispatch to command forwarder")
-  {
-    StubHandler forwarder;
-    StubHandler channels;
-    StubHandler consensus;
-
-    ccf::recv_node_inbound_message(
-      ccf::forwarded_msg,
-      from,
-      payload.data(),
-      payload.size(),
-      &forwarder,
-      &channels,
-      &consensus);
-
-    REQUIRE(forwarder.call_count == 1);
-    REQUIRE(forwarder.last_from == from);
-    REQUIRE(forwarder.last_payload == payload);
-    REQUIRE(channels.call_count == 0);
-    REQUIRE(consensus.call_count == 0);
-  }
-
   SUBCASE("Channel messages dispatch to node-to-node channels")
   {
-    StubHandler forwarder;
     StubHandler channels;
     StubHandler consensus;
 
@@ -233,20 +210,17 @@ TEST_CASE(
       from,
       payload.data(),
       payload.size(),
-      &forwarder,
       &channels,
       &consensus);
 
     REQUIRE(channels.call_count == 1);
     REQUIRE(channels.last_from == from);
     REQUIRE(channels.last_payload == payload);
-    REQUIRE(forwarder.call_count == 0);
     REQUIRE(consensus.call_count == 0);
   }
 
   SUBCASE("Consensus messages dispatch to consensus")
   {
-    StubHandler forwarder;
     StubHandler channels;
     StubHandler consensus;
 
@@ -255,34 +229,32 @@ TEST_CASE(
       from,
       payload.data(),
       payload.size(),
-      &forwarder,
       &channels,
       &consensus);
 
     REQUIRE(consensus.call_count == 1);
     REQUIRE(consensus.last_from == from);
     REQUIRE(consensus.last_payload == payload);
-    REQUIRE(forwarder.call_count == 0);
     REQUIRE(channels.call_count == 0);
   }
 
   SUBCASE("Unknown message types are rejected")
   {
-    StubHandler forwarder;
     StubHandler channels;
     StubHandler consensus;
 
-    REQUIRE_THROWS_AS(
-      ccf::recv_node_inbound_message(
-        static_cast<ccf::NodeMsgType>(42),
-        from,
-        payload.data(),
-        payload.size(),
-        &forwarder,
-        &channels,
-        &consensus),
-      std::logic_error);
-    REQUIRE(forwarder.call_count == 0);
+    for (const auto type : {2, 42})
+    {
+      REQUIRE_THROWS_AS(
+        ccf::recv_node_inbound_message(
+          static_cast<ccf::NodeMsgType>(type),
+          from,
+          payload.data(),
+          payload.size(),
+          &channels,
+          &consensus),
+        std::logic_error);
+    }
     REQUIRE(channels.call_count == 0);
     REQUIRE(consensus.call_count == 0);
   }

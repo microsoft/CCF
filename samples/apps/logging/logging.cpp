@@ -2203,7 +2203,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.6";
+      openapi_info.document_version = "3.0.0";
     };
 
     void init_handlers() override
@@ -2538,8 +2538,7 @@ namespace loggingapp
       auto custom_policy = std::make_shared<CustomAuthPolicy>();
       make_endpoint("/custom_auth", HTTP_GET, custom_auth, {custom_policy})
         .set_auto_schema<void, nlohmann::json>()
-        // To test that custom auth works on both the receiving node and a
-        // forwardee, we always forward it
+        // Test custom auth on the receiving node and on the redirect target.
         .set_redirection_strategy(
           ccf::endpoints::RedirectionStrategy::ToPrimary)
         .install();

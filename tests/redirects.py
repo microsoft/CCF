@@ -221,10 +221,8 @@ def run_redirect_tests_role(args):
         primary_interface = node.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
         primary_interface.app_protocol = "HTTP2" if args.http2 else "HTTP1"
         if args.redirections_config == "default":
-            # "redirections": {} selects the default role-based resolvers
-            redirections = infra.interfaces.RedirectionConfig(
-                to_primary=None, to_backup=None
-            )
+            # Omitted configuration selects the default role-based resolvers.
+            redirections = None
         elif args.redirections_config == "roleless":
             # NodeByRole resolvers without a role target the role of the field
             # they configure, so to_backup must still resolve to a backup

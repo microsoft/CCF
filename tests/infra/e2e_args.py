@@ -85,7 +85,6 @@ CLI_ARGUMENT_CONFIG_PATHS = {
     ),
     "http2": "network.rpc_interfaces.*.app_protocol",
     "snp_endorsements_servers": None,
-    "forwarding_timeout_ms": "network.rpc_interfaces.*.forwarding_timeout_ms",
     "tick_ms": "tick_interval",
     "max_msg_size_bytes": None,
     "ledger_max_read_bytes": "ledger.max_read_size",
@@ -679,12 +678,6 @@ def cli_args(
         action="append",
         # ACI default
         default=(["THIM:$Fabric_NodeIPOrFQDN:2377"]),
-    )
-    parser.add_argument(
-        "--forwarding-timeout-ms",
-        help="Timeout for forwarded RPC calls (in milliseconds)",
-        type=int,
-        default=infra.interfaces.DEFAULT_FORWARDING_TIMEOUT_MS,
     )
     parser.add_argument(
         "--tick-ms",
