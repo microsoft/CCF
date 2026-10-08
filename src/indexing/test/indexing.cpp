@@ -29,6 +29,19 @@ auto valid_from =
 auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
+class StubCommitPoint : public ccf::AbstractCommitPoint
+{
+public:
+  std::optional<ccf::TxID> committed;
+  mutable size_t polls = 0;
+
+  std::optional<ccf::TxID> get_committed_txid() const override
+  {
+    ++polls;
+    return committed;
+  }
+};
+
 static std::vector<ActionDesc> create_actions(
   ExpectedSeqNos& seqnos_hello,
   ExpectedSeqNos& seqnos_saluton,
@@ -165,6 +178,95 @@ void run_tests(
 }
 
 // Uses stub classes to test just indexing logic in isolation
+TEST_CASE(
+  "Periodic indexing uses the committed TxID" * doctest::test_suite("indexing"))
+{
+  ccf::tasks::JobBoard job_board;
+  auto fetcher = std::make_shared<TestTransactionFetcher>();
+  auto context = std::make_unique<ccf::AbstractNodeContext>();
+  auto without_commit_point =
+    std::make_shared<ccf::indexing::Indexer>(fetcher, *context);
+  REQUIRE_THROWS_WITH(
+    without_commit_point->register_periodic_tasks(job_board, 10ms),
+    "Periodic indexing requires the CommitPoint subsystem");
+  REQUIRE_THROWS_WITH(
+    std::make_shared<ccf::indexing::Indexer>(fetcher)->register_periodic_tasks(
+      job_board, 10ms),
+    "Periodic indexing requires the CommitPoint subsystem");
+  auto commit_point = std::make_shared<StubCommitPoint>();
+  context->install_subsystem(commit_point);
+  auto indexer = std::make_shared<ccf::indexing::Indexer>(fetcher, *context);
+  indexer->register_periodic_tasks(job_board, 10ms);
+  // Registry access is complete at construction; ticks do not need the context.
+  context.reset();
+  auto strategy = std::make_shared<IndexA>(map_a);
+  indexer->install_strategy(strategy);
+  const auto run_all = [&]() {
+    while (auto task = job_board.get_task())
+    {
+      task->do_task();
+    }
+  };
+
+  job_board.tick(9ms);
+  run_all();
+  REQUIRE(commit_point->polls == 0);
+  job_board.tick(1ms);
+  run_all();
+  REQUIRE(commit_point->polls == 1);
+  REQUIRE(fetcher->requested.empty());
+
+  commit_point->committed = ccf::TxID{2, 3};
+  job_board.tick(35ms);
+  run_all();
+  REQUIRE(commit_point->polls == 2);
+  REQUIRE(check_seqnos({1, 2, 3}, fetcher->requested));
+
+  commit_point->committed = ccf::TxID{2, 5};
+  job_board.tick(10ms);
+  run_all();
+  REQUIRE(check_seqnos({1, 2, 3, 4, 5}, fetcher->requested));
+  const auto before_stop = commit_point->polls;
+  job_board.tick(10ms);
+
+  SUBCASE("Board shutdown rejects already runnable updates")
+  {
+    job_board.shutdown();
+  }
+  SUBCASE("Destroyed indexer is not retained by the periodic task")
+  {
+    std::weak_ptr<ccf::indexing::Indexer> weak_indexer = indexer;
+    indexer.reset();
+    REQUIRE(weak_indexer.expired());
+  }
+
+  run_all();
+  job_board.tick(100ms);
+  run_all();
+  REQUIRE(commit_point->polls == before_stop);
+}
+
+TEST_CASE(
+  "Periodic indexing owns only its commit-point dependency" *
+  doctest::test_suite("indexing"))
+{
+  ccf::tasks::JobBoard board;
+  auto fetcher = std::make_shared<TestTransactionFetcher>();
+  auto context = std::make_unique<ccf::AbstractNodeContext>();
+  auto commit_point = std::make_shared<StubCommitPoint>();
+  std::weak_ptr<StubCommitPoint> weak_commit_point = commit_point;
+  context->install_subsystem(commit_point);
+  auto indexer = std::make_shared<ccf::indexing::Indexer>(fetcher, *context);
+  indexer->register_periodic_tasks(board, 10ms);
+  commit_point.reset();
+  context.reset();
+  REQUIRE_FALSE(weak_commit_point.expired());
+  indexer.reset();
+  REQUIRE(weak_commit_point.expired());
+  board.tick(10ms);
+  REQUIRE(board.get_task() == nullptr);
+}
+
 TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
 {
   ccf::kv::Store kv_store;

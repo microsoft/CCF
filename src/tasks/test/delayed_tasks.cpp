@@ -12,6 +12,14 @@
 
 namespace
 {
+  // Exposes protected scheduling so tests can exercise owner lifetime and
+  // independent callbacks without implementing a production component.
+  class TestPeriodicTaskOwner : public ccf::tasks::PeriodicTaskOwner
+  {
+  public:
+    using PeriodicTaskOwner::schedule_periodic_task;
+  };
+
   struct FakeTime
   {
     ccf::tasks::JobBoard& job_board;
@@ -266,6 +274,93 @@ TEST_CASE("TickEnqueue" * doctest::test_suite("delayed_tasks"))
   REQUIRE(n.load() == 1);
 
   incrementer->cancel_task();
+}
+
+TEST_CASE(
+  "Independent periodic tasks share an owner, not an execution lock" *
+  doctest::test_suite("delayed_tasks"))
+{
+  using namespace std::chrono_literals;
+  ccf::tasks::JobBoard job_board;
+  auto owner = std::make_shared<TestPeriodicTaskOwner>();
+  std::latch first_started{1};
+  std::latch release_first{1};
+  std::vector<std::chrono::milliseconds> first_elapsed, second_elapsed;
+  owner->schedule_periodic_task(
+    job_board,
+    10ms,
+    [&](auto elapsed) {
+      first_elapsed.push_back(elapsed);
+      first_started.count_down();
+      release_first.wait();
+    },
+    "Consensus");
+  owner->schedule_periodic_task(
+    job_board,
+    10ms,
+    [&](auto elapsed) { second_elapsed.push_back(elapsed); },
+    "Channels");
+
+  job_board.tick(10ms);
+  auto first = job_board.get_task();
+  REQUIRE(first != nullptr);
+  std::thread worker([&]() { first->do_task(); });
+  first_started.wait();
+  do_all_tasks(job_board);
+  job_board.tick(35ms);
+  do_all_tasks(job_board);
+  std::weak_ptr<TestPeriodicTaskOwner> weak_owner = owner;
+  owner.reset();
+  const auto retained_while_running = !weak_owner.expired();
+  release_first.count_down();
+  worker.join();
+
+  REQUIRE(first_elapsed == std::vector{10ms});
+  REQUIRE(second_elapsed == std::vector{10ms, 35ms});
+  REQUIRE(retained_while_running);
+  REQUIRE(weak_owner.expired());
+  job_board.tick(100ms);
+  do_all_tasks(job_board);
+  REQUIRE(first_elapsed.size() == 1);
+  REQUIRE(second_elapsed.size() == 2);
+}
+
+TEST_CASE(
+  "Periodic task owner destruction and board shutdown" *
+  doctest::test_suite("delayed_tasks"))
+{
+  using namespace std::chrono_literals;
+  ccf::tasks::JobBoard job_board;
+  auto owner = std::make_shared<TestPeriodicTaskOwner>();
+  std::vector<std::chrono::milliseconds> elapsed;
+  owner->schedule_periodic_task(
+    job_board,
+    10ms,
+    [&](auto duration) { elapsed.push_back(duration); },
+    "Tick");
+  job_board.tick(9ms);
+  do_all_tasks(job_board);
+  REQUIRE(elapsed.empty());
+  job_board.tick(26ms);
+  do_all_tasks(job_board);
+  REQUIRE(elapsed == std::vector{35ms});
+  job_board.tick(10ms);
+
+  SUBCASE("Destruction leaves no owned callback on the board")
+  {
+    std::weak_ptr<TestPeriodicTaskOwner> weak_owner = owner;
+    owner.reset();
+    REQUIRE(weak_owner.expired());
+  }
+  SUBCASE("Board shutdown discards periodic work")
+  {
+    job_board.shutdown();
+  }
+
+  do_all_tasks(job_board);
+  job_board.tick(100ms);
+  do_all_tasks(job_board);
+  REQUIRE(elapsed == std::vector{35ms});
 }
 
 TEST_CASE(

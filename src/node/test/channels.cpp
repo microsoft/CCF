@@ -13,6 +13,7 @@
 #include "node/node_types.h"
 
 #include <algorithm>
+#include <barrier>
 #include <cstring>
 #include <mutex>
 #include <queue>
@@ -1689,6 +1690,116 @@ TEST_CASE_FIXTURE(TransportsFixture, "Key rotation")
 
   equal_modulo_holes(tc1.received_results, expected_received_by_1);
   equal_modulo_holes(tc2.received_results, expected_received_by_2);
+}
+
+TEST_CASE_FIXTURE(
+  TransportsFixture, "Channel manager owns its periodic maintenance")
+{
+  using namespace std::chrono_literals;
+  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
+  auto node_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto node_cert =
+    generate_endorsed_cert(node_kp, "CN=Node1", network_kp, service_cert);
+  ccf::tasks::JobBoard job_board;
+  auto manager = std::make_shared<NodeToNodeChannelManager>(transport1);
+  manager->register_periodic_tasks(job_board, 10ms);
+  manager->set_idle_timeout(25ms);
+  const auto run_all = [&]() {
+    while (auto task = job_board.get_task())
+    {
+      task->do_task();
+    }
+  };
+  job_board.tick(10ms);
+  run_all();
+  REQUIRE_FALSE(manager->have_channel(nid2));
+
+  manager->initialize(nid1, service_cert, node_kp, node_cert);
+  MsgType message{};
+  REQUIRE(manager->send_authenticated(
+    nid2, NodeMsgType::consensus_msg, message.data(), message.size()));
+  job_board.tick(9ms);
+  run_all();
+  REQUIRE(manager->have_channel(nid2));
+  job_board.tick(1ms);
+  run_all();
+  REQUIRE(manager->have_channel(nid2));
+  job_board.tick(17ms);
+  run_all();
+  REQUIRE_FALSE(manager->have_channel(nid2));
+
+  job_board.tick(10ms);
+  SUBCASE("Board shutdown cancels maintenance while the manager is alive")
+  {
+    job_board.shutdown();
+  }
+  SUBCASE("Queued tasks do not retain the manager")
+  {
+    std::weak_ptr<NodeToNodeChannelManager> weak_manager = manager;
+    manager.reset();
+    REQUIRE(weak_manager.expired());
+  }
+  run_all();
+  job_board.tick(100ms);
+  run_all();
+  REQUIRE(job_board.get_summary().pending_tasks == 0);
+}
+
+TEST_CASE_FIXTURE(
+  TransportsFixture, "Channel maintenance can overlap sends and receives")
+{
+  auto network_kp = ccf::crypto::make_ec_key_pair(default_curve);
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
+  auto kp1 = ccf::crypto::make_ec_key_pair(default_curve);
+  auto cert1 =
+    generate_endorsed_cert(kp1, "CN=Node1", network_kp, service_cert);
+  auto kp2 = ccf::crypto::make_ec_key_pair(default_curve);
+  auto cert2 =
+    generate_endorsed_cert(kp2, "CN=Node2", network_kp, service_cert);
+  NodeToNodeChannelManager channels1(transport1), channels2(transport2);
+  channels1.initialize(nid1, service_cert, kp1, cert1);
+  channels2.initialize(nid2, service_cert, kp2, cert2);
+  channels2.set_idle_timeout(std::chrono::milliseconds(10));
+  MsgType message{};
+  REQUIRE(channels1.send_authenticated(
+    nid2, NodeMsgType::consensus_msg, message.data(), message.size()));
+  const auto initiation = get_first(host1, NodeMsgType::channel_msg).data();
+  std::barrier start{4};
+  constexpr size_t iterations = 100;
+  std::thread maintenance([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      channels2.tick(std::chrono::milliseconds(1));
+    }
+  });
+  std::thread inbound([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      channels2.recv_channel_message(
+        nid1, initiation.data(), initiation.size());
+    }
+  });
+  std::thread outbound([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      channels2.send_authenticated(
+        nid1, NodeMsgType::consensus_msg, message.data(), message.size());
+    }
+  });
+  start.arrive_and_wait();
+  maintenance.join();
+  inbound.join();
+  outbound.join();
+
+  channels2.close_channel(nid1);
+  REQUIRE_FALSE(channels2.have_channel(nid1));
+  REQUIRE(channels2.send_authenticated(
+    nid1, NodeMsgType::consensus_msg, message.data(), message.size()));
+  REQUIRE(channels2.have_channel(nid1));
 }
 
 TEST_CASE_FIXTURE(TransportsFixture, "Timeout idle channels")

@@ -17,6 +17,7 @@
 #include "js/interpreter_cache.h"
 #include "kv/ledger_chunker.h"
 #include "node/commit_callback_subsystem.h"
+#include "node/commit_point_subsystem.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_inbound_message.h"
@@ -55,8 +56,7 @@ namespace ccf
     std::shared_ptr<NodeIngress> node_ingress = nullptr;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCConnectionManager> rpcsessions;
-    std::unique_ptr<ccf::NodeState> node;
-    std::chrono::high_resolution_clock::time_point last_tick_time;
+    std::shared_ptr<ccf::NodeState> node;
     std::atomic<bool> stop_requested = false;
     std::atomic<bool> stop_notice_requested = false;
 
@@ -111,7 +111,7 @@ namespace ccf
       network.tables->set_max_transaction_size(max_transaction_size);
 
       LOG_TRACE_FMT("Creating node");
-      node = std::make_unique<ccf::NodeState>(
+      node = std::make_shared<ccf::NodeState>(
         this->node_transport,
         network,
         rpcsessions,
@@ -126,10 +126,15 @@ namespace ccf
       historical_state_cache = std::make_shared<ccf::historical::StateCache>(
         *network.tables, network.ledger_secrets, this->ledger_subsystem);
       context->install_subsystem(historical_state_cache);
+      context->install_subsystem(
+        std::make_shared<ccf::CommitPointSubsystem>(node));
 
       indexer = std::make_shared<ccf::indexing::Indexer>(
         std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
-          historical_state_cache));
+          historical_state_cache),
+        *context);
+      indexer->register_periodic_tasks(
+        ccf::tasks::get_main_job_board(), tick_interval);
       context->install_subsystem(indexer);
 
       lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
@@ -389,36 +394,6 @@ namespace ccf
 
         // reconstruct oversized messages sent to the enclave
         oversized::FragmentReconstructor fr(bp.get_dispatcher());
-
-        last_tick_time = decltype(last_tick_time)::clock::now();
-
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp,
-          AdminMessage::tick,
-          [this, &disp = bp.get_dispatcher()](const uint8_t*, size_t) {
-            const auto time_now = decltype(last_tick_time)::clock::now();
-
-            const auto elapsed_ms =
-              std::chrono::duration_cast<std::chrono::milliseconds>(
-                time_now - last_tick_time);
-            if (elapsed_ms.count() > 0)
-            {
-              last_tick_time += elapsed_ms;
-
-              // Ordered with inbound node messages, as when both were read
-              // from the ringbuffer by this thread
-              node_ingress->submit("Node tick", [this, elapsed_ms]() {
-                node->tick(elapsed_ms);
-                // Indexing strategies follow the commit point, which is only
-                // meaningful once the node is part of the network
-                const auto committed = node->get_committed_txid();
-                if (committed.has_value())
-                {
-                  indexer->update_strategies(elapsed_ms, committed.value());
-                }
-              });
-            }
-          });
 
         // Maximum number of inbound ringbuffer messages which will be
         // processed in a single iteration

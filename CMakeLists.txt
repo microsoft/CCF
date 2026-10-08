@@ -1031,7 +1031,7 @@ if(BUILD_TESTS)
       channels_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
     )
-    target_link_libraries(channels_test PRIVATE)
+    target_link_libraries(channels_test PRIVATE ccf_tasks)
 
     add_unit_test(
       http_test

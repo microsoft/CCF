@@ -4,11 +4,14 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../node_inbound_message.h"
 
+#include "node/recovered_service_opening_task.h"
 #include "tasks/job_board.h"
 #include "tasks/worker.h"
 
 #include <atomic>
 #include <doctest/doctest.h>
+#include <functional>
+#include <latch>
 #include <optional>
 #include <stdexcept>
 #include <thread>
@@ -38,6 +41,16 @@ namespace
     }
   };
 
+  struct StubRecoveryNode
+  {
+    std::function<bool()> attempt;
+
+    bool open_recovered_service_if_primary()
+    {
+      return attempt();
+    }
+  };
+
   void run_all(ccf::tasks::JobBoard& job_board)
   {
     while (auto task = job_board.get_task())
@@ -45,6 +58,106 @@ namespace
       task->do_task();
     }
   }
+}
+
+TEST_CASE(
+  "Recovery opening delayed retry" * doctest::test_suite("recovery_retry"))
+{
+  using namespace std::chrono_literals;
+  ccf::tasks::JobBoard board;
+  auto node = std::make_shared<StubRecoveryNode>();
+  bool retry = true;
+  size_t calls = 0;
+  node->attempt = [&]() {
+    ++calls;
+    return retry;
+  };
+  auto task =
+    std::make_shared<ccf::RecoveredServiceOpeningTask<StubRecoveryNode>>(
+      node, board, 10ms);
+  std::weak_ptr<decltype(task)::element_type> weak_task = task;
+  board.add_delayed_task(task, 10ms);
+  task.reset();
+  board.tick(9ms);
+  run_all(board);
+  REQUIRE(calls == 0);
+  board.tick(1ms);
+  run_all(board);
+  REQUIRE(calls == 1);
+  board.tick(37ms);
+  run_all(board);
+  REQUIRE(calls == 2);
+
+  SUBCASE("Completion or inapplicable recovery stops and releases the task")
+  {
+    retry = false;
+    board.tick(10ms);
+    run_all(board);
+    REQUIRE(calls == 3);
+    REQUIRE(weak_task.expired());
+  }
+  SUBCASE("Owner destruction stops without accessing it")
+  {
+    std::weak_ptr<StubRecoveryNode> weak_node = node;
+    node.reset();
+    REQUIRE(weak_node.expired());
+    board.tick(10ms);
+    run_all(board);
+    REQUIRE(calls == 2);
+    REQUIRE(weak_task.expired());
+  }
+  SUBCASE("Shutdown discards the outstanding retry")
+  {
+    board.shutdown();
+    REQUIRE(weak_task.expired());
+  }
+  board.tick(100ms);
+  run_all(board);
+  REQUIRE(board.get_summary().pending_tasks == 0);
+}
+
+TEST_CASE(
+  "Recovery retry is scheduled after its running attempt" *
+  doctest::test_suite("recovery_retry"))
+{
+  using namespace std::chrono_literals;
+  ccf::tasks::JobBoard board;
+  auto node = std::make_shared<StubRecoveryNode>();
+  std::latch started{1}, release{1};
+  size_t calls = 0;
+  node->attempt = [&]() {
+    ++calls;
+    if (calls == 1)
+    {
+      started.count_down();
+      release.wait();
+      return true;
+    }
+    return false;
+  };
+  board.add_delayed_task(
+    std::make_shared<ccf::RecoveredServiceOpeningTask<StubRecoveryNode>>(
+      node, board, 10ms),
+    10ms);
+  board.tick(10ms);
+  auto first = board.get_task();
+  REQUIRE(first != nullptr);
+  std::thread worker([&]() { first->do_task(); });
+  started.wait();
+  board.tick(100ms);
+  const auto queued_while_running = board.get_task();
+  release.count_down();
+  worker.join();
+  REQUIRE(queued_while_running == nullptr);
+  REQUIRE(calls == 1);
+  board.tick(9ms);
+  run_all(board);
+  REQUIRE(calls == 1);
+  board.tick(1ms);
+  run_all(board);
+  REQUIRE(calls == 2);
+  board.tick(100ms);
+  REQUIRE(board.get_task() == nullptr);
 }
 
 TEST_CASE(
