@@ -35,7 +35,9 @@ namespace
     TestIdentity()
     {
       REQUIRE(key != nullptr);
-      cert = key->self_sign("CN=test", "20200101000000Z", "20301231235959Z");
+      // These tests parse certificates and extract keys, not check validity.
+      // Deliberately expired dates avoid a future expiry deadline.
+      cert = key->self_sign("CN=test", "20200101000000Z", "20201231235959Z");
     }
   };
 
