@@ -25,7 +25,6 @@ import ccf.receipt
 import e2e_common_endpoints
 import infra.checker
 import infra.clients
-import infra.concurrency
 import infra.crypto
 import infra.e2e_args
 import infra.jwt_issuer
@@ -2541,36 +2540,6 @@ def test_cose_config(network, args):
 def test_blocking_calls(network, args):
     primary, view = network.find_primary()
 
-    class CommitPoller(infra.concurrency.StoppableThread):
-        def __init__(self, node):
-            super().__init__(name="commit poller")
-            self.node = node
-            self.latest_commit = None
-            self._condition = threading.Condition()
-            self._finished = False
-
-        def run(self):
-            # ConcurrentRunner collects uncaught worker errors.
-            try:
-                with self.node.client() as c:
-                    while not self.is_stopped():
-                        r = c.get("/node/commit", log_capture=[])
-                        assert r.status_code == http.HTTPStatus.OK, r.status_code
-                        transaction_id = r.body.json()["transaction_id"]
-                        txid = TxID.from_str(transaction_id)
-                        assert txid.valid(), f"Invalid commit ID: {transaction_id!r}"
-                        assert (
-                            txid.view == view
-                        ), f"Expected commit in view {view}, got {txid}"
-                        with self._condition:
-                            if txid != self.latest_commit:
-                                self.latest_commit = txid
-                                self._condition.notify_all()
-            finally:
-                with self._condition:
-                    self._finished = True
-                    self._condition.notify_all()
-
     paths = [
         ("/log/private", False),
         ("/log/blocking/private", True),
@@ -2583,67 +2552,55 @@ def test_blocking_calls(network, args):
     random.shuffle(request_order)
 
     target_seqno = 0
-    cp = CommitPoller(primary)
-    cp.start()
-    try:
-        with primary.client("user0") as c:
-            for path, should_be_committed in request_order:
-                with cp._condition:
-                    assert not cp._finished, "Commit poller exited during requests"
-                r = c.post(path, {"id": 42, "msg": "Hello world"})
-                assert r.status_code == http.HTTPStatus.OK, r.status_code
-                txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
+    with primary.client("user0") as c:
+        for path, should_be_committed in request_order:
+            r = c.post(path, {"id": 42, "msg": "Hello world"})
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
+            assert (
+                txid.valid() and txid.view == view
+            ), f"Expected response in view {view}, got {txid}"
+            target_seqno = max(target_seqno, txid.seqno)
+
+            if path == "/log/blocking/private/receipt":
+                # Response is a binary COSE receipt
+                assert r.headers["content-type"] == "application/cose", r.headers[
+                    "content-type"
+                ]
+                ccf.receipt.verify_cose(
+                    r.body.data(),
+                    network.cert.public_key(),
+                    b"\0" * 32,
+                )
+            else:
+                assert r.body.json() is True, r.body.json()
+
+            if should_be_committed:
+                status = c.get(f"/node/tx?transaction_id={txid}")
+                assert status.status_code == http.HTTPStatus.OK, status.status_code
                 assert (
-                    txid.valid() and txid.view == view
-                ), f"Expected response in view {view}, got {txid}"
-                target_seqno = max(target_seqno, txid.seqno)
+                    TxStatus(status.body.json()["status"]) == TxStatus.Committed
+                ), f"Blocking response {txid} is not committed: {status.body.json()}"
 
-                if path == "/log/blocking/private/receipt":
-                    # Response is a binary COSE receipt
-                    assert r.headers["content-type"] == "application/cose", r.headers[
-                        "content-type"
-                    ]
-                    ccf.receipt.verify_cose(
-                        r.body.data(),
-                        network.cert.public_key(),
-                        b"\0" * 32,
-                    )
-                else:
-                    assert r.body.json() is True, r.body.json()
-
-                if should_be_committed:
-                    status = c.get(f"/node/tx?transaction_id={txid}")
-                    assert status.status_code == http.HTTPStatus.OK, status.status_code
-                    assert (
-                        TxStatus(status.body.json()["status"]) == TxStatus.Committed
-                    ), f"Blocking response {txid} is not committed: {status.body.json()}"
-
-            c.wait_for_commit(r)
-
-        with cp._condition:
-            cp._condition.wait_for(
-                lambda: cp._finished
-                or (
-                    cp.latest_commit is not None
-                    and cp.latest_commit.seqno >= target_seqno
-                ),
-                timeout=infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC,
+        commit_txid = None
+        deadline = time.monotonic() + infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC
+        while (remaining := deadline - time.monotonic()) > 0:
+            r = c.get("/node/commit", timeout=remaining)
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            transaction_id = r.body.json()["transaction_id"]
+            commit_txid = TxID.from_str(transaction_id)
+            assert commit_txid.valid(), f"Invalid commit ID: {transaction_id!r}"
+            assert (
+                commit_txid.view == view
+            ), f"Expected commit in view {view}, got {commit_txid}"
+            if commit_txid.seqno >= target_seqno:
+                break
+            time.sleep(0.1)
+        else:
+            raise TimeoutError(
+                f"Did not observe commit of {view}.{target_seqno} before timing out: "
+                f"last sample={commit_txid}"
             )
-            assert not cp._finished, "Commit poller exited before draining"
-            assert cp.latest_commit is not None and (
-                cp.latest_commit.seqno >= target_seqno
-            ), (
-                f"Commit poller did not observe {view}.{target_seqno} before timing out: "
-                f"last sample={cp.latest_commit}"
-            )
-    finally:
-        cp.stop()
-        shutdown_timeout = (
-            infra.clients.DEFAULT_CONNECTION_TIMEOUT_SEC
-            + infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC
-        )
-        cp.join(timeout=shutdown_timeout)
-        assert not cp.is_alive(), f"Commit poller still alive after {shutdown_timeout}s"
 
     return network
 
