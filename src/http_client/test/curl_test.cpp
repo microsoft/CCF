@@ -522,6 +522,218 @@ TEST_CASE("VERIFYHOST rejects a certificate SAN mismatch")
   }
 }
 
+static std::unique_ptr<ccf::http_client::CurlRequest> snapshot_test_request(
+  ccf::RESTVerb method,
+  const std::string& path,
+  const nlohmann::json& body = nullptr,
+  long expected_status = HTTP_STATUS_OK)
+{
+  CURLcode result = CURLE_FAILED_INIT;
+  long status = 0;
+  std::unique_ptr<ccf::http_client::CurlRequest> request;
+  auto callback = [&](
+                    std::unique_ptr<ccf::http_client::CurlRequest>&& received,
+                    CURLcode received_result,
+                    long received_status) {
+    request = std::move(received);
+    result = received_result;
+    status = received_status;
+  };
+  ccf::http_client::CurlRequest::synchronous_perform(
+    std::make_unique<ccf::http_client::CurlRequest>(
+      ccf::http_client::UniqueCURL(),
+      method,
+      fmt::format("http://{}{}", server_address, path),
+      ccf::http_client::UniqueSlist(),
+      body.is_null() ? nullptr :
+                       std::make_unique<ccf::http_client::RequestBody>(body),
+      std::make_unique<ccf::http_client::ResponseBody>(64 * 1024),
+      callback));
+  REQUIRE(result == CURLE_OK);
+  REQUIRE(status == expected_status);
+  REQUIRE(request != nullptr);
+  return request;
+}
+
+TEST_CASE("Snapshot Content-Range headers")
+{
+  for (const auto* mode : {"inclusive", "exclusive"})
+  {
+    INFO(mode);
+    const auto request = snapshot_test_request(
+      HTTP_GET,
+      fmt::format("/snapshot-test/headers/{}", mode),
+      nullptr,
+      HTTP_STATUS_PARTIAL_CONTENT);
+    const auto range = ccf::snapshots::parse_content_range_header(*request);
+    CHECK(range.range_start == 2);
+    CHECK(range.inclusive_range_end == 4);
+    CHECK(range.total_size == 10);
+  }
+
+  const std::vector<std::pair<std::string, std::string>> invalid_headers = {
+    {"missing_range", "missing expected content-range header"},
+    {"unit", "Unexpected content-range unit"},
+    {"missing_start", "Unsupported content-range header format"},
+    {"missing_end", "Unsupported content-range header format"},
+    {"missing_total", "Unsupported content-range header format"},
+    {"invalid_start", "Could not parse range start"},
+    {"invalid_end", "Could not parse range end"},
+    {"invalid_total", "Could not parse total size"},
+    {"overflow_start", "Could not parse range start"},
+    {"overflow_end", "Could not parse range end"},
+    {"overflow_total", "Could not parse total size"},
+    {"length_mismatch", "headers do not agree"},
+    {"missing_length", "missing expected content-length header"},
+  };
+  for (const auto& [mode, error] : invalid_headers)
+  {
+    INFO(mode);
+    const auto request = snapshot_test_request(
+      HTTP_GET,
+      fmt::format("/snapshot-test/headers/{}", mode),
+      nullptr,
+      HTTP_STATUS_PARTIAL_CONTENT);
+    CHECK_THROWS_WITH_AS(
+      ccf::snapshots::parse_content_range_header(*request),
+      doctest::Contains(error),
+      std::runtime_error);
+  }
+}
+
+TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
+{
+  const auto* peer_address = std::getenv("SNAPSHOT_SERVER_ADDR");
+  const auto* ca_path = std::getenv("SNAPSHOT_SERVER_CA");
+  REQUIRE(peer_address != nullptr);
+  REQUIRE(ca_path != nullptr);
+  std::ifstream ca_file(ca_path, std::ios::binary);
+  REQUIRE(ca_file.good());
+  const std::vector<uint8_t> peer_ca{
+    std::istreambuf_iterator<char>(ca_file), std::istreambuf_iterator<char>()};
+  REQUIRE_FALSE(peer_ca.empty());
+
+  constexpr size_t CHUNK_SIZE = 4 * 1024 * 1024;
+  constexpr size_t DATA_SIZE = 2 * CHUNK_SIZE + 17;
+  std::vector<uint8_t> expected_data(DATA_SIZE);
+  for (size_t i = 0; i < expected_data.size(); ++i)
+  {
+    expected_data[i] = i % 251;
+  }
+  const std::string snapshot_path = "/node/snapshot/snapshot-test.committed";
+  const auto initial_range = fmt::format("bytes=0-{}", CHUNK_SIZE - 1);
+
+  auto configure = [](const std::string& mode) {
+    snapshot_test_request(
+      HTTP_POST, "/snapshot-test/configure", {{"mode", mode}});
+  };
+  auto get_requests = []() {
+    const auto request =
+      snapshot_test_request(HTTP_GET, "/snapshot-test/requests");
+    return nlohmann::json::parse(request->get_response_body()->buffer);
+  };
+  auto check_snapshot =
+    [&](const std::optional<ccf::snapshots::SnapshotResponse>& response) {
+      REQUIRE(response.has_value());
+      CHECK(response->snapshot_name == "snapshot-test.committed");
+      REQUIRE(response->snapshot_data.size() == DATA_SIZE);
+      CHECK(std::equal(
+        expected_data.begin(),
+        expected_data.end(),
+        response->snapshot_data.begin()));
+    };
+  auto expected_requests = [&](std::optional<size_t> since) {
+    const auto discovery_path = since.has_value() ?
+      fmt::format("/node/snapshot?since={}", *since) :
+      "/node/snapshot";
+    return nlohmann::json::array({
+      {{"path", discovery_path}, {"range", initial_range}},
+      {{"path", "/node/snapshot/redirect"}, {"range", initial_range}},
+      {{"path", snapshot_path}, {"range", initial_range}},
+      {{"path", snapshot_path},
+       {"range", fmt::format("bytes={}-{}", CHUNK_SIZE, 2 * CHUNK_SIZE - 1)}},
+      {{"path", snapshot_path},
+       {"range",
+        fmt::format("bytes={}-{}", 2 * CHUNK_SIZE, 3 * CHUNK_SIZE - 1)}},
+    });
+  };
+
+  for (const auto* mode : {"inclusive", "exclusive"})
+  {
+    INFO(mode);
+    configure(mode);
+    check_snapshot(ccf::snapshots::try_fetch_from_peer(
+      peer_address, peer_ca, DATA_SIZE, 42));
+    CHECK(get_requests() == expected_requests(42));
+  }
+
+  configure("retry");
+  check_snapshot(ccf::snapshots::fetch_from_peer(
+    peer_address, peer_ca, 2, 1, DATA_SIZE, 42));
+  auto retry_requests = expected_requests(42);
+  const auto discovery_request = retry_requests.front();
+  retry_requests.insert(retry_requests.begin(), discovery_request);
+  CHECK(get_requests() == retry_requests);
+
+  const std::vector<std::pair<std::string, size_t>> failures = {
+    {"discovery_error", 1},
+    {"unexpected_status", 1},
+    {"no_location", 1},
+    {"redirect_loop", 21},
+    {"wrong_start", 3},
+    {"wrong_end", 3},
+    {"chunk_error", 4},
+  };
+  for (const auto& [mode, maximum_requests] : failures)
+  {
+    INFO(mode);
+    configure(mode);
+    CHECK_FALSE(
+      ccf::snapshots::try_fetch_from_peer(peer_address, peer_ca, DATA_SIZE)
+        .has_value());
+    const auto requests = get_requests();
+    REQUIRE_FALSE(requests.empty());
+    if (mode == "redirect_loop")
+    {
+      CHECK(requests.size() > 1);
+      CHECK(requests.size() <= maximum_requests);
+    }
+    else
+    {
+      CHECK(requests.size() == maximum_requests);
+    }
+    CHECK(requests.front().at("path") == "/node/snapshot");
+    CHECK(requests.front().at("range") == initial_range);
+  }
+
+  for (const size_t max_size : {CHUNK_SIZE - 1, CHUNK_SIZE + 16})
+  {
+    INFO(max_size);
+    configure("inclusive");
+    CHECK_FALSE(
+      ccf::snapshots::try_fetch_from_peer(peer_address, peer_ca, max_size)
+        .has_value());
+    const auto requests = get_requests();
+    CHECK(requests.size() == (max_size < CHUNK_SIZE ? 3 : 4));
+    CHECK(
+      requests.back().at("range") ==
+      (max_size < CHUNK_SIZE ?
+         initial_range :
+         fmt::format("bytes={}-{}", CHUNK_SIZE, 2 * CHUNK_SIZE - 1)));
+  }
+
+  configure("not_found");
+  CHECK_FALSE(
+    ccf::snapshots::fetch_from_peer(peer_address, peer_ca, 3, 1, DATA_SIZE, 42)
+      .has_value());
+  const auto requests = get_requests();
+  REQUIRE(requests.size() == 3);
+  for (const auto& request : requests)
+  {
+    CHECK(request == discovery_request);
+  }
+}
+
 TEST_CASE("CurlmLibuvContext")
 {
   size_t response_count = 0;
