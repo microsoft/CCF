@@ -133,6 +133,37 @@ namespace asynchost
     // checked against the existing ones, until a divergence is found.
     bool from_existing_file = false;
 
+    void checked_seek(off_t offset, int whence)
+    {
+      if (fseeko(file, offset, whence) != 0)
+      {
+        const auto seek_errno = errno;
+        throw std::logic_error(fmt::format(
+          "Failed to seek ledger file {} to offset {} (whence {}): {} (errno "
+          "{})",
+          dir / file_name,
+          offset,
+          whence,
+          ccf::nonstd::strerror(seek_errno),
+          seek_errno));
+      }
+    }
+
+    size_t checked_tell()
+    {
+      const auto offset = ftello(file);
+      if (offset < 0)
+      {
+        const auto tell_errno = errno;
+        throw std::logic_error(fmt::format(
+          "Failed to get current offset in ledger file {}: {} (errno {})",
+          dir / file_name,
+          ccf::nonstd::strerror(tell_errno),
+          tell_errno));
+      }
+      return static_cast<size_t>(offset);
+    }
+
     int close()
     {
       if (file == nullptr)
@@ -149,32 +180,6 @@ namespace asynchost
       const auto close_rc = fclose(file_to_close);
       const auto close_errno = errno;
       return close_rc == 0 ? 0 : (close_errno != 0 ? close_errno : EIO);
-    }
-
-    void seek(size_t offset, int whence)
-    {
-      if (fseeko(file, static_cast<off_t>(offset), whence) != 0)
-      {
-        throw std::logic_error(fmt::format(
-          "Failed to seek to offset {} (whence {}) in ledger file {}: {}",
-          offset,
-          whence,
-          file_name,
-          ccf::nonstd::strerror(errno)));
-      }
-    }
-
-    size_t tell()
-    {
-      const auto offset = ftello(file);
-      if (offset < 0)
-      {
-        throw std::logic_error(fmt::format(
-          "Failed to get current offset in ledger file {}: {}",
-          file_name,
-          ccf::nonstd::strerror(errno)));
-      }
-      return static_cast<size_t>(offset);
     }
 
   public:
@@ -218,7 +223,7 @@ namespace asynchost
       FileGuardOnException file_guard(file);
 
       // Header reserved for the offset to the position table
-      seek(sizeof(positions_offset_header_t), SEEK_SET);
+      checked_seek(sizeof(positions_offset_header_t), SEEK_SET);
       total_len = sizeof(positions_offset_header_t);
     }
 
@@ -255,11 +260,11 @@ namespace asynchost
       FileGuardOnException file_guard(file);
 
       // First, get full size of file
-      seek(0, SEEK_END);
-      const size_t total_file_size = tell();
+      checked_seek(0, SEEK_END);
+      const size_t total_file_size = checked_tell();
 
       // Second, read offset to header table
-      seek(0, SEEK_SET);
+      checked_seek(0, SEEK_SET);
       positions_offset_header_t table_offset = 0;
       {
         ccf::ds::TimeBoundLogger log_if_slow(
@@ -302,7 +307,7 @@ namespace asynchost
             total_file_size));
         }
 
-        seek(table_offset, SEEK_SET);
+        checked_seek(table_offset, SEEK_SET);
 
         positions.resize(
           (total_file_size - table_offset) / sizeof(positions.at(0)));
@@ -368,7 +373,7 @@ namespace asynchost
             return;
           }
 
-          seek(entry_size, SEEK_CUR);
+          checked_seek(entry_size, SEEK_CUR);
           len -= entry_size;
 
           LOG_TRACE_FMT(
@@ -424,7 +429,7 @@ namespace asynchost
     std::pair<size_t, bool> write_entry(
       const uint8_t* data, size_t size, bool committable)
     {
-      seek(total_len, SEEK_SET);
+      checked_seek(total_len, SEEK_SET);
 
       bool should_write = true;
       bool has_truncated = false;
@@ -566,7 +571,7 @@ namespace asynchost
         return LedgerReadResult{{}, from, true};
       }
       std::vector<uint8_t> entries(size);
-      seek(positions.at(from - start_idx), SEEK_SET);
+      checked_seek(positions.at(from - start_idx), SEEK_SET);
 
       {
         ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
@@ -615,7 +620,7 @@ namespace asynchost
       }
 
       // Reset positions offset header
-      seek(0, SEEK_SET);
+      checked_seek(0, SEEK_SET);
       positions_offset_header_t table_offset = 0;
       {
         ccf::ds::TimeBoundLogger log_if_slow(
@@ -653,7 +658,7 @@ namespace asynchost
         }
       }
 
-      seek(total_len, SEEK_SET);
+      checked_seek(total_len, SEEK_SET);
       LOG_TRACE_FMT("Truncated ledger file {} at seqno {}", file_name, idx);
       return false;
     }
@@ -677,8 +682,8 @@ namespace asynchost
         truncate(get_last_idx(), /* remove_file_if_empty = */ false);
       }
 
-      seek(total_len, SEEK_SET);
-      const size_t table_offset = tell();
+      checked_seek(total_len, SEEK_SET);
+      const size_t table_offset = checked_tell();
 
       {
         ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
@@ -697,7 +702,7 @@ namespace asynchost
       }
 
       // Write positions table offset at start of file
-      seek(0, SEEK_SET);
+      checked_seek(0, SEEK_SET);
 
       {
         ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
@@ -1238,11 +1243,35 @@ namespace asynchost
 
       if (fs::is_directory(ledger_dir))
       {
-        // If the ledger directory exists, populate this->files with the
-        // writeable files from it. These must have no suffix, and must not
-        // end-before the current committed_idx found from the read-only
-        // directories
         LOG_INFO_FMT("Recovering main ledger directory {}", ledger_dir);
+
+        // Establish the final committed frontier before admitting mutable
+        // files, independently of directory iteration order.
+        for (auto const& f : fs::directory_iterator(ledger_dir))
+        {
+          auto file_name = f.path().filename();
+          if (
+            ccf::ledger::is_ledger_file_ignored(file_name) ||
+            !ccf::ledger::is_ledger_file_name_committed(file_name))
+          {
+            continue;
+          }
+
+          const auto file_end_idx =
+            ccf::ledger::get_last_idx_from_file_name(file_name);
+          if (!file_end_idx.has_value())
+          {
+            LOG_FAIL_FMT(
+              "Unexpected file {} in {}: committed but not completed",
+              file_name,
+              ledger_dir);
+          }
+          else if (file_end_idx.value() > committed_idx)
+          {
+            committed_idx = file_end_idx.value();
+            end_of_committed_files_idx = file_end_idx.value();
+          }
+        }
 
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
@@ -1258,40 +1287,8 @@ namespace asynchost
             continue;
           }
 
-          const auto file_end_idx =
-            ccf::ledger::get_last_idx_from_file_name(file_name);
-
           if (ccf::ledger::is_ledger_file_name_committed(file_name))
           {
-            if (!file_end_idx.has_value())
-            {
-              LOG_FAIL_FMT(
-                "Unexpected file {} in {}: committed but not completed",
-                file_name,
-                ledger_dir);
-            }
-            else
-            {
-              if (file_end_idx.value() > committed_idx)
-              {
-                committed_idx = file_end_idx.value();
-                end_of_committed_files_idx = file_end_idx.value();
-              }
-            }
-
-            continue;
-          }
-
-          if (file_end_idx.has_value() && file_end_idx.value() <= committed_idx)
-          {
-            LOG_INFO_FMT(
-              "Ignoring ledger file {} in main ledger directory - already "
-              "discovered commit up to {} from read-only directories",
-              file_name,
-              committed_idx);
-
-            ignore_ledger_file(file_name);
-
             continue;
           }
 
@@ -1315,6 +1312,19 @@ namespace asynchost
             LOG_FAIL_FMT(
               "Error reading ledger file {}: {}", file_name, e.what());
             // Ignore file if it cannot be recovered.
+            ignore_ledger_file(file_name);
+            continue;
+          }
+
+          if (ledger_file->get_last_idx() <= committed_idx)
+          {
+            LOG_INFO_FMT(
+              "Ignoring ledger file {} in main ledger directory - already "
+              "discovered commit up to {}",
+              file_name,
+              committed_idx);
+
+            ledger_file.reset();
             ignore_ledger_file(file_name);
             continue;
           }
