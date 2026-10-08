@@ -284,5 +284,11 @@ def load(*args, **kwargs):
     s = ServiceLoad(*args, **kwargs)
     try:
         yield s
-    finally:
+    except BaseException:
+        try:
+            s.end()
+        except Exception:
+            LOG.exception("Failed to stop service load while handling an exception")
+        raise
+    else:
         s.end()
