@@ -2620,14 +2620,19 @@ def test_blocking_calls(network, args):
         ), f"Final response {target} does not cover all responses: {response_txids}"
 
         def has_observed_target():
-            for _, txid in cp.known_commit_times:
-                if txid.view < target.view:
+            newer_view_txid = None
+            for _, txid in reversed(cp.known_commit_times):
+                if txid.view > target.view:
+                    newer_view_txid = txid
                     continue
-                assert (
-                    txid.view == target.view
-                ), f"Commit observer changed view before covering {target}: {txid}"
-                if txid.seqno >= target.seqno:
+                if txid.view == target.view and txid.seqno >= target.seqno:
                     return True
+                # Older commit samples cannot cover the target.
+                break
+            assert newer_view_txid is None, (
+                f"Commit observer changed view before covering {target}: "
+                f"{newer_view_txid}"
+            )
             return False
 
         with cp._condition:
