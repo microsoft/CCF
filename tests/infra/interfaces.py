@@ -90,17 +90,25 @@ class TargetRole:
 
 @dataclass
 class NodeByRoleResolver:
-    target: TargetRole = field(default_factory=lambda: TargetRole(NodeRole.primary))
+    # A None target omits the role, so the node targets the role of the
+    # redirections field (to_primary or to_backup) this resolver configures
+    target: TargetRole | None = field(
+        default_factory=lambda: TargetRole(NodeRole.primary)
+    )
     kind: str = "NodeByRole"
 
     @staticmethod
     def to_json(nbrr):
-        return asdict(nbrr)
+        j = {"kind": nbrr.kind}
+        if nbrr.target is not None:
+            j["target"] = TargetRole.to_json(nbrr.target)
+        return j
 
     @staticmethod
     def from_json(json):
         nbrr = NodeByRoleResolver()
-        nbrr.target = TargetRole.from_json(json["target"])
+        target = json.get("target", None)
+        nbrr.target = TargetRole.from_json(target) if target else None
         return nbrr
 
 
@@ -376,6 +384,13 @@ if __name__ == "__main__":
 
     rc.to_backup = NodeByRoleResolver(target=TargetRole(NodeRole.backup))
     test_roundtrip(rc)
+
+    rc.to_primary = NodeByRoleResolver(target=None)
+    rc.to_backup = NodeByRoleResolver(target=None)
+    test_roundtrip(rc)
+    roleless_json = RedirectionConfig.to_json(rc)
+    assert roleless_json["to_backup"] == {"kind": "NodeByRole"}, roleless_json
+    assert "target" not in roleless_json["to_primary"], roleless_json
 
     hc = HostSpec()
     test_roundtrip(hc)
