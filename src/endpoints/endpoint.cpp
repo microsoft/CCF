@@ -97,6 +97,7 @@ namespace ccf::endpoints
   Endpoint& Endpoint::set_forwarding_required(endpoints::ForwardingRequired fr)
   {
     properties.forwarding_required = fr;
+    forwarding_policy_explicit = true;
 
     // NB: Should really only override redirection_strategy if it was previously
     // implicit, not if it was set explicitly!
@@ -116,6 +117,12 @@ namespace ccf::endpoints
   Endpoint& Endpoint::set_redirection_strategy(RedirectionStrategy rs)
   {
     properties.redirection_strategy = rs;
+    if (!forwarding_policy_explicit)
+    {
+      properties.forwarding_required = rs == RedirectionStrategy::ToPrimary ?
+        ForwardingRequired::Always :
+        ForwardingRequired::Never;
+    }
     return *this;
   }
 

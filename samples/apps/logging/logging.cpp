@@ -2203,7 +2203,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.5";
+      openapi_info.document_version = "2.8.6";
     };
 
     void init_handlers() override
@@ -2564,15 +2564,13 @@ namespace loggingapp
           return ccf::historical::is_tx_committed_v2(
             current_consensus, view, seqno, error_reason);
         };
-      auto historical_endpoint = make_read_only_endpoint(
+      make_read_only_endpoint(
         "/log/private/historical",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
           get_historical, context, is_tx_committed),
-        auth_policies);
-      historical_endpoint.properties.forwarding_required =
-        ccf::endpoints::ForwardingRequired::Never;
-      historical_endpoint.set_auto_schema<void, LoggingGetHistorical::Out>()
+        auth_policies)
+        .set_auto_schema<void, LoggingGetHistorical::Out>()
         .add_query_parameter<size_t>("id")
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
@@ -2581,14 +2579,12 @@ namespace loggingapp
         [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
           handle_get_historical_with_handle(ctx);
         };
-      auto historical_with_handle_endpoint = make_read_only_endpoint(
+      make_read_only_endpoint(
         "/log/private/historical/handle",
         HTTP_GET,
         get_historical_with_handle,
-        auth_policies);
-      historical_with_handle_endpoint.properties.forwarding_required =
-        ccf::endpoints::ForwardingRequired::Never;
-      historical_with_handle_endpoint.set_auto_schema<void, nlohmann::json>()
+        auth_policies)
+        .set_auto_schema<void, nlohmann::json>()
         .add_query_parameter<size_t>("handle")
         .add_query_parameter<size_t>("seqno")
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
@@ -2600,15 +2596,12 @@ namespace loggingapp
           ccf::historical::StatePtr historical_state) {
           handle_get_historical_with_receipt(ctx, std::move(historical_state));
         };
-      auto historical_with_receipt_endpoint = make_read_only_endpoint(
+      make_read_only_endpoint(
         "/log/private/historical_receipt",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
           get_historical_with_receipt, context, is_tx_committed),
-        auth_policies);
-      historical_with_receipt_endpoint.properties.forwarding_required =
-        ccf::endpoints::ForwardingRequired::Never;
-      historical_with_receipt_endpoint
+        auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
@@ -2621,16 +2614,12 @@ namespace loggingapp
           handle_get_historical_with_receipt_and_claims(
             ctx, std::move(historical_state));
         };
-      auto historical_with_receipt_and_claims_endpoint =
-        make_read_only_endpoint(
-          "/log/public/historical_receipt",
-          HTTP_GET,
-          ccf::historical::read_only_adapter_v4(
-            get_historical_with_receipt_and_claims, context, is_tx_committed),
-          auth_policies);
-      historical_with_receipt_and_claims_endpoint.properties
-        .forwarding_required = ccf::endpoints::ForwardingRequired::Never;
-      historical_with_receipt_and_claims_endpoint
+      make_read_only_endpoint(
+        "/log/public/historical_receipt",
+        HTTP_GET,
+        ccf::historical::read_only_adapter_v4(
+          get_historical_with_receipt_and_claims, context, is_tx_committed),
+        auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
@@ -2641,14 +2630,11 @@ namespace loggingapp
       auto get_historical_range = [this](ccf::endpoints::EndpointContext& ctx) {
         handle_get_historical_range(ctx, get_historical_range_path);
       };
-      auto historical_range_endpoint = make_endpoint(
+      make_endpoint(
         get_historical_range_path,
         HTTP_GET,
         get_historical_range,
-        auth_policies);
-      historical_range_endpoint.properties.forwarding_required =
-        ccf::endpoints::ForwardingRequired::Never;
-      historical_range_endpoint
+        auth_policies)
         .set_auto_schema<void, LoggingGetHistoricalRange::Out>()
         .add_query_parameter<size_t>(
           "from_seqno", ccf::endpoints::QueryParamPresence::OptionalParameter)
@@ -2664,14 +2650,11 @@ namespace loggingapp
         [this](ccf::endpoints::EndpointContext& ctx) {
           handle_get_historical_sparse(ctx);
         };
-      auto historical_sparse_endpoint = make_endpoint(
+      make_endpoint(
         get_historical_sparse_path,
         HTTP_GET,
         get_historical_sparse,
-        auth_policies);
-      historical_sparse_endpoint.properties.forwarding_required =
-        ccf::endpoints::ForwardingRequired::Never;
-      historical_sparse_endpoint
+        auth_policies)
         .set_auto_schema<void, LoggingGetHistoricalRange::Out>()
         .add_query_parameter<std::string>("seqnos")
         .add_query_parameter<size_t>("id")
@@ -2720,15 +2703,12 @@ namespace loggingapp
           ccf::historical::StatePtr historical_state) {
           handle_get_cose_endorsements(ctx, std::move(historical_state));
         };
-      auto cose_endorsements_endpoint = make_read_only_endpoint(
+      make_read_only_endpoint(
         "/log/public/cose_endorsements",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
           get_cose_endorsements, context, is_tx_committed),
-        auth_policies);
-      cose_endorsements_endpoint.properties.forwarding_required =
-        ccf::endpoints::ForwardingRequired::Never;
-      cose_endorsements_endpoint
+        auth_policies)
         .set_auto_schema<void, LoggingGetCoseEndorsements::Out>()
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
@@ -2737,14 +2717,12 @@ namespace loggingapp
         [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
           handle_get_trusted_keys(ctx);
         };
-      auto trusted_keys_endpoint = make_read_only_endpoint(
+      make_read_only_endpoint(
         "/log/public/trusted_keys",
         HTTP_GET,
         get_trusted_keys,
-        ccf::no_auth_required);
-      trusted_keys_endpoint.properties.forwarding_required =
-        ccf::endpoints::ForwardingRequired::Never;
-      trusted_keys_endpoint.set_auto_schema<void, void>()
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
@@ -2753,15 +2731,12 @@ namespace loggingapp
                                   ccf::historical::StatePtr historical_state) {
         handle_get_cose_signature(ctx, std::move(historical_state));
       };
-      auto cose_signature_endpoint = make_read_only_endpoint(
+      make_read_only_endpoint(
         "/log/public/cose_signature",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
           get_cose_signature, context, is_tx_committed),
-        auth_policies);
-      cose_signature_endpoint.properties.forwarding_required =
-        ccf::endpoints::ForwardingRequired::Never;
-      cose_signature_endpoint
+        auth_policies)
         .set_auto_schema<void, LoggingGetCoseSignature::Out>()
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
@@ -2771,15 +2746,13 @@ namespace loggingapp
                                 ccf::historical::StatePtr historical_state) {
         handle_get_cose_receipt(ctx, std::move(historical_state));
       };
-      auto cose_receipt_endpoint = make_read_only_endpoint(
+      make_read_only_endpoint(
         "/log/public/cose_receipt",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
           get_cose_receipt, context, is_tx_committed),
-        ccf::no_auth_required);
-      cose_receipt_endpoint.properties.forwarding_required =
-        ccf::endpoints::ForwardingRequired::Never;
-      cose_receipt_endpoint.set_auto_schema<void, void>()
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
@@ -2788,14 +2761,12 @@ namespace loggingapp
           handle_verify_cose_receipt(ctx);
         };
 
-      auto verify_cose_receipt_endpoint = make_read_only_endpoint(
+      make_read_only_endpoint(
         "/log/public/verify_cose_receipt",
         HTTP_GET,
         verify_cose_receipt,
-        ccf::no_auth_required);
-      verify_cose_receipt_endpoint.properties.forwarding_required =
-        ccf::endpoints::ForwardingRequired::Never;
-      verify_cose_receipt_endpoint.set_auto_schema<void, void>()
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
@@ -2828,15 +2799,13 @@ namespace loggingapp
           handle_get_transparent_statement(ctx, std::move(historical_state));
         };
 
-      auto transparent_statement_endpoint = make_read_only_endpoint(
+      make_read_only_endpoint(
         "/log/transparent_statement",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
           get_transparent_statement, context, is_tx_committed),
-        ccf::no_auth_required);
-      transparent_statement_endpoint.properties.forwarding_required =
-        ccf::endpoints::ForwardingRequired::Never;
-      transparent_statement_endpoint.set_auto_schema<void, void>()
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
@@ -2845,14 +2814,12 @@ namespace loggingapp
           handle_get_cose_signatures_config(ctx);
         };
 
-      auto cose_signatures_config_endpoint = make_read_only_endpoint(
+      make_read_only_endpoint(
         "/cose_signatures_config",
         HTTP_GET,
         get_cose_signatures_config,
-        auth_policies);
-      cose_signatures_config_endpoint.properties.forwarding_required =
-        ccf::endpoints::ForwardingRequired::Never;
-      cose_signatures_config_endpoint.set_auto_schema<void, void>()
+        auth_policies)
+        .set_auto_schema<void, void>()
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
     }
