@@ -1,8 +1,9 @@
 # Lean disaster recovery model
 
 This package contains a Lean model of CCF's recovery decision protocol
-(`src/node/recovery_decision_protocol.cpp`), its safety properties, and
-machine-checked proofs of those properties. [The Lean module guide](../AGENT.md)
+(`src/node/recovery_decision_protocol.cpp`), its safety properties,
+machine-checked proofs of those properties, and a replayer that checks
+recorded C++ runs against the model. [The Lean module guide](../AGENT.md)
 describes the module layout.
 
 ## Contents
@@ -16,6 +17,9 @@ describes the module layout.
 | Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`                |
 | Proof implementations                 | `DisasterRecovery/Proofs/`                              |
 | Executable checks and concrete traces | `DisasterRecovery/Tests/`                               |
+| Replay of recorded C++ traces         | `DisasterRecovery/TraceValidation.lean`                 |
+| Parsing and ordering of those traces  | `DisasterRecovery/TraceValidation/`                     |
+| Replayer executable and test traces   | `replayer/`                                             |
 
 Human review covers the model, the property statements, the definitions they
 use, and the theorem links in `Proof.lean`. The proof implementations under
@@ -78,6 +82,15 @@ replicated on a majority, and the Raft safety specification
 (`tla/consensus/ccfraft.tla`) is stated on log prefixes. The model stores only
 the last signed TxID of each ledger, so this package does not prove
 committed-prefix preservation. Liveness properties are out of scope.
+
+## Trace validation
+
+`DisasterRecovery/TraceValidation.lean` and the modules in
+`DisasterRecovery/TraceValidation/` check C++ runs recorded with the
+`CCF_RECOVERY_TRACE` environment variable set against
+`Model.transitionSystem`. [`replayer/README.md`](replayer/README.md) describes
+the records, the reduction rules, where CI runs it, and what a successful replay
+does and does not show.
 
 ## Validation
 

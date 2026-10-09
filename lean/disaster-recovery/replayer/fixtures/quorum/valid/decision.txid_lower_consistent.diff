@@ -1,0 +1,96 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_3.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_3.out
+@@ -2,12 +2,12 @@
+-RDP_TRACE {"batch":0,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":1,"target":"0","txid":"2.21"}
+-RDP_TRACE {"batch":0,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":2,"target":"1","txid":"2.21"}
+-RDP_TRACE {"batch":0,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":3,"target":"2","txid":"2.21"}
+-RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":4,"source":"0","txid":"2.21","version":24}
+-RDP_TRACE {"batch":1,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":5,"target":"0","txid":"2.21"}
+-RDP_TRACE {"batch":1,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":6,"target":"1","txid":"2.21"}
+-RDP_TRACE {"batch":1,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":7,"target":"2","txid":"2.21"}
+-RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":8,"source":"0","txid":"2.21","version":25}
+-RDP_TRACE {"batch":2,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":9,"target":"0","txid":"2.21"}
+-RDP_TRACE {"batch":2,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":10,"target":"1","txid":"2.21"}
+-RDP_TRACE {"batch":2,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":11,"target":"2","txid":"2.21"}
+-RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":12,"source":"0","txid":"2.21","version":25}
++RDP_TRACE {"batch":0,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":1,"target":"0","txid":"2.20"}
++RDP_TRACE {"batch":0,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":2,"target":"1","txid":"2.20"}
++RDP_TRACE {"batch":0,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":3,"target":"2","txid":"2.20"}
++RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":4,"source":"0","txid":"2.20","version":24}
++RDP_TRACE {"batch":1,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":5,"target":"0","txid":"2.20"}
++RDP_TRACE {"batch":1,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":6,"target":"1","txid":"2.20"}
++RDP_TRACE {"batch":1,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":7,"target":"2","txid":"2.20"}
++RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":8,"source":"0","txid":"2.20","version":25}
++RDP_TRACE {"batch":2,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":9,"target":"0","txid":"2.20"}
++RDP_TRACE {"batch":2,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":10,"target":"1","txid":"2.20"}
++RDP_TRACE {"batch":2,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":11,"target":"2","txid":"2.20"}
++RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":12,"source":"0","txid":"2.20","version":25}
+@@ -15,4 +15,4 @@
+-RDP_TRACE {"batch":3,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":14,"target":"0","txid":"2.21"}
+-RDP_TRACE {"batch":3,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":15,"target":"1","txid":"2.21"}
+-RDP_TRACE {"batch":3,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":16,"target":"2","txid":"2.21"}
+-RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":17,"source":"0","txid":"2.21","version":27}
++RDP_TRACE {"batch":3,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":14,"target":"0","txid":"2.20"}
++RDP_TRACE {"batch":3,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":15,"target":"1","txid":"2.20"}
++RDP_TRACE {"batch":3,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":16,"target":"2","txid":"2.20"}
++RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":17,"source":"0","txid":"2.20","version":27}
+@@ -20,4 +20,4 @@
+-RDP_TRACE {"batch":4,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":19,"target":"0","txid":"2.21"}
+-RDP_TRACE {"batch":4,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":20,"target":"1","txid":"2.21"}
+-RDP_TRACE {"batch":4,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":21,"target":"2","txid":"2.21"}
+-RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":22,"source":"0","txid":"2.21","version":27}
++RDP_TRACE {"batch":4,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":19,"target":"0","txid":"2.20"}
++RDP_TRACE {"batch":4,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":20,"target":"1","txid":"2.20"}
++RDP_TRACE {"batch":4,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":21,"target":"2","txid":"2.20"}
++RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":22,"source":"0","txid":"2.20","version":27}
+@@ -25,4 +25,4 @@
+-RDP_TRACE {"batch":5,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":24,"target":"0","txid":"2.21"}
+-RDP_TRACE {"batch":5,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":25,"target":"1","txid":"2.21"}
+-RDP_TRACE {"batch":5,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":26,"target":"2","txid":"2.21"}
+-RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":27,"source":"0","txid":"2.21","version":27}
++RDP_TRACE {"batch":5,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":24,"target":"0","txid":"2.20"}
++RDP_TRACE {"batch":5,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":25,"target":"1","txid":"2.20"}
++RDP_TRACE {"batch":5,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":26,"target":"2","txid":"2.20"}
++RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":27,"source":"0","txid":"2.20","version":27}
+@@ -30,4 +30,4 @@
+-RDP_TRACE {"batch":6,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":29,"target":"0","txid":"2.21"}
+-RDP_TRACE {"batch":6,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":30,"target":"1","txid":"2.21"}
+-RDP_TRACE {"batch":6,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":31,"target":"2","txid":"2.21"}
+-RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":32,"source":"0","txid":"2.21","version":27}
++RDP_TRACE {"batch":6,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":29,"target":"0","txid":"2.20"}
++RDP_TRACE {"batch":6,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":30,"target":"1","txid":"2.20"}
++RDP_TRACE {"batch":6,"kind":"send","message":"gossip","node":"0","pre_version":22,"sequence":31,"target":"2","txid":"2.20"}
++RDP_TRACE {"kind":"gossip_accepted","node":"0","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":32,"source":"0","txid":"2.20","version":27}
+@@ -37,3 +37,3 @@
+-RDP_TRACE {"batch":7,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":36,"target":"0","txid":"2.21"}
+-RDP_TRACE {"batch":7,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":37,"target":"1","txid":"2.21"}
+-RDP_TRACE {"batch":7,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":38,"target":"2","txid":"2.21"}
++RDP_TRACE {"batch":7,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":36,"target":"0","txid":"2.20"}
++RDP_TRACE {"batch":7,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":37,"target":"1","txid":"2.20"}
++RDP_TRACE {"batch":7,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":38,"target":"2","txid":"2.20"}
+@@ -41,3 +41,3 @@
+-RDP_TRACE {"batch":8,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":40,"target":"0","txid":"2.21"}
+-RDP_TRACE {"batch":8,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":41,"target":"1","txid":"2.21"}
+-RDP_TRACE {"batch":8,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":42,"target":"2","txid":"2.21"}
++RDP_TRACE {"batch":8,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":40,"target":"0","txid":"2.20"}
++RDP_TRACE {"batch":8,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":41,"target":"1","txid":"2.20"}
++RDP_TRACE {"batch":8,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":42,"target":"2","txid":"2.20"}
+--- a/platform_snp_platform_tests_recovery_decision_protocol_4.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_4.out
+@@ -10 +10 @@
+-RDP_TRACE {"kind":"gossip_accepted","node":"1","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":9,"source":"0","txid":"2.21","version":26}
++RDP_TRACE {"kind":"gossip_accepted","node":"1","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":9,"source":"0","txid":"2.20","version":26}
+@@ -14 +14 @@
+-RDP_TRACE {"kind":"gossip_accepted","node":"1","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":13,"source":"0","txid":"2.21","version":27}
++RDP_TRACE {"kind":"gossip_accepted","node":"1","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":13,"source":"0","txid":"2.20","version":27}
+@@ -19 +19 @@
+-RDP_TRACE {"kind":"gossip_accepted","node":"1","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":18,"source":"0","txid":"2.21","version":27}
++RDP_TRACE {"kind":"gossip_accepted","node":"1","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":18,"source":"0","txid":"2.20","version":27}
+@@ -24 +24 @@
+-RDP_TRACE {"kind":"gossip_accepted","node":"1","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":23,"source":"0","txid":"2.21","version":27}
++RDP_TRACE {"kind":"gossip_accepted","node":"1","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":23,"source":"0","txid":"2.20","version":27}
+--- a/platform_snp_platform_tests_recovery_decision_protocol_5.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_5.out
+@@ -5 +5 @@
+-RDP_TRACE {"kind":"gossip_accepted","node":"2","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":4,"source":"0","txid":"2.21","version":24}
++RDP_TRACE {"kind":"gossip_accepted","node":"2","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":4,"source":"0","txid":"2.20","version":24}
