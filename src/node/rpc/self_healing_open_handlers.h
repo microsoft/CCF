@@ -208,16 +208,14 @@ namespace ccf::node
       gossip_handle->put(in.info.location.name, in.txid);
       return std::nullopt;
     };
-    auto gossip_endpoint = registry.make_endpoint(
-      "/recovery_decision_protocol/gossip",
-      HTTP_PUT,
-      json_adapter(wrap_recovery_decision_protocol<
-                   recovery_decision_protocol::GossipRequest>(
-        recovery_decision_protocol_gossip, node_context, "gossip_accepted")),
-      no_auth_required);
-    gossip_endpoint.properties.forwarding_required =
-      endpoints::ForwardingRequired::Never;
-    gossip_endpoint
+    registry
+      .make_endpoint(
+        "/recovery_decision_protocol/gossip",
+        HTTP_PUT,
+        json_adapter(wrap_recovery_decision_protocol<
+                     recovery_decision_protocol::GossipRequest>(
+          recovery_decision_protocol_gossip, node_context, "gossip_accepted")),
+        no_auth_required)
       .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .set_openapi_hidden(true)
       .set_locally_committed_function(trace_on_commit)
@@ -237,16 +235,15 @@ namespace ccf::node
 
       return std::nullopt;
     };
-    auto vote_endpoint = registry.make_endpoint(
-      "/recovery_decision_protocol/vote",
-      HTTP_PUT,
-      json_adapter(wrap_recovery_decision_protocol<
-                   recovery_decision_protocol::TaggedWithNodeInfo>(
-        recovery_decision_protocol_vote, node_context, "vote_accepted")),
-      no_auth_required);
-    vote_endpoint.properties.forwarding_required =
-      endpoints::ForwardingRequired::Never;
-    vote_endpoint.set_redirection_strategy(endpoints::RedirectionStrategy::None)
+    registry
+      .make_endpoint(
+        "/recovery_decision_protocol/vote",
+        HTTP_PUT,
+        json_adapter(wrap_recovery_decision_protocol<
+                     recovery_decision_protocol::TaggedWithNodeInfo>(
+          recovery_decision_protocol_vote, node_context, "vote_accepted")),
+        no_auth_required)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .set_openapi_hidden(true)
       .set_locally_committed_function(trace_on_commit)
       .install();
@@ -311,16 +308,16 @@ namespace ccf::node
         ->put(in.info.location.name);
       return std::nullopt;
     };
-    auto iamopen_endpoint = registry.make_endpoint(
-      "/recovery_decision_protocol/iamopen",
-      HTTP_PUT,
-      json_adapter(wrap_recovery_decision_protocol<
-                   recovery_decision_protocol::IAmOpenRequest>(
-        recovery_decision_protocol_iamopen, node_context, "iamopen_accepted")),
-      no_auth_required);
-    iamopen_endpoint.properties.forwarding_required =
-      endpoints::ForwardingRequired::Never;
-    iamopen_endpoint
+    registry
+      .make_endpoint(
+        "/recovery_decision_protocol/iamopen",
+        HTTP_PUT,
+        json_adapter(wrap_recovery_decision_protocol<
+                     recovery_decision_protocol::IAmOpenRequest>(
+          recovery_decision_protocol_iamopen,
+          node_context,
+          "iamopen_accepted")),
+        no_auth_required)
       .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .set_openapi_hidden(true)
       .set_locally_committed_function(trace_on_commit)
@@ -399,14 +396,12 @@ namespace ccf::node
       return make_success(
         "Recovery-decision-protocol timeout processed successfully");
     };
-    auto timeout_endpoint = registry.make_endpoint(
-      "/recovery_decision_protocol/timeout",
-      HTTP_PUT,
-      json_adapter(recovery_decision_protocol_timeout),
-      {std::make_shared<NodeCertAuthnPolicy>()});
-    timeout_endpoint.properties.forwarding_required =
-      endpoints::ForwardingRequired::Never;
-    timeout_endpoint
+    registry
+      .make_endpoint(
+        "/recovery_decision_protocol/timeout",
+        HTTP_PUT,
+        json_adapter(recovery_decision_protocol_timeout),
+        {std::make_shared<NodeCertAuthnPolicy>()})
       .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .set_openapi_hidden(true)
       .set_locally_committed_function(trace_on_commit)
