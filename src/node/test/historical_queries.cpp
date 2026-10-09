@@ -950,6 +950,153 @@ TEST_CASE("Ledger entry bounds")
     end_seqno - begin_seqno + 1);
 }
 
+TEST_CASE("Missing entries only drop interested requests")
+{
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  const auto begin_seqno = kv_store.current_version() + 1;
+  write_transactions_and_signature(kv_store, 10);
+  const auto ledger = construct_host_ledger(kv_store.get_consensus());
+
+  // Requests are visited in handle order, so the unrelated request must have
+  // the lowest handle to detect it being dropped before the interested ones
+  constexpr ccf::historical::RequestHandle unrelated_handle = 0;
+  constexpr ccf::historical::RequestHandle owner_handle = 1;
+  constexpr ccf::historical::RequestHandle receipt_handle = 2;
+
+  const auto unrelated_start = begin_seqno;
+  const auto unrelated_end = begin_seqno + 2;
+
+  auto serve_unrelated_request = [&](ccf::historical::StateCache& cache) {
+    for (auto seqno = unrelated_start; seqno <= unrelated_end; ++seqno)
+    {
+      REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+    }
+
+    const auto stores =
+      cache.get_store_range(unrelated_handle, unrelated_start, unrelated_end);
+    REQUIRE(stores.size() == unrelated_end - unrelated_start + 1);
+    for (const auto& store : stores)
+    {
+      validate_business_transaction(store, store->current_txid().seqno);
+    }
+
+    REQUIRE(cache.drop_cached_states(unrelated_handle));
+  };
+
+  {
+    INFO("Missing entry was requested directly");
+    ccf::historical::StateCache cache(
+      kv_store,
+      state.ledger_secrets,
+      std::make_shared<consensus::test::StubLedgerReader>());
+
+    const auto owner_start = unrelated_end + 2;
+    const auto owner_end = owner_start + 2;
+    const auto missing_seqno = owner_start + 1;
+
+    REQUIRE(
+      cache.get_store_range(unrelated_handle, unrelated_start, unrelated_end)
+        .empty());
+    REQUIRE(
+      cache.get_store_range(owner_handle, owner_start, owner_end).empty());
+
+    cache.handle_no_entry(missing_seqno);
+
+    serve_unrelated_request(cache);
+
+    // The request which asked for the missing entry was dropped, so its other
+    // entries are no longer wanted
+    REQUIRE_FALSE(
+      cache.handle_ledger_entry(owner_start, ledger.at(owner_start)));
+    REQUIRE_FALSE(cache.drop_cached_states(owner_handle));
+  }
+
+  {
+    INFO("Missing entry was fetched as a potential supporting signature");
+    ccf::historical::StateCache cache(
+      kv_store,
+      state.ledger_secrets,
+      std::make_shared<consensus::test::StubLedgerReader>());
+
+    const auto receipt_seqno = unrelated_end + 2;
+    const auto missing_seqno = receipt_seqno + 1;
+
+    REQUIRE(
+      cache.get_store_range(unrelated_handle, unrelated_start, unrelated_end)
+        .empty());
+
+    // Another request is already fetching the entry after receipt_seqno, so
+    // the receipt request only tracks it as a supporting signature
+    REQUIRE(cache.get_store_range(owner_handle, missing_seqno, missing_seqno)
+              .empty());
+    REQUIRE(cache.get_state_at(receipt_handle, receipt_seqno) == nullptr);
+    REQUIRE(cache.handle_ledger_entry(receipt_seqno, ledger.at(receipt_seqno)));
+    REQUIRE(cache.get_state_at(receipt_handle, receipt_seqno) == nullptr);
+
+    cache.handle_no_entry(missing_seqno);
+
+    serve_unrelated_request(cache);
+
+    REQUIRE_FALSE(cache.drop_cached_states(owner_handle));
+    REQUIRE_FALSE(cache.drop_cached_states(receipt_handle));
+  }
+}
+
+TEST_CASE("Missing ledger secret entries only drop waiting requests")
+{
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  write_transactions(kv_store, 10);
+  const auto rekey_seqno = rekey(kv_store, state.ledger_secrets);
+  write_transactions_and_signature(kv_store, 10);
+
+  // Encrypted with the previous ledger secret, which is stored at rekey_seqno
+  const auto early_seqno = rekey_seqno - 3;
+  // Encrypted with the latest ledger secret
+  const auto late_seqno = rekey_seqno + 2;
+
+  const auto ledger = construct_host_ledger(kv_store.get_consensus());
+
+  auto recovered_state = create_and_init_state(false);
+  {
+    INFO("Recover a new service which only knows the latest ledger secret");
+    auto tx = recovered_state.kv_store->create_read_only_tx();
+    ccf::LedgerSecretsMap recovered_ledger_secrets;
+    recovered_ledger_secrets.emplace(state.ledger_secrets->get_latest(tx));
+    recovered_state.ledger_secrets->restore_historical(
+      std::move(recovered_ledger_secrets));
+  }
+
+  ccf::historical::StateCache cache(
+    *recovered_state.kv_store,
+    recovered_state.ledger_secrets,
+    std::make_shared<consensus::test::StubLedgerReader>());
+
+  constexpr ccf::historical::RequestHandle unrelated_handle = 0;
+  constexpr ccf::historical::RequestHandle waiting_handle = 1;
+
+  REQUIRE(
+    cache.get_store_range(unrelated_handle, late_seqno, late_seqno).empty());
+
+  // Too early for the known ledger secrets, so this request first waits for
+  // the previous ledger secret to be fetched from rekey_seqno
+  REQUIRE(
+    cache.get_store_range(waiting_handle, early_seqno, early_seqno).empty());
+
+  cache.handle_no_entry(rekey_seqno);
+
+  REQUIRE(cache.handle_ledger_entry(late_seqno, ledger.at(late_seqno)));
+  const auto stores =
+    cache.get_store_range(unrelated_handle, late_seqno, late_seqno);
+  REQUIRE(stores.size() == 1);
+  validate_business_transaction(stores[0], late_seqno);
+
+  REQUIRE_FALSE(cache.drop_cached_states(waiting_handle));
+}
+
 TEST_CASE("Incremental progress")
 {
   const auto seed = time(NULL);
