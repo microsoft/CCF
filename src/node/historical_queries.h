@@ -238,6 +238,18 @@ namespace ccf::historical
         return nullptr;
       }
 
+      // True if this request cannot be completed without the entry at seqno:
+      // it was requested directly, is being fetched as a potential supporting
+      // signature, or stores the older ledger secret this request is waiting
+      // for before its own entries can be fetched
+      [[nodiscard]] bool is_interested_in(ccf::SeqNo seqno) const
+      {
+        return my_stores.find(seqno) != my_stores.end() ||
+          supporting_signatures.find(seqno) != supporting_signatures.end() ||
+          (awaiting_ledger_secrets.has_value() &&
+           awaiting_ledger_secrets.value() == seqno);
+      }
+
       [[nodiscard]] ccf::SeqNo first_requested_seqno() const
       {
         if (!my_stores.empty())
@@ -1155,13 +1167,15 @@ namespace ccf::historical
     }
 
     // Used when we received an invalid entry, to drop any requests which were
-    // asking for it
+    // asking for it. Only requests interested in this specific seqno are
+    // dropped; all_stores is shared by every request, so its contents say
+    // nothing about which requests are waiting for this entry.
     void delete_all_interested_requests(ccf::SeqNo seqno)
     {
       auto request_it = requests.begin();
       while (request_it != requests.end())
       {
-        if (request_it->second.get_store_details(seqno) != nullptr)
+        if (request_it->second.is_interested_in(seqno))
         {
           lru_evict(request_it->first);
           request_it = requests.erase(request_it);
@@ -1520,6 +1534,15 @@ namespace ccf::historical
         if (fetches_it != all_stores.end())
         {
           delete_all_interested_requests(seqno);
+
+          // If this entry was being fetched to recover an older ledger secret,
+          // release the handle which was keeping it alive
+          if (
+            next_secret_fetch_handle != nullptr &&
+            next_secret_fetch_handle == fetches_it->second.lock())
+          {
+            next_secret_fetch_handle = nullptr;
+          }
 
           all_stores.erase(fetches_it);
         }
