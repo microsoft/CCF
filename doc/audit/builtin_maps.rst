@@ -396,7 +396,7 @@ JavaScript endpoint definitions.
 .. doxygenenum:: ccf::endpoints::Mode
    :project: CCF
 
-.. doxygenenum:: ccf::endpoints::ForwardingRequired
+.. doxygenenum:: ccf::endpoints::RedirectionStrategy
    :project: CCF
 
 ``tls.ca_cert_bundles``

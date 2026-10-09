@@ -115,20 +115,7 @@ def test_custom_endpoints(network, args):
     }
 
     def upper_cased_keys(obj):
-        return {
-            k.upper(): {
-                **v,
-                "forwarding_required": v.get(
-                    "forwarding_required",
-                    (
-                        "always"
-                        if v.get("redirection_strategy", "to_primary") == "to_primary"
-                        else "never"
-                    ),
-                ),
-            }
-            for k, v in obj.items()
-        }
+        return {k.upper(): v for k, v in obj.items()}
 
     def prefixed_module_name(module_def):
         if module_def["name"].startswith("/"):
@@ -870,7 +857,6 @@ def run(args):
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
-    jwt_forwarding_timeout_ms = 10000
 
     cr.add(
         "programmability",
@@ -899,7 +885,6 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         jwt_key_refresh_interval_s=1,
         issuer_port=12345,
-        forwarding_timeout_ms=jwt_forwarding_timeout_ms,
     )
 
     cr.add(
@@ -910,7 +895,6 @@ if __name__ == "__main__":
         jwt_key_refresh_interval_s=100000,
         jwt_key_refresh_max_response_size="4KB",
         issuer_port=12346,
-        forwarding_timeout_ms=jwt_forwarding_timeout_ms,
     )
 
     cr.add(
@@ -918,7 +902,6 @@ if __name__ == "__main__":
         jwt_test.run_ca_cert,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        forwarding_timeout_ms=jwt_forwarding_timeout_ms,
     )
 
     cr.run()

@@ -50,45 +50,12 @@ namespace http
 
     std::vector<uint8_t> request_body;
 
-    std::vector<uint8_t> serialised_request;
-
     ccf::http::HeaderMap response_headers;
     ccf::http::HeaderMap response_trailers;
     std::vector<uint8_t> response_body;
     ccf::http_status response_status = HTTP_STATUS_OK;
 
-    bool serialised = false;
-
     std::optional<bool> explicit_apply_writes = std::nullopt;
-
-    void serialise()
-    {
-      if (!serialised)
-      {
-        const auto request_prefix = fmt::format(
-          "{} {} HTTP/1.1\r\n"
-          "{}"
-          "\r\n",
-          verb.c_str(),
-          url,
-          ::http::get_header_string(request_headers));
-
-        serialised_request.resize(request_prefix.size() + request_body.size());
-        ::memcpy(
-          serialised_request.data(),
-          request_prefix.data(),
-          request_prefix.size());
-        if (!request_body.empty())
-        {
-          ::memcpy(
-            serialised_request.data() + request_prefix.size(),
-            request_body.data(),
-            request_body.size());
-        }
-      }
-
-      serialised = true;
-    }
 
   public:
     HttpRpcContext(
@@ -97,14 +64,12 @@ namespace http
       llhttp_method verb_,
       const std::string_view& url_,
       ccf::http::HeaderMap headers_,
-      const std::vector<uint8_t>& body_,
-      const std::vector<uint8_t>& raw_request_ = {}) :
+      const std::vector<uint8_t>& body_) :
       RpcContextImpl(s, http_version),
       verb(verb_),
       url(url_),
       request_headers(std::move(headers_)),
-      request_body(body_),
-      serialised_request(raw_request_)
+      request_body(body_)
     {
       const auto [path_, query_, fragment_] = split_url_path(url);
       // NOLINTBEGIN(cppcoreguidelines-prefer-member-initializer)
@@ -117,10 +82,6 @@ namespace http
       query = query_;
       fragment = url_decode(fragment_);
 
-      if (!serialised_request.empty())
-      {
-        serialised = true;
-      }
       // NOLINTEND(cppcoreguidelines-prefer-member-initializer)
     }
 
@@ -162,12 +123,6 @@ namespace http
     [[nodiscard]] std::string get_request_path() const override
     {
       return whole_path;
-    }
-
-    const std::vector<uint8_t>& get_serialised_request() override
-    {
-      serialise();
-      return serialised_request;
     }
 
     [[nodiscard]] std::string get_method() const override
@@ -339,10 +294,10 @@ namespace http
   }
 
   inline static std::shared_ptr<ccf::RpcHandler> fetch_rpc_handler(
-    std::shared_ptr<http::HttpRpcContext>& ctx,
+    std::shared_ptr<::http::HttpRpcContext>& ctx,
     std::shared_ptr<ccf::RPCMap>& rpc_map)
   {
-    const auto actor_opt = http::extract_actor(*ctx);
+    const auto actor_opt = ::http::extract_actor(*ctx);
     std::optional<std::shared_ptr<ccf::RpcHandler>> search;
     ccf::ActorsType actor = ccf::ActorsType::unknown;
 
@@ -385,28 +340,7 @@ namespace ccf
     const auto& msg = processor.received.front();
 
     return std::make_shared<::http::HttpRpcContext>(
-      s,
-      ccf::HttpVersion::HTTP1,
-      msg.method,
-      msg.url,
-      msg.headers,
-      msg.body,
-      packed);
+      s, ccf::HttpVersion::HTTP1, msg.method, msg.url, msg.headers, msg.body);
   }
 
-  inline std::shared_ptr<::http::HttpRpcContext> make_fwd_rpc_context(
-    std::shared_ptr<ccf::SessionContext> s,
-    const std::vector<uint8_t>& packed,
-    ccf::FrameFormat frame_format)
-  {
-    switch (frame_format)
-    {
-      case ccf::FrameFormat::http:
-      {
-        return make_rpc_context(s, packed);
-      }
-      default:
-        throw std::logic_error("Unknown Frame Format");
-    }
-  }
 }

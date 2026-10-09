@@ -28,13 +28,8 @@ namespace ccf
     // Contains DER encoding of original caller
     const std::vector<uint8_t> caller_cert;
     const std::string caller_cert_sha256;
-    bool is_forwarding = false;
-
-    // Only set for RPC sessions (i.e. non-forwarded and non-internal)
+    // Only set for external RPC sessions.
     std::optional<ListenInterfaceID> interface_id = std::nullopt;
-
-    // Only set in the case of a forwarded RPC
-    bool is_forwarded = false;
 
     // All requests on this session must occur within the same view. If the view
     // changes, the next request will receive an error response and the session

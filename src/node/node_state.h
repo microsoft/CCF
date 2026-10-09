@@ -464,7 +464,6 @@ namespace ccf
     std::shared_ptr<ccf::kv::Consensus> consensus;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<NodeToNode> n2n_channels;
-    std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
     std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache = nullptr;
     std::shared_ptr<AbstractRPCSessions> rpcsessions;
@@ -876,7 +875,6 @@ namespace ccf
     void initialize(
       const ccf::consensus::Configuration& consensus_config_,
       std::shared_ptr<RPCMap> rpc_map_,
-      std::shared_ptr<AbstractRPCResponder> rpc_sessions_,
       std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks_,
       std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache_,
       size_t sig_tx_interval_,
@@ -903,15 +901,11 @@ namespace ccf
       channel_manager->register_periodic_tasks(job_board_, tick_interval_);
       n2n_channels = std::move(channel_manager);
 
-      cmd_forwarder = std::make_shared<Forwarder<NodeToNode>>(
-        rpc_sessions_, n2n_channels, rpc_map);
-
       sm.advance(NodeStartupState::initialized);
 
       for (auto& [actor, fe] : rpc_map->frontends())
       {
         fe->set_sig_intervals(sig_tx_interval, sig_ms_interval);
-        fe->set_cmd_forwarder(cmd_forwarder);
         fe->start_periodic_tick(job_board_, tick_interval_);
       }
     }
@@ -2869,13 +2863,7 @@ namespace ccf
       }
 
       recv_node_inbound_message(
-        msg_type,
-        from,
-        data,
-        size,
-        cmd_forwarder.get(),
-        n2n_channels.get(),
-        consensus.get());
+        msg_type, from, data, size, n2n_channels.get(), consensus.get());
     }
 
     //
@@ -3720,11 +3708,6 @@ namespace ccf
         self, network.identity->cert, node_sign_kp, endorsed_node_certificate_);
     }
 
-    void setup_cmd_forwarder()
-    {
-      cmd_forwarder->initialize(self);
-    }
-
     void setup_history()
     {
       if (history)
@@ -3759,7 +3742,6 @@ namespace ccf
         std::nullopt)
     {
       setup_n2n_channels(endorsed_node_certificate_);
-      setup_cmd_forwarder();
 
       auto shared_state = std::make_shared<aft::State>(self);
 

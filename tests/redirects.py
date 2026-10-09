@@ -221,7 +221,7 @@ def run_redirect_tests_role(args):
         primary_interface = node.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
         primary_interface.app_protocol = "HTTP2" if args.http2 else "HTTP1"
         primary_interface.redirections = (
-            infra.interfaces.RedirectionConfig(to_primary=None, to_backup=None)
+            None
             if args.use_default_redirections
             else infra.interfaces.RedirectionConfig(
                 to_primary=infra.interfaces.NodeByRoleResolver()

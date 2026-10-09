@@ -25,7 +25,6 @@
 #include "node/node_transport.h"
 #include "node/rpc/cosesigconfig_subsystem.h"
 #include "node/rpc/custom_protocol_subsystem.h"
-#include "node/rpc/forwarder.h"
 #include "node/rpc/gov_effects.h"
 #include "node/rpc/ledger_interface.h"
 #include "node/rpc/member_frontend.h"
@@ -193,7 +192,6 @@ namespace ccf
       node->initialize(
         consensus_config,
         rpc_map,
-        rpcsessions,
         commit_callbacks,
         signature_cache,
         sig_tx_interval,

@@ -36,7 +36,7 @@ Each CCF user is identified by a public-key certificate, used for :term:`TLS` cl
 Ephemeral Network Keys
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Each node-to-node pair establishes a symmetric key using an authenticated Diffie Hellman key exchange protocol. This key protects the integrity of consensus message headers exchanged between nodes. It is also use to encrypt forwarded write transactions from the backups to the primary node.
+Each node-to-node pair establishes a symmetric key using an authenticated Diffie Hellman key exchange protocol. This key protects the integrity of consensus message headers exchanged between nodes.
 
 Summary Diagrams
 ----------------

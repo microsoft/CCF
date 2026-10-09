@@ -51,8 +51,7 @@ namespace ccf::http
     initial_window_size,
     max_frame_size);
 
-  // A permissive configuration, used for internally forwarded requests
-  // that have already been through application-defined limits.
+  // A permissive configuration for parsing synthetic requests in tests.
   static ParserConfiguration permissive_configuration()
   {
     ParserConfiguration config;

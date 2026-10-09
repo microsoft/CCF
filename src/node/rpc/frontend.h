@@ -13,7 +13,7 @@
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
-#include "forwarder.h"
+#include "endpoints/rpc_context_impl.h"
 #include "http/http_jwt.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/store.h"
@@ -32,9 +32,7 @@
 
 namespace ccf
 {
-  class RpcFrontend : public RpcHandler,
-                      public ForwardedRpcHandler,
-                      public ccf::tasks::PeriodicTaskOwner
+  class RpcFrontend : public RpcHandler, public ccf::tasks::PeriodicTaskOwner
   {
   protected:
     ccf::kv::Store& tables;
@@ -46,7 +44,6 @@ namespace ccf
     std::atomic<bool> is_open_{false};
 
     std::atomic<ccf::kv::Consensus*> consensus{nullptr};
-    std::shared_ptr<AbstractForwarder> cmd_forwarder;
     std::atomic<ccf::kv::TxHistory*> history{nullptr};
 
     size_t sig_tx_interval = 5000;
@@ -203,8 +200,7 @@ namespace ccf
       }
       else
       {
-        // Internal or forwarded requests have no interface ID. Forwarded
-        // requests have already been checked by the forwarder.
+        // Internal requests have no interface ID.
       }
 
       return true;
@@ -399,8 +395,7 @@ namespace ccf
           node_context.get_subsystem<NodeConfigurationInterface>();
         if (!node_configuration_subsystem)
         {
-          LOG_FAIL_FMT("Unable to access NodeConfigurationSubsystem");
-          return std::nullopt;
+          throw std::logic_error("Unable to access NodeConfigurationSubsystem");
         }
       }
 
@@ -410,12 +405,13 @@ namespace ccf
       const auto interface_it = interfaces.find(incoming_interface);
       if (interface_it == interfaces.end())
       {
-        LOG_FAIL_FMT(
-          "Could not find startup config for interface {}", incoming_interface);
-        return std::nullopt;
+        throw std::logic_error(fmt::format(
+          "Could not find startup config for interface {}",
+          incoming_interface));
       }
 
-      return interface_it->second.redirections;
+      return interface_it->second.redirections.value_or(
+        ccf::NodeInfoNetwork_v2::NetInterface::Redirections{});
     }
 
     bool check_session_consistency(
@@ -506,110 +502,6 @@ namespace ccf
       return identity;
     }
 
-    [[nodiscard]] std::chrono::milliseconds get_forwarding_timeout(
-      std::shared_ptr<ccf::RpcContextImpl> ctx) const
-    {
-      auto r = std::chrono::milliseconds(3'000);
-
-      auto interface_id = ctx->get_session_context()->interface_id;
-      if (interface_id.has_value())
-      {
-        const auto& ncs = node_configuration_subsystem->get();
-        auto rit = ncs.node_config.network.rpc_interfaces.find(*interface_id);
-        if (rit != ncs.node_config.network.rpc_interfaces.end())
-        {
-          if (rit->second.forwarding_timeout_ms.has_value())
-          {
-            // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-            r = std::chrono::milliseconds(*rit->second.forwarding_timeout_ms);
-          }
-        }
-      }
-
-      return r;
-    }
-
-    void forward(
-      std::shared_ptr<ccf::RpcContextImpl> ctx,
-      ccf::kv::ReadOnlyTx& /*tx*/,
-      const endpoints::EndpointDefinitionPtr& /*endpoint*/,
-      ccf::kv::Consensus* current_consensus)
-    {
-      // HTTP/2 does not support forwarding
-      if (ctx->get_http_version() == HttpVersion::HTTP2)
-      {
-        ctx->set_error(
-          HTTP_STATUS_NOT_IMPLEMENTED,
-          ccf::errors::NotImplemented,
-          "Request cannot be forwarded to primary on HTTP/2 interface.");
-
-        return;
-      }
-
-      if (!cmd_forwarder || current_consensus == nullptr)
-      {
-        ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "No consensus or forwarder to forward request.");
-
-        return;
-      }
-
-      if (ctx->get_session_context()->is_forwarded)
-      {
-        // If the request was already forwarded, return an error to prevent
-        // daisy chains.
-        ctx->set_error(
-          HTTP_STATUS_SERVICE_UNAVAILABLE,
-          ccf::errors::RequestAlreadyForwarded,
-          "RPC was already forwarded.");
-
-        return;
-      }
-
-      // Before attempting to forward, make sure we're in the same View as we
-      // previously thought we were.
-      if (!check_session_consistency(ctx, current_consensus))
-      {
-        return;
-      }
-
-      auto primary_id = current_consensus->primary();
-      if (!primary_id.has_value())
-      {
-        ctx->set_error(
-          HTTP_STATUS_SERVICE_UNAVAILABLE,
-          ccf::errors::InternalError,
-          "RPC could not be forwarded to unknown primary.");
-
-        return;
-      }
-
-      if (!cmd_forwarder->forward_command(
-            ctx,
-            primary_id.value(),
-            ctx->get_session_context()->caller_cert,
-            get_forwarding_timeout(ctx)))
-      {
-        ctx->set_error(
-          HTTP_STATUS_SERVICE_UNAVAILABLE,
-          ccf::errors::InternalError,
-          "Unable to establish channel to forward to primary.");
-
-        return;
-      }
-
-      LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
-
-      // Indicate that the RPC has been forwarded to primary
-      ctx->response_is_pending = true;
-
-      // Ensure future requests on this session are forwarded for session
-      // consistency
-      ctx->get_session_context()->is_forwarding = true;
-    }
-
     void process_command(std::shared_ptr<ccf::RpcContextImpl> ctx)
     {
       size_t attempts = 0;
@@ -660,8 +552,8 @@ namespace ccf
           endpoint->execution_mode !=
             endpoints::EndpointExecutionMode::Command ||
           !endpoint->authn_policies.empty() ||
-          endpoint->properties.forwarding_required !=
-            endpoints::ForwardingRequired::Never)
+          endpoint->properties.redirection_strategy !=
+            endpoints::RedirectionStrategy::None)
         {
           ctx->set_error(
             HTTP_STATUS_SERVICE_UNAVAILABLE,
@@ -777,8 +669,7 @@ namespace ccf
           std::optional<ccf::NodeInfoNetwork_v2::NetInterface::Redirections>
             redirections = std::nullopt;
 
-          // If there's no interface ID, this is already forwarded or otherwise
-          // special - don't try to redirect it
+          // Internal requests have no interface ID and execute locally.
           if (ctx->get_session_context()->interface_id.has_value())
           {
             redirections = get_redirections_config(
@@ -786,47 +677,14 @@ namespace ccf
               *ctx->get_session_context()->interface_id);
           }
 
-          // If a redirections config was specified, then redirections are used
-          // and no forwarding is done
+          // External requests use redirection, including interfaces with no
+          // explicit resolver configuration.
           if (redirections.has_value())
           {
             if (check_redirect(
                   *tx_p, ctx, endpoint, *redirections, current_consensus))
             {
               return;
-            }
-          }
-          else
-          {
-            bool is_primary = current_consensus == nullptr ||
-              current_consensus->can_replicate();
-            const bool forwardable = current_consensus != nullptr;
-
-            if (!is_primary && forwardable)
-            {
-              switch (endpoint->properties.forwarding_required)
-              {
-                case endpoints::ForwardingRequired::Never:
-                {
-                  break;
-                }
-
-                case endpoints::ForwardingRequired::Sometimes:
-                {
-                  if (ctx->get_session_context()->is_forwarding)
-                  {
-                    forward(ctx, *tx_p, endpoint, current_consensus);
-                    return;
-                  }
-                  break;
-                }
-
-                case endpoints::ForwardingRequired::Always:
-                {
-                  forward(ctx, *tx_p, endpoint, current_consensus);
-                  return;
-                }
-              }
             }
           }
 
@@ -862,16 +720,11 @@ namespace ccf
             return;
           }
 
-          if (ctx->response_is_pending)
-          {
-            return;
-          }
-
           if (args.owned_tx == nullptr)
           {
             LOG_FAIL_FMT(
-              "Bad endpoint: During execution of {} {}, returned a non-pending "
-              "response but stole ownership of Tx object",
+              "Bad endpoint: During execution of {} {}, stole ownership of Tx "
+              "object",
               ctx->get_request_verb().c_str(),
               ctx->get_request_path());
 
@@ -882,8 +735,7 @@ namespace ccf
               "Illegal endpoint implementation");
             return;
           }
-          // else args owns a valid Tx relating to a non-pending response, which
-          // should be applied
+          // args owns the transaction whose writes should be applied.
           ccf::kv::CommittableTx& tx = *args.owned_tx;
 
           // Only capture write set digest and commit evidence if the
@@ -1085,12 +937,6 @@ namespace ccf
       ms_to_sig = sig_ms_interval;
     }
 
-    void set_cmd_forwarder(
-      std::shared_ptr<AbstractForwarder> cmd_forwarder_) override
-    {
-      cmd_forwarder = cmd_forwarder_;
-    }
-
     void open() override
     {
       std::lock_guard<ccf::ds::Mutex> mguard(open_lock);
@@ -1139,38 +985,12 @@ namespace ccf
 
     /** Process a serialised command with the associated RPC context
      *
-     * If an RPC that requires writing to the kv store is processed on a
-     * backup, the serialised RPC is forwarded to the current network primary.
-     *
      * @param ctx Context for this RPC. Will be populated with response details
-     * before this call returns, or else response_is_pending will be set to true
+     * before this call returns.
      */
     void process(std::shared_ptr<ccf::RpcContextImpl> ctx) override
     {
-      // NB: If we want to re-execute on backups, the original command could
-      // be propagated from here
       process_command(ctx);
-    }
-
-    /** Process a serialised input forwarded from another node
-     *
-     * @param ctx Context for this forwarded RPC
-     */
-    void process_forwarded(std::shared_ptr<ccf::RpcContextImpl> ctx) override
-    {
-      if (!ctx->get_session_context()->is_forwarded)
-      {
-        throw std::logic_error(
-          "Processing forwarded command with unitialised forwarded context");
-      }
-
-      process_command(ctx);
-      if (ctx->response_is_pending)
-      {
-        // This should never be called when process_command is called with a
-        // forwarded RPC context
-        throw std::logic_error("Forwarded RPC cannot be forwarded");
-      }
     }
 
     void tick(std::chrono::milliseconds elapsed) override

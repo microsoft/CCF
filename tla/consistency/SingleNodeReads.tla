@@ -12,7 +12,7 @@ RoTxRequestAction ==
     /\ UNCHANGED ledgerBranches
 
 \* Response to a read-only transaction request
-\* Assumes read-only transactions are always forwarded
+\* Assumes read-only transactions are always routed to the primary
 \* Note that unlike rw transactions, executing the read and responding is handled in one action
 RoTxResponseAction ==
     /\ \E i \in DOMAIN history :

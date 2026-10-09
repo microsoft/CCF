@@ -4,7 +4,6 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/service/node_info_network.h"
-#include "forwarder_types.h"
 #include "node/session_metrics.h"
 
 #include <memory>
@@ -19,10 +18,10 @@ namespace ccf
   // Enclave, jwt refresh) depends on, independent of how connections are
   // actually serviced. RPCConnectionManager implements this, so node-side code
   // can hold a reference without depending on the concrete networking backend.
-  class AbstractRPCSessions : public AbstractRPCResponder
+  class AbstractRPCSessions
   {
   public:
-    ~AbstractRPCSessions() override = default;
+    virtual ~AbstractRPCSessions() = default;
 
     virtual ccf::SessionMetrics get_session_metrics() = 0;
 

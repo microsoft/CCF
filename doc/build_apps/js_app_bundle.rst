@@ -46,6 +46,7 @@ The ``app.json`` file of an app bundle has the following structure:
           "post": {
             "js_module": "app.js",
             "js_function": "foo_post",
+            "redirection_strategy": "none",
             "authn_policies": ["user_cert"],
             "mode": "readonly",
             "openapi": {
@@ -90,14 +91,11 @@ Each endpoint object contains the following information:
           ]
         }
 
-- ``"forwarding_required"``: An optional, deprecated string indicating whether the endpoint is always forwarded, or whether it is safe to sometimes execute on followers. Possible values are:
+- ``"redirection_strategy"``: A string indicating which node should execute the endpoint. Possible values are:
 
-  - ``"always"``
-  - ``"sometimes"``
-  - ``"never"``
-
-  When omitted, the legacy forwarding policy is inferred from ``"redirection_strategy"``: ``"to_primary"`` implies ``"always"``, while ``"none"`` and ``"to_backup"`` imply ``"never"``. If neither field is supplied, the defaults are ``"to_primary"`` and ``"always"``. Explicit legacy policies, including ``"sometimes"``, are preserved in stored records and governance responses. Forwarding is deprecated and will be removed in CCF 8.0.
-  New applications should explicitly set ``"redirection_strategy"`` to ``"none"``, ``"to_primary"``, or ``"to_backup"`` as appropriate, and enable redirects on their interfaces. Use version-matched application bundles when upgrading from older releases which require ``"forwarding_required"``. See :doc:`fwd_to_redirect`.
+  - ``"none"``: Execute on the receiving node.
+  - ``"to_primary"``: Redirect to the primary if the receiving node is a backup.
+  - ``"to_backup"``: Redirect to a backup if the receiving node is the primary.
 
 - ``"mode"``: A string indicating whether the endpoint requires read/write or read-only access to the Key-Value Store, or whether it is a historical endpoint that sees the state written in a specific transaction. Possible values are:
 
@@ -105,7 +103,7 @@ Each endpoint object contains the following information:
   - ``"readonly"``
   - ``"historical"``
 
-.. note:: The explicit legacy policy ``"sometimes"`` forwards only to preserve session consistency (a previous transaction was already forwarded), or because the transaction cannot be executed locally (it involves a write, and the node is a backup). New applications should select an appropriate redirection strategy instead.
+.. note:: The default redirection strategy is ``"to_primary"``. Write endpoints must execute on the primary. Read-only and historical endpoints can use ``"none"`` to execute on any node. See :doc:`fwd_to_redirect` for migration and consistency considerations.
    
 - ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_
   without `references <https://swagger.io/specification/#reference-object>`_. This is descriptive but not
@@ -183,6 +181,7 @@ For instance a proposal which deploys the example app above would look like:
                     "post": {
                       "js_module": "math.js",
                       "js_function": "compute",
+                      "redirection_strategy": "none",
                       "authn_policies": [
                         "user_cert"
                       ],
@@ -268,6 +267,7 @@ For instance a proposal which deploys the example app above would look like:
                     "get": {
                       "js_module": "math.js",
                       "js_function": "compute2",
+                      "redirection_strategy": "none",
                       "authn_policies": [
                         "user_cert"
                       ],

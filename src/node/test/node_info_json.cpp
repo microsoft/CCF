@@ -56,7 +56,6 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
       std::nullopt,
       std::nullopt,
       std::nullopt,
-      std::nullopt,
       {}});
   current.rpc_interfaces.emplace(
     second_rpc_name,
@@ -67,7 +66,6 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
       "HTTP2",
       300,
       400,
-      std::nullopt,
       std::nullopt,
       std::nullopt,
       std::nullopt,

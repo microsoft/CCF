@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ccf_deprecated.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/openapi.h"
 #include "ccf/endpoint_context.h"
@@ -67,32 +66,6 @@ namespace ccf::endpoints
   DECLARE_JSON_TYPE(EndpointKey);
   DECLARE_JSON_REQUIRED_FIELDS(EndpointKey, uri_path, verb);
 
-  enum class ForwardingRequired : uint8_t
-  {
-    /** ForwardingRequired::Sometimes is the default value, and should be used
-     * for most read-only operations. If this request is made to a backup node,
-     * it may be forwarded to the primary node for execution to maintain session
-     * consistency. Specifically, if this request is sent as part of a session
-     * which was already forwarded, then it will also be forwarded.
-     */
-    Sometimes,
-
-    /** ForwardingRequired::Always should be used for operations which may
-     * produce writes. If this request is made to a backup node, it will be
-     * forwarded to the primary node for execution.
-     */
-    Always,
-
-    /** ForwardingRequired::Never should be used for operations which want to
-     * read node-local state rather than the latest replicated state, such as
-     * historical queries or local consensus information. This call will never
-     * be forwarded, and is always executed on the receiving node, potentiall
-     * breaking session consistency. If this attempts to write on a backup, this
-     * will fail.
-     */
-    Never
-  };
-
   enum class RedirectionStrategy : uint8_t
   {
     /** This operation does not need to be redirected, and can be executed on
@@ -132,12 +105,6 @@ namespace ccf::endpoints
   };
 
   DECLARE_JSON_ENUM(
-    ForwardingRequired,
-    {{ForwardingRequired::Sometimes, "sometimes"},
-     {ForwardingRequired::Always, "always"},
-     {ForwardingRequired::Never, "never"}});
-
-  DECLARE_JSON_ENUM(
     RedirectionStrategy,
     {{RedirectionStrategy::None, "none"},
      {RedirectionStrategy::ToPrimary, "to_primary"},
@@ -169,20 +136,10 @@ namespace ccf::endpoints
     nlohmann::json& schema,
     [[maybe_unused]] const InterpreterReusePolicy* policy);
 
-  constexpr ForwardingRequired forwarding_required_for(
-    RedirectionStrategy redirection_strategy)
-  {
-    return redirection_strategy == RedirectionStrategy::ToPrimary ?
-      ForwardingRequired::Always :
-      ForwardingRequired::Never;
-  }
-
   struct EndpointProperties
   {
     /// Endpoint mode
     Mode mode = Mode::ReadWrite;
-    /// Endpoint forwarding policy
-    ForwardingRequired forwarding_required = ForwardingRequired::Always;
     /// Endpoint redirection policy
     RedirectionStrategy redirection_strategy = RedirectionStrategy::ToPrimary;
     /// Authentication policies
@@ -201,24 +158,10 @@ namespace ccf::endpoints
     std::optional<InterpreterReusePolicy> interpreter_reuse = std::nullopt;
   };
 
-  // Keep forwarding explicit in stored records and governance responses, while
-  // allowing application bundles to specify only their redirection policy.
-  DECLARE_JSON_TYPE_IMPL(
-    EndpointProperties, , to_json_optional_fields(j, t);
-    j["forwarding_required"] = t.forwarding_required,
-    ,
-    from_json_optional_fields(j, t);
-    if (!j.contains("forwarding_required")) {
-      t.forwarding_required = forwarding_required_for(t.redirection_strategy);
-    },
-    ,
-    fill_json_schema_optional_fields(j, t),
-    ,
-    add_schema_components_optional_fields(doc, j, t));
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
   DECLARE_JSON_REQUIRED_FIELDS(EndpointProperties, authn_policies);
   DECLARE_JSON_OPTIONAL_FIELDS(
     EndpointProperties,
-    forwarding_required,
     openapi,
     openapi_hidden,
     mode,
@@ -288,10 +231,6 @@ namespace ccf::endpoints
    */
   struct Endpoint : public EndpointDefinition
   {
-  private:
-    bool forwarding_policy_explicit = false;
-
-  public:
     // Functor which is invoked to process requests for this Endpoint
     EndpointFunction func;
 
@@ -520,24 +459,6 @@ namespace ccf::endpoints
       return *this;
     }
 
-    /** Overrides whether a Endpoint is always forwarded, or whether it is
-     * safe to sometimes execute on followers.
-     *
-     * @deprecated Use set_redirection_strategy instead. Request forwarding
-     * will be removed in CCF 8.0. For CCF 7.x interfaces using legacy
-     * forwarding, preserve the policy in properties.forwarding_required.
-     *
-     * @param fr Enum value with desired status
-     * @return This Endpoint for further modification
-     */
-    CCF_DEPRECATED(
-      "Use set_redirection_strategy instead; request forwarding will be "
-      "removed in CCF 8.0")
-    Endpoint& set_forwarding_required(ForwardingRequired fr);
-
-    /** Sets redirection and its corresponding legacy forwarding policy, unless
-     * forwarding was explicitly configured through set_forwarding_required().
-     */
     Endpoint& set_redirection_strategy(RedirectionStrategy rs);
 
     Endpoint& set_locally_committed_function(
@@ -548,41 +469,3 @@ namespace ccf::endpoints
 
   using EndpointPtr = std::shared_ptr<const Endpoint>;
 }
-
-FMT_BEGIN_NAMESPACE
-template <>
-struct formatter<ccf::endpoints::ForwardingRequired>
-{
-  template <typename ParseContext>
-  constexpr auto parse(ParseContext& ctx)
-  {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(
-    const ccf::endpoints::ForwardingRequired& v, FormatContext& ctx) const
-  {
-    switch (v)
-    {
-      case ccf::endpoints::ForwardingRequired::Sometimes:
-      {
-        return format_to(ctx.out(), "sometimes");
-      }
-      case ccf::endpoints::ForwardingRequired::Always:
-      {
-        return format_to(ctx.out(), "always");
-      }
-      case ccf::endpoints::ForwardingRequired::Never:
-      {
-        return format_to(ctx.out(), "never");
-      }
-      default:
-      {
-        throw std::logic_error(fmt::format(
-          "Unhandled value for ForwardingRequired: {}", std::to_underlying(v)));
-      }
-    }
-  }
-};
-FMT_END_NAMESPACE

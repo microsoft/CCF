@@ -967,14 +967,6 @@ const actions = new Map([
               ["readwrite", "readonly", "historical"],
               `${prefix2}.mode`,
             );
-            if (info.forwarding_required !== undefined) {
-              checkEnum(
-                info.forwarding_required,
-                ["sometimes", "always", "never"],
-                `${prefix2}.forwarding_required`,
-              );
-            }
-
             const redirection_strategy = info.redirection_strategy;
             if (redirection_strategy !== undefined) {
               checkEnum(

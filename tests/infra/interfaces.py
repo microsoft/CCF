@@ -34,7 +34,6 @@ DEFAULT_MAX_CONCURRENT_STREAMS_COUNT = 100
 DEFAULT_INITIAL_WINDOW_SIZE = 64 * 1024
 DEFAULT_MAX_FRAME_SIZE = 16 * 1024
 
-DEFAULT_FORWARDING_TIMEOUT_MS = 3000
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
 SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
@@ -203,9 +202,6 @@ class RPCInterface(Interface):
     endorsement: Endorsement | None = field(default_factory=lambda: Endorsement())
     accepted_endpoints: str | None = None
     enabled_operator_features: list[str] | None = None
-    forwarding_timeout_ms: int | None = field(
-        default_factory=lambda: DEFAULT_FORWARDING_TIMEOUT_MS
-    )
     redirections: RedirectionConfig | None = field(default_factory=RedirectionConfig)
     app_protocol: str = field(default_factory=lambda: "HTTP1")
 
@@ -216,7 +212,6 @@ class RPCInterface(Interface):
         self.max_http_header_size = args.max_http_header_size
         self.max_http_request_target_size = args.max_http_request_target_size
         self.max_http_headers_count = args.max_http_headers_count
-        self.forwarding_timeout_ms = args.forwarding_timeout_ms
         self.app_protocol = "HTTP2" if args.http2 else "HTTP1"
 
     def parse_from_str(self, s):
@@ -266,8 +261,6 @@ class RPCInterface(Interface):
             r["accepted_endpoints"] = interface.accepted_endpoints
         if interface.enabled_operator_features:
             r["enabled_operator_features"] = interface.enabled_operator_features
-        if interface.forwarding_timeout_ms:
-            r["forwarding_timeout_ms"] = interface.forwarding_timeout_ms
         if interface.redirections:
             r["redirections"] = RedirectionConfig.to_json(interface.redirections)
         return r
@@ -290,9 +283,6 @@ class RPCInterface(Interface):
         )
         interface.max_open_sessions_hard = json.get(
             "max_open_sessions_hard", DEFAULT_MAX_OPEN_SESSIONS_HARD
-        )
-        interface.forwarding_timeout_ms = json.get(
-            "forwarding_timeout_ms", DEFAULT_FORWARDING_TIMEOUT_MS
         )
         if "redirections" in json:
             interface.redirections = RedirectionConfig.from_json(json["redirections"])
