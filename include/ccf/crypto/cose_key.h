@@ -83,7 +83,8 @@ namespace ccf::crypto
 
     /**
      * @throws std::invalid_argument if key is null
-     * @throws std::runtime_error if the curve is not Ed25519
+     * @throws std::runtime_error if the curve is not Ed25519, or the key is
+     * not a canonical encoding, with y below the field prime
      */
     explicit COSEKey(EdDSAPublicKeyPtr key);
 

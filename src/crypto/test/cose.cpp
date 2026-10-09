@@ -145,6 +145,28 @@ static std::vector<uint8_t> der_from_pem_cert(const ccf::crypto::Pem& cert)
   return ccf::crypto::raw_from_b64(der_b64);
 }
 
+// An Ed25519 public key imported from its 32 raw bytes, as OpenSSL accepts
+// them, including encodings that are not canonical
+static ccf::crypto::EdDSAPublicKeyPtr eddsa_public_key_from_x(
+  const std::vector<uint8_t>& x)
+{
+  ccf::crypto::JsonWebKeyEdDSAPublic jwk;
+  jwk.kty = ccf::crypto::JsonWebKeyType::OKP;
+  jwk.crv = ccf::crypto::JsonWebKeyEdDSACurve::ED25519;
+  jwk.x = ccf::crypto::b64url_from_raw(x, false /* with_padding */);
+  return ccf::crypto::make_eddsa_public_key(jwk);
+}
+
+// x with y = p, the Ed25519 field prime 2^255 - 19 in little-endian order: a
+// non-canonical encoding of the point with y = 0
+static std::vector<uint8_t> ed25519_x_with_y_equal_to_prime()
+{
+  std::vector<uint8_t> x(32, 0xff);
+  x.front() = 0xed;
+  x.back() = 0x7f;
+  return x;
+}
+
 TEST_CASE("COSE Sign1 TBS encoding")
 {
   // {alg: ES256}, with label 1 encoded as 18 01 rather than 01.
@@ -479,44 +501,53 @@ TEST_CASE("COSE EdDSA verification")
     ccf::crypto::make_cose_verifier_from_pem_cert(cert),
     ccf::crypto::make_cose_verifier_from_key(
       ccf::crypto::COSEKey::from_der_cert(der_from_pem_cert(cert)))};
-  // {1: -8}, EdDSA
-  const auto phdr = ccf::ds::from_hex("a10127");
-  const auto sig =
-    key->sign(ccf::cose::make_cose_sign1_tbs(phdr, detached_payload));
-  REQUIRE(sig.size() == 64);
-  const auto envelope =
-    ccf::cose::make_cose_sign1_envelope(phdr, detached_payload, sig, false);
   auto wrong_payload = detached_payload;
   wrong_payload.back() ^= 0xff;
 
-  for (const auto& verifier : verifiers)
+  // {1: -8} EdDSA, and {1: -19} Ed25519, its fully-specified identifier
+  for (const auto& [alg, phdr_hex] :
+       {std::pair{int64_t{-8}, "a10127"}, std::pair{int64_t{-19}, "a10132"}})
   {
-    std::span<uint8_t> authenticated;
-    REQUIRE(verifier->verify(envelope, authenticated));
-    CHECK(std::ranges::equal(authenticated, detached_payload));
-    // Ed25519 (-19) is the fully-specified identifier of the same algorithm
-    CHECK(verifier->verify_decomposed(phdr, detached_payload, sig, -19));
-    CHECK_FALSE(verifier->verify_decomposed(phdr, wrong_payload, sig, -8));
-    CHECK_FALSE(verifier->verify_decomposed(phdr, detached_payload, sig, -7));
-    CHECK_FALSE(verifier->verify_decomposed(phdr, detached_payload, sig, -37));
-    for (const auto size : {size_t{0}, sig.size() - 1, sig.size() + 1})
-    {
-      CAPTURE(size);
-      auto malformed_sig = sig;
-      malformed_sig.resize(size);
-      CHECK_FALSE(
-        verifier->verify_decomposed(phdr, detached_payload, malformed_sig, -8));
-    }
-  }
+    CAPTURE(alg);
+    const auto phdr = ccf::ds::from_hex(phdr_hex);
+    const auto sig =
+      key->sign(ccf::cose::make_cose_sign1_tbs(phdr, detached_payload));
+    REQUIRE(sig.size() == 64);
+    const auto envelope =
+      ccf::cose::make_cose_sign1_envelope(phdr, detached_payload, sig, false);
+    const auto other_alg = alg == -8 ? -19 : -8;
 
-  // The same key, through a parsed COSE_Key whose alg is EdDSA
-  std::span<uint8_t> authenticated;
-  CHECK(ccf::crypto::make_cose_verifier_from_key(
-          ccf::crypto::COSEKey::from_cbor(
-            ccf::crypto::COSEKey(
-              ccf::crypto::make_eddsa_public_key(key->public_key_pem()))
-              .to_cbor(-8)))
-          ->verify(envelope, authenticated));
+    for (const auto& verifier : verifiers)
+    {
+      std::span<uint8_t> authenticated;
+      REQUIRE(verifier->verify(envelope, authenticated));
+      CHECK(std::ranges::equal(authenticated, detached_payload));
+      // Both identifiers name the same algorithm for an Ed25519 key
+      CHECK(
+        verifier->verify_decomposed(phdr, detached_payload, sig, other_alg));
+      CHECK_FALSE(verifier->verify_decomposed(phdr, wrong_payload, sig, alg));
+      CHECK_FALSE(verifier->verify_decomposed(phdr, detached_payload, sig, -7));
+      CHECK_FALSE(
+        verifier->verify_decomposed(phdr, detached_payload, sig, -37));
+      for (const auto size : {size_t{0}, sig.size() - 1, sig.size() + 1})
+      {
+        CAPTURE(size);
+        auto malformed_sig = sig;
+        malformed_sig.resize(size);
+        CHECK_FALSE(verifier->verify_decomposed(
+          phdr, detached_payload, malformed_sig, alg));
+      }
+    }
+
+    // The same key, through a parsed COSE_Key restricted to this alg
+    std::span<uint8_t> authenticated;
+    CHECK(ccf::crypto::make_cose_verifier_from_key(
+            ccf::crypto::COSEKey::from_cbor(
+              ccf::crypto::COSEKey(
+                ccf::crypto::make_eddsa_public_key(key->public_key_pem()))
+                .to_cbor(alg)))
+            ->verify(envelope, authenticated));
+  }
 }
 
 TEST_CASE("COSE verifier returns false for malformed messages")
@@ -972,12 +1003,16 @@ TEST_CASE("COSE verifier imports public keys and certificates")
       "MFYwEAYHKoZIzj0CAQYFK4EEAAoDQgAEgg35KU1dh2JezYWNWE1uGkQLG+NiLfje\n"
       "WJQtjC/UjQHVQVWvlfifZuz2jYYl9SehNLb7dMeVjcK6zloSMJz1Uw==\n"
       "-----END PUBLIC KEY-----\n");
-    // X25519 keys are OKP keys for key agreement, not signatures
+    // X25519 keys are OKP keys for key agreement, not signatures, and an
+    // Ed25519 key whose y is not below the field prime is not canonical
     for (const auto& subject_key :
          {ccf::crypto::make_eddsa_key_pair(ccf::crypto::CurveID::X25519)
             ->public_key_pem(),
-          secp256k1_key})
+          secp256k1_key,
+          eddsa_public_key_from_x(ed25519_x_with_y_equal_to_prime())
+            ->public_key_pem()})
     {
+      CAPTURE(subject_key.str());
       const auto unsupported_cert = ccf::crypto::create_endorsed_cert(
         subject_key,
         "CN=unsupported COSE key",
@@ -1493,6 +1528,33 @@ TEST_CASE("COSE_Key constructors reject unsupported parameters")
         doctest::Contains("is not a COSE OKP signature curve"),
         std::runtime_error);
     }
+
+    // A real X25519 key, not only a reported curve
+    CHECK_THROWS_WITH_AS(
+      COSEKey{ccf::crypto::make_eddsa_public_key(
+        ccf::crypto::make_eddsa_key_pair(CurveID::X25519)->public_key_pem())},
+      doctest::Contains("is not a COSE OKP signature curve"),
+      std::runtime_error);
+
+    // Encodings that are not canonical: y = p, with and without the sign bit
+    // of x, and y = 2^255 - 1
+    auto y_is_prime_negative_x = ed25519_x_with_y_equal_to_prime();
+    y_is_prime_negative_x.back() = 0xff;
+    for (const auto& x :
+         {ed25519_x_with_y_equal_to_prime(),
+          y_is_prime_negative_x,
+          std::vector<uint8_t>(32, 0xff)})
+    {
+      CAPTURE(ccf::ds::to_hex(x));
+      CHECK_THROWS_WITH_AS(
+        COSEKey{eddsa_public_key_from_x(x)},
+        doctest::Contains("below the Ed25519 field prime"),
+        std::runtime_error);
+    }
+    // y = p - 1, the largest canonical y
+    auto y_below_prime = ed25519_x_with_y_equal_to_prime();
+    y_below_prime.front() = 0xec;
+    CHECK_NOTHROW(COSEKey{eddsa_public_key_from_x(y_below_prime)});
   }
 }
 
@@ -1517,12 +1579,7 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
   mixed_key_ops.push_back(make_signed(2));
   std::vector<Value> text_key_ops;
   text_key_ops.push_back(make_string("2"));
-  // Ed25519 x encodes y in little-endian order, below its top bit. y = p, the
-  // field prime 2^255 - 19, is a non-canonical encoding of the point with
-  // y = 0, which OpenSSL accepts.
-  std::vector<uint8_t> okp_x_y_is_prime(32, 0xff);
-  okp_x_y_is_prime.front() = 0xed;
-  okp_x_y_is_prime.back() = 0x7f;
+  const auto okp_x_y_is_prime = ed25519_x_with_y_equal_to_prime();
   // y = 2^255 - 1, with the sign bit of x set
   const std::vector<uint8_t> okp_x_y_above_prime(32, 0xff);
   // y = p - 1, the largest canonical y

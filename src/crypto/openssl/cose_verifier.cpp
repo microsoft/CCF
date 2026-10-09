@@ -218,9 +218,8 @@ namespace
     EVP_PKEY* public_key = X509_get_pubkey(cert);
     if (public_key == nullptr)
     {
-      throw std::invalid_argument(
-        fmt::format(
-          "Failed to get certificate public key: {}", OpenSSL::first_error()));
+      throw std::invalid_argument(fmt::format(
+        "Failed to get certificate public key: {}", OpenSSL::first_error()));
     }
     OpenSSL::Unique_PKEY key(public_key, EVP_PKEY_free);
     try
@@ -346,11 +345,10 @@ namespace ccf::crypto
       const auto required_alg = verify_key.alg();
       if (required_alg.has_value() && alg != required_alg.value())
       {
-        throw std::runtime_error(
-          fmt::format(
-            "COSE algorithm {} is not the key's algorithm {}",
-            alg,
-            required_alg.value()));
+        throw std::runtime_error(fmt::format(
+          "COSE algorithm {} is not the key's algorithm {}",
+          alg,
+          required_alg.value()));
       }
       if (!cose_algorithm_matches_key(alg, verify_key))
       {
@@ -382,11 +380,10 @@ namespace ccf::crypto
         const auto signature_size = expected_signature_size(parameters.curve);
         if (sig.size() != signature_size)
         {
-          throw std::runtime_error(
-            fmt::format(
-              "Expected {} byte COSE ECDSA signature, got {}",
-              signature_size,
-              sig.size()));
+          throw std::runtime_error(fmt::format(
+            "Expected {} byte COSE ECDSA signature, got {}",
+            signature_size,
+            sig.size()));
         }
         const auto der = ecdsa_sig_p1363_to_der(sig);
         verified = ec_key->verify(

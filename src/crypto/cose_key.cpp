@@ -88,6 +88,23 @@ namespace
       x.begin() + 1, x.end() - 1, [](uint8_t byte) { return byte != 0xff; });
   }
 
+  // Whether x is a canonical Ed25519 public key: 32 bytes, encoding a y
+  // coordinate below the field prime. Returns why it is not, or std::nullopt
+  // if it is.
+  std::optional<std::string> okp_key_error(std::span<const uint8_t> x)
+  {
+    if (x.size() != ED25519_PUBLIC_KEY_SIZE)
+    {
+      return fmt::format(
+        "x must be {} bytes long for Ed25519", ED25519_PUBLIC_KEY_SIZE);
+    }
+    if (!ed25519_y_below_prime(x))
+    {
+      return "x must encode a y coordinate below the Ed25519 field prime";
+    }
+    return std::nullopt;
+  }
+
   int64_t cose_crv(CurveID curve)
   {
     switch (curve)
@@ -460,14 +477,10 @@ namespace
       invalid(fmt::format("unsupported crv {}", crv));
     }
     const auto x = require_bytes(map, LABEL_OKP_X, "x");
-    if (x.size() != ED25519_PUBLIC_KEY_SIZE)
+    const auto error = okp_key_error(x);
+    if (error.has_value())
     {
-      invalid(fmt::format(
-        "x must be {} bytes long for crv {}", ED25519_PUBLIC_KEY_SIZE, crv));
-    }
-    if (!ed25519_y_below_prime(x))
-    {
-      invalid("x must encode a y coordinate below the Ed25519 field prime");
+      invalid(error.value());
     }
     // The JWK form of the key, which CCF imports
     JsonWebKeyEdDSAPublic jwk;
@@ -514,7 +527,14 @@ namespace ccf::crypto
   COSEKey::COSEKey(EdDSAPublicKeyPtr key) :
     COSEKey(PublicKey{key}, std::nullopt)
   {
+    // Only Ed25519, before parameters_of() converts the curve
     cose_okp_crv(non_null(key).get_curve_id());
+    const auto error = okp_key_error(parameters_of(*key).x);
+    if (error.has_value())
+    {
+      throw std::runtime_error(
+        fmt::format("Unsupported COSE OKP key: {}", error.value()));
+    }
   }
 
   COSEKey COSEKey::from_cbor(std::span<const uint8_t> cose_key)
