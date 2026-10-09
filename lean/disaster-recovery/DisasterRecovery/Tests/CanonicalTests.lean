@@ -172,6 +172,7 @@ private def enumerate (config : Config) (location : Location) : IO (Nat × Nat) 
     cursor := cursor + 1
   pure (states.size, edges)
 
+/-- Runs the canonical local-state enumeration and recovery scenario checks. -/
 def main : IO UInt32 := do
   Tests.Network.run
   let config : Config :=

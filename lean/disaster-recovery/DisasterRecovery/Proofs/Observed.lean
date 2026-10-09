@@ -6,6 +6,7 @@ open Execution.Local
 open Execution.Global hiding Config
 open Predicates
 
+/-- Every node with an open kind retains enough votes for that kind of opening. -/
 def OpeningThresholds (config : Model.Config) (state : State) : Prop :=
   forall entry,
     entry ∈ state.system.nodes

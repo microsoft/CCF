@@ -17,6 +17,7 @@ open Lean Model.Local
 
 /-- How many nodes take part in the e2e scenario. -/
 structure Scenario where
+  /-- Number of nodes expected to finish the scenario. -/
   participants : Nat
 
 /-- A replay unit: one retry's sends, or one execution. -/
@@ -199,8 +200,11 @@ private def linearize (queues : Array (Array Item)) : Checked (Array Instruction
     throw (.incomplete "a receive has no earlier send of its message from its source")
   return result
 
+/-- Replay configuration, ordered instructions, and the scenario's terminal outcome. -/
 structure Reduced where
+  /-- Reconstructed protocol configuration and active participants. -/
   header : Header
+  /-- Actions and observations in an order consistent with commits and deliveries. -/
   instructions : Array Instruction
   /-- Why the participants do not end as the scenario expects, if the replay succeeds. -/
   scenario : Option String

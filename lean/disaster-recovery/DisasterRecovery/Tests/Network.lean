@@ -118,6 +118,7 @@ private def requireSome (value : Option α) (message : String) : IO α :=
   | some result => pure result
   | none => throw (IO.userError message)
 
+/-- Checks message multiplicity, delivery guards, and output ordering in the shared network. -/
 def run : IO Unit := do
   let machine := MultiNodeTransitionSystem.lift [0, 1] protocol
   let message : Envelope Nat Nat := { source := 0, target := 1, payload := 5 }

@@ -102,11 +102,17 @@ lake exe mk_all --check --lib DisasterRecovery
 lake build --wfail
 lake lint
 lake exe canonical-checks
+lake exe runLinter --no-build DisasterRecovery replayer.Main
 ```
 
 `--wfail` treats `sorry` as an error. `lake lint` runs
 [axiom-audit](https://github.com/leanprover-community/axiom-audit); only
 `propext`, `Classical.choice`, and `Quot.sound` are permitted.
+`runLinter` uses Mathlib's declaration-lint driver, including the slow checks,
+over every module imported by `DisasterRecovery.lean` and `replayer.Main`.
+It lints our declarations rather than dependencies, and findings fail the command.
+The main package also builds the replayer so its declarations are available
+to the linter; its separate package remains dependency-free.
 `Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof
 module or if a removed name is reintroduced. See [Formatting](#formatting) for
 the [leanfmt](https://github.com/duckki/leanfmt) check.

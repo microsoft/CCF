@@ -10,7 +10,9 @@ reachability, the multi-node network) is built on these two fields.
 
 /-- `none` disables an action; `some state` may be an enabled stutter. -/
 structure TransitionSystem (State Action : Type) where
+  /-- The states from which an execution may start. -/
   init : State -> Prop
+  /-- Applies an action, returning `none` exactly when the action is disabled. -/
   step : State -> Action -> Option State
 
 namespace TransitionSystem
