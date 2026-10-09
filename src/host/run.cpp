@@ -487,7 +487,12 @@ namespace ccf
     }
 
     // Initialise the curlm singleton
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    if (const auto curl_rc = curl_global_init(CURL_GLOBAL_DEFAULT);
+        curl_rc != CURLE_OK)
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to initialise libcurl: {}", curl_easy_strerror(curl_rc)));
+    }
     auto curl_libuv_context =
       http_client::CurlmLibuvContextSingleton(uv_default_loop());
 
