@@ -521,6 +521,12 @@ private:
       REQUIRE(expected.contains(seqno));
       REQUIRE(consumers.roles == expected.at(seqno));
       REQUIRE(consumers.secret_waiters == secret_waiters[seqno]);
+      // Routing membership must agree with the predicate which selects the
+      // requests dropped when this entry turns out to be missing
+      for (const auto& [handle, _] : consumers.roles)
+      {
+        REQUIRE(requests.at(handle).is_interested_in(seqno));
+      }
     }
   }
 };
@@ -1643,13 +1649,20 @@ TEST_CASE("StateCache routing preserves rejection and partial failure behavior")
   cache.check_invariants();
   REQUIRE_FALSE(cache.handle_ledger_entry(first, ledger.at(first)));
   REQUIRE(cache.reply_work().requests_visited == 0);
-  // Preserve the existing no-entry deletion behavior, including unrelated
-  // handles encountered while another request still owns the shared slot.
+  // A missing entry drops only the requests interested in it, including the
+  // one sharing the wrapper as a supporting dependency, so the unrelated
+  // request for first + 4 survives
   cache.handle_no_entry(first + 1);
-  REQUIRE(cache.request_count() == 0);
+  REQUIRE(cache.request_count() == 1);
   cache.check_invariants();
   REQUIRE_FALSE(cache.handle_ledger_entry(first + 1, ledger.at(first + 1)));
   REQUIRE(cache.reply_work().requests_visited == 0);
+  REQUIRE(cache.handle_ledger_entry(first + 4, ledger.at(first + 4)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  validate_business_transaction(
+    cache.get_store_at(0, first + 4, 60s), first + 4);
+  cache.check_invariants();
+  REQUIRE(cache.drop_cached_states(0));
   cache.tick(0ms);
   cache.check_invariants();
   REQUIRE(cache.store_slot_count() == 0);
