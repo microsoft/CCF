@@ -115,7 +115,20 @@ def test_custom_endpoints(network, args):
     }
 
     def upper_cased_keys(obj):
-        return {k.upper(): v for k, v in obj.items()}
+        return {
+            k.upper(): {
+                **v,
+                "forwarding_required": v.get(
+                    "forwarding_required",
+                    (
+                        "always"
+                        if v.get("redirection_strategy", "to_primary") == "to_primary"
+                        else "never"
+                    ),
+                ),
+            }
+            for k, v in obj.items()
+        }
 
     def prefixed_module_name(module_def):
         if module_def["name"].startswith("/"):
