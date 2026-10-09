@@ -75,7 +75,10 @@ if [ ! -f "${VENV_DIR}/bin/activate" ]; then
         export UV_INDEX_URL="$PIP_INDEX_URL"
     fi
 
-    if [ -f "${VERSION_FILE}" ]; then
+    if [[ "${CCF_USE_RELEASED_PYTHON_PACKAGE:-0}" == "1" ]]; then
+        echo "Installing latest released ccf package..."
+        uv pip install -q --upgrade --reinstall-package ccf ccf
+    elif [ -f "${VERSION_FILE}" ]; then
         VERSION=$(<"${VERSION_FILE}")
         VERSION=${VERSION#"ccf-"}
         if [ -n "${PYTHON_PACKAGE_PATH}" ]; then
@@ -90,12 +93,15 @@ if [ ! -f "${VENV_DIR}/bin/activate" ]; then
             echo "Installing ccf package (${sanitised_version})..."
             uv pip install -q ccf=="${sanitised_version}"
         fi
-        echo "Installing test dependencies..."
-        uv pip install -q -r "${PATH_HERE}"/requirements.txt
     else
         echo "Installing ccf package from source tree..."
         uv pip install -q -e "${PATH_HERE}"/../../python/
-        echo "Installing test dependencies..."
+    fi
+
+    echo "Installing test dependencies..."
+    if [ -f "${VERSION_FILE}" ]; then
+        uv pip install -q -r "${PATH_HERE}"/requirements.txt
+    else
         uv pip install -q -r "${PATH_HERE}"/../requirements.txt
     fi
 
@@ -103,6 +109,10 @@ if [ ! -f "${VENV_DIR}/bin/activate" ]; then
 else
     # shellcheck disable=SC1090
     source "${VENV_DIR}/bin/activate"
+    if [[ "${CCF_USE_RELEASED_PYTHON_PACKAGE:-0}" == "1" ]]; then
+        echo "Installing latest released ccf package..."
+        uv pip install -q --upgrade --reinstall-package ccf ccf
+    fi
     echo "Python environment already setup under ${VENV_DIR}"
 fi
 
