@@ -74,5 +74,5 @@ trap cleanup EXIT
 
 cp "$wheel" "$output_dir/"
 wheel_sha256=$(sha256sum "$wheel")
-echo "##vso[task.setvariable variable=wheel_sha256;isOutput=true]${wheel_sha256%% *}"
-echo "##vso[task.setvariable variable=package_version;isOutput=true]$package_version"
+echo "Package version: $package_version"
+echo "Wheel SHA-256: ${wheel_sha256%% *}"

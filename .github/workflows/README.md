@@ -173,7 +173,7 @@ File: `npm.yml`
 
 # Python Package Release Attestation
 
-Attests the `ccf` wheel published to PyPI by the [OneBranch pipeline](../../.pipelines/README.md). OneBranch dispatches this workflow after successful publication, providing the package version, release tag, source commit, wheel digest, and pipeline run URL.
+Attests the `ccf` wheel published to PyPI by the [OneBranch pipeline](../../.pipelines/README.md). Triggered manually after successful publication, using the package version, release tag, source commit, wheel digest, and pipeline run URL from the OneBranch run. Run the workflow from the release tag, not a branch; see the linked pipeline documentation for the command. OneBranch does not need an additional GitHub credential for attestation.
 
 The workflow verifies the published GitHub release and its tag's source commit, downloads the PyPI wheel, checks its SHA-256 digest against the OneBranch build, and reuses the wheel metadata validator. The Python attestation bundle is uploaded separately as `python-package.attestation.sigstore.json` on the corresponding GitHub release. The attestation identifies the GitHub verification workflow, not a build performed by GitHub Actions.
 
