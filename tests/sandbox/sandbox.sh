@@ -4,6 +4,7 @@
 
 set -e
 
+venv_dir_supplied=${VENV_DIR:+1}
 VENV_DIR=${VENV_DIR:-.venv_ccf_sandbox}
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
@@ -109,7 +110,7 @@ if [ ! -f "${VENV_DIR}/bin/activate" ]; then
 else
     # shellcheck disable=SC1090
     source "${VENV_DIR}/bin/activate"
-    if [[ "${CCF_USE_RELEASED_PYTHON_PACKAGE:-0}" == "1" ]]; then
+    if [[ "${CCF_USE_RELEASED_PYTHON_PACKAGE:-0}" == "1" && -z "$venv_dir_supplied" ]]; then
         echo "Installing latest released ccf package..."
         uv pip install -q --upgrade --reinstall-package ccf ccf
     fi

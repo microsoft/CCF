@@ -31,6 +31,8 @@ from PyPI with `uv pip install --upgrade --reinstall-package ccf ccf`, replacing
 any previously installed editable SDK. Without this flag, development and
 normal CI tests retain their editable local SDK installation. Installed sandboxes
 still default to the SDK version matching the installed CCF release.
+An existing caller-supplied `VENV_DIR` is reused without reinstalling packages;
+`tests.sh` selects the SDK before exporting its environment to child sandboxes.
 
 ### Compatibility
 

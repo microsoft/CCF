@@ -117,17 +117,19 @@ def test_test_wrapper_stops_if_package_installation_fails(
 
 
 @pytest.mark.parametrize(
-    "installed, released, local_override, reused",
+    "installed, released, local_override, reused, inherited",
     [
-        (False, False, False, False),
-        (False, True, False, False),
-        (True, False, False, False),
-        (True, True, False, False),
-        (True, False, True, False),
-        (True, True, True, False),
-        (False, False, False, True),
-        (False, True, False, True),
-        (True, True, False, True),
+        (False, False, False, False, False),
+        (False, True, False, False, False),
+        (True, False, False, False, False),
+        (True, True, False, False, False),
+        (True, False, True, False, False),
+        (True, True, True, False, False),
+        (False, False, False, True, False),
+        (False, True, False, True, False),
+        (True, True, False, True, False),
+        (False, True, False, True, True),
+        (True, True, False, True, True),
     ],
 )
 def test_sandbox_selects_package(
@@ -138,6 +140,7 @@ def test_sandbox_selects_package(
     released: bool,
     local_override: bool,
     reused: bool,
+    inherited: bool,
 ) -> None:
     sandbox_dir = (
         tmp_path / "install" / "bin" if installed else tmp_path / "tests" / "sandbox"
@@ -160,6 +163,8 @@ def test_sandbox_selects_package(
         venv = tmp_path / ".venv_ccf_sandbox" / "bin"
         venv.mkdir(parents=True)
         (venv / "activate").write_text(":\n")
+        if inherited:
+            monkeypatch.setenv("VENV_DIR", str(venv.parent))
     subprocess.run(
         ["bash", str(sandbox), "--help"],
         cwd=tmp_path,
@@ -173,7 +178,9 @@ def test_sandbox_selects_package(
         for command in commands
         if command.startswith("uv pip install ") and " -r " not in command
     ]
-    if released:
+    if inherited:
+        expected = []
+    elif released:
         expected = [RELEASE_INSTALL]
     elif reused:
         expected = []
