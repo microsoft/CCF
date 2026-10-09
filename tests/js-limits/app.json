@@ -4,7 +4,6 @@
       "post": {
         "js_module": "limits.js",
         "js_function": "recursive",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
@@ -15,7 +14,6 @@
       "post": {
         "js_module": "limits.js",
         "js_function": "alloc",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
@@ -26,7 +24,6 @@
       "post": {
         "js_module": "limits.js",
         "js_function": "sleep",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
@@ -37,7 +34,6 @@
       "post": {
         "js_module": "limits.js",
         "js_function": "nestedEval",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
@@ -48,7 +44,6 @@
       "post": {
         "js_module": "limits.js",
         "js_function": "nestedFunction",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
@@ -59,7 +54,6 @@
       "post": {
         "js_module": "limits.js",
         "js_function": "responseBodyGetter",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
@@ -70,7 +64,6 @@
       "post": {
         "js_module": "limits.js",
         "js_function": "responseHeadersGetter",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
@@ -81,7 +74,6 @@
       "post": {
         "js_module": "limits.js",
         "js_function": "responseHeaderValueGetter",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
@@ -92,7 +84,6 @@
       "post": {
         "js_module": "limits.js",
         "js_function": "responseHeadersProxy",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
@@ -103,7 +94,6 @@
       "post": {
         "js_module": "limits.js",
         "js_function": "responseStatusCodeGetter",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
@@ -114,7 +104,6 @@
       "post": {
         "js_module": "limits.js",
         "js_function": "responseGetterThrows",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
@@ -125,7 +114,6 @@
       "post": {
         "js_module": "limits.js",
         "js_function": "handlerThrows",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",

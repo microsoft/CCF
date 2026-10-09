@@ -119,9 +119,7 @@ namespace ccf::endpoints
     properties.redirection_strategy = rs;
     if (!forwarding_policy_explicit)
     {
-      properties.forwarding_required = rs == RedirectionStrategy::ToPrimary ?
-        ForwardingRequired::Always :
-        ForwardingRequired::Never;
+      properties.forwarding_required = forwarding_required_for(rs);
     }
     return *this;
   }
