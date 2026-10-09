@@ -270,13 +270,13 @@ namespace ccf::historical
         }
       }
 
-      bool has_secret_waiters(ccf::SeqNo seqno) const
+      [[nodiscard]] bool has_secret_waiters(ccf::SeqNo seqno) const
       {
         const auto it = entries.find(seqno);
         return it != entries.end() && it->second.secret_waiters != 0;
       }
 
-      std::vector<CompoundHandle> snapshot(ccf::SeqNo seqno) const
+      [[nodiscard]] std::vector<CompoundHandle> snapshot(ccf::SeqNo seqno) const
       {
         std::vector<CompoundHandle> handles;
         const auto it = entries.find(seqno);
@@ -372,11 +372,11 @@ namespace ccf::historical
         AllRequestedStores& all_stores_,
         StoreMaintenance& maintenance_,
         ReplyConsumerIndex& reply_consumers_,
-        const CompoundHandle& handle_) :
+        CompoundHandle handle_) :
         all_stores(all_stores_),
         maintenance(maintenance_),
         reply_consumers(reply_consumers_),
-        handle(handle_)
+        handle(std::move(handle_))
       {}
 
       void set_awaiting_ledger_secrets(std::optional<ccf::SeqNo> seqno)
