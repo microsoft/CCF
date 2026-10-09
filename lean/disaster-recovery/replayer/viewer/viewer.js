@@ -25,10 +25,11 @@ const GUARDS = {
 };
 
 // A small vocabulary of glyphs, each with one meaning wherever it appears, and
-// a title. Emoji, marked true, are drawn in grey, so that colour only marks
-// change and failure. Pictographs that also have a text presentation carry
-// U+FE0F, to render as full-size emoji; the phases are text glyphs, so
-// joining's arrow carries U+FE0E to match them.
+// a title. Emoji, marked true, are drawn in grey. Colour marks change, failure
+// and links, and each phase, whose glyph takes its phase's colour. Pictographs
+// that also have a text presentation carry U+FE0F, to render as full-size
+// emoji; the phases are text glyphs, so joining's arrow carries U+FE0E to match
+// them.
 const GLYPHS = {
   // Messages, and the actions that send them or time out.
   gossip: ["\u{1F4AC}", "gossip: carries the sender's recovered TxID", true],
@@ -80,7 +81,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 function glyph(key, title) {
   const [g, own, emoji] = GLYPHS[key] || [];
   return g
-    ? `<span class="g${emoji ? " emoji" : ""}" title="${esc(title || own)}">${g}</span>`
+    ? `<span class="g g-${key}${emoji ? " emoji" : ""}" title="${esc(title || own)}">${g}</span>`
     : "";
 }
 
@@ -414,7 +415,7 @@ function renderOverview() {
   const end = (x, y, text, tip, cls) =>
     `<text${cls ? ` class="${cls}"` : ""} x="${x}" y="${y}" text-anchor="end">${title(tip)}${esc(text)}</text>`;
   const p = [
-    '<defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="#ecebe2"/><line x1="0" y1="0" x2="0" y2="4" stroke="#8c8a80" stroke-width="1.5"/></pattern></defs>',
+    '<defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="hatch-bg" width="4" height="4"/><line class="hatch-line" x1="0" y1="0" x2="0" y2="4" stroke-width="1.5"/></pattern></defs>',
   ];
   run.nodes.forEach((node, j) => {
     const y = geo.top + j * geo.lane;
@@ -780,7 +781,7 @@ function linksOf(run, element) {
   return { rows: records.map((k) => run.recordRow.get(k)), marks };
 }
 
-function sparkline(values, index, tip) {
+function sparkline(values, index, tip, key) {
   const most = Math.max(1, ...values.filter((v) => v !== null));
   const x = (k) =>
     1 + (values.length <= 1 ? 0 : (k / (values.length - 1)) * 68);
@@ -790,7 +791,7 @@ function sparkline(values, index, tip) {
     v === null || v === undefined
       ? ""
       : `<circle cx="${x(index).toFixed(1)}" cy="${y(v).toFixed(1)}" r="1.7"/>`;
-  return `<svg class="spark" width="70" height="12" viewBox="0 0 70 12">${title(tip)}<path d="${path(values, x, y)}"/>${dot}</svg>`;
+  return `<svg class="spark spark-${key}" width="70" height="12" viewBox="0 0 70 12">${title(tip)}<path d="${path(values, x, y)}"/>${dot}</svg>`;
 }
 
 // One column per node: the dumped node state, with what changed since the
@@ -822,7 +823,7 @@ function nodesHtml(run, s, cur, prev) {
           : `<span class="chg cell">${esc(item(e))}</span>`,
       );
       const tip = `node ${run.nodes[j]}'s ${label} over the whole run; the dot marks this step`;
-      return `<td>${c.state[key].length}${sparkline(run.sparks[key][j], s.index, tip)}<br>${entries.join(" ")}</td>`;
+      return `<td>${c.state[key].length}${sparkline(run.sparks[key][j], s.index, tip, key)}<br>${entries.join(" ")}</td>`;
     });
   const enabled = (c, p, j) =>
     ["retry", "timeout"].map((key) => {

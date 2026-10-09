@@ -25,6 +25,18 @@
         --fail: #a3201a;
         --fail-bg: #f8e2de;
         --link: #1d4fbf;
+        /* Phases, by hue, and lighter to darker as a node advances, with a
+           darker ink for their glyphs. Joining is a branch, hatched. */
+        --gossiping: #d9eeeb;
+        --voting: #d8cff0;
+        --opening: #a3cf93;
+        --open: #3f7d5c;
+        --joining: #8b80b3;
+        --gossiping-ink: #2e8a83;
+        --voting-ink: #6a52a8;
+        --opening-ink: #4c8a37;
+        --open-ink: #2f6e4f;
+        --joining-ink: #6a5f99;
         --mono:
           ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
         --serif:
@@ -217,25 +229,73 @@
       #overview .labelbg {
         fill: var(--bg);
       }
-      /* Emoji in grey, dark enough to read at the weight of the text. */
+      /* Emoji in grey, dark enough to read at the weight of the text. Message
+         emoji then take the ink of the phase that collects them, through the
+         ink-* filters, unless the text around them is coloured or faint. */
       .g.emoji,
       #overview .emoji {
         filter: grayscale(1) brightness(0.7) contrast(1.8);
       }
+      .g-gossip.emoji {
+        filter: grayscale(1) brightness(0.7) contrast(1.8) url(#ink-gossip);
+      }
+      .g-vote.emoji {
+        filter: grayscale(1) brightness(0.7) contrast(1.8) url(#ink-vote);
+      }
+      :is(.g-iamopen, .g-opens, .g-completed).emoji {
+        filter: grayscale(1) brightness(0.7) contrast(1.8) url(#ink-open);
+      }
+      :is(.chg, .failed, .bad, .skipped, .unreplayed) .g.emoji,
+      :is(.note, .off) .g.emoji {
+        filter: grayscale(1) brightness(0.7) contrast(1.8);
+      }
+      .defs {
+        position: absolute;
+        width: 0;
+        height: 0;
+      }
       .ph-gossiping {
-        fill: #ecebe2;
+        fill: var(--gossiping);
       }
       .ph-voting {
-        fill: #d2d0c5;
+        fill: var(--voting);
       }
       .ph-opening {
-        fill: #a5a398;
+        fill: var(--opening);
       }
       .ph-open {
-        fill: #5d5c56;
+        fill: var(--open);
       }
       .ph-joining {
         fill: url(#hatch);
+      }
+      .hatch-bg {
+        fill: #eeebf6;
+      }
+      .hatch-line {
+        stroke: var(--joining);
+      }
+      /* A phase glyph takes its phase's colour, unless the text around it is
+         coloured for change or failure, or faint. */
+      .g-gossiping {
+        color: var(--gossiping-ink);
+      }
+      .g-voting {
+        color: var(--voting-ink);
+      }
+      .g-opening {
+        color: var(--opening-ink);
+      }
+      .g-open {
+        color: var(--open-ink);
+      }
+      .g-joining,
+      .g-restart {
+        color: var(--joining-ink);
+      }
+      :is(.chg, .failed, .bad, .banner, .error, .skipped, .unreplayed) .g,
+      :is(.note, .off, .inactive) .g {
+        color: inherit;
       }
       .tick-retry {
         stroke: #bdbcb2;
@@ -259,6 +319,12 @@
       }
       .spark path {
         stroke: #8c8b84;
+      }
+      .spark-gossips path {
+        stroke: var(--gossiping-ink);
+      }
+      .spark-votes path {
+        stroke: var(--voting-ink);
       }
       .cursor {
         stroke: var(--ink);
@@ -537,6 +603,24 @@
     </style>
   </head>
   <body>
+    <!-- Map grey to shades of the gossiping, voting and open inks. -->
+    <svg class="defs" aria-hidden="true">
+      <filter id="ink-gossip" color-interpolation-filters="sRGB">
+        <feColorMatrix
+          values="0.1112 0.374 0.0378 0 0.1082  0.0997 0.3353 0.0338 0 0.3247  0.1005 0.3382 0.0341 0 0.3082  0 0 0 1 0"
+        />
+      </filter>
+      <filter id="ink-vote" color-interpolation-filters="sRGB">
+        <feColorMatrix
+          values="0.1037 0.3488 0.0352 0 0.2494  0.1067 0.3589 0.0362 0 0.1929  0.0959 0.3227 0.0326 0 0.3953  0 0 0 1 0"
+        />
+      </filter>
+      <filter id="ink-open" color-interpolation-filters="sRGB">
+        <feColorMatrix
+          values="0.1111 0.3736 0.0377 0 0.1106  0.1032 0.3471 0.035 0 0.2588  0.1071 0.3601 0.0364 0 0.1859  0 0 0 1 0"
+        />
+      </filter>
+    </svg>
     <header>
       <div class="bar">
         <h1>Recovery trace</h1>
