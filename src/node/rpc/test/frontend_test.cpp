@@ -78,7 +78,7 @@ public:
     };
     make_endpoint(
       "/empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
-      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
+      .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::ToPrimary)
       .install();
 
     auto empty_function_no_auth = [](auto& ctx) {
@@ -89,7 +89,7 @@ public:
       HTTP_POST,
       empty_function_no_auth,
       no_auth_required)
-      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
+      .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::ToPrimary)
       .install();
   }
 };
@@ -214,7 +214,7 @@ public:
     };
     endpoints
       .make_command_endpoint("/command", HTTP_POST, command, no_auth_required)
-      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
       .install();
 
     auto read_only = [](auto& ctx) {
@@ -279,7 +279,7 @@ public:
     member_endpoints
       .make_endpoint(
         "/empty_function", HTTP_POST, empty_function, {member_cert_auth_policy})
-      .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::ToPrimary)
       .install();
   }
 };
@@ -302,110 +302,7 @@ public:
     endpoints
       .make_endpoint(
         "/empty_function", HTTP_POST, empty_function, no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
-      .install();
-  }
-};
-
-//
-// User, Node and Member frontends used for forwarding tests
-//
-
-class RpcContextRecorder
-{
-public:
-  // session->caller_cert may be DER or PEM, we always convert to PEM
-  ccf::crypto::Pem last_caller_cert;
-  std::optional<std::string> last_caller_id = std::nullopt;
-
-  void record_ctx(ccf::endpoints::EndpointContext& ctx)
-  {
-    last_caller_cert = ccf::crypto::cert_der_to_pem(
-      ctx.rpc_ctx->get_session_context()->caller_cert);
-    if (const auto uci = ctx.try_get_caller<UserCertAuthnIdentity>())
-    {
-      last_caller_id = uci->user_id;
-    }
-    else if (const auto mci = ctx.try_get_caller<MemberCertAuthnIdentity>())
-    {
-      last_caller_id = mci->member_id;
-    }
-    else
-    {
-      last_caller_id.reset();
-    }
-  }
-};
-
-class TestForwardingUserFrontEnd : public BaseTestFrontend,
-                                   public RpcContextRecorder
-{
-public:
-  TestForwardingUserFrontEnd(ccf::kv::Store& tables) : BaseTestFrontend(tables)
-  {
-    open();
-
-    auto empty_function = [this](auto& ctx) {
-      record_ctx(ctx);
-      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-    };
-    // Note that this a Write function so that a backup executing this command
-    // will forward it to the primary
-    make_endpoint(
-      "/empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
-      .install();
-
-    auto empty_function_no_auth = [this](auto& ctx) {
-      record_ctx(ctx);
-      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-    };
-    make_endpoint("/empty_function_no_auth", HTTP_POST, empty_function_no_auth)
-      .install();
-  }
-};
-
-class TestForwardingNodeFrontEnd : public NodeRpcFrontend,
-                                   public RpcContextRecorder
-{
-public:
-  TestForwardingNodeFrontEnd(
-    ccf::NetworkState& network, ccf::StubNodeContext& context) :
-    NodeRpcFrontend(network, context)
-  {
-    open();
-
-    auto empty_function = [this](auto& ctx) {
-      record_ctx(ctx);
-      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-    };
-    // Note that this a Write function so that a backup executing this command
-    // will forward it to the primary
-    endpoints
-      .make_endpoint(
-        "/empty_function", HTTP_POST, empty_function, no_auth_required)
-      .install();
-  }
-};
-
-class TestForwardingMemberFrontEnd : public MemberRpcFrontend,
-                                     public RpcContextRecorder
-{
-public:
-  TestForwardingMemberFrontEnd(
-    ccf::NetworkState& network, ccf::StubNodeContext& context) :
-    MemberRpcFrontend(network, context)
-  {
-    open();
-
-    auto empty_function = [this](auto& ctx) {
-      record_ctx(ctx);
-      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-    };
-    // Note that this a Write function so that a backup executing this command
-    // will forward it to the primary
-    endpoints
-      .make_endpoint(
-        "/empty_function", HTTP_POST, empty_function, {member_cert_auth_policy})
+      .set_redirection_strategy(endpoints::RedirectionStrategy::ToPrimary)
       .install();
   }
 };
@@ -454,8 +351,6 @@ auto anonymous_caller_der = std::vector<uint8_t>();
 
 auto user_session =
   make_shared<ccf::SessionContext>(ccf::InvalidSessionId, user_caller_der);
-auto backup_user_session =
-  make_shared<ccf::SessionContext>(ccf::InvalidSessionId, user_caller_der);
 auto invalid_session =
   make_shared<ccf::SessionContext>(ccf::InvalidSessionId, invalid_caller_der);
 auto member_session =
@@ -480,10 +375,13 @@ private:
   NodeConfigurationState state;
 
 public:
-  TestNodeConfiguration() : state{config, node_data, {}, true}
+  TestNodeConfiguration(
+    std::optional<NodeInfoNetwork_v2::NetInterface::Redirections> redirections =
+      NodeInfoNetwork_v2::NetInterface::Redirections{}) :
+    state{config, node_data, {}, true}
   {
     NodeInfoNetwork_v2::NetInterface interface;
-    interface.redirections = NodeInfoNetwork_v2::NetInterface::Redirections{};
+    interface.redirections = std::move(redirections);
     config.network.rpc_interfaces.emplace("test_interface", interface);
   }
 
@@ -552,6 +450,43 @@ void prepare_callers(NetworkState& network)
   member_id = InternalTablesAccess::add_member(tx, member_cert);
   invalid_member_id = InternalTablesAccess::add_member(tx, invalid_caller);
   CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+}
+
+TEST_CASE("Redirection policies infer legacy forwarding")
+{
+  using namespace ccf::endpoints;
+  for (const auto strategy :
+       {RedirectionStrategy::None,
+        RedirectionStrategy::ToPrimary,
+        RedirectionStrategy::ToBackup})
+  {
+    const auto expected = strategy == RedirectionStrategy::ToPrimary ?
+      ForwardingRequired::Always :
+      ForwardingRequired::Never;
+    Endpoint endpoint;
+    endpoint.set_redirection_strategy(strategy);
+    CHECK(endpoint.properties.redirection_strategy == strategy);
+    CHECK(endpoint.properties.forwarding_required == expected);
+
+    for (const auto legacy :
+         {ForwardingRequired::Never,
+          ForwardingRequired::Sometimes,
+          ForwardingRequired::Always})
+    {
+      Endpoint explicit_endpoint;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+      explicit_endpoint.set_forwarding_required(legacy);
+#pragma GCC diagnostic pop
+      explicit_endpoint.set_redirection_strategy(strategy);
+      CHECK(explicit_endpoint.properties.forwarding_required == legacy);
+      CHECK(explicit_endpoint.properties.redirection_strategy == strategy);
+
+      auto copied_endpoint = explicit_endpoint;
+      copied_endpoint.set_redirection_strategy(RedirectionStrategy::None);
+      CHECK(copied_endpoint.properties.forwarding_required == legacy);
+    }
+  }
 }
 
 TEST_CASE("Frontend opens atomically")
@@ -686,6 +621,107 @@ TEST_CASE("Redirect resolution handles unpublished consensus")
   REQUIRE(rpc_ctx->get_response_status() == HTTP_STATUS_SERVICE_UNAVAILABLE);
 }
 
+TEST_CASE("Explicit redirections use default resolvers and overrides")
+{
+  NetworkState network;
+  prepare_callers(network);
+  BaseTestFrontend frontend(*network.tables);
+  auto config = std::make_shared<TestNodeConfiguration>(
+    nlohmann::json::object()
+      .get<NodeInfoNetwork_v2::NetInterface::Redirections>());
+  std::string primary_address = "primary.example.test:8000";
+  std::string backup_address = "backup.example.test:8000";
+  SUBCASE("Explicit resolver overrides")
+  {
+    NodeInfoNetwork_v2::NetInterface::Redirections redirections;
+    redirections.to_primary = {
+      RedirectionResolutionKind::StaticAddress,
+      {{"address", "primary.override.test:9000"}}};
+    redirections.to_backup = {
+      RedirectionResolutionKind::StaticAddress,
+      {{"address", "backup.override.test:9000"}}};
+    config = std::make_shared<TestNodeConfiguration>(redirections);
+    primary_address = "primary.override.test:9000";
+    backup_address = "backup.override.test:9000";
+  }
+  frontend.context.install_subsystem(config);
+
+  size_t executions = 0;
+  const auto handler = [&executions](auto& ctx) {
+    ++executions;
+    ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+  };
+  frontend.make_endpoint("/write", HTTP_POST, handler).install();
+  frontend.registry
+    .make_read_only_endpoint("/read", HTTP_GET, handler, no_auth_required)
+    .install();
+  frontend.registry
+    .make_read_only_endpoint("/backup", HTTP_GET, handler, no_auth_required)
+    .set_redirection_strategy(endpoints::RedirectionStrategy::ToBackup)
+    .install();
+  frontend.open();
+
+  {
+    auto tx = network.tables->create_tx();
+    auto nodes = tx.rw(network.nodes);
+    NodeInfo primary_info;
+    primary_info.status = NodeStatus::TRUSTED;
+    primary_info.encryption_pub_key = kp->public_key_pem();
+    primary_info.rpc_interfaces["test_interface"].published_address =
+      "primary.example.test:8000";
+    nodes->put(ccf::kv::test::PrimaryNodeId, primary_info);
+    NodeInfo backup_info = primary_info;
+    backup_info.rpc_interfaces["test_interface"].published_address =
+      "backup.example.test:8000";
+    nodes->put(ccf::kv::test::FirstBackupNodeId, backup_info);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  network.tables->set_consensus(consensus);
+  publish_frontend_state(frontend, network);
+  for (const auto version : {HttpVersion::HTTP1, HttpVersion::HTTP2})
+  {
+    INFO((version == HttpVersion::HTTP1 ? "HTTP1" : "HTTP2"));
+    auto session = std::make_shared<SessionContext>(
+      InvalidSessionId, anonymous_caller_der, "test_interface");
+    const auto call = [&](const std::string& path, llhttp_method verb) {
+      auto ctx = std::make_shared<::http::HttpRpcContext>(
+        session,
+        version,
+        verb,
+        "/app" + path,
+        ccf::http::HeaderMap{},
+        std::vector<uint8_t>{});
+      ::http::extract_actor(*ctx);
+      frontend.process(ctx);
+      return parse_response(ctx->serialise_response());
+    };
+
+    consensus->state = ccf::kv::test::StubConsensus::Backup;
+    auto response = call("/write?key=a%26b", HTTP_POST);
+    INFO(std::string(response.body.begin(), response.body.end()));
+    REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
+    CHECK(
+      response.headers.at(ccf::http::headers::LOCATION) ==
+      "https://" + primary_address + "/app/write?key=a%26b");
+    CHECK(executions == 0);
+    CHECK(call("/read", HTTP_GET).status == HTTP_STATUS_OK);
+    CHECK(call("/backup", HTTP_GET).status == HTTP_STATUS_OK);
+    CHECK(executions == 2);
+
+    consensus->state = ccf::kv::test::StubConsensus::Primary;
+    CHECK(call("/write", HTTP_POST).status == HTTP_STATUS_OK);
+    response = call("/backup", HTTP_GET);
+    REQUIRE(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
+    CHECK(
+      response.headers.at(ccf::http::headers::LOCATION) ==
+      "https://" + backup_address + "/app/backup");
+    CHECK(executions == 3);
+    executions = 0;
+  }
+}
+
 TEST_CASE("Endpoints with disabled operator features look like unknown paths")
 {
   NetworkState network;
@@ -754,10 +790,10 @@ TEST_CASE("Backpressure sheds reads and writes but exempts node endpoints")
   };
   registry
     ->make_read_only_endpoint("/read", HTTP_GET, handler, no_auth_required)
-    .set_forwarding_required(endpoints::ForwardingRequired::Never)
+    .set_redirection_strategy(endpoints::RedirectionStrategy::None)
     .install();
   registry->make_endpoint("/write", HTTP_POST, handler, no_auth_required)
-    .set_forwarding_required(endpoints::ForwardingRequired::Never)
+    .set_redirection_strategy(endpoints::RedirectionStrategy::None)
     .install();
   RpcFrontend frontend(*network.tables, *registry, context);
   frontend.open();
@@ -1397,48 +1433,6 @@ TEST_CASE("Decoded Templated paths")
   }
 }
 
-TEST_CASE("Forwarded request target limit" * doctest::test_suite("forwarding"))
-{
-  constexpr size_t forwarding_limit = 100 * 1024 * 1024;
-  auto target_size = forwarding_limit;
-  SUBCASE("At the forwarding limit") {}
-  SUBCASE("Above the forwarding limit")
-  {
-    target_size += 1;
-  }
-  const std::string prefix = "/app/empty_function?padding=";
-  const auto target = prefix + std::string(target_size - prefix.size(), 'a');
-  const auto packed = ::http::Request(target, HTTP_POST).build_request();
-
-  ccf::http::ParserConfiguration config;
-  config.max_request_target_size = "101MB";
-  {
-    ::http::SimpleRequestProcessor processor;
-    ::http::RequestParser ingress(processor, config);
-    ingress.execute(packed.data(), packed.size());
-    REQUIRE(processor.received.size() == 1);
-    CHECK(processor.received.front().url == target);
-  }
-
-  if (target_size > forwarding_limit)
-  {
-    CHECK_THROWS_AS(
-      ccf::make_fwd_rpc_context(user_session, packed, ccf::FrameFormat::http),
-      ::http::RequestTargetTooLongException);
-  }
-  else
-  {
-    auto forwarded =
-      ccf::make_fwd_rpc_context(user_session, packed, ccf::FrameFormat::http);
-    REQUIRE(forwarded != nullptr);
-    CHECK(forwarded->get_request_path() == "/app/empty_function");
-    CHECK(
-      forwarded->get_request_query() ==
-      std::string_view(target).substr(target.find('?') + 1));
-    CHECK(forwarded->get_serialised_request() == packed);
-  }
-}
-
 TEST_CASE("Forwarding timeout" * doctest::test_suite("forwarding"))
 {
   struct RecordingResponder : public ccf::AbstractRPCResponder
@@ -1497,324 +1491,6 @@ TEST_CASE("Forwarding timeout" * doctest::test_suite("forwarding"))
     body["error"]["message"] ==
     "Request was forwarded to node n[primary], but no response was received "
     "after 50ms");
-}
-
-TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
-{
-  NetworkState network_primary;
-
-  NetworkState network_backup;
-  prepare_callers(network_backup);
-
-  TestForwardingUserFrontEnd user_frontend_primary(*network_primary.tables);
-  TestForwardingUserFrontEnd user_frontend_backup(*network_backup.tables);
-
-  auto primary_consensus =
-    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
-  network_primary.tables->set_consensus(primary_consensus);
-
-  auto channel_stub = std::make_shared<ChannelStubProxy>();
-  auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
-  auto rpc_map = std::weak_ptr<ccf::RPCMap>();
-  auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    rpc_responder, channel_stub, rpc_map);
-  auto backup_consensus =
-    std::make_shared<ccf::kv::test::BackupStubConsensus>();
-  network_backup.tables->set_consensus(backup_consensus);
-  publish_frontend_state(user_frontend_primary, network_primary);
-  publish_frontend_state(user_frontend_backup, network_backup);
-
-  auto simple_call = create_simple_request();
-  auto serialized_call = simple_call.build_request();
-
-  auto backup_ctx = ccf::make_rpc_context(backup_user_session, serialized_call);
-  auto ctx = ccf::make_rpc_context(user_session, serialized_call);
-
-  {
-    INFO("Backup frontend without forwarder does not forward");
-    REQUIRE(channel_stub->is_empty());
-
-    user_frontend_backup.process(backup_ctx);
-    REQUIRE(!backup_ctx->response_is_pending);
-    REQUIRE(channel_stub->is_empty());
-
-    const auto response = parse_response(backup_ctx->serialise_response());
-    CHECK(response.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
-  }
-
-  user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  backup_ctx->get_session_context()->is_forwarding = false;
-
-  {
-    INFO("Read command is not forwarded to primary");
-    TestUserFrontend user_frontend_backup_read(*network_backup.tables);
-    publish_frontend_state(user_frontend_backup_read, network_backup);
-    REQUIRE(channel_stub->is_empty());
-
-    user_frontend_backup_read.process(backup_ctx);
-    REQUIRE(!backup_ctx->response_is_pending);
-    REQUIRE(channel_stub->is_empty());
-
-    const auto response = parse_response(backup_ctx->serialise_response());
-    CHECK(response.status == HTTP_STATUS_OK);
-  }
-
-  {
-    INFO("Write command on backup is forwarded to primary");
-    REQUIRE(channel_stub->is_empty());
-
-    user_frontend_backup.process(backup_ctx);
-    REQUIRE(backup_ctx->response_is_pending);
-    REQUIRE(channel_stub->size() == 1);
-
-    auto forwarded_msg = channel_stub->get_pop_back();
-    auto fwd_ctx =
-      backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-        ccf::kv::test::FirstBackupNodeId,
-        forwarded_msg.data(),
-        forwarded_msg.size());
-
-    {
-      INFO("Invalid caller");
-      user_frontend_primary.process_forwarded(fwd_ctx);
-      auto response = parse_response(fwd_ctx->serialise_response());
-      CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
-    };
-
-    prepare_callers(network_primary);
-    publish_frontend_state(user_frontend_primary, network_primary);
-
-    {
-      INFO("Valid caller");
-      user_frontend_primary.process_forwarded(fwd_ctx);
-      auto response = parse_response(fwd_ctx->serialise_response());
-      CHECK(response.status == HTTP_STATUS_OK);
-    }
-  }
-
-  {
-    INFO("Forwarding write command to a backup returns error");
-    REQUIRE(channel_stub->is_empty());
-
-    user_frontend_backup.process(backup_ctx);
-    REQUIRE(backup_ctx->response_is_pending);
-    REQUIRE(channel_stub->size() == 1);
-
-    auto forwarded_msg = channel_stub->get_pop_back();
-    auto fwd_ctx =
-      backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-        ccf::kv::test::FirstBackupNodeId,
-        forwarded_msg.data(),
-        forwarded_msg.size());
-
-    // Processing forwarded response by a backup frontend (here, the same
-    // frontend that the command was originally issued to)
-    user_frontend_backup.process_forwarded(fwd_ctx);
-    auto response = parse_response(fwd_ctx->serialise_response());
-
-    // Command was already forwarded
-    CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
-  }
-
-  {
-    // A write was executed on this frontend (above), so reads must be
-    // forwarded too for session consistency
-    INFO("Read command is now forwarded to primary on this session");
-
-    TestUserFrontend user_frontend_backup_read(*network_backup.tables);
-    user_frontend_backup_read.set_cmd_forwarder(backup_forwarder);
-    publish_frontend_state(user_frontend_backup_read, network_backup);
-    REQUIRE(channel_stub->is_empty());
-
-    user_frontend_backup_read.process(backup_ctx);
-    REQUIRE(backup_ctx->response_is_pending);
-    REQUIRE(channel_stub->size() == 1);
-
-    channel_stub->clear();
-  }
-
-  // On a session that was previously forwarded, and is now primary,
-  // commands should still succeed
-  ctx->get_session_context()->is_forwarding = true;
-  {
-    INFO("Write command primary on a forwarded session succeeds");
-    REQUIRE(channel_stub->is_empty());
-
-    user_frontend_primary.process(ctx);
-    CHECK(!ctx->response_is_pending);
-    auto response = parse_response(ctx->serialise_response());
-    CHECK(response.status == HTTP_STATUS_OK);
-  }
-}
-
-TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
-{
-  NetworkState network_primary;
-  prepare_callers(network_primary);
-
-  NetworkState network_backup;
-  prepare_callers(network_backup);
-
-  StubNodeContext context;
-
-  TestForwardingNodeFrontEnd node_frontend_primary(network_primary, context);
-  TestForwardingNodeFrontEnd node_frontend_backup(network_backup, context);
-
-  auto channel_stub = std::make_shared<ChannelStubProxy>();
-
-  auto primary_consensus =
-    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
-  network_primary.tables->set_consensus(primary_consensus);
-
-  auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
-  auto rpc_map = std::weak_ptr<ccf::RPCMap>();
-  auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    rpc_responder, channel_stub, rpc_map);
-  node_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus =
-    std::make_shared<ccf::kv::test::BackupStubConsensus>();
-  network_backup.tables->set_consensus(backup_consensus);
-  publish_frontend_state(node_frontend_primary, network_primary);
-  publish_frontend_state(node_frontend_backup, network_backup);
-
-  auto write_req = create_simple_request();
-  auto serialized_call = write_req.build_request();
-
-  auto node_session = std::make_shared<ccf::SessionContext>(
-    ccf::InvalidSessionId, node_caller.raw());
-  auto ctx = ccf::make_rpc_context(node_session, serialized_call);
-  node_frontend_backup.process(ctx);
-  REQUIRE(ctx->response_is_pending);
-  REQUIRE(channel_stub->size() == 1);
-
-  auto forwarded_msg = channel_stub->get_pop_back();
-  auto fwd_ctx =
-    backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-      ccf::kv::test::FirstBackupNodeId,
-      forwarded_msg.data(),
-      forwarded_msg.size());
-
-  node_frontend_primary.process_forwarded(fwd_ctx);
-  auto response = parse_response(fwd_ctx->serialise_response());
-  CHECK(response.status == HTTP_STATUS_OK);
-
-  CHECK(node_frontend_primary.last_caller_cert == node_caller);
-  CHECK(!node_frontend_primary.last_caller_id.has_value());
-}
-
-TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
-{
-  NetworkState network_primary;
-  prepare_callers(network_primary);
-
-  NetworkState network_backup;
-  prepare_callers(network_backup);
-
-  TestForwardingUserFrontEnd user_frontend_primary(*network_primary.tables);
-  TestForwardingUserFrontEnd user_frontend_backup(*network_backup.tables);
-
-  auto channel_stub = std::make_shared<ChannelStubProxy>();
-
-  auto primary_consensus =
-    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
-  network_primary.tables->set_consensus(primary_consensus);
-
-  auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
-  auto rpc_map = std::weak_ptr<ccf::RPCMap>();
-  auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    rpc_responder, channel_stub, rpc_map);
-  user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus =
-    std::make_shared<ccf::kv::test::BackupStubConsensus>();
-  network_backup.tables->set_consensus(backup_consensus);
-  publish_frontend_state(user_frontend_primary, network_primary);
-  publish_frontend_state(user_frontend_backup, network_backup);
-
-  auto write_req = create_simple_request();
-  write_req.set_query_param(
-    "padding",
-    std::string(ccf::http::default_max_request_target_size.count_bytes(), 'a'));
-  auto serialized_call = write_req.build_request();
-
-  ccf::http::ParserConfiguration ingress_config;
-  ingress_config.max_request_target_size = "32KB";
-  ::http::SimpleRequestProcessor ingress_processor;
-  ::http::RequestParser ingress_parser(ingress_processor, ingress_config);
-  ingress_parser.execute(serialized_call.data(), serialized_call.size());
-  REQUIRE(ingress_processor.received.size() == 1);
-
-  auto ctx = ccf::make_rpc_context(user_session, serialized_call);
-  user_frontend_backup.process(ctx);
-  REQUIRE(ctx->response_is_pending);
-  REQUIRE(channel_stub->size() == 1);
-
-  auto forwarded_msg = channel_stub->get_pop_back();
-  auto fwd_ctx =
-    backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-      ccf::kv::test::FirstBackupNodeId,
-      forwarded_msg.data(),
-      forwarded_msg.size());
-  REQUIRE(fwd_ctx != nullptr);
-
-  user_frontend_primary.process_forwarded(fwd_ctx);
-  auto response = parse_response(fwd_ctx->serialise_response());
-  CHECK(response.status == HTTP_STATUS_OK);
-
-  CHECK(user_frontend_primary.last_caller_cert == user_caller);
-  CHECK(user_frontend_primary.last_caller_id.value() == user_id.value());
-}
-
-TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
-{
-  NetworkState network_primary;
-  prepare_callers(network_primary);
-
-  NetworkState network_backup;
-  prepare_callers(network_backup);
-
-  StubNodeContext context;
-
-  TestForwardingMemberFrontEnd member_frontend_primary(
-    network_primary, context);
-  TestForwardingMemberFrontEnd member_frontend_backup(network_backup, context);
-  auto channel_stub = std::make_shared<ChannelStubProxy>();
-
-  auto primary_consensus =
-    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
-  network_primary.tables->set_consensus(primary_consensus);
-
-  auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
-  auto rpc_map = std::weak_ptr<ccf::RPCMap>();
-  auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-    rpc_responder, channel_stub, rpc_map);
-  member_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus =
-    std::make_shared<ccf::kv::test::BackupStubConsensus>();
-  network_backup.tables->set_consensus(backup_consensus);
-  publish_frontend_state(member_frontend_primary, network_primary);
-  publish_frontend_state(member_frontend_backup, network_backup);
-
-  auto write_req = create_simple_request();
-  auto serialized_call = write_req.build_request();
-
-  auto ctx = ccf::make_rpc_context(member_session, serialized_call);
-  member_frontend_backup.process(ctx);
-  REQUIRE(ctx->response_is_pending);
-  REQUIRE(channel_stub->size() == 1);
-
-  auto forwarded_msg = channel_stub->get_pop_back();
-  auto fwd_ctx =
-    backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-      ccf::kv::test::FirstBackupNodeId,
-      forwarded_msg.data(),
-      forwarded_msg.size());
-
-  member_frontend_primary.process_forwarded(fwd_ctx);
-  auto response = parse_response(fwd_ctx->serialise_response());
-  CHECK(response.status == HTTP_STATUS_OK);
-
-  CHECK(member_frontend_primary.last_caller_cert == member_cert);
-  CHECK(member_frontend_primary.last_caller_id.value() == member_id.value());
 }
 
 class TestConflictFrontend : public BaseTestFrontend

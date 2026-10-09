@@ -1438,6 +1438,14 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME e2e_forwarding_smoke
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/forwarding.py
+    BUCKET bucket_c
+    BUILD_DEPENDS logging
+    ADDITIONAL_ARGS --package samples/apps/logging/logging
+  )
+
+  add_e2e_test(
     NAME e2e_basic_rust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basic_rust.py
     BUCKET bucket_c
