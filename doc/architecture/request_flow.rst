@@ -58,9 +58,7 @@ Forwarding flow
 ---------------
 
 .. note::
-    Forwarding is deprecated and will be removed in CCF 8.0. This compatibility
-    path is still available in CCF 7.x on RPC interfaces without a
-    ``redirections`` configuration. First-party tools default to redirects.
+    Forwarding is deprecated and will be removed in CCF 8.0. This compatibility path is still available in CCF 7.x on RPC interfaces without a ``redirections`` configuration. First-party tools default to redirects.
     See :doc:`/build_apps/fwd_to_redirect`.
 
 When write request are submitted to a follower node, they must be forwarded to the primary for execution. This diagram shows how that is done, between a follower node A and a primary B. Decryption and some dispatch still occurs on the follower, as it must lookup the correct endpoint's metadata to determine whether this request should be forwarded. When A establishes that the request should be forwarded, it queues a node-to-node (N2N) forwarding message to the primary describing the original request. The synchronous execution the follower A now completes without writing any response to the user, but maintaining an open TLS session and some local state that a response is pending.

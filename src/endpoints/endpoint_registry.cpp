@@ -249,8 +249,9 @@ namespace ccf::endpoints
         f(ro_ctx);
       },
       ap);
+    endpoint.set_redirection_strategy(RedirectionStrategy::None);
     endpoint.properties.forwarding_required = ForwardingRequired::Sometimes;
-    return endpoint.set_redirection_strategy(RedirectionStrategy::None);
+    return endpoint;
   }
 
   Endpoint EndpointRegistry::make_command_endpoint(
@@ -263,8 +264,9 @@ namespace ccf::endpoints
       make_endpoint(method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap);
     endpoint.execution_mode = EndpointExecutionMode::Command;
     endpoint.command_func = f;
+    endpoint.set_redirection_strategy(RedirectionStrategy::None);
     endpoint.properties.forwarding_required = ForwardingRequired::Sometimes;
-    return endpoint.set_redirection_strategy(RedirectionStrategy::None);
+    return endpoint;
   }
 
   void EndpointRegistry::install(Endpoint& endpoint)

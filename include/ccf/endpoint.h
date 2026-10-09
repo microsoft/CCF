@@ -267,6 +267,10 @@ namespace ccf::endpoints
    */
   struct Endpoint : public EndpointDefinition
   {
+  private:
+    bool forwarding_policy_explicit = false;
+
+  public:
     // Functor which is invoked to process requests for this Endpoint
     EndpointFunction func;
 
@@ -510,6 +514,9 @@ namespace ccf::endpoints
       "removed in CCF 8.0")
     Endpoint& set_forwarding_required(ForwardingRequired fr);
 
+    /** Sets redirection and its corresponding legacy forwarding policy, unless
+     * forwarding was explicitly configured through set_forwarding_required().
+     */
     Endpoint& set_redirection_strategy(RedirectionStrategy rs);
 
     Endpoint& set_locally_committed_function(

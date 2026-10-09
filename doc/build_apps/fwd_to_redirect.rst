@@ -2,11 +2,7 @@ Migrating from forwarding to redirection
 ========================================
 
 .. note::
-    Forwarding is deprecated and will be removed in CCF 8.0. It remains available
-    for compatibility in CCF 7.x. First-party configuration tools enable
-    redirections by default. Manually configured RPC interfaces which omit
-    ``redirections`` still use legacy forwarding; explicitly specifying
-    ``"redirections": {}`` enables the default role-based redirect resolvers.
+    Forwarding is deprecated and will be removed in CCF 8.0. It remains available for compatibility in CCF 7.x. First-party configuration tools enable redirections by default. Manually configured RPC interfaces which omit ``redirections`` still use legacy forwarding; explicitly specifying ``"redirections": {}`` enables the default role-based redirect resolvers.
 
 Redirections
 ------------
@@ -25,11 +21,7 @@ Node configuration
 
 Redirects are enabled for each RPC interface by adding a ``redirections`` object to the interface's JSON configuration. Interfaces `without` this object will follow use each endpoint's `forwarding` properties, to decide whether each request should be executed locally or forwarded, whereas interfaces `with` this object will use each endpoint's `redirection` properties, to decide whether each request should be executed locally or return a redirect header.
 
-An empty object selects the default resolvers: ``to_primary`` resolves to the
-primary and ``to_backup`` resolves to a backup. First-party Python tools emit
-redirection configuration by default. Applications must retain the required
-``forwarding_required`` bundle field for CCF 7.x compatibility, even when using
-explicit ``redirection_strategy`` values.
+An empty object selects the default resolvers: ``to_primary`` resolves to the primary and ``to_backup`` resolves to a backup. First-party Python tools emit redirection configuration by default. Applications must retain the required ``forwarding_required`` bundle field for CCF 7.x compatibility, even when using explicit ``redirection_strategy`` values.
 
 Example configuration, redirecting directly to the current primary's accessible name:
 
@@ -80,13 +72,8 @@ Example configuration, redirecting to a static address (such as a load balancer)
 Endpoint definitions
 ~~~~~~~~~~~~~~~~~~~~
 
-The C++ ``Endpoint::set_forwarding_required()`` method emits a compiler
-deprecation warning in CCF 7.x. Use ``set_redirection_strategy()`` instead.
-For interfaces which still use legacy forwarding, preserve the endpoint's
-``properties.forwarding_required`` value directly. The old setter also changed
-``redirection_strategy`` to ``None`` for ``Never`` and ``ToPrimary`` for
-``Sometimes`` or ``Always``; preserve that value, or any subsequent explicit
-override, when replacing a call.
+The C++ ``Endpoint::set_forwarding_required()`` method emits a compiler deprecation warning in CCF 7.x. Use ``set_redirection_strategy()`` instead.
+Setting ``redirection_strategy`` in C++ also infers a legacy forwarding policy: ``ToPrimary`` maps to ``Always``, while ``None`` and ``ToBackup`` map to ``Never``. An explicit legacy policy configured through ``set_forwarding_required()`` takes precedence over this inference, preserving existing uses of ``Sometimes``. JavaScript bundle metadata remains unchanged and must still include ``forwarding_required`` in CCF 7.x.
 
 Similar to the ``forwarding_required`` property which specified each endpoint's forwarding behaviour, we introduce a ``redirection_strategy`` property to control the redirection behaviour. This is set by a method on the endpoint in C++:
 

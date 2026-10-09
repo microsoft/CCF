@@ -943,11 +943,9 @@ namespace ccf::node
     auto find_snapshot = [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
       detail::find_snapshot(ctx, node_context, file_since_param_key);
     };
-    auto find_snapshot_head_endpoint = registry.make_read_only_endpoint(
-      "/snapshot", HTTP_HEAD, find_snapshot, no_auth_required);
-    find_snapshot_head_endpoint.properties.forwarding_required =
-      endpoints::ForwardingRequired::Never;
-    find_snapshot_head_endpoint
+    registry
+      .make_read_only_endpoint(
+        "/snapshot", HTTP_HEAD, find_snapshot, no_auth_required)
       .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::OptionalParameter)
@@ -957,11 +955,9 @@ namespace ccf::node
         HTTP_STATUS_NOT_FOUND, "No matching snapshot is available.")
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
-    auto find_snapshot_get_endpoint = registry.make_read_only_endpoint(
-      "/snapshot", HTTP_GET, find_snapshot, no_auth_required);
-    find_snapshot_get_endpoint.properties.forwarding_required =
-      endpoints::ForwardingRequired::Never;
-    find_snapshot_get_endpoint
+    registry
+      .make_read_only_endpoint(
+        "/snapshot", HTTP_GET, find_snapshot, no_auth_required)
       .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::OptionalParameter)
@@ -976,11 +972,9 @@ namespace ccf::node
     auto find_chunk = [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
       detail::find_chunk(ctx, node_context, file_since_param_key);
     };
-    auto find_chunk_head_endpoint = registry.make_read_only_endpoint(
-      "/ledger_chunk", HTTP_HEAD, find_chunk, no_auth_required);
-    find_chunk_head_endpoint.properties.forwarding_required =
-      endpoints::ForwardingRequired::Never;
-    find_chunk_head_endpoint
+    registry
+      .make_read_only_endpoint(
+        "/ledger_chunk", HTTP_HEAD, find_chunk, no_auth_required)
       .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
@@ -996,11 +990,9 @@ namespace ccf::node
         "endpoint for the ledger chunk including the sequence number specified "
         "in the 'since' query parameter.")
       .install();
-    auto find_chunk_get_endpoint = registry.make_read_only_endpoint(
-      "/ledger_chunk", HTTP_GET, find_chunk, no_auth_required);
-    find_chunk_get_endpoint.properties.forwarding_required =
-      endpoints::ForwardingRequired::Never;
-    find_chunk_get_endpoint
+    registry
+      .make_read_only_endpoint(
+        "/ledger_chunk", HTTP_GET, find_chunk, no_auth_required)
       .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
@@ -1020,11 +1012,9 @@ namespace ccf::node
     auto get_snapshot = [&](ccf::endpoints::CommandEndpointContext& ctx) {
       detail::get_snapshot(ctx, node_context);
     };
-    auto get_snapshot_head_endpoint = registry.make_command_endpoint(
-      "/snapshot/{snapshot_name}", HTTP_HEAD, get_snapshot, no_auth_required);
-    get_snapshot_head_endpoint.properties.forwarding_required =
-      endpoints::ForwardingRequired::Never;
-    get_snapshot_head_endpoint
+    registry
+      .make_command_endpoint(
+        "/snapshot/{snapshot_name}", HTTP_HEAD, get_snapshot, no_auth_required)
       .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response(
         HTTP_STATUS_OK, "Metadata for the requested snapshot.")
@@ -1037,11 +1027,9 @@ namespace ccf::node
         HTTP_STATUS_NOT_FOUND, "The requested snapshot is not available.")
       .require_operator_feature(endpoints::OperatorFeature::SnapshotRead)
       .install();
-    auto get_snapshot_get_endpoint = registry.make_command_endpoint(
-      "/snapshot/{snapshot_name}", HTTP_GET, get_snapshot, no_auth_required);
-    get_snapshot_get_endpoint.properties.forwarding_required =
-      endpoints::ForwardingRequired::Never;
-    get_snapshot_get_endpoint
+    registry
+      .make_command_endpoint(
+        "/snapshot/{snapshot_name}", HTTP_GET, get_snapshot, no_auth_required)
       .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response<ds::openapi::Binary>(
         HTTP_STATUS_OK, "The requested snapshot.")
@@ -1058,14 +1046,12 @@ namespace ccf::node
     auto get_ledger_chunk = [&](ccf::endpoints::CommandEndpointContext& ctx) {
       detail::get_ledger_chunk(ctx, node_context);
     };
-    auto get_ledger_chunk_head_endpoint = registry.make_command_endpoint(
-      "/ledger_chunk/{chunk_name}",
-      HTTP_HEAD,
-      get_ledger_chunk,
-      no_auth_required);
-    get_ledger_chunk_head_endpoint.properties.forwarding_required =
-      endpoints::ForwardingRequired::Never;
-    get_ledger_chunk_head_endpoint
+    registry
+      .make_command_endpoint(
+        "/ledger_chunk/{chunk_name}",
+        HTTP_HEAD,
+        get_ledger_chunk,
+        no_auth_required)
       .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response(
         HTTP_STATUS_OK, "Metadata for the requested ledger chunk.")
@@ -1082,14 +1068,12 @@ namespace ccf::node
         "Metadata about a specific ledger chunk (Content-Length and "
         "x-ms-ccf-ledger-chunk-name)")
       .install();
-    auto get_ledger_chunk_get_endpoint = registry.make_command_endpoint(
-      "/ledger_chunk/{chunk_name}",
-      HTTP_GET,
-      get_ledger_chunk,
-      no_auth_required);
-    get_ledger_chunk_get_endpoint.properties.forwarding_required =
-      endpoints::ForwardingRequired::Never;
-    get_ledger_chunk_get_endpoint
+    registry
+      .make_command_endpoint(
+        "/ledger_chunk/{chunk_name}",
+        HTTP_GET,
+        get_ledger_chunk,
+        no_auth_required)
       .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response<ds::openapi::Binary>(
         HTTP_STATUS_OK, "The requested ledger chunk.")
