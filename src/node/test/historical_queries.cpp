@@ -329,6 +329,57 @@ TEST_CASE("StateCache periodic tick")
   REQUIRE(job_board.get_task() == nullptr);
 }
 
+TEST_CASE("Historical receipts preserve the transaction view across elections")
+{
+  auto state = create_and_init_state();
+  auto& store = *state.kv_store;
+  const auto seqno = write_transactions(store, 1);
+  const auto transaction_id = store.current_txid();
+  store.rollback(transaction_id, transaction_id.view + 1);
+  const auto signature_seqno = write_transactions_and_signature(store, 1);
+  auto ledger = construct_host_ledger(store.get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  ccf::historical::StateCache cache(store, state.ledger_secrets, reader);
+  REQUIRE(cache.get_state_at(0, seqno) == nullptr);
+  cache.tick(std::chrono::milliseconds(0));
+  REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  for (auto i = seqno + 1; i <= signature_seqno; ++i)
+  {
+    REQUIRE(cache.handle_ledger_entry(i, ledger.at(i)));
+  }
+  const auto historical = cache.get_state_at(0, seqno);
+  REQUIRE(historical != nullptr);
+  REQUIRE(historical->receipt != nullptr);
+  CHECK(historical->transaction_id == transaction_id);
+  const auto& receipt = *historical->receipt;
+  REQUIRE(receipt.commit_evidence.has_value());
+  REQUIRE(receipt.write_set_digest.has_value());
+  REQUIRE(receipt.signature.has_value());
+  REQUIRE(receipt.path != nullptr);
+  auto root = receipt.claims_digest.empty() ?
+    ccf::crypto::Sha256Hash(
+      receipt.write_set_digest.value(),
+      ccf::crypto::Sha256Hash(receipt.commit_evidence.value())) :
+    ccf::crypto::Sha256Hash(
+      receipt.write_set_digest.value(),
+      ccf::crypto::Sha256Hash(receipt.commit_evidence.value()),
+      receipt.claims_digest.value());
+  for (const auto& step : *receipt.path)
+  {
+    ccf::crypto::Sha256Hash sibling;
+    std::copy(
+      std::begin(step.hash.bytes),
+      std::end(step.hash.bytes),
+      sibling.h.begin());
+    root = step.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
+      ccf::crypto::Sha256Hash(sibling, root) :
+      ccf::crypto::Sha256Hash(root, sibling);
+  }
+  const auto verifier = ccf::crypto::make_verifier(
+    state.node_kp->self_sign("CN=Test node", valid_from, valid_to));
+  CHECK(verifier->verify_hash(root.h, receipt.signature.value()));
+}
+
 TEST_CASE("StateCache point queries")
 {
   auto state = create_and_init_state();

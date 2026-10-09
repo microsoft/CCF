@@ -564,7 +564,7 @@ namespace ccf::historical
 
                 if (sig.has_value())
                 {
-                  details->transaction_id = {sig->view, seqno};
+                  details->transaction_id = details->store->current_txid();
                   details->receipt = std::make_shared<TxReceiptImpl>(
                     sig->sig,
                     cose_sigs,
@@ -588,7 +588,7 @@ namespace ccf::historical
                       "Cannot parse CCF TxID: {}", cose_receipt.phdr.ccf.txid));
                   }
 
-                  details->transaction_id = {parsed_txid->view, seqno};
+                  details->transaction_id = details->store->current_txid();
                   details->receipt = std::make_shared<TxReceiptImpl>(
                     std::nullopt,
                     cose_sigs,
