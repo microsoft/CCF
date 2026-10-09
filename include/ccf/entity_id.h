@@ -13,7 +13,6 @@ namespace ccf
   struct EntityId
   {
   public:
-    // The underlying value type should be blit-serialisable.
     static constexpr size_t LENGTH = 64; // hex-encoded SHA-256 hash
     using Value = std::string; // < hex-encoded hash
 
