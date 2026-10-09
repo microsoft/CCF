@@ -1,0 +1,5 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_3.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_3.out
+@@ -1 +1 @@
+-RDP_TRACE {"expected_locations":["0","1","2"],"kind":"start","node":"0","sequence":0,"version":23}
++RDP_TRACE {"expected_locations":["0","1","2"],"kind":"start","node":"0","sequence":0,"version":24}

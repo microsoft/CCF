@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Recovery decision protocol trace record",
+  "$comment": "src/node/recovery_decision_protocol.cpp logs each record after RDP_TRACE when CCF_RECOVERY_TRACE is set. README.md describes the fields. Protocol rules, such as which phases record a chosen node, are left to the replay.",
+  "type": "object",
+  "required": ["kind"],
+  "oneOf": [
+    {
+      "$ref": "#/$defs/start",
+      "properties": { "kind": { "const": "start" } }
+    },
+    {
+      "$ref": "#/$defs/send",
+      "properties": { "kind": { "const": "send" } }
+    },
+    {
+      "$ref": "#/$defs/receive",
+      "properties": {
+        "kind": { "const": "gossip_accepted" },
+        "txid": { "$ref": "#/$defs/txid" }
+      },
+      "required": ["txid"],
+      "unevaluatedProperties": false
+    },
+    {
+      "$ref": "#/$defs/receive",
+      "properties": {
+        "kind": { "enum": ["vote_accepted", "iamopen_accepted"] }
+      },
+      "unevaluatedProperties": false
+    },
+    {
+      "$ref": "#/$defs/execution",
+      "properties": { "kind": { "const": "timeout" } },
+      "unevaluatedProperties": false
+    }
+  ],
+  "$defs": {
+    "name": { "type": "string", "minLength": 1 },
+    "counter": { "type": "integer", "minimum": 0 },
+    "version": {
+      "$comment": "A KV version, which is never NoVersion (0)",
+      "type": "integer",
+      "minimum": 1
+    },
+    "txid": {
+      "$comment": "ccf::TxID::to_str(): view.seqno",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "phase": { "enum": ["Gossiping", "Voting", "Opening", "Joining", "Open"] },
+    "record": {
+      "properties": {
+        "node": { "$ref": "#/$defs/name" },
+        "sequence": { "$ref": "#/$defs/counter" },
+        "kind": true
+      },
+      "required": ["node", "sequence"]
+    },
+    "start": {
+      "$ref": "#/$defs/record",
+      "properties": {
+        "version": { "$ref": "#/$defs/version" },
+        "expected_locations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/name" },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": ["version", "expected_locations"],
+      "unevaluatedProperties": false
+    },
+    "send": {
+      "$ref": "#/$defs/record",
+      "properties": {
+        "batch": { "$ref": "#/$defs/counter" },
+        "pre_version": { "$ref": "#/$defs/version" },
+        "message": { "enum": ["gossip", "vote", "iamopen"] },
+        "target": { "$ref": "#/$defs/name" },
+        "txid": { "$ref": "#/$defs/txid" }
+      },
+      "required": ["batch", "pre_version", "message", "target"],
+      "if": { "properties": { "message": { "const": "gossip" } } },
+      "then": { "required": ["txid"] },
+      "else": { "properties": { "txid": false } },
+      "unevaluatedProperties": false
+    },
+    "execution": {
+      "$ref": "#/$defs/record",
+      "properties": {
+        "pre": { "$ref": "#/$defs/phase" },
+        "pre_timeout": { "$ref": "#/$defs/phase" },
+        "post": { "$ref": "#/$defs/phase" },
+        "post_timeout": { "$ref": "#/$defs/phase" },
+        "version": { "$ref": "#/$defs/version" },
+        "chosen": { "$ref": "#/$defs/name" },
+        "open_kind": { "enum": ["Quorum", "Failover"] },
+        "restart": {
+          "$comment": "Optional fields are only logged when they differ from their default",
+          "const": true
+        }
+      },
+      "required": ["pre", "pre_timeout", "post", "post_timeout", "version"]
+    },
+    "receive": {
+      "$ref": "#/$defs/execution",
+      "properties": { "source": { "$ref": "#/$defs/name" } },
+      "required": ["source"]
+    }
+  }
+}

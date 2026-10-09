@@ -47,21 +47,21 @@ def get_node_response_sizes(node):
     with open(config_path, encoding="utf-8") as f:
         memory_config = json.load(f)["memory"]
 
-    ringbuffer_capacity = size_string_to_bytes(memory_config["circuit_size"])
-    max_ringbuffer_message_size = size_string_to_bytes(memory_config["max_msg_size"])
+    large_response_size = size_string_to_bytes(memory_config["circuit_size"])
+    max_message_size = size_string_to_bytes(memory_config["max_msg_size"])
 
     return (
-        ringbuffer_capacity,
+        large_response_size,
         # Leave headroom for the QuickJS string and response serialization.
-        max_ringbuffer_message_size // 2,
+        max_message_size // 2,
     )
 
 
-@reqs.description("Generate responses at and above ringbuffer capacity")
+@reqs.description("Generate large responses")
 def test_large_responses(network, args):
     primary, _ = network.find_primary()
-    ringbuffer_capacity, max_response_size = get_node_response_sizes(primary)
-    large_response_sizes = (ringbuffer_capacity, max_response_size)
+    large_response_size, max_response_size = get_node_response_sizes(primary)
+    large_response_sizes = (large_response_size, max_response_size)
     invalid_response_sizes = (-1, 1.5, max_response_size + 1)
 
     with primary.client("member0") as c:
@@ -96,7 +96,7 @@ def test_large_responses(network, args):
                 f"{response.body.data()[:200]!r}"
             )
 
-    return network, ringbuffer_capacity
+    return network, large_response_size
 
 
 @reqs.description("Running batch submission of new entries")
@@ -159,7 +159,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network, ringbuffer_capacity = test_large_responses(network, args)
+        network, large_response_size = test_large_responses(network, args)
         network = test(network, args, batch_size=1)
         network = test(network, args, batch_size=10)
         network = test(network, args, batch_size=100)
@@ -185,7 +185,7 @@ def run(args):
         #     network = test(network, args, batch_size=bs)
         #     bs += step_size
 
-        return ringbuffer_capacity
+        return large_response_size
 
 
 def run_to_transaction_limit(args):
@@ -216,12 +216,12 @@ if __name__ == "__main__":
     args.package = "js_generic"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
-    ringbuffer_capacity = run(args)
+    large_response_size = run(args)
 
     # Keep this stress test's successful write below the configured transaction
     # limit while allowing the next, much larger write to exercise clean
     # rejection.
-    args.max_msg_size_bytes = f"{ringbuffer_capacity}"
+    args.max_msg_size_bytes = f"{large_response_size}"
     args.ledger_max_transaction_bytes = f"{1024 * 1024 * 15}"  # 15MB
 
     run_to_transaction_limit(args)

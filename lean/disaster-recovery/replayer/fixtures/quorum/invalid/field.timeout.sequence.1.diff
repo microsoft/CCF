@@ -1,0 +1,5 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_5.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_5.out
+@@ -94 +94 @@
+-RDP_TRACE {"kind":"timeout","node":"2","post":"Opening","post_timeout":"Opening","pre":"Opening","pre_timeout":"Voting","sequence":93,"version":40}
++RDP_TRACE {"kind":"timeout","node":"2","post":"Opening","post_timeout":"Opening","pre":"Opening","pre_timeout":"Voting","sequence":1093,"version":40}

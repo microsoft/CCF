@@ -1,0 +1,5 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_5.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_5.out
+@@ -81 +81 @@
+-RDP_TRACE {"kind":"gossip_accepted","node":"2","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":80,"source":"2","txid":"2.22","version":26}
++RDP_TRACE {"kind":"gossip_accepted","node":"2","post":"Gossiping","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":1080,"source":"2","txid":"2.22","version":26}
