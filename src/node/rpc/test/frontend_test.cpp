@@ -626,11 +626,40 @@ TEST_CASE("Explicit redirections use default resolvers and overrides")
   NetworkState network;
   prepare_callers(network);
   BaseTestFrontend frontend(*network.tables);
-  auto config = std::make_shared<TestNodeConfiguration>(
-    nlohmann::json::object()
-      .get<NodeInfoNetwork_v2::NetInterface::Redirections>());
+  std::shared_ptr<TestNodeConfiguration> config;
   std::string primary_address = "primary.example.test:8000";
   std::string backup_address = "backup.example.test:8000";
+  SUBCASE("Default resolvers")
+  {
+    config = std::make_shared<TestNodeConfiguration>(
+      nlohmann::json::object()
+        .get<NodeInfoNetwork_v2::NetInterface::Redirections>());
+  }
+  SUBCASE("NodeByRole resolvers without target")
+  {
+    // A resolver which does not name a role targets the role of the field it
+    // configures, so to_backup must resolve to a backup, not the primary
+    const nlohmann::json j = {
+      {"to_primary", {{"kind", "NodeByRole"}}},
+      {"to_backup", {{"kind", "NodeByRole"}}}};
+    const auto redirections =
+      j.get<NodeInfoNetwork_v2::NetInterface::Redirections>();
+    REQUIRE(redirections.to_backup.target.is_null());
+    config = std::make_shared<TestNodeConfiguration>(redirections);
+  }
+  SUBCASE("NodeByRole resolvers with empty target")
+  {
+    const nlohmann::json j = {
+      {"to_primary",
+       {{"kind", "NodeByRole"}, {"target", nlohmann::json::object()}}},
+      {"to_backup",
+       {{"kind", "NodeByRole"}, {"target", nlohmann::json::object()}}}};
+    const auto redirections =
+      j.get<NodeInfoNetwork_v2::NetInterface::Redirections>();
+    REQUIRE(redirections.to_backup.target.is_object());
+    REQUIRE(redirections.to_backup.target.empty());
+    config = std::make_shared<TestNodeConfiguration>(redirections);
+  }
   SUBCASE("Explicit resolver overrides")
   {
     NodeInfoNetwork_v2::NetInterface::Redirections redirections;
@@ -644,6 +673,7 @@ TEST_CASE("Explicit redirections use default resolvers and overrides")
     primary_address = "primary.override.test:9000";
     backup_address = "backup.override.test:9000";
   }
+  REQUIRE(config != nullptr);
   frontend.context.install_subsystem(config);
 
   size_t executions = 0;

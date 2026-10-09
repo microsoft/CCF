@@ -220,13 +220,24 @@ def run_redirect_tests_role(args):
     for node in args.nodes:
         primary_interface = node.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
         primary_interface.app_protocol = "HTTP2" if args.http2 else "HTTP1"
-        primary_interface.redirections = (
-            infra.interfaces.RedirectionConfig(to_primary=None, to_backup=None)
-            if args.use_default_redirections
-            else infra.interfaces.RedirectionConfig(
+        if args.redirections_config == "default":
+            # "redirections": {} selects the default role-based resolvers
+            redirections = infra.interfaces.RedirectionConfig(
+                to_primary=None, to_backup=None
+            )
+        elif args.redirections_config == "roleless":
+            # NodeByRole resolvers without a role target the role of the field
+            # they configure, so to_backup must still resolve to a backup
+            redirections = infra.interfaces.RedirectionConfig(
+                to_primary=infra.interfaces.NodeByRoleResolver(target=None),
+                to_backup=infra.interfaces.NodeByRoleResolver(target=None),
+            )
+        else:
+            assert args.redirections_config == "explicit", args.redirections_config
+            redirections = infra.interfaces.RedirectionConfig(
                 to_primary=infra.interfaces.NodeByRoleResolver()
             )
-        )
+        primary_interface.redirections = redirections
 
     with infra.network.network(
         args.nodes,
@@ -260,7 +271,15 @@ if __name__ == "__main__":
         run_redirect_tests_role,
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        use_default_redirections=False,
+        redirections_config="explicit",
+    )
+
+    cr.add(
+        "cpp_redirects_roleless",
+        run_redirect_tests_role,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        redirections_config="roleless",
     )
 
     cr.add(
@@ -275,7 +294,7 @@ if __name__ == "__main__":
         run_redirect_tests_role,
         package="js_generic",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        use_default_redirections=False,
+        redirections_config="explicit",
     )
 
     cr.add(
@@ -296,7 +315,7 @@ if __name__ == "__main__":
                 package=package,
                 nodes=infra.e2e_args.min_nodes(cr.args, f=1),
                 http2=http2,
-                use_default_redirections=True,
+                redirections_config="default",
             )
 
     cr.run()
