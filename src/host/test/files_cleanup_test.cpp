@@ -11,7 +11,9 @@
 #include <doctest/doctest.h>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <limits>
+#include <utility>
 
 namespace fs = std::filesystem;
 using namespace asynchost;
@@ -46,6 +48,69 @@ static fs::path create_committed_chunk(
   write_file(path, content);
   return path;
 }
+
+class ScopedCleanupLogger
+{
+  class Logger : public ccf::logger::AbstractLogger
+  {
+    ScopedCleanupLogger& owner;
+
+  public:
+    Logger(ScopedCleanupLogger& owner_) : owner(owner_) {}
+
+    void write(const ccf::logger::LogLine& line) override
+    {
+      owner.messages.push_back(line.msg);
+      if (owner.on_log)
+      {
+        owner.on_log(line.msg);
+      }
+    }
+  };
+
+  const ccf::LoggerLevel previous_level = ccf::logger::config::level();
+  const std::chrono::microseconds previous_max_time =
+    ccf::ds::TimeBoundLogger::default_max_time;
+  std::vector<std::unique_ptr<ccf::logger::AbstractLogger>> previous_loggers;
+
+public:
+  std::vector<std::string> messages;
+  std::function<void(const std::string&)> on_log;
+
+  ScopedCleanupLogger() :
+    previous_loggers(std::exchange(ccf::logger::config::loggers(), {}))
+  {
+    ccf::logger::config::loggers().push_back(std::make_unique<Logger>(*this));
+    ccf::logger::config::level() = ccf::LoggerLevel::TRACE;
+    // Emit every hash open/read scope without timing-dependent assertions.
+    ccf::ds::TimeBoundLogger::default_max_time = std::chrono::microseconds{-1};
+  }
+
+  ScopedCleanupLogger(const ScopedCleanupLogger&) = delete;
+  ScopedCleanupLogger& operator=(const ScopedCleanupLogger&) = delete;
+
+  ~ScopedCleanupLogger()
+  {
+    ccf::logger::config::loggers() = std::move(previous_loggers);
+    ccf::logger::config::level() = previous_level;
+    ccf::ds::TimeBoundLogger::default_max_time = previous_max_time;
+  }
+
+  size_t count(const std::string& message) const
+  {
+    return std::count_if(
+      messages.begin(), messages.end(), [&](const auto& logged) {
+        return logged.contains(message);
+      });
+  }
+
+  void check_hash_count(const fs::path& path, size_t expected) const
+  {
+    CHECK(
+      count(fmt::format("Hashing file - ifstream open({})", path)) == expected);
+    CHECK(count(fmt::format("Hashing file - read loop({})", path)) == expected);
+  }
+};
 
 // ---- find_committed_ledger_chunks tests ----
 
@@ -232,9 +297,11 @@ TEST_CASE("check_digest_against_read_only_dirs: no copy in read-only dir")
   // ro_dir is empty - no matching file
 
   std::vector<fs::path> ro_dirs = {ro_dir};
+  ScopedCleanupLogger logs;
   CHECK(
     check_digest_against_read_only_dirs(local_path, ro_dirs) ==
     DigestCheckResult::no_match);
+  logs.check_hash_count(local_path, 0);
 
   fs::remove_all(tmp);
 }
@@ -291,9 +358,215 @@ TEST_CASE("check_digest_against_read_only_dirs: empty read-only dirs list")
   auto local_path = create_committed_chunk(main_dir, 1, 100, "content");
 
   std::vector<fs::path> ro_dirs = {};
+  ScopedCleanupLogger logs;
   CHECK(
     check_digest_against_read_only_dirs(local_path, ro_dirs) ==
     DigestCheckResult::no_match);
+  logs.check_hash_count(local_path, 0);
+
+  fs::remove_all(tmp);
+}
+
+TEST_CASE(
+  "check_digest_against_read_only_dirs: nonregular candidates skip source "
+  "hashing")
+{
+  auto tmp = make_unique_test_dir("test_digest_nonregular_copy");
+  auto main_dir = tmp / "main";
+  auto ro_dir = tmp / "ro";
+  fs::create_directories(main_dir);
+  fs::create_directories(ro_dir);
+  auto local_path = create_committed_chunk(main_dir, 1, 100, "content");
+  auto candidate = ro_dir / local_path.filename();
+
+  SUBCASE("directory")
+  {
+    fs::create_directory(candidate);
+  }
+  SUBCASE("dangling symlink")
+  {
+    fs::create_symlink(tmp / "missing", candidate);
+  }
+  SUBCASE("read-only path is not a directory")
+  {
+    fs::remove(ro_dir);
+    write_file(ro_dir, "not a directory");
+  }
+
+  ScopedCleanupLogger logs;
+  CHECK(
+    check_digest_against_read_only_dirs(local_path, {ro_dir}) ==
+    DigestCheckResult::no_match);
+  logs.check_hash_count(local_path, 0);
+
+  fs::remove_all(tmp);
+}
+
+TEST_CASE(
+  "check_digest_against_read_only_dirs: metadata errors remain distinct from "
+  "missing files")
+{
+  auto tmp = make_unique_test_dir("test_digest_metadata_error");
+  auto main_dir = tmp / "main";
+  auto ro_dir = tmp / "ro";
+  fs::create_directories(main_dir);
+  fs::create_directories(ro_dir);
+  auto local_path = main_dir / "ledger_1-100.committed";
+
+  ScopedCleanupLogger logs;
+  SUBCASE("candidate query fails")
+  {
+    write_file(local_path, "content");
+    auto candidate = ro_dir / local_path.filename();
+    fs::create_symlink(candidate.filename(), candidate);
+    CHECK(
+      check_digest_against_read_only_dirs(local_path, {ro_dir}) ==
+      DigestCheckResult::no_match);
+    logs.check_hash_count(local_path, 0);
+    CHECK(logs.count("Failed to query ledger chunk") == 1);
+  }
+  SUBCASE("local query fails without a candidate")
+  {
+    fs::create_symlink(local_path.filename(), local_path);
+    CHECK(
+      check_digest_against_read_only_dirs(local_path, {ro_dir}) ==
+      DigestCheckResult::no_match);
+    CHECK(logs.count("Failed to query status of ledger chunk") == 1);
+  }
+  SUBCASE("local path is no longer regular without a candidate")
+  {
+    fs::create_directory(local_path);
+    CHECK(
+      check_digest_against_read_only_dirs(local_path, {ro_dir}) ==
+      DigestCheckResult::file_gone);
+    logs.check_hash_count(local_path, 0);
+    CHECK(logs.count("is no longer a regular file") == 1);
+  }
+
+  fs::remove_all(tmp);
+}
+
+TEST_CASE(
+  "check_digest_against_read_only_dirs: verifies complete contents and hashes "
+  "source once")
+{
+  auto tmp = make_unique_test_dir("test_digest_full_contents");
+  auto main_dir = tmp / "main";
+  auto ro_dir1 = tmp / "ro1";
+  auto ro_dir2 = tmp / "ro2";
+  auto ro_dir3 = tmp / "ro3";
+  fs::create_directories(main_dir);
+  fs::create_directories(ro_dir1);
+  fs::create_directories(ro_dir2);
+  fs::create_directories(ro_dir3);
+
+  std::string content(2 * HASH_READ_CHUNK_SIZE + 1, 'a');
+  auto local_path = create_committed_chunk(main_dir, 1, 100, content);
+  fs::create_directory(ro_dir1 / local_path.filename());
+  auto mismatch = content;
+  mismatch.back() = 'b';
+  write_file(ro_dir2 / local_path.filename(), mismatch);
+  write_file(ro_dir3 / local_path.filename(), content);
+
+  ScopedCleanupLogger logs;
+  CHECK(
+    check_digest_against_read_only_dirs(
+      local_path, {ro_dir1, ro_dir2, ro_dir3}) ==
+    DigestCheckResult::match_found);
+  logs.check_hash_count(local_path, 1);
+  logs.check_hash_count(ro_dir1 / local_path.filename(), 0);
+  logs.check_hash_count(ro_dir2 / local_path.filename(), 1);
+  logs.check_hash_count(ro_dir3 / local_path.filename(), 1);
+  CHECK(logs.count("but digest does not match") == 1);
+
+  cleanup_old_ledger_chunks(main_dir, {ro_dir1, ro_dir2}, 0);
+  CHECK(fs::exists(local_path));
+
+  fs::remove_all(tmp);
+}
+
+TEST_CASE("check_digest_against_read_only_dirs: read errors prevent deletion")
+{
+  auto tmp = make_unique_test_dir("test_digest_read_error");
+  auto main_dir = tmp / "main";
+  auto ro_dir = tmp / "ro";
+  fs::create_directories(main_dir);
+  fs::create_directories(ro_dir);
+  auto local_path = main_dir / "ledger_1-100.committed";
+  auto candidate = ro_dir / local_path.filename();
+  ScopedCleanupLogger logs;
+
+  // This regular procfs file fails reads at offset zero.
+  SUBCASE("unreadable source without a candidate is not opened")
+  {
+    fs::create_symlink("/proc/self/mem", local_path);
+    REQUIRE(fs::is_regular_file(local_path));
+    CHECK(
+      check_digest_against_read_only_dirs(local_path, {ro_dir}) ==
+      DigestCheckResult::no_match);
+    logs.check_hash_count(local_path, 0);
+    CHECK(logs.count("exists but could not be read") == 0);
+  }
+  SUBCASE("unreadable source with a candidate reports a read error")
+  {
+    fs::create_symlink("/proc/self/mem", local_path);
+    REQUIRE(fs::is_regular_file(local_path));
+    write_file(candidate, "content");
+    CHECK(
+      check_digest_against_read_only_dirs(local_path, {ro_dir}) ==
+      DigestCheckResult::no_match);
+    CHECK(logs.count("exists but could not be read") == 1);
+  }
+  SUBCASE("unreadable candidate does not approve deletion")
+  {
+    write_file(local_path, "content");
+    fs::create_symlink("/proc/self/mem", candidate);
+    REQUIRE(fs::is_regular_file(candidate));
+    CHECK(
+      check_digest_against_read_only_dirs(local_path, {ro_dir}) ==
+      DigestCheckResult::no_match);
+    CHECK(logs.count("could not be read") == 1);
+  }
+
+  CHECK(fs::exists(local_path));
+  fs::remove_all(tmp);
+}
+
+TEST_CASE(
+  "check_digest_against_read_only_dirs: candidate disappears after preflight")
+{
+  auto tmp = make_unique_test_dir("test_digest_candidate_disappears");
+  auto main_dir = tmp / "main";
+  auto ro_dir = tmp / "ro";
+  fs::create_directories(main_dir);
+  fs::create_directories(ro_dir);
+  auto local_path = create_committed_chunk(main_dir, 1, 100, "content");
+  auto candidate = ro_dir / local_path.filename();
+  write_file(candidate, "content");
+
+  ScopedCleanupLogger logs;
+  bool removed = false;
+  std::error_code removal_error;
+  const auto local_open =
+    fmt::format("Hashing file - ifstream open({})", local_path);
+  logs.on_log = [&](const std::string& message) {
+    if (message.contains(local_open))
+    {
+      removed = fs::remove(candidate, removal_error);
+    }
+  };
+
+  CHECK(
+    check_digest_against_read_only_dirs(local_path, {ro_dir}) ==
+    DigestCheckResult::no_match);
+  REQUIRE_FALSE(removal_error);
+  REQUIRE(removed);
+  CHECK(logs.count("could not be read") == 1);
+  logs.on_log = {};
+
+  cleanup_old_ledger_chunks(main_dir, {ro_dir}, 0);
+  CHECK(fs::exists(local_path));
+  logs.check_hash_count(local_path, 1);
 
   fs::remove_all(tmp);
 }

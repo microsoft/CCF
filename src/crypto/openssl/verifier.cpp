@@ -154,8 +154,9 @@ namespace ccf::crypto
 
     if (ignore_time)
     {
-      X509_VERIFY_PARAM* param = X509_VERIFY_PARAM_new();
-      X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_NO_CHECK_TIME);
+      X509_VERIFY_PARAM* param = nullptr;
+      CHECKNULL(param = X509_VERIFY_PARAM_new());
+      CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_NO_CHECK_TIME));
       X509_VERIFY_PARAM_set_depth(param, 1);
       X509_STORE_CTX_set0_param(store_ctx, param);
     }
@@ -191,9 +192,9 @@ namespace ccf::crypto
   {
     const ASN1_INTEGER* sn = X509_get0_serialNumber(cert);
     Unique_BIO mem;
-    i2a_ASN1_INTEGER(mem, sn);
+    CHECKPOSITIVE(i2a_ASN1_INTEGER(mem, sn));
     BUF_MEM* bptr = nullptr;
-    BIO_get_mem_ptr(mem, &bptr);
+    CHECK1(BIO_get_mem_ptr(mem, &bptr));
     return {bptr->data, bptr->length};
   }
 
@@ -208,9 +209,10 @@ namespace ccf::crypto
   {
     X509_NAME* name = X509_get_subject_name(cert);
     Unique_BIO mem;
-    X509_NAME_print_ex(mem, name, 0, 0);
+    // With flags == XN_FLAG_COMPAT (0), this returns 1 on success.
+    CHECK1(X509_NAME_print_ex(mem, name, 0, 0));
     BUF_MEM* bptr = nullptr;
-    BIO_get_mem_ptr(mem, &bptr);
+    CHECK1(BIO_get_mem_ptr(mem, &bptr));
     return {bptr->data, bptr->length};
   }
 

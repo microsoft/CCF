@@ -16,6 +16,7 @@
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <tuple>
 
 namespace asynchost
 {
@@ -237,7 +238,7 @@ namespace asynchost
          pending = std::make_shared<PendingAppend>(
            std::move(entry), pending_write_bytes, max_pending_write_bytes),
          committable]() mutable {
-          ledger.write_entry(
+          std::ignore = ledger.write_entry(
             pending->entry.data(), pending->entry.size(), committable);
           // The lane retains completed actions until its whole batch finishes.
           pending.reset();

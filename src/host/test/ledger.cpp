@@ -17,12 +17,14 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <condition_variable>
+#include <cstring>
 #include <doctest/doctest.h>
 #include <fcntl.h>
 #include <limits>
 #include <random>
 #include <string>
 #include <sys/file.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 using namespace asynchost;
@@ -1585,6 +1587,79 @@ size_t number_open_fd()
   return fd_count;
 }
 
+TEST_CASE("Ledger file construction closes streams on exceptions")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  fs::create_directory(ledger_dir);
+  const auto file_path = fs::path(ledger_dir) / "ledger_1";
+
+  const auto check_failed_construction = [](const char* expected_error) {
+    const auto fd_count = number_open_fd();
+    for (size_t attempt = 0; attempt < 3; ++attempt)
+    {
+      CHECK_THROWS_WITH_AS(
+        LedgerFile(ledger_dir, "ledger_1"),
+        doctest::Contains(expected_error),
+        std::logic_error);
+      CHECK(number_open_fd() == fd_count);
+    }
+  };
+
+  SUBCASE("Non-seekable recovery file")
+  {
+    REQUIRE(mkfifo(file_path.c_str(), 0600) == 0);
+    check_failed_construction("Failed to seek");
+  }
+
+  SUBCASE("Truncated positions offset")
+  {
+    files::dump(std::string_view{}, file_path);
+    check_failed_construction("Failed to read positions offset");
+  }
+
+  SUBCASE("Invalid positions offset")
+  {
+    const size_t table_offset = 2 * sizeof(size_t);
+    std::vector<uint8_t> header(sizeof(table_offset));
+    std::memcpy(header.data(), &table_offset, sizeof(table_offset));
+    files::dump(header, file_path);
+    check_failed_construction("Invalid table offset");
+  }
+}
+
+TEST_CASE("Ledger file construction retains streams on normal return")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  fs::create_directory(ledger_dir);
+  const auto fd_count = number_open_fd();
+
+  {
+    LedgerFile file(fs::path(ledger_dir), 1);
+    CHECK(number_open_fd() == fd_count + 1);
+    CHECK(file.get_current_size() == sizeof(size_t));
+  }
+  CHECK(number_open_fd() == fd_count);
+
+  files::dump(
+    std::vector<uint8_t>(sizeof(size_t)), fs::path(ledger_dir) / "ledger_1");
+  {
+    SUBCASE("Complete recovery scan")
+    {
+      LedgerFile file(ledger_dir, "ledger_1");
+      CHECK(number_open_fd() == fd_count + 1);
+      CHECK(file.get_current_size() == sizeof(size_t));
+    }
+
+    SUBCASE("Existing file replay returns early")
+    {
+      LedgerFile file(ledger_dir, "ledger_1", true);
+      CHECK(number_open_fd() == fd_count + 1);
+      CHECK(file.get_current_size() == sizeof(size_t));
+    }
+  }
+  CHECK(number_open_fd() == fd_count);
+}
+
 int get_open_fd_for_file(const fs::path& file)
 {
   std::vector<int> matching_fds;
@@ -1883,7 +1958,7 @@ void corrupt_ledger_file(
 {
   auto file = fopen(ledger_file.c_str(), "r+b");
   REQUIRE(file);
-  fseeko(file, 0, SEEK_SET);
+  REQUIRE(fseeko(file, 0, SEEK_SET) == 0);
   size_t table_offset = 0;
 
   if (corrupt_table_offset)
