@@ -17,7 +17,9 @@ describes the module layout.
 | Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`                |
 | Proof implementations                 | `DisasterRecovery/Proofs/`                              |
 | Executable checks and concrete traces | `DisasterRecovery/Tests/`                               |
-| Trace replay                          | `DisasterRecovery/Replay.lean`, `Replay/`, `replay/`    |
+| Replay of recorded C++ traces         | `DisasterRecovery/TraceValidation.lean`                 |
+| Parsing and ordering of those traces  | `DisasterRecovery/TraceValidation/`                     |
+| Replayer executable and test traces   | `replayer/`                                             |
 
 Human review covers the model, the property statements, the definitions they
 use, and the theorem links in `Proof.lean`. The proof implementations under
@@ -83,11 +85,12 @@ committed-prefix preservation. Liveness properties are out of scope.
 
 ## Trace validation
 
-`DisasterRecovery/Replay.lean` and the modules in `DisasterRecovery/Replay/`
-check C++ runs recorded with the `CCF_RECOVERY_TRACE` environment variable set
-against `Model.transitionSystem`. [`replay/README.md`](replay/README.md)
-describes the records, the reduction rules, where CI runs it, and what a
-successful replay does and does not show.
+`DisasterRecovery/TraceValidation.lean` and the modules in
+`DisasterRecovery/TraceValidation/` check C++ runs recorded with the
+`CCF_RECOVERY_TRACE` environment variable set against
+`Model.transitionSystem`. [`replayer/README.md`](replayer/README.md) describes
+the records, the reduction rules, where CI runs it, and what a successful replay
+does and does not show.
 
 ## Validation
 

@@ -1,4 +1,4 @@
-import DisasterRecovery.Replay.Records
+import DisasterRecovery.TraceValidation.Records
 
 set_option autoImplicit false
 
@@ -8,10 +8,10 @@ them, and tells logs that are still growing from logs that no order explains.
 Each execution record carries the version that CCF reported for its
 transaction, so a node's commit order is version order, with each write before
 the executions that read at its version. The replay checks everything else.
-`replay/README.md` gives the rules.
+`replayer/README.md` gives the rules.
 -/
 
-namespace DisasterRecovery.Replay
+namespace DisasterRecovery.TraceValidation
 
 open Lean Model.Local
 
@@ -162,9 +162,9 @@ private def Item.instructions : Item → Array Instruction
           ]
 
 /--
-Interleaves the nodes' items so that each receive takes a copy of its message
-that its source has already sent to its node, and that no other receive has
-taken, as the model's network delivers any queued copy.
+delivery: interleaves the nodes' items so that each receive takes a copy of its
+message that its source has already sent to its node, and that no other receive
+has taken, as the model's network delivers any queued copy.
 -/
 private def linearize (queues : Array (Array Item)) : Checked (Array Instruction) := do
   let mut queued : List (Location × Location × Message) := []
@@ -234,7 +234,7 @@ def reduce (records : Array Record) (scenario : Scenario) : Checked Reduced := d
         match event.body with
         | .send _ _ (.gossip txid) _ => some (event.node, txid)
         | _ => none
-  -- Participants end once they open or join.
+  -- scenario: participants end once they open or join.
   let failed := ends.length > scenario.participants
   let status :=
     ends.map
@@ -255,4 +255,4 @@ def reduce (records : Array Record) (scenario : Scenario) : Checked Reduced := d
         none
   }
 
-end DisasterRecovery.Replay
+end DisasterRecovery.TraceValidation

@@ -12,4 +12,4 @@ srcDir = ".."
 
 [[lean_exe]]
 name = "disaster-recovery-replay"
-root = "ReplayMain"
+root = "Main"

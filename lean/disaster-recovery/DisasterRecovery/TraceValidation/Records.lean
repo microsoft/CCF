@@ -1,4 +1,4 @@
-import DisasterRecovery.Replay
+import DisasterRecovery.TraceValidation
 import Lean.Data.Json
 
 set_option autoImplicit false
@@ -11,7 +11,7 @@ followed by a JSON object, and log `Failed to trace recovery-decision-protocol`
 when they cannot.
 -/
 
-namespace DisasterRecovery.Replay
+namespace DisasterRecovery.TraceValidation
 
 open Lean Model.Local
 
@@ -278,4 +278,4 @@ def parseEvent (record : Record) : Checked TraceEvent := do
             s!"{location}: IAmOpen does not record its Joining write"
           event (.receive (← name "source") .iAmOpen execution)
 
-end DisasterRecovery.Replay
+end DisasterRecovery.TraceValidation

@@ -133,10 +133,10 @@ The build and audit include both the human-reviewed model and system properties 
 The standard `mk_all --check` command ensures that the audit root imports every library module, so newly added proofs cannot silently escape the checks.
 
 The job also checks the records of the recovery trace fixtures in
-`lean/disaster-recovery/replay/fixtures` against `trace.schema.json`, with
+`lean/disaster-recovery/replayer/fixtures` against `trace.schema.json`, with
 `check-schema.py`. It then builds `disaster-recovery-replay`, from its own Lake
-package in `lean/disaster-recovery/replay`, which has no dependencies, and runs
-its `check-fixtures.sh`. That replays the fixtures' quorum, failover and
+package in `lean/disaster-recovery/replayer`, which has no dependencies, and
+runs its `check-fixtures.sh`. That replays the fixtures' quorum, failover and
 multiple-timeout traces, which must pass, and invalid and valid traces stored
 as diffs against them, which must fail and pass.
 

@@ -1,8 +1,8 @@
-import DisasterRecovery.Replay.Reduction
+import DisasterRecovery.TraceValidation.Reduction
 
 set_option autoImplicit false
 
-open DisasterRecovery.Replay
+open DisasterRecovery.TraceValidation
 
 /-- How long the nodes have to finish logging the scenario. -/
 def completionTimeoutMs : Nat :=

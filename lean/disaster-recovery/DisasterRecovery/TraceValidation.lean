@@ -10,7 +10,7 @@ observations compare selected fields of a node's state, or the messages and
 notifications of the node's latest action, with the model.
 -/
 
-namespace DisasterRecovery.Replay
+namespace DisasterRecovery.TraceValidation
 
 open Model.Local
 open Shared (Capabilities Outputs)
@@ -187,4 +187,4 @@ def replay (header : Header) (instructions : Array Instruction)
       actions := actions + 1
   return { actions, observations := instructions.size - actions }
 
-end DisasterRecovery.Replay
+end DisasterRecovery.TraceValidation

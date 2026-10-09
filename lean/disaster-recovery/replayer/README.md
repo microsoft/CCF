@@ -4,12 +4,12 @@
 against the model:
 
 ```text
-node logs -(Replay/Records.lean)-> records
-          -(Replay/Reduction.lean)-> actions and observations, in commit order
-          -(Replay.lean)-> success or discrepancy
+node logs -(DisasterRecovery/TraceValidation/Records.lean)-> records
+          -(DisasterRecovery/TraceValidation/Reduction.lean)-> actions and observations, in commit order
+          -(DisasterRecovery/TraceValidation.lean)-> success or discrepancy
 ```
 
-It has its own Lake package in `lean/disaster-recovery/replay`, which builds
+It has its own Lake package in `lean/disaster-recovery/replayer`, which builds
 only the replayer and the modules it imports. They import no Mathlib module, so
 the package has no dependencies. Run it from there:
 
@@ -122,7 +122,7 @@ covered by named invalid traces rather than by ones that differ only in
 `version`. `check-fixtures.sh` replays the recorded, valid and invalid traces:
 
 ```bash
-cd lean/disaster-recovery/replay
+cd lean/disaster-recovery/replayer
 lake build
 ./check-fixtures.sh
 ```
@@ -131,13 +131,12 @@ To refresh the fixtures from a traced SNP run, download its
 `logs-caci-snp-genoa` artifact and keep the `RDP_TRACE` part of each line of
 the three scenarios' node logs. The `scenario.json` files do not change. The
 valid and invalid traces are diffs against the recorded ones, so refreshing
-those means regenerating the diffs, which
-`tests/infra/recovery_trace_mutations.py`, in the history of #8282, generated.
+the recorded traces means recreating each diff, as its name describes.
 
 ```bash
 gh run download RUN_ID --repo microsoft/CCF --name logs-caci-snp-genoa --dir artifact
 W=artifact/build/workspace/platform_snp_platform_tests_recovery_decision_protocol
-F=lean/disaster-recovery/replay/fixtures
+F=lean/disaster-recovery/replayer/fixtures
 refresh() { for s in "${@:2}"; do grep -o 'RDP_TRACE .*' "$W$s/out" > "$F/$1/$(basename "$W$s").out"; done; }
 refresh quorum _3 _4 _5
 refresh timeout _timeout_3
