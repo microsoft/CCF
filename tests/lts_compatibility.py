@@ -540,56 +540,13 @@ def run_code_upgrade_from(
                         primary, infra.platform_detection.get_platform(), old_host_data
                     )
 
-            for index, node in enumerate(old_nodes):
+            for node in old_nodes:
                 network.retire_node(primary, node)
                 if primary == node:
                     primary, _ = network.wait_for_new_primary(primary)
                     # Submit tx and wait for commit after node retirement. See
                     # https://github.com/microsoft/CCF/issues/1713 for more detail.
                     network.txs.issue(network, number_txs=1, repeat=True)
-                    # This block is here to test the transition period from a network that
-                    # does not support custom claims to one that does. It can be removed after
-                    # the transition is complete.
-                    #
-                    # The new build, being unreleased, doesn't have a version at all
-                    if not primary.major_version:
-                        LOG.info("Upgrade to new JS app")
-                        # Upgrade to a version of the app containing an endpoint that
-                        # registers custom claims
-                        network.consortium.set_js_app_from_dir(
-                            primary, args.new_js_app_bundle
-                        )
-                        LOG.info("Run transaction with additional claim")
-                        # With wait_for_sync, the client checks that all nodes, including
-                        # the minority of old ones, have acked the transaction
-                        msg_idx = network.txs.idx + 1
-                        txid = network.txs.issue(
-                            network, number_txs=1, record_claim=True, wait_for_sync=True
-                        )
-                        assert len(network.txs.pub[msg_idx]) == 1
-                        claims = network.txs.pub[msg_idx][-1]["msg"]
-
-                        LOG.info(
-                            "Check receipts are fine, including transaction with claims"
-                        )
-                        test_random_receipts(
-                            network,
-                            args,
-                            lts=True,
-                            additional_seqnos={txid.seqno: claims.encode()},
-                            log_capture=[],
-                        )
-                        # Also check receipts on an old node
-                        if index + 1 < len(old_nodes):
-                            next_node = old_nodes[index + 1]
-                            test_random_receipts(
-                                network,
-                                args,
-                                lts=True,
-                                additional_seqnos={txid.seqno: None},
-                                node=next_node,
-                                log_capture=[],
-                            )
                 node.stop()
 
             LOG.info("Service is now made of new nodes only")
@@ -610,6 +567,24 @@ def run_code_upgrade_from(
                 expected_subject_name=service_subject_name,
                 node_container_image=to_container_image,
             )
+            if not primary.major_version:
+                # test_new_service installs the new bundle only after every old
+                # node has left, so old nodes retain their version-matched app.
+                LOG.info("Run transaction with additional claim")
+                primary, _ = network.find_primary()
+                msg_idx = network.txs.idx + 1
+                txid = network.txs.issue(
+                    network, number_txs=1, record_claim=True, wait_for_sync=True
+                )
+                assert len(network.txs.pub[msg_idx]) == 1
+                claims = network.txs.pub[msg_idx][-1]["msg"]
+                test_random_receipts(
+                    network,
+                    args,
+                    lts=True,
+                    additional_seqnos={txid.seqno: claims.encode()},
+                    log_capture=[],
+                )
             network.create_and_wait_for_ledger_chunk()
 
 

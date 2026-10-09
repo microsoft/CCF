@@ -21,7 +21,7 @@ Node configuration
 
 Redirects are enabled for each RPC interface by adding a ``redirections`` object to the interface's JSON configuration. Interfaces `without` this object will follow use each endpoint's `forwarding` properties, to decide whether each request should be executed locally or forwarded, whereas interfaces `with` this object will use each endpoint's `redirection` properties, to decide whether each request should be executed locally or return a redirect header.
 
-An empty object selects the default resolvers: ``to_primary`` resolves to the primary and ``to_backup`` resolves to a backup. First-party Python tools emit redirection configuration by default. Applications must retain the required ``forwarding_required`` bundle field for CCF 7.x compatibility, even when using explicit ``redirection_strategy`` values.
+An empty object selects the default resolvers: ``to_primary`` resolves to the primary and ``to_backup`` resolves to a backup. First-party Python tools emit redirection configuration by default. Applications can omit ``forwarding_required`` from their bundles: the legacy policy is inferred as ``always`` for ``to_primary`` and ``never`` for ``none`` or ``to_backup``. If both fields are omitted, the defaults are ``to_primary`` and ``always``. An explicitly supplied legacy policy, including ``sometimes``, takes precedence and remains preserved in stored endpoint records and governance responses.
 
 Example configuration, redirecting directly to the current primary's accessible name:
 
