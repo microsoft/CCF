@@ -1535,9 +1535,8 @@ namespace ccf
           // minimal: capture the response and defer all node-state processing
           // to a task, matching the JWT refresh client. That processing can
           // deserialise a large snapshot and acquires NodeState::lock;
-          // running it on the libuv thread would stall every other user of
-          // the shared curl loop and risk a ringbuffer back-pressure deadlock
-          // (the blocking host writer is drained on this same thread).
+          // Running it on the libuv thread would stall every other user of the
+          // shared curl loop.
           // NodeState outlives the curl singleton and the task board (both
           // are torn down during enclave shutdown, before NodeState is
           // destroyed), so capturing raw `this` is safe.

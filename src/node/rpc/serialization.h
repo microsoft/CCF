@@ -6,7 +6,6 @@
 #include "ccf/service/consensus_type.h"
 #include "ccf/service/tables/code_id.h"
 #include "node/rpc/call_types.h"
-#include "node/rpc/ringbuffer_messages.h"
 
 namespace ccf
 {
