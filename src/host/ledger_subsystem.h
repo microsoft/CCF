@@ -15,6 +15,7 @@
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <tuple>
 
 namespace asynchost
 {
@@ -212,7 +213,7 @@ namespace asynchost
          pending = std::make_shared<PendingAppend>(
            std::move(entry), pending_write_bytes, max_pending_write_bytes),
          committable]() mutable {
-          ledger.write_entry(
+          std::ignore = ledger.write_entry(
             pending->entry.data(), pending->entry.size(), committable);
           // The lane retains completed actions until its whole batch finishes.
           pending.reset();
@@ -333,12 +334,10 @@ namespace asynchost
     //   mutations this method exists to drain. The host therefore calls this
     //   before enclave_shutdown_tasks(); see run_enclave_threads in run.cpp.
     //
-    // Draining here is what the old design achieved by reading the remaining
-    // ringbuffer messages before stopping the loop: a mutation which append()
-    // or commit() accepted must reach disk. Queued reads are skipped and their
-    // callbacks never fire: answering them would run receiver code (and, for
-    // recovery, submit further reads) on this thread after the enclave has
-    // stopped.
+    // A mutation which append() or commit() accepted must reach disk. Queued
+    // reads are skipped and their callbacks never fire: answering them would
+    // run receiver code (and, for recovery, submit further reads) on this
+    // thread after the enclave has stopped.
     void shutdown() override
     {
       std::call_once(shutdown_once, [this]() {

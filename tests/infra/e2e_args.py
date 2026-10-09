@@ -685,7 +685,7 @@ def cli_args(
     )
     parser.add_argument(
         "--max-msg-size-bytes",
-        help="Maximum message size (bytes) allowed on the ring buffer",
+        help="Configured maximum message size in bytes",
         type=str,
         default="64MB",
     )

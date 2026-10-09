@@ -11,6 +11,7 @@
 #include "ccf/service/operator_feature.h"
 
 #include <string>
+#include <tuple>
 #include <utility>
 
 namespace ccf::endpoints
@@ -380,7 +381,8 @@ namespace ccf::endpoints
             ds::openapi::add_response_schema<Out>(
               document, endpoint.full_uri_path, http_verb.value(), status);
           }
-          ds::openapi::response(path_operation, status, description);
+          std::ignore =
+            ds::openapi::response(path_operation, status, description);
         });
 
       return *this;

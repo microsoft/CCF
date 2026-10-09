@@ -1,0 +1,5 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_3.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_3.out
+@@ -82 +82 @@
+-RDP_TRACE {"chosen":"0","kind":"timeout","node":"0","post":"Voting","post_timeout":"Voting","pre":"Gossiping","pre_timeout":"Gossiping","sequence":81,"version":27}
++RDP_TRACE {"chosen":"0","kind":"vote_accepted","node":"0","post":"Voting","post_timeout":"Voting","pre":"Gossiping","pre_timeout":"Gossiping","sequence":81,"version":27}

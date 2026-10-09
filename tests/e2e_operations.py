@@ -39,6 +39,7 @@ import infra.network
 import infra.path
 import infra.platform_detection
 import infra.proc
+import infra.recovery_trace
 import infra.utils
 import suite.test_requirements as reqs
 from ccf.tx_id import TxID
@@ -324,40 +325,6 @@ def test_snapshot_create_endpoint(network, args):
     return network
 
 
-# https://github.com/microsoft/CCF/issues/1858
-@reqs.description("Generate snapshot larger than ring buffer max message size")
-def test_large_snapshot(network, args):
-    primary, _ = network.find_primary()
-
-    # Submit some dummy transactions
-    entry_size = 10000  # Lower bound on serialised write set size
-    iterations = int(args.max_msg_size_bytes) // entry_size
-    LOG.debug(f"Recording {iterations} large entries")
-    with primary.client(identity="user0") as c:
-        for idx in range(iterations):
-            c.post(
-                "/app/log/public?scope=test_large_snapshot",
-                body={"id": idx, "msg": "X" * entry_size},
-                log_capture=[],
-            )
-
-    target = network.txs.issue(network, number_txs=1)
-    # Force a snapshot covering the large entries at the following signature.
-    primary.trigger_snapshot()
-
-    # Check that there is at least a snapshot larger than args.max_msg_size_bytes
-    snapshot_path = primary.wait_for_snapshot(target.seqno)
-    extra_data_size_bytes = 10000  # Upper bound on additional snapshot data (e.g. receipt) that is passed separately from the snapshot
-    snapshot_size = os.path.getsize(snapshot_path)
-    assert snapshot_size > int(args.max_msg_size_bytes) + extra_data_size_bytes, (
-        f"Snapshot {snapshot_path} has size {snapshot_size}, expected more than "
-        f"{int(args.max_msg_size_bytes) + extra_data_size_bytes}"
-    )
-    with ccf.ledger.Snapshot(snapshot_path) as snapshot:
-        assert snapshot.get_len() == snapshot_size
-    return network
-
-
 def test_snapshot_access(network, args):
     primary, backups = network.find_nodes()
 
@@ -426,6 +393,21 @@ def test_snapshot_access(network, args):
                     assert "location" in r.headers, r.headers
                     actual = r.headers["location"]
                     assert actual == expected
+
+        for since in ("", "foo", "1x", "-1", str(2**64)):
+            for method in ("GET", "HEAD"):
+                r = do_request(
+                    method, f"/node/snapshot?since={since}", allow_redirects=False
+                )
+                assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+                if method == "GET":
+                    error = r.body.json()["error"]
+                    assert error["code"] == "InvalidQueryParameterValue", r
+                    assert "Unable to parse value" in error["message"], r
+
+        for method in ("GET", "HEAD"):
+            r = do_request(method, f"{path}.missing", allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.NOT_FOUND, r
 
         r = do_request("HEAD", path)
         assert r.status_code == http.HTTPStatus.OK.value, r
@@ -524,6 +506,20 @@ def test_snapshot_access(network, args):
             r = do_request("GET", path, headers={"range": f"bytes={invalid_range}"})
             assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
             assert err_msg in r.body.json()["error"]["message"], r
+
+        for invalid_header, err_msg in [
+            ("items=0-1", "Only 'bytes' is supported"),
+            ("bytes=0-1,2-3", "Multiple ranges are not supported"),
+            (f"bytes={total_size + 1}-", "larger than total file size"),
+            (f"bytes={2**64}-", "Unable to parse start of range"),
+            (f"bytes=0-{2**64}", "Unable to parse end of range"),
+            (f"bytes=-{2**64}", "Unable to parse end of range offset"),
+        ]:
+            r = do_request("GET", path, headers={"range": invalid_header})
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+            error = r.body.json()["error"]
+            assert error["code"] == "InvalidHeaderValue", r
+            assert err_msg in error["message"], r
 
 
 def test_snapshot_repr_digest(network, args):
@@ -1105,6 +1101,39 @@ def test_ledger_chunk_access(network, args):
         with node.client(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         ) as c:
+            for since in (None, "", "foo", "1x", "-1", str(2**64)):
+                query = "" if since is None else f"?since={since}"
+                for method in ("GET", "HEAD"):
+                    r = c.call(
+                        f"/node/ledger_chunk{query}",
+                        http_verb=method,
+                        allow_redirects=False,
+                    )
+                    assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+                    if method == "GET":
+                        error = r.body.json()["error"]
+                        assert error["code"] == "InvalidQueryParameterValue", r
+                        expected_message = (
+                            "Missing required query parameter"
+                            if since is None
+                            else "Unable to parse value"
+                        )
+                        assert expected_message in error["message"], r
+
+            for method in ("GET", "HEAD"):
+                r = c.call(
+                    f"/node/ledger_chunk?since={2**64 - 1}",
+                    http_verb=method,
+                    allow_redirects=True,
+                )
+                assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+                if method == "GET":
+                    assert r.body.json()["error"]["code"] == "ResourceNotFound", r
+
+            r = c.get("/node/ledger_chunk/does-not-exist", allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+            assert r.body.json()["error"]["code"] == "ResourceNotFound", r
+
             main_ledger_dir = node.get_main_ledger_dir()
             chunks = [
                 f for f in os.listdir(main_ledger_dir) if f.endswith(".committed")
@@ -1203,6 +1232,27 @@ def test_ledger_chunk_access(network, args):
         assert (
             etag == f'"sha-256=:{expected_b64}:"'
         ), f"ETag digest mismatch: expected sha-256=:{expected_b64}:, got {etag}"
+
+        for match in ("*", f'"not-this-chunk", {etag}'):
+            for method in ("GET", "HEAD"):
+                r = c.call(
+                    chunk_url,
+                    http_verb=method,
+                    headers={"if-none-match": match},
+                    allow_redirects=False,
+                )
+                assert r.status_code == http.HTTPStatus.NOT_MODIFIED, r
+                assert r.body.data() == b"", r
+                assert r.headers["etag"] == etag, r.headers
+
+        for match in ("not-quoted", '"unterminated', f"W/{etag}"):
+            r = c.get(
+                chunk_url,
+                headers={"if-none-match": match},
+                allow_redirects=False,
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+            assert r.body.json()["error"]["code"] == "InvalidHeaderValue", r
 
         # 2. GET with If-None-Match that does NOT match returns a fresh download
         r = c.get(
@@ -1636,9 +1686,6 @@ def run_file_operations(args):
         json.dump(service_data, ntf)
         ntf.flush()
 
-        args.max_msg_size_bytes = f"{1024 ** 2}"
-        args.ledger_max_transaction_bytes = f"{1024 ** 2 - 2048}"
-
         with tempfile.TemporaryDirectory() as tmp_dir:
             txs = app.LoggingTxs("user0")
             with infra.network.network(
@@ -1660,7 +1707,6 @@ def run_file_operations(args):
                 test_save_committed_ledger_files(network, args)
                 test_parse_snapshot_file(network, args)
                 test_forced_ledger_chunk(network, args)
-                test_large_snapshot(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
                 test_corrupt_snapshot_handling(network, args)
@@ -2604,7 +2650,7 @@ def run_initial_uvm_descriptor_checks(const_args):
             with recovered_primary.client() as c:
                 r = c.get("/node/network").body.json()
                 recovery_seqno = int(r["current_service_create_txid"].split(".")[1])
-            network.stop_all_nodes()
+            recovered_network.stop_all_nodes()
             ledger = ccf.ledger.Ledger(
                 recovered_primary.remote.ledger_paths(),
                 committed_only=False,
@@ -2726,7 +2772,7 @@ def run_initial_tcb_version_checks(const_args):
             with recovered_primary.client() as c:
                 r = c.get("/node/network").body.json()
                 recovery_seqno = int(r["current_service_create_txid"].split(".")[1])
-            network.stop_all_nodes()
+            recovered_network.stop_all_nodes()
             ledger = ccf.ledger.Ledger(
                 recovered_primary.remote.ledger_paths(),
                 committed_only=False,
@@ -2950,6 +2996,9 @@ def run_recovery_decision_protocol(const_args):
             assert (
                 recovery_type == '"Quorum"'
             ), f"Network self-healing open type was {recovery_type} instead of Quorum"
+            infra.recovery_trace.validate_recovery_trace_if_enabled(
+                recovered_network, args.label
+            )
 
 
 def run_recovery_decision_protocol_timeout_path(const_args):
@@ -3002,6 +3051,9 @@ def run_recovery_decision_protocol_timeout_path(const_args):
             assert (
                 recovery_type == '"Failover"'
             ), f"Network self-healing open type was {recovery_type} instead of Failover"
+            infra.recovery_trace.validate_recovery_trace_if_enabled(
+                recovered_network, args.label
+            )
 
 
 def run_recovery_decision_protocol_multiple_timeout(const_args):
@@ -3054,6 +3106,9 @@ def run_recovery_decision_protocol_multiple_timeout(const_args):
                 node.refresh_network_state(verify_ca=False)
 
             assert len(recovered_network.get_joined_nodes()) == len(args.nodes)
+            infra.recovery_trace.validate_recovery_trace_if_enabled(
+                recovered_network, args.label
+            )
 
 
 def run_read_ledger_on_testdata(args):
@@ -3596,23 +3651,46 @@ def test_backup_snapshot_fetch(network, args):
     backups = network.find_backups()
     assert len(backups) > 0, "Expected at least one backup node"
 
-    target = network.txs.issue(network, number_txs=1)
+    chunk_size = 4 * 1024 * 1024
+    entry_size = 100000
+    target = network.txs.issue(
+        network,
+        number_txs=chunk_size // entry_size + 1,
+        msg="X" * entry_size,
+        send_private=False,
+        log_capture=[],
+    )
     primary.trigger_snapshot()
 
     # Wait for committed snapshots on the primary, and use those as expected
     # snapshot files on backups.
     LOG.info("Waiting for committed snapshot on primary")
-    primary.wait_for_snapshot(target.seqno)
-    expected_snapshot_sizes = {
-        os.path.basename(path): os.path.getsize(path)
-        for path in primary.get_snapshots(include_read_only=True)
-    }
+    latest_snapshot_path = primary.wait_for_snapshot(target.seqno)
+    assert os.path.getsize(latest_snapshot_path) > chunk_size, latest_snapshot_path
+    expected_snapshots = {}
+    for path in primary.get_snapshots(include_read_only=True):
+        with open(path, "rb") as snapshot_file:
+            expected_snapshots[os.path.basename(path)] = snapshot_file.read()
 
     assert (
-        len(expected_snapshot_sizes) > 0
+        len(expected_snapshots) > 0
     ), f"No committed snapshots found on primary {primary.local_node_id}"
 
+    interface = primary.host.rpc_interfaces[infra.interfaces.FILE_SERVING_RPC_INTERFACE]
+    primary_address = infra.interfaces.make_address(
+        interface.public_host, interface.public_port
+    )
     for backup in backups:
+        with backup.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as c:
+            r = c.head(f"/node/snapshot?since={target.seqno}", allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT, r
+            assert (
+                r.headers["location"]
+                == f"https://{primary_address}/node/snapshot?since={target.seqno}"
+            ), r.headers
+
         backup_snapshots_dir = os.path.join(
             backup.remote.remote.root, backup.remote.snapshots_dir_name
         )
@@ -3620,7 +3698,8 @@ def test_backup_snapshot_fetch(network, args):
             f"Checking backup {backup.local_node_id} snapshots in {backup_snapshots_dir}"
         )
 
-        for snapshot_name, expected_size in expected_snapshot_sizes.items():
+        for snapshot_name, expected_data in expected_snapshots.items():
+            expected_size = len(expected_data)
             snapshot_path = os.path.join(backup_snapshots_dir, snapshot_name)
             timeout_s = 10
             end_time = time.time() + timeout_s
@@ -3628,6 +3707,10 @@ def test_backup_snapshot_fetch(network, args):
                 if os.path.exists(snapshot_path):
                     actual_size = os.path.getsize(snapshot_path)
                     if actual_size == expected_size:
+                        with open(snapshot_path, "rb") as snapshot_file:
+                            assert (
+                                snapshot_file.read() == expected_data
+                            ), f"Backup {backup.local_node_id} fetched different bytes for {snapshot_name}"
                         LOG.info(
                             f"Backup {backup.local_node_id}: found {snapshot_name} with expected size {expected_size} bytes"
                         )
@@ -3835,11 +3918,12 @@ def test_join_idempotency_on_backup(network, args):
     network.consortium.retire_node_by_id(primary, joined_node_id)
 
 
-def _run_backup_snapshot_download(const_args, label_suffix, tests):
+def _run_backup_snapshot_download(
+    const_args, label_suffix, tests, snapshot_tx_interval=30
+):
     args = copy.deepcopy(const_args)
     args.label += label_suffix
-    # Use a small snapshot interval to trigger snapshots quickly
-    args.snapshot_tx_interval = 30
+    args.snapshot_tx_interval = snapshot_tx_interval
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     with infra.network.network(
         args.nodes,
@@ -3857,10 +3941,12 @@ def _run_backup_snapshot_download(const_args, label_suffix, tests):
 # others. Every test starts by finding the primary and issuing its own
 # transactions, so none of them depend on the others.
 def run_backup_snapshot_download(const_args):
+    # Do not race the explicit snapshot with intermediate automatic snapshots.
     _run_backup_snapshot_download(
         const_args,
         "_backup_snapshot_download",
         [test_backup_snapshot_fetch],
+        snapshot_tx_interval=10000,
     )
 
 

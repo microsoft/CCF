@@ -1,0 +1,15 @@
+# Builds only disaster-recovery-replay and the modules it imports. They import
+# no Mathlib module, so unlike the main package this one has no dependencies,
+# and CI can build the replayer without fetching them.
+name = "disaster_recovery_replay"
+version = "0.1.0"
+moreLeanArgs = ["-DwarningAsError=true"]
+defaultTargets = ["disaster-recovery-replay"]
+
+[[lean_lib]]
+name = "DisasterRecovery"
+srcDir = ".."
+
+[[lean_exe]]
+name = "disaster-recovery-replay"
+root = "Main"

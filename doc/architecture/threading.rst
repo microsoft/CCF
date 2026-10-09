@@ -17,7 +17,7 @@ Implementation
 Configuration
 ~~~~~~~~~~~~~
 
-The ``worker_threads`` configuration option controls the number of worker threads when starting a CCF node. CCF starts one more worker thread than configured, in addition to the dispatch thread. The extra worker preserves task execution capacity now that the dispatch thread no longer executes tasks. This option defaults to ``1``, which starts two workers; a configured value of ``0`` starts one worker and logs a warning. Positive values are incremented silently.
+The ``worker_threads`` configuration option controls the number of worker threads when starting a CCF node. CCF starts one more worker thread than configured, in addition to the coordination thread. The extra worker preserves task execution capacity now that the coordination thread no longer executes tasks. This option defaults to ``1``, which starts two workers; a configured value of ``0`` starts one worker and logs a warning. Positive values are incremented silently.
 
 It is strongly recommended that all CCF nodes run the same number of worker threads.
 
@@ -31,8 +31,9 @@ Any inter-command communication must be performed via the key-value store, to en
 Node-to-Node Ingress
 ~~~~~~~~~~~~~~~~~~~~
 
-Messages from other nodes, consensus ticks and stop notices execute in order on a single ``OrderedTasks`` lane, so they never run concurrently with each other.
+Messages from other nodes and stop notices execute in order on a single ``OrderedTasks`` lane, so they never run concurrently with each other.
 This lane is an ordinary task on the shared worker pool, so it waits behind other ready tasks and needs a free worker to run.
+Consensus maintenance runs as an independent periodic task and may execute concurrently with node ingress, protected by the consensus state lock.
 Tasks which block for long periods, such as outbound HTTP requests or slow file access, can therefore delay consensus while they occupy every worker.
 
 Task Shutdown
