@@ -96,6 +96,9 @@ namespace ccf
       static constexpr int64_t PS256 = -37;
       static constexpr int64_t PS384 = -38;
       static constexpr int64_t PS512 = -39;
+      static constexpr int64_t EDDSA = -8;
+      // Fully-specified EdDSA identifier, RFC 9864.
+      static constexpr int64_t ED25519 = -19;
     }
 
     using Signature = std::span<const uint8_t>;
