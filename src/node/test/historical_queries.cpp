@@ -329,33 +329,91 @@ TEST_CASE("StateCache periodic tick")
   REQUIRE(job_board.get_task() == nullptr);
 }
 
-TEST_CASE("Historical receipts preserve the transaction view across elections")
+TEST_CASE("Historical receipts preserve the transaction view across signatures")
 {
+  auto signing_mode = ccf::LedgerSignMode::Dual;
+  SUBCASE("Raw and COSE signatures") {}
+  SUBCASE("COSE-only signatures")
+  {
+    signing_mode = ccf::LedgerSignMode::CoseOnly;
+  }
+
   auto state = create_and_init_state();
   auto& store = *state.kv_store;
+  const auto emit_signature = [&]() {
+    const auto txid = store.next_txid();
+    auto history = store.get_history();
+    auto cert = std::make_shared<const ccf::crypto::Pem>(
+      state.node_kp->self_sign("CN=Test node", valid_from, valid_to));
+    REQUIRE(
+      store.commit(
+        txid,
+        std::make_unique<
+          ccf::MerkleTreeHistoryPendingTx<ccf::MerkleTreeHistory>>(
+          txid,
+          store,
+          *history,
+          ccf::NodeId{"node_id"},
+          *state.node_kp,
+          *state.service_kp,
+          cert,
+          history->get_cose_signatures_config(),
+          signing_mode),
+        true) == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(store.get_consensus()->get_committed_seqno() == txid.seqno);
+    store.compact(txid.seqno);
+    return txid;
+  };
+
   const auto seqno = write_transactions(store, 1);
   const auto transaction_id = store.current_txid();
-  store.rollback(transaction_id, transaction_id.view + 1);
-  const auto signature_seqno = write_transactions_and_signature(store, 1);
+  const auto closing_signature_id = emit_signature();
+  REQUIRE(closing_signature_id.view == transaction_id.view);
+  store.rollback(closing_signature_id, closing_signature_id.view + 1);
+  const auto later_signature_id = emit_signature();
+  REQUIRE(later_signature_id.view == transaction_id.view + 1);
+  REQUIRE(later_signature_id.seqno == closing_signature_id.seqno + 1);
+
   auto ledger = construct_host_ledger(store.get_consensus());
   auto reader = std::make_shared<consensus::test::StubLedgerReader>();
   ccf::historical::StateCache cache(store, state.ledger_secrets, reader);
-  REQUIRE(cache.get_state_at(0, seqno) == nullptr);
+  REQUIRE(cache.get_state_range(0, seqno, later_signature_id.seqno).empty());
   cache.tick(std::chrono::milliseconds(0));
   REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
-  for (auto i = seqno + 1; i <= signature_seqno; ++i)
-  {
-    REQUIRE(cache.handle_ledger_entry(i, ledger.at(i)));
-  }
-  const auto historical = cache.get_state_at(0, seqno);
+  REQUIRE(cache.handle_ledger_entry(
+    closing_signature_id.seqno, ledger.at(closing_signature_id.seqno)));
+  const auto same_view_state = cache.get_state_at(1, seqno);
+  REQUIRE(same_view_state != nullptr);
+  REQUIRE(same_view_state->receipt != nullptr);
+  CHECK(same_view_state->transaction_id == transaction_id);
+  const auto same_view_cose_receipt =
+    ccf::describe_cose_receipt_v1(*same_view_state->receipt);
+  REQUIRE(same_view_cose_receipt.has_value());
+  REQUIRE(
+    ccf::cose::decode_ccf_receipt(same_view_cose_receipt.value(), false)
+      .phdr.ccf.txid == closing_signature_id.to_str());
+
+  // A later signature also covers the transaction and replaces its
+  // already-valid same-view receipt in the range request.
+  REQUIRE(cache.handle_ledger_entry(
+    later_signature_id.seqno, ledger.at(later_signature_id.seqno)));
+  const auto historical_states =
+    cache.get_state_range(0, seqno, later_signature_id.seqno);
+  REQUIRE(historical_states.size() == 3);
+  const auto& historical = historical_states.front();
   REQUIRE(historical != nullptr);
   REQUIRE(historical->receipt != nullptr);
   CHECK(historical->transaction_id == transaction_id);
   const auto& receipt = *historical->receipt;
   REQUIRE(receipt.commit_evidence.has_value());
   REQUIRE(receipt.write_set_digest.has_value());
-  REQUIRE(receipt.signature.has_value());
   REQUIRE(receipt.path != nullptr);
+  const auto cose_receipt = ccf::describe_cose_receipt_v1(receipt);
+  REQUIRE(cose_receipt.has_value());
+  const auto decoded_receipt =
+    ccf::cose::decode_ccf_receipt(cose_receipt.value(), false);
+  REQUIRE(decoded_receipt.phdr.ccf.txid == later_signature_id.to_str());
+
   auto root = receipt.claims_digest.empty() ?
     ccf::crypto::Sha256Hash(
       receipt.write_set_digest.value(),
@@ -375,9 +433,22 @@ TEST_CASE("Historical receipts preserve the transaction view across elections")
       ccf::crypto::Sha256Hash(sibling, root) :
       ccf::crypto::Sha256Hash(root, sibling);
   }
-  const auto verifier = ccf::crypto::make_verifier(
-    state.node_kp->self_sign("CN=Test node", valid_from, valid_to));
-  CHECK(verifier->verify_hash(root.h, receipt.signature.value()));
+  const auto cose_verifier = ccf::crypto::make_cose_verifier_from_key(
+    state.service_kp->public_key_pem());
+  CHECK(cose_verifier->verify_detached(cose_receipt.value(), root.h));
+
+  if (signing_mode == ccf::LedgerSignMode::Dual)
+  {
+    REQUIRE(receipt.signature.has_value());
+    CHECK(receipt.signature == historical_states.back()->receipt->signature);
+    const auto verifier = ccf::crypto::make_verifier(
+      state.node_kp->self_sign("CN=Test node", valid_from, valid_to));
+    CHECK(verifier->verify_hash(root.h, receipt.signature.value()));
+  }
+  else
+  {
+    REQUIRE_FALSE(receipt.signature.has_value());
+  }
 }
 
 TEST_CASE("StateCache point queries")
