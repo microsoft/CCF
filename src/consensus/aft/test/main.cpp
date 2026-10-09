@@ -4,11 +4,124 @@
 #include "node/commit_callback_subsystem.h"
 #include "test_common.h"
 
+#include <barrier>
+#include <thread>
+
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
 using ms = std::chrono::milliseconds;
+
+DOCTEST_TEST_CASE(
+  "Consensus owns its periodic timer" * doctest::test_suite("single"))
+{
+  const auto self = ccf::kv::test::PrimaryNodeId;
+  auto kv_store = std::make_shared<Store>(self);
+  ccf::tasks::JobBoard job_board;
+  auto raft = std::make_shared<TRaft>(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(self),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(self),
+    nullptr);
+  raft->register_periodic_tasks(job_board, ms(10));
+  aft::Configuration::Nodes config;
+  config[self] = {};
+  raft->add_configuration(0, config);
+  const auto run_all = [&]() {
+    while (auto task = job_board.get_task())
+    {
+      task->do_task();
+    }
+  };
+
+  job_board.tick(election_timeout * 5);
+  run_all();
+  DOCTEST_REQUIRE_FALSE(raft->is_primary());
+  raft->start_ticking();
+  for (size_t i = 0; i < 9; ++i)
+  {
+    job_board.tick(ms(10));
+    run_all();
+    DOCTEST_REQUIRE_FALSE(raft->is_primary());
+  }
+  job_board.tick(ms(10));
+  run_all();
+  DOCTEST_REQUIRE(raft->is_primary());
+
+  job_board.tick(ms(10));
+  std::weak_ptr<TRaft> weak_raft = raft;
+  raft.reset();
+  DOCTEST_REQUIRE(weak_raft.expired());
+  run_all();
+  job_board.tick(election_timeout * 5);
+  run_all();
+  DOCTEST_REQUIRE(job_board.get_summary().pending_tasks == 0);
+}
+
+DOCTEST_TEST_CASE(
+  "Consensus maintenance, inbound processing and notices concurrency smoke" *
+  doctest::test_suite("concurrent"))
+{
+  const auto self = ccf::kv::test::PrimaryNodeId;
+  const auto peer = ccf::kv::test::FirstBackupNodeId;
+  auto kv_store = std::make_shared<Store>(self);
+  auto settings = raft_settings;
+  settings.election_timeout = ccf::ds::TimeString{"1s"};
+  TRaft raft(
+    settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(self),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(self),
+    nullptr);
+  aft::Configuration::Nodes config;
+  config[self] = {};
+  config[peer] = {};
+  raft.add_configuration(0, config);
+  raft.start_ticking();
+  raft.force_become_primary();
+  aft::RequestVote vote{};
+  vote.term = raft.get_view();
+  std::barrier start{4};
+  constexpr size_t iterations = 200;
+  // The barrier creates competing calls, not a guaranteed lock interleaving.
+  // Keep leadership for the whole workload so responses/notices are observable.
+  std::thread maintenance([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      raft.periodic(ms(1));
+    }
+  });
+  std::thread inbound([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      raft.recv_message(
+        peer, reinterpret_cast<const uint8_t*>(&vote), sizeof(vote));
+    }
+  });
+  std::thread notices([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      raft.nominate_successor();
+    }
+  });
+  start.arrive_and_wait();
+  maintenance.join();
+  inbound.join();
+  notices.join();
+  DOCTEST_REQUIRE(
+    channel_stub_proxy(raft)->count_messages_with_type(
+      aft::raft_request_vote_response) == iterations);
+  DOCTEST_REQUIRE(
+    channel_stub_proxy(raft)->count_messages_with_type(
+      aft::raft_propose_request_vote) == iterations);
+}
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {

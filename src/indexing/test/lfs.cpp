@@ -356,7 +356,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
         if (should_fail && !results.has_value())
         {
-          // Ringbuffer flush was insufficient to fill the requested range.
+          // The host read was insufficient to fill the requested range.
           // Likely a corrupted or missing file, which needs a full re-index to
           // resolve
           return;
@@ -405,7 +405,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
         if (should_fail && !results.has_value())
         {
-          // Ringbuffer flush was insufficient to fill the requested range.
+          // The host read was insufficient to fill the requested range.
           // Likely a corrupted or missing file, which needs a full re-index to
           // resolve
           return;

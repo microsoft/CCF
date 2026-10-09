@@ -8,7 +8,7 @@ In CCF, the :term:`TCP` host layer is implemented using `libuv <https://libuv.or
 
 Both :term:`RPC` and Node-to-Node connections use TCP to communicate with external resources. Node-to-node connections implement the node's typed transport interface: inbound frames are copied into owned buffers and passed to the node, and outbound messages are submitted by the node from any thread.
 
-CCF uses a HTTP :term:`REST` interface to call programs inside the enclave, so the process is usually read request, call enclave function and receive response (via `ring buffer` message), send the response to the client.
+CCF uses an HTTP :term:`REST` interface to call programs, so the process is usually read request, execute the endpoint, and send the response to the client.
 
 However, the TCP implementation in CCF is generic and could adapt to other common communication processes, but perhaps would need to change how the users (RPC, Node-to-node) use it.
 
@@ -17,7 +17,7 @@ Overall structure
 
 The `TCPImpl` class (in ``src/host/tcp.h``) implements all TCP logic (using the asynchronous `libuv`), used by both `RPCConnections` and `NodeConnections`.
 
-Because `TCPImpl` does not have access to the `ring buffer`, it must use behaviour classes to allow users to register callbacks on actions (ex. `on_read`, `on_accept`, etc).
+`TCPImpl` uses behaviour classes to keep generic socket handling separate from protocol-specific callbacks such as `on_read` and `on_accept`.
 
 Most of the call backs are for logging purposes, but the two important ones are:
 - `on_accept` on servers, which creates a new socket to communicate with the particular connecting client

@@ -39,6 +39,7 @@ import infra.network
 import infra.path
 import infra.platform_detection
 import infra.proc
+import infra.recovery_trace
 import infra.utils
 import suite.test_requirements as reqs
 from ccf.tx_id import TxID
@@ -321,40 +322,6 @@ def test_snapshot_create_endpoint(network, args):
     with ccf.ledger.Snapshot(snapshot_path) as snapshot:
         assert snapshot.get_public_domain().get_seqno() > hwm_pre_request
 
-    return network
-
-
-# https://github.com/microsoft/CCF/issues/1858
-@reqs.description("Generate snapshot larger than ring buffer max message size")
-def test_large_snapshot(network, args):
-    primary, _ = network.find_primary()
-
-    # Submit some dummy transactions
-    entry_size = 10000  # Lower bound on serialised write set size
-    iterations = int(args.max_msg_size_bytes) // entry_size
-    LOG.debug(f"Recording {iterations} large entries")
-    with primary.client(identity="user0") as c:
-        for idx in range(iterations):
-            c.post(
-                "/app/log/public?scope=test_large_snapshot",
-                body={"id": idx, "msg": "X" * entry_size},
-                log_capture=[],
-            )
-
-    target = network.txs.issue(network, number_txs=1)
-    # Force a snapshot covering the large entries at the following signature.
-    primary.trigger_snapshot()
-
-    # Check that there is at least a snapshot larger than args.max_msg_size_bytes
-    snapshot_path = primary.wait_for_snapshot(target.seqno)
-    extra_data_size_bytes = 10000  # Upper bound on additional snapshot data (e.g. receipt) that is passed separately from the snapshot
-    snapshot_size = os.path.getsize(snapshot_path)
-    assert snapshot_size > int(args.max_msg_size_bytes) + extra_data_size_bytes, (
-        f"Snapshot {snapshot_path} has size {snapshot_size}, expected more than "
-        f"{int(args.max_msg_size_bytes) + extra_data_size_bytes}"
-    )
-    with ccf.ledger.Snapshot(snapshot_path) as snapshot:
-        assert snapshot.get_len() == snapshot_size
     return network
 
 
@@ -1636,9 +1603,6 @@ def run_file_operations(args):
         json.dump(service_data, ntf)
         ntf.flush()
 
-        args.max_msg_size_bytes = f"{1024 ** 2}"
-        args.ledger_max_transaction_bytes = f"{1024 ** 2 - 2048}"
-
         with tempfile.TemporaryDirectory() as tmp_dir:
             txs = app.LoggingTxs("user0")
             with infra.network.network(
@@ -1660,7 +1624,6 @@ def run_file_operations(args):
                 test_save_committed_ledger_files(network, args)
                 test_parse_snapshot_file(network, args)
                 test_forced_ledger_chunk(network, args)
-                test_large_snapshot(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
                 test_corrupt_snapshot_handling(network, args)
@@ -2604,7 +2567,7 @@ def run_initial_uvm_descriptor_checks(const_args):
             with recovered_primary.client() as c:
                 r = c.get("/node/network").body.json()
                 recovery_seqno = int(r["current_service_create_txid"].split(".")[1])
-            network.stop_all_nodes()
+            recovered_network.stop_all_nodes()
             ledger = ccf.ledger.Ledger(
                 recovered_primary.remote.ledger_paths(),
                 committed_only=False,
@@ -2726,7 +2689,7 @@ def run_initial_tcb_version_checks(const_args):
             with recovered_primary.client() as c:
                 r = c.get("/node/network").body.json()
                 recovery_seqno = int(r["current_service_create_txid"].split(".")[1])
-            network.stop_all_nodes()
+            recovered_network.stop_all_nodes()
             ledger = ccf.ledger.Ledger(
                 recovered_primary.remote.ledger_paths(),
                 committed_only=False,
@@ -2950,6 +2913,9 @@ def run_recovery_decision_protocol(const_args):
             assert (
                 recovery_type == '"Quorum"'
             ), f"Network self-healing open type was {recovery_type} instead of Quorum"
+            infra.recovery_trace.validate_recovery_trace_if_enabled(
+                recovered_network, args.label
+            )
 
 
 def run_recovery_decision_protocol_timeout_path(const_args):
@@ -3002,6 +2968,9 @@ def run_recovery_decision_protocol_timeout_path(const_args):
             assert (
                 recovery_type == '"Failover"'
             ), f"Network self-healing open type was {recovery_type} instead of Failover"
+            infra.recovery_trace.validate_recovery_trace_if_enabled(
+                recovered_network, args.label
+            )
 
 
 def run_recovery_decision_protocol_multiple_timeout(const_args):
@@ -3054,6 +3023,9 @@ def run_recovery_decision_protocol_multiple_timeout(const_args):
                 node.refresh_network_state(verify_ca=False)
 
             assert len(recovered_network.get_joined_nodes()) == len(args.nodes)
+            infra.recovery_trace.validate_recovery_trace_if_enabled(
+                recovered_network, args.label
+            )
 
 
 def run_read_ledger_on_testdata(args):
