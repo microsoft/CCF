@@ -39,7 +39,6 @@
 #include "sig_term.h"
 #include "task_ticker.h"
 #include "tcp.h"
-#include "ticker.h"
 
 #include <CLI11/CLI11.hpp>
 #include <atomic>
@@ -385,12 +384,8 @@ namespace ccf
   {
     // Construct hierarchy of ringbuffer writer factories
     WriterFactories factories(circuit, enclave_config.writer_config);
-    auto& writer_factory = factories.writer_factory;
 
     const asynchost::TaskTicker task_ticker(config.tick_interval);
-
-    // provide regular ticks to the enclave
-    const asynchost::Ticker ticker(config.tick_interval, writer_factory);
 
     const auto request_enclave_stop = []() {
       return ccf::enclave_request_stop();

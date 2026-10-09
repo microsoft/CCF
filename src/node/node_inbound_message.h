@@ -76,8 +76,8 @@ namespace ccf
     }
   }
 
-  // Serial execution domain for node ingress. Inbound peer frames, node ticks
-  // and stop notices are executed in submission order on one OrderedTasks
+  // Serial execution domain for node ingress. Inbound peer frames and stop
+  // notices are executed in submission order on one OrderedTasks
   // lane, so they are mutually exclusive regardless of which worker runs them.
   // The lane is an ordinary task, so it queues behind other ready tasks and
   // waits for a free worker. Must outlive the execution of its lane.
