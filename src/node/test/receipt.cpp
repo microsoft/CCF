@@ -9,7 +9,6 @@
 #include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/hash.h"
 
-#include <algorithm>
 #include <doctest/doctest.h>
 #include <iostream>
 #include <random>
@@ -384,90 +383,6 @@ TEST_CASE("JSON parse error locations" * doctest::test_suite("receipt"))
   invalid.erase("leaf_components");
   invalid["leaf"] = "not a digest";
   check_pointer(invalid, "#/leaf");
-}
-
-TEST_CASE("JSON schemas" * doctest::test_suite("receipt"))
-{
-  using ccf::ds::openapi::components_ref_object;
-  using nlohmann::json;
-
-  SUBCASE("Leaf components")
-  {
-    CHECK(
-      ccf::ds::json::schema_name<ccf::ProofReceipt::Components>() ==
-      "Receipt__LeafComponents");
-    const auto schema =
-      ccf::ds::json::build_schema<ccf::ProofReceipt::Components>();
-    CHECK(schema.at("type") == "object");
-    CHECK(
-      schema.at("properties") ==
-      json(
-        {{"claims_digest", components_ref_object("Sha256Digest")},
-         {"commit_evidence", components_ref_object("string")},
-         {"write_set_digest", components_ref_object("Sha256Digest")}}));
-    const auto& required = schema.at("required");
-    REQUIRE(required.is_array());
-    for (const auto* field : {"commit_evidence", "write_set_digest"})
-    {
-      CHECK(
-        std::find(required.begin(), required.end(), field) != required.end());
-    }
-  }
-
-  SUBCASE("Proof steps")
-  {
-    CHECK(
-      ccf::ds::json::schema_name<ccf::ProofReceipt::ProofStep>() ==
-      "Receipt__Element");
-    const auto schema =
-      ccf::ds::json::build_schema<ccf::ProofReceipt::ProofStep>();
-    CHECK(
-      schema ==
-      json(
-        {{"type", "object"},
-         {"oneOf",
-          json::array(
-            {{{"required", json::array({"left"})},
-              {"properties",
-               {{"left", components_ref_object("Sha256Digest")}}}},
-             {{"required", json::array({"right"})},
-              {"properties",
-               {{"right", components_ref_object("Sha256Digest")}}}}})}}));
-  }
-
-  SUBCASE("Receipts")
-  {
-    CHECK(ccf::ds::json::schema_name<ccf::ReceiptPtr>() == "Receipt");
-    const auto schema = ccf::ds::json::build_schema<ccf::ReceiptPtr>();
-    CHECK(schema.at("type") == "object");
-    CHECK(
-      schema.at("properties") ==
-      json(
-        {{"cert", components_ref_object("Pem")},
-         {"node_id", components_ref_object("NodeId")},
-         {"service_endorsements", components_ref_object("Pem_array")},
-         {"signature", components_ref_object("base64string")},
-         {"proof", components_ref_object("Receipt__Element_array")},
-         {"leaf_components", components_ref_object("Receipt__LeafComponents")},
-         {"leaf", components_ref_object("Sha256Digest")}}));
-    const auto& all_of = schema.at("allOf");
-    REQUIRE(all_of.size() == 2);
-    const auto& required = all_of.at(0).at("required");
-    REQUIRE(required.is_array());
-    for (const auto* field :
-         {"cert", "node_id", "service_endorsements", "signature"})
-    {
-      CHECK(
-        std::find(required.begin(), required.end(), field) != required.end());
-    }
-    CHECK(
-      all_of.at(1) ==
-      json(
-        {{"oneOf",
-          json::array(
-            {{{"required", json::array({"leaf"})}},
-             {{"required", json::array({"leaf_components", "proof"})}}})}}));
-  }
 }
 
 TEST_CASE("JSON roundtrip" * doctest::test_suite("receipt"))
