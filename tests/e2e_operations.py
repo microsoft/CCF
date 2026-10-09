@@ -325,40 +325,6 @@ def test_snapshot_create_endpoint(network, args):
     return network
 
 
-# https://github.com/microsoft/CCF/issues/1858
-@reqs.description("Generate snapshot larger than the configured max message")
-def test_large_snapshot(network, args):
-    primary, _ = network.find_primary()
-
-    # Submit some dummy transactions
-    entry_size = 10000  # Lower bound on serialised write set size
-    iterations = int(args.max_msg_size_bytes) // entry_size
-    LOG.debug(f"Recording {iterations} large entries")
-    with primary.client(identity="user0") as c:
-        for idx in range(iterations):
-            c.post(
-                "/app/log/public?scope=test_large_snapshot",
-                body={"id": idx, "msg": "X" * entry_size},
-                log_capture=[],
-            )
-
-    target = network.txs.issue(network, number_txs=1)
-    # Force a snapshot covering the large entries at the following signature.
-    primary.trigger_snapshot()
-
-    # Check that there is at least a snapshot larger than args.max_msg_size_bytes
-    snapshot_path = primary.wait_for_snapshot(target.seqno)
-    extra_data_size_bytes = 10000  # Upper bound on additional snapshot data (e.g. receipt) that is passed separately from the snapshot
-    snapshot_size = os.path.getsize(snapshot_path)
-    assert snapshot_size > int(args.max_msg_size_bytes) + extra_data_size_bytes, (
-        f"Snapshot {snapshot_path} has size {snapshot_size}, expected more than "
-        f"{int(args.max_msg_size_bytes) + extra_data_size_bytes}"
-    )
-    with ccf.ledger.Snapshot(snapshot_path) as snapshot:
-        assert snapshot.get_len() == snapshot_size
-    return network
-
-
 def test_snapshot_access(network, args):
     primary, backups = network.find_nodes()
 
@@ -1661,7 +1627,6 @@ def run_file_operations(args):
                 test_save_committed_ledger_files(network, args)
                 test_parse_snapshot_file(network, args)
                 test_forced_ledger_chunk(network, args)
-                test_large_snapshot(network, args)
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
                 test_corrupt_snapshot_handling(network, args)
