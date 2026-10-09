@@ -229,12 +229,21 @@
       #overview .labelbg {
         fill: var(--bg);
       }
-      /* Emoji in grey, dark enough to read at the weight of the text. Message
-         emoji then take the ink of the phase that collects them, through the
-         ink-* filters, unless the text around them is coloured or faint. */
-      .g.emoji,
-      #overview .emoji {
+      /* Emoji a size up from the text, without making its lines taller, and in
+         grey dark enough to read at its weight. Each then takes its kind's
+         colour, through the ink-* filters, unless the text around it is
+         coloured or faint: a message the colour of the phase that collects it,
+         a retry gold, and a timeout magenta. */
+      .emoji {
         filter: grayscale(1) brightness(0.7) contrast(1.8);
+      }
+      .g.emoji {
+        font-size: 1.25em;
+        line-height: 0;
+        vertical-align: -0.1em;
+      }
+      .g-retry.emoji {
+        filter: grayscale(1) brightness(0.7) contrast(1.8) url(#ink-retry);
       }
       .g-gossip.emoji {
         filter: grayscale(1) brightness(0.7) contrast(1.8) url(#ink-gossip);
@@ -244,6 +253,9 @@
       }
       :is(.g-iamopen, .g-opens, .g-completed).emoji {
         filter: grayscale(1) brightness(0.7) contrast(1.8) url(#ink-open);
+      }
+      .g-timeout.emoji {
+        filter: grayscale(1) brightness(0.7) contrast(1.8) url(#ink-timeout);
       }
       :is(.chg, .failed, .bad, .skipped, .unreplayed) .g.emoji,
       :is(.note, .off) .g.emoji {
@@ -603,21 +615,32 @@
     </style>
   </head>
   <body>
-    <!-- Map grey to shades of the gossiping, voting and open inks. -->
+    <!-- Map grey to the colours of retries, the gossiping, voting and open
+         phases, and timeouts, from a dark shade to a bright one. -->
     <svg class="defs" aria-hidden="true">
+      <filter id="ink-retry" color-interpolation-filters="sRGB">
+        <feColorMatrix
+          values="0.1251 0.4207 0.0425 0 0.3608  0.105 0.3534 0.0357 0 0.2196  0.0409 0.1374 0.0139 0 0  0 0 0 1 0"
+        />
+      </filter>
       <filter id="ink-gossip" color-interpolation-filters="sRGB">
         <feColorMatrix
-          values="0.1112 0.374 0.0378 0 0.1082  0.0997 0.3353 0.0338 0 0.3247  0.1005 0.3382 0.0341 0 0.3082  0 0 0 1 0"
+          values="0.0283 0.0954 0.0096 0 0  0.1059 0.3562 0.036 0 0.2667  0.1017 0.3422 0.0345 0 0.2745  0 0 0 1 0"
         />
       </filter>
       <filter id="ink-vote" color-interpolation-filters="sRGB">
         <feColorMatrix
-          values="0.1037 0.3488 0.0352 0 0.2494  0.1067 0.3589 0.0362 0 0.1929  0.0959 0.3227 0.0326 0 0.3953  0 0 0 1 0"
+          values="0.0925 0.3113 0.0314 0 0.1725  0.0867 0.2917 0.0294 0 0.0784  0.1084 0.3646 0.0368 0 0.4392  0 0 0 1 0"
         />
       </filter>
       <filter id="ink-open" color-interpolation-filters="sRGB">
         <feColorMatrix
-          values="0.1111 0.3736 0.0377 0 0.1106  0.1032 0.3471 0.035 0 0.2588  0.1071 0.3601 0.0364 0 0.1859  0 0 0 1 0"
+          values="0.0459 0.1543 0.0156 0 0.0314  0.1126 0.3786 0.0382 0 0.2471  0.0734 0.2468 0.0249 0 0.1216  0 0 0 1 0"
+        />
+      </filter>
+      <filter id="ink-timeout" color-interpolation-filters="sRGB">
+        <feColorMatrix
+          values="0.1167 0.3927 0.0396 0 0.3686  0.0675 0.2272 0.0229 0 0.0549  0.0925 0.3113 0.0314 0 0.2471  0 0 0 1 0"
         />
       </filter>
     </svg>

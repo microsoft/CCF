@@ -476,7 +476,7 @@ function renderOverview() {
   };
   Object.entries(samples).forEach(([kind, [c, tip]], i) => {
     const x = kx + i * 24;
-    const cls = kind === "receive" ? "key" : "key emoji";
+    const cls = kind === "receive" ? "key" : `key emoji g-${kind}`;
     p.push(
       `<g>${title(tip)}<path class="tick-${kind}" d="M${f(x + 0.5)} ${geo.top + 28}v-${TICK[kind]}"/><text class="${cls}" x="${x + 3}" y="${geo.top + 28}">${esc(c)}</text></g>`,
     );
