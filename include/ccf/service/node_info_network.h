@@ -112,14 +112,13 @@ namespace ccf
       /// contain those features.
       std::set<ccf::endpoints::OperatorFeature> enabled_operator_features;
 
+      // clang-tidy misattributes throwing aggregate initializers to implicit
+      // moves. NOLINTNEXTLINE(bugprone-exception-escape)
       struct Redirections
       {
         RedirectionResolverConfig to_primary;
-        RedirectionResolverConfig to_backup;
-
-        Redirections() :
-          to_backup{RedirectionResolutionKind::NodeByRole, {{"role", "backup"}}}
-        {}
+        RedirectionResolverConfig to_backup{
+          RedirectionResolutionKind::NodeByRole, {{"role", "backup"}}};
 
         bool operator==(const Redirections& other) const = default;
       };
