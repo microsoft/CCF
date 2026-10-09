@@ -150,14 +150,16 @@ File: `vendor-verification.yml`
 
 # Release
 
-Produces CCF reference release artifacts for all languages and platforms. Triggered on tags matching `ccf-[67].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+Produces CCF reference release artifacts, excluding the Python package. Triggered on tags matching `ccf-[567].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+
+Release-build tests, installed-package tests, and the recovery benchmark use the latest released `ccf` Python package from PyPI. The release job sets `CCF_USE_RELEASED_PYTHON_PACKAGE=1`; normal development and CI tests continue to use the local package.
 
 File: `release.yml`
 3rd party dependencies: None
 
 # Release Attestation
 
-Generate signed build provenance attestations for release artifacts. Triggered on release publishing.
+Generate signed build provenance attestations for non-Python release artifacts. Triggered on release publishing. Python wheels and existing attestation bundles are excluded.
 
 File: `release-attestation.yml`
 3rd party dependencies: None
@@ -169,14 +171,14 @@ Publishes ccf-app TS package from a GitHub release to NPM. Triggered on release 
 File: `npm.yml`
 3rd party dependencies: None
 
-# PyPI
+# Python Package Release Attestation
 
-Publishes ccf Python package from a GitHub release to PyPI. Triggered on release publishing.
+Attests the `ccf` wheel published to PyPI by the [OneBranch pipeline](../../.pipelines/README.md). OneBranch dispatches this workflow after successful publication, providing the package version, release tag, source commit, wheel digest, and pipeline run URL.
 
-File: `pypi.yml`
-3rd party dependencies:
+The workflow verifies the published GitHub release and its tag's source commit, downloads the PyPI wheel, checks its SHA-256 digest against the OneBranch build, and reuses the wheel metadata validator. The Python attestation bundle is uploaded separately as `python-package.attestation.sigstore.json` on the corresponding GitHub release. The attestation identifies the GitHub verification workflow, not a build performed by GitHub Actions.
 
-- `pypa/gh-action-pypi-publish@v1.14.0`
+File: `python-package-attestation.yml`
+3rd party dependencies: None
 
 # Documentation
 

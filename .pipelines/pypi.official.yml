@@ -43,6 +43,7 @@ extends:
                 fetchDepth: 0
                 lfs: false
               - script: bash .pipelines/scripts/build-pypi-package.sh
+                name: package
                 displayName: Build and validate release wheel
 
       - stage: release
@@ -88,3 +89,70 @@ extends:
                   approvers: $(ESRP_APPROVERS)
                   mainpublisher: $(ESRP_MAIN_PUBLISHER)
                   domaintenantid: $(ESRP_DOMAIN_TENANT_ID)
+
+      - stage: attest
+        displayName: Request Python package attestation
+        dependsOn:
+          - build
+          - release
+        condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-'))
+        variables:
+          - name: package_version
+            value: $[ stageDependencies.build.ccf.outputs['package.package_version'] ]
+          - name: wheel_sha256
+            value: $[ stageDependencies.build.ccf.outputs['package.wheel_sha256'] ]
+        jobs:
+          - job: dispatch
+            displayName: Trigger GitHub attestation workflow
+            pool:
+              type: linux
+            variables:
+              ob_outputDirectory: $(Build.SourcesDirectory)/out
+            steps:
+              - checkout: none
+              - bash: |
+                  set -euo pipefail
+                  : "${GH_TOKEN:?GITHUB_ATTESTATION_TOKEN must be configured}"
+                  mkdir -p "$OUTPUT_DIR"
+                  python3 - <<'PY' > "$OUTPUT_DIR/attestation-dispatch.json"
+                  import json
+                  import os
+                  import re
+                  from urllib.parse import quote
+
+                  inputs = {
+                      "release_tag": os.environ["BUILD_SOURCEBRANCH"].removeprefix("refs/tags/"),
+                      "package_version": os.environ["PACKAGE_VERSION"],
+                      "wheel_sha256": os.environ["WHEEL_SHA256"],
+                      "source_commit": os.environ["BUILD_SOURCEVERSION"],
+                      "pipeline_run_url": (
+                          f'{os.environ["SYSTEM_COLLECTIONURI"]}'
+                          f'{quote(os.environ["SYSTEM_TEAMPROJECT"], safe="")}'
+                          f'/_build/results?buildId={os.environ["BUILD_BUILDID"]}'
+                      ),
+                  }
+                  if not all(inputs.values()):
+                      raise ValueError("Missing Python package attestation inputs")
+                  if not re.fullmatch(r"[0-9a-f]{64}", inputs["wheel_sha256"]):
+                      raise ValueError("Invalid Python wheel SHA-256 digest")
+                  if not re.fullmatch(r"[0-9a-f]{40}", inputs["source_commit"]):
+                      raise ValueError("Invalid Python package source commit")
+                  if inputs["release_tag"].removeprefix("ccf-").replace("-", ".", 1) != inputs["package_version"]:
+                      raise ValueError("Release tag does not match the package version")
+                  print(json.dumps({"ref": inputs["release_tag"], "inputs": inputs}))
+                  PY
+                  curl --fail-with-body --silent --show-error \
+                    --connect-timeout 10 --max-time 60 \
+                    --request POST \
+                    --header "Authorization: Bearer $GH_TOKEN" \
+                    --header "Accept: application/vnd.github+json" \
+                    --header "X-GitHub-Api-Version: 2022-11-28" \
+                    --header "Content-Type: application/json" \
+                    --data-binary "@$OUTPUT_DIR/attestation-dispatch.json" \
+                    https://api.github.com/repos/microsoft/CCF/actions/workflows/python-package-attestation.yml/dispatches
+                displayName: Dispatch attestation for the published wheel
+                env:
+                  GH_TOKEN: $(GITHUB_ATTESTATION_TOKEN)
+                  PACKAGE_VERSION: $(package_version)
+                  WHEEL_SHA256: $(wheel_sha256)
+                  OUTPUT_DIR: $(Build.SourcesDirectory)/out
