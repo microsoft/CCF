@@ -109,7 +109,7 @@ namespace ccf
 
   void validate_and_coerce_worker_threads(ccf::CCFConfig& config)
   {
-    // Replace the task execution capacity of the dispatch thread, which no
+    // Replace the task execution capacity of the coordination thread, which no
     // longer executes tasks itself, without requiring configuration changes.
     if (config.worker_threads == 0)
     {
