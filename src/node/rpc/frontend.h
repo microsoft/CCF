@@ -210,8 +210,12 @@ namespace ccf
       return true;
     }
 
+    // default_role is the role a NodeByRole resolver targets when its target
+    // does not name one, ie - the role of the redirections field (to_primary
+    // or to_backup) that the resolver was configured under
     std::optional<std::string> resolve_redirect_location(
       const RedirectionResolverConfig& resolver,
+      const std::string& default_role,
       ccf::kv::ReadOnlyTx& tx,
       const ccf::ListenInterfaceID& incoming_interface,
       ccf::kv::Consensus* current_consensus)
@@ -220,11 +224,18 @@ namespace ccf
       {
         case (RedirectionResolutionKind::NodeByRole):
         {
+          std::string role = default_role;
           const auto role_it = resolver.target.find("role");
-          const bool seeking_primary =
-            role_it == resolver.target.end() || role_it.value() == "primary";
-          const bool seeking_backup =
-            !seeking_primary && role_it.value() == "backup";
+          if (role_it != resolver.target.end())
+          {
+            if (!role_it->is_string())
+            {
+              return std::nullopt;
+            }
+            role = role_it->get<std::string>();
+          }
+          const bool seeking_primary = role == "primary";
+          const bool seeking_backup = role == "backup";
           if (!seeking_primary && !seeking_backup)
           {
             return std::nullopt;
@@ -325,7 +336,7 @@ namespace ccf
               ctx->get_session_context()->interface_id.value_or(
                 PRIMARY_RPC_INTERFACE);
             const auto location = resolve_redirect_location(
-              resolver, tx, listen_interface, current_consensus);
+              resolver, "primary", tx, listen_interface, current_consensus);
             if (location.has_value())
             {
               ctx->set_response_header(
@@ -360,7 +371,7 @@ namespace ccf
               ctx->get_session_context()->interface_id.value_or(
                 PRIMARY_RPC_INTERFACE);
             const auto location = resolve_redirect_location(
-              resolver, tx, listen_interface, current_consensus);
+              resolver, "backup", tx, listen_interface, current_consensus);
             if (location.has_value())
             {
               ctx->set_response_header(

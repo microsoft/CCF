@@ -295,7 +295,7 @@ def test_new_joiner_helps_liveness(network, args):
             network.partitioner.partition(minority_partition)
         )
         # This is an unusual situation, where we've actually produced a dead partitioned node.
-        # Initially any write requests will timeout (failed attempt at forwarding), and then
+        # Initially writes may redirect to the old primary, and then
         # the node transitions to a candidate with nobody to talk to. Rather than trying to
         # catch the errors of these states quickly, we just sleep until the latter state is
         # reached, and then confirm it was reached.
@@ -686,84 +686,6 @@ def test_join_rollback_on_primary_isolation(network, args):
     return network
 
 
-@reqs.description("Forwarding across a partition may trigger a timeout")
-@reqs.at_least_n_nodes(3)
-def test_forwarding_timeout(network, args):
-    def check_timeout_response(response, target):
-        assert response.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, response
-        assert response.headers["content-type"] == "application/json", response
-        error = response.body.json()["error"]
-        assert error["code"] == "ForwardingTimeout", response
-        timeout_ms = backup.host.rpc_interfaces[
-            infra.interfaces.PRIMARY_RPC_INTERFACE
-        ].forwarding_timeout_ms
-        assert error["message"] == (
-            f"Request was forwarded to node n[{target.node_id}], but no response "
-            f"was received after {timeout_ms}ms"
-        ), response
-
-    primary, backups = network.find_nodes()
-    backup = backups[0]
-    key = 42
-    val_a = "Hello"
-    val_b = "Goodbye"
-
-    with backup.client("user0") as c:
-        LOG.info("Initial write request is forwarded and succeeds")
-        r = c.post("/app/log/public", {"id": key, "msg": val_a})
-        assert r.status_code == http.HTTPStatus.OK
-
-        network.wait_for_all_nodes_to_commit(primary=primary)
-
-    LOG.info("Cross-partition write request is forwarded and times out")
-    with network.partitioner.partition(backups):
-        with backup.client("user0") as c:
-            # NB: Only fails if request happens soon after partition - eventually
-            # partitioned backups will have an election, and then requests will
-            # succeed again
-            r = c.post("/app/log/public", {"id": key, "msg": val_b})
-            check_timeout_response(r, primary)
-
-            network.wait_for_new_primary(primary, nodes=backups)
-
-        with backup.client("user0") as c:
-            r = c.get(f"/app/log/public?id={key}")
-            assert r.status_code == http.HTTPStatus.OK, r
-            assert r.body.json()["msg"] == val_a, r
-
-    LOG.info("Drop partition and wait for reunification")
-    network.wait_for_primary_unanimity()
-    primary, backups = network.find_nodes()
-    with primary.client() as c:
-        view = c.get("/node/network").body.json()["current_view"]
-
-    backup = backups[0]
-    check_can_progress(primary)
-    check_can_progress(backup)
-
-    LOG.info("One-way partition may lead to misleading response")
-    # Construct a partial partition, where the backup forwards but does not hear responses
-    rules = network.partitioner.isolate_node(
-        backup,
-        isolation_dir=infra.partitions.IsolationDir.INBOUND_REQUESTS
-        | infra.partitions.IsolationDir.OUTBOUND_RESPONSES,
-    )
-    with backup.client("user0") as c:
-        # NB: Although this backup reports a timeout, the operation was actually
-        # successfully forwarded!
-        r = c.post("/app/log/public", {"id": key, "msg": val_b})
-        check_timeout_response(r, primary)
-
-    with primary.client("user0") as c:
-        r = c.get(f"/app/log/public?id={key}")
-        assert r.status_code == http.HTTPStatus.OK, r
-        assert r.body.json()["msg"] == val_b, r
-
-    rules.drop()
-
-    network.wait_for_primary_unanimity(min_view=view)
-
-
 @reqs.description(
     "Respond-on-commit requests get an error response if the operation is lost in an election"
 )
@@ -834,14 +756,10 @@ def _test_invalidated_blocking_call(network, args, blocking_path):
 
 
 @reqs.description(
-    "Session consistency is provided, and inconsistencies after elections are replaced by errors"
+    "Direct sessions return an error and close when the consensus view changes"
 )
 @reqs.supports_methods("/app/log/public")
-@reqs.no_http2()
-def test_session_consistency(network, args):
-    # Ensure we have 5 nodes
-    original_size = network.resize(5, args)
-
+def test_direct_session_view_changes(network, args):
     primary, backups = network.find_nodes()
     backup = backups[0]
 
@@ -867,14 +785,6 @@ def test_session_consistency(network, args):
                 impl_type=infra.clients.RawSocketClient,
             )
         )
-        client_backup_D = stack.enter_context(
-            backup.client(
-                "user0",
-                description_suffix="D",
-                impl_type=infra.clients.RawSocketClient,
-            )
-        )
-
         # Create some new state
         msg_id = 42
         msg_a = "First write, to primary"
@@ -884,53 +794,28 @@ def test_session_consistency(network, args):
                 "id": msg_id,
                 "msg": msg_a,
             },
+            allow_redirects=False,
         )
         assert r.status_code == http.HTTPStatus.OK, r
 
         # Read this state on a second session
-        r = client_primary_B.get(f"/app/log/public?id={msg_id}")
+        r = client_primary_B.get(f"/app/log/public?id={msg_id}", allow_redirects=False)
         assert r.status_code == http.HTTPStatus.OK, r
         assert r.body.json()["msg"] == msg_a, r
 
         # Wait for that to be committed on all backups
         network.wait_for_all_nodes_to_commit(primary)
 
-        # Write on backup, resulting in a forwarded request.
-        # Confirm that this session can read that write, since it remains forwarded.
-        # Meanwhile a separate session to the same backup node may not see it.
-        # NB: The latter property is not possible to test systematically, as it
-        # relies on a race - does the read on the second session happen before consensus
-        # update's the backup's state. Solution is to try in a loop, with a high probability
-        # that we observe the desired ordering after just a few iterations.
-        n_attempts = 20
-        for i in range(n_attempts):
-            last_message = f"Second write, via backup ({i})"
-            r = client_backup_C.post(
-                "/app/log/public",
-                {
-                    "id": msg_id,
-                    "msg": last_message,
-                },
-            )
-            # Note: No assert on response status code code here as forwarded response
-            # may be dropped by primary node in debug builds (https://github.com/microsoft/CCF/issues/4625)
-
-            r = client_backup_D.get(f"/app/log/public?id={msg_id}")
-            assert r.status_code == http.HTTPStatus.OK, r
-            if r.body.json()["msg"] != last_message:
-                LOG.info(
-                    f"Successfully saw a different value on second session after {i} attempts"
-                )
-                break
-        else:
-            raise RuntimeError(
-                f"Failed to observe evidence of session forwarding after {n_attempts} attempts"
-            )
+        r = client_backup_C.get(f"/app/log/public?id={msg_id}", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json()["msg"] == msg_a, r
 
         def check_sessions_alive(sessions):
             for client in sessions:
                 try:
-                    r = client.get(f"/app/log/public?id={msg_id}")
+                    r = client.get(
+                        f"/app/log/public?id={msg_id}", allow_redirects=False
+                    )
                     assert r.status_code == http.HTTPStatus.OK, r
                 except ConnectionResetError as e:
                     raise AssertionError(
@@ -942,7 +827,9 @@ def test_session_consistency(network, args):
         ):
             for client in sessions:
                 try:
-                    r = client.get(f"/app/log/public?id={msg_id}")
+                    r = client.get(
+                        f"/app/log/public?id={msg_id}", allow_redirects=False
+                    )
                     assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
                     assert r.body.json()["error"]["code"] == "SessionConsistencyLost", r
                 except ConnectionResetError as e:
@@ -952,15 +839,14 @@ def test_session_consistency(network, args):
 
                 # After returning error, session should be terminated, so all subsequent requests should fail
                 try:
-                    client.get("/node/commit")
+                    client.get("/node/commit", allow_redirects=False)
                     raise AssertionError(
                         f"Session {client.description} survived unexpectedly"
                     )
                 except ConnectionResetError:
                     LOG.info(f"Session {client.description} was terminated as expected")
 
-        # Partition primary and forwarding backup from other backups
-        with network.partitioner.partition([primary, backup]):
+        with network.partitioner.partition([primary]):
             # Write on partitioned primary
             msg0 = "Hello world"
             r0 = client_primary_A.post(
@@ -969,16 +855,19 @@ def test_session_consistency(network, args):
                     "id": msg_id,
                     "msg": msg0,
                 },
+                allow_redirects=False,
             )
-            assert r0.status_code == http.HTTPStatus.OK
+            assert r0.status_code == http.HTTPStatus.OK, r0
 
-            # Read from partitioned backup, over forwarded session to primary
-            r1 = client_backup_C.get(f"/app/log/public?id={msg_id}")
-            assert r1.status_code == http.HTTPStatus.OK
+            # The direct primary connection reads its own uncommitted write.
+            r1 = client_primary_A.get(
+                f"/app/log/public?id={msg_id}", allow_redirects=False
+            )
+            assert r1.status_code == http.HTTPStatus.OK, r1
             assert r1.body.json()["msg"] == msg0, r1
 
             # Despite partition, these sessions remain live
-            check_sessions_alive((client_primary_A, client_backup_C))
+            check_sessions_alive((client_primary_A, client_primary_B))
 
             # Once CheckQuorum takes effect and the primary stands down, all sessions
             # on the primary report a risk of inconsistency
@@ -999,12 +888,8 @@ def test_session_consistency(network, args):
                 # These sessions only read old state which is still valid
                 client_primary_B,
                 client_backup_C,
-                client_backup_D,
             )
         )
-
-    # Restore original network size
-    network.resize(original_size, args)
 
     return network
 
@@ -1604,13 +1489,12 @@ def run_reconfiguration_partitions(args):
         test_election_reconfiguration(network, args)
 
 
-def run_forwarding_and_sessions(args):
+def run_sessions(args):
     with partitioned_network(args) as network:
-        test_forwarding_timeout(network, args)
         test_invalidated_blocking_calls(network, args)
-        # HTTP2 doesn't support forwarding
+        # RawSocketClient uses HTTP/1.1.
         if not args.http2:
-            test_session_consistency(network, args)
+            test_direct_session_view_changes(network, args)
 
 
 def run_recovery_elections(args):
@@ -1640,7 +1524,7 @@ if __name__ == "__main__":
         ("certs", run_certificate_partitions),
         ("isolate-reconnect", run_isolate_and_reconnect),
         ("reconfiguration", run_reconfiguration_partitions),
-        ("forwarding", run_forwarding_and_sessions),
+        ("sessions", run_sessions),
         ("recovery-elections", run_recovery_elections),
         ("ledger-chunks", run_ledger_chunk_bytes_check),
         ("in-place-restart", run_in_place_restart_uncommittable_ledger_check),

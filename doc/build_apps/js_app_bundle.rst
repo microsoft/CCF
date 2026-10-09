@@ -46,7 +46,6 @@ The ``app.json`` file of an app bundle has the following structure:
           "post": {
             "js_module": "app.js",
             "js_function": "foo_post",
-            "forwarding_required": "never",
             "authn_policies": ["user_cert"],
             "mode": "readonly",
             "openapi": {
@@ -91,11 +90,14 @@ Each endpoint object contains the following information:
           ]
         }
 
-- ``"forwarding_required"``: A string indicating whether the endpoint is always forwarded, or whether it is safe to sometimes execute on followers. Possible values are:
+- ``"forwarding_required"``: An optional, deprecated string indicating whether the endpoint is always forwarded, or whether it is safe to sometimes execute on followers. Possible values are:
 
   - ``"always"``
   - ``"sometimes"``
   - ``"never"``
+
+  When omitted, the legacy forwarding policy is inferred from ``"redirection_strategy"``: ``"to_primary"`` implies ``"always"``, while ``"none"`` and ``"to_backup"`` imply ``"never"``. If neither field is supplied, the defaults are ``"to_primary"`` and ``"always"``. Explicit legacy policies, including ``"sometimes"``, are preserved in stored records and governance responses. Forwarding is deprecated and will be removed in CCF 8.0.
+  New applications should explicitly set ``"redirection_strategy"`` to ``"none"``, ``"to_primary"``, or ``"to_backup"`` as appropriate, and enable redirects on their interfaces. Use version-matched application bundles when upgrading from older releases which require ``"forwarding_required"``. See :doc:`fwd_to_redirect`.
 
 - ``"mode"``: A string indicating whether the endpoint requires read/write or read-only access to the Key-Value Store, or whether it is a historical endpoint that sees the state written in a specific transaction. Possible values are:
 
@@ -103,7 +105,7 @@ Each endpoint object contains the following information:
   - ``"readonly"``
   - ``"historical"``
 
-.. note:: "sometimes" is a good default value for most endpoints. The node that receives the request will forward only to preserve session consistency (a previous transaction was already forwarded), or because the transaction cannot be executed locally (it involves a write, and the node is a backup). "always" is a good setting for endpoints that always write to the KV, because it saves attempting the transaction on a backup before forwarding.
+.. note:: The explicit legacy policy ``"sometimes"`` forwards only to preserve session consistency (a previous transaction was already forwarded), or because the transaction cannot be executed locally (it involves a write, and the node is a backup). New applications should select an appropriate redirection strategy instead.
    
 - ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_
   without `references <https://swagger.io/specification/#reference-object>`_. This is descriptive but not
@@ -181,7 +183,6 @@ For instance a proposal which deploys the example app above would look like:
                     "post": {
                       "js_module": "math.js",
                       "js_function": "compute",
-                      "forwarding_required": "never",
                       "authn_policies": [
                         "user_cert"
                       ],
@@ -267,7 +268,6 @@ For instance a proposal which deploys the example app above would look like:
                     "get": {
                       "js_module": "math.js",
                       "js_function": "compute2",
-                      "forwarding_required": "never",
                       "authn_policies": [
                         "user_cert"
                       ],

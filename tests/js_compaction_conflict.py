@@ -66,7 +66,6 @@ def endpoint(js_function):
         "post": {
             "js_module": MODULE_NAME,
             "js_function": js_function,
-            "forwarding_required": "never",
             "redirection_strategy": "none",
             "authn_policies": ["no_auth"],
             "mode": "readwrite",

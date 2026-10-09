@@ -153,15 +153,6 @@ def installed_package(*p):
     return ensure_reqs(check)
 
 
-def no_http2():
-    # HTTP/2 does not support forwarding
-    def check(network, args, *nargs, **kwargs):
-        if args.http2:
-            raise TestRequirementsNotMet("Test not run with HTTP/2")
-
-    return ensure_reqs(check)
-
-
 def snp_only():
     def check(*args, **kwargs):
         if not SNP_SUPPORT:

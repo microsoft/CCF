@@ -2203,7 +2203,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.5";
+      openapi_info.document_version = "2.8.6";
     };
 
     void init_handlers() override
@@ -2540,7 +2540,8 @@ namespace loggingapp
         .set_auto_schema<void, nlohmann::json>()
         // To test that custom auth works on both the receiving node and a
         // forwardee, we always forward it
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Always)
+        .set_redirection_strategy(
+          ccf::endpoints::RedirectionStrategy::ToPrimary)
         .install();
       // SNIPPET_END: custom_auth_endpoint
 
@@ -2571,7 +2572,7 @@ namespace loggingapp
         auth_policies)
         .set_auto_schema<void, LoggingGetHistorical::Out>()
         .add_query_parameter<size_t>("id")
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto get_historical_with_handle =
@@ -2586,7 +2587,7 @@ namespace loggingapp
         .set_auto_schema<void, nlohmann::json>()
         .add_query_parameter<size_t>("handle")
         .add_query_parameter<size_t>("seqno")
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto get_historical_with_receipt =
@@ -2603,7 +2604,7 @@ namespace loggingapp
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto get_historical_with_receipt_and_claims =
@@ -2621,7 +2622,7 @@ namespace loggingapp
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
         .add_query_parameter<size_t>("id")
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       static constexpr auto get_historical_range_path =
@@ -2640,7 +2641,7 @@ namespace loggingapp
         .add_query_parameter<size_t>(
           "to_seqno", ccf::endpoints::QueryParamPresence::OptionalParameter)
         .add_query_parameter<size_t>("id")
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       static constexpr auto get_historical_sparse_path =
@@ -2657,7 +2658,7 @@ namespace loggingapp
         .set_auto_schema<void, LoggingGetHistoricalRange::Out>()
         .add_query_parameter<std::string>("seqnos")
         .add_query_parameter<size_t>("id")
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto record_admin_only =
@@ -2709,7 +2710,7 @@ namespace loggingapp
           get_cose_endorsements, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetCoseEndorsements::Out>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto get_trusted_keys =
@@ -2722,7 +2723,7 @@ namespace loggingapp
         get_trusted_keys,
         ccf::no_auth_required)
         .set_auto_schema<void, void>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto get_cose_signature = [](
@@ -2737,7 +2738,7 @@ namespace loggingapp
           get_cose_signature, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetCoseSignature::Out>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto get_cose_receipt = [](
@@ -2752,7 +2753,7 @@ namespace loggingapp
           get_cose_receipt, context, is_tx_committed),
         ccf::no_auth_required)
         .set_auto_schema<void, void>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto verify_cose_receipt =
@@ -2766,7 +2767,7 @@ namespace loggingapp
         verify_cose_receipt,
         ccf::no_auth_required)
         .set_auto_schema<void, void>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       // Endpoint to register a signed statement (raw COSE_Sign1),
@@ -2782,7 +2783,8 @@ namespace loggingapp
         register_signed_statement,
         ccf::no_auth_required)
         .set_auto_schema<void, void>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Always)
+        .set_redirection_strategy(
+          ccf::endpoints::RedirectionStrategy::ToPrimary)
         .set_locally_committed_function(
           ccf::endpoints::default_locally_committed_func)
         .install();
@@ -2804,7 +2806,7 @@ namespace loggingapp
           get_transparent_statement, context, is_tx_committed),
         ccf::no_auth_required)
         .set_auto_schema<void, void>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto get_cose_signatures_config =
@@ -2818,7 +2820,7 @@ namespace loggingapp
         get_cose_signatures_config,
         auth_policies)
         .set_auto_schema<void, void>()
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
     }
   };
