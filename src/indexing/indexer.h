@@ -3,25 +3,31 @@
 #pragma once
 
 #include "ccf/indexing/indexer_interface.h"
+#include "ccf/node_context.h"
 #include "ds/internal_logger.h"
 #include "indexing/transaction_fetcher_interface.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
+#include "node/commit_point_interface.h"
+#include "tasks/periodic_task_owner.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace ccf::indexing
 {
   // This is responsible for managing a collection of strategies, and ensuring
   // each has been given every transaction up to the commit point, in-order.
-  class Indexer : public IndexingStrategies
+  class Indexer : public IndexingStrategies,
+                  public ccf::tasks::PeriodicTaskOwner
   {
   public:
     static constexpr size_t MAX_REQUESTABLE = 500;
 
   protected:
     std::shared_ptr<TransactionFetcher> transaction_fetcher;
+    std::shared_ptr<ccf::AbstractCommitPoint> commit_point;
 
     using PendingTx = std::pair<ccf::TxID, std::vector<uint8_t>>;
     std::vector<PendingTx> uncommitted_entries;
@@ -59,6 +65,34 @@ namespace ccf::indexing
     Indexer(const std::shared_ptr<TransactionFetcher>& tf) :
       transaction_fetcher(tf)
     {}
+
+    Indexer(
+      const std::shared_ptr<TransactionFetcher>& tf,
+      const ccf::AbstractNodeContext& context) :
+      transaction_fetcher(tf),
+      commit_point(context.get_subsystem<ccf::AbstractCommitPoint>())
+    {}
+
+    void register_periodic_tasks(
+      ccf::tasks::JobBoard& job_board, std::chrono::milliseconds period)
+    {
+      if (commit_point == nullptr)
+      {
+        throw std::logic_error(
+          "Periodic indexing requires the CommitPoint subsystem");
+      }
+      schedule_periodic_task(
+        job_board,
+        period,
+        [this](std::chrono::milliseconds elapsed) {
+          const auto txid = commit_point->get_committed_txid();
+          if (txid.has_value())
+          {
+            update_strategies(elapsed, txid.value());
+          }
+        },
+        "Indexing maintenance");
+    }
 
     // Returns true if it looks like there's still a gap to fill. Useful for
     // testing

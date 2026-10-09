@@ -31,8 +31,9 @@ Any inter-command communication must be performed via the key-value store, to en
 Node-to-Node Ingress
 ~~~~~~~~~~~~~~~~~~~~
 
-Messages from other nodes, consensus ticks and stop notices execute in order on a single ``OrderedTasks`` lane, so they never run concurrently with each other.
+Messages from other nodes and stop notices execute in order on a single ``OrderedTasks`` lane, so they never run concurrently with each other.
 This lane is an ordinary task on the shared worker pool, so it waits behind other ready tasks and needs a free worker to run.
+Consensus maintenance runs as an independent periodic task and may execute concurrently with node ingress, protected by the consensus state lock.
 Tasks which block for long periods, such as outbound HTTP requests or slow file access, can therefore delay consensus while they occupy every worker.
 
 Task Shutdown

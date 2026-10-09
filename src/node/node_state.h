@@ -49,6 +49,7 @@
 #include "node/node_to_node_channel_manager.h"
 #include "node/open_service.h"
 #include "node/pending_node_cleanup.h"
+#include "node/recovered_service_opening_task.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
 #include "node/retired_nodes_cleanup.h"
@@ -150,7 +151,8 @@ namespace ccf
     return best_view;
   }
 
-  class NodeState : public AbstractNodeState
+  class NodeState : public AbstractNodeState,
+                    public std::enable_shared_from_this<NodeState>
   {
     friend class RecoveryDecisionProtocolSubsystem;
 
@@ -504,9 +506,9 @@ namespace ccf
     // private recovery as a backup. So from when this node begins private
     // recovery until it sees an opening commit, a node which has completed
     // private recovery also tries to open the service in each view in which it
-    // is primary (see tick()). Committed is final, and may be set before
-    // private recovery begins, since global hooks run in table order. The
-    // service hook only acts on openings of this node's service identity,
+    // is primary. Committed is permanent, and may be set
+    // before private recovery begins, since global hooks run in table order.
+    // The service hook only acts on openings of this node's service identity,
     // which is new on recovery, so the only opening a recovering node can see
     // commit is the recovered service's.
     enum class RecoveredServiceOpening : uint8_t
@@ -894,7 +896,12 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
-      n2n_channels = std::make_shared<NodeToNodeChannelManager>(node_transport);
+      // Register through the concrete type before storing the channel
+      // interface.
+      auto channel_manager =
+        std::make_shared<NodeToNodeChannelManager>(node_transport);
+      channel_manager->register_periodic_tasks(job_board_, tick_interval_);
+      n2n_channels = std::move(channel_manager);
 
       cmd_forwarder = std::make_shared<Forwarder<NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map);
@@ -2423,7 +2430,7 @@ namespace ccf
       snapshotter->set_snapshot_generation(true);
 
       // Open the service if this node is primary. Otherwise, or if this
-      // opening does not commit, a later primary opens it (see tick()).
+      // opening does not commit, a later primary's periodic check opens it.
       if (consensus->can_replicate())
       {
         LOG_INFO_FMT(
@@ -2433,7 +2440,7 @@ namespace ccf
         recovered_service_open_view = consensus->get_view();
         if (!open_recovered_service_if_waiting())
         {
-          // Retried on tick() while this node is primary
+          // Retried periodically while this node is primary
           recovered_service_open_view = VIEW_UNKNOWN;
         }
       }
@@ -2444,6 +2451,16 @@ namespace ccf
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
       sm.advance(NodeStartupState::partOfNetwork);
+      if (recovered_service_opening.load() == RecoveredServiceOpening::Pending)
+      {
+        auto& board = ccf::tasks::get_main_job_board();
+        const auto retry_interval =
+          std::chrono::milliseconds(config.tick_interval);
+        board.add_delayed_task(
+          std::make_shared<RecoveredServiceOpeningTask<NodeState>>(
+            shared_from_this(), board, retry_interval),
+          retry_interval);
+      }
     }
 
     // Opens the recovered service, from a node which has completed private
@@ -2487,36 +2504,42 @@ namespace ccf
     }
 
     // Tries to open the recovered service, at most once per view in which this
-    // node is primary, until it sees the opening commit
-    void open_recovered_service_if_primary()
+    // node is primary, until it sees the opening commit. Returns whether
+    // another delayed attempt is needed.
+    bool open_recovered_service_if_primary()
     {
+      if (recovered_service_opening.load() != RecoveredServiceOpening::Pending)
+      {
+        return false;
+      }
       if (
-        recovered_service_opening.load() != RecoveredServiceOpening::Pending ||
         !sm.check(NodeStartupState::partOfNetwork) ||
         !consensus->can_replicate())
       {
-        return;
+        return true;
       }
 
       const auto view = consensus->get_view();
       if (recovered_service_open_view.exchange(view) == view)
       {
-        return;
+        return true;
       }
 
       LOG_INFO_FMT(
         "Primary in view {}: trying to open recovered service", view);
-      ccf::tasks::add_task(ccf::tasks::make_basic_task([this, view]() {
-        if (consensus->can_replicate() && open_recovered_service_if_waiting())
-        {
-          return;
-        }
-
+      if (!consensus->can_replicate() || !open_recovered_service_if_waiting())
+      {
         // Allow another attempt in this view, if this node is still primary
         auto expected = view;
         recovered_service_open_view.compare_exchange_strong(
           expected, VIEW_UNKNOWN);
-      }));
+      }
+      if (
+        recovered_service_opening.load() == RecoveredServiceOpening::Committed)
+      {
+        return false;
+      }
+      return true;
     }
 
     void setup_recovered_opening_secret_hook()
@@ -2813,26 +2836,6 @@ namespace ccf
         InternalTablesAccess::get_trusted_nodes(tx),
         tx.wo(network.secrets),
         recovered_ledger_secrets);
-    }
-
-    //
-    // funcs in state "partOfNetwork" or "partOfPublicNetwork"
-    //
-    void tick(std::chrono::milliseconds elapsed)
-    {
-      if (
-        !sm.check(NodeStartupState::partOfNetwork) &&
-        !sm.check(NodeStartupState::partOfPublicNetwork) &&
-        !sm.check(NodeStartupState::readingPrivateLedger))
-      {
-        return;
-      }
-
-      consensus->periodic(elapsed);
-
-      n2n_channels->tick(elapsed);
-
-      open_recovered_service_if_primary();
     }
 
     void stop_notice() override
@@ -3769,7 +3772,7 @@ namespace ccf
       auto retired_node_cleanup =
         std::make_shared<RetiredNodeCleanup>(node_client);
 
-      consensus = std::make_shared<RaftType>(
+      auto raft = std::make_shared<RaftType>(
         consensus_config,
         std::make_unique<aft::Adaptor<ccf::kv::Store>>(network.tables),
         std::make_unique<::consensus::LedgerEnclave>(ledger_subsystem),
@@ -3778,6 +3781,10 @@ namespace ccf
         [retired_node_cleanup]() { retired_node_cleanup->cleanup(); },
         commit_callbacks,
         public_only);
+      raft->register_periodic_tasks(
+        ccf::tasks::get_main_job_board(),
+        std::chrono::milliseconds(config.tick_interval));
+      consensus = std::move(raft);
 
       pending_node_cleanup = std::make_shared<PendingNodeCleanup>(
         node_client,
