@@ -4,7 +4,7 @@
 import threading
 from contextvars import copy_context
 
-from infra.test_reporting import CURRENT_TEST
+from infra.test_reporting import CURRENT_TEST, record_failure
 
 
 class Thread(threading.Thread):
@@ -16,7 +16,11 @@ class Thread(threading.Thread):
         self._context = copy_context()
 
     def run(self):
-        self._context.run(super().run)
+        try:
+            self._context.run(super().run)
+        except Exception as exc:
+            record_failure(exc, context=self.test_context, thread=self.name)
+            raise
 
 
 class StoppableThread(Thread):
