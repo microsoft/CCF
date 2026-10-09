@@ -459,7 +459,8 @@ def test_add_node_endorsements_endpoints(network, args):
         # Ensure these nodes go to the specified server, and do not get their endorsements from file
         args_copy.snp_endorsements_file = "/dev/null"
         try:
-            per_request_retry_timeout = 3
+            # Allow for AMD's 10s Retry-After plus the 3s request timeout.
+            per_request_retry_timeout = 10 + 3
             network.join_node(
                 new_node,
                 args.package,
