@@ -4,47 +4,35 @@
   "$comment": "src/node/recovery_decision_protocol.cpp logs each record after RDP_TRACE when CCF_RECOVERY_TRACE is set. README.md describes the fields. Protocol rules, such as which phases record a chosen node, are left to the replay.",
   "type": "object",
   "required": ["kind"],
-  "properties": {
-    "kind": {
-      "enum": [
-        "start",
-        "send",
-        "gossip_accepted",
-        "vote_accepted",
-        "iamopen_accepted",
-        "timeout"
-      ]
-    }
-  },
-  "allOf": [
+  "oneOf": [
     {
-      "if": { "properties": { "kind": { "const": "start" } } },
-      "then": { "$ref": "#/$defs/start" }
+      "$ref": "#/$defs/start",
+      "properties": { "kind": { "const": "start" } }
     },
     {
-      "if": { "properties": { "kind": { "const": "send" } } },
-      "then": { "$ref": "#/$defs/send" }
+      "$ref": "#/$defs/send",
+      "properties": { "kind": { "const": "send" } }
     },
     {
-      "if": { "properties": { "kind": { "const": "gossip_accepted" } } },
-      "then": {
-        "$ref": "#/$defs/receive",
-        "properties": { "txid": { "$ref": "#/$defs/txid" } },
-        "required": ["txid"],
-        "unevaluatedProperties": false
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "kind": { "enum": ["vote_accepted", "iamopen_accepted"] }
-        }
+      "$ref": "#/$defs/receive",
+      "properties": {
+        "kind": { "const": "gossip_accepted" },
+        "txid": { "$ref": "#/$defs/txid" }
       },
-      "then": { "$ref": "#/$defs/receive", "unevaluatedProperties": false }
+      "required": ["txid"],
+      "unevaluatedProperties": false
     },
     {
-      "if": { "properties": { "kind": { "const": "timeout" } } },
-      "then": { "$ref": "#/$defs/execution", "unevaluatedProperties": false }
+      "$ref": "#/$defs/receive",
+      "properties": {
+        "kind": { "enum": ["vote_accepted", "iamopen_accepted"] }
+      },
+      "unevaluatedProperties": false
+    },
+    {
+      "$ref": "#/$defs/execution",
+      "properties": { "kind": { "const": "timeout" } },
+      "unevaluatedProperties": false
     }
   ],
   "$defs": {
