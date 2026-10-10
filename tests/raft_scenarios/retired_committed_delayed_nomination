@@ -1,0 +1,83 @@
+# A nomination from node 0 is delayed while node 2 wins a later election and
+# commits its own retirement. The old nomination must not restart an election.
+start_node,0
+emit_signature,2
+trust_nodes,2,1,2
+emit_signature,2
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_state_sync
+
+# Give node 2 a strictly higher match index so nomination cannot choose node 1.
+emit_signature,2
+periodic_one,0,10
+dispatch_single,0,2
+dispatch_single,2,0
+assert_commit_idx,0,5
+assert_last_txid,2,2.5
+nominate_successor,0
+dispatch_single,0,1
+dispatch_single,1,0
+
+# Leave the PRV queued while node 2 wins an election with node 1's votes.
+periodic_one,2,100
+assert_detail,2,leadership_state,PreVoteCandidate
+dispatch_single,2,1
+dispatch_single,1,2
+assert_detail,2,leadership_state,Candidate
+dispatch_single,2,1
+dispatch_single,1,2
+assert_detail,2,leadership_state,Leader
+assert_detail,2,current_view,3
+# Let node 0 process the election requests and heartbeat, but keep its PRV and
+# subsequent responses queued. It learns term 3 before learning its retirement.
+dispatch_single,2,0
+dispatch_single,2,0
+dispatch_single,2,0
+assert_detail,0,leadership_state,Follower
+assert_detail,0,current_view,3
+dispatch_single,2,1
+dispatch_single,1,2
+
+# Retire both primaries, leaving node 1 as the sole member of the new config.
+# Node 0 learns it is retired without dispatching its delayed nomination.
+swap_nodes,3,out,0,2
+emit_signature,3
+periodic_one,2,10
+dispatch_single,2,0
+dispatch_single,2,1
+dispatch_single,1,2
+assert_commit_idx,2,7
+assert_detail,2,retirement_phase,Completed
+periodic_one,2,10
+dispatch_single,2,0
+dispatch_single,2,1
+dispatch_single,1,2
+assert_detail,0,membership_state,Retired
+assert_detail,0,retirement_phase,Completed
+
+cleanup_nodes,3,0,2
+emit_signature,3
+periodic_one,2,10
+dispatch_single,2,1
+dispatch_single,1,2
+assert_commit_idx,2,9
+assert_detail,2,retirement_phase,RetiredCommitted
+assert_detail,2,leadership_state,None
+
+# This is the original term-2 nomination, now reaching a retired-committed node.
+dispatch_single,0,2
+assert_commit_idx,2,9
+assert_detail,2,retirement_phase,RetiredCommitted
+assert_detail,2,leadership_state,None
+assert_detail,2,current_view,3
+assert_last_txid,2,3.9
+
+# Node 2's fresh nomination elects node 1, so the remaining network progresses.
+dispatch_single,2,1
+assert_detail,1,leadership_state,Leader
+assert_detail,1,current_view,4
+loop_until_sync
