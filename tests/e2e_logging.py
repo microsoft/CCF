@@ -224,6 +224,7 @@ def test_illegal(network, args):
                 response.status,
                 response_body,
             )
+        return response_body
 
     initial_parsing_errors = get_main_interface_metrics()["errors"]["parsing"]
     send_bad_raw_content(b"\x01")
@@ -233,6 +234,15 @@ def test_illegal(network, args):
     send_bad_raw_content(json.dumps({"hello": "world"}).encode())
     # Tests non-UTF8 encoding in OData
     send_bad_raw_content(b"POST /node/\xff HTTP/2.0\r\n\r\n")
+
+    if not args.http2:
+        for whitespace in (b"", b" ", b"\t", b" \t"):
+            response_body = send_bad_raw_content(
+                b"GET /node/state HTTP/1.1\r\nTransfer-Encoding:"
+                + whitespace
+                + b"\r\nContent-Length: 0\r\n\r\n"
+            )
+            assert b"HPE_INVALID_TRANSFER_ENCODING" in response_body, response_body
 
     for _ in range(40):
         content = bytes(random.randint(0, 255) for _ in range(random.randrange(1, 2)))
