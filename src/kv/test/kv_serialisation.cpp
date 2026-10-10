@@ -10,6 +10,7 @@
 
 #include <doctest/doctest.h>
 #undef FAIL
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <limits>
@@ -603,6 +604,168 @@ TEST_CASE(
     REQUIRE(handle_priv->get("privk1") == "privv1");
     REQUIRE(handle_pub->get("pubk1") == "pubv1");
   }
+}
+
+TEST_CASE(
+  "Encrypted entries retain the GCM layout and authenticate public bytes" *
+  doctest::test_suite("serialisation"))
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  secrets->set_secret(4, ccf::make_ledger_secret());
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  const ccf::TxID tx_id{2, 2};
+
+  const auto check = [&](
+                       const std::vector<uint8_t>& public_domain,
+                       const std::vector<uint8_t>& private_domain,
+                       ccf::kv::EntryType type,
+                       bool historical_hint) {
+    ccf::kv::RawKvStoreSerialiser serialiser(
+      encryptor, tx_id, type, 0, {}, ccf::no_claims(), historical_hint);
+    const auto entry =
+      serialiser.serialise_domains(public_domain, private_domain);
+
+    std::vector<uint8_t> header;
+    std::vector<uint8_t> cipher;
+    REQUIRE(encryptor->encrypt(
+      private_domain,
+      public_domain,
+      header,
+      cipher,
+      tx_id,
+      type,
+      historical_hint));
+
+    ccf::kv::SerialisedEntryHeader entry_header;
+    entry_header.set_size(
+      header.size() + sizeof(size_t) + public_domain.size() + cipher.size());
+    std::vector<uint8_t> expected(entry.size());
+    auto* data = expected.data();
+    auto remaining = expected.size();
+    serialized::write(data, remaining, entry_header);
+    serialized::write(data, remaining, header.data(), header.size());
+    serialized::write(data, remaining, public_domain.size());
+    serialized::write(
+      data, remaining, public_domain.data(), public_domain.size());
+    serialized::write(data, remaining, cipher.data(), cipher.size());
+    REQUIRE(remaining == 0);
+    REQUIRE(entry == expected);
+
+    std::vector<uint8_t> decrypted;
+    ccf::kv::Term term = 0;
+    REQUIRE(encryptor->decrypt(
+      cipher, public_domain, header, decrypted, tx_id.seqno, term, true));
+    REQUIRE(decrypted == private_domain);
+    if (type != ccf::kv::EntryType::Snapshot)
+    {
+      REQUIRE(term == tx_id.view);
+    }
+
+    auto changed_public_domain = public_domain;
+    changed_public_domain.front() ^= 1;
+    REQUIRE_FALSE(encryptor->decrypt(
+      cipher,
+      changed_public_domain,
+      header,
+      decrypted,
+      tx_id.seqno,
+      term,
+      true));
+  };
+
+  check({1, 2, 3}, {}, ccf::kv::EntryType::WriteSet, false);
+  check({1}, {4, 5, 6}, ccf::kv::EntryType::WriteSet, false);
+  check({1, 2, 3}, {4, 5, 6}, ccf::kv::EntryType::WriteSet, false);
+  check({1, 2, 3}, {4, 5, 6}, ccf::kv::EntryType::Snapshot, true);
+
+  auto missing_secrets = std::make_shared<ccf::LedgerSecrets>();
+  ccf::kv::RawKvStoreSerialiser failing(
+    std::make_shared<ccf::NodeEncryptor>(missing_secrets),
+    tx_id,
+    ccf::kv::EntryType::WriteSet,
+    0);
+  REQUIRE_THROWS_AS(
+    failing.serialise_domains({1, 2, 3}, {4, 5, 6}),
+    ccf::kv::KvSerialiserException);
+}
+
+TEST_CASE(
+  "Encrypted public and private transactions replay" *
+  doctest::test_suite("serialisation"))
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  ccf::kv::Store source;
+  source.set_encryptor(encryptor);
+  source.set_consensus(consensus);
+  ccf::kv::Store recovered;
+  recovered.set_encryptor(encryptor);
+
+  MapTypes::StringString public_map("public:pub_map");
+  MapTypes::StringString private_map("priv_map");
+  for (size_t i = 1; i <= 3; ++i)
+  {
+    auto tx = source.create_tx();
+    if (i != 2)
+    {
+      tx.rw(public_map)->put(std::to_string(i), "public");
+    }
+    if (i != 1)
+    {
+      tx.rw(private_map)->put(std::to_string(i), "private");
+    }
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    const auto entry = consensus->get_latest_data();
+    REQUIRE(entry.has_value());
+    REQUIRE(
+      recovered.deserialize(*entry)->apply() == ccf::kv::ApplyResult::PASS);
+  }
+
+  auto tx = recovered.create_tx();
+  REQUIRE(tx.ro(public_map)->get("1") == "public");
+  REQUIRE(tx.ro(private_map)->get("2") == "private");
+  REQUIRE(tx.ro(public_map)->get("3") == "public");
+  REQUIRE(tx.ro(private_map)->get("3") == "private");
+}
+
+TEST_CASE(
+  "Partial encryption failure cannot replicate an entry" *
+  doctest::test_suite("serialisation"))
+{
+  class FailingEncryptor : public ccf::NodeEncryptor
+  {
+  public:
+    using ccf::NodeEncryptor::NodeEncryptor;
+
+    bool encrypt(
+      std::span<const uint8_t>,
+      std::span<const uint8_t>,
+      std::span<uint8_t> header,
+      std::span<uint8_t> cipher,
+      const ccf::TxID&,
+      ccf::kv::EntryType,
+      bool) override
+    {
+      std::fill(header.begin(), header.end(), 0xAA);
+      std::fill(cipher.begin(), cipher.end(), 0xBB);
+      return false;
+    }
+  };
+
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<FailingEncryptor>(secrets));
+  store.set_consensus(consensus);
+
+  auto tx = store.create_tx();
+  tx.rw<MapTypes::StringString>("private_map")->put("key", "secret");
+  REQUIRE_THROWS_AS(tx.commit(), ccf::kv::KvSerialiserException);
+  REQUIRE_FALSE(consensus->get_latest_data().has_value());
 }
 
 TEST_CASE(

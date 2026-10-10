@@ -78,6 +78,39 @@ namespace ccf::kv
       EntryType entry_type = EntryType::WriteSet,
       bool historical_hint = false) override
     {
+      std::vector<uint8_t> header(get_header_length());
+      std::vector<uint8_t> output(plain.size());
+      if (!encrypt(
+            std::span<const uint8_t>(plain),
+            std::span<const uint8_t>(additional_data),
+            std::span<uint8_t>(header),
+            std::span<uint8_t>(output),
+            tx_id,
+            entry_type,
+            historical_hint))
+      {
+        return false;
+      }
+
+      serialised_header = std::move(header);
+      cipher = std::move(output);
+      return true;
+    }
+
+    bool encrypt(
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> additional_data,
+      std::span<uint8_t> serialised_header,
+      std::span<uint8_t> cipher,
+      const TxID& tx_id,
+      EntryType entry_type = EntryType::WriteSet,
+      bool historical_hint = false) override
+    {
+      if (serialised_header.size() != get_header_length())
+      {
+        throw std::logic_error("Incorrect serialised GCM header size");
+      }
+
       S hdr;
 
       set_iv(hdr, tx_id, entry_type);
@@ -101,8 +134,7 @@ namespace ccf::kv
         secret->encrypt(hdr.get_iv(), plain, additional_data, cipher, hdr.tag);
       }
 
-      serialised_header = hdr.serialise();
-
+      hdr.serialise(serialised_header);
       return true;
     }
 
