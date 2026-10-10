@@ -127,6 +127,113 @@ DOCTEST_TEST_CASE("Parsing error")
   DOCTEST_CHECK(sp.received.empty());
 }
 
+DOCTEST_TEST_CASE("Empty Transfer-Encoding")
+{
+  for (const auto whitespace : {"", " ", "\t", " \t"})
+  {
+    const auto headers = fmt::format(
+      "Transfer-Encoding:{}\r\nContent-Length: 4\r\n\r\nbody", whitespace);
+
+    {
+      http::SimpleRequestProcessor sp;
+      http::RequestParser p(sp);
+      const auto req = s_to_v(("POST / HTTP/1.1\r\n" + headers).c_str());
+      DOCTEST_CHECK_THROWS_WITH(
+        p.execute(req.data(), req.size()),
+        doctest::Contains("HPE_INVALID_TRANSFER_ENCODING"));
+      DOCTEST_CHECK(sp.received.empty());
+    }
+
+    {
+      http::SimpleResponseProcessor sp;
+      http::ResponseParser p(sp);
+      const auto res = s_to_v(("HTTP/1.1 200 OK\r\n" + headers).c_str());
+      DOCTEST_CHECK_THROWS_WITH(
+        p.execute(res.data(), res.size()),
+        doctest::Contains("HPE_INVALID_TRANSFER_ENCODING"));
+      DOCTEST_CHECK(sp.received.empty());
+    }
+  }
+}
+
+DOCTEST_TEST_CASE("Content-Length with optional whitespace")
+{
+  for (const auto value : {"4", " 4 ", "\t4\t", " \t4 \t"})
+  {
+    const auto headers = fmt::format("Content-Length:{}\r\n\r\nbody", value);
+    const auto body = s_to_v("body");
+
+    {
+      http::SimpleRequestProcessor sp;
+      http::RequestParser p(sp);
+      const auto req = s_to_v(("POST / HTTP/1.1\r\n" + headers).c_str());
+      DOCTEST_CHECK_NOTHROW(p.execute(req.data(), req.size()));
+      DOCTEST_REQUIRE(sp.received.size() == 1);
+      DOCTEST_CHECK(sp.received.front().body == body);
+    }
+
+    {
+      http::SimpleResponseProcessor sp;
+      http::ResponseParser p(sp);
+      const auto res = s_to_v(("HTTP/1.1 200 OK\r\n" + headers).c_str());
+      DOCTEST_CHECK_NOTHROW(p.execute(res.data(), res.size()));
+      DOCTEST_REQUIRE(sp.received.size() == 1);
+      DOCTEST_CHECK(sp.received.front().body == body);
+    }
+  }
+}
+
+DOCTEST_TEST_CASE("Connection close with optional whitespace")
+{
+  for (const auto whitespace : {"", " ", "\t", " \t"})
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp);
+    const auto message = fmt::format(
+      "GET /first HTTP/1.1\r\nConnection: close{}\r\n\r\n"
+      "GET /second HTTP/1.1\r\n\r\n",
+      whitespace);
+    const auto req = s_to_v(message.c_str());
+    DOCTEST_CHECK_THROWS_WITH(
+      p.execute(req.data(), req.size()),
+      doctest::Contains("HPE_CLOSED_CONNECTION"));
+    DOCTEST_REQUIRE(sp.received.size() == 1);
+    DOCTEST_CHECK(sp.received.front().url == "/first");
+  }
+}
+
+DOCTEST_TEST_CASE("Response line terminator")
+{
+  for (const auto terminator : {"\r", "\r\r", "\r\r\n"})
+  {
+    http::SimpleResponseProcessor sp;
+    http::ResponseParser p(sp);
+    const auto message =
+      fmt::format("HTTP/1.1 200 OK{}Content-Length: 4\r\n\r\nbody", terminator);
+    const auto res = s_to_v(message.c_str());
+    DOCTEST_CHECK_THROWS_WITH(
+      p.execute(res.data(), res.size()), doctest::Contains("HPE_STRICT"));
+    DOCTEST_CHECK(sp.received.empty());
+  }
+}
+
+DOCTEST_TEST_CASE("Invalid quoted chunk extensions")
+{
+  for (const auto control : {'\x01', '\x0b', '\x0c', '\x1f', '\x7f'})
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp);
+    const auto message = fmt::format(
+      "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"
+      "4;ext=\"val{}ue\"\r\nbody\r\n0\r\n\r\n",
+      control);
+    const auto req = s_to_v(message.c_str());
+    DOCTEST_CHECK_THROWS_WITH(
+      p.execute(req.data(), req.size()), doctest::Contains("HPE_STRICT"));
+    DOCTEST_CHECK(sp.received.empty());
+  }
+}
+
 DOCTEST_TEST_CASE("Parsing fuzzing")
 {
   std::vector<uint8_t> r;
