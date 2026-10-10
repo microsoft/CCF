@@ -6,6 +6,7 @@ namespace DisasterRecovery.Proofs.History
 open Shared
 open Lifting
 
+/-- Decorated steps whose erased successor states form the given model-state list. -/
 inductive Decoration (config : Model.Config)
     : Execution.Global.State -> List Model.State -> Execution.Global.State -> Prop where
   | nil (state) : Decoration config state [] state
@@ -38,6 +39,7 @@ lemma trace_lifts {config : Model.Config} {before after : Model.State} {tail}
         finalEq
       ⟩
 
+/-- A reachable decorated state with a model execution suffix from every trace state. -/
 structure Correspondence (config : Model.Config) (trace : Properties.GlobalTrace)
     (ghost : Execution.Global.State)
     : Prop where

@@ -9,10 +9,14 @@ open Shared
 open DisasterRecovery.Model.Local
 open Execution.Local (messages)
 
+/-- Local state and notifications retained when comparing decorated and model steps. -/
 structure Result where
+  /-- The local state produced by the step. -/
   state : NodeState
+  /-- Host-visible notifications produced by the step. -/
   effects : List Notification := []
 
+/-- Retains the local state and notifications of an executable model step. -/
 def capture (run : NodeState × Outputs Location Message Notification) : Result :=
   { state := run.1, effects := run.2.notifications }
 
@@ -76,9 +80,11 @@ lemma step_recording_appends (config : Config) (source : Location) (recovered : 
   all_goals try dsimp [pure, Functor.map]
   all_goals simp
 
+/-- Removes a decorated envelope's proof-only sender snapshot. -/
 def eraseEnvelope (envelope : Execution.Global.Envelope) : Model.Envelope :=
   { source := envelope.source, target := envelope.target, payload := envelope.payload }
 
+/-- Removes send snapshots and histories to recover the executable network state. -/
 def erase (state : Execution.Global.State) : Model.State :=
   {
     nodes := state.system.nodes,
@@ -86,11 +92,13 @@ def erase (state : Execution.Global.State) : Model.State :=
     network := state.network.map eraseEnvelope
   }
 
+/-- Translates a decorated action into its executable model counterpart. -/
 def eraseAction : Execution.Global.Action -> Model.Action
   | .retry source => .local source .retry
   | .timeout target => .local target .timeout
   | .deliver envelope => .deliver (eraseEnvelope envelope)
 
+/-- Retains a decorated local step's state and notifications, ignoring send effects. -/
 def eraseOutput (output : Execution.Local.StepOutput) : Result :=
   {
     state := output.state,

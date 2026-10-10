@@ -12,6 +12,7 @@ open Invariants Quorum
 
 attribute [local simp] Execution.Local.transitionSystem rejectionReason guard failure
 
+/-- Gossip and votes grow monotonically, and choosing a node freezes its gossip. -/
 structure Evolves (before after : NodeState) : Prop where
   gossips : before.gossips ⊆ after.gossips
   votes : before.votes ⊆ after.votes
@@ -63,9 +64,11 @@ lemma step_evolves (config : Execution.Local.Config) (state : NodeState) (event 
     | exact insertVote_extends _ _
     | simp_all
 
+/-- Every node's accepted gossip comes from the configured recovered ledger tips. -/
 def Genuine (config : Config) (nodes : List (Location × NodeState)) : Prop :=
   forall entry, entry ∈ nodes -> entry.2.gossips ⊆ config.recovered
 
+/-- An accepted gossip event carries its source's configured recovered ledger tip. -/
 def EventGenuine (config : Config) : Event -> Prop
   | .receiveGossip source txid .accepted => (source, txid) ∈ config.recovered
   | _ => True
@@ -184,6 +187,7 @@ lemma next_genuine {config : Config} {before after : State} {action : Action}
       simpa only [recordEffects_system]
         using systemStep_genuine prior (by trivial) updated
 
+/-- Every sent vote's snapshot still matches its sender's frozen gossip. -/
 def FrozenVotes (state : State) : Prop :=
   forall envelope,
     envelope ∈ state.sent

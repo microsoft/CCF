@@ -5,6 +5,7 @@ namespace DisasterRecovery.Proofs.Trace
 
 open Shared
 
+/-- Enabled steps through the listed successor states, from a start state to a final state. -/
 inductive Path (system : TransitionSystem State Action)
     : State -> List State -> State -> Prop where
   | nil (state) : Path system state [] state

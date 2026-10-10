@@ -24,23 +24,33 @@ def instanceId : String :=
 def unusedTxID : TxID :=
   { view := 0, seqno := 0 }
 
+/-- Messages and notifications emitted by one local recovery action. -/
 abbrev LocalOutputs :=
   Outputs Location Message Notification
 
 /-- The log record, and the reduction rule, that an instruction comes from. -/
 structure Origin where
+  /-- Path of the source node log. -/
   file : String
+  /-- One-based line number of the source record. -/
   line : Nat
+  /-- Reduction rule that generated the instruction. -/
   rule : String
 
 /-- Fields of a node's state that a record shows. Absent fields are not compared. -/
 structure StateFields where
+  /-- Protocol phase, when the record specifies it. -/
   phase : Option Phase := none
+  /-- Timeout-lane phase, when the record specifies it. -/
   timeoutState : Option Phase := none
+  /-- Chosen location, when the record specifies one. -/
   chosen : Option Location := none
+  /-- Opening justification, when the record specifies one. -/
   openKind : Option OpenKind := none
+  /-- Restart-request status, when the record specifies it. -/
   restartRequested : Option Bool := none
 
+/-- An action to execute or an observation to check against the current model state. -/
 inductive Instruction where
   /-- A model action, which must be enabled. -/
   | action (action : Model.Action) (origins : List Origin)
@@ -50,13 +60,17 @@ inductive Instruction where
   | outputs (node : Location) (sent : List (Location × Message))
     (notifications : List Notification) (origins : List Origin)
 
+/-- Source log records and reduction rules associated with an instruction. -/
 def Instruction.origins : Instruction → List Origin
   | .action _ origins
   | .state _ _ origins
   | .outputs _ _ _ origins => origins
 
+/-- Model configuration and active participants reconstructed from the trace. -/
 structure Header where
+  /-- Recovery parameters and ledger tips reconstructed from start and send records. -/
   config : Model.Config
+  /-- Nodes that participate in the recorded scenario. -/
   participants : List Location
 
 /-- The expected locations, the participants, and the TxIDs they gossiped. -/
@@ -81,6 +95,7 @@ def Header.initial (header : Header) : Model.State :=
     active := header.participants
   }
 
+/-- Lowercase phase name used in replay diagnostics. -/
 def phaseName : Phase → String
   | .gossiping => "gossiping"
   | .voting => "voting"
@@ -88,6 +103,7 @@ def phaseName : Phase → String
   | .joining => "joining"
   | .open => "open"
 
+/-- Lowercase opening-kind name used in replay diagnostics. -/
 def openKindName : OpenKind → String
   | .quorum => "quorum"
   | .failover => "failover"
@@ -139,7 +155,9 @@ private def checkState (fields : StateFields) (state : NodeState)
   check "openKind" (fields.openKind.map some) state.openKind
   check "restartRequested" fields.restartRequested state.restartRequested
 
+/-- Current network state and outputs available for the next observation. -/
 structure ReplayState where
+  /-- Network state after all actions replayed so far. -/
   state : Model.State
   /-- The node and outputs of the latest action. -/
   latest : Option (Location × LocalOutputs) := none
@@ -168,8 +186,11 @@ private def label (origins : List Origin) : String :=
   ", ".intercalate
     (origins.map fun origin => s!"{origin.file}:{origin.line} [{origin.rule}]")
 
+/-- Counts of successfully replayed actions and checked observations. -/
 structure Result where
+  /-- Number of model actions executed. -/
   actions : Nat
+  /-- Number of state and output observations checked. -/
   observations : Nat
 
 /-- Replays the instructions in order. Observations never update protocol state. -/

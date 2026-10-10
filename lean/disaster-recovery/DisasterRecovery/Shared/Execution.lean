@@ -20,6 +20,7 @@ inductive Run {State Action : Type} (system : TransitionSystem State Action)
 
 /-- The states an execution passes through, initial state first. Actions are not recorded. -/
 structure Trace (State : Type) where
+  /-- States visited by the execution, including its initial state. -/
   states : List State
 
 /-- The trace is nonempty, its first state is initial, and each later state

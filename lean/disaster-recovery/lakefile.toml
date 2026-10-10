@@ -7,6 +7,7 @@ lintDriverArgs = ["--root", "DisasterRecovery"]
 defaultTargets = [
   "DisasterRecovery",
   "canonical-checks",
+  "disaster-recovery-replay",
 ]
 
 [[require]]
@@ -30,3 +31,8 @@ name = "DisasterRecovery"
 [[lean_exe]]
 name = "canonical-checks"
 root = "DisasterRecovery.Tests.CanonicalTests"
+
+# Expose the replayer to the linter without colliding with dependencies' Main modules.
+[[lean_exe]]
+name = "disaster-recovery-replay"
+root = "replayer.Main"
