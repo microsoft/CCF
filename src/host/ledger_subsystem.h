@@ -12,6 +12,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -19,6 +20,30 @@
 
 namespace asynchost
 {
+  class CommittedLedgerPrefixReader
+    : public ccf::AbstractCommittedLedgerPrefixReader
+  {
+  private:
+    LedgerFile::CompletedChunkReader reader;
+
+  public:
+    explicit CommittedLedgerPrefixReader(
+      LedgerFile::CompletedChunkReader&& reader_) :
+      reader(std::move(reader_))
+    {}
+
+    [[nodiscard]] size_t size() const override
+    {
+      return reader.size();
+    }
+
+    [[nodiscard]] std::optional<std::vector<uint8_t>> read(
+      size_t start, size_t end) const override
+    {
+      return reader.read(start, end);
+    }
+  };
+
   // Typed, task-backed ledger access for the node. All mutations and reads of
   // mutable (uncommitted) state run in FIFO order on a single OrderedTasks
   // lane. Reads which lie wholly within committed files are dispatched as
@@ -315,6 +340,25 @@ namespace asynchost
     committed_ledger_path_with_idx(size_t idx) override
     {
       return ledger.committed_ledger_path_with_idx(idx);
+    }
+
+    [[nodiscard]] std::optional<ccf::ledger::CommittedLedgerPrefixRange>
+    committed_ledger_prefix_range_with_idx(size_t idx) override
+    {
+      return ledger.committed_ledger_prefix_range_with_idx(idx);
+    }
+
+    [[nodiscard]] std::unique_ptr<ccf::AbstractCommittedLedgerPrefixReader>
+    open_committed_ledger_prefix(size_t from, size_t to) override
+    {
+      auto reader = ledger.open_committed_ledger_prefix(from, to);
+      if (!reader.has_value())
+      {
+        return nullptr;
+      }
+
+      return std::make_unique<CommittedLedgerPrefixReader>(
+        std::move(reader.value()));
     }
 
     [[nodiscard]] size_t get_init_idx() override

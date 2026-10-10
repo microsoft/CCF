@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
 
+### Added
+
+- Ledger chunk download clients can opt in to immutable `.committed_prefix` resources containing recent committed entries that are not yet available in canonical `.committed` files (#8214).
+
 ### Changed
 
 - CCF no longer advances its subsystems in a single atomic tick step. Each subsystem schedules its own periodic work, which can run independently of other subsystems and incoming node messages (#8535).
