@@ -1,0 +1,11 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_3.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_3.out
+@@ -40,4 +40,4 @@
+-RDP_TRACE {"batch":8,"kind":"send","message":"vote","node":"0","pre_version":28,"sequence":39,"target":"2"}
+-RDP_TRACE {"batch":8,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":40,"target":"0","txid":"2.21"}
+-RDP_TRACE {"batch":8,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":41,"target":"1","txid":"2.21"}
+-RDP_TRACE {"batch":8,"kind":"send","message":"gossip","node":"0","pre_version":28,"sequence":42,"target":"2","txid":"2.21"}
++RDP_TRACE {"batch":8,"kind":"send","message":"vote","node":"0","pre_version":30,"sequence":39,"target":"2"}
++RDP_TRACE {"batch":8,"kind":"send","message":"gossip","node":"0","pre_version":30,"sequence":40,"target":"0","txid":"2.21"}
++RDP_TRACE {"batch":8,"kind":"send","message":"gossip","node":"0","pre_version":30,"sequence":41,"target":"1","txid":"2.21"}
++RDP_TRACE {"batch":8,"kind":"send","message":"gossip","node":"0","pre_version":30,"sequence":42,"target":"2","txid":"2.21"}

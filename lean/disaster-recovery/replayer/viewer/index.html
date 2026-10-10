@@ -1,0 +1,602 @@
+<!doctype html>
+<!-- Copyright (c) Microsoft Corporation. All rights reserved.
+     Licensed under the Apache 2.0 License. -->
+<!--
+  Recovery-decision-protocol trace viewer. It shows the dumps that
+  `disaster-recovery-replay --dump` writes, which build.py collects into
+  data/. Every semantic fact on the page comes from a dump: model states,
+  enabled actions, the send that each delivery took, and the replayer's checks.
+  The script only lays them out, and diffs consecutive dumped states to
+  highlight what changed.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Recovery trace viewer</title>
+    <style>
+      :root {
+        --ink: #1b1b1b;
+        --grey: #6c6c66;
+        --faint: #aaa9a0;
+        --hair: #e2e1d6;
+        --bg: #fffff8;
+        --accent: #b0400c;
+        --fail: #a3201a;
+        --fail-bg: #f8e2de;
+        --link: #1d4fbf;
+        --mono:
+          ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+        --serif:
+          "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+          Georgia, serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+        color: var(--ink);
+        font: 13px/1.35 var(--serif);
+      }
+      header {
+        padding: 6px 14px 4px;
+      }
+      .bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 2px 16px;
+      }
+      h1,
+      h2,
+      .sc {
+        font-weight: normal;
+        font-variant: small-caps;
+        letter-spacing: 0.05em;
+      }
+      h1 {
+        font-size: 14px;
+        margin: 0;
+      }
+      h2 {
+        font-size: 12.5px;
+        color: var(--grey);
+        margin: 14px 0 4px;
+        border-bottom: 1px solid var(--hair);
+      }
+      h2 .key {
+        margin-left: 12px;
+        font-size: 11.5px;
+        font-variant: normal;
+        letter-spacing: 0;
+      }
+      select,
+      button {
+        font: inherit;
+        color: inherit;
+        letter-spacing: inherit;
+        background: none;
+        border: 1px solid var(--hair);
+      }
+      select {
+        border-width: 0 0 1px;
+        max-width: 26em;
+      }
+      button {
+        border-radius: 2px;
+        padding: 0 6px;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--grey);
+      }
+      button:disabled {
+        color: var(--faint);
+        border-color: var(--hair);
+        cursor: default;
+      }
+      /* Toggles, tabs and links are buttons, for the keyboard, set as text. */
+      .tog,
+      .tab,
+      .link {
+        border: 0;
+        padding: 0;
+      }
+      .mono {
+        font-family: var(--mono);
+        font-size: 11.5px;
+      }
+      #outcome {
+        flex: 1 1 30em;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #outcome.bad,
+      .banner,
+      .error,
+      .lanes tr.failed td,
+      .ins tr.failed > td,
+      .checks tr.bad td,
+      .guards span.bad {
+        color: var(--fail);
+      }
+      #outcome.ok,
+      #change,
+      .empty {
+        color: var(--grey);
+      }
+      .tog,
+      .tab,
+      .lanes tbody tr,
+      .records summary {
+        cursor: pointer;
+      }
+      .tog {
+        padding: 0 3px;
+        user-select: none;
+      }
+      /* Out of sight but in the tab order, outlining its label when focused. */
+      #file {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+      }
+      label:has(#file:focus-visible) {
+        outline: auto;
+      }
+      .tog.off,
+      .off {
+        color: var(--faint);
+        text-decoration: line-through;
+      }
+      .hint,
+      .note,
+      .tab,
+      .lanes .num,
+      .lanes tr.skipped td,
+      .lanes tr.unreplayed td,
+      .nodes .inactive,
+      .matrix th,
+      .ins tr.skipped > td {
+        color: var(--faint);
+      }
+      .hint {
+        font-size: 11px;
+      }
+      #overview {
+        display: block;
+        width: 100%;
+        border: solid var(--hair);
+        border-width: 1px 0;
+        cursor: crosshair;
+        touch-action: none;
+        user-select: none;
+      }
+      #overview text {
+        font: 9.5px var(--serif);
+        fill: var(--grey);
+      }
+      #overview text.lane {
+        font: 11px var(--mono);
+        fill: var(--ink);
+      }
+      #overview text.phl {
+        font-size: 9px;
+        fill: #44443f;
+        pointer-events: none;
+      }
+      #overview text.mark {
+        font-size: 10px;
+        fill: var(--ink);
+      }
+      #overview text.key {
+        font-size: 9px;
+      }
+      #overview text.mark.bad {
+        fill: var(--fail);
+      }
+      #overview text.mark.link {
+        fill: var(--link);
+      }
+      #overview text.mark.note {
+        fill: var(--faint);
+      }
+      #overview text.phl.dark,
+      #overview .labelbg {
+        fill: var(--bg);
+      }
+      /* Emoji in grey, dark enough to read at the weight of the text. */
+      .g.emoji,
+      #overview .emoji {
+        filter: grayscale(1) brightness(0.7) contrast(1.8);
+      }
+      .ph-gossiping {
+        fill: #ecebe2;
+      }
+      .ph-voting {
+        fill: #d2d0c5;
+      }
+      .ph-opening {
+        fill: #a5a398;
+      }
+      .ph-open {
+        fill: #5d5c56;
+      }
+      .ph-joining {
+        fill: url(#hatch);
+      }
+      .tick-retry {
+        stroke: #bdbcb2;
+      }
+      .tick-receive {
+        stroke: #77766f;
+      }
+      .tick-timeout,
+      .failmark {
+        stroke: var(--ink);
+        stroke-width: 1.5;
+      }
+      .failmark {
+        stroke: var(--fail);
+      }
+      .flight,
+      .spark path {
+        fill: none;
+        stroke: var(--grey);
+        stroke-width: 0.8;
+      }
+      .spark path {
+        stroke: #8c8b84;
+      }
+      .cursor {
+        stroke: var(--ink);
+      }
+      .skipped-region {
+        fill: var(--bg);
+        opacity: 0.7;
+      }
+      .linkmark {
+        stroke: var(--link);
+        stroke-width: 2;
+      }
+      main {
+        flex: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 11fr) minmax(0, 10fr);
+        min-height: 0;
+      }
+      #trace {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        border-right: 1px solid var(--hair);
+      }
+      .tabs {
+        padding: 3px 10px;
+        border-bottom: 1px solid var(--hair);
+      }
+      .tab {
+        margin-right: 14px;
+      }
+      .tab.cur {
+        color: var(--ink);
+      }
+      .tab.cur > span {
+        border-bottom: 1px solid var(--ink);
+      }
+      #rows,
+      #state {
+        overflow: auto;
+        min-height: 0;
+      }
+      #state {
+        padding: 4px 14px 48px;
+      }
+      table {
+        border-collapse: collapse;
+      }
+      .lanes {
+        width: 100%;
+        table-layout: fixed;
+        font: 11px/1.5 var(--mono);
+      }
+      .lanes th,
+      .lanes tr.file td {
+        font: small-caps 12.5px var(--serif);
+        text-align: left;
+        padding: 2px 6px;
+      }
+      .lanes th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--bg);
+        border-bottom: 1px solid var(--hair);
+      }
+      .lanes td {
+        padding: 0 6px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border-left: 1px solid var(--hair);
+      }
+      .lanes .num {
+        width: 4.6em;
+        text-align: right;
+        border-left: 0;
+        padding-right: 8px;
+      }
+      .lanes .seq {
+        width: 6em;
+      }
+      .lanes col.numcol {
+        width: 4.6em;
+      }
+      .lanes col.narrow {
+        width: 7.5em;
+      }
+      .lanes tbody tr {
+        scroll-margin-top: 24px;
+      }
+      .lanes tbody tr:hover td {
+        background: #f6f5ec;
+      }
+      .lanes tr.sel td {
+        background: #ecebdf;
+      }
+      .lanes tr.sel td.num {
+        color: var(--ink);
+        box-shadow: inset 2px 0 0 var(--ink);
+      }
+      .lanes tr.failed td.num {
+        background: var(--fail-bg);
+      }
+      .lanes tr.linked td {
+        background: #e3ebfb;
+      }
+      .lanes tr.hidden {
+        display: none;
+      }
+      .lanes tr.file td {
+        padding: 8px 6px 0;
+        border-left: 0;
+        color: var(--grey);
+        cursor: default;
+      }
+      .chg,
+      .matrix sup {
+        color: var(--accent);
+      }
+      td.chg,
+      span.chg.cell {
+        background: #fbe7d6;
+      }
+      .headline {
+        margin: 6px 0 2px;
+      }
+      .banner {
+        margin: 6px 0;
+      }
+      .nodes,
+      .ins {
+        font: 11px/1.45 var(--mono);
+      }
+      .nodes th {
+        font: small-caps 12.5px var(--serif);
+        text-align: left;
+        color: var(--grey);
+        padding: 0 14px 0 0;
+        vertical-align: top;
+        white-space: nowrap;
+      }
+      .nodes thead th {
+        color: var(--ink);
+        font: 11.5px var(--mono);
+      }
+      .nodes thead th.actor {
+        text-decoration: underline;
+      }
+      .nodes td {
+        padding: 0 16px 0 0;
+        vertical-align: top;
+        min-width: 10em;
+      }
+      .spark {
+        vertical-align: -2px;
+        margin: 0 3px 0 6px;
+      }
+      .spark circle {
+        fill: var(--ink);
+      }
+      .matrices {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 26px;
+        align-items: flex-start;
+      }
+      .matrix {
+        font: 11px/1.35 var(--mono);
+      }
+      .matrix th,
+      .matrix td {
+        text-align: right;
+        padding: 0 4px;
+        font-weight: normal;
+      }
+      .matrix td {
+        min-width: 3em;
+        border-left: 1px solid var(--hair);
+      }
+      .matrix td.dead {
+        color: var(--faint);
+        font-style: italic;
+      }
+      .matrix sup {
+        font-size: 9px;
+      }
+      .ins td {
+        vertical-align: top;
+        padding: 1px 8px 1px 0;
+      }
+      .ins td.note {
+        white-space: nowrap;
+      }
+      .checks {
+        margin: 3px 0;
+      }
+      .checks td,
+      .checks th {
+        padding: 0 12px 0 0;
+        text-align: left;
+        font-weight: normal;
+        vertical-align: top;
+        color: var(--ink);
+      }
+      .matrix caption,
+      .checks th {
+        font: small-caps 12px var(--serif);
+        text-align: left;
+        color: var(--grey);
+      }
+      .guards span {
+        margin-right: 12px;
+        color: var(--ink);
+      }
+      .error {
+        white-space: pre-wrap;
+        font: 11px/1.4 var(--mono);
+        background: var(--fail-bg);
+        padding: 4px 6px;
+        margin: 4px 0;
+      }
+      .records {
+        font: 10.5px/1.5 var(--mono);
+        color: #3a3a36;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .records summary {
+        list-style: none;
+      }
+      .records summary::-webkit-details-marker {
+        display: none;
+      }
+      .records summary::before {
+        content: "\25B8\00A0";
+        color: var(--faint);
+      }
+      .records details[open] > summary::before {
+        content: "\25BE\00A0";
+      }
+      .records details[open] > summary .compact {
+        display: none;
+      }
+      .records pre.json {
+        margin: 1px 0 6px 1.3em;
+        font: 11px/1.45 var(--mono);
+        white-space: pre;
+        word-break: normal;
+        overflow-x: auto;
+      }
+      .records .jk {
+        color: var(--grey);
+      }
+      /* The border is on the text, as it would be on an inline link. */
+      .link {
+        color: var(--link);
+      }
+      .link > span {
+        border-bottom: 1px dotted var(--link);
+      }
+      .empty {
+        padding: 10px 14px;
+      }
+      #tip {
+        position: fixed;
+        z-index: 10;
+        display: none;
+        pointer-events: none;
+        background: var(--bg);
+        border: 1px solid var(--hair);
+        padding: 2px 6px;
+        font: 11px var(--mono);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="bar">
+        <h1>Recovery trace</h1>
+        <select id="run" title="run"></select>
+        <label class="tog sc" title="open a dump written by --dump"
+          >open dump<input id="file" type="file" accept=".json"
+        /></label>
+        <span id="outcome"></span>
+      </div>
+      <div class="bar">
+        <span>
+          <button data-act="first" title="first step (Home)">|&larr;</button>
+          <button data-act="prev" title="previous step (left, k; shift for 10)">
+            &larr;
+          </button>
+          <button data-act="next" title="next step (right, j; shift for 10)">
+            &rarr;
+          </button>
+          <button data-act="last" title="last step (End)">&rarr;|</button>
+          <button id="fail" data-act="fail" title="the failing step (f)">
+            failure
+          </button>
+        </span>
+        <span id="counter" class="mono"></span>
+        <span id="nodes" class="mono"></span>
+        <span id="kinds" class="mono"></span>
+        <span class="hint"
+          >&larr; &rarr; j k step &middot; shift &times;10 &middot; f failure
+          &middot; l log order &middot; drag the overview &middot; hover a mark
+          or glyph for what it means</span
+        >
+      </div>
+      <div id="change" class="mono"></div>
+    </header>
+    <svg id="overview"></svg>
+    <main>
+      <section id="trace">
+        <div class="tabs sc">
+          <button
+            type="button"
+            class="tab"
+            data-mode="steps"
+            aria-pressed="false"
+          >
+            <span>replay order</span>
+          </button>
+          <button
+            type="button"
+            class="tab"
+            data-mode="log"
+            aria-pressed="false"
+          >
+            <span>log order</span>
+          </button>
+        </div>
+        <div id="rows"></div>
+      </section>
+      <section id="state"></section>
+    </main>
+    <div id="tip"></div>
+    <script src="viewer.js"></script>
+  </body>
+</html>
