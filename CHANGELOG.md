@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Concurrent first requests to JavaScript endpoints now safely initialise the named authentication policy registry. Previously, requests could fail with `Unknown auth policy` while another worker was still populating the registry (#8520).
 - Snapshot and ledger chunk discovery now reject malformed `since` selectors with HTTP `400` `InvalidQueryParameterValue`. Previously, snapshot discovery silently ignored them and ledger chunk discovery misreported them as missing parameters. See the [Ledger and Snapshots](doc/operations/ledger_snapshot.rst) operations documentation (#8532).
 - When the host reports that a ledger entry is missing or too large, the historical query cache now drops only the requests which were waiting for that entry. Previously, unrelated requests could also be dropped, including every in-flight request when the entry was being fetched to recover an older ledger secret (#8527).
+- Historical query cache ticks no longer scan every retained request and store, so retaining many historical queries is much cheaper. Unrepresentable cache times or expiry deadlines now throw instead of overflowing (#8525).
 
 ## [7.0.18]
 

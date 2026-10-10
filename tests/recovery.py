@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import tempfile
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import ccf.ledger
 import ccf.signatures
@@ -535,7 +535,7 @@ def run_reconfiguration_before_recovery_shares(args):
                 timeout=args.ledger_recovery_timeout,
             )
 
-            valid_from = datetime.now(timezone.utc)
+            valid_from = datetime.now(UTC)
             recovered_network.consortium.trust_node(
                 primary,
                 new_node.node_id,
@@ -2243,9 +2243,7 @@ def run_recover_snapshot_from_expired_node_certificate(args):
         recovered_network = None
         try:
             valid_from = str(
-                infra.crypto.datetime_to_X509time(
-                    datetime.now(timezone.utc) - timedelta(days=2)
-                )
+                infra.crypto.datetime_to_X509time(datetime.now(UTC) - timedelta(days=2))
             )
             validity_period_days = 1
             primary.verify_ca_by_default = False
@@ -2262,7 +2260,7 @@ def run_recover_snapshot_from_expired_node_certificate(args):
             _, valid_to = infra.crypto.get_validity_period_from_pem_cert(
                 primary.get_tls_certificate_pem()
             )
-            assert valid_to < datetime.now(timezone.utc), valid_to
+            assert valid_to < datetime.now(UTC), valid_to
 
             recovered_network = test_recover_service(
                 network,
