@@ -7,6 +7,7 @@
 #include "crypto/openssl/cose_verifier.h"
 #include "crypto/openssl/ec_public_key.h"
 
+#include <algorithm>
 #include <bit>
 #include <memory>
 #include <new>
@@ -26,8 +27,8 @@ namespace
   using tav::cbor::Kind;
   using tav::cbor::Value;
 
-  // COSE_Key labels, from RFC 9052 Section 7.1, RFC 9053 Section 7.1.1 and
-  // RFC 8230 Section 4
+  // COSE_Key labels, from RFC 9052 Section 7.1, RFC 9053 Sections 7.1.1 and
+  // 7.2, and RFC 8230 Section 4
   constexpr int64_t LABEL_KTY = 1;
   constexpr int64_t LABEL_KID = 2;
   constexpr int64_t LABEL_ALG = 3;
@@ -41,6 +42,9 @@ namespace
   // d, p, q, dP, dQ, qInv, other, r_i, d_i and t_i
   constexpr int64_t LABEL_RSA_PRIVATE_FIRST = -12;
   constexpr int64_t LABEL_RSA_PRIVATE_LAST = -3;
+  constexpr int64_t LABEL_OKP_CRV = -1;
+  constexpr int64_t LABEL_OKP_X = -2;
+  constexpr int64_t LABEL_OKP_D = -4;
 
   constexpr int64_t KEY_OP_VERIFY = 2;
 
@@ -48,6 +52,9 @@ namespace
   constexpr int64_t CRV_P256 = 1;
   constexpr int64_t CRV_P384 = 2;
   constexpr int64_t CRV_P521 = 3;
+  constexpr int64_t CRV_ED25519 = 6;
+
+  constexpr size_t ED25519_PUBLIC_KEY_SIZE = 32;
 
   // RFC 8230 Section 6.1 requires at least 2048 bits. The upper bound, also
   // OpenSSL's, limits the cost of verifying with a supplied key.
@@ -62,6 +69,40 @@ namespace
   [[noreturn]] void invalid(std::string_view reason)
   {
     throw std::invalid_argument(fmt::format("Invalid COSE_Key: {}", reason));
+  }
+
+  // An Ed25519 public key is the little-endian y coordinate, with the sign of
+  // the x coordinate in the top bit (RFC 8032 Section 5.1.2). Decoding fails
+  // if y is not below the field prime p = 2^255 - 19 (Section 5.1.3), but
+  // OpenSSL accepts such encodings, which would give a point several
+  // encodings and thumbprints.
+  bool ed25519_y_below_prime(std::span<const uint8_t> x)
+  {
+    // y >= p iff, from the most significant byte, the 255 bits are 0x7f, then
+    // 30 bytes of 0xff, then a byte of at least 0xed
+    if ((x.back() & 0x7f) != 0x7f || x.front() < 0xed)
+    {
+      return true;
+    }
+    return std::any_of(
+      x.begin() + 1, x.end() - 1, [](uint8_t byte) { return byte != 0xff; });
+  }
+
+  // Whether x is a canonical Ed25519 public key: 32 bytes, encoding a y
+  // coordinate below the field prime. Returns why it is not, or std::nullopt
+  // if it is.
+  std::optional<std::string> okp_key_error(std::span<const uint8_t> x)
+  {
+    if (x.size() != ED25519_PUBLIC_KEY_SIZE)
+    {
+      return fmt::format(
+        "x must be {} bytes long for Ed25519", ED25519_PUBLIC_KEY_SIZE);
+    }
+    if (!ed25519_y_below_prime(x))
+    {
+      return "x must encode a y coordinate below the Ed25519 field prime";
+    }
+    return std::nullopt;
   }
 
   int64_t cose_crv(CurveID curve)
@@ -81,6 +122,16 @@ namespace
         throw std::runtime_error(
           fmt::format("Curve {} has no COSE EC2 identifier", curve));
     }
+  }
+
+  int64_t cose_okp_crv(CurveID curve)
+  {
+    if (curve != CurveID::CURVE25519)
+    {
+      throw std::runtime_error(
+        fmt::format("Curve {} is not a COSE OKP signature curve", curve));
+    }
+    return CRV_ED25519;
   }
 
   struct COSECurve
@@ -149,6 +200,18 @@ namespace
     return encode_cose_key(COSEKeyType::RSA, std::move(items), alg, kid);
   }
 
+  std::vector<uint8_t> encode_cose_key(
+    const COSEKey::OKPParameters& parameters,
+    std::optional<int64_t> alg,
+    std::optional<std::span<const uint8_t>> kid)
+  {
+    using namespace tav::cbor;
+    std::vector<MapItem> items;
+    items.emplace_back(make_signed(LABEL_OKP_CRV), make_signed(parameters.crv));
+    items.emplace_back(make_signed(LABEL_OKP_X), make_bytes(parameters.x));
+    return encode_cose_key(COSEKeyType::OKP, std::move(items), alg, kid);
+  }
+
   COSEKey::EC2Parameters parameters_of(const ECPublicKey& key)
   {
     auto coordinates = key.coordinates();
@@ -164,8 +227,15 @@ namespace
     return {.n = raw_from_b64url(jwk.n), .e = raw_from_b64url(jwk.e)};
   }
 
+  COSEKey::OKPParameters parameters_of(const EdDSAPublicKey& key)
+  {
+    const auto jwk = key.public_key_jwk_eddsa();
+    return {
+      .crv = cose_okp_crv(key.get_curve_id()), .x = raw_from_b64url(jwk.x)};
+  }
+
   std::vector<uint8_t> encode_cose_key(
-    const std::variant<ECPublicKeyPtr, RSAPublicKeyPtr>& key,
+    const std::variant<ECPublicKeyPtr, RSAPublicKeyPtr, EdDSAPublicKeyPtr>& key,
     std::optional<int64_t> alg,
     std::optional<std::span<const uint8_t>> kid)
   {
@@ -390,6 +460,36 @@ namespace
     return make_rsa_public_key(jwk);
   }
 
+  EdDSAPublicKeyPtr parse_okp(const Value& map)
+  {
+    if (find_label(map, LABEL_OKP_D).has_value())
+    {
+      invalid("private key parameter d is not accepted");
+    }
+    const auto crv_value = find_label(map, LABEL_OKP_CRV);
+    if (!crv_value.has_value())
+    {
+      invalid("crv is missing");
+    }
+    const auto crv = require_int(crv_value.value(), "crv");
+    if (crv != CRV_ED25519)
+    {
+      invalid(fmt::format("unsupported crv {}", crv));
+    }
+    const auto x = require_bytes(map, LABEL_OKP_X, "x");
+    const auto error = okp_key_error(x);
+    if (error.has_value())
+    {
+      invalid(error.value());
+    }
+    // The JWK form of the key, which CCF imports
+    JsonWebKeyEdDSAPublic jwk;
+    jwk.kty = JsonWebKeyType::OKP;
+    jwk.crv = JsonWebKeyEdDSACurve::ED25519;
+    jwk.x = b64url_from_raw(x, false /* with_padding */);
+    return make_eddsa_public_key(jwk);
+  }
+
   void check_alg_matches_key(int64_t alg, const COSEKey& key)
   {
     // Throws for algorithms that CCF cannot verify
@@ -424,6 +524,19 @@ namespace ccf::crypto
     }
   }
 
+  COSEKey::COSEKey(EdDSAPublicKeyPtr key) :
+    COSEKey(PublicKey{key}, std::nullopt)
+  {
+    // Only Ed25519, before parameters_of() converts the curve
+    cose_okp_crv(non_null(key).get_curve_id());
+    const auto error = okp_key_error(parameters_of(*key).x);
+    if (error.has_value())
+    {
+      throw std::runtime_error(
+        fmt::format("Unsupported COSE OKP key: {}", error.value()));
+    }
+  }
+
   COSEKey COSEKey::from_cbor(std::span<const uint8_t> cose_key)
   {
     try
@@ -442,6 +555,9 @@ namespace ccf::crypto
           break;
         case static_cast<int64_t>(COSEKeyType::RSA):
           parsed = parse_rsa(map);
+          break;
+        case static_cast<int64_t>(COSEKeyType::OKP):
+          parsed = parse_okp(map);
           break;
         default:
           invalid(fmt::format("unsupported kty {}", kty_value));
@@ -487,6 +603,10 @@ namespace ccf::crypto
     {
       return COSEKeyType::RSA;
     }
+    if (std::holds_alternative<EdDSAPublicKeyPtr>(public_key))
+    {
+      return COSEKeyType::OKP;
+    }
     throw std::logic_error("Unsupported COSE_Key type");
   }
 
@@ -515,6 +635,16 @@ namespace ccf::crypto
     return parameters_of(**key);
   }
 
+  std::optional<COSEKey::OKPParameters> COSEKey::okp_parameters() const
+  {
+    const auto* key = std::get_if<EdDSAPublicKeyPtr>(&public_key);
+    if (key == nullptr)
+    {
+      return std::nullopt;
+    }
+    return parameters_of(**key);
+  }
+
   ECPublicKeyPtr COSEKey::ec_public_key() const
   {
     const auto* key = std::get_if<ECPublicKeyPtr>(&public_key);
@@ -524,6 +654,12 @@ namespace ccf::crypto
   RSAPublicKeyPtr COSEKey::rsa_public_key() const
   {
     const auto* key = std::get_if<RSAPublicKeyPtr>(&public_key);
+    return key == nullptr ? nullptr : *key;
+  }
+
+  EdDSAPublicKeyPtr COSEKey::eddsa_public_key() const
+  {
+    const auto* key = std::get_if<EdDSAPublicKeyPtr>(&public_key);
     return key == nullptr ? nullptr : *key;
   }
 

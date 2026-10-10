@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
 
+### Added
+
+- `ccf::crypto::COSEKey` now also parses, validates and encodes OKP COSE_Keys on Ed25519, and computes their RFC 9679 thumbprint. `ccf::crypto::make_cose_verifier_*()` and `ccf::crypto::COSEKey::from_der_cert()` now also accept Ed25519 public keys and certificates, and COSE verifiers verify `EdDSA` (-8) and `Ed25519` (-19) signatures with such keys (#8548).
+
 ### Changed
 
 - CCF no longer advances its subsystems in a single atomic tick step. Each subsystem schedules its own periodic work, which can run independently of other subsystems and incoming node messages (#8535).

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/ec_public_key.h"
+#include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/rsa_public_key.h"
 #include "ccf/crypto/sha256_hash.h"
 
@@ -18,6 +19,7 @@ namespace ccf::crypto
   /// COSE key types, from the IANA "COSE Key Types" registry.
   enum class COSEKeyType : uint8_t
   {
+    OKP = 1,
     EC2 = 2,
     RSA = 3,
   };
@@ -25,7 +27,8 @@ namespace ccf::crypto
   /**
    * A public key that verifies COSE_Sign1 signatures, as carried in a COSE_Key
    * (RFC 9052 Section 7): an EC2 key on P-256, P-384 or P-521 (RFC 9053
-   * Section 7.1.1), or an RSA key (RFC 8230 Section 4).
+   * Section 7.1.1), an OKP key on Ed25519 (RFC 9053 Section 7.2), or an RSA
+   * key (RFC 8230 Section 4).
    *
    * The key parameters, the encoding and the RFC 9679 thumbprint are derived
    * from the key on each call, so callers that use them repeatedly should keep
@@ -55,6 +58,15 @@ namespace ccf::crypto
       std::vector<uint8_t> e;
     };
 
+    /// OKP key parameters.
+    struct OKPParameters
+    {
+      /// COSE curve: 6 (Ed25519)
+      int64_t crv = 0;
+      /// Public key, 32 bytes for Ed25519
+      std::vector<uint8_t> x;
+    };
+
     /**
      * @throws std::invalid_argument if key is null
      * @throws std::runtime_error if the curve is not P-256, P-384 or P-521
@@ -70,16 +82,25 @@ namespace ccf::crypto
     explicit COSEKey(RSAPublicKeyPtr key);
 
     /**
+     * @throws std::invalid_argument if key is null
+     * @throws std::runtime_error if the curve is not Ed25519, or the key is
+     * not a canonical encoding, with y below the field prime
+     */
+    explicit COSEKey(EdDSAPublicKeyPtr key);
+
+    /**
      * Parse an encoded COSE_Key, which may be untrusted.
      *
      * Only public keys are accepted: EC2 keys whose coordinates have the
-     * curve's field size and form a point on the curve, and RSA keys of 2048
-     * to 16384 bits whose public exponent is odd, at least 3 and at most 64
-     * bits long. Compressed points, and RSA parameters with leading zero
-     * octets, are rejected, so that each key has a single encoding and
-     * thumbprint. "alg", if present, must be an algorithm that CCF can verify
-     * with the key, and "key_ops", if present, must allow verify. "kid" is not
-     * retained, and unknown labels are ignored.
+     * curve's field size and form a point on the curve, OKP keys on Ed25519
+     * whose x is 32 bytes long and encodes a y coordinate below the field
+     * prime, and RSA keys of 2048 to 16384 bits whose public exponent is odd,
+     * at least 3 and at most 64 bits long. Compressed EC2 points, Ed25519 y
+     * coordinates that are not below the field prime, and RSA parameters with
+     * leading zero octets, are rejected, so that each key has a single
+     * encoding and thumbprint. "alg", if present, must be an algorithm that
+     * CCF can verify with the key, and "key_ops", if present, must allow
+     * verify. "kid" is not retained, and unknown labels are ignored.
      *
      * @throws std::invalid_argument if cose_key is malformed or unsupported
      */
@@ -108,11 +129,17 @@ namespace ccf::crypto
     /// The key parameters, or std::nullopt if kty() is not RSA.
     [[nodiscard]] std::optional<RSAParameters> rsa_parameters() const;
 
+    /// The key parameters, or std::nullopt if kty() is not OKP.
+    [[nodiscard]] std::optional<OKPParameters> okp_parameters() const;
+
     /// The key, or nullptr if kty() is not EC2.
     [[nodiscard]] ECPublicKeyPtr ec_public_key() const;
 
     /// The key, or nullptr if kty() is not RSA.
     [[nodiscard]] RSAPublicKeyPtr rsa_public_key() const;
+
+    /// The key, or nullptr if kty() is not OKP.
+    [[nodiscard]] EdDSAPublicKeyPtr eddsa_public_key() const;
 
     /**
      * Deterministically encoded COSE_Key (RFC 8949 Section 4.2.1), with kty,
@@ -146,7 +173,8 @@ namespace ccf::crypto
     [[nodiscard]] Sha256Hash thumbprint_sha256() const;
 
   private:
-    using PublicKey = std::variant<ECPublicKeyPtr, RSAPublicKeyPtr>;
+    using PublicKey =
+      std::variant<ECPublicKeyPtr, RSAPublicKeyPtr, EdDSAPublicKeyPtr>;
 
     COSEKey(PublicKey public_key_, std::optional<int64_t> alg_);
 

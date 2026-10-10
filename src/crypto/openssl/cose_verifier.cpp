@@ -7,6 +7,7 @@
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/ec_public_key.h"
+#include "crypto/openssl/eddsa_public_key.h"
 #include "crypto/openssl/rsa_public_key.h"
 #include "ds/internal_logger.h"
 
@@ -89,6 +90,9 @@ namespace
           .kty = COSEKeyType::RSA,
           .digest = MDType::SHA512,
           .salt_length = SHA512_DIGEST_LENGTH};
+      case ccf::cose::alg::EDDSA:
+      case ccf::cose::alg::ED25519:
+        return {.kty = COSEKeyType::OKP};
       default:
         throw std::runtime_error(
           fmt::format("Unsupported COSE signature algorithm {}", alg));
@@ -156,6 +160,9 @@ namespace
         return COSEKey(std::make_shared<ECPublicKey_OpenSSL>(std::move(key)));
       case EVP_PKEY_RSA:
         return COSEKey(std::make_shared<RSAPublicKey_OpenSSL>(std::move(key)));
+      case EVP_PKEY_ED25519:
+        return COSEKey(
+          std::make_shared<EdDSAPublicKey_OpenSSL>(std::move(key)));
       default:
         throw std::runtime_error("Unsupported COSE public key type");
     }
@@ -361,6 +368,11 @@ namespace ccf::crypto
           parameters.digest,
           RSAPadding::PKCS_PSS,
           parameters.salt_length);
+      }
+      else if (const auto eddsa_key = verify_key.eddsa_public_key())
+      {
+        verified =
+          eddsa_key->verify(tbs.data(), tbs.size(), sig.data(), sig.size());
       }
       else
       {
