@@ -73,7 +73,7 @@ jobs:
           uv pip install -q pytest
           uv pip install -q -e python
           cd python
-          pytest
+          python ../tests/infra/test_reporting.py pytest
 
       - name: "Run Unit tests"
         run: |

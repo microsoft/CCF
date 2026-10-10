@@ -47,6 +47,29 @@ The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`
 File: `ci.yml`
 3rd party dependencies: None
 
+## Test failure annotations
+
+On GitHub Actions, `tests/tests.sh` automatically enables `tests/infra/test_reporting.py` to publish test failures as error annotations and a job-summary table.
+The Python SDK job invokes the reporter with `python ../tests/infra/test_reporting.py pytest`.
+Each invocation publishes up to ten annotations and 100 summary rows.
+Full test output is available in the job logs, with node logs in the log artifacts.
+
+Python e2e annotations identify the CTest test, concurrent scenario, logical case, exception, source location, and workspace prefix where available.
+Failures are captured by `ConcurrentRunner`, the e2e suite runner, and the shared CLI's uncaught-exception handler.
+Description decorators provide case names and descriptions.
+Child threads should use `infra.concurrency.Thread` (or `StoppableThread`) to retain their owning scenario.
+Uninstrumented threads can only be identified by the outer test and thread name.
+
+CTest and pytest XML results supply diagnostics for failures outside the Python e2e handlers, including native test failures, crashes, timeouts, and missing executables.
+Doctest assertion details supplement CTest's termination diagnostic.
+Setup or collection failures without test results receive a command-level annotation.
+Handled exceptions, intentional skips, and ordinary error log messages do not generate failure annotations.
+The reporter preserves failing command exit statuses and fails an otherwise successful invocation if reporting fails.
+
+Reporting options are managed by the wrapper and reporter.
+Intermediate results are stored per invocation under `build/test-results/` for CTest and `python/test-results/` for pytest; these directories are not uploaded.
+Local `./tests.sh ...` commands run CTest without XML reporting or GitHub annotations.
+
 # Continuous Integration AL4
 
 Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readiness for the move from Azure Linux 3, which `ci.yml` builds against. Runs daily on `main` on week days, and manually. It deliberately does not run on PRs, to keep PR feedback fast and limit pool usage.

@@ -12,6 +12,7 @@ from loguru import logger as LOG
 import infra.interfaces
 import infra.network
 import infra.path
+import infra.test_reporting
 
 # Every argument registered directly by cli_args must appear here. None means
 # that no single host configuration schema property applies to the argument.
@@ -718,6 +719,8 @@ def cli_args(
 
     if not args.package and args.js_app_bundle:
         args.package = "js_generic"
+
+    infra.test_reporting.install_exception_handler(args)
 
     if accept_unknown:
         return args, unknown_args

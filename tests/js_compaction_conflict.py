@@ -15,10 +15,10 @@ open, in a spin loop, while a second client writes to the map that the JS
 endpoint has not yet touched.
 """
 
-import threading
 import time
 from http import HTTPStatus
 
+import infra.concurrency
 import infra.network
 from loguru import logger as LOG
 
@@ -110,7 +110,7 @@ def test_compaction_conflict_is_retried(network, args):
             )
 
     LOG.info("Starting slow write, which holds a transaction open while spinning")
-    slow = threading.Thread(target=slow_write)
+    slow = infra.concurrency.Thread(target=slow_write)
     slow.start()
 
     # Let the slow endpoint fix its read version before advancing past it.
