@@ -10,7 +10,7 @@ import tempfile
 import time
 from contextlib import ExitStack
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from shutil import copy, rmtree
 
 import ccf.ledger
@@ -855,7 +855,7 @@ def test_join_straddling_primary_replacement(network, args):
                 "name": "transition_node_to_trusted",
                 "args": {
                     "node_id": new_node.node_id,
-                    "valid_from": str(datetime.now(timezone.utc)),
+                    "valid_from": str(datetime.now(UTC)),
                 },
             },
             {

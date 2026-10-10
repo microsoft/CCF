@@ -1144,22 +1144,17 @@ def test_datetime_api(network, args):
 
     with primary.client() as c:
         r = c.get("/time_now")
-        local_time = datetime.datetime.now(datetime.timezone.utc)
+        local_time = datetime.datetime.now(datetime.UTC)
         assert r.status_code == http.HTTPStatus.OK, r
         body = r.body.json()
 
-        # Python datetime "ISO" doesn't parse Z suffix, so replace it
-        definitely_now = body["definitely_now"].replace("Z", "+00:00")
-        definitely_1970 = body["definitely_1970"].replace("Z", "+00:00")
+        definitely_now = body["definitely_now"]
+        definitely_1970 = body["definitely_1970"]
 
         # Assume less than 5ms of execution time between grabbing timestamps, and confirm that untrustedDateTime has no effect
         service_time = datetime.datetime.fromisoformat(definitely_now)
-        untrusted_on = datetime.datetime.fromisoformat(
-            body["untrusted_on"].replace("Z", "+00:00")
-        )
-        untrusted_off = datetime.datetime.fromisoformat(
-            body["untrusted_off"].replace("Z", "+00:00")
-        )
+        untrusted_on = datetime.datetime.fromisoformat(body["untrusted_on"])
+        untrusted_off = datetime.datetime.fromisoformat(body["untrusted_off"])
         diff = (untrusted_on - service_time).total_seconds()
         assert diff < 0.005, diff
         diff = (untrusted_off - untrusted_on).total_seconds()
@@ -1169,7 +1164,7 @@ def test_datetime_api(network, args):
         diff = (local_time - service_time).total_seconds()
         assert abs(diff) < 1, diff
 
-        local_epoch_start = datetime.datetime.fromtimestamp(0, datetime.timezone.utc)
+        local_epoch_start = datetime.datetime.fromtimestamp(0, datetime.UTC)
         service_epoch_start = datetime.datetime.fromisoformat(definitely_1970)
         assert local_epoch_start == service_epoch_start, service_epoch_start
     return network
@@ -1248,9 +1243,9 @@ def test_reused_interpreter_behaviour(network, args):
     primary, _ = network.find_nodes()
 
     def timed(fn):
-        start = datetime.datetime.now(datetime.timezone.utc)
+        start = datetime.datetime.now(datetime.UTC)
         result = fn()
-        end = datetime.datetime.now(datetime.timezone.utc)
+        end = datetime.datetime.now(datetime.UTC)
         duration = (end - start).total_seconds()
         LOG.debug(f"({duration:.2f}s)")
         return duration, result

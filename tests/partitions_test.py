@@ -10,7 +10,7 @@ import subprocess
 import threading
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import ccf.ledger
 import infra.e2e_args
@@ -327,7 +327,7 @@ def test_expired_certs(network, args):
     def set_certs(from_days_diff, validity_period_days, nodes):
         valid_from = str(
             infra.crypto.datetime_to_X509time(
-                datetime.now(timezone.utc) + timedelta(days=from_days_diff)
+                datetime.now(UTC) + timedelta(days=from_days_diff)
             )
         )
         for node in nodes:
@@ -424,9 +424,7 @@ def test_rolled_back_node_certificate(network, args):
             renewed_node,
             renewed_node,
             valid_from=str(
-                infra.crypto.datetime_to_X509time(
-                    datetime.now(timezone.utc) - timedelta(days=1)
-                )
+                infra.crypto.datetime_to_X509time(datetime.now(UTC) - timedelta(days=1))
             ),
             validity_period_days=args.maximum_node_certificate_validity_days - 1,
             wait_for_commit=False,
@@ -520,7 +518,7 @@ def test_election_reconfiguration(network, args):
         network.consortium.trust_nodes(
             primary,
             [n.node_id for n in new_nodes],
-            valid_from=datetime.now(timezone.utc),
+            valid_from=datetime.now(UTC),
             wait_for_commit=False,
         )
 
@@ -608,7 +606,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         ccf.ledger.NodeStatus.PENDING,
         timeout=args.ledger_recovery_timeout,
     )
-    valid_from = datetime.now(timezone.utc)
+    valid_from = datetime.now(UTC)
     network.consortium.trust_node(
         primary,
         pending_node.node_id,
@@ -643,7 +641,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         network.consortium.trust_node(
             primary,
             trusted_node.node_id,
-            valid_from=datetime.now(timezone.utc),
+            valid_from=datetime.now(UTC),
             wait_for_commit=False,
         )
         trusted_node.wait_for_node_to_join(
@@ -668,7 +666,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         ccf.ledger.NodeStatus.PENDING,
         timeout=args.ledger_recovery_timeout,
     )
-    valid_from = datetime.now(timezone.utc)
+    valid_from = datetime.now(UTC)
     network.consortium.trust_node(
         primary,
         trusted_node.node_id,
