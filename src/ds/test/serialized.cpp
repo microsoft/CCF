@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "../serialized.h"
 
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
 template <class T>

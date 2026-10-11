@@ -1,0 +1,8 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_3.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_3.out
+@@ -35 +35 @@
+-RDP_TRACE {"chosen":"2","kind":"gossip_accepted","node":"0","post":"Voting","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":34,"source":"2","txid":"2.21","version":28}
++RDP_TRACE {"chosen":"2","kind":"gossip_accepted","node":"0","post":"Voting","post_timeout":"Gossiping","pre":"Gossiping","pre_timeout":"Gossiping","sequence":34,"source":"2","txid":"2.21","version":30}
+@@ -44 +44 @@
+-RDP_TRACE {"chosen":"2","kind":"iamopen_accepted","node":"0","post":"Joining","post_timeout":"Gossiping","pre":"Joining","pre_timeout":"Gossiping","restart":true,"sequence":43,"source":"2","version":30}
++RDP_TRACE {"chosen":"2","kind":"iamopen_accepted","node":"0","post":"Joining","post_timeout":"Gossiping","pre":"Joining","pre_timeout":"Gossiping","restart":true,"sequence":43,"source":"2","version":28}
