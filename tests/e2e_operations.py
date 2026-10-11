@@ -20,7 +20,7 @@ import tempfile
 import time
 import urllib.parse
 from contextlib import contextmanager, redirect_stdout
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import cbor2
 import ccf.ledger
@@ -5053,7 +5053,7 @@ def run_pending_node_expiration(const_args):
         primary, _ = network.find_primary()
         network.consortium.set_all_nodes_certificate_validity(
             primary,
-            datetime.now(timezone.utc),
+            datetime.now(UTC),
             args.maximum_node_certificate_validity_days,
         )
         network.wait_for_all_nodes_to_commit(primary)
