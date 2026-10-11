@@ -40,8 +40,10 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <iterator>
+#include <type_traits>
 
 #ifdef VALIJSON_USE_EXCEPTIONS
     #ifdef RAPIDJSON_ASSERT
@@ -116,7 +118,7 @@ public:
 
     /// Construct a RapidJsonArray referencing an empty array singleton.
     GenericRapidJsonArray()
-      : m_value(emptyArray()) { }
+      : m_value(emptyArray) { }
 
     /**
      * @brief   Construct a RapidJsonArray referencing a specific RapidJson
@@ -149,16 +151,8 @@ public:
 
 private:
 
-    /**
-     * @brief   Return a reference to a RapidJson value that is an empty array.
-     *
-     * Note that the value returned by this function is a singleton.
-     */
-    static const ValueType & emptyArray()
-    {
-        static const ValueType array(rapidjson::kArrayType);
-        return array;
-    }
+    /// Shared RapidJson ValueType instance used to represent empty array.
+    static inline const ValueType emptyArray = ValueType(rapidjson::kArrayType);
 
     /// Reference to the contained value
     const ValueType &m_value;
@@ -185,7 +179,7 @@ public:
 
     /// Construct a GenericRapidJsonObject referencing an empty object singleton.
     GenericRapidJsonObject()
-      : m_value(emptyObject()) { }
+      : m_value(emptyObject) { }
 
     /**
      * @brief   Construct a GenericRapidJsonObject referencing a specific
@@ -240,16 +234,8 @@ public:
 
 private:
 
-    /**
-     * @brief   Return a reference to a RapidJson value that is empty object.
-     *
-     * Note that the value returned by this function is a singleton.
-     */
-    static const ValueType & emptyObject()
-    {
-        static ValueType object(rapidjson::kObjectType);
-        return object;
-    }
+    /// Shared RapidJson ValueType instance used to represent empty object.
+    static inline const ValueType emptyObject = ValueType(rapidjson::kObjectType);
 
     /// Reference to the contained object
     const ValueType &m_value;
@@ -395,7 +381,7 @@ class GenericRapidJsonValue
 public:
     /// Construct a wrapper for the empty object singleton
     GenericRapidJsonValue()
-      : m_value(emptyObject()) { }
+      : m_value(emptyObject) { }
 
     /// Construct a wrapper for a specific RapidJson value
     GenericRapidJsonValue(const ValueType &value)
@@ -422,10 +408,10 @@ public:
      *
      * Otherwise it will return an empty optional.
      */
-    opt::optional<GenericRapidJsonArray<ValueType>> getArrayOptional() const
+    std::optional<GenericRapidJsonArray<ValueType>> getArrayOptional() const
     {
         if (m_value.IsArray()) {
-            return opt::make_optional(GenericRapidJsonArray<ValueType>(m_value));
+            return std::make_optional(GenericRapidJsonArray<ValueType>(m_value));
         }
 
         return {};
@@ -500,10 +486,10 @@ public:
      *
      * Otherwise it will return an empty optional.
      */
-    opt::optional<GenericRapidJsonObject<ValueType>> getObjectOptional() const
+    std::optional<GenericRapidJsonObject<ValueType>> getObjectOptional() const
     {
         if (m_value.IsObject()) {
-            return opt::make_optional(GenericRapidJsonObject<ValueType>(m_value));
+            return std::make_optional(GenericRapidJsonObject<ValueType>(m_value));
         }
 
         return {};
@@ -587,12 +573,8 @@ public:
 
 private:
 
-    /// Return a reference to an empty object singleton
-    static const ValueType & emptyObject()
-    {
-        static const ValueType object(rapidjson::kObjectType);
-        return object;
-    }
+    /// Shared RapidJson value instance used to represent an empty object
+    static inline const ValueType emptyObject = ValueType(rapidjson::kObjectType);
 
     /// Reference to the contained RapidJson value.
     const ValueType &m_value;
@@ -901,35 +883,26 @@ typedef GenericRapidJsonObjectMember<> RapidJsonObjectMember;
 typedef GenericRapidJsonObjectMemberIterator<> RapidJsonObjectMemberIterator;
 typedef GenericRapidJsonValue<> RapidJsonValue;
 
-/**
- * @brief  Specialisation of the AdapterTraits template struct for a
- *         RapidJsonAdapter that uses a pool allocator
- */
-template<>
-struct AdapterTraits<valijson::adapters::RapidJsonAdapter>
-{
-    typedef rapidjson::Document DocumentType;
-
-    static std::string adapterName()
-    {
-        return "RapidJsonAdapter";
-    }
-};
-
 typedef rapidjson::GenericValue<rapidjson::UTF8<>, rapidjson::CrtAllocator> RapidJsonCrt;
 
 /**
  * @brief  Specialisation of the AdapterTraits template struct for a
- *         RapidJsonAdapter that uses the default CRT allocator
+ *         RapidJsonAdapter
  */
-template<>
-struct AdapterTraits<valijson::adapters::GenericRapidJsonAdapter<RapidJsonCrt>>
+template<class ValueType>
+struct AdapterTraits<valijson::adapters::GenericRapidJsonAdapter<ValueType>>
 {
-    typedef rapidjson::GenericDocument<rapidjson::UTF8<>, rapidjson::CrtAllocator> DocumentType;
+    typedef rapidjson::GenericDocument<typename ValueType::EncodingType,
+            typename ValueType::AllocatorType> DocumentType;
 
     static std::string adapterName()
     {
-        return "GenericRapidJsonAdapter (using CrtAllocator)";
+        if constexpr (std::is_same_v<typename ValueType::AllocatorType,
+                rapidjson::CrtAllocator>) {
+            return "GenericRapidJsonAdapter (using CrtAllocator)";
+        }
+
+        return "RapidJsonAdapter";
     }
 };
 
