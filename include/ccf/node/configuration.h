@@ -56,8 +56,8 @@ namespace ccf
 
   struct CCFConfig
   {
-    // One more worker than configured is started, in addition to the dispatch
-    // thread. A configured value of 0 logs a warning (see
+    // One more worker than configured is started, in addition to the
+    // coordination thread. A configured value of 0 logs a warning (see
     // validate_and_coerce_worker_threads in src/host/run.cpp).
     size_t worker_threads = 1;
 

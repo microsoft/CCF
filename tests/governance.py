@@ -6,7 +6,7 @@ import os
 import random
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from hashlib import sha256
 
 import governance_api
@@ -367,7 +367,7 @@ def test_ack_state_digest_update(network, args):
 @reqs.description("Renew certificates of all nodes, one by one")
 def test_each_node_cert_renewal(network, args):
     primary, _ = network.find_primary()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     validity_period_allowed = args.maximum_node_certificate_validity_days - 1
     validity_period_forbidden = args.maximum_node_certificate_validity_days + 1
 
@@ -491,7 +491,7 @@ def test_service_cert_renewal(network, args, valid_from=None):
     return renew_service_certificate(
         network,
         args,
-        valid_from=valid_from or datetime.now(timezone.utc),
+        valid_from=valid_from or datetime.now(UTC),
         validity_period_days=args.maximum_service_certificate_validity_days - 1,
     )
 
@@ -500,7 +500,7 @@ def test_service_cert_renewal(network, args, valid_from=None):
 def test_service_cert_renewal_extended(network, args):
     validity_period_forbidden = args.maximum_service_certificate_validity_days + 1
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     test_vectors = [
         (now, None, None),  # Omit validity period (deduced from service configuration)
         (now, -1, infra.proposal.ProposalNotCreated),
@@ -556,7 +556,7 @@ def test_binding_proposal_to_service_identity(network, args):
 def test_all_nodes_cert_renewal(network, args, valid_from=None):
     primary, _ = network.find_primary()
 
-    valid_from = valid_from or datetime.now(timezone.utc)
+    valid_from = valid_from or datetime.now(UTC)
     validity_period_days = args.maximum_node_certificate_validity_days
 
     self_signed_node_certs_before = {}

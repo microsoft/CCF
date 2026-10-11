@@ -53,6 +53,10 @@ namespace ccf::crypto
     }
   }
 
+  EdDSAPublicKey_OpenSSL::EdDSAPublicKey_OpenSSL(Unique_PKEY&& pkey) :
+    key(pkey.release())
+  {}
+
   EdDSAPublicKey_OpenSSL::~EdDSAPublicKey_OpenSSL()
   {
     if (key != nullptr)

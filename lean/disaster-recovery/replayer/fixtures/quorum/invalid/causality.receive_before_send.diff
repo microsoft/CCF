@@ -1,0 +1,5 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_5.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_5.out
+@@ -13 +13 @@
+-RDP_TRACE {"kind":"vote_accepted","node":"2","open_kind":"Quorum","post":"Opening","post_timeout":"Gossiping","pre":"Voting","pre_timeout":"Gossiping","sequence":12,"source":"2","version":29}
++RDP_TRACE {"kind":"vote_accepted","node":"2","open_kind":"Quorum","post":"Opening","post_timeout":"Gossiping","pre":"Voting","pre_timeout":"Gossiping","sequence":12,"source":"2","version":25}
