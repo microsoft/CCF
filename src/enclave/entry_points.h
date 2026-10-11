@@ -4,9 +4,7 @@
 
 #include "ccf/node/configuration.h"
 #include "ccf/node/start_type.h"
-#include "common/configuration.h"
 #include "common/enclave_interface_types.h"
-#include "ds/work_beacon.h"
 #include "node/node_transport.h"
 #include "node/rpc/ledger_interface.h"
 #include "node/runtime_control.h"
@@ -20,7 +18,6 @@ namespace ccf
   // installed as a node subsystem and must outlive the node. node_transport is
   // the host-owned node-to-node transport, which must also outlive the node.
   CreateNodeStatus enclave_create_node(
-    const EnclaveConfig& enclave_config,
     const ccf::CCFConfig& ccf_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
@@ -28,7 +25,6 @@ namespace ccf
     StartType start_type,
     ccf::LoggerLevel log_level,
     size_t num_worker_thread,
-    const ccf::ds::WorkBeaconPtr& work_beacon,
     ccf::AbstractRuntimeControl& runtime_control,
     const std::shared_ptr<AbstractLedgerSubsystemInterface>& ledger_subsystem,
     const std::shared_ptr<AbstractNodeTransport>& node_transport);

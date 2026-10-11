@@ -13,16 +13,18 @@ To be clear being able to save 1 line of human readable code at the cost of 1000
 
 Within a model's library directory, use this layout:
 
-| Location          | Responsibility                                                                                       |
-| ----------------- | ---------------------------------------------------------------------------------------------------- |
-| `Model.lean`      | Assemble the executable model, including configuration and network composition.                      |
-| `Model/`          | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`. |
-| `Shared/`         | Reusable transition systems, network composition, and execution definitions.                         |
-| `Properties.lean` | Define the named claims as `def ... : Prop`.                                                         |
-| `Properties/`     | Definitions needed to state and understand those claims, such as state and trace predicates.         |
-| `Proof.lean`      | Export theorems establishing the named properties, linked to their checked implementations.          |
-| `Proofs/`         | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.            |
-| `Tests/`          | Executable model checks and regression cases.                                                        |
+| Location               | Responsibility                                                                                       |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `Model.lean`           | Assemble the executable model, including configuration and network composition.                      |
+| `Model/`               | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`. |
+| `Shared/`              | Reusable transition systems, network composition, and execution definitions.                         |
+| `Properties.lean`      | Define the named claims as `def ... : Prop`.                                                         |
+| `Properties/`          | Definitions needed to state and understand those claims, such as state and trace predicates.         |
+| `Proof.lean`           | Export theorems establishing the named properties, linked to their checked implementations.          |
+| `Proofs/`              | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.            |
+| `Tests/`               | Executable model checks and regression cases.                                                        |
+| `TraceValidation.lean` | Replay recorded implementation traces through the executable model.                                  |
+| `TraceValidation/`     | Parsing and ordering of those traces, for `TraceValidation.lean`.                                    |
 
 ## Dependency direction
 
