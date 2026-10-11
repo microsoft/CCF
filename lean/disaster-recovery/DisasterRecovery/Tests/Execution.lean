@@ -1,4 +1,11 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Shared.Execution
+
+/-! Regression cases for valid, invalid, and stuttering executions. -/
 
 namespace DisasterRecovery.Tests.Execution
 
@@ -15,7 +22,11 @@ private def counting : Trace Nat := { states := [0, 0, 1, 2] }
 private theorem counting_valid : counting.Valid counter := by
   refine ⟨⟨0, rfl, rfl⟩, ?_⟩
   intro i before after first second
-  rcases i with _ | _ | _ | i <;> simp [counting] at first second <;> subst_vars
+  rcases i with _ | _ | _ | i <;> simp only [counting, List.length_cons, List.length_nil,
+    Nat.zero_add, Nat.reduceAdd, Nat.zero_lt_succ, getElem?_pos, List.getElem_cons_zero,
+    Option.some.injEq, Nat.reduceLT, List.getElem_cons_succ, Nat.lt_add_one,
+    List.getElem?_cons_succ, Nat.not_lt, Nat.le_add_left, getElem?_neg,
+    reduceCtorEq] at first second <;> subst_vars
   · exact ⟨false, by simp [counter]⟩
   · exact ⟨true, by simp [counter]⟩
   · exact ⟨true, by simp [counter]⟩
@@ -34,7 +45,8 @@ example : ¬ (⟨[]⟩ : Trace Nat).Valid counter := by
 
 example : ¬ (⟨[1]⟩ : Trace Nat).Valid counter := by
   rintro ⟨⟨initial, first, initialized⟩, _⟩
-  simp at first
+  simp only [List.length_cons, List.length_nil, Nat.zero_add, Nat.lt_add_one, getElem?_pos,
+    List.getElem_cons_zero, Option.some.injEq] at first
   subst first
   simp [counter] at initialized
 

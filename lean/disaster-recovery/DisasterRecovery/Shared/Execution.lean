@@ -1,6 +1,9 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Shared.TransitionSystem
-
-namespace DisasterRecovery.Shared.Execution
 
 /-!
 Finite executions of a `TransitionSystem`. `Run` relates a start state, an
@@ -8,6 +11,8 @@ action list, and an end state. `Trace` is the state list an execution passes
 through; properties quantify over every valid `Trace`. Actions are not stored
 in a trace, so a step's action is existentially quantified where needed.
 -/
+
+namespace DisasterRecovery.Shared.Execution
 
 /-- `Run system start actions final`: executing `actions` from `start` reaches `final`. -/
 inductive Run {State Action : Type} (system : TransitionSystem State Action)
@@ -37,7 +42,8 @@ theorem Trace.Valid.reachable {system : TransitionSystem State Action}
     (member : state ∈ trace.states)
     : system.Reachable state := by
   obtain ⟨i, found⟩ := List.mem_iff_getElem?.mp member
-  have reaches : forall (i : Nat) current, trace.states[i]? = some current -> system.Reachable current := by
+  have reaches : forall (i : Nat) current,
+      trace.states[i]? = some current -> system.Reachable current := by
     intro i
     induction i with
     | zero =>

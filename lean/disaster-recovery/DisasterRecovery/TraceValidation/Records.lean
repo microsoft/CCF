@@ -1,7 +1,10 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.TraceValidation
 import Lean.Data.Json
-
-set_option autoImplicit false
 
 /-!
 Extracts recovery-decision-protocol records from CCF node logs, and checks
@@ -11,9 +14,12 @@ followed by a JSON object, and log `Failed to trace recovery-decision-protocol`
 when they cannot.
 -/
 
+set_option autoImplicit false
+
 namespace DisasterRecovery.TraceValidation
 
-open Lean Model.Local
+open Lean (Json)
+open Model.Local
 
 /-- Why a trace is not accepted. -/
 inductive Failure where

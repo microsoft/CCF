@@ -1,7 +1,14 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Proofs.Quorum
 import DisasterRecovery.Proofs.Local
 import DisasterRecovery.Properties.Utils
 import DisasterRecovery.Shared.Execution
+
+/-! Erasure and lifting between executable and decorated recovery steps. -/
 
 namespace DisasterRecovery.Proofs.Lifting
 
@@ -46,7 +53,8 @@ private lemma send_messages_run {Node Message Notification : Type}
           { outputs with outgoing := outputs.outgoing ++ [{ source, target, payload := message }] })
           PUnit.unit tail).run
           { accumulated with
-            outgoing := accumulated.outgoing ++ [{ source, target := head, payload := message }] } = _
+            outgoing := accumulated.outgoing ++ [{ source, target := head, payload := message }] }
+          = _
       rw [ih]
       simp
 
@@ -65,7 +73,12 @@ lemma step_recording_appends (config : Config) (source : Location) (recovered : 
         }
       ) := by
   cases event <;> try cases_type Validation
-  all_goals simp [step, advance, rejected, guard, failure] at enabled
+  all_goals simp only [step, bne_iff_ne, ne_eq, rejected, bind_pure_comp, Option.pure_def, advance,
+    ge_iff_le, Bool.or_eq_true, decide_eq_true_eq, Bool.and_eq_true, List.isEmpty_iff,
+    Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not, not_le, ite_not,
+    Option.some.injEq, Option.getD_some, guard, beq_iff_eq, List.isEmpty_eq_false_iff, failure,
+    List.forIn_yield_eq_foldlM, id_map', Option.bind_eq_bind, List.filter_eq_nil_iff,
+    Decidable.not_not, not_forall] at enabled
   all_goals
     repeat' first
       | split at enabled
@@ -102,19 +115,29 @@ lemma advance_erases (config : Config) (source : Location) (state : NodeState)
     : (Execution.Local.advance config state timeout).map eraseOutput
       = (advance (Capabilities.record source) config state timeout).map
           (fun execute => capture (execute.run {})) := by
-  cases phase : state.phase <;> simp [Execution.Local.advance, advance, phase]
+  cases phase : state.phase <;> simp only [Execution.Local.advance, phase, ge_iff_le,
+    Bool.or_eq_true, decide_eq_true_eq, advance, Bool.and_eq_true, List.isEmpty_iff,
+    Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not, not_le, bind_pure_comp,
+    Option.map_some, StateT.run_pure, Option.some.injEq]
   all_goals repeat first
     | rfl
     | exact ⟨rfl, rfl⟩
-    | simp_all [eraseOutput, Execution.Local.Effect.diagnostic, capture, Capabilities.record]
+    | simp_all only [capture, Option.map_none, Option.map_some, eraseOutput,
+      Execution.Local.Effect.diagnostic, List.filterMap_nil, StateT.run_pure, Option.some.injEq,
+      Result.mk.injEq, List.nil_eq, Capabilities.record, List.filterMap_cons_some, StateT.run_map,
+      StateT.run_modify, List.nil_append, map_pure]
     | split
 
 lemma advance_accepted (config : Config) (state : NodeState) (timeout : Bool)
     (output : Execution.Local.StepOutput)
     (h : Execution.Local.advance config state timeout = some output)
     : output.accepted = true := by
-  simp [Execution.Local.advance] at h
-  repeat first | split at h | simp_all | subst output
+  simp only [Execution.Local.advance, ge_iff_le, Bool.or_eq_true, decide_eq_true_eq,
+    Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+    decide_eq_false_iff_not, not_le] at h
+  repeat first | split at h | simp_all only [reduceCtorEq, Option.some.injEq, not_or, not_le,
+    Bool.not_eq_true, List.length_nil, nonpos_iff_eq_zero, or_true, true_and, not_and, not_lt] |
+    subst output
 
 lemma step_erases (config : Config) (recovered : TxID) (state : NodeState) (event : Event)
     {source : Location}
@@ -127,12 +150,19 @@ lemma step_erases (config : Config) (recovered : TxID) (state : NodeState) (even
   cases event <;> try cases_type Validation
   case retry =>
     cases phase : state.phase <;> cases chosen : state.chosen <;>
-      simp [step, phase, chosen, guard] at h
+      simp only [step, phase, guard, beq_iff_eq, reduceCtorEq, ↓reduceIte, Option.isSome_none,
+        Bool.false_or, Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq,
+        Option.pure_def, Option.failure_eq_none, ite_not, bind_pure_comp,
+        List.forIn_yield_eq_foldlM, id_map', Option.bind_eq_bind, Option.map_bind,
+        Function.comp_apply, Option.map_some, StateT.run_map, BEq.rfl, chosen, Option.isSome_some,
+        Bool.true_or, Option.bind_some, StateT.run_bind, Option.some.injEq, List.filter_eq_nil_iff,
+        bne_iff_ne, Decidable.not_not, not_forall, Option.map_none] at h
     all_goals try split at h
     all_goals try simp_all only [Option.bind_some, Option.bind_none, Option.some.injEq]
     all_goals try contradiction
     all_goals
-      simp [send_messages_run, capture, Capabilities.record] at h
+      simp only [capture, Capabilities.record, send_messages_run, List.nil_append,
+        StateT.run_modify, pure_bind, List.cons_append] at h
     all_goals change ({ state } : Result) = output at h
     all_goals
       simpa [Execution.Local.step, Execution.Local.transitionSystem,
@@ -140,13 +170,27 @@ lemma step_erases (config : Config) (recovered : TxID) (state : NodeState) (even
         Execution.Local.Effect.diagnostic] using h
   all_goals cases phase : state.phase
   all_goals
-    simp [step, Execution.Local.step, Execution.Local.transitionSystem,
-      Execution.Local.rejectionReason, Execution.Local.rejected, rejected,
-      advance, Execution.Local.advance, phase, validTimeout, guard, failure] at h ⊢
+    simp only [step, bne_iff_ne, ne_eq, rejected, bind_pure_comp, Option.pure_def, advance, phase,
+      ge_iff_le, validTimeout, Bool.false_and, Bool.or_false, decide_eq_true_eq, ite_not,
+      Option.map_eq_some_iff, Execution.Local.step, Execution.Local.transitionSystem, guard,
+      failure, Execution.Local.advance, Bool.false_eq_true, ↓reduceIte, Option.bind_eq_bind,
+      Bool.true_and, Bool.or_eq_true, Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not,
+      Bool.not_true, decide_eq_false_iff_not, not_le, Option.bind_some, Execution.Local.rejected,
+      Execution.Local.rejectionReason, Option.getD_some, Option.map_some, StateT.run_map,
+      Option.some.injEq, reduceCtorEq, Option.bind_none, Option.getD_none, StateT.run_pure,
+      not_false_eq_true, and_self, not_true_eq_false, and_true, Option.bind_fun_none,
+      and_false] at h ⊢
   all_goals
     repeat first
       | exact h
-      | (simp_all [eraseOutput, Execution.Local.Effect.diagnostic, capture, Capabilities.record])
+      | (simp_all only [Capabilities.record, capture, eraseOutput,
+        Execution.Local.Effect.diagnostic, Option.some.injEq, exists_eq_left', ↓reduceIte,
+        Option.bind_some, Option.getD_none, StateT.run_map, StateT.run_modify, List.nil_append,
+        map_pure, List.filterMap_cons_some, List.filterMap_nil, Option.getD_some, StateT.run_pure,
+        not_le, Option.bind_none, Option.bind_fun_none, reduceCtorEq, false_and, exists_const,
+        not_or, or_false, List.length_nil, nonpos_iff_eq_zero, or_true, and_self, not_and,
+        forall_const, and_false, not_lt, not_true_eq_false, not_false_eq_true,
+        implies_true, or_self])
       | split at h
       | split
       | (simp [advance, Execution.Local.advance] at h ⊢)
@@ -206,8 +250,11 @@ lemma transition_messages_empty (config : Config) (state : NodeState)
     : messages source recovered (Execution.Local.step config state event).effects
       = [] := by
   cases event <;> try cases_type Validation
-  all_goals simp [Execution.Local.step, Execution.Local.transitionSystem,
-    Execution.Local.rejected, Execution.Local.advance, guard, failure]
+  all_goals simp only [Execution.Local.step, Execution.Local.transitionSystem, guard,
+    Option.pure_def, failure, Execution.Local.advance, ge_iff_le, Bool.or_eq_true,
+    decide_eq_true_eq, Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+    decide_eq_false_iff_not, not_le, Option.bind_eq_bind, ne_eq, ↓reduceIte, Option.bind_some,
+    Execution.Local.rejected, reduceCtorEq, Option.bind_none, Option.getD_none, Option.getD_some]
   all_goals repeat first | split | simp_all [messages]
 
 lemma retry_messages_erases (config : Model.Config) (source : Location)
@@ -223,8 +270,9 @@ lemma retry_messages_erases (config : Model.Config) (source : Location)
   | nil => rfl
   | cons effect tail ih =>
       cases effect <;>
-        simp [messages, List.filterMap_cons, Execution.Global.messageForEffect,
-          found', eraseEnvelope] at ih ⊢ <;> exact ih
+        simp only [Execution.Global.messageForEffect, found', Option.pure_def, Option.bind_eq_bind,
+          Option.bind_some, messages, Option.some.injEq, List.filterMap_cons_some, List.map_cons,
+          eraseEnvelope, List.cons.injEq, true_and, List.filterMap_cons] at ih ⊢ <;> exact ih
 
 lemma retry_result (config : Config) (source : Location) (recovered : TxID)
     (state : NodeState) (host : Capabilities Location Message Notification)
@@ -267,19 +315,25 @@ lemma local_step_run (config : Config) (source : Location) (recovered : TxID)
       all_goals rfl
   | receiveGossip sender txid validation =>
       rw [transition_messages_empty config state _ source recovered (by intro h; cases h)]
-      simp [step, advance, rejected, bind, pure]
+      simp only [step, pure, rejected, bind, bne_iff_ne, ne_eq, advance, ge_iff_le, Bool.or_eq_true,
+        decide_eq_true_eq, Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+        decide_eq_false_iff_not, not_le, ite_not]
       repeat first | split | rfl
   | receiveVote sender validation =>
       rw [transition_messages_empty config state _ source recovered (by intro h; cases h)]
-      simp [step, advance, rejected, bind, pure]
+      simp only [step, pure, rejected, bind, advance, ge_iff_le, Bool.or_eq_true, decide_eq_true_eq,
+        Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+        decide_eq_false_iff_not, not_le]
       repeat first | split | rfl
   | receiveIAmOpen sender validation =>
       rw [transition_messages_empty config state _ source recovered (by intro h; cases h)]
-      simp [step, advance, rejected, bind, pure]
+      simp only [step, pure, rejected, bind, advance, Option.getD_some]
       repeat first | split | rfl
   | timeout =>
       rw [transition_messages_empty config state _ source recovered (by intro h; cases h)]
-      simp [step, advance, bind, pure]
+      simp only [step, advance, ge_iff_le, Bool.or_eq_true, decide_eq_true_eq, pure,
+        Bool.and_eq_true, List.isEmpty_iff, bind, Bool.not_eq_eq_eq_not, Bool.not_true,
+        decide_eq_false_iff_not, not_le]
       repeat first | split | rfl
 
 lemma retry_recorded (config : Config) (source : Location) (recovered : TxID)
@@ -338,15 +392,20 @@ lemma scheduled_step_some (config : Model.Config) (before after : Model.State)
                   ++ messages node recovered
                       (Execution.Local.step config.protocol state event).effects
             } := by
-  simp [Model.protocol, Option.bind_assoc, Option.bind_eq_some_iff, guard, failure] at h
+  simp only [guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Model.protocol, Option.bind_eq_bind, beq_iff_eq, Option.bind_assoc, Option.bind_eq_some_iff,
+    ite_eq_left_iff, reduceCtorEq, imp_false, Decidable.not_not, exists_const] at h
   rcases h with ⟨active, state, found, recovered, recoveredFound, execute, enabled, result⟩
   obtain ⟨next, sent, executed⟩ :
       exists next sent, execute.run {} = (next, sent) := ⟨_, _, rfl⟩
   simp only [executed] at result
   have run : (step (Capabilities.record node)
-      config.protocol recovered state event).map (fun execute => execute.run {}) = some (execute.run {}) := by
+      config.protocol recovered state event).map (fun execute => execute.run {})
+      = some (execute.run {}) := by
     simp [enabled]
-  simp [local_step_run, executed, Option.bind_eq_some_iff, guard, failure] at run
+  simp only [local_step_run, guard, Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff,
+    ne_eq, Option.pure_def, failure, ite_not, Option.bind_eq_bind, executed,
+    Option.bind_eq_some_iff, Option.map_eq_some_iff, exists_exists_and_eq_and] at run
   rcases run with ⟨localExecute, localEnabled, rest⟩
   refine ⟨
     state,
@@ -415,7 +474,8 @@ lemma systemStep_of_result (config : Model.Config)
             },
             Execution.Local.step config.protocol state event
           ) := by
-  have states := congrArg Result.state (step_erases config.protocol recovered state event output trans)
+  have states :=
+    congrArg Result.state (step_erases config.protocol recovered state event output trans)
   change (Execution.Local.step config.protocol state event).state = output.state at states
   unfold Execution.Global.nodeState at found
   simp [Execution.Local.systemStep, found, states,
@@ -460,7 +520,8 @@ lemma step_lifts (config : Model.Config)
       | timeout =>
           rcases scheduled_step_some config (erase before) after node .timeout h with
             ⟨state, output, recovered, active, found, trans, _, _, result⟩
-          have system := systemStep_of_result config before node .timeout recovered state output found trans
+          have system :=
+            systemStep_of_result config before node .timeout recovered state output found trans
           have accepted := timeout_accepted config.protocol recovered state output trans
           have noMessages := transition_messages_empty config.protocol state .timeout node recovered
             (by intro impossible; cases impossible)
@@ -479,22 +540,28 @@ lemma step_lifts (config : Model.Config)
   | deliver envelope =>
       have membership : envelope ∈ (erase before).network := by
         by_contra absent
-        simp [Model.transitionSystem, MultiNodeTransitionSystem.lift, MultiNodeTransitionSystem.next, guard, failure, absent] at h
+        simp [Model.transitionSystem, MultiNodeTransitionSystem.lift,
+          MultiNodeTransitionSystem.next, guard, failure, absent] at h
       rcases first_matching_envelope before.network envelope membership with
         ⟨decorated, member, projected, removed, _⟩
       rcases scheduled_step_some config
-          { erase before with network := MultiNodeTransitionSystem.removeOne envelope (erase before).network }
+          { erase before with
+            network := MultiNodeTransitionSystem.removeOne envelope (erase before).network }
           after envelope.target (Model.receive envelope.source envelope.payload)
           (by
-            simp [Model.transitionSystem, MultiNodeTransitionSystem.lift, MultiNodeTransitionSystem.next,
-              membership, guard, failure, MultiNodeTransitionSystem.nodeState] at h ⊢
+            simp only [Model.transitionSystem, MultiNodeTransitionSystem.lift, Prod.forall,
+              MultiNodeTransitionSystem.next, guard, List.contains_eq_mem, membership, decide_true,
+              ↓reduceIte, Option.pure_def, decide_eq_true_eq, failure,
+              MultiNodeTransitionSystem.nodeState, beq_iff_eq, Option.bind_eq_bind,
+              Option.bind_some] at h ⊢
             exact h) with
         ⟨state, output, recovered, active, found, trans, _, _, result⟩
       have eventEq : Execution.Global.eventFor decorated =
           Model.receive envelope.source envelope.payload := by
         rw [← projected]
         cases decorated.payload <;> rfl
-      have targetEq : decorated.target = envelope.target := congrArg Shared.Envelope.target projected
+      have targetEq : decorated.target = envelope.target :=
+        congrArg Shared.Envelope.target projected
       have ghostFound : Execution.Global.nodeState before decorated.target = some state := by
         simpa [MultiNodeTransitionSystem.nodeState, Execution.Global.nodeState, erase,
           targetEq]

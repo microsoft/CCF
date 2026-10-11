@@ -1,5 +1,12 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Shared.Execution
 import Mathlib.Tactic
+
+/-! Finite transition paths and their reachable states. -/
 
 namespace DisasterRecovery.Proofs.Trace
 

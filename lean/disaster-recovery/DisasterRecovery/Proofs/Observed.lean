@@ -1,4 +1,11 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Proofs.Lifting
+
+/-! Opening thresholds and their relation to observed notifications. -/
 
 namespace DisasterRecovery.Proofs.Observed
 
@@ -33,12 +40,23 @@ lemma step_preserves_opening_threshold (config : Config) (state : NodeState)
   cases kind <;> by_cases empty : state.votes = [] <;>
     cases event <;> try cases_type DisasterRecovery.Model.Local.Validation
   all_goals
-    simp [step, Execution.Local.transitionSystem, rejectionReason, rejected, advance,
-      advanceTimeoutLane, guard, failure]
+    simp only [step, Execution.Local.transitionSystem, guard, Option.pure_def, failure, advance,
+      ge_iff_le, Bool.or_eq_true, decide_eq_true_eq, advanceTimeoutLane, Bool.false_eq_true,
+      ↓reduceIte, Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+      decide_eq_false_iff_not, not_le, Option.bind_eq_bind, ne_eq, Option.bind_some, rejected,
+      rejectionReason, bne_iff_ne, ite_not, reduceCtorEq, Option.bind_none, Option.getD_none,
+      Option.getD_some]
   all_goals
     repeat' first
       | split
-      | simp_all [validTimeout, ← List.length_eq_zero_iff]
+      | simp_all only [List.length_nil, zero_le, implies_true, ↓reduceIte, nonpos_iff_eq_zero, ←
+        List.length_eq_zero_iff, validTimeout, Bool.false_and, Bool.false_eq_true, or_false,
+        Option.bind_fun_none, Option.getD_none, Std.le_refl, Option.bind_some, Option.getD_some,
+        not_le, false_and, and_true, not_false_eq_true, lt_self_iff_false, and_self,
+        reduceCtorEq, Option.bind_none, not_true_eq_false, and_false, not_and, Decidable.not_not,
+        imp_false, Bool.true_and, decide_eq_true_eq, not_or, decide_false, Bool.and_false,
+        forall_const, Option.some.injEq, IsEmpty.forall_iff, not_lt, ge_iff_le, one_ne_zero,
+        or_true]
       | exact fun chosen => Nat.le_trans (threshold chosen) (grows _)
       | omega
       | tauto
@@ -60,7 +78,8 @@ lemma systemStep_preserves_opening_thresholds
             entry.2.openKind = some kind
             -> (if kind = .quorum then voteQuorum config.protocol else 1)
                 <= entry.2.votes.length := by
-  simp [systemStep, Option.bind_eq_some_iff] at trans
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq, Prod.mk.injEq] at trans
   rcases trans with ⟨state, found, rfl, rfl⟩
   rcases found with ⟨key, selectedFound⟩
   have selectedMember := List.mem_of_find?_eq_some selectedFound
@@ -80,17 +99,25 @@ lemma next_preserves_opening_thresholds (config : Model.Config) (before after : 
     : OpeningThresholds config after := by
   cases action with
   | retry source =>
-      simp [next, guard, failure, Option.bind_eq_some_iff] at trans
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at trans
       rcases trans with ⟨_, state, _, _, rfl⟩
       exact threshold
   | deliver envelope =>
-      simp [next, guard, failure, Option.bind_eq_some_iff] at trans
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at trans
       rcases trans with ⟨_, _, system, output, systemStep, rfl⟩
       simpa [OpeningThresholds]
         using systemStep_preserves_opening_thresholds config before.system system
           envelope.target (eventFor envelope) output threshold systemStep
   | timeout target =>
-      simp [next, guard, failure, Option.bind_eq_some_iff] at trans
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+        Prod.exists] at trans
       rcases trans with ⟨_, system, output, systemStep, _, rfl⟩
       simpa [OpeningThresholds]
         using systemStep_preserves_opening_thresholds config before.system system
@@ -136,14 +163,15 @@ lemma notification_opening_state {config : Model.Config} {trace : Properties.Glo
         /\ current.openKind = some kind := by
   obtain ⟨before, after, action, nodeBefore, nodeAfter, execute, outputs,
     _, atAfter, _, _, _, foundAfter, enabled, run, notified⟩ := notification
-  simp [Model.protocol, Option.bind_eq_some_iff] at enabled
+  simp only [Model.protocol, Option.bind_eq_bind, Option.bind_eq_some_iff] at enabled
   obtain ⟨recovered, _, enabled⟩ := enabled
   have erased := Lifting.step_erases config.protocol recovered nodeBefore (source := node)
     (Properties.Trace.event action) { state := nodeAfter, effects := outputs.notifications }
     (by simp [enabled, run, Lifting.capture])
   have stateEq := congrArg Lifting.Result.state erased
   have notifications := congrArg Lifting.Result.effects erased
-  change (step config.protocol nodeBefore (Properties.Trace.event action)).state = nodeAfter at stateEq
+  change (step config.protocol nodeBefore (Properties.Trace.event action)).state
+    = nodeAfter at stateEq
   change
     (step config.protocol nodeBefore (Properties.Trace.event action)).effects.filterMap
       Effect.diagnostic = outputs.notifications at notifications

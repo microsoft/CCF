@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Proofs.Predicates
 import DisasterRecovery.Proofs.Quorum
 import DisasterRecovery.Properties.Utils
@@ -70,7 +75,7 @@ lemma foldl_selectMaximum_upper_bound
     : TxID.EarlierThan member.2 (tail.foldl selectMaximum current).2 := by
   induction tail generalizing current member with
   | nil =>
-      simp at membership
+      simp only [List.not_mem_nil, or_false] at membership
       subst member
       exact prefix_refl current.2
   | cons candidate rest ih =>
@@ -100,7 +105,7 @@ lemma maximumGossip_upper_bound
   cases gossips with
   | nil => simp at membership
   | cons head tail =>
-      simp [maximumGossip] at maximum
+      simp only [maximumGossip, Option.some.injEq] at maximum
       rw [←maximum]
       apply foldl_selectMaximum_upper_bound head member tail
       simpa using membership
@@ -135,7 +140,7 @@ lemma maximumGossip_mem
   cases gossips with
   | nil => simp [maximumGossip] at maximum
   | cons head tail =>
-      simp [maximumGossip] at maximum
+      simp only [maximumGossip, Option.some.injEq] at maximum
       rw [←maximum]
       exact foldl_selectMaximum_mem head tail
 

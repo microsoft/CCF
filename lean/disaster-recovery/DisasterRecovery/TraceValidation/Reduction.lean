@@ -1,6 +1,9 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.TraceValidation.Records
-
-set_option autoImplicit false
 
 /-!
 Orders the records of one recovery-decision-protocol run as the nodes committed
@@ -11,9 +14,11 @@ the executions that read at its version. The replay checks everything else.
 `replayer/README.md` gives the rules.
 -/
 
+set_option autoImplicit false
+
 namespace DisasterRecovery.TraceValidation
 
-open Lean Model.Local
+open Model.Local
 
 /-- How many nodes take part in the e2e scenario. -/
 structure Scenario where

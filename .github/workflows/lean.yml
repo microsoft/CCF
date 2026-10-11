@@ -6,6 +6,9 @@ on:
       - "lean/**"
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
+      - "scripts/lean-lint-checks.sh"
+      - "scripts/lean_lint.py"
+      - "scripts/test_lean_lint.py"
       - ".github/workflows/lean.yml"
 
 concurrency:
@@ -29,7 +32,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y elan
-          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+          elan toolchain install "$(cat lean/lean-toolchain)"
 
       - name: Restore Mathlib cache
         working-directory: lean/disaster-recovery
@@ -47,6 +50,12 @@ jobs:
           lake build --wfail
           lake lint
           lake exe canonical-checks
+
+      - name: Check source and style in all Lean packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/lean-lint-checks.sh
 
       - name: Check recovery trace fixtures against their schema
         shell: bash

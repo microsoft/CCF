@@ -1,0 +1,12 @@
+name = "ccf_lean_lint"
+version = "0.1.0"
+moreLeanArgs = ["-DwarningAsError=true"]
+defaultTargets = ["SourceLint"]
+
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4.git"
+rev = "v4.34.0"
+
+[[lean_lib]]
+name = "SourceLint"

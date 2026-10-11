@@ -1,5 +1,12 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Shared.MultiNodeTransitionSystem
 import DisasterRecovery.Model.Local
+
+/-! Network composition of the local disaster recovery protocol. -/
 
 namespace DisasterRecovery.Model
 

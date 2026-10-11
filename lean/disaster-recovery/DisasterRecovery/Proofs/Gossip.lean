@@ -1,7 +1,14 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Properties
 import DisasterRecovery.Proofs.History
 import DisasterRecovery.Proofs.Observed
 import DisasterRecovery.Proofs.Committed
+
+/-! Gossip provenance, stable selections, and recovery freshness proofs. -/
 
 namespace DisasterRecovery.Proofs.Gossip
 
@@ -54,7 +61,12 @@ lemma insertVote_extends (source : Location) (votes : List Location)
 lemma step_evolves (config : Execution.Local.Config) (state : NodeState) (event : Event)
     : Evolves state (step config state event).state := by
   cases event <;> try cases_type Model.Local.Validation
-  all_goals simp [step, rejected, advance, advanceTimeoutLane]
+  all_goals simp only [step, Local.transitionSystem, guard, Option.pure_def, failure, advance,
+    ge_iff_le, Bool.or_eq_true, decide_eq_true_eq, advanceTimeoutLane, Bool.false_eq_true,
+    ↓reduceIte, Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+    decide_eq_false_iff_not, not_le, Option.bind_eq_bind, ne_eq, Option.bind_some, rejected,
+    rejectionReason, bne_iff_ne, ite_not, reduceCtorEq, Option.bind_none, Option.getD_none,
+    Option.getD_some]
   all_goals repeat' first | split | apply evolves_refl
   all_goals constructor
   all_goals first
@@ -87,7 +99,12 @@ lemma step_genuine (config : Config) (state : NodeState) (event : Event)
     (prior : state.gossips ⊆ config.recovered) (incoming : EventGenuine config event)
     : (step config.protocol state event).state.gossips ⊆ config.recovered := by
   cases event <;> try cases_type Model.Local.Validation
-  all_goals simp [step, rejected, advance, advanceTimeoutLane]
+  all_goals simp only [step, Local.transitionSystem, guard, Option.pure_def, failure, advance,
+    ge_iff_le, Bool.or_eq_true, decide_eq_true_eq, advanceTimeoutLane, Bool.false_eq_true,
+    ↓reduceIte, Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+    decide_eq_false_iff_not, not_le, Option.bind_eq_bind, ne_eq, Option.bind_some, rejected,
+    rejectionReason, bne_iff_ne, ite_not, reduceCtorEq, Option.bind_none, Option.getD_none,
+    Option.getD_some]
   all_goals repeat' first | split | exact prior
   all_goals exact insertGossip_genuine prior incoming
 
@@ -107,7 +124,9 @@ lemma systemStep_evolves {config : Execution.Local.Config} {before after : Syste
     (transition : systemStep config before target event = some (after, output))
     {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes)
     : exists next, (node, next) ∈ after.nodes /\ Evolves current next := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   obtain ⟨foundState, ⟨key, found⟩, rfl, _⟩ := transition
   have foundMember := List.mem_of_find?_eq_some found
   have keyEq : key = target := beq_iff_eq.mp
@@ -127,7 +146,9 @@ lemma systemStep_genuine {config : Config} {before after : SystemState}
     (prior : Genuine config before.nodes) (incoming : EventGenuine config event)
     (transition : systemStep config.protocol before target event = some (after, output))
     : Genuine config after.nodes := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   obtain ⟨current, ⟨key, found⟩, rfl, _⟩ := transition
   intro entry member
   obtain ⟨previous, present, rfl⟩ := List.mem_map.mp member
@@ -147,11 +168,16 @@ lemma next_evolves {config : Config} {before after : State} {action : Action}
       rw [retry_system_eq transition]
       exact ⟨current, member, evolves_refl current⟩
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
       obtain ⟨_, _, system, output, updated, rfl⟩ := transition
       simpa only [recordEffects_system] using systemStep_evolves wf.nodeKeysNodup updated member
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+        Prod.exists] at transition
       obtain ⟨_, system, output, updated, _, rfl⟩ := transition
       simpa only [recordEffects_system] using systemStep_evolves wf.nodeKeysNodup updated member
 
@@ -164,10 +190,12 @@ lemma next_genuine {config : Config} {before after : State} {action : Action}
   | retry source =>
       simpa only [retry_system_eq transition] using prior
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
       obtain ⟨pending, _, system, output, updated, rfl⟩ := transition
       have incoming : EventGenuine config (eventFor envelope) := by
-        cases payload : envelope.payload <;> simp [eventFor, payload, EventGenuine]
+        cases payload : envelope.payload <;> simp only [EventGenuine, eventFor, payload]
         case gossip txid =>
           have recovered := valid_gossip_uses_recovered_txid
             (wf.sentValid _ (wf.networkSent _ pending)) payload
@@ -179,7 +207,10 @@ lemma next_genuine {config : Config} {before after : State} {action : Action}
           exact List.mem_of_find?_eq_some found
       simpa only [recordEffects_system] using systemStep_genuine prior incoming updated
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+        Prod.exists] at transition
       obtain ⟨_, system, output, updated, _, rfl⟩ := transition
       simpa only [recordEffects_system]
         using systemStep_genuine prior (by trivial) updated
@@ -208,7 +239,10 @@ lemma next_frozen {config : Config} {before after : State} {action : Action}
     exact ⟨updated, present', chosen', same'.trans same⟩
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
       obtain ⟨_, current, found, _, rfl⟩ := transition
       intro envelope sent vote
       rcases List.mem_append.mp sent with old | fresh
@@ -216,17 +250,23 @@ lemma next_frozen {config : Config} {before after : State} {action : Action}
       · have snapshot := retryMessages_source fresh
         have present := lookup_member found
         have location := nodeState_location wf.nodeLocations found
-        have selected := (retry_vote_state (retryMessages_valid config source current location _ fresh) vote).2
+        have selected :=
+          (retry_vote_state (retryMessages_valid config source current location _ fresh) vote).2
         refine ⟨current, ?_, ?_, snapshot.2.symm ▸ rfl⟩
         · simpa only [snapshot.1] using present
         · rw [← snapshot.2, selected]
           rfl
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
       obtain ⟨_, _, system, output, _, rfl⟩ := transition
       simpa only [FrozenVotes, recordEffects_sent] using carry
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+        Prod.exists] at transition
       obtain ⟨_, system, output, _, _, rfl⟩ := transition
       simpa only [FrozenVotes, recordEffects_sent] using carry
 

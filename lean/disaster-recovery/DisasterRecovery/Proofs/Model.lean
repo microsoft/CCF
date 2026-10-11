@@ -1,6 +1,13 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Properties
 import DisasterRecovery.Proofs.History
 import DisasterRecovery.Proofs.Gossip
+
+/-! System-level recovery properties derived from decorated executions. -/
 
 namespace DisasterRecovery.Proofs.Model
 

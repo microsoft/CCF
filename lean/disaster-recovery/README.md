@@ -133,3 +133,11 @@ The script builds the model's imported modules and runs the pinned leanfmt
 dependency. The Lean CI workflow runs the same check after the proof checks.
 Files outside `lean/` are included; untracked files and downloaded dependencies
 are excluded. Add new Lean files to Git before running the check.
+
+## Source and style
+
+From the repository root, run `scripts/lean-lint-checks.sh` for Mathlib's source
+and style checks. This covers all Lean packages under `lean/`, not only this
+model or its default build targets, and includes the standalone replayer.
+The [shared Lean checking policy](../AGENT.md#source-and-style-checks) describes
+the enabled checks, dependency isolation, and documented upstream exceptions.

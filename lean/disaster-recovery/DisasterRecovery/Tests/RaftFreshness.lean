@@ -1,4 +1,11 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Properties
+
+/-! Regression cases for Raft freshness and strict-majority thresholds. -/
 
 namespace DisasterRecovery.Tests.RaftFreshness
 
@@ -65,7 +72,10 @@ example (txid : TxID)
     : LogUpToDate low txid := by
   by_cases atLow : LogUpToDate low txid
   · exact atLow
-  · simp [evenConfig, config, voteQuorum, atLow] at majority
+  · simp only [voteQuorum, evenConfig, config, List.map_cons, List.map_nil, List.length_cons,
+    List.length_nil, Nat.zero_add, Nat.reduceAdd, Nat.reduceDiv, Bool.decide_or, Bool.decide_and,
+    Bool.or_eq_true, decide_eq_true_eq, Bool.and_eq_true, atLow, not_false_eq_true,
+    List.filter_cons_of_neg] at majority
     exact absurd (Nat.le_trans majority (List.length_filter_le _ _)) (by decide)
 
 end DisasterRecovery.Tests.RaftFreshness

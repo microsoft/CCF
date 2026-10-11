@@ -1,7 +1,10 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Shared.TransitionSystem
 import DisasterRecovery.Shared.Capabilities
-
-namespace DisasterRecovery.Shared.MultiNodeTransitionSystem
 
 /-!
 Composes copies of one local protocol into a message-passing network. The
@@ -11,6 +14,8 @@ capabilities, then appends that node's sends to the network. Notifications
 are not stored: `LocalStep` and `Protocol.ValidStep` let properties talk
 about them by re-running the local step.
 -/
+
+namespace DisasterRecovery.Shared.MultiNodeTransitionSystem
 
 /-- Node states, the nodes allowed to act, and the messages in flight. -/
 structure State (Node LocalState Message : Type) where

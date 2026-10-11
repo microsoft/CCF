@@ -1,5 +1,12 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Tests.Initial
 import DisasterRecovery.Tests.Network
+
+/-! Canonical state enumeration and executable recovery scenarios. -/
 
 open DisasterRecovery
 open Shared
@@ -131,7 +138,8 @@ private def stateKey (state : NodeState) : String :=
   let votes := String.intercalate "," state.votes
   let chosen := state.chosen.getD "-"
   let kind := state.openKind.map openKindName |>.getD "-"
-  s!"{state.location}|{phaseName state.phase}|{phaseName state.timeoutState}|g={gossips}|v={votes}|c={chosen}|k={kind}|r={state.restartRequested}"
+  s!"{state.location}|{phaseName state.phase}|{phaseName state.timeoutState}\
+    |g={gossips}|v={votes}|c={chosen}|k={kind}|r={state.restartRequested}"
 
 private def enumerate (config : Config) (location : Location) : IO (Nat × Nat) := do
   let recovered : TxID := { view := 0, seqno := 0 }
@@ -192,7 +200,6 @@ def main : IO UInt32 := do
     (machine.step initial (.receiveGossip "A" { view := 1, seqno := 10 } .rejected)
       == some initial)
     "rejected validation must be an enabled ignored receive"
-
   let first <- runLocal config initial
                 (.receiveGossip "A" { view := 1, seqno := 10 } .accepted)
   expect (first.1.phase == .gossiping) "one of two gossips advanced early"
@@ -226,7 +233,6 @@ def main : IO UInt32 := do
         && effects.outgoing.isEmpty
         && effects.notifications == [.rejected "quote-or-certificate"])
       "validation rejection changed state, sent a reply, or recorded the wrong notification"
-
   let oneVote <- runLocal config second.1 (.receiveVote "A" .accepted)
   expect (oneVote.1.phase == .voting) "even-node quorum used legacy threshold"
   let twoVotes <- runLocal config oneVote.1 (.receiveVote "B" .accepted)
@@ -348,7 +354,6 @@ def main : IO UInt32 := do
     (MultiNodeTransitionSystem.nodeState delivered "B"
       == MultiNodeTransitionSystem.nodeState sent "B")
     "delivery changed another node"
-
   let envelope : Model.Envelope :=
     { source := "B", target := "A", payload := .gossip { view := 2, seqno := 1 } }
   expect
@@ -376,7 +381,6 @@ def main : IO UInt32 := do
     (((Model.transitionSystem globalConfig).step inactiveSent
         (.deliver inactiveMessage)).isNone)
     "an inactive destination accepted a delivery"
-
   let sentA <- runGlobal globalConfig globalInitial (.local "A" .retry)
   let sentBoth <- runGlobal globalConfig sentA (.local "B" .retry)
   let gossipAA <- deliverMessage globalConfig sentBoth "A" "A"
@@ -411,7 +415,6 @@ def main : IO UInt32 := do
   expect
     (((Model.transitionSystem globalConfig).step timeout3 (.local "B" .retry)).isNone)
     "completed node kept sending retries"
-
   let singleConfig : Model.Config :=
     {
       protocol := { instanceId := "different-snapshots", expectedLocations := ["A"] }
@@ -434,7 +437,6 @@ def main : IO UInt32 := do
     (singleIgnored.network
       == [{ source := "A", target := "A", payload := .vote }, sameMessage])
     "delivery did not consume the first matching occurrence"
-
   let unexpectedConfig : Config :=
     { instanceId := "unexpected", expectedLocations := ["A"] }
   let unexpected <- runLocal unexpectedConfig (initialNode "A")

@@ -77,3 +77,43 @@ recovery, see the [validation commands](disaster-recovery/README.md#validation).
 `DisasterRecovery/Tests/Architecture.lean` checks the property import graph during
 the build. It rejects proof dependencies and imports that reverse the shared,
 model, and property layers.
+
+## Source and style checks
+
+From the repository root, run `scripts/lean-lint-checks.sh`. This checks every
+tracked or untracked, non-ignored `.lean` file under `lean/`, including nested
+packages, files outside default build targets, and the lint tooling itself.
+Dependencies and build outputs under `.lake/` are excluded by Git's ignore rules.
+New packages do not need to be added to a directory allowlist.
+
+The shared tooling package at `lean/` pins Mathlib and the Lean toolchain.
+Keep package toolchains aligned with `lean/lean-toolchain`; a mismatch fails
+the check rather than silently leaving a package unchecked.
+Each source is checked with its nearest Lake package's module setup, after the
+package's default targets are built, if it has any. Packages containing only
+standalone scripts are checked too. Mathlib's linters are imported only for the
+additional source-checking pass, which writes no compiled artifacts. In particular, the
+standalone recovery replayer retains its dependency-free build.
+
+The check enables Mathlib's complete `linter.mathlibStandardSet`, the upstream
+1500-line file limit, all its current Lean text-based linters, and its module-name
+checks. The header linter uses CCF's existing Apache license notice.
+`lakefile.lean` is exempt only from the module-name checks because Lake fixes
+that filename. Formatting remains a separate check.
+
+The following upstream checks are intentionally not enabled:
+
+- Mathlib-only checks for imports of `Mathlib.Init` and documentation of Mathlib's
+  own `scripts/` directory. They assume Mathlib's repository layout and are
+  explicitly excluded from its downstream standard set.
+- Checks Mathlib itself leaves disabled as experimental, unstable, or advisory:
+  for example, `haveLet`, `ppRoundTrip`, `minImports`, and `upstreamableDecls`.
+  See the explanation in
+  [the pinned Mathlib.Init](https://github.com/leanprover-community/mathlib4/blob/5ed2965256430c3649e86755f9576b54eca72435/Mathlib/Init.lean).
+- The remaining legacy Python style checks: the pinned upstream
+  `scripts/lint-style.py` fails with `NameError: nonterminal_simp_check is not defined`.
+  This is an upstream implementation failure, not an exception for CCF source
+  violations. Reconsider it when updating Mathlib.
+
+Do not disable a standard check simply to accept existing source. Any necessary
+exception must identify a concrete incompatibility and be documented here.

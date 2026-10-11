@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Proofs.Predicates
 import Mathlib.Tactic
 
@@ -28,15 +33,16 @@ lemma messageForEffect_source
       | none =>
           simp [messageForEffect, found] at created
       | some txid =>
-          simp [messageForEffect, found] at created
+          simp only [messageForEffect, found, Option.pure_def, Option.bind_eq_bind,
+            Option.bind_some, Option.some.injEq] at created
           rw [←created]
           exact ⟨rfl, rfl⟩
   | sendVote target =>
-      simp [messageForEffect] at created
+      simp only [messageForEffect, Option.some.injEq] at created
       rw [←created]
       exact ⟨rfl, rfl⟩
   | sendIAmOpen target =>
-      simp [messageForEffect] at created
+      simp only [messageForEffect, Option.some.injEq] at created
       rw [←created]
       exact ⟨rfl, rfl⟩
   | opening kind =>
@@ -102,17 +108,18 @@ lemma valid_gossip_uses_recovered_txid
       | none =>
           simp [messageForEffect, found] at created
       | some recovered =>
-          simp [messageForEffect, found] at created
+          simp only [messageForEffect, found, Option.pure_def, Option.bind_eq_bind,
+            Option.bind_some, Option.some.injEq] at created
           rw [←created] at gossip
           injection gossip with same
           subst recovered
           rfl
   | sendVote target =>
-      simp [messageForEffect] at created
+      simp only [messageForEffect, Option.some.injEq] at created
       rw [←created] at gossip
       contradiction
   | sendIAmOpen target =>
-      simp [messageForEffect] at created
+      simp only [messageForEffect, Option.some.injEq] at created
       rw [←created] at gossip
       contradiction
   | opening kind =>
@@ -132,7 +139,12 @@ lemma step_preserves_location
   cases event
   all_goals try cases_type Validation
   all_goals
-    simp [step, rejected, advance, advanceTimeoutLane]
+    simp only [step, Local.transitionSystem, guard, Option.pure_def, failure, advance, ge_iff_le,
+      Bool.or_eq_true, decide_eq_true_eq, advanceTimeoutLane, Bool.false_eq_true, ↓reduceIte,
+      Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+      decide_eq_false_iff_not, not_le, Option.bind_eq_bind, ne_eq, Option.bind_some, rejected,
+      rejectionReason, bne_iff_ne, ite_not, reduceCtorEq, Option.bind_none, Option.getD_none,
+      Option.getD_some]
   all_goals repeat first | split | simp_all
 
 lemma nodeState_location
@@ -363,15 +375,13 @@ lemma replaceNode_keys
   | cons entry tail ih =>
       simp only [replaceNode, List.map_cons]
       split
-      ·
-        rename_i condition
+      · rename_i condition
         have same : entry.1 = target := beq_iff_eq.mp condition
         simp only [List.cons.injEq]
         constructor
         · exact same.symm
         · simpa [replaceNode] using ih
-      ·
-        simp only [List.cons.injEq, true_and]
+      · simp only [List.cons.injEq, true_and]
         simpa [replaceNode] using ih
 
 lemma replaceNode_locations
@@ -441,7 +451,9 @@ lemma systemStep_node_keys_eq
     {output : StepOutput}
     (transition : systemStep config before target event = some (after, output))
     : after.nodes.map Prod.fst = before.nodes.map Prod.fst := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   rcases transition with ⟨node, _, stateEq, _⟩
   rw [←stateEq]
   exact replaceNode_keys target
@@ -456,7 +468,9 @@ lemma systemStep_preserves_node_locations
     (locations : forall entry, entry ∈ before.nodes -> entry.2.location = entry.1)
     (transition : systemStep config before target event = some (after, output))
     : forall entry, entry ∈ after.nodes -> entry.2.location = entry.1 := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   rcases transition with
     ⟨node, ⟨key, found⟩, stateEq, _⟩
   rw [←stateEq]
@@ -483,7 +497,9 @@ lemma systemStep_other_node_eq
     (transition : systemStep config before target event = some (after, output))
     : (after.nodes.find? fun entry => entry.1 == other).map Prod.snd
       = (before.nodes.find? fun entry => entry.1 == other).map Prod.snd := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   rcases transition with ⟨node, _, stateEq, _⟩
   rw [←stateEq]
   exact findNode_replaceNode_ne target other
@@ -497,15 +513,23 @@ lemma next_active_eq
     : after.active = before.active := by
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
       rcases transition with ⟨_, sourceState, _, _, rfl⟩
       rfl
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
       rcases transition with ⟨_, _, system, output, _, rfl⟩
       simp
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+        Prod.exists] at transition
       rcases transition with ⟨_, system, output, _, _, rfl⟩
       simp
 
@@ -517,15 +541,23 @@ lemma next_node_keys_eq
     : after.system.nodes.map Prod.fst = before.system.nodes.map Prod.fst := by
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
       rcases transition with ⟨_, sourceState, _, _, rfl⟩
       rfl
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
       rcases transition with ⟨_, _, system, output, systemStep, rfl⟩
       simpa using systemStep_node_keys_eq systemStep
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+        Prod.exists] at transition
       rcases transition with ⟨_, system, output, systemStep, _, rfl⟩
       simpa using systemStep_node_keys_eq systemStep
 
@@ -535,7 +567,10 @@ lemma retry_system_eq
     {source : Location}
     (transition : next config before (.retry source) = some after)
     : after.system = before.system := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
   rcases transition with ⟨_, sourceState, _, _, rfl⟩
   rfl
 
@@ -545,7 +580,9 @@ lemma deliver_network_eq
     {envelope : Envelope}
     (transition : next config before (.deliver envelope) = some after)
     : after.network = removeOne envelope before.network := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
   rcases transition with
     ⟨_, _, system, output, _, rfl⟩
   simp
@@ -556,7 +593,10 @@ lemma timeout_network_eq
     {target : Location}
     (transition : next config before (.timeout target) = some after)
     : after.network = before.network := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+    Prod.exists] at transition
   rcases transition with
     ⟨_, system, output, _, _, rfl⟩
   simp
@@ -569,7 +609,9 @@ lemma deliver_other_node_eq
     (different : other ≠ envelope.target)
     (transition : next config before (.deliver envelope) = some after)
     : nodeState after other = nodeState before other := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
   rcases transition with
     ⟨_, _, system, output, systemStep, stateEq⟩
   rw [←stateEq]
@@ -583,7 +625,10 @@ lemma timeout_other_node_eq
     (different : other ≠ target)
     (transition : next config before (.timeout target) = some after)
     : nodeState after other = nodeState before other := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+    Prod.exists] at transition
   rcases transition with
     ⟨_, system, output, systemStep, _, stateEq⟩
   rw [←stateEq]
@@ -598,17 +643,25 @@ lemma next_sent_extends
     : exists added, after.sent = before.sent ++ added := by
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
       rcases transition with ⟨_, sourceState, _, _, rfl⟩
       exact ⟨retryMessages config source sourceState, rfl⟩
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
       rcases transition with
         ⟨_, _, system, output, _, rfl⟩
       refine ⟨[], ?_⟩
       simp
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+        Prod.exists] at transition
       rcases transition with
         ⟨_, system, output, _, _, rfl⟩
       refine ⟨[], ?_⟩
@@ -623,17 +676,25 @@ lemma next_openings_monotonic
   intro opening membership
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
       rcases transition with ⟨_, sourceState, _, _, rfl⟩
       exact membership
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
       rcases transition with
         ⟨_, _, system, output, _, rfl⟩
       apply mem_openings_recordEffects
       simpa using membership
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+        Prod.exists] at transition
       rcases transition with
         ⟨_, system, output, _, _, rfl⟩
       apply mem_openings_recordEffects
@@ -648,17 +709,25 @@ lemma next_restarts_monotonic
   intro restart membership
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
       rcases transition with ⟨_, sourceState, _, _, rfl⟩
       exact membership
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
       rcases transition with
         ⟨_, _, system, output, _, rfl⟩
       apply mem_restarts_recordEffects
       simpa using membership
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+        Prod.exists] at transition
       rcases transition with
         ⟨_, system, output, _, _, rfl⟩
       apply mem_restarts_recordEffects
@@ -673,17 +742,25 @@ lemma next_completed_monotonic
   intro completed membership
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
       rcases transition with ⟨_, sourceState, _, _, rfl⟩
       exact membership
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
       rcases transition with
         ⟨_, _, system, output, _, rfl⟩
       apply mem_completed_recordEffects
       simpa using membership
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+        Prod.exists] at transition
       rcases transition with
         ⟨_, system, output, _, _, rfl⟩
       apply mem_completed_recordEffects
@@ -696,7 +773,10 @@ lemma retry_preserves_well_formed
     (wellFormed : WellFormed config before)
     (transition : next config before (.retry source) = some after)
     : WellFormed config after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
   rcases transition with
     ⟨sourceActive, sourceState, found, _, stateEq⟩
   have sourceLocation : sourceState.location = source :=
@@ -737,7 +817,9 @@ lemma deliver_preserves_well_formed
     (wellFormed : WellFormed config before)
     (transition : next config before (.deliver envelope) = some after)
     : WellFormed config after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
   rcases transition with
     ⟨_, targetActive, system, output, systemStep, stateEq⟩
   rw [←stateEq]
@@ -778,7 +860,10 @@ lemma timeout_preserves_well_formed
     (wellFormed : WellFormed config before)
     (transition : next config before (.timeout target) = some after)
     : WellFormed config after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+    Prod.exists] at transition
   rcases transition with
     ⟨targetActive, system, output, systemStep, _, stateEq⟩
   rw [←stateEq]

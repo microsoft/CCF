@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Proofs.Predicates
 import DisasterRecovery.Proofs.Invariants
 import Mathlib.Tactic
@@ -48,7 +53,12 @@ lemma step_preserves_votes_nodup
   cases event
   all_goals try cases_type Validation
   all_goals
-    simp [step, rejected, advance, advanceTimeoutLane]
+    simp only [step, Local.transitionSystem, guard, Option.pure_def, failure, advance, ge_iff_le,
+      Bool.or_eq_true, decide_eq_true_eq, advanceTimeoutLane, Bool.false_eq_true, ↓reduceIte,
+      Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+      decide_eq_false_iff_not, not_le, Option.bind_eq_bind, ne_eq, Option.bind_some, rejected,
+      rejectionReason, bne_iff_ne, ite_not, reduceCtorEq, Option.bind_none, Option.getD_none,
+      Option.getD_some]
   all_goals
     repeat first | split | simp_all [insertVote_nodup]
 
@@ -63,7 +73,13 @@ lemma step_votes_shape
   cases event
   all_goals try cases_type Validation
   all_goals
-    simp [acceptedVoteSource, step, rejected, advance, advanceTimeoutLane]
+    simp only [step, Local.transitionSystem, guard, Option.pure_def, failure, advance, ge_iff_le,
+      Bool.or_eq_true, decide_eq_true_eq, advanceTimeoutLane, Bool.false_eq_true, ↓reduceIte,
+      Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+      decide_eq_false_iff_not, not_le, Option.bind_eq_bind, ne_eq, Option.bind_some, rejected,
+      rejectionReason, bne_iff_ne, ite_not, acceptedVoteSource, reduceCtorEq, false_and,
+      exists_const, or_false, Option.bind_none, Option.getD_none, Option.some.injEq,
+      exists_eq_left', Option.getD_some]
   all_goals repeat first | split | simp_all
 
 lemma step_vote_origin
@@ -92,7 +108,12 @@ lemma step_preserves_non_gossiping
   cases event
   all_goals try cases_type Validation
   all_goals
-    simp [step, rejected, advance, advanceTimeoutLane]
+    simp only [step, Local.transitionSystem, guard, Option.pure_def, failure, advance, ge_iff_le,
+      Bool.or_eq_true, decide_eq_true_eq, advanceTimeoutLane, Bool.false_eq_true, ↓reduceIte,
+      Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+      decide_eq_false_iff_not, not_le, Option.bind_eq_bind, ne_eq, Option.bind_some, rejected,
+      rejectionReason, bne_iff_ne, ite_not, reduceCtorEq, Option.bind_none, Option.getD_none,
+      Option.getD_some]
   all_goals repeat first | split | simp_all
 
 lemma voting_step_preserves_choice
@@ -105,7 +126,12 @@ lemma voting_step_preserves_choice
   cases event
   all_goals try cases_type Validation
   all_goals
-    simp [step, rejected, advance, advanceTimeoutLane] at stillVoting ⊢
+    simp only [step, Local.transitionSystem, guard, Option.pure_def, failure, advance, ge_iff_le,
+      Bool.or_eq_true, decide_eq_true_eq, advanceTimeoutLane, Bool.false_eq_true, ↓reduceIte,
+      Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+      decide_eq_false_iff_not, not_le, Option.bind_eq_bind, ne_eq, Option.bind_some, rejected,
+      rejectionReason, bne_iff_ne, ite_not, reduceCtorEq, Option.bind_none, Option.getD_none,
+      and_true, Option.getD_some] at stillVoting ⊢
   all_goals repeat first | split at stillVoting | split | simp_all
 
 lemma step_preserves_voting_selection
@@ -118,8 +144,13 @@ lemma step_preserves_voting_selection
   cases event
   all_goals try cases_type Validation
   all_goals
-    simp [NodeVotingSelection, step, rejected, advance,
-      advanceTimeoutLane, validTimeout] at before voting ⊢
+    simp only [NodeVotingSelection, exists_and_left, step, Local.transitionSystem, guard,
+      Option.pure_def, failure, advance, ge_iff_le, validTimeout, Bool.false_and, Bool.or_false,
+      decide_eq_true_eq, advanceTimeoutLane, Bool.false_eq_true, ↓reduceIte, Option.bind_eq_bind,
+      ne_eq, Bool.true_and, Bool.or_eq_true, Bool.and_eq_true, List.isEmpty_iff,
+      Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not, not_le, Option.bind_some,
+      rejected, rejectionReason, bne_iff_ne, ite_not, reduceCtorEq, Option.bind_none,
+      Option.getD_none, Option.getD_some] at before voting ⊢
   all_goals
     repeat first | split at voting | split | simp_all | aesop
 
@@ -138,11 +169,12 @@ lemma retry_vote_state
       | none =>
           simp [messageForEffect, found] at created
       | some txid =>
-          simp [messageForEffect, found] at created
+          simp only [messageForEffect, found, Option.pure_def, Option.bind_eq_bind,
+            Option.bind_some, Option.some.injEq] at created
           rw [←created] at vote
           contradiction
   | sendVote target =>
-      simp [messageForEffect] at created
+      simp only [messageForEffect, Option.some.injEq] at created
       rw [←created] at vote ⊢
       cases phase : envelope.sourceState.phase <;>
         simp [step, phase] at member
@@ -150,7 +182,7 @@ lemma retry_vote_state
         cases chosen : envelope.sourceState.chosen <;>
           simp_all
   | sendIAmOpen target =>
-      simp [messageForEffect] at created
+      simp only [messageForEffect, Option.some.injEq] at created
       rw [←created] at vote
       contradiction
   | opening kind =>
@@ -173,7 +205,13 @@ lemma opening_effect_state
   cases event
   all_goals try cases_type Validation
   all_goals
-    simp [step, rejected, advance, advanceTimeoutLane, validTimeout]
+    simp only [step, Local.transitionSystem, guard, Option.pure_def, failure, advance, ge_iff_le,
+      validTimeout, Bool.false_and, Bool.or_false, decide_eq_true_eq, advanceTimeoutLane,
+      Bool.false_eq_true, ↓reduceIte, Option.bind_eq_bind, ne_eq, Bool.true_and, Bool.or_eq_true,
+      Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+      decide_eq_false_iff_not, not_le, Option.bind_some, rejected, rejectionReason, bne_iff_ne,
+      ite_not, reduceCtorEq, Option.bind_none, Option.getD_none, List.mem_cons, List.not_mem_nil,
+      or_self, Option.getD_some]
       at opening ⊢
   all_goals
     repeat first | split at opening | split | simp_all | aesop
@@ -187,10 +225,21 @@ lemma quorum_effect_has_threshold
   cases event
   all_goals try cases_type Validation
   all_goals
-    simp [step, rejected, advance, advanceTimeoutLane, validTimeout]
+    simp only [step, Local.transitionSystem, guard, Option.pure_def, failure, advance, ge_iff_le,
+      validTimeout, Bool.false_and, Bool.or_false, decide_eq_true_eq, advanceTimeoutLane,
+      Bool.false_eq_true, ↓reduceIte, Option.bind_eq_bind, ne_eq, Bool.true_and, Bool.or_eq_true,
+      Bool.and_eq_true, List.isEmpty_iff, Bool.not_eq_eq_eq_not, Bool.not_true,
+      decide_eq_false_iff_not, not_le, Option.bind_some, rejected, rejectionReason, bne_iff_ne,
+      ite_not, reduceCtorEq, Option.bind_none, Option.getD_none, List.mem_cons, List.not_mem_nil,
+      or_self, Option.getD_some]
       at opening ⊢
   all_goals
-    repeat first | split at opening | split | simp_all | aesop
+    repeat first | split at opening | split | simp_all only [Option.bind_fun_none,
+      Option.getD_none, List.mem_cons, reduceCtorEq, List.not_mem_nil, or_self, Option.bind_some,
+      Option.getD_some, not_le, or_false, not_true_eq_false, not_false_eq_true, Option.bind_none,
+      and_true, and_false, and_self, implies_true, imp_false, not_or, List.length_nil,
+      nonpos_iff_eq_zero, or_true, true_and, Effect.opening.injEq, not_and, not_lt, List.mem_map,
+      exists_const, List.mem_filter, bne_iff_ne, ne_eq] | aesop
 
 lemma sentVote_mono
     {before after : State}
@@ -257,7 +306,7 @@ lemma recordEffect_preserves_openings_valid
   intro opening membership
   cases effect with
   | opening kind =>
-      simp [recordEffect] at membership
+      simp only [recordEffect, List.mem_cons] at membership
       rcases membership with rfl | old
       · apply opening_valid_of_sent_eq
           (before := state)
@@ -335,7 +384,9 @@ lemma systemStep_preserves_votes_nodup
     (nodup : forall entry, entry ∈ before.nodes -> entry.2.votes.Nodup)
     (transition : systemStep config before target event = some (after, output))
     : forall entry, entry ∈ after.nodes -> entry.2.votes.Nodup := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   rcases transition with
     ⟨node, ⟨key, found⟩, stateEq, _⟩
   rw [←stateEq]
@@ -361,7 +412,9 @@ lemma systemStep_preserves_voting_selections
         entry ∈ after.nodes
         -> entry.2.phase = .voting
         -> NodeVotingSelection entry.2 := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   rcases transition with
     ⟨node, ⟨key, found⟩, systemEq, outputEq⟩
   rw [←systemEq]
@@ -387,7 +440,9 @@ lemma systemStep_output_location
     (locations : forall entry, entry ∈ before.nodes -> entry.2.location = entry.1)
     (transition : systemStep config before target event = some (after, output))
     : output.state.location = target := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   rcases transition with
     ⟨node, ⟨key, found⟩, _, outputEq⟩
   calc
@@ -411,7 +466,9 @@ lemma systemStep_output_mem
     {output : StepOutput}
     (transition : systemStep config before target event = some (after, output))
     : (target, output.state) ∈ after.nodes := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   rcases transition with
     ⟨node, ⟨key, found⟩, systemEq, outputEq⟩
   rw [←systemEq, replaceNode, List.mem_map]
@@ -433,7 +490,9 @@ lemma systemStep_opening_effect_state
     (transition : systemStep config before target event = some (after, output))
     (opening : .opening kind ∈ output.effects)
     : output.state.phase = .opening /\ output.state.openKind = some kind := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   rcases transition with
     ⟨node, _, _, outputEq⟩
   rw [←outputEq] at opening ⊢
@@ -448,7 +507,9 @@ lemma systemStep_quorum_effect_has_threshold
     (transition : systemStep config before target event = some (after, output))
     (opening : .opening .quorum ∈ output.effects)
     : voteQuorum config <= output.state.votes.length := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   rcases transition with
     ⟨node, _, _, outputEq⟩
   rw [←outputEq] at opening ⊢
@@ -501,7 +562,9 @@ lemma systemStep_preserves_node_votes_sent
     : forall entry,
         entry ∈ after.nodes
         -> forall voter, voter ∈ entry.2.votes -> SentVote afterState voter entry.1 := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   rcases transition with
     ⟨node, ⟨key, found⟩, systemEq, outputEq⟩
   rw [←systemEq]
@@ -584,7 +647,9 @@ lemma systemStep_preserves_vote_stability
         -> entry.1 = envelope.source
         -> entry.2.phase ≠ .gossiping
             /\ (entry.2.phase = .voting -> entry.2.chosen = some envelope.target) := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.map_eq_some_iff, Prod.exists, exists_eq_right, Option.some.injEq,
+    Prod.mk.injEq] at transition
   rcases transition with
     ⟨node, ⟨key, found⟩, systemEq, outputEq⟩
   rw [←systemEq]
@@ -625,11 +690,16 @@ lemma next_preserves_node_votes_nodup
     : NodeVotesNodup after := by
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
       rcases transition with ⟨_, sourceState, _, _, rfl⟩
       exact nodup
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
       rcases transition with
         ⟨_, _, system, output, systemStep, rfl⟩
       intro entry membership
@@ -637,7 +707,10 @@ lemma next_preserves_node_votes_nodup
       exact systemStep_preserves_votes_nodup nodup systemStep
         entry membership
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+        Prod.exists] at transition
       rcases transition with
         ⟨_, system, output, systemStep, _, rfl⟩
       intro entry membership
@@ -654,11 +727,16 @@ lemma next_preserves_voting_selections
     : VotingSelectionsValid after := by
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
       rcases transition with ⟨_, sourceState, _, _, rfl⟩
       exact valid
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
       rcases transition with
         ⟨_, _, system, output, systemStep, rfl⟩
       intro entry membership voting
@@ -666,7 +744,10 @@ lemma next_preserves_voting_selections
       exact systemStep_preserves_voting_selections valid systemStep
         entry membership voting
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+        Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+        Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+        Prod.exists] at transition
       rcases transition with
         ⟨_, system, output, systemStep, _, rfl⟩
       intro entry membership voting
@@ -683,7 +764,10 @@ lemma retry_preserves_sent_votes_selected
     (selected : SentVotesSelected before)
     (transition : next config before (.retry source) = some after)
     : SentVotesSelected after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
   rcases transition with
     ⟨_, sourceState, found, _, stateEq⟩
   have sourceLocation : sourceState.location = source :=
@@ -713,7 +797,9 @@ lemma deliver_preserves_sent_votes_selected
     (selected : SentVotesSelected before)
     (transition : next config before (.deliver envelope) = some after)
     : SentVotesSelected after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
   rcases transition with
     ⟨_, _, system, output, _, stateEq⟩
   rw [←stateEq]
@@ -728,7 +814,10 @@ lemma timeout_preserves_sent_votes_selected
     (selected : SentVotesSelected before)
     (transition : next config before (.timeout target) = some after)
     : SentVotesSelected after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+    Prod.exists] at transition
   rcases transition with
     ⟨_, system, output, _, _, stateEq⟩
   rw [←stateEq]
@@ -743,7 +832,10 @@ lemma retry_preserves_node_votes_sent
     (votesSent : NodeVotesSent before)
     (transition : next config before (.retry source) = some after)
     : NodeVotesSent after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
   rcases transition with ⟨_, sourceState, _, _, rfl⟩
   intro entry membership voter vote
   apply sentVote_mono (before := before)
@@ -759,7 +851,9 @@ lemma deliver_preserves_node_votes_sent
     (votesSent : NodeVotesSent before)
     (transition : next config before (.deliver envelope) = some after)
     : NodeVotesSent after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
   rcases transition with
     ⟨inNetwork, _, system, output, systemStep, stateEq⟩
   rw [←stateEq]
@@ -790,7 +884,7 @@ lemma deliver_preserves_node_votes_sent
       ⟨payload, source⟩
     subst newVoter
     refine ⟨envelope, ?_, rfl, rfl, payload⟩
-    simp [afterState]
+    simp only [recordEffects_sent, afterState]
     exact wellFormed.networkSent envelope
       inNetwork
   exact systemStep_preserves_node_votes_sent
@@ -808,7 +902,10 @@ lemma timeout_preserves_node_votes_sent
     (votesSent : NodeVotesSent before)
     (transition : next config before (.timeout target) = some after)
     : NodeVotesSent after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+    Prod.exists] at transition
   rcases transition with
     ⟨_, system, output, systemStep, _, stateEq⟩
   rw [←stateEq]
@@ -847,7 +944,10 @@ lemma retry_preserves_openings_valid
     (valid : OpeningsValid config before)
     (transition : next config before (.retry source) = some after)
     : OpeningsValid config after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
   rcases transition with ⟨_, sourceState, _, _, stateEq⟩
   rw [←stateEq]
   intro opening membership
@@ -870,7 +970,9 @@ lemma deliver_preserves_openings_valid
     next_preserves_node_votes_nodup votesNodup transition
   have afterVotesSent :=
     deliver_preserves_node_votes_sent wellFormed votesSent transition
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
   rcases transition with
     ⟨_, _, system, output, systemStep, stateEq⟩
   rw [←stateEq] at afterNodup afterVotesSent ⊢
@@ -923,7 +1025,10 @@ lemma timeout_preserves_openings_valid
     next_preserves_node_votes_nodup votesNodup transition
   have afterVotesSent :=
     timeout_preserves_node_votes_sent votesSent transition
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+    Prod.exists] at transition
   rcases transition with
     ⟨_, system, output, systemStep, _, stateEq⟩
   rw [←stateEq] at afterNodup afterVotesSent ⊢
@@ -966,7 +1071,10 @@ lemma retry_preserves_sent_vote_stable
     (stable : SentVoteStable before)
     (transition : next config before (.retry source) = some after)
     : SentVoteStable after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
   rcases transition with
     ⟨_, sourceState, found, _, stateEq⟩
   have sourceLocation : sourceState.location = source :=
@@ -1005,7 +1113,9 @@ lemma deliver_preserves_sent_vote_stable
     (stable : SentVoteStable before)
     (transition : next config before (.deliver delivered) = some after)
     : SentVoteStable after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
   rcases transition with
     ⟨_, _, system, output, systemStep, stateEq⟩
   rw [←stateEq]
@@ -1024,7 +1134,10 @@ lemma timeout_preserves_sent_vote_stable
     (stable : SentVoteStable before)
     (transition : next config before (.timeout target) = some after)
     : SentVoteStable after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+    Prod.exists] at transition
   rcases transition with
     ⟨_, system, output, systemStep, _, stateEq⟩
   rw [←stateEq]
@@ -1071,7 +1184,10 @@ lemma retry_preserves_sent_votes_functional
     (stable : SentVoteStable before)
     (transition : next config before (.retry source) = some after)
     : SentVotesFunctional after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, ite_not,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, ite_eq_right_iff, Option.some.injEq, exists_const] at transition
   rcases transition with
     ⟨_, sourceState, found, _, stateEq⟩
   have sourceLocation : sourceState.location = source :=
@@ -1139,7 +1255,9 @@ lemma deliver_preserves_sent_votes_functional
     (functional : SentVotesFunctional before)
     (transition : next config before (.deliver envelope) = some after)
     : SentVotesFunctional after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Option.some.injEq, Prod.exists, exists_const] at transition
   rcases transition with
     ⟨_, _, system, output, _, stateEq⟩
   rw [←stateEq]
@@ -1155,7 +1273,10 @@ lemma timeout_preserves_sent_votes_functional
     (functional : SentVotesFunctional before)
     (transition : next config before (.timeout target) = some after)
     : SentVotesFunctional after := by
-  simp [next, Option.bind_eq_some_iff] at transition
+  simp only [next, guard, List.contains_eq_mem, decide_eq_true_eq, Option.pure_def, failure,
+    Option.bind_eq_bind, Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not, Bool.not_eq_true, Bool.not_eq_false, Option.some.injEq, exists_const,
+    Prod.exists] at transition
   rcases transition with
     ⟨_, system, output, _, _, stateEq⟩
   rw [←stateEq]
@@ -1253,7 +1374,6 @@ lemma reachable_quorum_invariant
 
 lemma quorum_lists_intersect
     {α : Type}
-    [DecidableEq α]
     (expected first second : List α)
     (firstNodup : first.Nodup)
     (secondNodup : second.Nodup)
@@ -1262,6 +1382,7 @@ lemma quorum_lists_intersect
     (firstQuorum : expected.length / 2 + 1 <= first.length)
     (secondQuorum : expected.length / 2 + 1 <= second.length)
     : exists value, value ∈ first /\ value ∈ second := by
+  classical
   by_contra noShared
   push Not at noShared
   have disjoint : Disjoint first.toFinset second.toFinset :=

@@ -1,5 +1,12 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Proofs.Local
 import DisasterRecovery.Tests.Initial
+
+/-! Concrete recovery traces and checks of their recorded notifications. -/
 
 namespace DisasterRecovery.Tests.Trace
 
@@ -57,11 +64,21 @@ private theorem valid : trace.Valid (Model.transitionSystem config) := by
     List.getElem?_cons_succ, Nat.reduceAdd, Option.some.injEq] at first second <;>
     subst before <;> subst after
   all_goals
-    simp [actions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
-      MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState,
-      MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.receive, step, guard, initial, Tests.initial, config,
-      gossipSent, ready, voteSent, opened, gossip, vote, recovered]
+    simp only [Model.transitionSystem, config, MultiNodeTransitionSystem.lift, List.nodup_cons,
+      List.not_mem_nil, not_false_eq_true, List.nodup_nil, and_self, List.map_eq_singleton_iff,
+      Prod.exists, exists_and_right, exists_eq_right, List.mem_cons, or_false, Model.protocol,
+      Model.recoveredTxID, List.find?_singleton, beq_iff_eq, Option.map_ite, step, Option.pure_def,
+      bne_iff_ne, ne_eq, ite_not, guard, List.isEmpty_cons, Bool.not_false, Bool.or_true,
+      ↓reduceIte, bind_pure_comp, List.forIn_yield_eq_foldlM, id_map', List.foldlM_cons,
+      List.foldlM_nil, bind_pure, Option.bind_eq_bind, Option.bind_some, Bool.not_eq_eq_eq_not,
+      Bool.not_true, List.isEmpty_eq_false_iff, List.filter_eq_nil_iff, Decidable.not_not,
+      forall_eq, Option.failure_eq_none, Prod.forall, true_and, initial, Tests.initial,
+      List.map_cons, List.map_nil, gossip, recovered, vote, List.getElem_cons_zero,
+      MultiNodeTransitionSystem.next, List.contains_eq_mem, decide_eq_true_eq,
+      MultiNodeTransitionSystem.nodeState, List.nil_append, gossipSent, actions,
+      List.getElem_cons_succ, decide_true, Model.receive, MultiNodeTransitionSystem.removeOne,
+      BEq.rfl, ready, voteSent, Envelope.mk.injEq, reduceCtorEq, and_false, or_self,
+      List.cons_append, opened]
     cbv
 
 private theorem observedOpening
@@ -84,9 +101,13 @@ private theorem observedOpening
     ?_,
     by simp
   ⟩
-  · simp [Model.transitionSystem, MultiNodeTransitionSystem.lift,
-      MultiNodeTransitionSystem.next, voteSent, ready, vote,
-      MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne, guard]
+  · simp only [Model.transitionSystem, MultiNodeTransitionSystem.lift, Prod.forall, voteSent, ready,
+    vote, MultiNodeTransitionSystem.next, guard, List.contains_eq_mem, List.mem_cons,
+    List.not_mem_nil, or_false, true_or, decide_true, ↓reduceIte, Option.pure_def,
+    MultiNodeTransitionSystem.removeOne, BEq.rfl, decide_eq_true_eq, Option.failure_eq_none,
+    MultiNodeTransitionSystem.nodeState, List.find?_singleton, beq_iff_eq, Option.map_ite,
+    List.map_cons, List.map_nil, Option.bind_eq_bind, Option.bind_some, List.cons_append,
+    List.nil_append]
     cbv
   · cbv
 
@@ -142,8 +163,11 @@ example
         cases impossible
   | deliver envelope =>
       have pending : envelope ∈ [vote, gossip] := by
-        simp [Model.transitionSystem, MultiNodeTransitionSystem.lift,
-          MultiNodeTransitionSystem.next, Option.bind_eq_some_iff, guard, failure] at transition
+        simp only [Model.transitionSystem, MultiNodeTransitionSystem.lift, Prod.forall,
+          MultiNodeTransitionSystem.next, guard, List.contains_eq_mem, decide_eq_true_eq,
+          Option.pure_def, failure, beq_iff_eq, Option.bind_eq_bind, Option.bind_some,
+          Option.bind_eq_some_iff, ite_eq_left_iff, reduceCtorEq, imp_false, Decidable.not_not,
+          exists_const] at transition
         exact transition.1
       rcases List.mem_cons.mp pending with rfl | remaining
       · have actual := enabled

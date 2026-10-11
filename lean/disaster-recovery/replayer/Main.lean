@@ -1,4 +1,11 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.TraceValidation.Reduction
+
+/-! Command-line replay of recorded disaster recovery scenarios. -/
 
 set_option autoImplicit false
 
@@ -54,7 +61,8 @@ def main (args : List String) : IO UInt32 := do
           return 1
       | .ok result =>
           let summary :=
-            s!"replayed {result.actions} actions and {result.observations} observations of {reduced.header.participants.length} participants"
+            s!"replayed {result.actions} actions and {result.observations} observations \
+              of {reduced.header.participants.length} participants"
           if let some failure := reduced.scenario then
             IO.eprintln s!"{summary}, but the scenario failed: {failure}"
             return 1

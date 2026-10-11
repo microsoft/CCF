@@ -1,6 +1,9 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import Std
-
-namespace DisasterRecovery.Shared
 
 /-!
 A protocol node cannot see the network. It gets a `Capabilities` record with
@@ -10,6 +13,8 @@ the callbacks do. `Capabilities.record` is the canonical host: it appends each
 send and notification to an `Outputs` record, which the network and the
 property statements then read.
 -/
+
+namespace DisasterRecovery.Shared
 
 /-- A message in flight from `source` to `target`. -/
 structure Envelope (Node Message : Type) where

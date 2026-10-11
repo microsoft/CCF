@@ -1,5 +1,12 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Properties
 import Mathlib.Tactic
+
+/-! Concrete executions witnessing each recovery property's premises. -/
 
 namespace DisasterRecovery.Proofs.Witnesses
 
@@ -96,11 +103,21 @@ private theorem quorum_valid
   intro i
   refine ⟨quorumActions[i.val]'(by simpa [quorumTrace, quorumActions] using i.isLt), ?_⟩
   fin_cases i <;>
-    simp [quorumTrace, quorumActions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
-      MultiNodeTransitionSystem.next, quorumConfig, initial, quorumReady, quorumVoteSent,
-      quorumOpened, gossip, vote, high, MultiNodeTransitionSystem.nodeState,
-      MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.receive, step, guard] <;> cbv
+    simp only [Model.transitionSystem, quorumConfig, high, MultiNodeTransitionSystem.lift,
+      List.nodup_cons, List.not_mem_nil, not_false_eq_true, List.nodup_nil, and_self,
+      List.map_eq_singleton_iff, Prod.exists, exists_and_right, exists_eq_right, List.mem_cons,
+      or_false, Model.protocol, Model.recoveredTxID, List.find?_singleton, beq_iff_eq,
+      Option.map_ite, step, Option.pure_def, bne_iff_ne, ne_eq, ite_not, guard, List.isEmpty_cons,
+      Bool.not_false, Bool.or_true, ↓reduceIte, bind_pure_comp, List.forIn_yield_eq_foldlM, id_map',
+      List.foldlM_cons, List.foldlM_nil, bind_pure, Option.bind_eq_bind, Option.bind_some,
+      Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, List.filter_eq_nil_iff,
+      Decidable.not_not, forall_eq, Option.failure_eq_none, Prod.forall, true_and, quorumTrace,
+      initial, List.map_cons, List.map_nil, gossip, quorumReady, quorumVoteSent, vote, quorumOpened,
+      List.getElem_cons_zero, quorumActions, MultiNodeTransitionSystem.next, List.contains_eq_mem,
+      decide_eq_true_eq, MultiNodeTransitionSystem.nodeState, List.nil_append, zero_add,
+      List.getElem_cons_succ, decide_true, Model.receive, MultiNodeTransitionSystem.removeOne,
+      BEq.rfl, Nat.reduceAdd, Envelope.mk.injEq, reduceCtorEq, and_false, or_self, List.cons_append]
+      <;> cbv
 
 private theorem quorum_notified
     : Properties.Trace.NotificationAt quorumConfig quorumTrace 3 "A"
@@ -109,9 +126,13 @@ private theorem quorum_notified
     _, { notifications := [.opening .quorum] }, ?_, ?_, ?_, rfl, rfl, rfl, rfl, ?_, ?_⟩
   · rfl
   · rfl
-  · simp [Model.transitionSystem, MultiNodeTransitionSystem.lift,
-      MultiNodeTransitionSystem.next, quorumVoteSent, quorumReady, vote,
-      MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne, guard]
+  · simp only [Model.transitionSystem, MultiNodeTransitionSystem.lift, Prod.forall, quorumVoteSent,
+    quorumReady, vote, MultiNodeTransitionSystem.next, guard, List.contains_eq_mem, List.mem_cons,
+    List.not_mem_nil, or_false, true_or, decide_true, ↓reduceIte, Option.pure_def,
+    MultiNodeTransitionSystem.removeOne, BEq.rfl, decide_eq_true_eq, Option.failure_eq_none,
+    MultiNodeTransitionSystem.nodeState, List.find?_singleton, beq_iff_eq, Option.map_ite,
+    List.map_cons, List.map_nil, Option.bind_eq_bind, Option.bind_some, List.cons_append,
+    List.nil_append]
     cbv
   · cbv
   · simp
@@ -271,18 +292,35 @@ private def fullTrace : Properties.GlobalTrace :=
   }
 
 set_option maxHeartbeats 2000000 in
+-- Kernel reduction checks every adjacent step of the full-gossip witness.
 private theorem full_valid : fullTrace.Valid (Model.transitionSystem fullConfig) := by
   refine valid_of_adjacent
     ⟨initial fullConfig, rfl, initialized (by unfold Model.Config.Valid; decide)⟩ ?_
   intro i
   refine ⟨fullActions[i.val]'(by simpa [fullTrace, fullActions] using i.isLt), ?_⟩
   fin_cases i <;>
-    simp [fullTrace, fullActions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
-      MultiNodeTransitionSystem.next, fullConfig, initial, partialGossip, partialNode,
-      fullPending, fullSelected, fullGossiped, fullVoteSent, fullVoted, fullTimeout,
-      failoverOpened, failoverOpener, gossip, vote, high, MultiNodeTransitionSystem.nodeState,
-      MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.receive, step, guard] <;> cbv
+    simp only [Model.transitionSystem, fullConfig, high, MultiNodeTransitionSystem.lift,
+      List.nodup_cons, List.mem_cons, String.reduceEq, List.not_mem_nil, or_self,
+      not_false_eq_true, List.nodup_nil, and_self, or_false, Model.protocol, Model.recoveredTxID,
+      step, Option.pure_def, bne_iff_ne, ne_eq, ite_not, guard, beq_iff_eq, List.isEmpty_cons,
+      Bool.not_false, Bool.or_true, ↓reduceIte, bind_pure_comp, List.forIn_yield_eq_foldlM,
+      id_map', List.foldlM_cons, List.foldlM_nil, bind_pure, map_bind, Option.bind_eq_bind,
+      Option.bind_some, Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff,
+      List.filter_eq_nil_iff, Decidable.not_not, forall_eq_or_imp, forall_eq, not_and,
+      Option.failure_eq_none, Prod.forall, true_and, fullTrace, initial, List.map_cons,
+      List.map_nil, fullPending, gossip, zero_le, decide_true, List.filter_cons_of_pos,
+      List.filter_nil, List.zipIdx_cons, zero_add, Nat.reduceAdd, List.zipIdx_nil,
+      List.flatMap_cons, List.flatMap_nil, List.append_nil, List.cons_append, List.nil_append,
+      List.take_succ_cons, List.take_zero, partialGossip, partialNode, nonpos_iff_eq_zero,
+      one_ne_zero, decide_false, Bool.false_eq_true, List.filter_cons_of_neg, Std.le_refl,
+      Nat.one_le_ofNat, OfNat.ofNat_ne_zero, Nat.not_ofNat_le_one, fullSelected, Nat.reduceLeDiff,
+      fullGossiped, fullVoteSent, vote, failoverOpened, failoverOpener, fullVoted, fullTimeout,
+      List.getElem_cons_zero, fullActions, MultiNodeTransitionSystem.next, List.contains_eq_mem,
+      Bool.decide_or, Bool.or_eq_true, decide_eq_true_eq, MultiNodeTransitionSystem.nodeState,
+      BEq.rfl, List.find?_cons_of_pos, Option.map_some, List.getElem_cons_succ, or_true,
+      String.reduceBEq, List.find?_cons_of_neg, Envelope.mk.injEq, and_true, and_false,
+      Message.gossip.injEq, TxID.mk.injEq, Nat.reduceEqDiff, Model.receive,
+      MultiNodeTransitionSystem.removeOne, StateT.run_bind, StateT.run_map, reduceCtorEq] <;> cbv
 
 theorem full_gossip_preserves_commit_witness
     : Properties.FullGossipPreservesCommitWitness := by

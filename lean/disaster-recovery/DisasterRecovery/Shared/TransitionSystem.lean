@@ -1,12 +1,17 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import Std
-
-namespace DisasterRecovery.Shared
 
 /-!
 The minimal interface every model implements. `init` picks out the initial
 states; `step` applies one action. Every other shared definition (traces,
 reachability, the multi-node network) is built on these two fields.
 -/
+
+namespace DisasterRecovery.Shared
 
 /-- `none` disables an action; `some state` may be an enabled stutter. -/
 structure TransitionSystem (State Action : Type) where

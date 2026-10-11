@@ -1,5 +1,12 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Properties
 import Lean
+
+/-! Checks for the allowed module dependencies and removed model APIs. -/
 
 namespace DisasterRecovery.Tests.Architecture
 
@@ -101,7 +108,8 @@ run_cmd do
       throwError "Removed model/property API must not be reintroduced: {name}"
   let header := env.header
   for name in header.moduleNames do
-    if #[`DisasterRecovery.Shared.Global, `DisasterRecovery.Properties.Trace, `DisasterRecovery.Properties.History].contains name then
+    if #[`DisasterRecovery.Shared.Global, `DisasterRecovery.Properties.Trace,
+        `DisasterRecovery.Properties.History].contains name then
       throwError "Removed module must not be reintroduced: {name}"
     if (`DisasterRecovery.Proof).isPrefixOf name ||
         (`DisasterRecovery.Proofs).isPrefixOf name then

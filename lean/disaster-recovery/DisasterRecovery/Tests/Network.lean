@@ -1,4 +1,11 @@
+/-
+Copyright (c) 2026 Microsoft Corporation. All rights reserved.
+Licensed under the Apache 2.0 License.
+Authors: Microsoft Corporation
+-/
 import DisasterRecovery.Shared.MultiNodeTransitionSystem
+
+/-! Regression cases for message delivery and host-output composition. -/
 
 namespace DisasterRecovery.Tests.Network
 
@@ -143,7 +150,6 @@ def run : IO Unit := do
     "inactive receiver accepted a message"
   expect ((machine.step { queued with nodes := [(0, 0)] } (.deliver message)).isNone)
     "an active receiver with no local state accepted a message"
-
   let blocked : Envelope Nat Nat := { message with payload := 0 }
   expect
     ((machine.step { initial with network := [blocked] } (.deliver blocked)).isNone)
@@ -155,14 +161,12 @@ def run : IO Unit := do
     "a disabled receive produced a successor"
   expect ((machine.step initial (.local 1 .blocked)).isNone)
     "a disabled internal action produced a successor"
-
   let burst <- requireSome (machine.step queued (.local 1 .burst))
                 "enabled send burst was disabled"
   expect
     (MultiNodeTransitionSystem.nodeState burst 1 == some 1
       && burst.network == [message, message, reply, { reply with payload := 2 }])
     "accumulated sends were reordered, lost, or executed more than once"
-
   let synthetic <- requireSome (machine.step queued (.local 1 (.receive 0 5)))
                     "generic network disallowed a synthetic local receive"
   expect (MultiNodeTransitionSystem.nodeState synthetic 1 == some 5)
@@ -192,7 +196,6 @@ def run : IO Unit := do
                       "internal increment disabled"
   expect (incremented.network == synthetic.network)
     "a later action replayed old outgoing messages"
-
   let self : Envelope Nat Nat := { source := 0, target := 0, payload := 1 }
   let echoed <- requireSome
                   (machine.step { initial with network := [self] } (.deliver self))
