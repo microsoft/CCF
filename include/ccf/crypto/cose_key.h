@@ -63,7 +63,7 @@ namespace ccf::crypto
     {
       /// COSE curve: 6 (Ed25519)
       int64_t crv = 0;
-      /// Public key, 32 bytes for Ed25519
+      /// Public key
       std::vector<uint8_t> x;
     };
 
