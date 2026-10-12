@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
 
+### Added
+
+- `ccf::crypto::COSEKey` now also parses, validates and encodes OKP COSE_Keys on Ed25519, and computes their RFC 9679 thumbprint. `ccf::crypto::make_cose_verifier_*()` and `ccf::crypto::COSEKey::from_der_cert()` now also accept Ed25519 public keys and certificates, and COSE verifiers verify `EdDSA` (-8) and `Ed25519` (-19) signatures with such keys (#8548).
+
 ### Changed
 
 - CCF no longer advances its subsystems in a single atomic tick step. Each subsystem schedules its own periodic work, which can run independently of other subsystems and incoming node messages (#8535).
@@ -27,7 +31,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Paused RPC reads now resume when another interface releases the inbound budget, even if older libuv versions coalesce the notification. Previously, reads could remain paused until an unrelated event triggered a recheck (#8498).
 - Recovered services no longer reuse stale incomplete ledger chunks behind the committed frontier after service opening, which could misplace later transactions and leave backup application frontends closed. See the [Disaster Recovery](doc/operations/recovery.rst) operations documentation (#8522).
 - Concurrent first requests to JavaScript endpoints now safely initialise the named authentication policy registry. Previously, requests could fail with `Unknown auth policy` while another worker was still populating the registry (#8520).
+- Snapshot and ledger chunk discovery now reject malformed `since` selectors with HTTP `400` `InvalidQueryParameterValue`. Previously, snapshot discovery silently ignored them and ledger chunk discovery misreported them as missing parameters. See the [Ledger and Snapshots](doc/operations/ledger_snapshot.rst) operations documentation (#8532).
 - When the host reports that a ledger entry is missing or too large, the historical query cache now drops only the requests which were waiting for that entry. Previously, unrelated requests could also be dropped, including every in-flight request when the entry was being fetched to recover an older ledger secret (#8527).
+- Historical query cache ticks no longer scan every retained request and store, so retaining many historical queries is much cheaper. Unrepresentable cache times or expiry deadlines now throw instead of overflowing (#8525).
 
 ## [7.0.18]
 
