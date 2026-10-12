@@ -31,35 +31,14 @@ builds, attaches, or publishes Python wheels as part of the main CCF release.
 Release-build tests use the latest package already released on PyPI; normal
 development and CI tests continue to use the local package.
 
-After ESRP confirms publication, manually run
-`.github/workflows/python-package-attestation.yml` on the release tag. OneBranch
-does not dispatch this workflow and needs no additional GitHub credential for
-attestation. The workflow must be merged to `main` and included in the release
-tag before publication.
+Attestation is disabled for Python packages published to PyPI. A GitHub workflow
+that downloads an already-built wheel cannot establish OneBranch build
+provenance. The GitHub release attestation workflow continues to cover
+non-Python artifacts only.
 
-Trigger the workflow on the release tag with an authenticated GitHub CLI.
-No additional inputs are required:
-
-```bash
-gh workflow run python-package-attestation.yml --repo microsoft/CCF \
-  --ref "<release-tag>"
-```
-
-Use the release tag, not a branch, as the workflow ref. The workflow derives the
-package version from the tag, checks that the GitHub release is published,
-downloads the wheel over HTTPS, validates its package metadata, and checks its
-digest against PyPI's metadata. It uploads
-`python-package.attestation.sigstore.json` to the corresponding GitHub release,
-separately from the non-Python release attestation. This trusts OneBranch
-publication and PyPI distribution rather than independently comparing the wheel
-against a OneBranch build artifact. It is a GitHub attestation of the published
-wheel, not build-time OneBranch provenance.
-
-OneBranch success confirms publication only; check the GitHub workflow's result
-to confirm attestation completed. If publication succeeded but attestation failed,
-retry only the attestation workflow on the original release tag. Do not
-republish the wheel or move the tag. If publication itself was incomplete, skip
-that version and publish a new version.
+After ESRP confirms publication, no additional GitHub workflow is required.
+If publication is incomplete, do not republish the wheel or move or recreate
+the tag; skip that version and publish a new version.
 
 Before publication, the pipeline verifies that:
 
