@@ -26,6 +26,7 @@
 #define FMT_HEADER_ONLY
 
 #include <atomic>
+#include <cstdint>
 #include <fmt/format.h>
 #include <utility>
 #include <vector>
@@ -790,7 +791,7 @@ namespace ccf
       return false;
     }
 
-    enum class CommitAction
+    enum class CommitAction : uint8_t
     {
       Done,
       Retry
