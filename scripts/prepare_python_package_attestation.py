@@ -18,23 +18,12 @@ from urllib.request import urlopen
 from validate_python_package import validate_wheel
 
 
-def validate_release(
-    release_tag: str, package_version: str, source_commit: str
-) -> None:
+def validate_release(release_tag: str) -> str:
+    if not release_tag.startswith("ccf-"):
+        raise ValueError(f"Expected a ccf-* release tag, found {release_tag}")
+    package_version = release_tag.removeprefix("ccf-").replace("-", ".", 1)
     if not re.fullmatch(r"[0-9][A-Za-z0-9.+]*", package_version):
         raise ValueError(f"Invalid Python package version: {package_version}")
-    if (
-        not release_tag.startswith("ccf-")
-        or release_tag.removeprefix("ccf-").replace("-", ".", 1) != package_version
-    ):
-        raise ValueError("Release tag does not match the Python package version")
-    if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
-        raise ValueError("Invalid OneBranch source commit")
-    tag_commit = subprocess.check_output(
-        ["git", "rev-parse", f"refs/tags/{release_tag}^{{commit}}"], text=True
-    ).strip()
-    if tag_commit != source_commit:
-        raise ValueError("Release tag does not match the OneBranch source commit")
     release = json.loads(
         subprocess.check_output(
             [
@@ -52,13 +41,10 @@ def validate_release(
     )
     if release["isDraft"] is not False:
         raise ValueError("The GitHub release must be published before attestation")
+    return package_version
 
 
-def download_wheel(
-    package_version: str, expected_sha256: str, output_dir: Path
-) -> Path:
-    if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
-        raise ValueError("Invalid OneBranch wheel SHA-256 digest")
+def download_wheel(package_version: str, output_dir: Path) -> Path:
     metadata_url = f"https://pypi.org/pypi/ccf/{quote(package_version, safe='')}/json"
     for attempt in range(6):
         try:
@@ -87,8 +73,9 @@ def download_wheel(
     wheel = wheels[0]
     if wheel["yanked"]:
         raise ValueError("The Python package has been yanked from PyPI")
-    if wheel["digests"]["sha256"] != expected_sha256:
-        raise ValueError("PyPI wheel digest does not match the OneBranch build")
+    expected_sha256 = wheel["digests"]["sha256"]
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+        raise ValueError("Invalid PyPI wheel SHA-256 digest")
     filename = wheel["filename"]
     if not re.fullmatch(r"[A-Za-z0-9_.+-]+\.whl", filename):
         raise ValueError("Invalid PyPI wheel filename")
@@ -103,23 +90,20 @@ def download_wheel(
     with wheel_path.open("rb") as downloaded:
         actual_sha256 = hashlib.file_digest(downloaded, "sha256").hexdigest()
     if actual_sha256 != expected_sha256:
-        raise ValueError("Downloaded wheel digest does not match the OneBranch build")
+        raise ValueError("Downloaded wheel digest does not match PyPI metadata")
     validate_wheel(wheel_path, package_version)
     return wheel_path
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Verify a OneBranch-published Python wheel before attestation"
+        description="Verify a published Python wheel before attestation"
     )
     parser.add_argument("release_tag")
-    parser.add_argument("package_version")
-    parser.add_argument("expected_sha256")
-    parser.add_argument("source_commit")
     parser.add_argument("--output-dir", type=Path, default=Path("python-wheel"))
     args = parser.parse_args()
-    validate_release(args.release_tag, args.package_version, args.source_commit)
-    print(download_wheel(args.package_version, args.expected_sha256, args.output_dir))
+    package_version = validate_release(args.release_tag)
+    print(download_wheel(package_version, args.output_dir))
 
 
 if __name__ == "__main__":
