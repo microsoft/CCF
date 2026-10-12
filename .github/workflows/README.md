@@ -138,7 +138,9 @@ The job also checks the records of the recovery trace fixtures in
 package in `lean/disaster-recovery/replayer`, which has no dependencies, and
 runs its `check-fixtures.sh`. That replays the fixtures' quorum, failover and
 multiple-timeout traces, which must pass, and invalid and valid traces stored
-as diffs against them, which must fail and pass.
+as diffs against them, which must fail and pass. It then runs the trace
+viewer's `viewer/build.py`, which fails if a dump the viewer shows is missing
+or disagrees with the replayer.
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, also
 builds the replayer the same way and replays the protocol's e2e scenarios

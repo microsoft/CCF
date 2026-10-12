@@ -164,6 +164,12 @@ private def execute (config : Model.Config) (current : ReplayState)
       check "notifications" (some notifications) outputs.notifications
       return current
 
+/-- Runs one instruction as `replay` does, for tools that show each step. -/
+def runInstruction (config : Model.Config) (current : ReplayState)
+    (instruction : Instruction)
+    : Except String ReplayState :=
+  execute config current instruction
+
 private def label (origins : List Origin) : String :=
   ", ".intercalate
     (origins.map fun origin => s!"{origin.file}:{origin.line} [{origin.rule}]")
