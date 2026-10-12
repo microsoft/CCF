@@ -37,6 +37,20 @@ jobs:
         id: pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
+      # conf.py builds the recovery trace viewer's replayer with lake.
+      - name: Install Lean
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
+            -o /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          rm /tmp/elan-init.sh
+          export PATH="${HOME}/.elan/bin:${PATH}"
+          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+          echo "${HOME}/.elan/bin" >> "$GITHUB_PATH"
+        shell: bash
+
       - name: Build Documentation
         run: |
           set -x
