@@ -29,12 +29,12 @@ namespace ccf
 {
   namespace detail
   {
-    template <typename I>
-    concept ContiguousByteIterator =
-      std::contiguous_iterator<I> && std::is_integral_v<std::iter_value_t<I>> &&
-      sizeof(std::iter_value_t<I>) == 1 &&
-      !std::is_same_v<std::iter_value_t<I>, bool> &&
-      !std::is_volatile_v<std::remove_reference_t<std::iter_reference_t<I>>>;
+    template <typename Iter>
+    concept ContiguousByteIterator = std::contiguous_iterator<Iter> &&
+      std::is_integral_v<std::iter_value_t<Iter>> &&
+      sizeof(std::iter_value_t<Iter>) == 1 &&
+      !std::is_same_v<std::iter_value_t<Iter>, bool> &&
+      !std::is_volatile_v<std::remove_reference_t<std::iter_reference_t<Iter>>>;
   }
 
   class ByteVector
@@ -212,14 +212,14 @@ namespace ccf
       std::memset(initialize(count), value, count);
     }
 
-    template <std::input_iterator I>
-    ByteVector(I first, I last) : ByteVector()
+    template <std::input_iterator Iter>
+    ByteVector(Iter first, Iter last) : ByteVector()
     {
       if (first == last)
       {
         return;
       }
-      if constexpr (detail::ContiguousByteIterator<I>)
+      if constexpr (detail::ContiguousByteIterator<Iter>)
       {
         const auto count = static_cast<size_t>(last - first);
         std::memcpy(initialize(count), std::to_address(first), count);
@@ -466,14 +466,14 @@ namespace ccf
       return value;
     }
 
-    template <std::input_iterator I>
-    void append(I first, I last)
+    template <std::input_iterator Iter>
+    void append(Iter first, Iter last)
     {
       if (first == last)
       {
         return;
       }
-      if constexpr (detail::ContiguousByteIterator<I>)
+      if constexpr (detail::ContiguousByteIterator<Iter>)
       {
         append_bytes(
           reinterpret_cast<const uint8_t*>(std::to_address(first)),
@@ -549,15 +549,15 @@ namespace ccf
       set_length(next_size);
       return position;
     }
-    template <std::input_iterator I>
-    iterator insert(iterator position, I first, I last)
+    template <std::input_iterator Iter>
+    iterator insert(iterator position, Iter first, Iter last)
     {
       assert(position >= begin() && position <= end());
       if (first == last)
       {
         return position;
       }
-      if constexpr (detail::ContiguousByteIterator<I>)
+      if constexpr (detail::ContiguousByteIterator<Iter>)
       {
         const auto* source =
           reinterpret_cast<const uint8_t*>(std::to_address(first));
