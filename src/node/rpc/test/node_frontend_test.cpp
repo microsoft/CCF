@@ -252,6 +252,27 @@ namespace
     return path;
   }
 
+  std::pair<std::shared_ptr<::http::HttpRpcContext>, bool> file_range_response(
+    const std::string& path,
+    llhttp_method verb,
+    const ccf::http::HeaderMap& headers)
+  {
+    ::http::Request request("/node/file", verb);
+    for (const auto& [name, value] : headers)
+    {
+      request.set_header(name, value);
+    }
+    const auto session = std::make_shared<ccf::SessionContext>(
+      ccf::InvalidSessionId, std::vector<uint8_t>{});
+    auto rpc_ctx = ccf::make_rpc_context(session, request.build_request());
+    ccf::endpoints::CommandEndpointContext ctx(rpc_ctx);
+    std::ifstream f(path, std::ios::binary);
+    REQUIRE(f.is_open());
+    rpc_ctx->set_response_header("x-file", "test-file");
+    ccf::node::fill_range_response_from_file(ctx, f);
+    return {rpc_ctx, f.is_open()};
+  }
+
   // This file is built with DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS,
   // which compiles out the CHECK_THROWS assertions, so catch explicitly.
   template <typename F>
@@ -1035,6 +1056,439 @@ TEST_CASE("Add a node to an open service")
     }
     CHECK(get_node(trusted_node_id).status == NodeStatus::TRUSTED);
     CHECK(get_node(trusted_node_id).pending_last_seen == expired);
+  }
+}
+
+TEST_CASE("File range parsing preserves half-open bounds")
+{
+  struct Case
+  {
+    std::string header;
+    size_t total_size;
+    size_t start;
+    size_t end;
+  };
+  const auto max = std::numeric_limits<size_t>::max();
+  const std::vector<Case> cases = {
+    {"bytes=0-0", 100, 0, 1},
+    {"bytes=0-99", 100, 0, 100},
+    {"bytes=10-19", 100, 10, 20},
+    {"bytes=99-99", 100, 99, 100},
+    {"bytes=0-100", 100, 0, 100},
+    {"bytes=10-100", 100, 10, 100},
+    {fmt::format("bytes=0-{}", max), 100, 0, 100},
+    {"bytes=0-", 100, 0, 100},
+    {"bytes=10-", 100, 10, 100},
+    {"bytes=99-", 100, 99, 100},
+    {"bytes=-1", 100, 99, 100},
+    {"bytes=-20", 100, 80, 100},
+    {"bytes=-100", 100, 0, 100},
+    {"bytes=-101", 100, 0, 100},
+    {fmt::format("bytes=-{}", max), 100, 0, 100},
+    {"bytes=010-019", 100, 10, 20},
+    {"bytes=10x-19y", 100, 10, 20},
+    {"bytes=10 -19 ", 100, 10, 20},
+    {"bytes=0x10-0x20", 100, 0, 1},
+    {"bytes=0-9=ignored", 100, 0, 10},
+    {"bytes=-20xyz", 100, 80, 100},
+    {"bytes=10tail-", 100, 10, 100},
+    {"bytes=-0", 100, 100, 100},
+    {"bytes=50-49", 100, 50, 50},
+    {"bytes=100-", 100, 100, 100},
+    {"bytes=100-100", 100, 100, 100},
+    {"bytes=0-0", 1, 0, 1},
+    {"bytes=-1", 1, 0, 1},
+    {fmt::format("bytes=0-{}", max), max, 0, max},
+    {fmt::format("bytes={}-{}", max - 1, max), max, max - 1, max},
+    {fmt::format("bytes={}-", max - 1), max, max - 1, max},
+    {fmt::format("bytes=-{}", max), max, 0, max},
+    {fmt::format("bytes={}-", max), max, max, max},
+    {fmt::format("bytes={}-{}", max, max), max, max, max}};
+
+  for (const auto& test : cases)
+  {
+    INFO(test.header, ", total_size=", test.total_size);
+    const auto parsed =
+      ccf::node::detail::parse_range_header(test.header, test.total_size);
+    REQUIRE(std::holds_alternative<ccf::node::detail::FileRange>(parsed));
+    const auto& range = std::get<ccf::node::detail::FileRange>(parsed);
+    CHECK(range.start == test.start);
+    CHECK(range.end == test.end);
+  }
+}
+
+TEST_CASE("File range parsing preserves exact errors")
+{
+  struct Case
+  {
+    std::string header;
+    std::string error;
+  };
+  const auto overflow =
+    std::to_string(std::numeric_limits<size_t>::max()) + "0";
+  const std::vector<Case> cases = {
+    {"", "Only 'bytes' is supported as a Range header unit"},
+    {"items=0-1", "Only 'bytes' is supported as a Range header unit"},
+    {"Bytes=0-1", "Only 'bytes' is supported as a Range header unit"},
+    {"bytes =0-1", "Only 'bytes' is supported as a Range header unit"},
+    {" bytes=0-1", "Only 'bytes' is supported as a Range header unit"},
+    {"bytes", "Invalid format, cannot parse range in bytes"},
+    {"bytes=", "Invalid format, cannot parse range in bytes="},
+    {"bytes=0", "Invalid format, cannot parse range in bytes=0"},
+    {"bytes=0--1", "Invalid format, cannot parse range in bytes=0--1"},
+    {"bytes=-1-5", "Invalid format, cannot parse range in bytes=-1-5"},
+    {"bytes=0-1-2", "Invalid format, cannot parse range in bytes=0-1-2"},
+    {"bytes=0-1,2-3", "Multiple ranges are not supported"},
+    {"bytes=0-1,", "Multiple ranges are not supported"},
+    {"bytes=foo,bar", "Multiple ranges are not supported"},
+    {"bytes=-", "Invalid range: Must contain range-start or range-end"},
+    {"bytes=foo-9", "Unable to parse start of range value foo in bytes=foo-9"},
+    {"bytes=0-foo", "Unable to parse end of range value foo in bytes=0-foo"},
+    {"bytes=-foo",
+     "Unable to parse end of range offset value foo in bytes=-foo"},
+    {"bytes= 1-2", "Unable to parse start of range value  1 in bytes= 1-2"},
+    {"bytes=1- 2", "Unable to parse end of range value  2 in bytes=1- 2"},
+    {"bytes=- 2", "Unable to parse end of range offset value  2 in bytes=- 2"},
+    {"bytes=+1-2", "Unable to parse start of range value +1 in bytes=+1-2"},
+    {"bytes=1-+2", "Unable to parse end of range value +2 in bytes=1-+2"},
+    {"bytes=-+2", "Unable to parse end of range offset value +2 in bytes=-+2"},
+    {"bytes==0-1", "Unable to parse start of range value =0 in bytes==0-1"},
+    {"bytes=101-", "Start of range 101 is larger than total file size 100"},
+    {"bytes=101-foo", "Start of range 101 is larger than total file size 100"},
+    {"bytes=50-48", "Invalid range: Start (50) and end (49) out of order"},
+    {"bytes=99-0", "Invalid range: Start (99) and end (1) out of order"},
+    {fmt::format("bytes={}-", overflow),
+     fmt::format(
+       "Unable to parse start of range value {} in bytes={}-",
+       overflow,
+       overflow)},
+    {fmt::format("bytes=0-{}", overflow),
+     fmt::format(
+       "Unable to parse end of range value {} in bytes=0-{}",
+       overflow,
+       overflow)},
+    {fmt::format("bytes=-{}", overflow),
+     fmt::format(
+       "Unable to parse end of range offset value {} in bytes=-{}",
+       overflow,
+       overflow)}};
+
+  for (const auto& test : cases)
+  {
+    INFO(test.header);
+    const auto parsed = ccf::node::detail::parse_range_header(test.header, 100);
+    REQUIRE(std::holds_alternative<std::string>(parsed));
+    CHECK(std::get<std::string>(parsed) == test.error);
+  }
+}
+
+TEST_CASE("File range responses preserve GET and HEAD metadata")
+{
+  const ScopedTempDir dir;
+  std::string contents;
+  for (size_t i = 0; i < 100; ++i)
+  {
+    contents.push_back(static_cast<char>(i));
+  }
+  const auto path = write_test_file(dir, "range.bin", contents);
+  const std::vector<uint8_t> bytes(contents.begin(), contents.end());
+  const auto full_digest = ccf::node::format_repr_digest(
+    "sha-256", ccf::crypto::MDType::SHA256, bytes.data(), bytes.size());
+  struct Case
+  {
+    std::optional<std::string> header;
+    size_t start;
+    size_t end;
+  };
+  const std::vector<Case> cases = {
+    {std::nullopt, 0, 100},
+    {"bytes=10-19", 10, 20},
+    {"bytes=10-", 10, 100},
+    {"bytes=-20", 80, 100},
+    {"bytes=-101", 0, 100},
+    {fmt::format("bytes=0-{}", std::numeric_limits<size_t>::max()), 0, 100},
+    {"bytes=10junk-19junk", 10, 20}};
+
+  for (const auto& test : cases)
+  {
+    for (const auto verb : {HTTP_GET, HTTP_HEAD})
+    {
+      for (const auto want_digest : {false, true})
+      {
+        INFO(
+          test.header.value_or("<absent>"),
+          ", verb=",
+          verb,
+          ", want_digest=",
+          want_digest);
+        ccf::http::HeaderMap request_headers;
+        if (test.header.has_value())
+        {
+          request_headers[ccf::http::headers::RANGE] = test.header.value();
+        }
+        if (want_digest)
+        {
+          request_headers[ccf::http::headers::WANT_REPR_DIGEST] = "sha-256=1";
+        }
+        const auto [response, file_is_open] =
+          file_range_response(path, verb, request_headers);
+        const auto headers = response->get_response_headers();
+        CHECK(
+          response->get_response_status() ==
+          (test.header.has_value() ? HTTP_STATUS_PARTIAL_CONTENT :
+                                     HTTP_STATUS_OK));
+        CHECK(headers.at("x-file") == "test-file");
+        CHECK(headers.at("accept-ranges") == "bytes");
+        CHECK(
+          headers.at(ccf::http::headers::CONTENT_TYPE) ==
+          ccf::http::headervalues::contenttype::OCTET_STREAM);
+        if (test.header.has_value())
+        {
+          CHECK(
+            headers.at(ccf::http::headers::CONTENT_RANGE) ==
+            fmt::format("bytes {}-{}/100", test.start, test.end - 1));
+        }
+        else
+        {
+          CHECK_FALSE(headers.contains(ccf::http::headers::CONTENT_RANGE));
+        }
+        const std::vector<uint8_t> expected(
+          bytes.begin() + test.start, bytes.begin() + test.end);
+        CHECK(
+          headers.at(ccf::http::headers::ETAG) ==
+          fmt::format(
+            "\"{}\"",
+            ccf::node::format_repr_digest(
+              "sha-256",
+              ccf::crypto::MDType::SHA256,
+              expected.data(),
+              expected.size())));
+        if (want_digest)
+        {
+          CHECK(headers.at(ccf::http::headers::REPR_DIGEST) == full_digest);
+        }
+        else
+        {
+          CHECK_FALSE(headers.contains(ccf::http::headers::REPR_DIGEST));
+        }
+        if (verb == HTTP_HEAD)
+        {
+          CHECK(response->get_response_body().empty());
+          CHECK(
+            headers.at(ccf::http::headers::CONTENT_LENGTH) ==
+            std::to_string(expected.size()));
+        }
+        else
+        {
+          CHECK(response->get_response_body() == expected);
+        }
+        CHECK_FALSE(file_is_open);
+      }
+    }
+  }
+}
+
+TEST_CASE("File range responses reject invalid and empty ranges before reading")
+{
+  const ScopedTempDir dir;
+  const auto path = write_test_file(dir, "range.bin", std::string(100, 'x'));
+  struct Case
+  {
+    std::string header;
+    std::string error;
+  };
+  const std::vector<Case> cases = {
+    {"items=0-1", "Only 'bytes' is supported as a Range header unit"},
+    {"bytes=0-1,2-3", "Multiple ranges are not supported"},
+    {"bytes=", "Invalid format, cannot parse range in bytes="},
+    {"bytes=foo-9", "Unable to parse start of range value foo in bytes=foo-9"},
+    {"bytes=0-foo", "Unable to parse end of range value foo in bytes=0-foo"},
+    {"bytes=-foo",
+     "Unable to parse end of range offset value foo in bytes=-foo"},
+    {"bytes=101-", "Start of range 101 is larger than total file size 100"},
+    {"bytes=-", "Invalid range: Must contain range-start or range-end"},
+    {"bytes=50-48", "Invalid range: Start (50) and end (49) out of order"},
+    {"bytes=-0", "Invalid range: Start (100) and end (100) out of order"},
+    {"bytes=50-49", "Invalid range: Start (50) and end (50) out of order"},
+    {"bytes=100-", "Invalid range: Start (100) and end (100) out of order"},
+    {"bytes=100-100", "Invalid range: Start (100) and end (100) out of order"}};
+
+  for (const auto& test : cases)
+  {
+    for (const auto verb : {HTTP_GET, HTTP_HEAD})
+    {
+      INFO(test.header, ", verb=", verb);
+      const auto [response, file_is_open] = file_range_response(
+        path,
+        verb,
+        {{ccf::http::headers::RANGE, test.header},
+         {ccf::http::headers::WANT_REPR_DIGEST, "sha-256=1"},
+         {ccf::http::headers::IF_NONE_MATCH, "*"}});
+      CHECK(response->get_response_status() == HTTP_STATUS_BAD_REQUEST);
+      const auto headers = response->get_response_headers();
+      CHECK(headers.at("x-file") == "test-file");
+      CHECK(headers.at("accept-ranges") == "bytes");
+      CHECK_FALSE(headers.contains(ccf::http::headers::ETAG));
+      CHECK_FALSE(headers.contains(ccf::http::headers::REPR_DIGEST));
+      CHECK_FALSE(headers.contains(ccf::http::headers::CONTENT_RANGE));
+      CHECK(file_is_open);
+      if (verb == HTTP_GET)
+      {
+        const auto body = json::parse(response->get_response_body());
+        CHECK(body["error"]["code"] == ccf::errors::InvalidHeaderValue);
+        CHECK(body["error"]["message"] == test.error);
+      }
+      else
+      {
+        CHECK(response->get_response_body().empty());
+      }
+    }
+  }
+}
+
+TEST_CASE(
+  "File range responses reject empty files before setting range headers")
+{
+  const ScopedTempDir dir;
+  const auto path = write_test_file(dir, "empty.bin", "");
+  for (const auto verb : {HTTP_GET, HTTP_HEAD})
+  {
+    const auto [response, file_is_open] = file_range_response(
+      path,
+      verb,
+      {{ccf::http::headers::RANGE, "invalid"},
+       {ccf::http::headers::WANT_REPR_DIGEST, "sha-256=1"},
+       {ccf::http::headers::IF_NONE_MATCH, "*"}});
+    CHECK(response->get_response_status() == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    const auto headers = response->get_response_headers();
+    CHECK(headers.at("x-file") == "test-file");
+    CHECK_FALSE(headers.contains("accept-ranges"));
+    CHECK_FALSE(headers.contains(ccf::http::headers::ETAG));
+    CHECK_FALSE(headers.contains(ccf::http::headers::REPR_DIGEST));
+    CHECK(file_is_open);
+    if (verb == HTTP_GET)
+    {
+      const auto body = json::parse(response->get_response_body());
+      CHECK(body["error"]["code"] == ccf::errors::EmptyFile);
+      CHECK(body["error"]["message"] == "Found empty file");
+    }
+    else
+    {
+      CHECK(response->get_response_body().empty());
+    }
+  }
+}
+
+TEST_CASE(
+  "File range conditional responses preserve digest and header ordering")
+{
+  const ScopedTempDir dir;
+  const std::string contents = "0123456789";
+  const auto path = write_test_file(dir, "range.bin", contents);
+  const std::vector<uint8_t> bytes(contents.begin(), contents.end());
+  const auto full_digest = ccf::node::format_repr_digest(
+    "sha-256", ccf::crypto::MDType::SHA256, bytes.data(), bytes.size());
+  for (const auto with_range : {false, true})
+  {
+    ccf::http::HeaderMap request_headers;
+    if (with_range)
+    {
+      request_headers[ccf::http::headers::RANGE] = "bytes=2-4";
+    }
+    const auto [initial, initial_file_is_open] =
+      file_range_response(path, HTTP_GET, request_headers);
+    CHECK_FALSE(initial_file_is_open);
+    const auto etag =
+      initial->get_response_headers().at(ccf::http::headers::ETAG);
+    const auto& body = initial->get_response_body();
+    const std::vector<std::string> matches = {
+      "*",
+      etag,
+      fmt::format(
+        "\"{}\"",
+        ccf::node::format_repr_digest(
+          "sha-384", ccf::crypto::MDType::SHA384, body.data(), body.size())),
+      fmt::format(
+        "\"{}\"",
+        ccf::node::format_repr_digest(
+          "sha-512", ccf::crypto::MDType::SHA512, body.data(), body.size()))};
+    for (const auto verb : {HTTP_GET, HTTP_HEAD})
+    {
+      for (const auto want_digest : {false, true})
+      {
+        auto headers = request_headers;
+        if (want_digest)
+        {
+          headers[ccf::http::headers::WANT_REPR_DIGEST] = "sha-256=1";
+        }
+        for (const auto& match : matches)
+        {
+          INFO(with_range, ", verb=", verb, ", If-None-Match=", match);
+          headers[ccf::http::headers::IF_NONE_MATCH] = match;
+          const auto [response, file_is_open] =
+            file_range_response(path, verb, headers);
+          CHECK(response->get_response_status() == HTTP_STATUS_NOT_MODIFIED);
+          CHECK(response->get_response_body().empty());
+          const auto response_headers = response->get_response_headers();
+          CHECK(response_headers.at("x-file") == "test-file");
+          CHECK(response_headers.at("accept-ranges") == "bytes");
+          CHECK(response_headers.at(ccf::http::headers::ETAG) == etag);
+          CHECK_FALSE(
+            response_headers.contains(ccf::http::headers::CONTENT_TYPE));
+          CHECK_FALSE(
+            response_headers.contains(ccf::http::headers::CONTENT_RANGE));
+          CHECK_FALSE(
+            response_headers.contains(ccf::http::headers::CONTENT_LENGTH));
+          if (want_digest)
+          {
+            CHECK(
+              response_headers.at(ccf::http::headers::REPR_DIGEST) ==
+              full_digest);
+          }
+          else
+          {
+            CHECK_FALSE(
+              response_headers.contains(ccf::http::headers::REPR_DIGEST));
+          }
+          CHECK_FALSE(file_is_open);
+        }
+        headers[ccf::http::headers::IF_NONE_MATCH] = "\"different\"";
+        const auto [response, file_is_open] =
+          file_range_response(path, verb, headers);
+        CHECK(
+          response->get_response_status() ==
+          (with_range ? HTTP_STATUS_PARTIAL_CONTENT : HTTP_STATUS_OK));
+        CHECK(
+          response->get_response_headers().at(ccf::http::headers::ETAG) ==
+          etag);
+        CHECK_FALSE(file_is_open);
+
+        for (const auto& invalid_match :
+             std::vector<std::string>{"not etags", fmt::format("W/{}", etag)})
+        {
+          headers[ccf::http::headers::IF_NONE_MATCH] = invalid_match;
+          const auto [invalid_response, invalid_file_is_open] =
+            file_range_response(path, verb, headers);
+          CHECK(
+            invalid_response->get_response_status() == HTTP_STATUS_BAD_REQUEST);
+          CHECK(
+            invalid_response->get_response_headers().at(
+              ccf::http::headers::ETAG) == etag);
+          CHECK_FALSE(invalid_file_is_open);
+          if (verb == HTTP_GET)
+          {
+            const auto error =
+              json::parse(invalid_response->get_response_body())["error"];
+            CHECK(error["code"] == ccf::errors::InvalidHeaderValue);
+            CHECK(error["message"] == "Invalid If-Match header");
+          }
+          else
+          {
+            CHECK(invalid_response->get_response_body().empty());
+          }
+        }
+      }
+    }
   }
 }
 
