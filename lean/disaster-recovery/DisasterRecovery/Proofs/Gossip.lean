@@ -12,9 +12,13 @@ open Invariants Quorum
 
 attribute [local simp] Execution.Local.transitionSystem rejectionReason guard failure
 
+/-- Received evidence grows monotonically, and making a choice freezes the gossip set. -/
 structure Evolves (before after : NodeState) : Prop where
+  /-- Previously accepted gossips remain present. -/
   gossips : before.gossips ⊆ after.gossips
+  /-- Previously accepted votes remain present. -/
   votes : before.votes ⊆ after.votes
+  /-- Once chosen, a node retains a choice and cannot change its gossips. -/
   frozen
     : before.chosen.isSome = true
       -> after.chosen.isSome = true /\ after.gossips = before.gossips
@@ -63,9 +67,11 @@ lemma step_evolves (config : Execution.Local.Config) (state : NodeState) (event 
     | exact insertVote_extends _ _
     | simp_all
 
+/-- Every gossip stored in the node table matches the configured recovered IDs. -/
 def Genuine (config : Config) (nodes : List (Location × NodeState)) : Prop :=
   forall entry, entry ∈ nodes -> entry.2.gossips ⊆ config.recovered
 
+/-- Any accepted gossip in the event matches its source's recovered transaction ID. -/
 def EventGenuine (config : Config) : Event -> Prop
   | .receiveGossip source txid .accepted => (source, txid) ∈ config.recovered
   | _ => True
@@ -184,6 +190,7 @@ lemma next_genuine {config : Config} {before after : State} {action : Action}
       simpa only [recordEffects_system]
         using systemStep_genuine prior (by trivial) updated
 
+/-- Every past voter still has a choice and the same gossips as its send snapshot. -/
 def FrozenVotes (state : State) : Prop :=
   forall envelope,
     envelope ∈ state.sent
@@ -262,7 +269,7 @@ lemma steps_evolve {config : Model.Config} {before after : Model.State} {steps}
     : exists updated, (node, updated) ∈ after.nodes /\ Evolves current updated := by
   induction run generalizing current with
   | nil => exact ⟨current, member, evolves_refl current⟩
-  | cons transition rest ih =>
+  | cons transition _ ih =>
       obtain ⟨middle, present, evolves⟩ := model_step_evolves reachable transition member
       obtain ⟨updated, present', evolves'⟩ := ih (.step reachable transition) present
       exact ⟨updated, present', evolves_trans evolves evolves'⟩

@@ -10,7 +10,9 @@ reachability, the multi-node network) is built on these two fields.
 
 /-- `none` disables an action; `some state` may be an enabled stutter. -/
 structure TransitionSystem (State Action : Type) where
+  /-- The states from which an execution may start. -/
   init : State -> Prop
+  /-- Execute an action, or return `none` when it is disabled. -/
   step : State -> Action -> Option State
 
 namespace TransitionSystem
@@ -18,7 +20,9 @@ namespace TransitionSystem
 /-- States reached from an initial state by finitely many enabled steps. -/
 inductive Reachable {State Action : Type} (system : TransitionSystem State Action)
     : State -> Prop where
+  /-- An initial state is reachable without taking any steps. -/
   | initial {state : State} (initialized : system.init state) : Reachable system state
+  /-- An enabled step preserves reachability. -/
   | step
     {state nextState : State}
     {action : Action}

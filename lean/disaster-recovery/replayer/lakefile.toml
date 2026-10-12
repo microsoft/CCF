@@ -4,7 +4,16 @@
 name = "disaster_recovery_replay"
 version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true"]
+builtinLint = true
 defaultTargets = ["disaster-recovery-replay"]
+
+[leanOptions]
+linter.extra = true
+linter.loopingSimpArgs = true
+linter.missingDocs = true
+linter.omit = true
+linter.redundantVisibility = true
+linter.unusedVariables.analyzeTactics = true
 
 [[lean_lib]]
 name = "DisasterRecovery"

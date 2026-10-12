@@ -14,33 +14,47 @@ about them by re-running the local step.
 
 /-- Node states, the nodes allowed to act, and the messages in flight. -/
 structure State (Node LocalState Message : Type) where
+  /-- The configured nodes and their current local states. -/
   nodes : List (Node × LocalState)
+  /-- Nodes currently allowed to execute a protocol step. -/
   active : List Node
+  /-- Undelivered messages; order does not constrain delivery. -/
   network : List (Envelope Node Message) := []
 deriving Repr, BEq
 
 /-- A node acts on its own (`local`) or receives one queued envelope (`deliver`). -/
 inductive Action (Node Message Input : Type) where
+  /-- Run a node with an input not supplied by the network. -/
   | local (node : Node) (input : Input)
+  /-- Deliver one occurrence of a queued message to its target. -/
   | deliver (envelope : Envelope Node Message)
 deriving Repr, BEq
 
 /-- What a local protocol must provide to be run by the network: initial
 states, a step, and translations of deliveries and inputs into local actions. -/
 structure Protocol (Node LocalState LocalAction Message Notification Input : Type) where
+  /-- Initial local states allowed for each node. -/
   init : Node -> LocalState -> Prop
+  /-- Run one local action with the host's output capabilities. -/
   step
     : Capabilities Node Message Notification -> Node -> LocalState -> LocalAction
       -> Option (Effect Node Message Notification LocalState)
+  /-- Translate a sender and its message into a local action. -/
   receive : Node -> Message -> LocalAction
+  /-- Translate an external input into a local action. -/
   internal : Input -> LocalAction
 
 /-- A record of one node's step: what it saw, what it became, what it emitted. -/
 structure LocalStep (Node LocalState LocalAction Message Notification : Type) where
+  /-- The node that executed the step. -/
   node : Node
+  /-- The local state supplied to the protocol. -/
   before : LocalState
+  /-- The action supplied to the protocol. -/
   action : LocalAction
+  /-- The local state returned by the protocol. -/
   after : LocalState
+  /-- Messages and notifications produced by the recording host. -/
   effects : Outputs Node Message Notification
 
 /-- `s` is a real step: running the protocol from `s.before` on `s.action` with

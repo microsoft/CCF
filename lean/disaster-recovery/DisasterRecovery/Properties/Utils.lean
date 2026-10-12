@@ -3,6 +3,7 @@ import DisasterRecovery.Shared.Execution
 
 namespace DisasterRecovery.Properties
 
+/-- A finite sequence of global recovery states. -/
 abbrev GlobalTrace := Shared.Execution.Trace Model.State
 
 open Model.Local in
@@ -25,6 +26,7 @@ def UpToDateWithQuorum (config : Model.Config) (candidate : TxID) : Prop :=
         fun (_, voter) => decide (LogUpToDate candidate voter)).length
 
 open Model.Local in
+/-- The node accepted its own gossip at some state in the trace. -/
 def ReceivedOwnGossip (trace : GlobalTrace) (node : Location) : Prop :=
   exists globalState,
     globalState ∈ trace.states
@@ -35,10 +37,12 @@ namespace Trace
 
 open Model.Local
 
+/-- The node that executes a global action. -/
 def actor : Model.Action -> Location
   | .local node _ => node
   | .deliver envelope => envelope.target
 
+/-- The local protocol event corresponding to a global action. -/
 def event : Model.Action -> Event
   | .local _ .retry => .retry
   | .local _ .timeout => .timeout

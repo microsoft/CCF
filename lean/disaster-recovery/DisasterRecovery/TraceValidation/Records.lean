@@ -22,23 +22,30 @@ inductive Failure where
   /-- Evidence that logs which are still growing may yet complete. -/
   | incomplete (message : String)
 
+/-- A validation result distinguishing invalid evidence from incomplete logs. -/
 abbrev Checked :=
   Except Failure
 
+/-- Reject invalid evidence with the supplied diagnostic when a check fails. -/
 def require (condition : Bool) (message : String) : Checked Unit :=
   unless condition do
     throw (.invalid message)
 
 /-- One record, and the log line it is on. -/
 structure Record where
+  /-- The path of the node log containing the record. -/
   file : String
+  /-- The record's one-based line number in the log. -/
   line : Nat
+  /-- The JSON object following the trace marker. -/
   value : Json
 deriving Inhabited
 
+/-- Format a record's source location for diagnostics. -/
 def Record.location (record : Record) : String :=
   s!"{record.file}:{record.line}"
 
+/-- The prefix identifying recovery trace JSON within a node log line. -/
 def marker : String :=
   "RDP_TRACE "
 
@@ -90,32 +97,51 @@ committed, with the TxID seqno CCF reported for its transaction: the version
 it committed at if it wrote, and the version it read at otherwise.
 -/
 structure Execution where
+  /-- The protocol phase read by `advance()`. -/
   pre : Phase
+  /-- The timeout phase read by `advance()`. -/
   preTimeout : Phase
+  /-- The protocol phase after `advance()`. -/
   post : Phase
+  /-- The timeout phase after `advance()`. -/
   postTimeout : Phase
+  /-- The transaction's committed version if it wrote, otherwise its read version. -/
   version : Nat
+  /-- Whether the recorded execution made an observable transaction write. -/
   wrote : Bool
+  /-- The chosen location recorded by the execution, when present. -/
   chosen : Option Location
+  /-- The opening evidence recorded by the execution, when present. -/
   openKind : Option OpenKind
+  /-- Whether the execution requested a restart. -/
   restart : Bool
 deriving Inhabited
 
+/-- The validated payload of a protocol start, send, or committed execution. -/
 inductive Body where
+  /-- Initialize the protocol at a ledger version with the expected locations. -/
   | start (version : Nat) (expectedLocations : List Location)
+  /-- Send one message in a retry batch that read `preVersion`. -/
   | send (batch : Nat) (target : Location) (message : Message) (preVersion : Nat)
+  /-- Record a committed timeout execution. -/
   | timeout (execution : Execution)
+  /-- Record a committed execution of an accepted message handler. -/
   | receive (source : Location) (message : Message) (execution : Execution)
 deriving Inhabited
 
 /-- One validated record, in the model's vocabulary. -/
 structure TraceEvent where
+  /-- The original JSON record and its source location. -/
   record : Record
+  /-- The recovery location that logged the event. -/
   node : Location
+  /-- The node's zero-based trace counter. -/
   sequence : Nat
+  /-- The parsed protocol event. -/
   body : Body
 deriving Inhabited
 
+/-- Whether the event received an opening announcement. -/
 def TraceEvent.isIAmOpen (event : TraceEvent) : Bool :=
   event.body matches .receive _ .iAmOpen _
 
@@ -127,6 +153,7 @@ def TraceEvent.execution? (event : TraceEvent) : Option (Model.Action × Executi
       some (.deliver { source, target := event.node, payload := message }, execution)
   | _ => none
 
+/-- Attach a reduction rule to the event's source location. -/
 def TraceEvent.origin (event : TraceEvent) (rule : String) : Origin :=
   { file := event.record.file, line := event.record.line, rule }
 

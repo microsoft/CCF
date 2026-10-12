@@ -12,7 +12,9 @@ in a trace, so a step's action is existentially quantified where needed.
 /-- `Run system start actions final`: executing `actions` from `start` reaches `final`. -/
 inductive Run {State Action : Type} (system : TransitionSystem State Action)
     : State -> List Action -> State -> Prop where
+  /-- An empty action list leaves the state unchanged. -/
   | nil (state : State) : Run system state [] state
+  /-- Prepend one enabled action to the rest of an execution. -/
   | cons {before middle after : State} {action : Action} {actions : List Action}
     (step : system.step before action = some middle)
     (rest : Run system middle actions after)
@@ -20,6 +22,7 @@ inductive Run {State Action : Type} (system : TransitionSystem State Action)
 
 /-- The states an execution passes through, initial state first. Actions are not recorded. -/
 structure Trace (State : Type) where
+  /-- The initial state followed by the successor of each executed action. -/
   states : List State
 
 /-- The trace is nonempty, its first state is initial, and each later state

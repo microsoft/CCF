@@ -1,6 +1,7 @@
 name = "disaster_recovery"
 version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true"]
+builtinLint = true
 # Quote the hyphenated executable name for Lean's name parser.
 lintDriver = "axiomAudit/\u00abaxiom-audit\u00bb"
 lintDriverArgs = ["--root", "DisasterRecovery"]
@@ -8,6 +9,14 @@ defaultTargets = [
   "DisasterRecovery",
   "canonical-checks",
 ]
+
+[leanOptions]
+linter.extra = true
+linter.loopingSimpArgs = true
+linter.missingDocs = true
+linter.omit = true
+linter.redundantVisibility = true
+linter.unusedVariables.analyzeTactics = true
 
 [[require]]
 name = "mathlib"

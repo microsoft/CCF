@@ -5,9 +5,12 @@ namespace DisasterRecovery.Proofs.Trace
 
 open Shared
 
+/-- A finite enabled execution recording every successor state but not its actions. -/
 inductive Path (system : TransitionSystem State Action)
     : State -> List State -> State -> Prop where
+  /-- An empty path starts and ends at the same state. -/
   | nil (state) : Path system state [] state
+  /-- Prepend one enabled step and its successor to the remaining path. -/
   | cons {before middle after tail} {action}
     (step : system.step before action = some middle)
     (rest : Path system middle tail after)
@@ -38,7 +41,7 @@ lemma Path.valid {system : TransitionSystem State Action} {before tail after}
   | nil =>
       intro i left right first second
       cases i <;> simp at second
-  | cons step rest ih =>
+  | cons step _ ih =>
       intro i left right first second
       cases i with
       | zero =>

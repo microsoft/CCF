@@ -13,14 +13,19 @@ property statements then read.
 
 /-- A message in flight from `source` to `target`. -/
 structure Envelope (Node Message : Type) where
+  /-- The node that emitted the message. -/
   source : Node
+  /-- The node to which the message may be delivered. -/
   target : Node
+  /-- The protocol message, without its routing information. -/
   payload : Message
 deriving Repr, BEq, ReflBEq, LawfulBEq
 
 /-- Everything a local step emitted, in emission order per list. -/
 structure Outputs (Node Message Notification : Type) where
+  /-- Messages to append to the network after the local step. -/
   outgoing : List (Envelope Node Message) := []
+  /-- Notifications emitted to the host during the local step. -/
   notifications : List Notification := []
 deriving Repr, BEq
 
@@ -30,7 +35,9 @@ abbrev Effect (Node Message Notification : Type) :=
 
 /-- The callbacks a host lends to a node for one step. Both return `Unit`. -/
 structure Capabilities (Node Message Notification : Type) where
+  /-- Emit a message addressed to one node. -/
   send : Message -> Node -> Effect Node Message Notification Unit
+  /-- Report a protocol event to the host, without sending a network message. -/
   notify : Notification -> Effect Node Message Notification Unit
 
 /-- The recording host: sends become envelopes from `source`, notifications are kept. -/

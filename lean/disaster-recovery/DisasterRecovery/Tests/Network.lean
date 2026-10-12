@@ -118,6 +118,7 @@ private def requireSome (value : Option α) (message : String) : IO α :=
   | some result => pure result
   | none => throw (IO.userError message)
 
+/-- Check delivery, output ordering, and isolation of local steps in the generic network. -/
 def run : IO Unit := do
   let machine := MultiNodeTransitionSystem.lift [0, 1] protocol
   let message : Envelope Nat Nat := { source := 0, target := 1, payload := 5 }

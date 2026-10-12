@@ -8,6 +8,7 @@ open DisasterRecovery.TraceValidation
 def completionTimeoutMs : Nat :=
   20000
 
+/-- The command-line invocation shown when required arguments are missing or invalid. -/
 def usage : String :=
   "usage: disaster-recovery-replay --participants N [--wait-ms N] [--dump FILE] LOG..."
 
@@ -19,6 +20,7 @@ def takeDump : List String → Option System.FilePath × List String
       (dump, argument :: others)
   | [] => (none, [])
 
+/-- Parse the wait limit, required participant count, and nonempty list of node logs. -/
 def parseArgs : List String → Option (Nat × Scenario × List System.FilePath) :=
   let rec go (waitMs : Nat) (participants : Option Nat)
       : List String → Option (Nat × Scenario × List System.FilePath)
@@ -45,6 +47,7 @@ partial def reduceWhenComplete (scenario : Scenario) (logs : List System.FilePat
       IO.sleep 100
       reduceWhenComplete scenario logs deadline
 
+/-- Reduce and replay node logs, optionally writing the viewer dump, with failures fatal. -/
 def main (args : List String) : IO UInt32 := do
   let (dump, args) := takeDump args
   let some (waitMs, scenario, logs) := parseArgs args
