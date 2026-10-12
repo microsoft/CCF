@@ -49,7 +49,9 @@ namespace ccf
     {
       alignas(uint64_t) uint8_t bytes[INLINE_CAPACITY];
 
-      // Start the inline array's lifetime without initializing unused bytes.
+      // A user-provided constructor starts the array's lifetime without
+      // zeroing unused capacity. Only initialized bytes are exposed by size().
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init,modernize-use-equals-default)
       Inline() noexcept {}
     };
 
@@ -70,7 +72,7 @@ namespace ccf
 
     static_assert(std::is_trivially_copyable_v<Storage>);
 
-    bool allocated() const noexcept
+    [[nodiscard]] bool allocated() const noexcept
     {
       return (length_and_heap & HEAP_FLAG) != 0;
     }
@@ -86,10 +88,12 @@ namespace ccf
       length_and_heap = 0;
     }
 
-    size_t extended_size(size_t additional) const
+    [[nodiscard]] size_t extended_size(size_t additional) const
     {
       if (additional > MAX_SIZE - size())
+      {
         throw std::length_error("ByteVector size overflow");
+      }
       return size() + additional;
     }
 
@@ -102,12 +106,18 @@ namespace ccf
     uint8_t* initialize(size_t count)
     {
       if (count > MAX_SIZE)
+      {
         throw std::length_error("ByteVector size overflow");
+      }
       if (count > INLINE_CAPACITY)
       {
+        // ByteVector owns this allocation until destruction or move.
+        // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
         auto* buffer = static_cast<uint8_t*>(std::malloc(count));
         if (buffer == nullptr)
+        {
           throw std::bad_alloc();
+        }
         storage.large = {buffer, count};
         length_and_heap = (count << 1) | HEAP_FLAG;
         return buffer;
@@ -119,25 +129,35 @@ namespace ccf
     [[gnu::noinline]] void grow(size_t count)
     {
       if (count > MAX_SIZE)
+      {
         throw std::length_error("ByteVector capacity overflow");
+      }
       const auto previous_size = size();
       const auto previous_capacity = capacity();
       const auto next_capacity = std::max(
         count,
         previous_capacity <= MAX_SIZE / 2 ? previous_capacity * 2 : MAX_SIZE);
-      uint8_t* replacement;
+      uint8_t* replacement = nullptr;
       if (allocated())
       {
+        // Keep ownership of the old buffer if realloc fails.
+        // NOLINTBEGIN(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
         replacement = static_cast<uint8_t*>(
           std::realloc(storage.large.data, next_capacity));
+        // NOLINTEND(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
         if (replacement == nullptr)
+        {
           throw std::bad_alloc();
+        }
       }
       else
       {
+        // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
         replacement = static_cast<uint8_t*>(std::malloc(next_capacity));
         if (replacement == nullptr)
+        {
           throw std::bad_alloc();
+        }
         std::memcpy(replacement, storage.small.bytes, previous_size);
       }
       storage.large = {replacement, next_capacity};
@@ -147,7 +167,9 @@ namespace ccf
     void append_bytes(const uint8_t* source, size_t count)
     {
       if (count == 0)
+      {
         return;
+      }
       const auto previous_size = size();
       const auto next_size = extended_size(count);
       if (next_size > capacity() && contains(source))
@@ -163,7 +185,9 @@ namespace ccf
         source = data() + offset;
       }
       else
+      {
         reserve(next_size);
+      }
       std::memmove(data() + previous_size, source, count);
       set_length(next_size);
     }
@@ -192,14 +216,18 @@ namespace ccf
     ByteVector(I first, I last) : ByteVector()
     {
       if (first == last)
+      {
         return;
+      }
       if constexpr (detail::ContiguousByteIterator<I>)
       {
         const auto count = static_cast<size_t>(last - first);
         std::memcpy(initialize(count), std::to_address(first), count);
       }
       else
+      {
         append(first, last);
+      }
     }
 
     ByteVector(std::initializer_list<uint8_t> values) :
@@ -209,7 +237,9 @@ namespace ccf
     ByteVector(const ByteVector& other) : ByteVector()
     {
       if (other.empty())
+      {
         return;
+      }
       if (!other.allocated())
       {
         storage = other.storage;
@@ -245,7 +275,10 @@ namespace ccf
       if (this != &other)
       {
         if (allocated())
+        {
+          // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
           std::free(storage.large.data);
+        }
         storage = other.storage;
         length_and_heap = other.length_and_heap;
         other.reset_inline();
@@ -262,7 +295,10 @@ namespace ccf
     ~ByteVector()
     {
       if (allocated())
+      {
+        // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
         std::free(storage.large.data);
+      }
     }
 
     pointer data() noexcept
@@ -270,32 +306,32 @@ namespace ccf
       return allocated() ? storage.large.data : storage.small.bytes;
     }
 
-    const_pointer data() const noexcept
+    [[nodiscard]] const_pointer data() const noexcept
     {
       return allocated() ? storage.large.data : storage.small.bytes;
     }
 
-    size_t size() const noexcept
+    [[nodiscard]] size_t size() const noexcept
     {
       return length_and_heap >> 1;
     }
-    size_t size_in_bytes() const noexcept
+    [[nodiscard]] size_t size_in_bytes() const noexcept
     {
       return size();
     }
-    bool empty() const noexcept
+    [[nodiscard]] bool empty() const noexcept
     {
       return size() == 0;
     }
-    constexpr size_t max_size() const noexcept
+    [[nodiscard]] constexpr size_t max_size() const noexcept
     {
       return MAX_SIZE;
     }
-    size_t capacity() const noexcept
+    [[nodiscard]] size_t capacity() const noexcept
     {
       return allocated() ? storage.large.capacity : INLINE_CAPACITY;
     }
-    size_t capacity_in_bytes() const noexcept
+    [[nodiscard]] size_t capacity_in_bytes() const noexcept
     {
       return capacity();
     }
@@ -303,11 +339,11 @@ namespace ccf
     {
       return data();
     }
-    const_iterator begin() const noexcept
+    [[nodiscard]] const_iterator begin() const noexcept
     {
       return data();
     }
-    const_iterator cbegin() const noexcept
+    [[nodiscard]] const_iterator cbegin() const noexcept
     {
       return data();
     }
@@ -315,11 +351,11 @@ namespace ccf
     {
       return data() + size();
     }
-    const_iterator end() const noexcept
+    [[nodiscard]] const_iterator end() const noexcept
     {
       return data() + size();
     }
-    const_iterator cend() const noexcept
+    [[nodiscard]] const_iterator cend() const noexcept
     {
       return end();
     }
@@ -327,7 +363,7 @@ namespace ccf
     {
       return reverse_iterator(end());
     }
-    const_reverse_iterator rbegin() const noexcept
+    [[nodiscard]] const_reverse_iterator rbegin() const noexcept
     {
       return const_reverse_iterator(end());
     }
@@ -335,7 +371,7 @@ namespace ccf
     {
       return reverse_iterator(begin());
     }
-    const_reverse_iterator rend() const noexcept
+    [[nodiscard]] const_reverse_iterator rend() const noexcept
     {
       return const_reverse_iterator(begin());
     }
@@ -354,7 +390,7 @@ namespace ccf
     {
       return (*this)[0];
     }
-    const_reference front() const
+    [[nodiscard]] const_reference front() const
     {
       return (*this)[0];
     }
@@ -362,7 +398,7 @@ namespace ccf
     {
       return (*this)[size() - 1];
     }
-    const_reference back() const
+    [[nodiscard]] const_reference back() const
     {
       return (*this)[size() - 1];
     }
@@ -374,7 +410,9 @@ namespace ccf
     void reserve(size_t count)
     {
       if (count > capacity())
+      {
         grow(count);
+      }
     }
     void resize(size_t count)
     {
@@ -385,7 +423,9 @@ namespace ccf
       const auto previous_size = size();
       reserve(count);
       if (count > previous_size)
+      {
         std::memset(data() + previous_size, value, count - previous_size);
+      }
       set_length(count);
     }
 
@@ -393,7 +433,9 @@ namespace ccf
     void set_size(size_t count)
     {
       if (count > capacity())
+      {
         throw std::length_error("ByteVector size exceeds reserved capacity");
+      }
       set_length(count);
     }
 
@@ -401,7 +443,9 @@ namespace ccf
     {
       const auto previous_size = size();
       if (previous_size == capacity())
+      {
         grow(previous_size + 1);
+      }
       data()[previous_size] = value;
       length_and_heap += 2;
     }
@@ -426,16 +470,22 @@ namespace ccf
     void append(I first, I last)
     {
       if (first == last)
+      {
         return;
+      }
       if constexpr (detail::ContiguousByteIterator<I>)
+      {
         append_bytes(
           reinterpret_cast<const uint8_t*>(std::to_address(first)),
           static_cast<size_t>(last - first));
+      }
       else
       {
         ByteVector copy;
         for (; first != last; ++first)
+        {
           copy.push_back(static_cast<uint8_t>(*first));
+        }
         append_bytes(copy.data(), copy.size());
       }
     }
@@ -461,7 +511,9 @@ namespace ccf
     {
       reserve(values.size());
       if (values.size() != 0)
+      {
         std::memcpy(data(), values.begin(), values.size());
+      }
       set_length(values.size());
     }
 
@@ -502,7 +554,9 @@ namespace ccf
     {
       assert(position >= begin() && position <= end());
       if (first == last)
+      {
         return position;
+      }
       if constexpr (detail::ContiguousByteIterator<I>)
       {
         const auto* source =

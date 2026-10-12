@@ -32,25 +32,35 @@ namespace ccf::kv
     [[gnu::noinline]] void grow(size_t required)
     {
       if (required > MAX_SIZE)
+      {
         throw std::length_error("RawWriter capacity overflow");
+      }
       const auto doubled = capacity <= MAX_SIZE / 2 ? capacity * 2 : MAX_SIZE;
       const auto requested = std::max(required, doubled);
       // Leave room for small fields following a large payload.
       const auto next =
         requested <= MAX_SIZE - 63 ? (requested + 63) & ~size_t{63} : MAX_SIZE;
-      uint8_t* replacement;
+      uint8_t* replacement = nullptr;
       if (data == local.data())
       {
+        // RawWriter owns this allocation until destruction or move.
+        // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
         replacement = static_cast<uint8_t*>(std::malloc(next));
         if (replacement == nullptr)
+        {
           throw std::bad_alloc();
+        }
         std::memcpy(replacement, data, used);
       }
       else
       {
+        // Keep ownership of the old buffer if realloc fails.
+        // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
         replacement = static_cast<uint8_t*>(std::realloc(data, next));
         if (replacement == nullptr)
+        {
           throw std::bad_alloc();
+        }
       }
       data = replacement;
       capacity = next;
@@ -59,11 +69,15 @@ namespace ccf::kv
     uint8_t* extend(size_t additional)
     {
       if (additional > MAX_SIZE - used)
+      {
         throw std::length_error("RawWriter size overflow");
+      }
       const auto previous = used;
       const auto required = previous + additional;
       if (required > capacity)
+      {
         grow(required);
+      }
       used = required;
       return data + previous;
     }
@@ -71,7 +85,9 @@ namespace ccf::kv
     static size_t size_with_prefix(size_t count, size_t element_size = 1)
     {
       if (count > (MAX_SIZE - sizeof(size_t)) / element_size)
+      {
         throw std::length_error("RawWriter payload size overflow");
+      }
       return sizeof(size_t) + count * element_size;
     }
 
@@ -81,13 +97,17 @@ namespace ccf::kv
       const auto payload_size = total_size - sizeof(size_t);
       std::memcpy(destination, &payload_size, sizeof(payload_size));
       if (payload_size != 0)
+      {
         std::memcpy(destination + sizeof(size_t), source, payload_size);
+      }
     }
 
     void move_from(RawWriter& other) noexcept
     {
       if (other.data == other.local.data())
+      {
         std::memcpy(data, other.data, other.used);
+      }
       else
       {
         data = std::exchange(other.data, other.local.data());
@@ -97,15 +117,20 @@ namespace ccf::kv
     }
 
   public:
-    RawWriter() = default;
-    RawWriter(const RawWriter& other)
+    // Appends initialize every exported byte; unused inline capacity need not
+    // be zeroed by construction.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init,modernize-use-equals-default)
+    RawWriter() noexcept {}
+    RawWriter(const RawWriter& other) : RawWriter()
     {
       if (other.used > capacity)
+      {
         grow(other.used);
+      }
       std::memcpy(data, other.data, other.used);
       used = other.used;
     }
-    RawWriter(RawWriter&& other) noexcept
+    RawWriter(RawWriter&& other) noexcept : RawWriter()
     {
       move_from(other);
     }
@@ -114,7 +139,9 @@ namespace ccf::kv
       if (this != &other)
       {
         if (other.used > capacity)
+        {
           grow(other.used);
+        }
         std::memcpy(data, other.data, other.used);
         used = other.used;
       }
@@ -125,7 +152,10 @@ namespace ccf::kv
       if (this != &other)
       {
         if (data != local.data())
+        {
+          // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
           std::free(data);
+        }
         data = local.data();
         capacity = INLINE_CAPACITY;
         move_from(other);
@@ -135,7 +165,10 @@ namespace ccf::kv
     ~RawWriter()
     {
       if (data != local.data())
+      {
+        // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
         std::free(data);
+      }
     }
 
     template <typename T>
@@ -236,7 +269,9 @@ namespace ccf::kv
       const auto additional = RawWriter::serialised_size(entry);
       if (
         additional > size_t(std::numeric_limits<ptrdiff_t>::max()) - total_size)
+      {
         throw std::length_error("SizeWriter size overflow");
+      }
       total_size += additional;
     }
 
