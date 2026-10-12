@@ -49,4 +49,4 @@ The Lean formatting check runs in `.github/workflows/lean.yml`, not
 `scripts/ci-checks.sh`. It requires elan and the package's Lean toolchain.
 See [Lean formatting setup](../../../lean/disaster-recovery/README.md#formatting).
 
-The ASCII check includes Rust and TLA+, but exempts Lean source files (`*.lean`). Existing Unicode is grandfathered by exact line hashes, not file-wide exemptions. Do not extend the grandfathered hashes to accept new Unicode.
+The ASCII check includes Rust and TLA+, but exempts Lean source files (`*.lean`) and excludes `3rdparty/`. Vendored third-party dependencies are exempt from the authoring policy; preserve their upstream contents. In checked files, existing Unicode is grandfathered by exact line hashes, not file-wide exemptions. Do not extend the grandfathered hashes to accept new Unicode.

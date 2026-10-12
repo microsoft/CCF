@@ -4,6 +4,7 @@ import http
 import random
 import time
 
+import e2e_logging
 import infra.clients
 import infra.e2e_args
 import infra.network
@@ -140,6 +141,91 @@ def test_historical_query_sparse_random(network, args, tx_ids):
     return network
 
 
+def test_historical_query_shared_consumers(network, args):
+    """Share entries between distinct receipt handles and overlapping sparse
+    queries, then retarget a receipt handle without changing its identity."""
+
+    primary, _ = network.find_primary()
+    node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
+    target_id = 43
+    tx_ids = []
+    with primary.client("user0") as c:
+        for i in range(3):
+            r = c.post(
+                "/app/log/private",
+                {"id": target_id, "msg": large_message(i)},
+                log_capture=None,
+            )
+            assert r.status_code == http.HTTPStatus.OK
+            tx_ids.append(TxID(r.view, r.seqno))
+        c.wait_for_commit(r)
+
+    queries = {}
+    for handle in range(100001, 100007):
+        path = (
+            f"/app/log/private/historical/handle?handle={handle}"
+            f"&seqno={tx_ids[0].seqno}"
+        )
+        queries[path] = None
+    for indices in ([0, 1], [1, 2], [0, 2], [0, 1, 2]):
+        seqnos = ",".join(str(tx_ids[i].seqno) for i in indices)
+        path = f"/app/log/private/historical/sparse?id={target_id}&seqnos={seqnos}"
+        queries[path] = {tx_ids[i].seqno: large_message(i) for i in indices}
+
+    with node.client("user0") as c:
+        c.wait_for_commit(r)
+        for path in queries:
+            response = c.get(path)
+            assert response.status_code in (
+                http.HTTPStatus.OK,
+                http.HTTPStatus.ACCEPTED,
+            ), response
+
+        pending = set(queries)
+        deadline = time.time() + 10
+        while pending and time.time() < deadline:
+            for path in sorted(pending):
+                response = c.get(path)
+                if response.status_code == http.HTTPStatus.ACCEPTED:
+                    continue
+                assert response.status_code == http.HTTPStatus.OK, response
+                body = response.body.json()
+                expected = queries[path]
+                if expected is None:
+                    e2e_logging.verify_receipt(body, network.cert)
+                else:
+                    assert all(e["id"] == target_id for e in body["entries"]), body
+                    assert {
+                        e["seqno"]: e["msg"] for e in body["entries"]
+                    } == expected, body
+                pending.remove(path)
+            if pending:
+                time.sleep(0.1)
+        if pending:
+            raise TimeoutError(f"Historical consumers did not complete: {pending}")
+
+        for tx_id in (tx_ids[-1], tx_ids[1]):
+            path = (
+                "/app/log/private/historical/handle?handle=100001"
+                f"&seqno={tx_id.seqno}"
+            )
+            deadline = time.time() + 10
+            while time.time() < deadline:
+                response = c.get(path)
+                if response.status_code == http.HTTPStatus.ACCEPTED:
+                    time.sleep(0.1)
+                    continue
+                assert response.status_code == http.HTTPStatus.OK, response
+                e2e_logging.verify_receipt(response.body.json(), network.cert)
+                break
+            else:
+                raise TimeoutError(
+                    f"Retargeted historical handle did not fetch {tx_id}"
+                )
+
+    return network
+
+
 def test_historical_query_batched(network, args):
     """Submit transactions in batches so that consecutive user txs appear
     in the ledger without interleaved signatures, then fetch each one."""
@@ -229,6 +315,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
         network = test_historical_query_cache_is(network, lambda size: size == 0)
+        network = test_historical_query_shared_consumers(network, args)
 
         network, tx_ids = test_historical_query_cache_overflow(network, args)
         network, batched_tx_ids = test_historical_query_batched(network, args)
