@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
 
+### Added
+
+- `ccf::crypto::COSEKey` now also parses, validates and encodes OKP COSE_Keys on Ed25519, and computes their RFC 9679 thumbprint. `ccf::crypto::make_cose_verifier_*()` and `ccf::crypto::COSEKey::from_der_cert()` now also accept Ed25519 public keys and certificates, and COSE verifiers verify `EdDSA` (-8) and `Ed25519` (-19) signatures with such keys (#8548).
+
 ### Changed
 
 - Updated `llhttp` from `9.3.0` to `9.4.3`. HTTP/1.x parsing rejects empty `Transfer-Encoding` values and DEL (`0x7f`) in quoted chunk extensions, requires LF after CR in response status lines, and correctly handles tabs after `Content-Length` and `Connection: close`. See the [Networking](doc/operations/network.rst) documentation (#8552).
