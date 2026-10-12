@@ -6,7 +6,7 @@ namespace DisasterRecovery.Proofs.History
 open Shared
 open Lifting
 
-/-- An instrumented execution whose erased successors are the supplied model-state list. -/
+/-- Decorated steps whose erased successor states form the given model-state list. -/
 inductive Decoration (config : Model.Config)
     : Execution.Global.State -> List Model.State -> Execution.Global.State -> Prop where
   /-- An empty decoration leaves the instrumented state unchanged. -/
@@ -41,7 +41,7 @@ lemma trace_lifts {config : Model.Config} {before after : Model.State} {tail}
         finalEq
       ⟩
 
-/-- A reachable ghost state extending every state of a model trace. -/
+/-- A reachable decorated state with a model execution suffix from every trace state. -/
 structure Correspondence (config : Model.Config) (trace : Properties.GlobalTrace)
     (ghost : Execution.Global.State)
     : Prop where

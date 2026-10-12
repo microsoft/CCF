@@ -6,7 +6,7 @@ open Execution.Local
 open Execution.Global hiding Config
 open Predicates
 
-/-- Opening nodes retain a quorum of votes for quorum opening, or at least one for failover. -/
+/-- Every node with an open kind retains enough votes for that kind of opening. -/
 def OpeningThresholds (config : Model.Config) (state : State) : Prop :=
   forall entry,
     entry ∈ state.system.nodes

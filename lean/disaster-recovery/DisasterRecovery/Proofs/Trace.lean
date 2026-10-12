@@ -5,7 +5,7 @@ namespace DisasterRecovery.Proofs.Trace
 
 open Shared
 
-/-- A finite enabled execution recording every successor state but not its actions. -/
+/-- Enabled steps through the listed successor states, from a start state to a final state. -/
 inductive Path (system : TransitionSystem State Action)
     : State -> List State -> State -> Prop where
   /-- An empty path starts and ends at the same state. -/

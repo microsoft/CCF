@@ -102,6 +102,7 @@ lake exe mk_all --check --lib DisasterRecovery
 lake build --wfail
 lake lint
 lake exe canonical-checks
+lake exe runLinter --no-build DisasterRecovery replayer.Main
 ```
 
 `--wfail` treats `sorry` as an error. `lake lint` runs Lean's built-in linters
@@ -114,10 +115,16 @@ instances), plus `linter.missingDocs`, `linter.omit`, `linter.loopingSimpArgs`,
 These supplement Lean's default checks, and linter findings fail validation.
 The options are set in each `lakefile.toml` so ordinary builds use them too;
 `lake lint` also runs the environment checks on the built declarations.
-The opt-ins are explicit rather than `linter.all`, which would also enable
-optional Mathlib linters. Lean's internal-module and collection-variable
+The opt-ins are explicit rather than `linter.all`, which would enable every
+optional linter registered by dependencies. Lean's internal-module and collection-variable
 naming conventions, and its debugging-only `linter.tacticCheckInstances`,
 are not enabled.
+
+`runLinter` uses Mathlib's declaration-lint driver, including the slow checks,
+over every module imported by `DisasterRecovery.lean` and `replayer.Main`.
+It lints our declarations rather than dependencies, and findings fail the command.
+The main package also builds the replayer so its declarations are available
+to the linter; its separate package remains dependency-free.
 
 `Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof
 module or if a removed name is reintroduced. See [Formatting](#formatting) for

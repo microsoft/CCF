@@ -48,6 +48,13 @@ jobs:
           lake lint
           lake exe canonical-checks
 
+      - name: Check Mathlib linters
+        working-directory: lean/disaster-recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake exe runLinter --no-build DisasterRecovery replayer.Main
+
       - name: Check recovery trace fixtures against their schema
         shell: bash
         run: |

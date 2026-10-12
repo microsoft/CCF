@@ -8,7 +8,7 @@ open DisasterRecovery.TraceValidation
 def completionTimeoutMs : Nat :=
   20000
 
-/-- The command-line invocation shown when required arguments are missing or invalid. -/
+/-- Command-line syntax reported when replay arguments are invalid. -/
 def usage : String :=
   "usage: disaster-recovery-replay --participants N [--wait-ms N] [--dump FILE] LOG..."
 
@@ -20,9 +20,12 @@ def takeDump : List String → Option System.FilePath × List String
       (dump, argument :: others)
   | [] => (none, [])
 
-/-- Parse the wait limit, required participant count, and nonempty list of node logs. -/
-def parseArgs : List String → Option (Nat × Scenario × List System.FilePath) :=
-  let rec go (waitMs : Nat) (participants : Option Nat)
+/-- Parses the wait duration, participant count, and nonempty list of log paths. -/
+def parseArgs (args : List String) : Option (Nat × Scenario × List System.FilePath) :=
+  go completionTimeoutMs none args
+where
+  /-- Accumulates replay options until the remaining arguments are log paths. -/
+  go (waitMs : Nat) (participants : Option Nat)
       : List String → Option (Nat × Scenario × List System.FilePath)
     | "--participants" :: count :: rest => do
         go waitMs (some (← count.toNat?)) rest
@@ -32,7 +35,6 @@ def parseArgs : List String → Option (Nat × Scenario × List System.FilePath)
         let participants ← participants
         return (waitMs, { participants }, logs.map System.FilePath.mk)
     | [] => none
-  go completionTimeoutMs none
 
 /-- Reduces the logs once they record a complete scenario. -/
 partial def reduceWhenComplete (scenario : Scenario) (logs : List System.FilePath)

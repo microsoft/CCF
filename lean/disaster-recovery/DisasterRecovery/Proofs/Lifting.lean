@@ -9,14 +9,14 @@ open Shared
 open DisasterRecovery.Model.Local
 open Execution.Local (messages)
 
-/-- The local state and host notifications retained when comparing the two semantics. -/
+/-- Local state and notifications retained when comparing decorated and model steps. -/
 structure Result where
-  /-- The resulting local protocol state. -/
+  /-- The local state produced by the step. -/
   state : NodeState
-  /-- Host notifications in their emission order. -/
+  /-- Host-visible notifications produced by the step. -/
   effects : List Notification := []
 
-/-- Retain a model step's state and notifications while discarding outgoing messages. -/
+/-- Retains the local state and notifications of an executable model step. -/
 def capture (run : NodeState × Outputs Location Message Notification) : Result :=
   { state := run.1, effects := run.2.notifications }
 
@@ -80,11 +80,11 @@ lemma step_recording_appends (config : Config) (source : Location) (recovered : 
   all_goals try dsimp [pure, Functor.map]
   all_goals simp
 
-/-- Remove the sender-state snapshot from an instrumented envelope. -/
+/-- Removes a decorated envelope's proof-only sender snapshot. -/
 def eraseEnvelope (envelope : Execution.Global.Envelope) : Model.Envelope :=
   { source := envelope.source, target := envelope.target, payload := envelope.payload }
 
-/-- Forget send snapshots and ghost histories to recover the model's global state. -/
+/-- Removes send snapshots and histories to recover the executable network state. -/
 def erase (state : Execution.Global.State) : Model.State :=
   {
     nodes := state.system.nodes,
@@ -92,13 +92,13 @@ def erase (state : Execution.Global.State) : Model.State :=
     network := state.network.map eraseEnvelope
   }
 
-/-- Translate an instrumented action to the corresponding model action. -/
+/-- Translates a decorated action into its executable model counterpart. -/
 def eraseAction : Execution.Global.Action -> Model.Action
   | .retry source => .local source .retry
   | .timeout target => .local target .timeout
   | .deliver envelope => .deliver (eraseEnvelope envelope)
 
-/-- Retain an instrumented step's local state and corresponding model notifications. -/
+/-- Retains a decorated local step's state and notifications, ignoring send effects. -/
 def eraseOutput (output : Execution.Local.StepOutput) : Result :=
   {
     state := output.state,

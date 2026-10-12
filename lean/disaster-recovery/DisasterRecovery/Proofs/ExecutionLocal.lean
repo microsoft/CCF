@@ -16,7 +16,7 @@ export DisasterRecovery.Model.Local (
   advanceTimeoutLane
 )
 
-/-- Proof-level messages and host notifications emitted by a local step. -/
+/-- Proof-only representation of the local model's sends and notifications. -/
 inductive Effect where
   /-- Send the source location's recovered transaction ID to a destination. -/
   | sendGossip (destination : Location)
@@ -34,7 +34,7 @@ inductive Effect where
   | rejected (reason : String)
 deriving Repr, BEq, Hashable
 
-/-- Erase an instrumented host effect to its model notification, discarding sends. -/
+/-- Extracts a host notification from an effect, ignoring sends. -/
 def Effect.diagnostic : Effect -> Option Model.Local.Notification
   | .opening kind => some (.opening kind)
   | .restart chosen => some (.restart chosen)
@@ -42,7 +42,7 @@ def Effect.diagnostic : Effect -> Option Model.Local.Notification
   | .rejected reason => some (.rejected reason)
   | _ => none
 
-/-- Erase send effects to model envelopes, filling in the source and gossip payload. -/
+/-- Converts send effects into model envelopes, supplying the sender's recovered TxID. -/
 def messages (source : Location) (recovered : TxID) (effects : List Effect)
     : List Model.Envelope :=
   effects.filterMap
@@ -53,23 +53,23 @@ def messages (source : Location) (recovered : TxID) (effects : List Effect)
       | .sendIAmOpen target => some { source, target, payload := .iAmOpen }
       | _ => none
 
-/-- A local successor and its proof-level record of acceptance and outputs. -/
+/-- Instrumented local-step result, including rejection status and ordered effects. -/
 structure StepOutput where
-  /-- The node state after processing the event. -/
+  /-- Local state after executing the step. -/
   state : NodeState
-  /-- Messages and host notifications produced by the event, in order. -/
+  /-- Sends and notifications produced by the step, in emission order. -/
   effects : List Effect := []
-  /-- Whether the event was accepted rather than represented as a rejected stutter. -/
+  /-- Whether the local transition accepted the event. -/
   accepted : Bool := true
 deriving Repr, BEq, Inhabited
 
-/-- The local-state table used by the instrumented global execution. -/
+/-- The node-state table used by decorated executions. -/
 structure SystemState where
-  /-- Configured location keys and their current node states. -/
+  /-- Current state of each configured recovery location. -/
   nodes : List (Prod Location NodeState)
 deriving Repr, BEq, Hashable, Inhabited
 
-/-- Initialize the instrumented node table in configured location order. -/
+/-- Initializes one local node state per expected recovery location. -/
 def initialSystem (config : Config) : SystemState :=
   {
     nodes :=
@@ -78,7 +78,7 @@ def initialSystem (config : Config) : SystemState :=
           (location, initialNode location)
   }
 
-/-- Instrument the model's phase advancement with an explicit list of host effects. -/
+/-- Instrumented phase advance with the same notifications as the executable model. -/
 def advance (config : Config) (state : NodeState) (timeout : Bool) : Option StepOutput :=
   let aligned := validTimeout state timeout
   match state.phase with
@@ -132,11 +132,11 @@ def advance (config : Config) (state : NodeState) (timeout : Bool) : Option Step
   | .open =>
       some { state := advanceTimeoutLane state timeout }
 
-/-- Preserve the node state and record rejection with its diagnostic reason. -/
+/-- A rejected event that preserves state and records its diagnostic. -/
 def rejected (state : NodeState) (reason : String) : StepOutput :=
   { state, effects := [.rejected reason], accepted := false }
 
-/-- The instrumented local system before rejected receives are restored as stutters. -/
+/-- Local instrumentation whose disabled transitions are converted to stutters by `step`. -/
 def transitionSystem (config : Config) (location : Location)
     : TransitionSystem StepOutput Event where
   init := fun current => current = { state := initialNode location }
@@ -181,7 +181,7 @@ def transitionSystem (config : Config) (location : Location)
           | .joining | .open => []
         pure { state, effects }
 
-/-- The diagnostic used when an instrumented local event is disabled. -/
+/-- The diagnostic associated with a disabled instrumented local event. -/
 def rejectionReason (state : NodeState) : Event -> String
   | .receiveGossip _ _ .rejected
   | .receiveVote _ .rejected
@@ -201,7 +201,7 @@ def step (config : Config) (state : NodeState) (event : Event) : StepOutput :=
   ((transitionSystem config state.location).step { state } event).getD
     (rejected state (rejectionReason state event))
 
-/-- Update every matching node-table entry without changing the table's keys or order. -/
+/-- Replaces a node's local state without changing the node table's keys or order. -/
 def replaceNode
     (target : Location)
     (next : NodeState)
@@ -209,7 +209,7 @@ def replaceNode
     : List (Prod Location NodeState) :=
   nodes.map fun entry => if entry.1 == target then (target, next) else entry
 
-/-- Run one known node and return both the updated table and its instrumented output. -/
+/-- Executes a local event on a known node and updates its entry in the node table. -/
 def systemStep (config : Config) (state : SystemState) (target : Location) (event : Event)
     : Option (Prod SystemState StepOutput) := do
   let node <- (state.nodes.find? fun entry => entry.1 == target).map Prod.snd

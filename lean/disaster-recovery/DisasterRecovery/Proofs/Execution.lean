@@ -7,60 +7,60 @@ namespace DisasterRecovery.Proofs.Execution.Global
 open Shared (TransitionSystem)
 open Local
 
-/-- The model configuration used unchanged by the instrumented execution. -/
+@[inherit_doc Model.Config]
 abbrev Config := Model.Config
 
-/-- The model's well-formedness condition on configuration and recovered IDs. -/
+@[inherit_doc Model.Config.Valid]
 abbrev Config.Valid (config : Config) := Model.Config.Valid config
 
-/-- The recovered transaction ID that a location advertises in its gossips. -/
+@[inherit_doc Model.recoveredTxID]
 def recoveredTxID (config : Config) (source : Location) : Option TxID :=
   (config.recovered.find? fun entry => entry.1 == source).map Prod.snd
 
-/-- An uninstrumented recovery message carried by a proof-level envelope. -/
+@[inherit_doc DisasterRecovery.Model.Local.Message]
 abbrev Payload := DisasterRecovery.Model.Local.Message
 
-/-- A model message augmented with the sender's local state at emission. -/
+/-- A queued message decorated with the sender's state at emission time. -/
 structure Envelope where
-  /-- The location that emitted the message. -/
+  /-- The node that emitted the message. -/
   source : Location
-  /-- The destination location. -/
+  /-- The node to which the message is addressed. -/
   target : Location
-  /-- The protocol message without its routing information. -/
+  /-- The recovery message content. -/
   payload : Payload
-  /-- The local-state snapshot justifying the send. -/
+  /-- The sender's local state when the message was emitted. -/
   sourceState : NodeState
 deriving Repr, BEq, ReflBEq, LawfulBEq
 
-/-- A historical opening notification and the state that produced it. -/
+/-- A recorded opening notification and the local state that produced it. -/
 structure Opening where
-  /-- The location that began opening. -/
+  /-- The node that started opening. -/
   node : Location
-  /-- The evidence under which the location began opening. -/
+  /-- Whether the opening was by quorum or failover. -/
   kind : OpenKind
-  /-- The local state after the opening transition. -/
+  /-- The node's state after the step that emitted the notification. -/
   state : NodeState
 deriving Repr, BEq
 
-/-- Global execution state with ghost histories of sends and terminal notifications. -/
+/-- The network decorated with send snapshots and terminal-notification histories. -/
 structure State where
-  /-- The current local states of all configured nodes. -/
+  /-- Current local states of the configured nodes. -/
   system : SystemState
-  /-- Locations permitted to execute protocol actions. -/
+  /-- Nodes permitted to take steps. -/
   active : List Location
-  /-- Instrumented messages still awaiting delivery. -/
+  /-- Messages still queued for delivery. -/
   network : List Envelope := []
-  /-- Every message emitted so far, including delivered messages. -/
+  /-- All messages emitted so far, retaining their send-time snapshots. -/
   sent : List Envelope := []
-  /-- Opening notifications with their supporting snapshots, newest first. -/
+  /-- Recorded openings, newest first. -/
   openings : List Opening := []
-  /-- Locations that requested a restart, newest first. -/
+  /-- Nodes that requested a restart, newest first. -/
   restarts : List Location := []
-  /-- Locations that completed recovery, newest first. -/
+  /-- Nodes that completed opening, newest first. -/
   completed : List Location := []
 deriving Repr, BEq
 
-/-- One instrumented global retry, message delivery, or timeout. -/
+/-- A retry, delivery, or timeout in the decorated network. -/
 inductive Action where
   /-- Emit a location's current retry messages with their source-state snapshots. -/
   | retry (source : Location)
@@ -70,11 +70,11 @@ inductive Action where
   | timeout (target : Location)
 deriving Repr, BEq
 
-/-- Look up a location's current local state in the instrumented node table. -/
+/-- Looks up a node's current state in the decorated network. -/
 def nodeState (state : State) (node : Location) : Option NodeState :=
   (state.system.nodes.find? fun entry => entry.1 == node).map Prod.snd
 
-/-- Convert a send effect to an envelope with its source-state evidence. -/
+/-- Decorates a send effect with its sender and send-time state; ignores notifications. -/
 def messageForEffect (config : Config) (source : Location) (sourceState : NodeState)
     : Effect -> Option Envelope
   | .sendGossip target => do
@@ -86,31 +86,31 @@ def messageForEffect (config : Config) (source : Location) (sourceState : NodeSt
       some { source, target, payload := .iAmOpen, sourceState }
   | _ => none
 
-/-- The instrumented envelopes emitted by a retry from the supplied local state. -/
+/-- The decorated messages emitted by a node's retry. -/
 def retryMessages (config : Config) (source : Location) (sourceState : NodeState)
     : List Envelope :=
   (step config.protocol sourceState .retry).effects.filterMap
     (messageForEffect config source sourceState)
 
-/-- The envelope is justified by a retry from a snapshot with the correct source identity. -/
+/-- The envelope was emitted by a retry of the node identified in its snapshot. -/
 def Envelope.Valid (config : Config) (envelope : Envelope) : Prop :=
   envelope.sourceState.location = envelope.source
   /\ envelope ∈ retryMessages config envelope.source envelope.sourceState
 
-/-- Translate a queued envelope into an authenticated local receive event. -/
+/-- The accepted receive event corresponding to a decorated envelope. -/
 def eventFor (envelope : Envelope) : Event :=
   match envelope.payload with
   | .gossip txid => .receiveGossip envelope.source txid .accepted
   | .vote => .receiveVote envelope.source .accepted
   | .iAmOpen => .receiveIAmOpen envelope.source .accepted
 
-/-- Consume only the first matching occurrence, preserving other message copies. -/
+/-- Removes one queued copy of a value, preserving any other identical copies. -/
 def removeOne [BEq α] (value : α) : List α -> List α
   | [] => []
   | head :: tail =>
       if head == value then tail else head :: removeOne value tail
 
-/-- Prepend a terminal notification to its ghost history, leaving other effects alone. -/
+/-- Adds a terminal notification to its proof-only history. -/
 def recordEffect (node : Location) (nodeState : NodeState) (state : State)
     : Effect -> State
   | .opening kind =>
@@ -121,7 +121,7 @@ def recordEffect (node : Location) (nodeState : NodeState) (state : State)
       { state with completed := node :: state.completed }
   | _ => state
 
-/-- Record the terminal notifications of a completed local step. -/
+/-- Records terminal notifications from a step in emission order. -/
 def recordEffects
     (node : Location)
     (nodeState : NodeState)
@@ -130,14 +130,14 @@ def recordEffects
     : State :=
   effects.foldl (recordEffect node nodeState) state
 
-/-- Start with initial local states, the supplied active nodes, and empty histories. -/
+/-- Initializes the local states and active set with empty queues and histories. -/
 def initial (config : Config) (active : List Location) : State :=
   {
     system := initialSystem config.protocol
     active
   }
 
-/-- Execute one enabled global action and update the corresponding ghost histories. -/
+/-- Executes a decorated network action and updates its proof-only histories. -/
 def next (config : Config) (state : State) : Action -> Option State
   | .retry source => do
       guard (state.active.contains source)
@@ -168,7 +168,7 @@ def next (config : Config) (state : State) : Action -> Option State
       guard output.accepted
       pure (recordEffects target output.state output.effects { state with system })
 
-/-- The instrumented system with valid configuration and duplicate-free active locations. -/
+/-- The decorated execution system with valid configurations and active-node subsets. -/
 def transitionSystem (config : Config) : TransitionSystem State Action where
   init :=
     fun state =>
@@ -179,7 +179,7 @@ def transitionSystem (config : Config) : TransitionSystem State Action where
         /\ state = initial config active
   step := next config
 
-/-- States obtainable by finite enabled executions of the instrumented system. -/
+/-- States reachable by enabled actions in the decorated execution system. -/
 abbrev Reachable (config : Config) : State -> Prop :=
   (transitionSystem config).Reachable
 

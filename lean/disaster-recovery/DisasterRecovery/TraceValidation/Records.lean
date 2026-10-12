@@ -22,30 +22,30 @@ inductive Failure where
   /-- Evidence that logs which are still growing may yet complete. -/
   | incomplete (message : String)
 
-/-- A validation result distinguishing invalid evidence from incomplete logs. -/
+/-- A validated result or an invalid/incomplete trace failure. -/
 abbrev Checked :=
   Except Failure
 
-/-- Reject invalid evidence with the supplied diagnostic when a check fails. -/
+/-- Rejects a record or reduction when the required condition does not hold. -/
 def require (condition : Bool) (message : String) : Checked Unit :=
   unless condition do
     throw (.invalid message)
 
 /-- One record, and the log line it is on. -/
 structure Record where
-  /-- The path of the node log containing the record. -/
+  /-- Path of the node log containing the record. -/
   file : String
-  /-- The record's one-based line number in the log. -/
+  /-- One-based source line number. -/
   line : Nat
   /-- The JSON object following the trace marker. -/
   value : Json
 deriving Inhabited
 
-/-- Format a record's source location for diagnostics. -/
+/-- Source filename and line number used to label diagnostics. -/
 def Record.location (record : Record) : String :=
   s!"{record.file}:{record.line}"
 
-/-- The prefix identifying recovery trace JSON within a node log line. -/
+/-- Prefix identifying recovery trace JSON within a node log line. -/
 def marker : String :=
   "RDP_TRACE "
 
@@ -97,27 +97,27 @@ committed, with the TxID seqno CCF reported for its transaction: the version
 it committed at if it wrote, and the version it read at otherwise.
 -/
 structure Execution where
-  /-- The protocol phase read by `advance()`. -/
+  /-- Protocol phase read by the execution's advance operation. -/
   pre : Phase
-  /-- The timeout phase read by `advance()`. -/
+  /-- Timeout-lane phase read by the execution. -/
   preTimeout : Phase
-  /-- The protocol phase after `advance()`. -/
+  /-- Protocol phase recorded after the execution. -/
   post : Phase
-  /-- The timeout phase after `advance()`. -/
+  /-- Timeout-lane phase recorded after the execution. -/
   postTimeout : Phase
-  /-- The transaction's committed version if it wrote, otherwise its read version. -/
+  /-- Committed transaction version for writes, or the version read otherwise. -/
   version : Nat
-  /-- Whether the recorded execution made an observable transaction write. -/
+  /-- Whether the record shows a protocol-state write. -/
   wrote : Bool
-  /-- The chosen location recorded by the execution, when present. -/
+  /-- Chosen recovery location, if recorded by this execution. -/
   chosen : Option Location
-  /-- The opening evidence recorded by the execution, when present. -/
+  /-- Opening justification, if recorded by this execution. -/
   openKind : Option OpenKind
-  /-- Whether the execution requested a restart. -/
+  /-- Whether this execution recorded a restart request. -/
   restart : Bool
 deriving Inhabited
 
-/-- The validated payload of a protocol start, send, or committed execution. -/
+/-- Validated payload of a start, send, timeout, or accepted receive record. -/
 inductive Body where
   /-- Initialize the protocol at a ledger version with the expected locations. -/
   | start (version : Nat) (expectedLocations : List Location)
@@ -131,17 +131,17 @@ deriving Inhabited
 
 /-- One validated record, in the model's vocabulary. -/
 structure TraceEvent where
-  /-- The original JSON record and its source location. -/
+  /-- The original JSON record and source location. -/
   record : Record
-  /-- The recovery location that logged the event. -/
+  /-- Recovery location of the node that logged the event. -/
   node : Location
-  /-- The node's zero-based trace counter. -/
+  /-- Per-node trace sequence number, starting at zero. -/
   sequence : Nat
-  /-- The parsed protocol event. -/
+  /-- Parsed event payload in the model's vocabulary. -/
   body : Body
 deriving Inhabited
 
-/-- Whether the event received an opening announcement. -/
+/-- Checks whether the event records an accepted IAmOpen receive. -/
 def TraceEvent.isIAmOpen (event : TraceEvent) : Bool :=
   event.body matches .receive _ .iAmOpen _
 
@@ -153,7 +153,7 @@ def TraceEvent.execution? (event : TraceEvent) : Option (Model.Action × Executi
       some (.deliver { source, target := event.node, payload := message }, execution)
   | _ => none
 
-/-- Attach a reduction rule to the event's source location. -/
+/-- Associates an event's source log line with the reduction rule using it. -/
 def TraceEvent.origin (event : TraceEvent) (rule : String) : Origin :=
   { file := event.record.file, line := event.record.line, rule }
 
