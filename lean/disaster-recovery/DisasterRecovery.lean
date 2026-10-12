@@ -32,5 +32,6 @@ import DisasterRecovery.Tests.RaftFreshness
 import DisasterRecovery.Tests.Trace
 import DisasterRecovery.Tests.Witnesses
 import DisasterRecovery.TraceValidation
+import DisasterRecovery.TraceValidation.Dump
 import DisasterRecovery.TraceValidation.Records
 import DisasterRecovery.TraceValidation.Reduction

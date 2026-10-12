@@ -1,0 +1,7 @@
+--- a/platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_3.out
++++ b/platform_snp_platform_tests_recovery_decision_protocol_multiple_timeout_3.out
+@@ -191,2 +191,2 @@
+-RDP_TRACE {"batch":42,"kind":"send","message":"iamopen","node":"0","pre_version":68,"sequence":190,"target":"1"}
+-RDP_TRACE {"batch":42,"kind":"send","message":"iamopen","node":"0","pre_version":68,"sequence":191,"target":"2"}
++RDP_TRACE {"batch":42,"kind":"send","message":"iamopen","node":"0","pre_version":75,"sequence":190,"target":"1"}
++RDP_TRACE {"batch":42,"kind":"send","message":"iamopen","node":"0","pre_version":75,"sequence":191,"target":"2"}
