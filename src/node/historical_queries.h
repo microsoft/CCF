@@ -226,9 +226,9 @@ namespace ccf::historical
     {
       enum class Role : uint8_t
       {
-        Direct = 1,
-        SupportingSignature = 2,
-        LedgerSecret = 4,
+        Direct = 0b001,
+        SupportingSignature = 0b010,
+        LedgerSecret = 0b100,
       };
 
       struct Consumers
