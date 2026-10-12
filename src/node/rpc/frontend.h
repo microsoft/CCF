@@ -706,7 +706,212 @@ namespace ccf
       }
     }
 
-    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
+    bool check_backpressure(
+      const std::shared_ptr<ccf::RpcContextImpl>& ctx,
+      ccf::kv::Consensus* current_consensus)
+    {
+      if (current_consensus != nullptr)
+      {
+        if (
+          endpoints.apply_uncommitted_tx_backpressure() &&
+          current_consensus->should_apply_backpressure())
+        {
+          ctx->set_error(
+            HTTP_STATUS_SERVICE_UNAVAILABLE,
+            ccf::errors::TooManyPendingTransactions,
+            "Too many transactions pending commit on the service.");
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    bool redirect_or_forward(
+      ccf::kv::ReadOnlyTx& tx,
+      const std::shared_ptr<ccf::RpcContextImpl>& ctx,
+      const endpoints::EndpointDefinitionPtr& endpoint,
+      std::optional<ccf::NodeInfoNetwork_v2::NetInterface::Redirections>&
+        redirections,
+      ccf::kv::Consensus* current_consensus)
+    {
+      // If there's no interface ID, this is already forwarded or otherwise
+      // special - don't try to redirect it
+      if (ctx->get_session_context()->interface_id.has_value())
+      {
+        redirections = get_redirections_config(
+          // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+          *ctx->get_session_context()->interface_id);
+      }
+
+      // If a redirections config was specified, then redirections are used
+      // and no forwarding is done
+      if (redirections.has_value())
+      {
+        if (check_redirect(tx, ctx, endpoint, *redirections, current_consensus))
+        {
+          return true;
+        }
+      }
+      else
+      {
+        bool is_primary =
+          current_consensus == nullptr || current_consensus->can_replicate();
+        const bool forwardable = current_consensus != nullptr;
+
+        if (!is_primary && forwardable)
+        {
+          switch (endpoint->properties.forwarding_required)
+          {
+            case endpoints::ForwardingRequired::Never:
+            {
+              break;
+            }
+
+            case endpoints::ForwardingRequired::Sometimes:
+            {
+              if (ctx->get_session_context()->is_forwarding)
+              {
+                forward(ctx, tx, endpoint, current_consensus);
+                return true;
+              }
+              break;
+            }
+
+            case endpoints::ForwardingRequired::Always:
+            {
+              forward(ctx, tx, endpoint, current_consensus);
+              return true;
+            }
+          }
+        }
+      }
+
+      return false;
+    }
+
+    enum class CommitAction
+    {
+      Done,
+      Retry
+    };
+
+    CommitAction commit_transaction(
+      const std::shared_ptr<ccf::RpcContextImpl>& ctx,
+      const endpoints::EndpointDefinitionPtr& endpoint,
+      ccf::EndpointContextImpl& args,
+      ccf::kv::Consensus* current_consensus,
+      ccf::kv::TxHistory* current_history)
+    {
+      // args owns a valid Tx relating to a non-pending response, which
+      // should be applied
+      ccf::kv::CommittableTx& tx = *args.owned_tx;
+
+      // Only capture write set digest and commit evidence if the
+      // handler has set a consensus committed callback that may need
+      // them for receipt construction. Avoids unnecessary hashing
+      // on the common path.
+      ccf::crypto::Sha256Hash captured_ws_digest;
+      std::string captured_commit_evidence;
+      ccf::kv::CommittableTx::WriteSetObserver ws_observer = nullptr;
+      ccf::endpoints::ConsensusCommittedEndpointFunction committed_func =
+        ctx->consensus_committed_func;
+      if (committed_func != nullptr)
+      {
+        ws_observer = [&captured_ws_digest, &captured_commit_evidence](
+                        const ccf::crypto::Sha256Hash& ws_digest,
+                        const std::string& ce) {
+          captured_ws_digest = ws_digest;
+          captured_commit_evidence = ce;
+        };
+      }
+
+      ccf::kv::CommitResult result = tx.commit(ctx->claims, ws_observer);
+
+      switch (result)
+      {
+        case ccf::kv::CommitResult::SUCCESS:
+        {
+          auto tx_id_opt = tx.get_txid();
+          if (tx_id_opt.has_value() && current_consensus != nullptr)
+          {
+            ccf::TxID tx_id = tx_id_opt.value();
+
+            try
+            {
+              // Only transactions that acquired one or more map handles
+              // have a TxID, while others (e.g. unauthenticated commands)
+              // don't. Also, only report a TxID if the consensus is set, as
+              // the consensus is required to verify that a TxID is valid.
+              endpoints.execute_endpoint_locally_committed(
+                endpoint, args, tx_id);
+            }
+            catch (const std::exception& e)
+            {
+              // run default handler to set transaction id in header
+              ctx->clear_response_headers();
+              ccf::endpoints::default_locally_committed_func(args, tx_id);
+              ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format(
+                  "Failed to execute local commit handler func: {}", e.what()));
+            }
+            catch (...)
+            {
+              // run default handler to set transaction id in header
+              ctx->clear_response_headers();
+              ccf::endpoints::default_locally_committed_func(args, tx_id);
+              ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Failed to execute local commit handler func");
+            }
+
+            {
+              if (committed_func != nullptr)
+              {
+                ctx->respond_on_commit =
+                  ccf::RpcContextImpl::RespondOnCommitInfo{
+                    tx_id,
+                    committed_func,
+                    std::move(captured_ws_digest),
+                    std::move(captured_commit_evidence),
+                    ctx->claims};
+              }
+            }
+          }
+
+          if (
+            current_consensus != nullptr &&
+            current_consensus->can_replicate() && current_history != nullptr)
+          {
+            current_history->try_emit_signature();
+          }
+
+          return CommitAction::Done;
+        }
+
+        case ccf::kv::CommitResult::FAIL_CONFLICT:
+        {
+          break;
+        }
+
+        case ccf::kv::CommitResult::FAIL_NO_REPLICATE:
+        {
+          ctx->clear_response_headers();
+          ctx->set_error(
+            HTTP_STATUS_SERVICE_UNAVAILABLE,
+            ccf::errors::TransactionReplicationFailed,
+            "Transaction failed to replicate.");
+
+          return CommitAction::Done;
+        }
+      }
+
+      return CommitAction::Retry;
+    }
+
     void process_command_inner(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       endpoints::EndpointDefinitionPtr& endpoint,
@@ -735,18 +940,9 @@ namespace ccf
         auto* current_consensus = consensus.load(std::memory_order_acquire);
         auto* current_history = history.load(std::memory_order_acquire);
 
-        if (current_consensus != nullptr)
+        if (!check_backpressure(ctx, current_consensus))
         {
-          if (
-            endpoints.apply_uncommitted_tx_backpressure() &&
-            current_consensus->should_apply_backpressure())
-          {
-            ctx->set_error(
-              HTTP_STATUS_SERVICE_UNAVAILABLE,
-              ccf::errors::TooManyPendingTransactions,
-              "Too many transactions pending commit on the service.");
-            return;
-          }
+          return;
         }
 
         std::unique_ptr<ccf::kv::CommittableTx> tx_p = tables.create_tx_ptr();
@@ -777,57 +973,10 @@ namespace ccf
           std::optional<ccf::NodeInfoNetwork_v2::NetInterface::Redirections>
             redirections = std::nullopt;
 
-          // If there's no interface ID, this is already forwarded or otherwise
-          // special - don't try to redirect it
-          if (ctx->get_session_context()->interface_id.has_value())
+          if (redirect_or_forward(
+                *tx_p, ctx, endpoint, redirections, current_consensus))
           {
-            redirections = get_redirections_config(
-              // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-              *ctx->get_session_context()->interface_id);
-          }
-
-          // If a redirections config was specified, then redirections are used
-          // and no forwarding is done
-          if (redirections.has_value())
-          {
-            if (check_redirect(
-                  *tx_p, ctx, endpoint, *redirections, current_consensus))
-            {
-              return;
-            }
-          }
-          else
-          {
-            bool is_primary = current_consensus == nullptr ||
-              current_consensus->can_replicate();
-            const bool forwardable = current_consensus != nullptr;
-
-            if (!is_primary && forwardable)
-            {
-              switch (endpoint->properties.forwarding_required)
-              {
-                case endpoints::ForwardingRequired::Never:
-                {
-                  break;
-                }
-
-                case endpoints::ForwardingRequired::Sometimes:
-                {
-                  if (ctx->get_session_context()->is_forwarding)
-                  {
-                    forward(ctx, *tx_p, endpoint, current_consensus);
-                    return;
-                  }
-                  break;
-                }
-
-                case endpoints::ForwardingRequired::Always:
-                {
-                  forward(ctx, *tx_p, endpoint, current_consensus);
-                  return;
-                }
-              }
-            }
+            return;
           }
 
           std::unique_ptr<AuthnIdentity> identity =
@@ -882,112 +1031,12 @@ namespace ccf
               "Illegal endpoint implementation");
             return;
           }
-          // else args owns a valid Tx relating to a non-pending response, which
-          // should be applied
-          ccf::kv::CommittableTx& tx = *args.owned_tx;
-
-          // Only capture write set digest and commit evidence if the
-          // handler has set a consensus committed callback that may need
-          // them for receipt construction. Avoids unnecessary hashing
-          // on the common path.
-          ccf::crypto::Sha256Hash captured_ws_digest;
-          std::string captured_commit_evidence;
-          ccf::kv::CommittableTx::WriteSetObserver ws_observer = nullptr;
-          ccf::endpoints::ConsensusCommittedEndpointFunction committed_func =
-            ctx->consensus_committed_func;
-          if (committed_func != nullptr)
+          if (
+            commit_transaction(
+              ctx, endpoint, args, current_consensus, current_history) ==
+            CommitAction::Done)
           {
-            ws_observer = [&captured_ws_digest, &captured_commit_evidence](
-                            const ccf::crypto::Sha256Hash& ws_digest,
-                            const std::string& ce) {
-              captured_ws_digest = ws_digest;
-              captured_commit_evidence = ce;
-            };
-          }
-
-          ccf::kv::CommitResult result = tx.commit(ctx->claims, ws_observer);
-
-          switch (result)
-          {
-            case ccf::kv::CommitResult::SUCCESS:
-            {
-              auto tx_id_opt = tx.get_txid();
-              if (tx_id_opt.has_value() && current_consensus != nullptr)
-              {
-                ccf::TxID tx_id = tx_id_opt.value();
-
-                try
-                {
-                  // Only transactions that acquired one or more map handles
-                  // have a TxID, while others (e.g. unauthenticated commands)
-                  // don't. Also, only report a TxID if the consensus is set, as
-                  // the consensus is required to verify that a TxID is valid.
-                  endpoints.execute_endpoint_locally_committed(
-                    endpoint, args, tx_id);
-                }
-                catch (const std::exception& e)
-                {
-                  // run default handler to set transaction id in header
-                  ctx->clear_response_headers();
-                  ccf::endpoints::default_locally_committed_func(args, tx_id);
-                  ctx->set_error(
-                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                    ccf::errors::InternalError,
-                    fmt::format(
-                      "Failed to execute local commit handler func: {}",
-                      e.what()));
-                }
-                catch (...)
-                {
-                  // run default handler to set transaction id in header
-                  ctx->clear_response_headers();
-                  ccf::endpoints::default_locally_committed_func(args, tx_id);
-                  ctx->set_error(
-                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                    ccf::errors::InternalError,
-                    "Failed to execute local commit handler func");
-                }
-
-                {
-                  if (committed_func != nullptr)
-                  {
-                    ctx->respond_on_commit =
-                      ccf::RpcContextImpl::RespondOnCommitInfo{
-                        tx_id,
-                        committed_func,
-                        std::move(captured_ws_digest),
-                        std::move(captured_commit_evidence),
-                        ctx->claims};
-                  }
-                }
-              }
-
-              if (
-                current_consensus != nullptr &&
-                current_consensus->can_replicate() &&
-                current_history != nullptr)
-              {
-                current_history->try_emit_signature();
-              }
-
-              return;
-            }
-
-            case ccf::kv::CommitResult::FAIL_CONFLICT:
-            {
-              break;
-            }
-
-            case ccf::kv::CommitResult::FAIL_NO_REPLICATE:
-            {
-              ctx->clear_response_headers();
-              ctx->set_error(
-                HTTP_STATUS_SERVICE_UNAVAILABLE,
-                ccf::errors::TransactionReplicationFailed,
-                "Transaction failed to replicate.");
-
-              return;
-            }
+            return;
           }
         }
         catch (const ccf::kv::CompactedVersionConflict& e)
