@@ -12,8 +12,6 @@ MbedTLS
 Merkle
 npm
 plaintext
-ringbuffer
-ringbuffers
 Rollup
 schemas
 SGX
