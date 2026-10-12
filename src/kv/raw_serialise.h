@@ -5,84 +5,138 @@
 #include "ds/serialized.h"
 #include "generic_serialise_wrapper.h"
 
+#include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#include <small_vector/SmallVector.h>
-#pragma clang diagnostic pop
+#include <new>
 #include <span>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 
 namespace ccf::kv
 {
   class RawWriter
   {
   private:
-    // Avoid heap allocations for transactions which only touch a limited number
-    // of keys in a few maps
-    using WriterData = llvm_vecsmall::SmallVector<uint8_t, 64>;
+    static constexpr size_t INLINE_CAPACITY = 256;
+    static constexpr size_t MAX_SIZE = std::numeric_limits<ptrdiff_t>::max();
 
-    WriterData buf;
+    std::array<uint8_t, INLINE_CAPACITY> local;
+    uint8_t* data = local.data();
+    size_t used = 0;
+    size_t capacity = INLINE_CAPACITY;
 
-    template <typename T>
-    void serialise_entry(const T& t)
+    [[gnu::noinline]] void grow(size_t required)
     {
-      size_t size_before = buf.size();
-      buf.resize(buf.size() + sizeof(T));
-
-      auto* data_ = buf.data() + size_before;
-      auto size_ = buf.size() - size_before;
-      serialized::write(data_, size_, t);
+      if (required > MAX_SIZE)
+        throw std::length_error("RawWriter capacity overflow");
+      const auto doubled = capacity <= MAX_SIZE / 2 ? capacity * 2 : MAX_SIZE;
+      const auto requested = std::max(required, doubled);
+      // Leave room for small fields following a large payload.
+      const auto next =
+        requested <= MAX_SIZE - 63 ? (requested + 63) & ~size_t{63} : MAX_SIZE;
+      uint8_t* replacement;
+      if (data == local.data())
+      {
+        replacement = static_cast<uint8_t*>(std::malloc(next));
+        if (replacement == nullptr)
+          throw std::bad_alloc();
+        std::memcpy(replacement, data, used);
+      }
+      else
+      {
+        replacement = static_cast<uint8_t*>(std::realloc(data, next));
+        if (replacement == nullptr)
+          throw std::bad_alloc();
+      }
+      data = replacement;
+      capacity = next;
     }
 
-    template <typename T>
-    void serialise_vector(const T& entry)
+    uint8_t* extend(size_t additional)
     {
-      size_t entry_size_bytes = sizeof(typename T::value_type) * entry.size();
-      size_t size_before = buf.size();
-
-      buf.resize(buf.size() + entry_size_bytes);
-
-      auto* data_ = buf.data() + size_before;
-      auto size_ = buf.size() - size_before;
-      serialized::write(
-        data_,
-        size_,
-        reinterpret_cast<const uint8_t*>(entry.data()),
-        entry_size_bytes);
+      if (additional > MAX_SIZE - used)
+        throw std::length_error("RawWriter size overflow");
+      const auto previous = used;
+      const auto required = previous + additional;
+      if (required > capacity)
+        grow(required);
+      used = required;
+      return data + previous;
     }
 
-    template <typename T, size_t SIZE>
-    void serialise_array(const std::array<T, SIZE>& array)
+    static size_t size_with_prefix(size_t count, size_t element_size = 1)
     {
-      constexpr size_t array_size = SIZE * sizeof(T);
-      size_t size_before = buf.size();
-      buf.resize(buf.size() + array_size);
-
-      auto* data_ = buf.data() + size_before;
-      auto size_ = buf.size() - size_before;
-      serialized::write(
-        data_,
-        size_,
-        reinterpret_cast<const uint8_t*>(array.data()),
-        array_size);
+      if (count > (MAX_SIZE - sizeof(size_t)) / element_size)
+        throw std::length_error("RawWriter payload size overflow");
+      return sizeof(size_t) + count * element_size;
     }
 
-    void serialise_string(const std::string& str)
+    void append_size_prefixed(const uint8_t* source, size_t total_size)
     {
-      size_t size_before = buf.size();
-      buf.resize(buf.size() + sizeof(size_t) + str.size());
+      auto* destination = extend(total_size);
+      const auto payload_size = total_size - sizeof(size_t);
+      std::memcpy(destination, &payload_size, sizeof(payload_size));
+      if (payload_size != 0)
+        std::memcpy(destination + sizeof(size_t), source, payload_size);
+    }
 
-      auto* data_ = buf.data() + size_before;
-      auto size_ = buf.size() - size_before;
-      serialized::write(data_, size_, str);
+    void move_from(RawWriter& other) noexcept
+    {
+      if (other.data == other.local.data())
+        std::memcpy(data, other.data, other.used);
+      else
+      {
+        data = std::exchange(other.data, other.local.data());
+        capacity = std::exchange(other.capacity, INLINE_CAPACITY);
+      }
+      used = std::exchange(other.used, 0);
     }
 
   public:
     RawWriter() = default;
+    RawWriter(const RawWriter& other)
+    {
+      if (other.used > capacity)
+        grow(other.used);
+      std::memcpy(data, other.data, other.used);
+      used = other.used;
+    }
+    RawWriter(RawWriter&& other) noexcept
+    {
+      move_from(other);
+    }
+    RawWriter& operator=(const RawWriter& other)
+    {
+      if (this != &other)
+      {
+        if (other.used > capacity)
+          grow(other.used);
+        std::memcpy(data, other.data, other.used);
+        used = other.used;
+      }
+      return *this;
+    }
+    RawWriter& operator=(RawWriter&& other) noexcept
+    {
+      if (this != &other)
+      {
+        if (data != local.data())
+          std::free(data);
+        data = local.data();
+        capacity = INLINE_CAPACITY;
+        move_from(other);
+      }
+      return *this;
+    }
+    ~RawWriter()
+    {
+      if (data != local.data())
+        std::free(data);
+    }
 
     template <typename T>
     static size_t serialised_size(const T& entry)
@@ -91,7 +145,7 @@ namespace ccf::kv
         ccf::nonstd::is_std_vector<T>::value ||
         std::is_same_v<T, ccf::kv::serialisers::SerialisedEntry>)
       {
-        return sizeof(size_t) + (entry.size() * sizeof(typename T::value_type));
+        return size_with_prefix(entry.size(), sizeof(typename T::value_type));
       }
       else if constexpr (std::is_same_v<T, ccf::crypto::Sha256Hash>)
       {
@@ -103,7 +157,7 @@ namespace ccf::kv
       }
       else if constexpr (std::is_same_v<T, std::string>)
       {
-        return sizeof(size_t) + entry.size();
+        return size_with_prefix(entry.size());
       }
       else if constexpr (std::is_integral_v<T>)
       {
@@ -123,27 +177,27 @@ namespace ccf::kv
         ccf::nonstd::is_std_vector<T>::value ||
         std::is_same_v<T, ccf::kv::serialisers::SerialisedEntry>)
       {
-        serialise_entry(entry.size() * sizeof(typename T::value_type));
-        if (entry.size() > 0)
-        {
-          serialise_vector(entry);
-        }
+        append_size_prefixed(
+          reinterpret_cast<const uint8_t*>(entry.data()),
+          serialised_size(entry));
       }
       else if constexpr (std::is_same_v<T, ccf::crypto::Sha256Hash>)
       {
-        serialise_array(entry.h);
+        std::memcpy(extend(entry.h.size()), entry.h.data(), entry.h.size());
       }
       else if constexpr (std::is_same_v<T, EntryType>)
       {
-        serialise_entry(static_cast<uint8_t>(entry));
+        append(static_cast<uint8_t>(entry));
       }
       else if constexpr (std::is_same_v<T, std::string>)
       {
-        serialise_string(entry);
+        append_size_prefixed(
+          reinterpret_cast<const uint8_t*>(entry.data()),
+          serialised_size(entry));
       }
       else if constexpr (std::is_integral_v<T>)
       {
-        serialise_entry(entry);
+        std::memcpy(extend(sizeof(T)), &entry, sizeof(T));
       }
       else
       {
@@ -154,17 +208,17 @@ namespace ccf::kv
 
     void clear()
     {
-      buf.clear();
+      used = 0;
     }
 
     [[nodiscard]] size_t size() const
     {
-      return buf.size();
+      return used;
     }
 
     std::vector<uint8_t> get_raw_data()
     {
-      return {buf.data(), buf.data() + buf.size()};
+      return {data, data + used};
     }
   };
 
@@ -179,7 +233,11 @@ namespace ccf::kv
     template <typename T>
     void append(const T& entry)
     {
-      total_size += RawWriter::serialised_size(entry);
+      const auto additional = RawWriter::serialised_size(entry);
+      if (
+        additional > size_t(std::numeric_limits<ptrdiff_t>::max()) - total_size)
+        throw std::length_error("SizeWriter size overflow");
+      total_size += additional;
     }
 
     void clear()

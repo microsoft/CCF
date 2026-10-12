@@ -75,15 +75,6 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/thelink2012/SmallVector",
-          "commitHash": "febc8cb7b1a83d902b86dd1612feb7c86c690186"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
           "commitHash": "86b83a59786caebd581f38d613c64c9e8c52c79e",
           "tag": "release/v9.3.0"

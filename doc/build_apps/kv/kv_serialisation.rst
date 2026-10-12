@@ -5,6 +5,27 @@ Every transaction executed by the primary on its Key-Value store is serialised b
 
 .. tip:: Selecting the right serialision format for a KV map depends on the application logic but is generally a trade-off between performance and auditability of the ledger. For example, the default serialisation format for :cpp:type:`ccf::kv::Map` is JSON and allows for easy parsing of transactions in the `public` ledger. For more performance sensitive use cases, apps may define or use their own serialisers.
 
+Serialised byte storage
+-----------------------
+
+Serialisers return an owning ``ccf::ByteVector`` for each key and value.
+This applies to built-in tables and application-defined maps, including the
+backing store for JavaScript maps. Small entries use inline storage; larger
+entries grow on the heap. The inline capacity is not a key or value size limit.
+Copies own their bytes independently, and growing a byte vector may invalidate
+existing pointers and iterators.
+
+``ccf::ByteVector`` is a standalone byte-only container, not an alias of a
+third-party vector. It stores up to 16 bytes inline. Native applications must
+rebuild against the matching CCF headers when migrating from the previous
+SmallVector-based type. Code should use the ``ccf::ByteVector`` byte interface
+rather than SmallVector-specific types or base classes.
+
+Ledger serialisation uses a separate, private writer buffer. Its allocation
+policy does not change the key/value encoding, ledger format, or transaction
+size limits. Exporting the writer's bytes produces an independent copy rather
+than consuming its contents.
+
 Custom key and value types
 --------------------------
 
