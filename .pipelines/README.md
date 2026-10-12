@@ -37,31 +37,27 @@ does not dispatch this workflow and needs no additional GitHub credential for
 attestation. The workflow must be merged to `main` and included in the release
 tag before publication.
 
-The build step prints the package version and wheel SHA-256 digest in its logs.
-Use these values, and the release tag, full source commit, and URL from the
-successful OneBranch run, to trigger the workflow with an authenticated GitHub CLI:
+Trigger the workflow on the release tag with an authenticated GitHub CLI.
+No additional inputs are required:
 
 ```bash
 gh workflow run python-package-attestation.yml --repo microsoft/CCF \
-  --ref "<release-tag>" \
-  -f release_tag="<release-tag>" \
-  -f package_version="<package-version>" \
-  -f wheel_sha256="<sha256-from-build>" \
-  -f source_commit="<full-build-source-commit>" \
-  -f pipeline_run_url="<onebranch-run-url>"
+  --ref "<release-tag>"
 ```
 
-Use the release tag, not a branch, as the workflow ref. The expected digest must
-come from the OneBranch build, not PyPI. The workflow checks the release tag and
-source commit, then verifies that the PyPI wheel matches the build's digest and
-package metadata. It uploads `python-package.attestation.sigstore.json` to the
-corresponding GitHub release, separately from the non-Python release attestation.
-This is a GitHub attestation of the verified published wheel, not build-time
-OneBranch provenance.
+Use the release tag, not a branch, as the workflow ref. The workflow derives the
+package version from the tag, checks that the GitHub release is published,
+downloads the wheel over HTTPS, validates its package metadata, and checks its
+digest against PyPI's metadata. It uploads
+`python-package.attestation.sigstore.json` to the corresponding GitHub release,
+separately from the non-Python release attestation. This trusts OneBranch
+publication and PyPI distribution rather than independently comparing the wheel
+against a OneBranch build artifact. It is a GitHub attestation of the published
+wheel, not build-time OneBranch provenance.
 
 OneBranch success confirms publication only; check the GitHub workflow's result
 to confirm attestation completed. If publication succeeded but attestation failed,
-retry only the attestation workflow using the original build inputs. Do not
+retry only the attestation workflow on the original release tag. Do not
 republish the wheel or move the tag. If publication itself was incomplete, skip
 that version and publish a new version.
 

@@ -73,6 +73,3 @@ trap cleanup EXIT
 "$venv_dir/bin/python" -c "import ccf.cose, ccf.ledger"
 
 cp "$wheel" "$output_dir/"
-wheel_sha256=$(sha256sum "$wheel")
-echo "Package version: $package_version"
-echo "Wheel SHA-256: ${wheel_sha256%% *}"
