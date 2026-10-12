@@ -13,7 +13,7 @@ The security/safety guidance applies to security-sensitive reviews in any langua
 
 ## ASCII-only authoring and review
 
-- Apply the ASCII policy and Lean exception in the [repository instructions](/.github/copilot-instructions.md#task-boundaries).
+- Apply the ASCII policy and its Lean and vendored-dependency exemptions in the [repository instructions](/.github/copilot-instructions.md#task-boundaries).
 - For files subject to the ASCII policy, check additions and modified text before committing or approving, including files outside `scripts/ascii-checks.sh` coverage. Report uncovered violations; do not duplicate findings already reported by the automated check.
 - Keep fixes scoped to the current change. Do not rewrite unrelated existing Unicode fixtures, vendored files, or prose documentation.
 
