@@ -14,7 +14,7 @@ import tempfile
 import time
 import urllib.parse
 from contextlib import closing, contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum, auto
 
 import ccf._versionifier
@@ -1148,7 +1148,7 @@ class Node:
         if ignore_proposal_valid_from or self.certificate_valid_from is None:
             # If the node certificate has not been renewed, assume that certificate has
             # been issued within this test run
-            expected_valid_from = datetime.now(timezone.utc) - timedelta(hours=1)
+            expected_valid_from = datetime.now(UTC) - timedelta(hours=1)
             if valid_from < expected_valid_from:
                 raise ValueError(
                     f'Node {self.local_node_id} certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'

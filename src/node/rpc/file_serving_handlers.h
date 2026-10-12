@@ -571,9 +571,11 @@ namespace ccf::node
         auto snapshot_since = http::get_query_value_opt<ccf::SeqNo>(
           parsed_query, file_since_param_key, error_reason);
 
-        if (snapshot_since.has_value())
+        if (parsed_query.contains(file_since_param_key))
         {
-          if (!error_reason.empty())
+          // Present but unparseable: get_query_value_opt returns nullopt and
+          // fills error_reason
+          if (!snapshot_since.has_value())
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -687,9 +689,11 @@ namespace ccf::node
         auto chunk_since = http::get_query_value_opt<ccf::SeqNo>(
           parsed_query, file_since_param_key, error_reason);
 
-        if (chunk_since.has_value())
+        if (parsed_query.contains(file_since_param_key))
         {
-          if (!error_reason.empty())
+          // Present but unparseable: get_query_value_opt returns nullopt and
+          // fills error_reason
+          if (!chunk_since.has_value())
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
