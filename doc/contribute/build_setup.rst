@@ -36,29 +36,11 @@ Developing in GitHub Codespaces
 
 CCF devcontainer setup works just fine with codespaces. It's recommended to pre-configure for 16-cores one.
 
-For an Azure Linux 4 Codespace that connects to Copilot through ``copilotd``,
-select :ccf_repo:`the Copilot relay configuration <.devcontainer/azurelinux4-copilotd/devcontainer.json>`
-in the Codespace creation options. It reuses the Azure Linux 4 development setup.
-The existing devcontainer configurations do not start the relay.
-
-On every Codespace start, its ``postStartCommand`` installs ``copilotd`` from
-``https://gh.io/copilotd-install`` if it is missing, then starts a background
-supervisor. The daemon runs with ``--relay``, uses ``CODESPACE_NAME`` as the
-environment name, and exposes the repository as both workspace and project.
-Relay authentication requires ``GITHUB_TOKEN`` (normally supplied by Codespaces)
-or ``COPILOTD_MISSION_CONTROL_TOKEN``. Never put tokens in the devcontainer
-configuration or commit them.
-
-The supervisor restarts the daemon 10 seconds after it exits and uses a file
-lock to prevent duplicate instances. Stopping the Codespace stops the processes;
-starting it again launches a fresh supervisor. Logs are written to
-``~/.local/state/ccf-copilotd/copilotd.log``. A successful startup hook confirms
-that the supervisor is running, not that relay authentication has succeeded;
-check this log for connection or authentication errors. To retry after an
-installation failure, run
-``bash .devcontainer/azurelinux4-copilotd/start_copilotd.sh`` from the repository root.
-To update an installed daemon, stop the Codespace, rebuild its container, and
-start it again.
+To use Copilot through ``copilotd`` in an Azure Linux 4 Codespace, select the
+:ccf_repo:`Copilot relay configuration <.devcontainer/azurelinux4-copilotd/devcontainer.json>`
+when creating the Codespace. The relay starts automatically on each Codespace start,
+restarts if it exits, and requires ``GITHUB_TOKEN`` (supplied by Codespaces) or
+``COPILOTD_MISSION_CONTROL_TOKEN``. Logs are in ``~/.local/state/ccf-copilotd/copilotd.log``.
 
 Tweaks for codespaces:
 
