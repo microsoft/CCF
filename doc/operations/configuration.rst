@@ -18,10 +18,6 @@ The configuration for each CCF node must be contained in a single JSON configura
 
         $ /opt/ccf/bin/js_generic --config /path/to/config/file --check
 
-Integer settings accept exact integer-valued JSON numbers, including decimal or exponent forms such as ``1.0`` and ``1e0``, subject to the setting's limits. Fractional values, booleans, and strings such as ``"1"`` are rejected. Use integer literals such as ``1`` in configuration files shared with older CCF releases, which may reject decimal or exponent forms.
-
-Schema validation errors quote object property names in their context paths, for example ``<root>["worker_threads"]``. Array indices remain numeric, for example ``<root>["node_certificate"]["subject_alt_names"][0]``.
-
 .. include:: generated_config.rst
 
 
