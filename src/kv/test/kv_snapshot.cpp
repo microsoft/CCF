@@ -4,6 +4,7 @@
 #include "kv/kv_serialiser.h"
 #include "kv/null_encryptor.h"
 #include "kv/store.h"
+#include "node/encryptor.h"
 
 #include <cstring>
 #include <doctest/doctest.h>
@@ -72,6 +73,41 @@ TEST_CASE(
       serialised_snapshot.data(), serialised_snapshot.size(), hooks),
     ccf::kv::ApplyResult::PASS);
   REQUIRE_EQ(new_store.current_version(), snapshot_version);
+}
+
+TEST_CASE(
+  "Encrypted snapshot replays both domains" * doctest::test_suite("snapshot"))
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  ccf::kv::Store source;
+  source.set_encryptor(encryptor);
+
+  MapTypes::StringString private_map("private_map");
+  auto tx = source.create_tx();
+  tx.rw(string_map)->put("public", "value");
+  tx.rw(private_map)->put("private", "secret");
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  const auto snapshot_version = tx.commit_version();
+  secrets->set_secret(snapshot_version + 1, ccf::make_ledger_secret());
+
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot;
+  {
+    ccf::kv::ScopedStoreMapsLock maps_lock(&source);
+    snapshot = source.snapshot_unsafe_maps(snapshot_version);
+  }
+  auto entry = source.serialise_snapshot(std::move(snapshot));
+
+  ccf::kv::Store recovered;
+  recovered.set_encryptor(encryptor);
+  ccf::kv::ConsensusHookPtrs hooks;
+  REQUIRE(
+    recovered.deserialise_snapshot(entry.data(), entry.size(), hooks) ==
+    ccf::kv::ApplyResult::PASS);
+  auto recovered_tx = recovered.create_tx();
+  REQUIRE(recovered_tx.ro(string_map)->get("public") == "value");
+  REQUIRE(recovered_tx.ro(private_map)->get("private") == "secret");
 }
 
 TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
