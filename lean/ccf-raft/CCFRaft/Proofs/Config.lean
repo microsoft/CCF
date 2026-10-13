@@ -246,4 +246,25 @@ def acceptAppendEntriesRequest? (config : InitialConfig Node) (self : Node)
   else
     none
 
+/--
+The AppendEntries handler of a node that did not step down, as an option: the
+NACK or the accepting branch, and `none` when the request is dropped.
+-/
+def handleAppendEntriesRequest? (config : InitialConfig Node) (self : Node)
+    (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
+    : Option (NodeState Node TxId × AppendEntriesResponse) :=
+  if request.term < state.currentTerm \/ Not (logOk state request) then
+    some (state, appendEntriesNack state request)
+  else
+    acceptAppendEntriesRequest? config self state request
+
+/-- The request's entries are already present in the log, compared by term. -/
+def alreadyDone (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
+    : Prop :=
+  request.entries = []
+  \/ (request.prevLogIndex + request.entries.length <= state.log.length
+      /\ ((state.log.drop request.prevLogIndex).take request.entries.length).map
+            Entry.term
+          = request.entries.map Entry.term)
+
 end CCFRaft.Proofs.Config

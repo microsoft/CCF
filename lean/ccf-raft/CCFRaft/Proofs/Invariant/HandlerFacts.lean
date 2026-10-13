@@ -1253,9 +1253,23 @@ structure AppendRequestLocalPost
   votedForUnchanged : after.votedFor = before.votedFor
   votesGrantedUnchanged : after.votesGranted = before.votesGranted
   logShape
-    : after.log
-        = before.log ++ request.entries.drop (before.log.length - request.prevLogIndex)
+    : after.log = before.log
       \/ after.log = before.log.take request.prevLogIndex ++ request.entries
+      \/ after.log
+          = before.log ++ request.entries.drop (before.log.length - request.prevLogIndex)
+  successfulShape
+    : response.success = true
+      -> (Not (hasTermConflict before request)
+            /\ after.log
+                = before.log
+                  ++ request.entries.drop (before.log.length - request.prevLogIndex))
+          \/ (hasTermConflict before request
+              /\ after.log = before.log.take request.prevLogIndex ++ request.entries)
+  successfulUnchangedEntryTerms
+    : response.success = true -> after.log = before.log
+      -> ((before.log.drop request.prevLogIndex).take request.entries.length).map
+            Entry.term
+          = request.entries.map Entry.term
   previousCommittedPrefix : before.committedLog <+: after.log
   commitIndexBounded
     : before.commitIndex <= before.log.length -> after.commitIndex <= after.log.length
@@ -1278,6 +1292,66 @@ structure AppendRequestLocalPost
   successfulIndexExact
     : response.success = true
       -> response.lastLogIndex = request.prevLogIndex + request.entries.length
+  failedResponse : response.success = false -> response = appendEntriesNack before request
+  failedStateUnchanged : response.success = false -> after = before
+
+omit [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node] in
+/-- Matching terms over the whole request leave no term conflict. -/
+lemma noConflictOfMappedTerms
+    : forall (existing incoming : List (Entry Node TxId)),
+        (existing.take incoming.length).map Entry.term = incoming.map Entry.term
+        -> Not
+            ((existing.zip incoming).any
+                (fun (pair : Entry Node TxId × Entry Node TxId) =>
+                  pair.1.term != pair.2.term)
+              = true)
+  | _, [], _ => by simp
+  | [], _ :: _, terms => by simp at terms
+  | head :: existing, first :: incoming, terms => by
+      simp only [List.length_cons, List.take_succ_cons, List.map_cons, List.cons.injEq]
+        at terms
+      simp only [List.zip_cons_cons, List.any_cons, Bool.or_eq_true, bne_iff_ne, ne_eq,
+        not_or, not_not]
+      exact ⟨terms.1, noConflictOfMappedTerms existing incoming terms.2⟩
+
+omit [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node] in
+/-- Without a term conflict, the common prefix of a log and a request agrees on terms. -/
+lemma overlapTermsOfNoConflict
+    : forall (existing incoming : List (Entry Node TxId)),
+        Not
+          ((existing.zip incoming).any
+              (fun (pair : Entry Node TxId × Entry Node TxId) =>
+                pair.1.term != pair.2.term)
+            = true)
+        -> (existing.take incoming.length).map Entry.term
+            = (incoming.take existing.length).map Entry.term
+  | _, [], _ => by simp
+  | [], _ :: _, _ => by simp
+  | head :: existing, first :: incoming, noConflict => by
+      simp only [List.zip_cons_cons, List.any_cons, Bool.or_eq_true, bne_iff_ne, ne_eq,
+        not_or, not_not] at noConflict
+      simp only [List.length_cons, List.take_succ_cons, List.map_cons, List.cons.injEq]
+      exact ⟨noConflict.1, overlapTermsOfNoConflict existing incoming noConflict.2⟩
+
+omit [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node] in
+/-- Without a term conflict, the overlap of a log and a request agrees on terms. -/
+lemma mappedTermsOfNoConflict
+    : forall (existing incoming : List (Entry Node TxId)),
+        incoming.length <= existing.length
+        -> Not
+            ((existing.zip incoming).any
+                (fun (pair : Entry Node TxId × Entry Node TxId) =>
+                  pair.1.term != pair.2.term)
+              = true)
+        -> (existing.take incoming.length).map Entry.term = incoming.map Entry.term
+  | _, [], _, _ => by simp
+  | [], _ :: _, bound, _ => by simp at bound
+  | head :: existing, first :: incoming, bound, noConflict => by
+      simp only [List.zip_cons_cons, List.any_cons, Bool.or_eq_true, bne_iff_ne, ne_eq,
+        not_or, not_not] at noConflict
+      simp only [List.length_cons, List.take_succ_cons, List.map_cons, List.cons.injEq]
+      exact ⟨noConflict.1,
+        mappedTermsOfNoConflict existing incoming (by simpa using bound) noConflict.2⟩
 
 lemma acceptAppendEntriesRequestLocalPost
     {self : Node} {before after : NodeState Node TxId}
@@ -1306,6 +1380,8 @@ lemma acceptAppendEntriesRequestLocalPost
     voted,
     votes,
     ?_,
+    fun _ => ?_,
+    fun _ => ?_,
     retained,
     ?_,
     ?_,
@@ -1317,11 +1393,23 @@ lemma acceptAppendEntriesRequestLocalPost
     fun _ => rfl,
     fun _ => matching,
     fun _ => rfl,
-    fun _ => rfl
+    fun _ => rfl,
+    fun failed => by simp at failed,
+    fun failed => by simp at failed
   ⟩
   · rcases shape with ⟨-, logEq⟩ | ⟨-, -, logEq⟩
-    · exact Or.inl logEq
-    · exact Or.inr logEq
+    · exact Or.inr (Or.inr logEq)
+    · exact Or.inr (Or.inl logEq)
+  · rcases shape with ⟨noConflict, logEq⟩ | ⟨conflict, -, logEq⟩
+    · exact Or.inl ⟨noConflict, logEq⟩
+    · exact Or.inr ⟨conflict, logEq⟩
+  · intro unchanged
+    rcases shape with ⟨noConflict, logEq⟩ | ⟨-, -, logEq⟩
+    · rw [logEq] at unchanged
+      have dropped := List.append_right_eq_self.mp unchanged
+      rw [List.drop_eq_nil_iff] at dropped
+      exact mappedTermsOfNoConflict _ _ (by simp; omega) noConflict
+    · rw [← unchanged, logEq, List.drop_left' (by simp; omega), List.take_length]
   · intro bound
     rw [commitEq]
     apply committedFromLeader_bounded
@@ -1351,5 +1439,96 @@ lemma acceptAppendEntriesRequest_conditions
       ∧ before.commitIndex ≤ request.prevLogIndex :=
   let facts := acceptAppendEntriesRequest_eq accepted
   ⟨facts.1, facts.2.1, facts.2.2.1⟩
+
+/-- The NACK branch leaves the node unchanged. -/
+lemma appendEntriesNackLocalPost (before : NodeState Node TxId)
+    (request : AppendEntriesRequest Node TxId)
+    : AppendRequestLocalPost before before request
+        (appendEntriesNack before request) := by
+  have failed := appendEntriesNackMetadata before request
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl, ?_, ?_, List.take_prefix _ _, id, le_rfl,
+    le_max_left _ _, le_max_left _ _, id, ?_, ?_, ?_, ?_, ?_, ?_, fun _ => rfl, fun _ => rfl⟩
+  all_goals intros; simp_all
+
+/-- Every branch of the option-valued AppendEntries handler has the common local shape. -/
+lemma handleAppendEntriesRequestLocalPost
+    {self : Node} {before after : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
+    (handled
+      : handleAppendEntriesRequest? (inferInstance) self before request
+        = some (after, response))
+    : AppendRequestLocalPost before after request response := by
+  unfold handleAppendEntriesRequest? at handled
+  split_ifs at handled
+  · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj handled)
+    exact appendEntriesNackLocalPost before request
+  · exact acceptAppendEntriesRequestLocalPost handled
+
+/-- A successful response of the option-valued handler comes from the accepting branch. -/
+lemma acceptedOfSuccess
+    {self : Node} {before after : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
+    (handled
+      : handleAppendEntriesRequest? (inferInstance) self before request
+        = some (after, response))
+    (success : response.success = true)
+    : acceptAppendEntriesRequest? (inferInstance) self before request
+      = some (after, response) := by
+  unfold handleAppendEntriesRequest? at handled
+  split_ifs at handled
+  · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj handled)
+    simp [appendEntriesNackMetadata] at success
+  · exact handled
+
+/--
+The model handler of a node that does not step down either answers as the
+option-valued handler does, or drops the request and records a known leader.
+-/
+lemma handleAppendEntriesRequest_option
+    {self : Node} {before after : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId}
+    {response : Option AppendEntriesResponse}
+    (notNewer : request.term <= before.currentTerm)
+    (notStepped
+      : ¬ (request.term = before.currentTerm
+            ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
+    (handled
+      : handleAppendEntriesRequest (inferInstance) self before request
+        = (after, response))
+    : (Exists
+        fun answer =>
+          response = some answer
+          /\ handleAppendEntriesRequest? (inferInstance) self before request
+              = some (after, answer))
+      \/ (response = none
+          /\ handleAppendEntriesRequest? (inferInstance) self before request = none
+          /\ after = { before with leaderKnown := true }) := by
+  have stepped := appendEntriesSteppedDown_of_not notStepped
+  rcases handleAppendEntriesRequest_cases notNewer handled with
+    ⟨nack, rfl, rfl⟩ | ⟨term, matching, drop, rfl, rfl⟩ | ⟨accepted, acceptEq, rfl⟩
+  · left
+    refine ⟨_, rfl, ?_⟩
+    simp only [handleAppendEntriesRequest?, stepped, nack, ite_true]
+  · right
+    refine ⟨rfl, ?_, by rw [stepped]⟩
+    rw [stepped] at drop
+    have notNack : Not (request.term < before.currentTerm \/ Not (logOk before request)) := by
+      omega
+    simp only [handleAppendEntriesRequest?, notNack, ite_false, acceptAppendEntriesRequest?]
+    split_ifs with guard
+    · exfalso
+      obtain ⟨-, -, committed, notBlocked⟩ := guard
+      rcases drop with early | ⟨conflict, fresh⟩
+      · omega
+      · exact notBlocked ⟨conflict, by simp [fresh]⟩
+    · rfl
+  · left
+    refine ⟨_, rfl, ?_⟩
+    rw [stepped] at acceptEq
+    have conditions := acceptAppendEntriesRequest_conditions acceptEq
+    have notNack : Not (request.term < before.currentTerm \/ Not (logOk before request)) := by
+      omega
+    simp only [handleAppendEntriesRequest?, notNack, ite_false]
+    exact acceptEq
 
 end CCFRaft.Proofs.Invariant

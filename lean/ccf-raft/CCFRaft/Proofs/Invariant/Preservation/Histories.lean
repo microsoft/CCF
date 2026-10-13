@@ -800,11 +800,221 @@ lemma canonicalHistoriesPrefixOfSameLastTerm
       ⟩
     _ = right := rightEq.symm
 
+/-- A node log and a queued history with equal positive terms at an index agree up to it. -/
+lemma queuedHistoryTakeAgreement
+    {state : Model.State Node TxId}
+    {votes : VoteHistory Node}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {canonicalHistory : Nat -> List (Entry Node TxId)}
+    {owners : TermOwners Node}
+    (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
+    {destination : Node}
+    {request : AppendRequestKey Node TxId}
+    (requestMember
+      : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
+    {index : Nat}
+    (positive : 0 < index)
+    (nodeBound : index <= ((nodeOf state) destination).log.length)
+    (historyBound : index <= (appendHistory request).length)
+    (sameTerm
+      : termAt ((nodeOf state) destination).log index
+        = termAt (appendHistory request) index)
+    : ((nodeOf state) destination).log.take index
+      = (appendHistory request).take index := by
+  rcases entryAtSomeOfPositiveBound positive nodeBound with ⟨nodeEntry, nodeFound⟩
+  rcases entryAtSomeOfPositiveBound positive historyBound with ⟨historyEntry, historyFound⟩
+  have termEq : nodeEntry.term = historyEntry.term := by
+    simpa [termAt, nodeFound, historyFound] using sameTerm
+  rcases ownership.logEntryAgreement destination index nodeEntry nodeFound with
+    ⟨_, nodeAgreed⟩
+  rcases
+      ownership.queuedHistoryEntryAgreement
+        destination request requestMember index historyEntry historyFound with
+    ⟨_, historyAgreed⟩
+  rw [nodeAgreed, historyAgreed, termEq]
+
+/-- A successful request whose entries are already present, by term, leaves the log
+unchanged. -/
+lemma successfulAppendLogUnchangedOfTerms
+    {before nextNode : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId}
+    {response : AppendEntriesResponse}
+    (post : AppendRequestLocalPost before nextNode request response)
+    (success : response.success = true)
+    (covered : request.prevLogIndex + request.entries.length <= before.log.length)
+    (terms
+      : ((before.log.drop request.prevLogIndex).take request.entries.length).map
+          Entry.term
+        = request.entries.map Entry.term)
+    : nextNode.log = before.log := by
+  rcases post.successfulShape success with ⟨-, logEq⟩ | ⟨conflict, -⟩
+  · rw [logEq, List.drop_eq_nil_of_le (by omega), List.append_nil]
+  · exact absurd conflict
+      (noConflictOfMappedTerms _ _ (by simpa [List.take_take] using terms))
+
+/-- Without a term conflict, positions shared by the old log and the request
+carry the request-history terms. -/
+lemma termAtOverlapOfNoConflict
+    {log history entries : List (Entry Node TxId)}
+    {previous index : Nat}
+    (historyEnd
+      : history.take (previous + entries.length) = history.take previous ++ entries)
+    (historyBound : previous + entries.length <= history.length)
+    (noConflict
+      : Not
+          (((log.drop previous).zip entries).any
+              (fun (pair : Entry Node TxId × Entry Node TxId) =>
+                pair.1.term != pair.2.term)
+            = true))
+    (afterPrevious : previous < index)
+    (inLog : index <= log.length)
+    (inRequest : index <= previous + entries.length)
+    : termAt log index = termAt history index := by
+  have overlap := overlapTermsOfNoConflict (log.drop previous) entries noConflict
+  rw [List.length_drop] at overlap
+  rcases entryAtSomeOfPositiveBound (by omega) inLog with ⟨existing, existingFound⟩
+  rcases entryAtSomeOfPositiveBound (log := entries) (index := index - previous)
+      (by omega) (by omega) with ⟨incoming, incomingFound⟩
+  have termEq :=
+    entryTermsEqualOfMappedTerms overlap
+      ((entryAtDropTake afterPrevious inRequest).trans existingFound)
+      ((entryAtTake_of_le (by omega)).trans incomingFound)
+  have historyFound : entryAt? history index = some incoming := by
+    rw [← entryAtTake_of_le inRequest, historyEnd, entryAtAppend_right (by simp; omega),
+      List.length_take, Nat.min_eq_left (by omega)]
+    exact incomingFound
+  simp [termAt, existingFound, historyFound, termEq]
+
 /--
-When a handled AppendEntries request advances commit, the corrected
-request-end bound and canonical history agreement identify the exact learned
-committed prefix.
+After a successful append, a log whose terms agree with a request history at
+shared positions matches that history through the request end, and only keeps
+a longer suffix when it is unchanged.
 -/
+lemma appendedLogPrefixAgreement
+    {log next history entries : List (Entry Node TxId)}
+    {previous previousTerm : Nat}
+    (agreeAt
+      : forall index,
+          0 < index
+          -> index <= log.length
+          -> index <= history.length
+          -> termAt log index = termAt history index
+          -> log.take index = history.take index)
+    (historyBound : previous + entries.length <= history.length)
+    (historyTerm : previousTerm = termAt history previous)
+    (historyEnd
+      : history.take (previous + entries.length) = history.take previous ++ entries)
+    (matching
+      : previous = 0 \/ (previous <= log.length /\ termAt log previous = previousTerm))
+    (shape
+      : (Not
+            (((log.drop previous).zip entries).any
+                (fun (pair : Entry Node TxId × Entry Node TxId) =>
+                  pair.1.term != pair.2.term)
+              = true)
+          /\ next = log ++ entries.drop (log.length - previous))
+        \/ next = log.take previous ++ entries)
+    : next.take (previous + entries.length) = history.take (previous + entries.length)
+      /\ previous + entries.length <= next.length
+      /\ (previous + entries.length < next.length -> next = log) := by
+  have previousBound : previous <= log.length := by
+    rcases matching with zero | present
+    · omega
+    · exact present.1
+  have previousAgreement : log.take previous = history.take previous := by
+    by_cases zero : previous = 0
+    · simp [zero]
+    · rcases matching with impossible | present
+      · exact absurd impossible zero
+      exact agreeAt previous (by omega) previousBound (by omega) (present.2.trans historyTerm)
+  have historyLength : (history.take previous).length = previous := by
+    simp only [List.length_take]
+    omega
+  rcases shape with ⟨noConflict, nextEq⟩ | nextEq
+  · by_cases covered : previous + entries.length <= log.length
+    · have unchanged : next = log := by
+        rw [nextEq, List.drop_eq_nil_of_le (by omega), List.append_nil]
+      refine ⟨?_, by rw [unchanged]; omega, fun _ => unchanged⟩
+      rw [unchanged]
+      by_cases empty : entries.length = 0
+      · rw [empty, Nat.add_zero, previousAgreement]
+      exact agreeAt _ (by omega) covered historyBound
+        (termAtOverlapOfNoConflict historyEnd historyBound noConflict (by omega) covered le_rfl)
+    · have logAgreement : log = history.take log.length := by
+        by_cases same : log.length = previous
+        · rw [same, ← previousAgreement, List.take_of_length_le (by omega)]
+        · have agreed :=
+            agreeAt _ (by omega) le_rfl (by omega)
+              (termAtOverlapOfNoConflict historyEnd historyBound noConflict (by omega) le_rfl
+                (by omega))
+          rwa [List.take_length] at agreed
+      have historyPrefix :
+          history.take log.length = history.take previous ++ entries.take (log.length - previous) := by
+        have taken := congrArg (List.take log.length) historyEnd
+        rw [List.take_take, Nat.min_eq_left (by omega), List.take_append, historyLength,
+          List.take_of_length_le (l := history.take previous) (by rw [historyLength]; omega)]
+          at taken
+        exact taken
+      have logHistory := logAgreement.trans historyPrefix
+      have nextHistory : next = history.take (previous + entries.length) := by
+        calc
+          next = log ++ entries.drop (log.length - previous) := nextEq
+          _ = history.take previous
+              ++ entries.take (log.length - previous)
+              ++ entries.drop (log.length - previous) := by
+            rw [← logHistory]
+          _ = history.take (previous + entries.length) := by
+            rw [List.append_assoc, List.take_append_drop, historyEnd]
+      have nextLength : next.length = previous + entries.length := by
+        rw [nextHistory, List.length_take]
+        omega
+      refine ⟨?_, by omega, fun longer => by omega⟩
+      rw [List.take_of_length_le (by omega), nextHistory]
+  · have nextLength : next.length = previous + entries.length := by
+      rw [nextEq]
+      simp
+      omega
+    refine ⟨?_, by omega, fun longer => by omega⟩
+    rw [List.take_of_length_le (by omega), nextEq, previousAgreement, historyEnd]
+
+/--
+An accepted request agrees with its immutable history through the end of the
+request, and only keeps a longer suffix when the log is unchanged.
+-/
+lemma handledAppendRequestPrefixAgreement
+    {state : Model.State Node TxId}
+    {votes : VoteHistory Node}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {canonicalHistory : Nat -> List (Entry Node TxId)}
+    {owners : TermOwners Node}
+    (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
+    {destination : Node}
+    {request : AppendRequestKey Node TxId}
+    {nextNode : NodeState Node TxId}
+    {response : AppendEntriesResponse}
+    (requestMember
+      : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
+    (snapshot : RequestSnapshots (appendHistory request) request)
+    (post
+      : AppendRequestLocalPost ((nodeOf state) destination) nextNode request.2.2 response)
+    (success : response.success = true)
+    : nextNode.log.take (request.2.2.prevLogIndex + request.2.2.entries.length)
+        = (appendHistory request).take
+            (request.2.2.prevLogIndex + request.2.2.entries.length)
+      /\ request.2.2.prevLogIndex + request.2.2.entries.length <= nextNode.log.length
+      /\ (request.2.2.prevLogIndex + request.2.2.entries.length < nextNode.log.length
+          -> nextNode.log = ((nodeOf state) destination).log) :=
+  appendedLogPrefixAgreement
+    (fun _ positive nodeBound historyBound sameTerm =>
+      queuedHistoryTakeAgreement ownership requestMember positive nodeBound historyBound
+        sameTerm)
+    snapshot.1 snapshot.2.1 snapshot.2.2 (post.successfulLogOk success)
+    (by
+      rcases post.successfulShape success with ⟨noConflict, logEq⟩ | ⟨-, logEq⟩
+      · exact Or.inl ⟨noConflict, logEq⟩
+      · exact Or.inr logEq)
+
+/-- Advancing the commit index commits a prefix of the request history. -/
 lemma handledAppendRequestAdvancedCommittedHistory
     (state : Model.State Node TxId)
     (votes : VoteHistory Node)
@@ -819,202 +1029,24 @@ lemma handledAppendRequestAdvancedCommittedHistory
     (requestMember
       : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
-    (oldCommitBound
-      : ((nodeOf state) destination).commitIndex
-        <= ((nodeOf state) destination).log.length)
-    (notStepped
-      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
-            ∧ ((((nodeOf state) destination)).role = .candidate
-                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? (inferInstance) request.2.1
           ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     (advanced : ((nodeOf state) destination).commitIndex < nextNode.commitIndex)
     : nextNode.committedLog = (appendHistory request).take nextNode.commitIndex := by
-  let post :=
-    handleAppendEntriesRequestLocalPost notStepped handled
-  have succeeded : response.success = true :=
-    post.commitAdvancedSuccessful advanced
-  have nextBound : nextNode.commitIndex <= nextNode.log.length :=
-    post.commitIndexBounded oldCommitBound
+  let post := handleAppendEntriesRequestLocalPost handled
+  have succeeded : response.success = true := post.commitAdvancedSuccessful advanced
   have withinEnd :
-      nextNode.commitIndex <=
-        request.2.2.prevLogIndex + request.2.2.entries.length := by
+      nextNode.commitIndex <= request.2.2.prevLogIndex + request.2.2.entries.length := by
     rcases le_max_iff.mp post.commitRequestEndBound with old | learned
     · omega
     · exact learned
-  have nextPositive : 0 < nextNode.commitIndex := by omega
-  have previousBound :
-      request.2.2.prevLogIndex <= ((nodeOf state) destination).log.length := by
-    rcases post.successfulLogOk succeeded with zero | present
-    · omega
-    · exact present.1
-  have historyPreviousBound :
-      request.2.2.prevLogIndex <= (appendHistory request).length := by
-    exact Nat.le_trans (Nat.le_add_right _ _) snapshot.1
-  have previousAgreement :
-      ((nodeOf state) destination).log.take request.2.2.prevLogIndex =
-        (appendHistory request).take request.2.2.prevLogIndex := by
-    by_cases zero : request.2.2.prevLogIndex = 0
-    · simp [zero]
-    · have previousPositive : 0 < request.2.2.prevLogIndex := by omega
-      rcases
-          entryAtSomeOfPositiveBound previousPositive previousBound with
-        ⟨nodeEntry, nodeFound⟩
-      rcases
-          entryAtSomeOfPositiveBound
-            previousPositive historyPreviousBound with
-        ⟨historyEntry, historyFound⟩
-      have nodeTerm :
-          nodeEntry.term = request.2.2.prevLogTerm := by
-        rcases post.successfulLogOk succeeded with impossible | present
-        · exact False.elim (zero impossible)
-        · simpa [termAt, nodeFound] using present.2
-      have historyTerm :
-          historyEntry.term = request.2.2.prevLogTerm := by
-        simpa [termAt, historyFound] using snapshot.2.1.symm
-      rcases
-          ownership.logEntryAgreement
-            destination request.2.2.prevLogIndex nodeEntry nodeFound with
-        ⟨_, nodeAgreed⟩
-      rcases
-          ownership.queuedHistoryEntryAgreement
-            destination request requestMember
-              request.2.2.prevLogIndex historyEntry historyFound with
-        ⟨_, historyAgreed⟩
-      calc
-        ((nodeOf state) destination).log.take request.2.2.prevLogIndex
-            = (canonicalHistory nodeEntry.term).take request.2.2.prevLogIndex :=
-          nodeAgreed
-        _ = (canonicalHistory historyEntry.term).take request.2.2.prevLogIndex := by
-          rw [nodeTerm, historyTerm]
-        _ = (appendHistory request).take request.2.2.prevLogIndex :=
-          historyAgreed.symm
-  have nextPreviousAgreement :
-      nextNode.log.take request.2.2.prevLogIndex =
-        (appendHistory request).take request.2.2.prevLogIndex := by
-    have nextOldPrevious :
-        nextNode.log.take request.2.2.prevLogIndex =
-          ((nodeOf state) destination).log.take request.2.2.prevLogIndex := by
-      rcases post.logShape with same | truncated | extended
-      · rw [same]
-      · rw [truncated]
-        simp
-      · rw [extended]
-        simp [List.length_take, previousBound]
-    exact nextOldPrevious.trans previousAgreement
-  have takeAgreement :
-      nextNode.log.take nextNode.commitIndex =
-        (appendHistory request).take nextNode.commitIndex := by
-    by_cases withinPrevious :
-        nextNode.commitIndex <= request.2.2.prevLogIndex
-    · calc
-        nextNode.log.take nextNode.commitIndex =
-            (nextNode.log.take request.2.2.prevLogIndex).take
-              nextNode.commitIndex := by
-                simp [List.take_take, Nat.min_eq_left withinPrevious]
-        _ =
-            ((appendHistory request).take request.2.2.prevLogIndex).take
-              nextNode.commitIndex := by
-                rw [nextPreviousAgreement]
-        _ = (appendHistory request).take nextNode.commitIndex := by
-              simp [List.take_take, Nat.min_eq_left withinPrevious]
-    · have afterPrevious :
-          request.2.2.prevLogIndex < nextNode.commitIndex := by omega
-      rcases post.logShape with same | truncated | extended
-      · have nodeFound :
-            Exists fun entry =>
-              entryAt? ((nodeOf state) destination).log
-                nextNode.commitIndex = some entry := by
-          rw [same] at nextBound
-          exact
-            entryAtSomeOfPositiveBound nextPositive
-              nextBound
-        rcases nodeFound with ⟨nodeEntry, nodeFound⟩
-        rcases
-            entryAtSomeOfPositiveBound nextPositive
-              (Nat.le_trans withinEnd snapshot.1) with
-          ⟨historyEntry, historyFound⟩
-        have offsetPositive :
-            0 < nextNode.commitIndex - request.2.2.prevLogIndex := by omega
-        have requestFound :
-            entryAt? request.2.2.entries
-                (nextNode.commitIndex - request.2.2.prevLogIndex) =
-              some historyEntry := by
-          have inTaken :
-              entryAt?
-                  ((appendHistory request).take
-                    (request.2.2.prevLogIndex + request.2.2.entries.length))
-                  nextNode.commitIndex =
-                some historyEntry := by
-            rw [entryAtTake_of_le withinEnd]
-            exact historyFound
-          rw [snapshot.2.2] at inTaken
-          have previousLength :
-              ((appendHistory request).take request.2.2.prevLogIndex).length =
-                request.2.2.prevLogIndex := by
-            simp [List.length_take, historyPreviousBound]
-          rw [
-            entryAtAppend_right
-              (base := (appendHistory request).take request.2.2.prevLogIndex)
-              (suffix := request.2.2.entries)
-              (by simpa [previousLength] using afterPrevious),
-            previousLength
-          ] at inTaken
-          exact inTaken
-        have localSliceFound :
-            entryAt?
-                ((((nodeOf state) destination).log.drop request.2.2.prevLogIndex).take
-                  request.2.2.entries.length)
-                (nextNode.commitIndex - request.2.2.prevLogIndex) =
-              some nodeEntry := by
-          rw [entryAtDropTake afterPrevious withinEnd]
-          exact nodeFound
-        have sameTerm :
-            nodeEntry.term = historyEntry.term :=
-          entryTermsEqualOfMappedTerms
-            (post.successfulUnchangedEntryTerms succeeded same)
-            localSliceFound requestFound
-        rcases
-            ownership.logEntryAgreement
-              destination nextNode.commitIndex nodeEntry nodeFound with
-          ⟨_, nodeAgreed⟩
-        rcases
-            ownership.queuedHistoryEntryAgreement
-              destination request requestMember
-                nextNode.commitIndex historyEntry historyFound with
-          ⟨_, historyAgreed⟩
-        rw [same]
-        calc
-          ((nodeOf state) destination).log.take nextNode.commitIndex
-              = (canonicalHistory nodeEntry.term).take nextNode.commitIndex :=
-            nodeAgreed
-          _ = (canonicalHistory historyEntry.term).take nextNode.commitIndex := by
-            rw [sameTerm]
-          _ = (appendHistory request).take nextNode.commitIndex :=
-            historyAgreed.symm
-      · have truncatedLength :
-            nextNode.log.length <= request.2.2.prevLogIndex := by
-          rw [truncated]
-          simp
-        omega
-      · rw [extended]
-        calc
-          (((nodeOf state) destination).log.take request.2.2.prevLogIndex
-                ++ request.2.2.entries).take
-                nextNode.commitIndex
-              = ((appendHistory request).take request.2.2.prevLogIndex
-                  ++ request.2.2.entries).take
-                  nextNode.commitIndex := by
-            rw [previousAgreement]
-          _ = ((appendHistory request).take
-                (request.2.2.prevLogIndex + request.2.2.entries.length)).take
-                nextNode.commitIndex := by
-            rw [snapshot.2.2]
-          _ = (appendHistory request).take nextNode.commitIndex := by
-            simp [List.take_take, Nat.min_eq_left withinEnd]
-  simpa [NodeState.committedLog] using takeAgreement
+  have agreement :=
+    (handledAppendRequestPrefixAgreement ownership requestMember snapshot post succeeded).1
+  have taken := congrArg (List.take nextNode.commitIndex) agreement
+  simp only [List.take_take, min_eq_left withinEnd] at taken
+  simpa [NodeState.committedLog] using taken
 
 /-- A shared prefix covering the complete request makes the request already
 present in the destination log. -/
@@ -1060,132 +1092,24 @@ lemma appendRequestAlreadyDoneOfSharedPrefix
       ] using dropped
     rw [exactEntries]
 
-/-- A successful handler cannot shorten a prefix shared by the destination
-and the immutable request history. -/
-lemma successfulAppendRequestSharedPrefixLength
+/-- A successful request already represented in the destination log leaves
+that log unchanged. -/
+lemma successfulAlreadyDoneAppendLogUnchanged
     {before nextNode : NodeState Node TxId}
     {request : AppendRequestKey Node TxId}
     {response : AppendEntriesResponse}
-    {history sharedPrefix : List (Entry Node TxId)}
-    (snapshot : RequestSnapshots history request)
-    (beforePrefix : sharedPrefix <+: before.log)
-    (historyPrefix : sharedPrefix <+: history)
-    (notStepped
-      : ¬ (request.2.2.term = (before).currentTerm
-            ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
+    (already : alreadyDone before request.2.2)
     (handled
       : handleAppendEntriesRequest? (inferInstance) request.2.1 before request.2.2
         = some (nextNode, response))
     (success : response.success = true)
-    : sharedPrefix.length <= nextNode.log.length := by
-  simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
-  split at handled
-  · rename_i rejectedState rejectedResponse rejected
-    unfold rejectAppendEntriesRequest? at rejected
-    split at rejected
-    · have pairEq :=
-        (Option.some.inj rejected).trans (Option.some.inj handled)
-      have responseEq := congrArg Prod.snd pairEq
-      dsimp at responseEq
-      subst response
-      have failed := failureResponseMetadata before request.2.2
-      rw [failed] at success
-      contradiction
-    · simp_all
-  · unfold acceptAppendEntriesRequest? at handled
-    split at handled
-    · split at handled
-      · rename_i alreadyState alreadyResponse alreadyResult
-        unfold appendEntriesAlreadyDone? at alreadyResult
-        split at alreadyResult
-        · have pairEq :=
-            (Option.some.inj alreadyResult).trans
-              (Option.some.inj handled)
-          have nextEq := congrArg Prod.fst pairEq
-          dsimp at nextEq
-          subst nextNode
-          simpa using beforePrefix.length_le
-        · contradiction
-      · split at handled
-        · rename_i extendedState extendedResponse extensionResult
-          unfold noConflictAppendEntriesRequest? at extensionResult
-          split at extensionResult
-          · rename_i extension
-            have pairEq :=
-              (Option.some.inj extensionResult).trans
-                (Option.some.inj handled)
-            have nextEq := congrArg Prod.fst pairEq
-            dsimp at nextEq
-            subst nextNode
-            rcases extension with ⟨_, _, shorter, _⟩
-            have prefixBound : sharedPrefix.length <
-                request.2.2.prevLogIndex + request.2.2.entries.length :=
-              lt_of_le_of_lt beforePrefix.length_le shorter
-            simp only [refreshRetirementState_log, List.length_append, List.length_take]
-            omega
-          · contradiction
-        · split at handled
-          · contradiction
-          · rename_i truncated conflictResult
-            unfold conflictAppendEntriesRequest? at conflictResult
-            split at conflictResult
-            · rename_i conflict
-              have truncatedEq := Option.some.inj conflictResult
-              subst truncated
-              split at handled
-              · rename_i alreadyState alreadyResponse alreadyResult
-                unfold appendEntriesAlreadyDone? at alreadyResult
-                split at alreadyResult
-                · rcases conflict.1.1 with nonempty
-                  rename_i already
-                  rcases already with empty | bounded
-                  · exact False.elim (nonempty empty)
-                  · have entriesPositive :
-                        0 < request.2.2.entries.length :=
-                      List.length_pos_iff_ne_nil.mpr nonempty
-                    have endBeforePrevious :
-                        request.2.2.prevLogIndex +
-                            request.2.2.entries.length <=
-                          request.2.2.prevLogIndex := by
-                      exact Nat.le_trans bounded.1 (List.length_take_le _ _)
-                    omega
-                · contradiction
-              · unfold noConflictAppendEntriesRequest? at handled
-                split at handled
-                · have pairEq :=
-                    Option.some.inj handled
-                  have nextEq := congrArg Prod.fst pairEq
-                  dsimp at nextEq
-                  subst nextNode
-                  have prefixBound :
-                      sharedPrefix.length <=
-                        request.2.2.prevLogIndex + request.2.2.entries.length := by
-                    by_contra notBounded
-                    have already :=
-                      appendRequestAlreadyDoneOfSharedPrefix
-                        snapshot beforePrefix historyPrefix
-                          (by omega)
-                    have impossible :=
-                      ‹appendEntriesAlreadyDone? before request.2.2 = none›
-                    simp [appendEntriesAlreadyDone?, already] at impossible
-                  have previousBound :
-                      request.2.2.prevLogIndex <= before.log.length := by
-                    rcases
-                        ‹request.2.2.term = before.currentTerm /\
-                          before.role = .follower /\
-                          logOk before request.2.2 /\
-                          request.2.2.prevLogIndex >= before.commitIndex›.2.2.1 with
-                      zero | present
-                    · omega
-                    · exact present.1
-                  simpa [
-                    List.length_append,
-                    List.length_take,
-                    previousBound
-                  ] using prefixBound
-                · contradiction
-            · contradiction
-    · contradiction
+    : nextNode.log = before.log := by
+  let post := handleAppendEntriesRequestLocalPost handled
+  rcases already with empty | ⟨covered, terms⟩
+  · rcases post.successfulShape success with ⟨-, logEq⟩ | ⟨conflict, -⟩
+    · simp [logEq, empty]
+    · simp [hasTermConflict, empty] at conflict
+  · exact successfulAppendLogUnchangedOfTerms post success covered terms
 
 /-- Successful handling retains every prefix shared by the old destination log
 and the immutable queued request history. -/
@@ -1203,10 +1127,6 @@ lemma handledAppendRequestRetainsSharedPrefix
     (requestMember
       : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
-    (notStepped
-      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
-            ∧ ((((nodeOf state) destination)).role = .candidate
-                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? (inferInstance) request.2.1
           ((nodeOf state) destination) request.2.2
@@ -1216,88 +1136,33 @@ lemma handledAppendRequestRetainsSharedPrefix
     (beforePrefix : sharedPrefix <+: ((nodeOf state) destination).log)
     (historyPrefix : sharedPrefix <+: appendHistory request)
     : sharedPrefix <+: nextNode.log := by
-  let post :=
-    handleAppendEntriesRequestLocalPost notStepped handled
-  have prefixBound :
-      sharedPrefix.length <= nextNode.log.length :=
-    successfulAppendRequestSharedPrefixLength
-      snapshot beforePrefix historyPrefix notStepped handled success
-  have previousBound :
-      request.2.2.prevLogIndex <= ((nodeOf state) destination).log.length := by
-    rcases post.successfulLogOk success with zero | present
-    · omega
-    · exact present.1
-  have historyPreviousBound :
-      request.2.2.prevLogIndex <= (appendHistory request).length := by
-    exact Nat.le_trans (Nat.le_add_right _ _) snapshot.1
-  have previousAgreement :
-      ((nodeOf state) destination).log.take request.2.2.prevLogIndex =
-        (appendHistory request).take request.2.2.prevLogIndex := by
-    by_cases zero : request.2.2.prevLogIndex = 0
-    · simp [zero]
-    · have previousPositive : 0 < request.2.2.prevLogIndex := by omega
-      rcases
-          entryAtSomeOfPositiveBound previousPositive previousBound with
-        ⟨nodeEntry, nodeFound⟩
-      rcases
-          entryAtSomeOfPositiveBound
-            previousPositive historyPreviousBound with
-        ⟨historyEntry, historyFound⟩
-      have nodeTerm :
-          nodeEntry.term = request.2.2.prevLogTerm := by
-        rcases post.successfulLogOk success with impossible | present
-        · exact False.elim (zero impossible)
-        · simpa [termAt, nodeFound] using present.2
-      have historyTerm :
-          historyEntry.term = request.2.2.prevLogTerm := by
-        simpa [termAt, historyFound] using snapshot.2.1.symm
-      rcases
-          ownership.logEntryAgreement
-            destination request.2.2.prevLogIndex nodeEntry nodeFound with
-        ⟨_, nodeAgreed⟩
-      rcases
-          ownership.queuedHistoryEntryAgreement
-            destination request requestMember
-              request.2.2.prevLogIndex historyEntry historyFound with
-        ⟨_, historyAgreed⟩
-      calc
-        ((nodeOf state) destination).log.take request.2.2.prevLogIndex
-            = (canonicalHistory nodeEntry.term).take request.2.2.prevLogIndex :=
-          nodeAgreed
-        _ = (canonicalHistory historyEntry.term).take request.2.2.prevLogIndex := by
-          rw [nodeTerm, historyTerm]
-        _ = (appendHistory request).take request.2.2.prevLogIndex :=
-          historyAgreed.symm
-  rcases post.logShape with same | truncated | extended
-  · simpa [same] using beforePrefix
-  · rw [truncated]
-    have withinPrevious : sharedPrefix.length <= request.2.2.prevLogIndex := by
-      rw [truncated] at prefixBound
-      simpa [List.length_take, previousBound] using prefixBound
-    rw [List.prefix_take_iff]
-    exact ⟨beforePrefix, withinPrevious⟩
-  · have fullAgreement :
-        nextNode.log =
-          (appendHistory request).take
-            (request.2.2.prevLogIndex + request.2.2.entries.length) := by
-      calc
-        nextNode.log
-            = ((nodeOf state) destination).log.take request.2.2.prevLogIndex
-              ++ request.2.2.entries :=
-          extended
-        _ = (appendHistory request).take request.2.2.prevLogIndex
-            ++ request.2.2.entries := by
-          rw [previousAgreement]
-        _ = (appendHistory request).take
-              (request.2.2.prevLogIndex + request.2.2.entries.length) :=
-          snapshot.2.2.symm
-    rw [fullAgreement, List.prefix_take_iff]
-    constructor
-    · exact historyPrefix
-    · simpa [fullAgreement, List.length_take, snapshot.1] using prefixBound
+  let post := handleAppendEntriesRequestLocalPost handled
+  by_cases covers
+    : request.2.2.prevLogIndex + request.2.2.entries.length <= sharedPrefix.length
+  · rw [successfulAlreadyDoneAppendLogUnchanged
+      (appendRequestAlreadyDoneOfSharedPrefix snapshot beforePrefix historyPrefix covers)
+      handled success]
+    exact beforePrefix
+  · rcases handledAppendRequestPrefixAgreement ownership requestMember snapshot post success with
+      ⟨agreement, bound, -⟩
+    have shorter :
+        sharedPrefix.length <= request.2.2.prevLogIndex + request.2.2.entries.length := by
+      omega
+    have historyTake := takeEqOfPrefix historyPrefix (le_refl sharedPrefix.length)
+    rw [List.take_length] at historyTake
+    rw [List.prefix_iff_eq_take]
+    calc
+      sharedPrefix = (appendHistory request).take sharedPrefix.length := historyTake
+      _ = ((appendHistory request).take
+            (request.2.2.prevLogIndex + request.2.2.entries.length)).take
+            sharedPrefix.length := by
+        rw [List.take_take, Nat.min_eq_left shorter]
+      _ = nextNode.log.take sharedPrefix.length := by
+        rw [← agreement, List.take_take, Nat.min_eq_left shorter]
 
-/-- If the receive path did not step down a candidate, handling an
-AppendEntries request leaves every active node unchanged. -/
+/-- A leader only accepts requests from its own term, which it never sends to
+itself; candidates step down before accepting. Either way active nodes are
+unchanged. -/
 lemma handleAppendEntriesRequestActiveUnchanged
     {before nextNode : NodeState Node TxId}
     {request : AppendRequestKey Node TxId}
@@ -1305,22 +1170,19 @@ lemma handleAppendEntriesRequestActiveUnchanged
     (notStepped
       : ¬ (request.2.2.term = before.currentTerm
             ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
+    (notOwnTerm : before.role = .leader -> request.2.2.term ≠ before.currentTerm)
     (handled
       : handleAppendEntriesRequest? (inferInstance) request.2.1 before request.2.2
         = some (nextNode, response))
     (active : before.role = .candidate \/ before.role = .leader)
     : nextNode = before := by
-  rcases active with candidate | leader
-  · let post := handleAppendEntriesRequestLocalPost notStepped handled
-    by_cases succeeded : response.success = true
-    · have sameTerm := post.successfulCurrentTerm succeeded
-      simp [sameTerm, candidate] at notStepped
-    · have failed : response.success = false :=
-        Bool.eq_false_of_not_eq_true succeeded
-      exact post.failedStateUnchanged failed
-  · exact
-      handleAppendEntriesRequestLeaderUnchanged
-        leader notStepped handled
+  let post := handleAppendEntriesRequestLocalPost handled
+  cases succeeded : response.success
+  · exact post.failedStateUnchanged succeeded
+  · have sameTerm := post.successfulCurrentTerm succeeded
+    rcases active with candidate | leader
+    · simp [sameTerm, candidate] at notStepped
+    · exact absurd sameTerm (notOwnTerm leader)
 
 /-- Every successful response acknowledges an index present in the resulting
 destination log. -/
@@ -1328,164 +1190,24 @@ lemma successfulAppendResponseIndexWithinLog
     {before nextNode : NodeState Node TxId}
     {request : AppendRequestKey Node TxId}
     {response : AppendEntriesResponse}
-    (notStepped
-      : ¬ (request.2.2.term = (before).currentTerm
-            ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? (inferInstance) request.2.1 before request.2.2
         = some (nextNode, response))
     (success : response.success = true)
     : response.lastLogIndex <= nextNode.log.length := by
-  simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
-  split at handled
-  · rename_i rejectedState rejectedResponse rejected
-    unfold rejectAppendEntriesRequest? at rejected
-    split at rejected
-    · have pairEq :=
-        (Option.some.inj rejected).trans (Option.some.inj handled)
-      have responseEq := congrArg Prod.snd pairEq
-      dsimp at responseEq
-      subst response
-      have failed := failureResponseMetadata before request.2.2
-      rw [failed] at success
-      contradiction
-    · contradiction
-  · unfold acceptAppendEntriesRequest? at handled
-    split at handled
-    · split at handled
-      · rename_i alreadyState alreadyResponse alreadyResult
-        unfold appendEntriesAlreadyDone? at alreadyResult
-        split at alreadyResult
-        · rename_i already
-          have pairEq :=
-            (Option.some.inj alreadyResult).trans
-              (Option.some.inj handled)
-          have nextEq := congrArg Prod.fst pairEq
-          have responseEq := congrArg Prod.snd pairEq
-          dsimp at nextEq responseEq
-          subst nextNode
-          subst response
-          simp only [successResponse]
-          rcases already with empty | represented
-          · have previousBound :
-                request.2.2.prevLogIndex <= before.log.length := by
-              rcases
-                  ‹request.2.2.term = before.currentTerm /\
-                    before.role = .follower /\
-                    logOk before request.2.2 /\
-                    request.2.2.prevLogIndex >= before.commitIndex›.2.2.1 with
-                zero | present
-              · omega
-              · exact present.1
-            simp [empty]
-            exact previousBound
-          · exact represented.1
-        · contradiction
-      · split at handled
-        · rename_i extendedState extendedResponse extensionResult
-          unfold noConflictAppendEntriesRequest? at extensionResult
-          split at extensionResult
-          · rename_i extension
-            have pairEq :=
-              (Option.some.inj extensionResult).trans
-                (Option.some.inj handled)
-            have nextEq := congrArg Prod.fst pairEq
-            have responseEq := congrArg Prod.snd pairEq
-            dsimp at nextEq responseEq
-            subst nextNode
-            subst response
-            simp [
-              successResponse,
-              List.length_take,
-              extension.2.1
-            ]
-          · contradiction
-        · split at handled
-          · contradiction
-          · rename_i truncated conflictResult
-            unfold conflictAppendEntriesRequest? at conflictResult
-            split at conflictResult
-            · have truncatedEq := Option.some.inj conflictResult
-              subst truncated
-              split at handled
-              · rename_i alreadyState alreadyResponse alreadyResult
-                unfold appendEntriesAlreadyDone? at alreadyResult
-                split at alreadyResult
-                · rename_i already
-                  have pairEq :=
-                    (Option.some.inj alreadyResult).trans
-                      (Option.some.inj handled)
-                  have nextEq := congrArg Prod.fst pairEq
-                  have responseEq := congrArg Prod.snd pairEq
-                  dsimp at nextEq responseEq
-                  subst nextNode
-                  subst response
-                  simp only [successResponse]
-                  rcases already with empty | represented
-                  · exact False.elim
-                      (‹hasTermConflict before request.2.2 /\
-                        before.isNewFollower = true›.1.1 empty)
-                  · exact represented.1
-                · contradiction
-              · unfold noConflictAppendEntriesRequest? at handled
-                split at handled
-                · rename_i extension
-                  have pairEq := Option.some.inj handled
-                  have nextEq := congrArg Prod.fst pairEq
-                  have responseEq := congrArg Prod.snd pairEq
-                  dsimp at nextEq responseEq
-                  subst nextNode
-                  subst response
-                  simp [
-                    successResponse,
-                    List.length_take]
-                · contradiction
-            · contradiction
-    · contradiction
-
-/-- A successful request already represented in the destination log leaves
-that log unchanged. -/
-lemma successfulAlreadyDoneAppendLogUnchanged
-    {before nextNode : NodeState Node TxId}
-    {request : AppendRequestKey Node TxId}
-    {response : AppendEntriesResponse}
-    (already : alreadyDone before request.2.2)
-    (notStepped
-      : ¬ (request.2.2.term = (before).currentTerm
-            ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
-    (handled
-      : handleAppendEntriesRequest? (inferInstance) request.2.1 before request.2.2
-        = some (nextNode, response))
-    (success : response.success = true)
-    : nextNode.log = before.log := by
-  simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
-  split at handled
-  · rename_i rejectedState rejectedResponse rejected
-    unfold rejectAppendEntriesRequest? at rejected
-    split at rejected
-    · have pairEq :=
-        (Option.some.inj rejected).trans (Option.some.inj handled)
-      have responseEq := congrArg Prod.snd pairEq
-      dsimp at responseEq
-      subst response
-      have failed := failureResponseMetadata before request.2.2
-      rw [failed] at success
-      contradiction
-    · contradiction
-  · unfold acceptAppendEntriesRequest? at handled
-    split at handled
-    · split at handled
-      · rename_i alreadyState alreadyResponse alreadyResult
-        unfold appendEntriesAlreadyDone? at alreadyResult
-        simp [already] at alreadyResult
-        have pairEq :=
-          alreadyResult.trans (Option.some.inj handled)
-        have nextEq := congrArg Prod.fst pairEq
-        simpa using (congrArg NodeState.log nextEq).symm
-      · rename_i noAlready
-        unfold appendEntriesAlreadyDone? at noAlready
-        simp [already] at noAlready
-    · contradiction
+  let post := handleAppendEntriesRequestLocalPost handled
+  have previousBound : request.2.2.prevLogIndex <= before.log.length := by
+    rcases post.successfulLogOk success with zero | present
+    · omega
+    · exact present.1
+  rw [post.successfulIndexExact success]
+  rcases post.successfulShape success with ⟨-, logEq⟩ | ⟨-, logEq⟩
+  · rw [logEq]
+    simp
+    omega
+  · rw [logEq]
+    simp
+    omega
 
 /-- A successful selected request materialises the corresponding source-log
 prefix in the destination log. -/
@@ -1503,10 +1225,6 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
     (requestMember
       : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
-    (notStepped
-      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
-            ∧ ((((nodeOf state) destination)).role = .candidate
-                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? (inferInstance) request.2.1
           ((nodeOf state) destination) request.2.2
@@ -1517,7 +1235,7 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
     {index : Nat}
     (acknowledged : index <= response.lastLogIndex)
     : ((nodeOf state) request.1).log.take index <+: nextNode.log := by
-  let post := handleAppendEntriesRequestLocalPost notStepped handled
+  let post := handleAppendEntriesRequestLocalPost handled
   have withinEnd :
       index <= request.2.2.prevLogIndex + request.2.2.entries.length := by
     exact Nat.le_trans acknowledged (post.successfulIndexBound success)
@@ -1526,179 +1244,17 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
   have sourceHistory :=
     ownership.queuedActiveSourceHistory
       destination request requestMember requestTerm sourceRole
-  have sourceTake :
-      ((nodeOf state) request.1).log.take index =
-        (appendHistory request).take index :=
-    (takeEqOfPrefix sourceHistory historyBound).symm
-  have nextBound : index <= nextNode.log.length :=
-    Nat.le_trans acknowledged
-      (successfulAppendResponseIndexWithinLog notStepped handled success)
-  have previousBound :
-      request.2.2.prevLogIndex <= ((nodeOf state) destination).log.length := by
-    rcases post.successfulLogOk success with zero | present
-    · omega
-    · exact present.1
-  have historyPreviousBound :
-      request.2.2.prevLogIndex <= (appendHistory request).length := by
-    exact Nat.le_trans (Nat.le_add_right _ _) snapshot.1
-  have previousAgreement :
-      ((nodeOf state) destination).log.take request.2.2.prevLogIndex =
-        (appendHistory request).take request.2.2.prevLogIndex := by
-    by_cases zero : request.2.2.prevLogIndex = 0
-    · simp [zero]
-    · have previousPositive : 0 < request.2.2.prevLogIndex := by omega
-      rcases
-          entryAtSomeOfPositiveBound previousPositive previousBound with
-        ⟨nodeEntry, nodeFound⟩
-      rcases
-          entryAtSomeOfPositiveBound
-            previousPositive historyPreviousBound with
-        ⟨historyEntry, historyFound⟩
-      have nodeTerm :
-          nodeEntry.term = request.2.2.prevLogTerm := by
-        rcases post.successfulLogOk success with impossible | present
-        · exact False.elim (zero impossible)
-        · simpa [termAt, nodeFound] using present.2
-      have historyTerm :
-          historyEntry.term = request.2.2.prevLogTerm := by
-        simpa [termAt, historyFound] using snapshot.2.1.symm
-      rcases
-          ownership.logEntryAgreement
-            destination request.2.2.prevLogIndex nodeEntry nodeFound with
-        ⟨_, nodeAgreed⟩
-      rcases
-          ownership.queuedHistoryEntryAgreement
-            destination request requestMember
-              request.2.2.prevLogIndex historyEntry historyFound with
-        ⟨_, historyAgreed⟩
-      calc
-        ((nodeOf state) destination).log.take request.2.2.prevLogIndex
-            = (canonicalHistory nodeEntry.term).take request.2.2.prevLogIndex :=
-          nodeAgreed
-        _ = (canonicalHistory historyEntry.term).take request.2.2.prevLogIndex := by
-          rw [nodeTerm, historyTerm]
-        _ = (appendHistory request).take request.2.2.prevLogIndex :=
-          historyAgreed.symm
-  have nextPreviousAgreement :
-      nextNode.log.take request.2.2.prevLogIndex =
-        (appendHistory request).take request.2.2.prevLogIndex := by
-    have nextOldPrevious :
-        nextNode.log.take request.2.2.prevLogIndex =
-          ((nodeOf state) destination).log.take request.2.2.prevLogIndex := by
-      rcases post.logShape with same | truncated | extended
-      · rw [same]
-      · rw [truncated]
-        simp
-      · rw [extended]
-        simp [List.length_take, previousBound]
-    exact nextOldPrevious.trans previousAgreement
-  have takeAgreement :
-      nextNode.log.take index =
-        (appendHistory request).take index := by
-    by_cases withinPrevious : index <= request.2.2.prevLogIndex
-    · calc
-        nextNode.log.take index =
-            (nextNode.log.take request.2.2.prevLogIndex).take index := by
-          simp [List.take_take, Nat.min_eq_left withinPrevious]
-        _ =
-            ((appendHistory request).take request.2.2.prevLogIndex).take
-              index := by rw [nextPreviousAgreement]
-        _ = (appendHistory request).take index := by
-          simp [List.take_take, Nat.min_eq_left withinPrevious]
-    · have afterPrevious : request.2.2.prevLogIndex < index := by omega
-      have indexPositive : 0 < index := by omega
-      rcases post.logShape with same | truncated | extended
-      · have nodeFound :
-            Exists fun entry =>
-              entryAt? ((nodeOf state) destination).log index = some entry := by
-          rw [same] at nextBound
-          exact entryAtSomeOfPositiveBound indexPositive nextBound
-        rcases nodeFound with ⟨nodeEntry, nodeFound⟩
-        rcases
-            entryAtSomeOfPositiveBound indexPositive historyBound with
-          ⟨historyEntry, historyFound⟩
-        have requestFound :
-            entryAt? request.2.2.entries
-                (index - request.2.2.prevLogIndex) =
-              some historyEntry := by
-          have inTaken :
-              entryAt?
-                  ((appendHistory request).take
-                    (request.2.2.prevLogIndex + request.2.2.entries.length))
-                  index =
-                some historyEntry := by
-            rw [entryAtTake_of_le withinEnd]
-            exact historyFound
-          rw [snapshot.2.2] at inTaken
-          have previousLength :
-              ((appendHistory request).take request.2.2.prevLogIndex).length =
-                request.2.2.prevLogIndex := by
-            simp [List.length_take, historyPreviousBound]
-          rw [
-            entryAtAppend_right
-              (base := (appendHistory request).take request.2.2.prevLogIndex)
-              (suffix := request.2.2.entries)
-              (by simpa [previousLength] using afterPrevious),
-            previousLength
-          ] at inTaken
-          exact inTaken
-        have localSliceFound :
-            entryAt?
-                ((((nodeOf state) destination).log.drop
-                    request.2.2.prevLogIndex).take request.2.2.entries.length)
-                (index - request.2.2.prevLogIndex) =
-              some nodeEntry := by
-          rw [entryAtDropTake afterPrevious withinEnd]
-          exact nodeFound
-        have sameTerm :
-            nodeEntry.term = historyEntry.term :=
-          entryTermsEqualOfMappedTerms
-            (post.successfulUnchangedEntryTerms success same)
-            localSliceFound requestFound
-        rcases
-            ownership.logEntryAgreement
-              destination index nodeEntry nodeFound with
-          ⟨_, nodeAgreed⟩
-        rcases
-            ownership.queuedHistoryEntryAgreement
-              destination request requestMember
-                index historyEntry historyFound with
-          ⟨_, historyAgreed⟩
-        rw [same]
-        calc
-          ((nodeOf state) destination).log.take index
-              = (canonicalHistory nodeEntry.term).take index :=
-            nodeAgreed
-          _ = (canonicalHistory historyEntry.term).take index := by
-            rw [sameTerm]
-          _ = (appendHistory request).take index :=
-            historyAgreed.symm
-      · have truncatedLength :
-            nextNode.log.length <= request.2.2.prevLogIndex := by
-          rw [truncated]
-          exact List.length_take_le _ _
-        omega
-      · rw [extended]
-        calc
-          (((nodeOf state) destination).log.take request.2.2.prevLogIndex
-                ++ request.2.2.entries).take
-                index
-              = ((appendHistory request).take request.2.2.prevLogIndex
-                  ++ request.2.2.entries).take
-                  index := by
-            rw [previousAgreement]
-          _ = ((appendHistory request).take
-                (request.2.2.prevLogIndex + request.2.2.entries.length)).take
-                index := by
-            rw [snapshot.2.2]
-          _ = (appendHistory request).take index := by
-            simp [List.take_take, Nat.min_eq_left withinEnd]
-  rw [List.prefix_iff_eq_take]
-  have sourceBound :
-      index <= ((nodeOf state) request.1).log.length :=
+  have sourceBound : index <= ((nodeOf state) request.1).log.length :=
     Nat.le_trans historyBound sourceHistory.length_le
+  rcases handledAppendRequestPrefixAgreement ownership requestMember snapshot post success with
+    ⟨agreement, bound, -⟩
+  have nextTake : nextNode.log.take index = (appendHistory request).take index := by
+    have taken := congrArg (List.take index) agreement
+    simpa [List.take_take, Nat.min_eq_left withinEnd] using taken
+  rw [List.prefix_iff_eq_take]
   simp only [List.length_take, Nat.min_eq_left sourceBound]
-  exact sourceTake.trans takeAgreement.symm
+  rw [nextTake]
+  exact (takeEqOfPrefix sourceHistory historyBound).symm
 
 /-- A handled request leaves every destination entry on its owned canonical
 history, including entries copied from an immutable queued snapshot. -/
@@ -1716,10 +1272,6 @@ lemma handledAppendRequestCanonicalAgreement
     (requestMember
       : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
-    (notStepped
-      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
-            ∧ ((((nodeOf state) destination)).role = .candidate
-                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? (inferInstance) request.2.1
           ((nodeOf state) destination) request.2.2
@@ -1728,123 +1280,27 @@ lemma handledAppendRequestCanonicalAgreement
         entryAt? nextNode.log index = some entry
         -> entryAt? (canonicalHistory entry.term) index = some entry
             /\ nextNode.log.take index = (canonicalHistory entry.term).take index := by
-  let post :=
-    handleAppendEntriesRequestLocalPost notStepped handled
+  let post := handleAppendEntriesRequestLocalPost handled
   intro index entry found
-  by_cases succeeded : response.success = true
-  · have previousBound :
-        request.2.2.prevLogIndex <= ((nodeOf state) destination).log.length := by
-      rcases post.successfulLogOk succeeded with zero | present
-      · omega
-      · exact present.1
-    have historyPreviousBound :
-        request.2.2.prevLogIndex <= (appendHistory request).length := by
-      exact Nat.le_trans (Nat.le_add_right _ _) snapshot.1
-    have previousAgreement :
-        ((nodeOf state) destination).log.take request.2.2.prevLogIndex =
-          (appendHistory request).take request.2.2.prevLogIndex := by
-      by_cases zero : request.2.2.prevLogIndex = 0
-      · simp [zero]
-      · have previousPositive : 0 < request.2.2.prevLogIndex := by omega
-        rcases
-            entryAtSomeOfPositiveBound previousPositive previousBound with
-          ⟨nodeEntry, nodeFound⟩
-        rcases
-            entryAtSomeOfPositiveBound
-              previousPositive historyPreviousBound with
-          ⟨historyEntry, historyFound⟩
-        have nodeTerm :
-            nodeEntry.term = request.2.2.prevLogTerm := by
-          rcases post.successfulLogOk succeeded with impossible | present
-          · exact False.elim (zero impossible)
-          · simpa [termAt, nodeFound] using present.2
-        have historyTerm :
-            historyEntry.term = request.2.2.prevLogTerm := by
-          simpa [termAt, historyFound] using snapshot.2.1.symm
-        rcases
-            ownership.logEntryAgreement
-              destination request.2.2.prevLogIndex nodeEntry nodeFound with
-          ⟨_, nodeAgreed⟩
-        rcases
-            ownership.queuedHistoryEntryAgreement
-              destination request requestMember
-                request.2.2.prevLogIndex historyEntry historyFound with
-          ⟨_, historyAgreed⟩
-        calc
-          ((nodeOf state) destination).log.take request.2.2.prevLogIndex
-              = (canonicalHistory nodeEntry.term).take request.2.2.prevLogIndex :=
-            nodeAgreed
-          _ = (canonicalHistory historyEntry.term).take request.2.2.prevLogIndex := by
-            rw [nodeTerm, historyTerm]
-          _ = (appendHistory request).take request.2.2.prevLogIndex :=
-            historyAgreed.symm
-    rcases post.logShape with same | truncated | extended
-    · rw [same] at found ⊢
-      exact
-        ownership.logEntryAgreement destination index entry found
-    · have indexBound : index <= request.2.2.prevLogIndex := by
-        have within := entryAtSomeIndexBound found
-        rw [truncated] at within
-        simp at within
-        exact within.1
-      have oldFound :
-          entryAt? ((nodeOf state) destination).log index = some entry := by
-        rw [← entryAtTake_of_le indexBound]
-        simpa [truncated] using found
-      rcases
-          ownership.logEntryAgreement
-            destination index entry oldFound with
-        ⟨canonicalFound, agreed⟩
-      exact ⟨
-        canonicalFound,
-        by
-          rw [truncated]
-          simpa [
-            List.take_take, Nat.min_eq_left indexBound
-          ] using agreed
-      ⟩
-    · have fullAgreement :
-          nextNode.log =
-            (appendHistory request).take
-              (request.2.2.prevLogIndex + request.2.2.entries.length) := by
-        calc
-          nextNode.log
-              = ((nodeOf state) destination).log.take request.2.2.prevLogIndex
-                ++ request.2.2.entries :=
-            extended
-          _ = (appendHistory request).take request.2.2.prevLogIndex
-              ++ request.2.2.entries := by
-            rw [previousAgreement]
-          _ = (appendHistory request).take
-                (request.2.2.prevLogIndex + request.2.2.entries.length) :=
-            snapshot.2.2.symm
-      have indexBound :
-          index <= request.2.2.prevLogIndex + request.2.2.entries.length := by
-        have within := entryAtSomeIndexBound found
-        rw [fullAgreement] at within
-        simpa [List.length_take, snapshot.1] using within
-      have historyFound :
-          entryAt? (appendHistory request) index = some entry := by
-        rw [fullAgreement, entryAtTake_of_le indexBound] at found
-        exact found
-      rcases
-          ownership.queuedHistoryEntryAgreement
-            destination request requestMember index entry historyFound with
-        ⟨canonicalFound, agreed⟩
-      exact ⟨
-        canonicalFound,
-        by
-          rw [fullAgreement]
-          simpa [
-            List.take_take, Nat.min_eq_left indexBound
-          ] using agreed
-      ⟩
-  · have failed : response.success = false := by
-      cases value : response.success
-      · rfl
-      · exact False.elim (succeeded value)
-    have unchanged := post.failedStateUnchanged failed
-    subst nextNode
+  cases succeeded : response.success
+  · rw [post.failedStateUnchanged succeeded] at found ⊢
+    exact ownership.logEntryAgreement destination index entry found
+  rcases handledAppendRequestPrefixAgreement ownership requestMember snapshot post succeeded with
+    ⟨agreement, bound, longer⟩
+  by_cases within : index <= request.2.2.prevLogIndex + request.2.2.entries.length
+  · have historyFound : entryAt? (appendHistory request) index = some entry := by
+      rw [← entryAtTake_of_le within, ← agreement, entryAtTake_of_le within]
+      exact found
+    rcases
+        ownership.queuedHistoryEntryAgreement
+          destination request requestMember index entry historyFound with
+      ⟨canonicalFound, agreed⟩
+    refine ⟨canonicalFound, ?_⟩
+    have taken := congrArg (List.take index) agreement
+    simp only [List.take_take, Nat.min_eq_left within] at taken
+    rw [taken, agreed]
+  · have unchanged := longer (by have := entryAtSomeIndexBound found; omega)
+    rw [unchanged] at found ⊢
     exact ownership.logEntryAgreement destination index entry found
 
 /-- Canonical history monotonicity transfers to every represented node log. -/
@@ -2351,10 +1807,6 @@ lemma receiveAppendRequestCommitEvidenceFacts
     (committedSignature : CommittedFrontierIsSignature state)
     (addressed : request.2.1 = destination)
     (taken : Selected source state.network (appendRequestEnvelope request) remaining)
-    (notStepped
-      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
-            ∧ ((((nodeOf state) destination)).role = .candidate
-                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? (inferInstance) request.2.1
           ((nodeOf state) destination) request.2.2
@@ -2378,13 +1830,13 @@ lemma receiveAppendRequestCommitEvidenceFacts
       state destination present request nextNode response
         ((reply remaining (request.2.1, request.1, response)))
         appendHistory nodeEvidence requestEvidence evidenceFacts
-        (commitBounded destination) notStepped handled requestMember
+        (commitBounded destination) (handleAppendEntriesRequestLocalPost handled) requestMember
   · intro advanced
     exact
       handledAppendRequestAdvancedCommittedHistory
         state votes appendHistory canonicalHistory owners ownership
           destination request nextNode response requestMember snapshot
-          (commitBounded destination) notStepped handled advanced
+          handled advanced
   · exact committedSignature destination
   · exact
       appendRequestMemberBeforeReply
@@ -2407,10 +1859,6 @@ lemma receiveAppendRequestKnownEvidenceInherited
     (_commitBounded : CommitIndicesBounded state)
     (addressed : request.2.1 = destination)
     (taken : Selected source state.network (appendRequestEnvelope request) remaining)
-    (notStepped
-      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
-            ∧ ((((nodeOf state) destination)).role = .candidate
-                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? (inferInstance) request.2.1
           ((nodeOf state) destination) request.2.2
@@ -2441,7 +1889,7 @@ lemma receiveAppendRequestKnownEvidenceInherited
               /\ evidence.commitFrontier = oldEvidence.commitFrontier
               /\ evidence.ackQuorum = oldEvidence.ackQuorum
               /\ evidence.supportedLength <= oldEvidence.supportedLength := by
-  let post := handleAppendEntriesRequestLocalPost notStepped handled
+  let post := handleAppendEntriesRequestLocalPost handled
   have requestMember :
       (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination) :=
     ⟨(selectedSound taken).2.1, addressed⟩
@@ -2599,16 +2047,12 @@ lemma handledAppendRequestRetainsEvidenceFrontier
     (requestMember
       : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (snapshot : RequestSnapshots (appendHistory request) request)
-    (notStepped
-      : ¬ (request.2.2.term = (((nodeOf state) destination)).currentTerm
-            ∧ ((((nodeOf state) destination)).role = .candidate
-                ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
       : handleAppendEntriesRequest? (inferInstance) request.2.1
           ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     : evidence.history.take evidence.commitFrontier <+: nextNode.log := by
-  let post := handleAppendEntriesRequestLocalPost notStepped handled
+  let post := handleAppendEntriesRequestLocalPost handled
   have currentPrefix :=
     prospectiveFacts.currentMember
       evidence supportedPrefix known destination ackMember
@@ -2621,7 +2065,7 @@ lemma handledAppendRequestRetainsEvidenceFrontier
         handledAppendRequestRetainsSharedPrefix
           state votes appendHistory canonicalHistory owners ownership
             destination request nextNode response requestMember snapshot
-            notStepped handled succeeded currentPrefix
+            handled succeeded currentPrefix
             (knownCommitEvidenceQueuedAppendContainsFrontier
               ownership electionFacts electionQueuedFacts prospectiveFacts
                 known requestMember older)
@@ -2654,7 +2098,7 @@ lemma handledAppendRequestRetainsEvidenceFrontier
               handledAppendRequestRetainsSharedPrefix
                 state votes appendHistory canonicalHistory owners ownership
                   destination request nextNode response requestMember snapshot
-                  notStepped handled succeeded currentPrefix frontierBeforeRequest
+                  handled succeeded currentPrefix frontierBeforeRequest
           · have requestBeforeFrontier :
                 appendHistory request <+:
                   evidence.history.take evidence.commitFrontier := by
@@ -2669,13 +2113,13 @@ lemma handledAppendRequestRetainsEvidenceFrontier
                   snapshot.1
             have unchanged :=
               successfulAlreadyDoneAppendLogUnchanged
-                already notStepped handled succeeded
+                already handled succeeded
             simpa [unchanged] using currentPrefix
         · exact
             handledAppendRequestRetainsSharedPrefix
               state votes appendHistory canonicalHistory owners ownership
                 destination request nextNode response requestMember snapshot
-                notStepped handled succeeded currentPrefix frontierBeforeRequest
+                handled succeeded currentPrefix frontierBeforeRequest
       · have greater : request.2.2.term < evidence.commitTerm := by omega
         have valid := knownCommitEvidenceValid evidenceFacts known
         have supportedPositive :=
