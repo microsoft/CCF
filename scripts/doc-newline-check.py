@@ -55,8 +55,11 @@ STRUCTURAL_RE = re.compile(
 # keep examples such as "e.g. `schema.py`" and "i.e. a value" intact, while a
 # joined "The model records no history. The proofs..." becomes two lines.
 SENTENCE_BOUNDARY_RE = re.compile(
-    r"""(?<!e\.g\.)(?<!i\.e\.)(?<=[.!?])(?P<closing>["')\]}*_`]*)(?P<space>\s+)(?=[A-Z`*[])"""
+    r"""(?<![eE]\.[gG]\.)(?<![iI]\.[eE]\.)(?<=[.!?])(?P<closing>["')\]}*_`]*)(?P<space>\s+)(?=[A-Z`*[])"""
 )
+
+# "e.g." and "i.e." can end a physical line without ending the sentence.
+ABBREVIATION_END_RE = re.compile(r"(?:e\.g|i\.e)\.\s*$", re.IGNORECASE)
 
 # A sentence remains complete when punctuation is followed by closing quotes,
 # brackets, emphasis, inline-code markers, or an RST escape. For example,
@@ -110,7 +113,8 @@ def list_prose_context(lines: list[str], index: int) -> tuple[str, int] | None:
         return match.group("content"), index
 
     indentation = len(line) - len(line.lstrip())
-    if indentation == 0:
+    content = line.lstrip()
+    if indentation == 0 or is_structural(content):
         return None
 
     for previous_index in range(index - 1, -1, -1):
@@ -120,7 +124,10 @@ def list_prose_context(lines: list[str], index: int) -> tuple[str, int] | None:
 
         previous_match = LIST_RE.match(previous)
         if previous_match:
-            if previous_match.start("content") == indentation:
+            content_column = previous_match.start("content")
+            # Markdown permits up to three extra spaces of hanging indentation.
+            # Four more spaces introduce an indented code block within the item.
+            if content_column <= indentation < content_column + 4:
                 return line.lstrip(), previous_index
             return None
 
@@ -131,24 +138,27 @@ def list_prose_context(lines: list[str], index: int) -> tuple[str, int] | None:
     return None
 
 
-def suspicious_newlines(lines: list[str], markdown: bool) -> list[int]:
-    findings = []
+def excluded_lines(lines: list[str], markdown: bool) -> set[int]:
+    excluded = set()
     fence = None
     frontmatter = bool(lines and lines[0].strip() == "---")
     html_comment = False
 
-    for index, line in enumerate(lines[:-1]):
+    for index, line in enumerate(lines):
         if frontmatter:
+            excluded.add(index)
             if index > 0 and line.strip() in ("---", "..."):
                 frontmatter = False
             continue
 
         if html_comment:
+            excluded.add(index)
             if "-->" in line:
                 html_comment = False
             continue
 
         if "<!--" in line:
+            excluded.add(index)
             if "-->" not in line.split("<!--", 1)[1]:
                 html_comment = True
             continue
@@ -158,35 +168,68 @@ def suspicious_newlines(lines: list[str], markdown: bool) -> list[int]:
             if fence is None and fence_match:
                 marker = fence_match.group(1)
                 fence = (marker[0], len(marker))
+                excluded.add(index)
                 continue
             if fence is not None:
+                excluded.add(index)
                 marker, minimum_length = fence
                 if re.fullmatch(
                     rf"\s*{re.escape(marker)}{{{minimum_length},}}\s*", line
                 ):
                     fence = None
-                continue
+    return excluded
 
-        next_line = lines[index + 1]
+
+def prose_context(
+    lines: list[str], index: int, excluded: set[int]
+) -> tuple[str, int] | None:
+    if index in excluded:
+        return None
+
+    list_context = list_prose_context(lines, index)
+    if list_context is not None:
+        return list_context
+
+    if is_structural(lines[index]):
+        return None
+
+    return lines[index], index
+
+
+def ends_sentence(line: str) -> bool:
+    return bool(SENTENCE_END_RE.search(line) and not ABBREVIATION_END_RE.search(line))
+
+
+def suspicious_newlines(lines: list[str], markdown: bool) -> list[int]:
+    findings = []
+    excluded = excluded_lines(lines, markdown)
+
+    for index, line in enumerate(lines[:-1]):
+        if index in excluded or index + 1 in excluded:
+            continue
+
         current_list_context = list_prose_context(lines, index)
         next_list_context = list_prose_context(lines, index + 1)
-        if (
-            current_list_context is not None
-            and next_list_context is not None
-            and current_list_context[1] == next_list_context[1]
-        ):
-            if not SENTENCE_END_RE.search(
-                current_list_context[0]
-            ) and PROSE_START_RE.match(next_list_context[0]):
+        if current_list_context is not None or next_list_context is not None:
+            if (
+                current_list_context is not None
+                and next_list_context is not None
+                and current_list_context[1] == next_list_context[1]
+                and not ends_sentence(current_list_context[0])
+                and PROSE_START_RE.match(next_list_context[0])
+            ):
                 findings.append(index + 1)
             continue
 
+        next_line = lines[index + 1]
+        current_context = prose_context(lines, index, excluded)
+        next_context = prose_context(lines, index + 1, excluded)
         if (
-            is_structural(line)
-            or is_structural(next_line)
+            current_context is None
+            or next_context is None
             or line.endswith(("  ", "\\"))
-            or SENTENCE_END_RE.search(line)
-            or not PROSE_START_RE.match(next_line)
+            or ends_sentence(line)
+            or not PROSE_START_RE.match(next_context[0])
         ):
             continue
 

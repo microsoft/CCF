@@ -45,19 +45,12 @@ End-to-end performance tests can be run with the Linux utility ``perf`` attached
 By default, nodes run under ``perf record -m 16 -e task-clock:u -F 99 -g --call-graph dwarf --quiet``.
 These options keep profiling reliable and useful in development containers:
 
-- ``-m 16`` limits the mmap data buffer to 16 pages, avoiding failures caused
-    by the low ``perf_event_mlock_kb`` limit in constrained environments such as
-    Codespaces.
-- ``-e task-clock:u`` selects the software task-clock event and records only
-    user-space execution. Unlike hardware counters, this event remains available
-    when the host does not expose a hardware PMU; excluding the kernel also
-    avoids inaccessible kernel symbols.
-- ``-F 99`` samples at 99 Hz, bounding collection overhead while retaining
-    enough detail for whole-test profiles.
-- ``-g --call-graph dwarf`` records call chains using DWARF stack unwinding,
-    which preserves the C++ stacks needed by ``perf report`` and flame graphs.
-- ``--quiet`` suppresses non-fatal recording warnings that would otherwise be
-    mixed into each node's error log.
+- ``-m 16`` limits the mmap data buffer to 16 pages, avoiding failures caused by the low ``perf_event_mlock_kb`` limit in constrained environments such as Codespaces.
+- ``-e task-clock:u`` selects the software task-clock event and records only user-space execution.
+  Unlike hardware counters, this event remains available when the host does not expose a hardware PMU; excluding the kernel also avoids inaccessible kernel symbols.
+- ``-F 99`` samples at 99 Hz, bounding collection overhead while retaining enough detail for whole-test profiles.
+- ``-g --call-graph dwarf`` records call chains using DWARF stack unwinding, which preserves the C++ stacks needed by ``perf report`` and flame graphs.
+- ``--quiet`` suppresses non-fatal recording warnings that would otherwise be mixed into each node's error log.
 
 Set ``CCF_PERF_ARGS`` to replace these recording options. The harness always appends ``-o perf.data --`` so that each node writes to a predictable path in its workspace directory and the remaining arguments invoke the node.
 
