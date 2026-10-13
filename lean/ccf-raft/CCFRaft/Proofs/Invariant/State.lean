@@ -124,7 +124,8 @@ theorem nodeOf_network (state : Model.State Node TxId)
   rfl
 
 theorem nodeOf_initial {nodes : List Node} {state : Model.State Node TxId}
-    (initialized : (Model.transitionSystem (inferInstance) nodes).init state) (node : Node)
+    (initialized : (Model.transitionSystem (inferInstance) nodes).init state)
+    (node : Node)
     : nodeOf state node = initialNodeState (inferInstance) node := by
   cases found : nodeState state node with
   | none => simp [nodeOf, found]

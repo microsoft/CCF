@@ -36,7 +36,8 @@ lemma madeAppendRequestSupport
           /\ ((nodeOf state) source).role = .leader
           /\ Not (source = destination)
           /\ (destination ∈ activeNodeUnion (inferInstance) ((nodeOf state) source)
-              \/ destination ∈ ((nodeOf state) source).retirementCompleted (inferInstance))
+              \/ destination
+                  ∈ ((nodeOf state) source).retirementCompleted (inferInstance))
           /\ ((nodeOf state) source).sentIndex destination <= batchEnd
           /\ batchEnd <= ((nodeOf state) source).log.length
           /\ ((messageEntries ((nodeOf state) source).log
@@ -95,7 +96,8 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           /\ ((nodeOf state) source).role = .leader
           /\ Not (source = destination)
           /\ (destination ∈ activeNodeUnion (inferInstance) ((nodeOf state) source)
-              \/ destination ∈ ((nodeOf state) source).retirementCompleted (inferInstance))
+              \/ destination
+                  ∈ ((nodeOf state) source).retirementCompleted (inferInstance))
           /\ ((nodeOf state) source).sentIndex destination <= batchEnd
           /\ batchEnd <= ((nodeOf state) source).log.length
           /\ ((messageEntries ((nodeOf state) source).log
@@ -1614,7 +1616,8 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                       ]))
                 have candidateKnownSource
                     : candidateConfiguration
-                      ∈ allConfigurations (inferInstance) ((nodeOf state) bridgeSource).log :=
+                      ∈ allConfigurations (inferInstance)
+                          ((nodeOf state) bridgeSource).log :=
                   memOfPrefix
                     (allConfigurations_mono_prefix activationInSource)
                     (by

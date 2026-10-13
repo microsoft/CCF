@@ -131,10 +131,14 @@ def bootstrapOf (configuration : Finset Nat) (leader : Nat)
 
 /-- Every listed node in its initial state, all active, with an empty network. -/
 def start [InitialConfig Nat] (nodes : List Nat) : CCFRaft.Model.State Nat Nat :=
-  { nodes := nodes.map fun node => (node, initialNodeState (inferInstance) node), active := nodes }
+  {
+    nodes := nodes.map fun node => (node, initialNodeState (inferInstance) node),
+    active := nodes
+  }
 
 theorem start_initial [InitialConfig Nat] {nodes : List Nat} (distinct : nodes.Nodup)
-    : (CCFRaft.Model.transitionSystem (inferInstance) (TxId := Nat) nodes).init (start nodes) := by
+    : (CCFRaft.Model.transitionSystem (inferInstance) (TxId := Nat) nodes).init
+        (start nodes) := by
   refine ⟨
     distinct,
     by simp [start, Function.comp_def],
@@ -188,7 +192,8 @@ def electionChoices
     input 1 .becomeLeader
   ]
 
-def electionSystem := CCFRaft.Model.transitionSystem (inferInstance) (TxId := Nat) [0, 1, 2]
+def electionSystem :=
+  CCFRaft.Model.transitionSystem (inferInstance) (TxId := Nat) [0, 1, 2]
 
 theorem election_finished
     : (run electionSystem (start [0, 1, 2]) electionChoices).isSome := by
