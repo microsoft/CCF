@@ -36,8 +36,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
-          "commitHash": "bfffd37e1f804ca4fae1caae106935791696b6a9",
-          "tag": "v2.6.1"
+          "commitHash": "cbd58a3696887b34c70949aef21a71735a0c2ad5",
+          "tag": "v2.7.2"
         }
       }
     },
@@ -105,8 +105,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "4edda758546436462da479bb8c8514f8a95c35ad",
-          "tag": "v1.0.6"
+          "commitHash": "5eac4b66f20b2c189ae40281c29e71cf39a958ec",
+          "tag": "v1.1.3"
         }
       }
     },

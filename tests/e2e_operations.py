@@ -2179,6 +2179,44 @@ def run_configuration_file_checks(args):
 
         with open(config, encoding="utf-8") as config_file:
             config_json = json.load(config_file)
+
+        for worker_threads, valid in (
+            (0, True),
+            (1, True),
+            (65533, True),
+            (0.0, True),
+            (1.0, True),
+            (65533.0, True),
+            (-1, False),
+            (-1.0, False),
+            (1.5, False),
+            (65534, False),
+            (65534.0, False),
+            (1e20, False),
+            ("1", False),
+            (True, False),
+            (None, False),
+        ):
+            worker_config = copy.deepcopy(config_json)
+            worker_config["worker_threads"] = worker_threads
+            with tempfile.NamedTemporaryFile(mode="w+") as temp_config:
+                json.dump(worker_config, temp_config)
+                temp_config.flush()
+                for flags in (["--check"],) if valid else (["--check"], []):
+                    result = infra.proc.ccall(
+                        bin_path, f"--config={temp_config.name}", *flags
+                    )
+                    if valid:
+                        assert result.returncode == 0, result
+                    else:
+                        assert result.returncode != 0, result
+                        output = result.stdout + result.stderr
+                        assert (
+                            b"Error validating JSON schema for configuration file"
+                            in output
+                        ), result
+                        assert b'context: <root>["worker_threads"]' in output, result
+
         for timeout in ("0s", "0us", "1us", "500us", "999us", "1000us", "1ms"):
             valid = timeout in ("0s", "0us", "1000us", "1ms")
             config_json["pending_node_timeout"] = timeout
