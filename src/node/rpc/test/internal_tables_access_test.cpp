@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/app_interface.h"
+#include "ccf/crypto/cose_verifier.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
@@ -16,12 +18,29 @@
 #include "node/hooks.h"
 #include "node/internal_tables_access.h"
 
+#include <algorithm>
 #include <doctest/doctest.h>
 
 using namespace ccf;
 
 namespace
 {
+  struct TestIdentity
+  {
+    std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> key =
+      std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
+        ccf::crypto::make_ec_key_pair());
+    ccf::crypto::Pem cert;
+
+    TestIdentity()
+    {
+      REQUIRE(key != nullptr);
+      // These tests parse certificates and extract keys, not check validity.
+      // Deliberately expired dates avoid a future expiry deadline.
+      cert = key->self_sign("CN=test", "20200101000000Z", "20201231235959Z");
+    }
+  };
+
   class TestConsensus : public ccf::kv::ConfigurableConsensus
   {
   public:
@@ -119,6 +138,701 @@ TEST_CASE("Adding a member does not populate an ACK")
     tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO)->get(member_id).has_value());
   REQUIRE_FALSE(
     tx.ro<ccf::MemberAcks>(Tables::MEMBER_ACKS)->get(member_id).has_value());
+}
+
+TEST_CASE("Member admission and activation preserve recovery roles")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  const auto encryption_key =
+    ccf::crypto::make_rsa_key_pair()->public_key_pem();
+  NewMember member{identity.cert, std::nullopt, {{"name", "member"}}};
+
+  SUBCASE("No recovery role or encryption key") {}
+  SUBCASE("Explicit non-participant")
+  {
+    member.recovery_role = MemberRecoveryRole::NonParticipant;
+  }
+  SUBCASE("Legacy participant")
+  {
+    member.encryption_pub_key = encryption_key;
+  }
+  SUBCASE("Explicit participant")
+  {
+    member.encryption_pub_key = encryption_key;
+    member.recovery_role = MemberRecoveryRole::Participant;
+  }
+  SUBCASE("Owner")
+  {
+    member.encryption_pub_key = encryption_key;
+    member.recovery_role = MemberRecoveryRole::Owner;
+  }
+
+  const MemberId expected_id =
+    ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(identity.cert))
+      .hex_str();
+  auto tx = store.create_tx();
+  REQUIRE(InternalTablesAccess::add_member(tx, member) == expected_id);
+  auto* info = tx.ro<MemberInfo>(Tables::MEMBER_INFO);
+  REQUIRE(
+    info->get(expected_id) ==
+    MemberDetails{
+      MemberStatus::ACCEPTED, member.member_data, member.recovery_role});
+  REQUIRE(InternalTablesAccess::get_active_recovery_participants(tx).empty());
+  REQUIRE(InternalTablesAccess::get_active_recovery_owners(tx).empty());
+  REQUIRE(
+    InternalTablesAccess::is_recovery_participant_or_owner(tx, expected_id) ==
+    member.encryption_pub_key.has_value());
+
+  REQUIRE(InternalTablesAccess::activate_member(tx, expected_id));
+  REQUIRE_FALSE(InternalTablesAccess::activate_member(tx, expected_id));
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+  auto ro = store.create_read_only_tx();
+  REQUIRE(
+    ro.ro<MemberInfo>(Tables::MEMBER_INFO)->get(expected_id) ==
+    MemberDetails{
+      MemberStatus::ACTIVE, member.member_data, member.recovery_role});
+  REQUIRE(
+    ro.ro<MemberCerts>(Tables::MEMBER_CERTS)->get(expected_id) ==
+    identity.cert);
+  REQUIRE(
+    ro.ro<MemberPublicEncryptionKeys>(Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS)
+      ->get(expected_id) == member.encryption_pub_key);
+  std::map<MemberId, ccf::crypto::Pem> participants;
+  std::map<MemberId, ccf::crypto::Pem> owners;
+  if (member.encryption_pub_key.has_value())
+  {
+    if (member.recovery_role == MemberRecoveryRole::Owner)
+    {
+      owners.emplace(expected_id, encryption_key);
+    }
+    else
+    {
+      participants.emplace(expected_id, encryption_key);
+    }
+  }
+  REQUIRE(
+    InternalTablesAccess::get_active_recovery_participants(ro) == participants);
+  REQUIRE(InternalTablesAccess::get_active_recovery_owners(ro) == owners);
+}
+
+TEST_CASE("Inconsistent member recovery roles are rejected before writing")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  const MemberId member_id =
+    ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(identity.cert))
+      .hex_str();
+  NewMember member{identity.cert};
+  auto expected_error = fmt::format(
+    "Member {} cannot be added as recovery_role has a value set but no "
+    "encryption public key is specified",
+    member_id.value());
+  SUBCASE("Participant without an encryption key")
+  {
+    member.recovery_role = MemberRecoveryRole::Participant;
+  }
+  SUBCASE("Owner without an encryption key")
+  {
+    member.recovery_role = MemberRecoveryRole::Owner;
+  }
+  SUBCASE("Non-participant with an encryption key")
+  {
+    member.recovery_role = MemberRecoveryRole::NonParticipant;
+    member.encryption_pub_key =
+      ccf::crypto::make_rsa_key_pair()->public_key_pem();
+    expected_error = fmt::format(
+      "Recovery member {} cannot be added as with recovery role value of {}",
+      member_id.value(),
+      MemberRecoveryRole::NonParticipant);
+  }
+
+  const auto before = store.current_txid();
+  auto tx = store.create_tx();
+  REQUIRE_THROWS_WITH_AS(
+    InternalTablesAccess::add_member(tx, member),
+    expected_error.c_str(),
+    std::logic_error);
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  REQUIRE(store.current_txid() == before);
+  auto ro = store.create_read_only_tx();
+  REQUIRE(ro.ro<MemberCerts>(Tables::MEMBER_CERTS)->size() == 0);
+  REQUIRE(ro.ro<MemberInfo>(Tables::MEMBER_INFO)->size() == 0);
+  REQUIRE(
+    ro.ro<MemberPublicEncryptionKeys>(Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS)
+      ->size() == 0);
+}
+
+TEST_CASE("Adding an existing member does not replace their active state")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  const auto encryption_key =
+    ccf::crypto::make_rsa_key_pair()->public_key_pem();
+  const nlohmann::json data = {{"name", "original"}};
+  MemberId member_id;
+  {
+    auto tx = store.create_tx();
+    member_id = InternalTablesAccess::add_member(
+      tx, {identity.cert, encryption_key, data, MemberRecoveryRole::Owner});
+    REQUIRE(InternalTablesAccess::activate_member(tx, member_id));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  const auto before = store.current_txid();
+  {
+    auto tx = store.create_tx();
+    REQUIRE(
+      InternalTablesAccess::add_member(
+        tx,
+        {identity.cert,
+         std::nullopt,
+         {{"name", "replacement"}},
+         MemberRecoveryRole::NonParticipant}) == member_id);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(store.current_txid() == before);
+  auto ro = store.create_read_only_tx();
+  REQUIRE(
+    ro.ro<MemberInfo>(Tables::MEMBER_INFO)->get(member_id) ==
+    MemberDetails{MemberStatus::ACTIVE, data, MemberRecoveryRole::Owner});
+  REQUIRE(
+    ro.ro<MemberCerts>(Tables::MEMBER_CERTS)->get(member_id) == identity.cert);
+  REQUIRE(
+    ro.ro<MemberPublicEncryptionKeys>(Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS)
+      ->get(member_id) == encryption_key);
+}
+
+TEST_CASE("Activating an unknown member does not create member state")
+{
+  ccf::kv::Store store;
+  const MemberId unknown_id = std::string("unknown");
+  const auto before = store.current_txid();
+  auto tx = store.create_tx();
+  REQUIRE_THROWS_WITH_AS(
+    InternalTablesAccess::activate_member(tx, unknown_id),
+    "Member m[unknown] cannot be activated as they do not exist",
+    std::logic_error);
+  REQUIRE_FALSE(
+    InternalTablesAccess::is_recovery_participant_or_owner(tx, unknown_id));
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  REQUIRE(store.current_txid() == before);
+  auto ro = store.create_read_only_tx();
+  REQUIRE(ro.ro<MemberInfo>(Tables::MEMBER_INFO)->size() == 0);
+}
+
+TEST_CASE("User admission rejects duplicates and removal preserves other users")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  const TestIdentity retained_identity;
+  NewUser user{identity.cert};
+  SUBCASE("Without user data") {}
+  SUBCASE("With user data")
+  {
+    user.user_data = {{"role", "reader"}};
+  }
+  const UserId expected_id =
+    ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(identity.cert))
+      .hex_str();
+  UserId retained_id;
+  {
+    auto tx = store.create_tx();
+    retained_id = InternalTablesAccess::add_user(
+      tx, {retained_identity.cert, {{"role", "retained"}}});
+    REQUIRE(InternalTablesAccess::add_user(tx, user) == expected_id);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  {
+    auto ro = store.create_read_only_tx();
+    REQUIRE(
+      ro.ro<UserCerts>(Tables::USER_CERTS)->get(expected_id) == identity.cert);
+    const auto info = ro.ro<UserInfo>(Tables::USER_INFO)->get(expected_id);
+    REQUIRE(info.has_value() == !user.user_data.is_null());
+    if (info.has_value())
+    {
+      REQUIRE(info->user_data == user.user_data);
+    }
+  }
+
+  const auto before_duplicate = store.current_txid();
+  {
+    auto tx = store.create_tx();
+    REQUIRE_THROWS_WITH_AS(
+      InternalTablesAccess::add_user(
+        tx, {identity.cert, {{"role", "replacement"}}}),
+      fmt::format("Certificate already exists for user {}", expected_id.value())
+        .c_str(),
+      std::logic_error);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(store.current_txid() == before_duplicate);
+  {
+    auto ro = store.create_read_only_tx();
+    const auto info = ro.ro<UserInfo>(Tables::USER_INFO)->get(expected_id);
+    REQUIRE(info.has_value() == !user.user_data.is_null());
+    if (info.has_value())
+    {
+      REQUIRE(info->user_data == user.user_data);
+    }
+  }
+
+  for (size_t attempt = 0; attempt < 2; ++attempt)
+  {
+    auto tx = store.create_tx();
+    InternalTablesAccess::remove_user(tx, expected_id);
+    InternalTablesAccess::remove_user(tx, std::string("unknown"));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    auto ro = store.create_read_only_tx();
+    REQUIRE_FALSE(ro.ro<UserCerts>(Tables::USER_CERTS)->has(expected_id));
+    REQUIRE_FALSE(ro.ro<UserInfo>(Tables::USER_INFO)->has(expected_id));
+    REQUIRE(ro.ro<UserCerts>(Tables::USER_CERTS)->size() == 1);
+    REQUIRE(ro.ro<UserInfo>(Tables::USER_INFO)->size() == 1);
+    REQUIRE(
+      ro.ro<UserCerts>(Tables::USER_CERTS)->get(retained_id) ==
+      retained_identity.cert);
+    REQUIRE(
+      ro.ro<UserInfo>(Tables::USER_INFO)->get(retained_id)->user_data ==
+      nlohmann::json{{"role", "retained"}});
+  }
+}
+
+TEST_CASE("Rejected user data conflicts do not commit a certificate")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  const UserId user_id =
+    ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(identity.cert))
+      .hex_str();
+  const nlohmann::json data = {{"role", "original"}};
+  {
+    // set_user_data can create a data-only entry before a user is admitted.
+    auto tx = store.create_tx();
+    tx.rw<UserInfo>(Tables::USER_INFO)->put(user_id, {data});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto before = store.current_txid();
+  {
+    auto tx = store.create_tx();
+    REQUIRE_THROWS_WITH_AS(
+      InternalTablesAccess::add_user(
+        tx, {identity.cert, {{"role", "replacement"}}}),
+      fmt::format("User data already exists for user {}", user_id.value())
+        .c_str(),
+      std::logic_error);
+  }
+  REQUIRE(store.current_txid() == before);
+  auto ro = store.create_read_only_tx();
+  REQUIRE_FALSE(ro.ro<UserCerts>(Tables::USER_CERTS)->has(user_id));
+  REQUIRE(ro.ro<UserInfo>(Tables::USER_INFO)->get(user_id)->user_data == data);
+}
+
+TEST_CASE("Service configuration is initialised once")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  {
+    auto tx = store.create_read_only_tx();
+    REQUIRE_THROWS_WITH_AS(
+      InternalTablesAccess::get_recovery_threshold(tx),
+      "Failed to get recovery threshold: No active configuration found",
+      std::logic_error);
+  }
+  const ServiceConfiguration configuration{
+    .recovery_threshold = 2,
+    .maximum_node_certificate_validity_days = 10,
+    .maximum_service_certificate_validity_days = 20};
+  {
+    auto tx = store.create_tx();
+    InternalTablesAccess::init_configuration(tx, configuration);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto before = store.current_txid();
+  {
+    auto tx = store.create_tx();
+    REQUIRE_THROWS_WITH_AS(
+      InternalTablesAccess::init_configuration(tx, {3}),
+      "Cannot initialise service configuration: configuration already exists",
+      std::logic_error);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(store.current_txid() == before);
+  auto ro = store.create_read_only_tx();
+  REQUIRE(InternalTablesAccess::get_recovery_threshold(ro) == 2);
+  const auto stored = ro.ro<Configuration>(Tables::CONFIGURATION)->get();
+  REQUIRE(stored.has_value());
+  REQUIRE(nlohmann::json(stored.value()) == nlohmann::json(configuration));
+}
+
+TEST_CASE("Service queries distinguish missing, opening and recovering state")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  const TestIdentity other_identity;
+  {
+    auto ro = store.create_read_only_tx();
+    REQUIRE_FALSE(InternalTablesAccess::get_service_status(ro).has_value());
+    REQUIRE_FALSE(InternalTablesAccess::is_service_recovering(ro));
+    REQUIRE_FALSE(InternalTablesAccess::is_service_created(ro, identity.cert));
+  }
+  const nlohmann::json data = {{"name", "service"}};
+  const TxID create_txid{1, 1};
+  {
+    auto tx = store.create_tx();
+    InternalTablesAccess::create_service(tx, identity.cert, create_txid, data);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  for (const auto status :
+       {ServiceStatus::OPENING,
+        ServiceStatus::OPEN,
+        ServiceStatus::RECOVERING,
+        ServiceStatus::WAITING_FOR_RECOVERY_SHARES})
+  {
+    CAPTURE(status);
+    auto tx = store.create_tx();
+    auto* service = tx.rw<Service>(Tables::SERVICE);
+    auto info = service->get();
+    REQUIRE(info.has_value());
+    info->status = status;
+    service->put(info.value());
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    auto ro = store.create_read_only_tx();
+    REQUIRE(InternalTablesAccess::get_service_status(ro) == status);
+    REQUIRE(
+      InternalTablesAccess::is_service_recovering(ro) ==
+      (status == ServiceStatus::RECOVERING ||
+       status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES));
+    REQUIRE(InternalTablesAccess::is_service_created(ro, identity.cert));
+    REQUIRE_FALSE(
+      InternalTablesAccess::is_service_created(ro, other_identity.cert));
+    const auto stored = ro.ro<Service>(Tables::SERVICE)->get();
+    REQUIRE(stored->service_data == data);
+    REQUIRE(stored->current_service_create_txid == create_txid);
+    REQUIRE(stored->recovery_count == 0);
+    REQUIRE_FALSE(stored->previous_service_identity_version.has_value());
+  }
+}
+
+TEST_CASE("Opening counts active participants separately from owners")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity service_identity;
+  const TestIdentity participant;
+  const TestIdentity pending_participant;
+  const TestIdentity owner;
+  const auto encryption_key =
+    ccf::crypto::make_rsa_key_pair()->public_key_pem();
+  MemberId pending_id;
+  {
+    auto tx = store.create_tx();
+    InternalTablesAccess::init_configuration(tx, {2});
+    InternalTablesAccess::create_service(
+      tx, service_identity.cert, {1, 1}, {{"name", "service"}});
+    const auto participant_id = InternalTablesAccess::add_member(
+      tx,
+      {participant.cert,
+       encryption_key,
+       nullptr,
+       MemberRecoveryRole::Participant});
+    REQUIRE(InternalTablesAccess::activate_member(tx, participant_id));
+    pending_id = InternalTablesAccess::add_member(
+      tx, {pending_participant.cert, encryption_key});
+    const auto owner_id = InternalTablesAccess::add_member(
+      tx, {owner.cert, encryption_key, nullptr, MemberRecoveryRole::Owner});
+    REQUIRE(InternalTablesAccess::activate_member(tx, owner_id));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto before = store.current_txid();
+  {
+    auto tx = store.create_tx();
+    REQUIRE_FALSE(InternalTablesAccess::open_service(tx));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(store.current_txid() == before);
+  {
+    auto ro = store.create_read_only_tx();
+    REQUIRE(
+      InternalTablesAccess::get_service_status(ro) == ServiceStatus::OPENING);
+    REQUIRE(
+      InternalTablesAccess::get_active_recovery_participants(ro).size() == 1);
+    REQUIRE(InternalTablesAccess::get_active_recovery_owners(ro).size() == 1);
+  }
+  {
+    auto tx = store.create_tx();
+    REQUIRE(InternalTablesAccess::activate_member(tx, pending_id));
+    REQUIRE(InternalTablesAccess::open_service(tx));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto after_opening = store.current_txid();
+  {
+    auto tx = store.create_tx();
+    REQUIRE(InternalTablesAccess::open_service(tx));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(store.current_txid() == after_opening);
+  auto ro = store.create_read_only_tx();
+  const auto service = ro.ro<Service>(Tables::SERVICE)->get();
+  REQUIRE(service->status == ServiceStatus::OPEN);
+  REQUIRE(service->cert == service_identity.cert);
+  REQUIRE(service->service_data == nlohmann::json{{"name", "service"}});
+  REQUIRE(
+    InternalTablesAccess::get_active_recovery_participants(ro).size() == 2);
+  REQUIRE(InternalTablesAccess::get_active_recovery_owners(ro).size() == 1);
+}
+
+TEST_CASE("An owner-only service can open once an owner is active")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity service_identity;
+  const TestIdentity owner;
+  MemberId owner_id;
+  {
+    auto tx = store.create_tx();
+    InternalTablesAccess::init_configuration(tx, {1});
+    InternalTablesAccess::create_service(tx, service_identity.cert, {1, 1});
+    owner_id = InternalTablesAccess::add_member(
+      tx,
+      {owner.cert,
+       ccf::crypto::make_rsa_key_pair()->public_key_pem(),
+       nullptr,
+       MemberRecoveryRole::Owner});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto before = store.current_txid();
+  {
+    auto tx = store.create_tx();
+    REQUIRE_FALSE(InternalTablesAccess::open_service(tx));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(store.current_txid() == before);
+  {
+    auto tx = store.create_tx();
+    REQUIRE(InternalTablesAccess::activate_member(tx, owner_id));
+    REQUIRE(InternalTablesAccess::get_active_recovery_participants(tx).empty());
+    REQUIRE(InternalTablesAccess::get_active_recovery_owners(tx).size() == 1);
+    REQUIRE(InternalTablesAccess::open_service(tx));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  auto ro = store.create_read_only_tx();
+  REQUIRE(InternalTablesAccess::get_service_status(ro) == ServiceStatus::OPEN);
+  REQUIRE(
+    ro.ro<MemberInfo>(Tables::MEMBER_INFO)->get(owner_id)->status ==
+    MemberStatus::ACTIVE);
+}
+
+TEST_CASE("Opening a missing service does not create it")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity participant;
+  {
+    auto tx = store.create_tx();
+    InternalTablesAccess::init_configuration(tx, {1});
+    const auto member_id = InternalTablesAccess::add_member(
+      tx,
+      {participant.cert, ccf::crypto::make_rsa_key_pair()->public_key_pem()});
+    REQUIRE(InternalTablesAccess::activate_member(tx, member_id));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto before = store.current_txid();
+  auto tx = store.create_tx();
+  REQUIRE_FALSE(InternalTablesAccess::open_service(tx));
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  REQUIRE(store.current_txid() == before);
+  auto ro = store.create_read_only_tx();
+  REQUIRE_FALSE(ro.ro<Service>(Tables::SERVICE)->has());
+}
+
+TEST_CASE("Identity endorsements link consecutive service recoveries")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const std::vector<TxID> creations = {{1, 1}, {3, 10}, {5, 20}};
+  ccf::MerkleTreeHistory tree;
+  std::optional<ccf::kv::Version> previous_endorsement_version;
+  std::vector<uint8_t> previous_key;
+  ccf::crypto::Pem previous_cert;
+
+  for (size_t generation = 0; generation < creations.size(); ++generation)
+  {
+    CAPTURE(generation);
+    const TestIdentity identity;
+    {
+      auto tx = store.create_tx();
+      if (generation != 0)
+      {
+        tx.wo<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE)
+          ->put(tree.serialise());
+      }
+      InternalTablesAccess::create_service(
+        tx,
+        identity.cert,
+        creations[generation],
+        {{"generation", generation}},
+        generation != 0);
+      REQUIRE(
+        InternalTablesAccess::endorse_previous_identity(tx, *identity.key));
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+
+    auto ro = store.create_read_only_tx();
+    auto* endorsements = ro.ro<ccf::PreviousServiceIdentityEndorsement>(
+      Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+    const auto endorsement = endorsements->get(IdentityType::CLASSICAL);
+    REQUIRE(endorsement.has_value());
+    const auto expected_begin = creations[generation == 0 ? 0 : generation - 1];
+    std::optional<TxID> expected_end;
+    if (generation != 0)
+    {
+      expected_end =
+        TxID{creations[generation - 1].view, creations[generation].seqno - 1};
+    }
+    REQUIRE(endorsement->endorsing_key == identity.key->public_key_der());
+    REQUIRE(endorsement->endorsement_epoch_begin == expected_begin);
+    REQUIRE(endorsement->endorsement_epoch_end == expected_end);
+    REQUIRE(endorsement->previous_version == previous_endorsement_version);
+
+    auto verifier =
+      ccf::crypto::make_cose_verifier_from_key(identity.key->public_key_der());
+    std::span<uint8_t> authenticated_key;
+    REQUIRE(verifier->verify(endorsement->endorsement, authenticated_key));
+    const auto& expected_key =
+      generation == 0 ? endorsement->endorsing_key : previous_key;
+    REQUIRE(std::ranges::equal(authenticated_key, expected_key));
+    if (expected_end.has_value())
+    {
+      const auto validity = ccf::crypto::extract_cose_endorsement_validity(
+        endorsement->endorsement);
+      REQUIRE(validity.from_txid == expected_begin.to_str());
+      REQUIRE(validity.to_txid == expected_end->to_str());
+    }
+
+    const auto service = ro.ro<Service>(Tables::SERVICE)->get();
+    REQUIRE(service->cert == identity.cert);
+    REQUIRE(service->current_service_create_txid == creations[generation]);
+    REQUIRE(service->recovery_count == generation);
+    REQUIRE(
+      service->service_data == nlohmann::json{{"generation", generation}});
+    if (generation != 0)
+    {
+      REQUIRE(service->status == ServiceStatus::RECOVERING);
+      REQUIRE(
+        service->previous_service_identity_version ==
+        creations[generation - 1].seqno);
+      REQUIRE(
+        ro.ro<ccf::PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
+          ->get() == previous_cert);
+      REQUIRE(
+        ro.ro<ccf::PreviousServiceLastSignedRoot>(
+            Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT)
+          ->get() == tree.get_root());
+    }
+
+    previous_endorsement_version =
+      endorsements->get_version_of_previous_write(IdentityType::CLASSICAL);
+    previous_key = endorsement->endorsing_key;
+    previous_cert = identity.cert;
+    tree.append(ccf::crypto::Sha256Hash(identity.cert.str()));
+  }
+}
+
+TEST_CASE("Failed recovery creation preserves the previous service")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity previous_identity;
+  const TestIdentity next_identity;
+  {
+    auto tx = store.create_tx();
+    InternalTablesAccess::create_service(
+      tx, previous_identity.cert, {1, 1}, {{"name", "previous"}});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const char* expected_error =
+    "Previous service doesn't have a serialised merkle tree";
+  SUBCASE("Missing serialised Merkle tree") {}
+  SUBCASE("Missing creation transaction")
+  {
+    auto tx = store.create_tx();
+    auto* service = tx.rw<Service>(Tables::SERVICE);
+    auto info = service->get().value();
+    info.current_service_create_txid.reset();
+    service->put(info);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    expected_error =
+      "Starting TX for the previous service doesn't have "
+      "current_service_create_txid recorded";
+  }
+
+  nlohmann::json previous_service;
+  {
+    auto ro = store.create_read_only_tx();
+    previous_service = ro.ro<Service>(Tables::SERVICE)->get().value();
+  }
+  const auto before = store.current_txid();
+  {
+    auto tx = store.create_tx();
+    REQUIRE_THROWS_WITH_AS(
+      InternalTablesAccess::create_service(
+        tx, next_identity.cert, {3, 10}, nullptr, true),
+      expected_error,
+      std::logic_error);
+  }
+  REQUIRE(store.current_txid() == before);
+  auto ro = store.create_read_only_tx();
+  REQUIRE(
+    nlohmann::json(ro.ro<Service>(Tables::SERVICE)->get().value()) ==
+    previous_service);
+  const auto signing_identity =
+    ro.ro<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES)
+      ->get(IdentityType::CLASSICAL);
+  REQUIRE(signing_identity.has_value());
+  REQUIRE(
+    signing_identity.value() ==
+    Identity{
+      IdentityKind::X509_SPKI_DER, previous_identity.key->public_key_der()});
+  REQUIRE_FALSE(
+    ro.ro<ccf::PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
+      ->has());
+  REQUIRE_FALSE(ro.ro<ccf::PreviousServiceLastSignedRoot>(
+                    Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT)
+                  ->has());
+}
+
+TEST_CASE("Self-endorsement requires a service creation transaction")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  SUBCASE("No service") {}
+  SUBCASE("No creation transaction")
+  {
+    auto tx = store.create_tx();
+    tx.rw<Service>(Tables::SERVICE)->put(ServiceInfo{.cert = identity.cert});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto before = store.current_txid();
+  auto tx = store.create_tx();
+  REQUIRE_THROWS_WITH_AS(
+    InternalTablesAccess::endorse_previous_identity(tx, *identity.key),
+    "Active service or current_service_create_txid is not set",
+    std::logic_error);
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  REQUIRE(store.current_txid() == before);
+  auto ro = store.create_read_only_tx();
+  REQUIRE(
+    ro.ro<ccf::PreviousServiceIdentityEndorsement>(
+        Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+      ->size() == 0);
 }
 
 TEST_CASE("direct node deletion updates consensus configuration")

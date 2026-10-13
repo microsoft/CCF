@@ -56,6 +56,7 @@ The `LedgerChunkRead` feature must be added to `enabled_operator_features` on th
 
 These endpoints can be used by a client to download the next ledger chunk including a given sequence number `<seqno>`.
 They redirect to the appropriate chunk if it exists, using the endpoints described below, or return a `404 Not Found` response if no such chunk is available.
+The required ``since`` value must be an unsigned 64-bit decimal sequence number. Missing or malformed values return ``400 Bad Request`` with the ``InvalidQueryParameterValue`` error code.
 
 In the typical case, a requesting client will first hit a Backup, and will eventually work its way to chunks recent enough that only the primary can provide them:
 
@@ -186,6 +187,8 @@ Join or Recover From Snapshot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Joining nodes will request a snapshot from the target service to accelerate their join. This behaviour is controlled by the ``command.join.fetch_recent_snapshot`` configuration option, and enabled by default. This removes the need for a shared read-only snapshot mount, and corresponding operator actions to keep it up-to-date. Instead, if the joiner is told by the network that the snapshot they have locally is too old, the joiner will send a sequence of HTTP requests, potentially following redirect responses to find the current primary and request a specific snapshot, to download a recent snapshot which should allow them to join rapidly. Any suffix after a snapshot (including the entire ledger, in the rare cases where no snapshot can be found) will be replicated to that node via the consensus protocol.
+
+Snapshot discovery via :http:GET:`/node/snapshot` or :http:HEAD:`/node/snapshot` accepts an optional ``since`` selector with the same numeric requirements as ledger chunk discovery. Malformed values return ``400 Bad Request`` with ``InvalidQueryParameterValue``; omitting the selector allows the latest committed snapshot to be selected.
 
 The legacy behaviour without ``fetch_recent_snapshot`` relies on a shared read-only directory. On start-up, the new node will search both ``snapshots.directory`` and ``snapshots.read_only_directory`` to find the latest committed snapshot file. Operators are responsible for populating these with recent snapshots emitted by the service, and making this available (such as via a shared read-only mount) on joining nodes.
 

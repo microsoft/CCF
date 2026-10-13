@@ -1,8 +1,9 @@
 # Lean disaster recovery model
 
 This package contains a Lean model of CCF's recovery decision protocol
-(`src/node/recovery_decision_protocol.cpp`), its safety properties, and
-machine-checked proofs of those properties. [The Lean module guide](../AGENT.md)
+(`src/node/recovery_decision_protocol.cpp`), its safety properties,
+machine-checked proofs of those properties, and a replayer that checks
+recorded C++ runs against the model. [The Lean module guide](../AGENT.md)
 describes the module layout.
 
 ## Contents
@@ -16,6 +17,9 @@ describes the module layout.
 | Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`                |
 | Proof implementations                 | `DisasterRecovery/Proofs/`                              |
 | Executable checks and concrete traces | `DisasterRecovery/Tests/`                               |
+| Replay of recorded C++ traces         | `DisasterRecovery/TraceValidation.lean`                 |
+| Parsing and ordering of those traces  | `DisasterRecovery/TraceValidation/`                     |
+| Replayer executable and test traces   | `replayer/`                                             |
 
 Human review covers the model, the property statements, the definitions they
 use, and the theorem links in `Proof.lean`. The proof implementations under
@@ -79,6 +83,15 @@ replicated on a majority, and the Raft safety specification
 the last signed TxID of each ledger, so this package does not prove
 committed-prefix preservation. Liveness properties are out of scope.
 
+## Trace validation
+
+`DisasterRecovery/TraceValidation.lean` and the modules in
+`DisasterRecovery/TraceValidation/` check C++ runs recorded with the
+`CCF_RECOVERY_TRACE` environment variable set against
+`Model.transitionSystem`. [`replayer/README.md`](replayer/README.md) describes
+the records, the reduction rules, where CI runs it, and what a successful replay
+does and does not show.
+
 ## Validation
 
 Run the following commands from this directory:
@@ -89,11 +102,30 @@ lake exe mk_all --check --lib DisasterRecovery
 lake build --wfail
 lake lint
 lake exe canonical-checks
+lake exe runLinter --no-build DisasterRecovery replayer.Main
 ```
 
-`--wfail` treats `sorry` as an error. `lake lint` runs
-[axiom-audit](https://github.com/leanprover-community/axiom-audit); only
+`--wfail` treats `sorry` as an error. `lake lint` runs Lean's built-in linters
+and [axiom-audit](https://github.com/leanprover-community/axiom-audit); only
 `propext`, `Classical.choice`, and `Quot.sound` are permitted.
+Both Lake packages enable the complete `linter.extra` set (duplicated
+namespaces, unnecessary `<;>`, unreachable tactics, and unused decidability
+instances), plus `linter.missingDocs`, `linter.omit`, `linter.loopingSimpArgs`,
+`linter.redundantVisibility`, and `linter.unusedVariables.analyzeTactics`.
+These supplement Lean's default checks, and linter findings fail validation.
+The options are set in each `lakefile.toml` so ordinary builds use them too;
+`lake lint` also runs the environment checks on the built declarations.
+The opt-ins are explicit rather than `linter.all`, which would enable every
+optional linter registered by dependencies. Lean's internal-module and collection-variable
+naming conventions, and its debugging-only `linter.tacticCheckInstances`,
+are not enabled.
+
+`runLinter` uses Mathlib's declaration-lint driver, including the slow checks,
+over every module imported by `DisasterRecovery.lean` and `replayer.Main`.
+It lints our declarations rather than dependencies, and findings fail the command.
+The main package also builds the replayer so its declarations are available
+to the linter; its separate package remains dependency-free.
+
 `Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof
 module or if a removed name is reintroduced. See [Formatting](#formatting) for
 the [leanfmt](https://github.com/duckki/leanfmt) check.

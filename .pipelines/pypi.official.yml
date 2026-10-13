@@ -1,0 +1,90 @@
+trigger: none
+pr: none
+
+variables:
+  - name: LinuxContainerImage
+    value: mcr.microsoft.com/onebranch/azurelinux/build:3.0
+  # Defined in Azure DevOps Library and authorized for this pipeline.
+  - group: ccf-esrp-pypi
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: OneBranch.Pipelines/GovernedTemplates
+      ref: refs/heads/main
+
+extends:
+  template: v2/OneBranch.Official.CrossPlat.yml@templates
+  parameters:
+    globalSdl:
+      perStage:
+        sdl_sources:
+          checkout_all_repos: true
+      tsa:
+        enabled: false
+      policheck:
+        break: true
+    release:
+      category: NonAzure
+    stages:
+      - stage: build
+        jobs:
+          - job: ccf
+            displayName: Build and validate CCF wheel
+            pool:
+              type: linux
+            variables:
+              ob_outputDirectory: $(Build.SourcesDirectory)/out
+            steps:
+              - checkout: self
+                path: s/
+                fetchTags: true
+                fetchDepth: 0
+                lfs: false
+              - script: bash .pipelines/scripts/build-pypi-package.sh
+                displayName: Build and validate release wheel
+
+      - stage: release
+        displayName: Publish CCF wheel to PyPI
+        dependsOn: build
+        condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-'))
+        variables:
+          - name: ob_release_environment
+            value: Production
+        jobs:
+          - job: pypi
+            displayName: Release ccf
+            pool:
+              type: release
+            templateContext:
+              type: releaseJob
+              isProduction: true
+              inputs:
+                - input: pipelineArtifact
+                  artifactName: drop_build_ccf
+            steps:
+              - task: CopyFiles@2
+                displayName: Stage wheel for ESRP
+                inputs:
+                  sourceFolder: $(Pipeline.Workspace)
+                  contents: "**/*.whl"
+                  targetFolder: $(Pipeline.Workspace)/esrp_dist
+                  flattenFolders: true
+              - task: EsrpRelease@10
+                displayName: ESRP release to PyPI
+                inputs:
+                  connectedservicename: $(ESRP_SERVICE_CONNECTION)
+                  usemanagedidentity: false
+                  keyvaultname: $(ESRP_KEY_VAULT_NAME)
+                  signcertname: $(ESRP_SIGN_CERT_NAME)
+                  authcertname: $(ESRP_AUTH_CERT_NAME)
+                  clientid: $(ESRP_CLIENT_ID)
+                  contenttype: pypi
+                  intent: PackageDistribution
+                  waitforreleasecompletion: true
+                  folderlocation: $(Pipeline.Workspace)/esrp_dist
+                  owners: $(ESRP_OWNERS)
+                  approvers: $(ESRP_APPROVERS)
+                  mainpublisher: $(ESRP_MAIN_PUBLISHER)
+                  domaintenantid: $(ESRP_DOMAIN_TENANT_ID)

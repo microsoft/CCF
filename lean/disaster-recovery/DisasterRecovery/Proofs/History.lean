@@ -6,9 +6,12 @@ namespace DisasterRecovery.Proofs.History
 open Shared
 open Lifting
 
+/-- Decorated steps whose erased successor states form the given model-state list. -/
 inductive Decoration (config : Model.Config)
     : Execution.Global.State -> List Model.State -> Execution.Global.State -> Prop where
+  /-- An empty decoration leaves the instrumented state unchanged. -/
   | nil (state) : Decoration config state [] state
+  /-- Prepend an instrumented step and its erased successor. -/
   | cons {before middle after tail} {action}
     (step : Execution.Global.next config before action = some middle)
     (rest : Decoration config middle tail after)
@@ -24,7 +27,7 @@ lemma trace_lifts {config : Model.Config} {before after : Model.State} {tail}
         /\ erase final = after := by
   induction path generalizing ghost with
   | nil => exact ⟨ghost, .nil _, reachable, linked⟩
-  | @cons before middle after tail action step rest ih =>
+  | @cons before middle after tail action step _ ih =>
       obtain ⟨ghostAction, ghostMiddle, _, ghostStep, middleEq⟩ :=
         step_lifts config ghost action middle
           (Invariants.reachable_well_formed reachable).nodeKeysNodup
@@ -38,10 +41,13 @@ lemma trace_lifts {config : Model.Config} {before after : Model.State} {tail}
         finalEq
       ⟩
 
+/-- A reachable decorated state with a model execution suffix from every trace state. -/
 structure Correspondence (config : Model.Config) (trace : Properties.GlobalTrace)
     (ghost : Execution.Global.State)
     : Prop where
+  /-- The instrumented state is reachable under the same recovery configuration. -/
   reachable : Execution.Global.Reachable config ghost
+  /-- Every trace state has a model path to the erased ghost state. -/
   suffix
     : forall state,
         state ∈ trace.states

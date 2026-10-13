@@ -155,6 +155,20 @@ The disaster recovery job builds the canonical model with `lake build --wfail`, 
 The build and audit include both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check` command ensures that the audit root imports every library module, so newly added proofs cannot silently escape the checks.
 
+The job also checks the records of the recovery trace fixtures in
+`lean/disaster-recovery/replayer/fixtures` against `trace.schema.json`, with
+`check-schema.py`. It then builds `disaster-recovery-replay`, from its own Lake
+package in `lean/disaster-recovery/replayer`, which has no dependencies, and
+runs its `check-fixtures.sh`. That replays the fixtures' quorum, failover and
+multiple-timeout traces, which must pass, and invalid and valid traces stored
+as diffs against them, which must fail and pass. It then runs the trace
+viewer's `viewer/build.py`, which fails if a dump the viewer shows is missing
+or disagrees with the replayer.
+
+The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, also
+builds the replayer the same way and replays the protocol's e2e scenarios
+against the model.
+
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean`
 file with the pinned leanfmt dependency. The workflow runs on pull requests
 that change `lean/`, any `.lean` file, the formatter script, or the workflow.
@@ -173,14 +187,18 @@ File: `vendor-verification.yml`
 
 # Release
 
-Produces CCF reference release artifacts for all languages and platforms. Triggered on tags matching `ccf-[67].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+Produces CCF reference release artifacts, excluding the Python package. Triggered on tags matching `ccf-[567].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+
+Python packages are built and published separately by the [OneBranch pipeline](../../.pipelines/README.md), without attestations.
+
+Release-build tests, installed-package tests, and the recovery benchmark use the latest released `ccf` Python package from PyPI. The release job sets `CCF_USE_RELEASED_PYTHON_PACKAGE=1`; normal development and CI tests continue to use the local package.
 
 File: `release.yml`
 3rd party dependencies: None
 
 # Release Attestation
 
-Generate signed build provenance attestations for release artifacts. Triggered on release publishing.
+Generate signed build provenance attestations for non-Python release artifacts. Triggered on release publishing. Python wheels and existing attestation bundles are excluded.
 
 File: `release-attestation.yml`
 3rd party dependencies: None
@@ -191,15 +209,6 @@ Publishes ccf-app TS package from a GitHub release to NPM. Triggered on release 
 
 File: `npm.yml`
 3rd party dependencies: None
-
-# PyPI
-
-Publishes ccf Python package from a GitHub release to PyPI. Triggered on release publishing.
-
-File: `pypi.yml`
-3rd party dependencies:
-
-- `pypa/gh-action-pypi-publish@v1.14.0`
 
 # Documentation
 

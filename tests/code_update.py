@@ -8,7 +8,7 @@ import shutil
 import tempfile
 import time
 from base64 import b64decode, b64encode
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 
 import infra.clients
@@ -1098,7 +1098,7 @@ def _test_update_all_nodes(network, args, atomic_reconfiguration=False):
 
     if atomic_reconfiguration:
         LOG.info("Trust fresh nodes and retire original nodes in one proposal")
-        valid_from = datetime.now(timezone.utc) - CERTIFICATE_VALID_FROM_OFFSET
+        valid_from = datetime.now(UTC) - CERTIFICATE_VALID_FROM_OFFSET
         network.consortium.replace_nodes(
             primary,
             old_nodes,

@@ -6,6 +6,7 @@ open Execution.Local
 open Execution.Global hiding Config
 open Predicates
 
+/-- Every node with an open kind retains enough votes for that kind of opening. -/
 def OpeningThresholds (config : Model.Config) (state : State) : Prop :=
   forall entry,
     entry ∈ state.system.nodes
@@ -33,7 +34,8 @@ lemma step_preserves_opening_threshold (config : Config) (state : NodeState)
   cases kind <;> by_cases empty : state.votes = [] <;>
     cases event <;> try cases_type DisasterRecovery.Model.Local.Validation
   all_goals
-    simp [step, Execution.Local.transitionSystem, rejectionReason, rejected, advance,
+    dsimp only [step, Execution.Local.transitionSystem]
+    simp [rejectionReason, rejected, advance,
       advanceTimeoutLane, guard, failure]
   all_goals
     repeat' first
@@ -103,7 +105,7 @@ lemma reachable_opening_thresholds {config : Model.Config} {state : State}
   | initial initialized =>
       rcases initialized with ⟨active, _, _, _, rfl⟩
       simp [OpeningThresholds, initial, initialSystem, initialNode]
-  | step reachable trans ih =>
+  | step _ trans ih =>
       exact next_preserves_opening_thresholds config _ _ _ ih trans
 
 lemma reachable_quorum_thresholds {config : Model.Config} {state : State}

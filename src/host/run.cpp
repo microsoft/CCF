@@ -23,12 +23,8 @@
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "ds/non_blocking.h"
-#include "ds/notifying.h"
-#include "ds/oversized.h"
 #include "ds/time_bound_logger.h"
 #include "enclave/entry_points.h"
-#include "handle_ring_buffer.h"
 #include "host/files_cleanup_timer.h"
 #include "host/ledger_subsystem.h"
 #include "http_client/curl.h"
@@ -39,10 +35,8 @@
 #include "sig_term.h"
 #include "task_ticker.h"
 #include "tcp.h"
-#include "ticker.h"
 
 #include <CLI11/CLI11.hpp>
-#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdint>
@@ -106,7 +100,7 @@ namespace ccf
       throw std::logic_error(fmt::format(
         "ledger.max_transaction_size ({}) must be at least {} bytes smaller "
         "than memory.max_msg_size ({}) so a single ledger entry fits in a "
-        "ring-buffer range response",
+        "ledger range response",
         max_transaction_size,
         response_overhead,
         max_message_size));
@@ -115,7 +109,7 @@ namespace ccf
 
   void validate_and_coerce_worker_threads(ccf::CCFConfig& config)
   {
-    // Replace the task execution capacity of the dispatch thread, which no
+    // Replace the task execution capacity of the coordination thread, which no
     // longer executes tasks itself, without requiring configuration changes.
     if (config.worker_threads == 0)
     {
@@ -204,50 +198,18 @@ namespace ccf
     }
   }
 
-  struct WriterFactories
-  {
-    ringbuffer::WriterFactory base_factory;
-    ringbuffer::NotifyingWriterFactory notifying_factory;
-    ringbuffer::NonBlockingWriterFactory non_blocking_factory;
-    oversized::WriterFactory writer_factory;
-
-    WriterFactories(
-      ringbuffer::Circuit& circuit, const oversized::WriterConfig& config) :
-      base_factory(circuit),
-      notifying_factory(base_factory),
-      non_blocking_factory(notifying_factory),
-      writer_factory(non_blocking_factory, config)
-    {}
-  };
-
   std::optional<size_t> create_enclave_node(
     const ccf::CCFConfig& config,
-    messaging::BufferProcessor& buffer_processor,
-    ringbuffer::Circuit& circuit,
-    EnclaveConfig& enclave_config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
     std::vector<uint8_t>& rpc_addresses,
     ccf::LoggerLevel log_level,
-    ringbuffer::NotifyingWriterFactory& notifying_factory,
     ccf::AbstractRuntimeControl& runtime_control,
     const std::shared_ptr<asynchost::LedgerSubsystem>& ledger_subsystem,
     const std::shared_ptr<asynchost::NodeConnections>& node_connections)
   {
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
-    std::atomic<bool> ecall_completed = false;
-    auto flush_outbound = [&]() {
-      do
-      {
-        std::this_thread::sleep_for(
-          std::chrono::milliseconds(retry_interval_ms));
-
-        buffer_processor.read_all(circuit.read_from_inside());
-      } while (!ecall_completed);
-    };
-    std::thread flusher_thread(flush_outbound);
     auto create_status = enclave_create_node(
-      enclave_config,
       config,
       node_cert,
       service_cert,
@@ -255,12 +217,9 @@ namespace ccf
       config.command.type,
       log_level,
       config.worker_threads,
-      notifying_factory.get_inbound_work_beacon(),
       runtime_control,
       ledger_subsystem,
       node_connections);
-    ecall_completed.store(true);
-    flusher_thread.join();
 
     // Reset the thread ID generator. This function will exit before any
     // thread calls enclave_run, and without creating any new threads, so it
@@ -274,10 +233,6 @@ namespace ccf
       LOG_FAIL_FMT(
         "An error occurred when creating CCF node: {}",
         create_node_result_to_str(create_status));
-
-      // Pull all logs from the enclave via BufferProcessor `buffer_processor`
-      // and show any logs that came from the ring buffer during setup.
-      buffer_processor.read_all(circuit.read_from_inside());
 
       // This returns from main, stopping the program
       return create_status;
@@ -377,41 +332,17 @@ namespace ccf
   }
 
   std::optional<size_t> run_main_loop(
-    ccf::CCFConfig& config,
-    messaging::BufferProcessor& buffer_processor,
-    ringbuffer::Circuit& circuit,
-    EnclaveConfig& enclave_config,
-    ccf::LoggerLevel log_level)
+    ccf::CCFConfig& config, ccf::LoggerLevel log_level)
   {
-    // Construct hierarchy of ringbuffer writer factories
-    WriterFactories factories(circuit, enclave_config.writer_config);
-    auto& writer_factory = factories.writer_factory;
-
     const asynchost::TaskTicker task_ticker(config.tick_interval);
-
-    // provide regular ticks to the enclave
-    const asynchost::Ticker ticker(config.tick_interval, writer_factory);
 
     const auto request_enclave_stop = []() {
       return ccf::enclave_request_stop();
     };
-    const auto drain_ringbuffers_before_loop_stop =
-      [&buffer_processor, &circuit, &factories]() {
-        buffer_processor.read_all(circuit.read_from_inside());
-        factories.non_blocking_factory.flush_all_inbound();
-      };
-    asynchost::RuntimeControl runtime_control(
-      request_enclave_stop, drain_ringbuffers_before_loop_stop);
+    asynchost::RuntimeControl runtime_control(request_enclave_stop);
 
     // reset the inbound-TCP processing quota each iteration
     const asynchost::ResetTCPReadQuota reset_tcp_quota;
-
-    // handle outbound logging and admin messages from the enclave
-    const asynchost::HandleRingbuffer handle_ringbuffer(
-      1ms,
-      buffer_processor,
-      circuit.read_from_inside(),
-      factories.non_blocking_factory);
 
     // graceful shutdown on sigterm
     asynchost::Sigterm sigterm(config.ignore_first_sigterm);
@@ -457,7 +388,7 @@ namespace ccf
     // Setup node-to-node connections, which the node uses as its typed
     // transport. Outbound messages are ordered behind the ledger mutations
     // submitted before them, then written on the loop thread by a 1ms flush
-    // timer. Inbound frames keep the previous ringbuffer message size limit.
+    // timer. Inbound frames use the configured maximum message size.
     auto [node_host, node_port] =
       cli::validate_address(config.network.node_to_node_interface.bind_address);
     auto node = std::make_shared<asynchost::NodeConnections>(
@@ -487,7 +418,12 @@ namespace ccf
     }
 
     // Initialise the curlm singleton
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    if (const auto curl_rc = curl_global_init(CURL_GLOBAL_DEFAULT);
+        curl_rc != CURLE_OK)
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to initialise libcurl: {}", curl_easy_strerror(curl_rc)));
+    }
     auto curl_libuv_context =
       http_client::CurlmLibuvContextSingleton(uv_default_loop());
 
@@ -569,14 +505,10 @@ namespace ccf
     // Create the enclave node
     auto enclave_creation_result = create_enclave_node(
       config,
-      buffer_processor,
-      circuit,
-      enclave_config,
       node_cert,
       service_cert,
       rpc_addresses,
       log_level,
-      factories.notifying_factory,
       *runtime_control,
       ledger_subsystem,
       node);
@@ -820,66 +752,10 @@ namespace ccf
     ccf::ds::TimeBoundLogger::default_max_time =
       config.slow_io_logging_threshold;
 
-    // create the enclave:
-
-    // messaging ring buffers
-    const auto buffer_size = config.memory.circuit_size;
-
-    std::vector<uint8_t> to_enclave_buffer(buffer_size);
-    ringbuffer::Offsets to_enclave_offsets;
-    ringbuffer::BufferDef to_enclave_def{
-      to_enclave_buffer.data(), to_enclave_buffer.size(), &to_enclave_offsets};
-    if (!ringbuffer::Const::find_acceptable_sub_buffer(
-          to_enclave_def.data, to_enclave_def.size))
+    const auto inner_ret = run_main_loop(config, log_level);
+    if (inner_ret.has_value())
     {
-      LOG_FATAL_FMT(
-        "Unable to construct valid inbound buffer of size {}", buffer_size);
-      return static_cast<int>(CLI::ExitCodes::ValidationError);
-    }
-
-    std::vector<uint8_t> from_enclave_buffer(buffer_size);
-    ringbuffer::Offsets from_enclave_offsets;
-    ringbuffer::BufferDef from_enclave_def{
-      from_enclave_buffer.data(),
-      from_enclave_buffer.size(),
-      &from_enclave_offsets};
-    if (!ringbuffer::Const::find_acceptable_sub_buffer(
-          from_enclave_def.data, from_enclave_def.size))
-    {
-      LOG_FATAL_FMT(
-        "Unable to construct valid outbound buffer of size {}", buffer_size);
-      return static_cast<int>(CLI::ExitCodes::ValidationError);
-    }
-
-    ringbuffer::Circuit circuit(to_enclave_def, from_enclave_def);
-    messaging::BufferProcessor buffer_processor("Host");
-
-    // reconstruct oversized messages sent to the host
-    const oversized::FragmentReconstructor fragment_reconstructor(
-      buffer_processor.get_dispatcher());
-
-    {
-      EnclaveConfig enclave_config;
-      enclave_config.tick_interval =
-        std::chrono::milliseconds(config.tick_interval);
-      enclave_config.to_enclave_buffer_start = to_enclave_def.data;
-      enclave_config.to_enclave_buffer_size = to_enclave_def.size;
-      enclave_config.to_enclave_buffer_offsets = &to_enclave_offsets;
-      enclave_config.from_enclave_buffer_start = from_enclave_def.data;
-      enclave_config.from_enclave_buffer_size = from_enclave_def.size;
-      enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
-
-      const oversized::WriterConfig writer_config{
-        config.memory.max_fragment_size, config.memory.max_msg_size};
-      enclave_config.writer_config = writer_config;
-
-      const auto inner_ret = run_main_loop(
-        config, buffer_processor, circuit, enclave_config, log_level);
-
-      if (inner_ret.has_value())
-      {
-        return inner_ret.value();
-      }
+      return inner_ret.value();
     }
 
     constexpr size_t max_close_iterations = 1000;
