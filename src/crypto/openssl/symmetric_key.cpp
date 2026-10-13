@@ -59,12 +59,18 @@ namespace ccf::crypto
       std::span<const uint8_t> iv,
       std::span<const uint8_t> plain,
       std::span<const uint8_t> aad,
-      std::vector<uint8_t>& cipher,
+      std::span<uint8_t> cipher,
       uint8_t tag[GCM_SIZE_TAG])
     {
       if (aad.empty() && plain.empty())
       {
         throw std::logic_error("aad and plain cannot both be empty");
+      }
+      if (
+        cipher.size() != plain.size() || plain.size() > INT_MAX ||
+        aad.size() > INT_MAX)
+      {
+        throw std::logic_error("Invalid AES-GCM input or output size");
       }
 
       CHECK1(EVP_CIPHER_CTX_ctrl(
@@ -79,16 +85,15 @@ namespace ccf::crypto
           context, nullptr, &aad_outl, aad.data(), aad.size()));
       }
 
-      std::vector<uint8_t> ciphertext(plain.size());
       if (!plain.empty())
       {
         int cipher_outl{0};
         CHECK1(EVP_EncryptUpdate(
           context,
-          ciphertext.data(),
+          cipher.data(),
           &cipher_outl,
           plain.data(),
-          plain.size()));
+          static_cast<int>(plain.size())));
 
         // As we use no padding, we expect the input and output lengths to
         // match.
@@ -106,8 +111,28 @@ namespace ccf::crypto
 
       CHECK1(EVP_CIPHER_CTX_ctrl(
         context, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, &tag[0]));
+    }
 
-      cipher = std::move(ciphertext);
+    void encrypt_with_context(
+      EVP_CIPHER_CTX* context,
+      std::span<const uint8_t> iv,
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> aad,
+      std::vector<uint8_t>& cipher,
+      uint8_t tag[GCM_SIZE_TAG])
+    {
+      if (cipher.size() == plain.size())
+      {
+        encrypt_with_context(
+          context, iv, plain, aad, std::span<uint8_t>(cipher), tag);
+      }
+      else
+      {
+        std::vector<uint8_t> output(plain.size());
+        encrypt_with_context(
+          context, iv, plain, aad, std::span<uint8_t>(output), tag);
+        cipher = std::move(output);
+      }
     }
 
     bool decrypt_with_context(
@@ -194,6 +219,16 @@ namespace ccf::crypto
         encrypt_with_context(encrypt_context, iv, plain, aad, cipher, tag);
       }
 
+      void encrypt(
+        std::span<const uint8_t> iv,
+        std::span<const uint8_t> plain,
+        std::span<const uint8_t> aad,
+        std::span<uint8_t> cipher,
+        uint8_t tag[GCM_SIZE_TAG]) override
+      {
+        encrypt_with_context(encrypt_context, iv, plain, aad, cipher, tag);
+      }
+
       bool decrypt(
         std::span<const uint8_t> iv,
         const uint8_t tag[GCM_SIZE_TAG],
@@ -233,6 +268,19 @@ namespace ccf::crypto
     std::span<const uint8_t> plain,
     std::span<const uint8_t> aad,
     std::vector<uint8_t>& cipher,
+    uint8_t tag[GCM_SIZE_TAG]) const
+  {
+    Unique_EVP_CIPHER_CTX context;
+    CHECK1(
+      EVP_EncryptInit_ex2(context, evp_cipher, key.data(), nullptr, nullptr));
+    encrypt_with_context(context, iv, plain, aad, cipher, tag);
+  }
+
+  void KeyAesGcm_OpenSSL::encrypt(
+    std::span<const uint8_t> iv,
+    std::span<const uint8_t> plain,
+    std::span<const uint8_t> aad,
+    std::span<uint8_t> cipher,
     uint8_t tag[GCM_SIZE_TAG]) const
   {
     Unique_EVP_CIPHER_CTX context;

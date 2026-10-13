@@ -7,6 +7,6 @@
 
 namespace valijson {
 
-typedef std::map<std::string, const Subschema *> SchemaCache;
+typedef std::map<std::string, const Subschema *> SchemaRegistry;
 
 }  // namespace valijson
