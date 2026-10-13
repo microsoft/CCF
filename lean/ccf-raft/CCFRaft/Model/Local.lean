@@ -575,7 +575,7 @@ def act (config : InitialConfig Node) (caps : Caps Node TxId) (self : Node)
       return state
   | .checkQuorum => do
       guard (state.role = .leader /\ ((state.activeMembers config).erase self).Nonempty)
-      return { state with role := .follower, leaderKnown := false, isNewFollower := true }
+      return { state with role := .follower, leaderKnown := false }
   | .becomeLeader => do
       guard
         (state.role = .candidate
