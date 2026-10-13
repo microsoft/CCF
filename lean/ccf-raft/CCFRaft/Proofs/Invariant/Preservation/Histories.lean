@@ -1160,6 +1160,26 @@ lemma handledAppendRequestRetainsSharedPrefix
       _ = nextNode.log.take sharedPrefix.length := by
         rw [← agreement, List.take_take, Nat.min_eq_left shorter]
 
+/-- A queued AppendEntries request never carries its leader destination's own term. -/
+lemma queuedAppendRequestNotOwnTerm
+    {state : Model.State Node TxId}
+    {votes : VoteHistory Node}
+    {appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId)}
+    {canonicalHistory : Nat -> List (Entry Node TxId)}
+    {owners : TermOwners Node}
+    (ownership : TermOwnershipFacts state votes appendHistory canonicalHistory owners)
+    {destination : Node}
+    {request : AppendRequestKey Node TxId}
+    (requestMember
+      : appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
+    : ((nodeOf state) destination).role = .leader
+      -> request.2.2.term ≠ ((nodeOf state) destination).currentTerm := by
+  intro role same
+  have metadata := ownership.queuedAppendMetadata destination request requestMember
+  have owner := ownership.activeLeader destination role
+  rw [← same, metadata.2.1] at owner
+  exact metadata.1 ((Option.some.inj owner).trans requestMember.2.symm)
+
 /-- A leader only accepts requests from its own term, which it never sends to
 itself; candidates step down before accepting. Either way active nodes are
 unchanged. -/

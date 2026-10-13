@@ -291,7 +291,8 @@ lemma appendRequestAckerTemporalFacts
     (responseSource : response.1 = request.2.1)
     (responseDestination : response.2.1 = request.1)
     (handled
-      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1
+          ((nodeOf state) destination) request.2.2
         = some (nextNode, response.2.2))
     : let after : Model.State Node TxId :=
         {
@@ -352,7 +353,7 @@ lemma appendRequestAckerTemporalFacts
     · subst node
       have unchanged :=
         handleAppendEntriesRequestActiveUnchanged
-          notStepped handled active
+          notStepped (queuedAppendRequestNotOwnTerm ownership requestMember) handled active
       simp [after, present, nodeOf_replaceNode, unchanged]
     · simp [after, present, nodeOf_replaceNode, same]
   have leaderLogEq :
@@ -494,7 +495,7 @@ lemma appendRequestAckerTemporalFacts
                   handledAppendRequestRetainsSharedPrefix
                     state votes appendHistory canonicalHistory owners
                       ownership destination request nextNode response.2.2
-                      requestMember snapshot notStepped handled succeeded retained shared
+                      requestMember snapshot handled succeeded retained shared
                 exact Or.inl
                   (by
                     rw [sourceStateEq request.1 role]
@@ -527,7 +528,7 @@ lemma appendRequestAckerTemporalFacts
                       snapshot.1
                 have unchanged :=
                   successfulAlreadyDoneAppendLogUnchanged
-                    already notStepped handled succeeded
+                    already handled succeeded
                 exact Or.inl
                   (by
                     rw [sourceStateEq request.1 role]
@@ -560,7 +561,7 @@ lemma appendRequestAckerTemporalFacts
                     handledAppendRequestRetainsSharedPrefix
                       state votes appendHistory canonicalHistory owners
                         ownership destination request nextNode response.2.2
-                        requestMember snapshot notStepped handled succeeded retained shared
+                        requestMember snapshot handled succeeded retained shared
                   exact Or.inl
                     (by
                       rw [leaderEq]
@@ -607,7 +608,7 @@ lemma appendRequestAckerTemporalFacts
         handledAppendRequestAcknowledgesSourcePrefix
           state votes appendHistory canonicalHistory owners ownership
             destination request nextNode response.2.2 requestMember snapshot
-            notStepped handled succeeded
+            handled succeeded
             (by simpa [roleEq] using role)
             requestTerm acknowledged
       exact Or.inl
@@ -750,8 +751,10 @@ lemma handleRequestVoteRequestLocalPost
     have afterEq := equal.1.symm
     have payloadEq := equal.2.symm
     rw [afterEq]
-    have freshness : request.2.2.term = before.currentTerm ∧ voteLogUpToDate before request.2.2
-        ∧ (before.votedFor = none ∨ before.votedFor = some request.1) := by
+    obtain ⟨termFresh, upToDate, _, votable⟩ :
+        request.2.2.term = before.currentTerm ∧ voteLogUpToDate before request.2.2
+          ∧ (!before.leaderKnown) = true
+          ∧ (before.votedFor = none ∨ before.votedFor = some request.1) := by
       simpa only [decide_eq_true_eq] using granted
     constructor
     · rfl
@@ -761,17 +764,21 @@ lemma handleRequestVoteRequestLocalPost
     · rfl
     · rfl
     · rfl
-    · rcases freshness.2.2 with absent | same
+    · rcases votable with absent | same
       · exact Or.inr ⟨absent, rfl⟩
       · exact Or.inl same.symm
     · simp [payloadEq]
     · exact responseSource
     · exact responseDestination
-    · exact fun _ => ⟨freshness.1, freshness.2.1, freshness.2.2, rfl⟩
+    · exact fun _ => ⟨termFresh, upToDate, votable, rfl⟩
     · exact fun _ => rfl
     · intro rejected
-      simp [payloadEq, granted] at rejected
-  · have equal := Prod.mk.inj handled
+      rw [payloadEq] at rejected
+      dsimp only at rejected
+      rw [granted] at rejected
+      cases rejected
+  · rw [Bool.not_eq_true] at granted
+    have equal := Prod.mk.inj handled
     have afterEq := equal.1.symm
     have payloadEq := equal.2.symm
     rw [afterEq]
@@ -788,9 +795,15 @@ lemma handleRequestVoteRequestLocalPost
     · exact responseSource
     · exact responseDestination
     · intro accepted
-      simp [payloadEq, granted] at accepted
+      rw [payloadEq] at accepted
+      dsimp only at accepted
+      rw [granted] at accepted
+      cases accepted
     · intro accepted
-      simp [payloadEq, granted] at accepted
+      rw [payloadEq] at accepted
+      dsimp only at accepted
+      rw [granted] at accepted
+      cases accepted
     · exact fun _ => rfl
 
 /-- Granting a vote freezes every prior ACK-retention fact at vote time. -/
