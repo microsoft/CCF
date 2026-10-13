@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Historical query cache ticks no longer scan every retained request and store, so retaining many historical queries is much cheaper. Unrepresentable cache times or expiry deadlines now throw instead of overflowing (#8525).
 - Historical ledger replies no longer scan unrelated retained requests to select decryption mode or populate receipts. Reply processing still scales with actual consumers and their requested ranges, and the non-owning routing index adds per-dependency metadata (#8543).
 
+### Dependencies
+
+- Updated `llhttp` from `9.3.0` to `9.4.3` (#8552).
+
 ## [7.0.18]
 
 [7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
