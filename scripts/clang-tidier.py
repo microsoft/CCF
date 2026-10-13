@@ -5,6 +5,8 @@
 """clang-tidier.py: require braces around non-empty switch case bodies."""
 
 import argparse
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from itertools import islice
 import json
 import os
 import re
@@ -16,6 +18,19 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parents[1]
 QUERY_FILE = Path(__file__).with_name("case-scopes.query")
 CPP_EXTENSIONS = {".cpp", ".cc", ".cxx", ".c++", ".C"}
+HEADER_EXTENSIONS = {
+    ".h",
+    ".hh",
+    ".hpp",
+    ".hxx",
+    ".h++",
+    ".H",
+    ".inc",
+    ".inl",
+    ".ipp",
+    ".tpp",
+    ".def",
+}
 
 
 class CheckError(RuntimeError):
@@ -67,8 +82,64 @@ def compilation_sources(build_dir: Path, root: Path) -> list[Path]:
     return sorted(sources)
 
 
-def check_source(executable: str, build_dir: Path, source: Path) -> int:
-    result = subprocess.run(
+def modified_sources(root: Path, sources: list[Path]) -> list[Path]:
+    executable = shutil.which("git")
+    if executable is None or not (root / ".git").exists():
+        print("Git worktree unavailable; checking all first-party C++ sources.")
+        return sources
+
+    changed = set()
+    for arguments in (
+        [
+            "ls-files",
+            "--modified",
+            "--others",
+            "--exclude-standard",
+            "--full-name",
+            "-z",
+        ],
+        ["diff", "--cached", "--name-only", "--no-renames", "-z"],
+    ):
+        result = subprocess.run(
+            [executable, "-C", str(root), *arguments],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise CheckError(
+                f"Cannot list modified files with Git (exit {result.returncode}): "
+                f"{os.fsdecode(result.stderr).strip()}"
+            )
+        changed.update(
+            root / os.fsdecode(path) for path in result.stdout.split(b"\0") if path
+        )
+
+    source_set = set(sources)
+    if any(
+        path.suffix in HEADER_EXTENSIONS | {".c", ".cmake", ".in"}
+        or "3rdparty" in path.relative_to(root).parts
+        or path.name
+        in {
+            "CMakeLists.txt",
+            "CMakePresets.json",
+            "CMakeUserPresets.json",
+            Path(__file__).name,
+            QUERY_FILE.name,
+        }
+        # Some .cpp files are included as headers rather than compiled separately.
+        or (path.suffix in CPP_EXTENSIONS and path.resolve() not in source_set)
+        for path in changed
+    ):
+        print("Shared C++ inputs or check configuration changed; checking all sources.")
+        return sources
+    return [source for source in sources if source in changed]
+
+
+def check_source(
+    executable: str, build_dir: Path, source: Path
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         [
             executable,
             "--use-color=false",
@@ -85,6 +156,9 @@ def check_source(executable: str, build_dir: Path, source: Path) -> int:
         text=True,
         check=False,
     )
+
+
+def match_count(source: Path, result: subprocess.CompletedProcess[str]) -> int:
     print(result.stdout, end="")
     if result.returncode != 0:
         raise CheckError(f"clang-query failed for {source} (exit {result.returncode})")
@@ -106,12 +180,28 @@ def main(argv: list[str] | None = None) -> int:
         help="clang-query executable (default: CLANG_QUERY, clang-query-18, clang-query)",
     )
     parser.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        default=min(4, os.cpu_count() or 1),
+        help="maximum concurrent clang-query processes (default: up to 4 available CPUs)",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="check all first-party C++ sources instead of Git working-tree changes",
+    )
+    parser.add_argument(
         "sources",
         nargs="*",
         type=Path,
-        help="optional translation units; default: all first-party C++ compile commands",
+        help="explicit translation units to check regardless of Git changes",
     )
     args = parser.parse_args(argv)
+    if args.jobs < 1:
+        parser.error("--jobs must be positive")
+    if args.all and args.sources:
+        parser.error("--all cannot be combined with explicit sources")
 
     try:
         build_dir = args.build_dir.resolve()
@@ -125,14 +215,41 @@ def main(argv: list[str] | None = None) -> int:
                     + ", ".join(str(source) for source in sorted(unknown))
                 )
             sources = sorted(requested)
+        elif not args.all:
+            sources = modified_sources(ROOT_DIR, sources)
+            if not sources:
+                print(
+                    "No modified first-party C++ sources to check. "
+                    "Use --all for a full scan."
+                )
+                return 0
         executable = find_clang_query(args.clang_query)
         matches = 0
-        # Bound memory use by loading one translation unit at a time.
-        for index, source in enumerate(sources, 1):
-            print(
-                f"[{index}/{len(sources)}] {source.relative_to(ROOT_DIR)}", flush=True
-            )
-            matches += check_source(executable, build_dir, source)
+        remaining = iter(sources)
+        completed = 0
+        with ThreadPoolExecutor(max_workers=min(args.jobs, len(sources))) as executor:
+            pending = {
+                executor.submit(check_source, executable, build_dir, source): source
+                for source in islice(remaining, args.jobs)
+            }
+            try:
+                while pending:
+                    done, _ = wait(pending, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        source = pending.pop(future)
+                        completed += 1
+                        print(
+                            f"[{completed}/{len(sources)}] {source.relative_to(ROOT_DIR)}",
+                            flush=True,
+                        )
+                        matches += match_count(source, future.result())
+                    for source in islice(remaining, len(done)):
+                        pending[
+                            executor.submit(check_source, executable, build_dir, source)
+                        ] = source
+            finally:
+                for future in pending:
+                    future.cancel()
         if matches:
             raise CheckError(
                 f"{matches} non-empty case/default body match(es) need braces. "

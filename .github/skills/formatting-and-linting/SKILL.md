@@ -50,6 +50,12 @@ The C++ case-scope check runs after the Debug build in `.github/workflows/ci.yml
 not in `scripts/ci-checks.sh`. It needs the compilation database, generated headers,
 and Clang's extra tools (18 or newer). Run it with
 `./scripts/clang-tidier.py -p build`.
+Local scans select staged, unstaged, and untracked C++ sources using Git, with
+full scans for shared C++ inputs, build/check configuration changes, or absent
+Git metadata. Use `--all` to check every source, including committed changes.
+CI explicitly uses `--all -j 8` so clean checkouts still receive full coverage.
+It runs up to four single-file invocations concurrently by default. Use `-j 1`
+for a serial check or `--jobs N` to choose a limit that fits available memory.
 See [C++ case scopes](../../../doc/contribute/build_ccf.rst#c-case-scopes) for scope,
 exclusions, and targeted invocations.
 

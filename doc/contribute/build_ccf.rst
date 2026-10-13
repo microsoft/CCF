@@ -72,9 +72,15 @@ After building, run the check from the repository root:
 
     $ ./scripts/clang-tidier.py -p build
 
-``clang-tidier.py`` uses ``clang-query-18`` or ``clang-query`` from Clang's extra tools, installed by ``scripts/setup-dev.sh``. Set ``CLANG_QUERY`` or pass ``--clang-query`` to select another executable. It checks the first-party C++ translation units in ``compile_commands.json``, including their headers and compile variants, one source file at a time. Vendored ``3rdparty`` files, system headers, and translation units generated in the build directory are excluded. Only code active in that build configuration is checked. Optional source-file arguments restrict local checks to those compilation database entries.
+``clang-tidier.py`` uses ``clang-query-18`` or ``clang-query`` from Clang's extra tools, installed by ``scripts/setup-dev.sh``. Set ``CLANG_QUERY`` or pass ``--clang-query`` to select another executable. It checks first-party C++ translation units in ``compile_commands.json``, including their headers and compile variants. Vendored ``3rdparty`` files, system headers, and translation units generated in the build directory are excluded. Only code active in that build configuration is checked.
 
-CI runs this check after the Debug build, separately from ``scripts/ci-checks.sh``. Violations, missing tools or files, parse errors, and empty selections fail the check; it does not automatically insert braces.
+In a Git worktree, the default local scan selects C++ sources with staged, unstaged, or untracked changes. Headers, included C/C++ files without their own compilation database entry, vendored inputs, CMake configuration, and checker/query changes trigger a full scan because they can affect unchanged translation units. If Git or worktree metadata is unavailable, it also scans all sources. A clean worktree or changes only to unrelated files produce an explicit successful no-op. Git command failures fail the check rather than silently skipping files.
+
+Use ``--all`` for a full scan, including already committed changes, and after changing the build configuration. Explicit source-file arguments check those compilation database entries regardless of Git changes.
+
+By default, up to four ``clang-query`` processes run concurrently, limited by the detected CPU count. Each process checks one source file, including all its compile variants, to bound memory use. Use ``-j 1`` for a serial scan or ``--jobs N`` to choose another concurrency limit based on available memory. Files may finish out of order, but their diagnostics are printed together. Tool or parse failures stop new files from being scheduled; already running invocations finish before the check exits.
+
+CI explicitly uses ``--all -j 8`` after the Debug build, separately from ``scripts/ci-checks.sh``, so clean CI checkouts still receive full coverage. Violations, missing required tools or files, parse errors, invalid source selections, and empty compilation databases fail the check; it does not automatically insert braces.
 
 Update the Documentation
 ------------------------
