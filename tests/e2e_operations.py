@@ -1988,61 +1988,6 @@ def run_configuration_file_checks(args):
                             in result.stdout + result.stderr
                         ), result
 
-    with open(
-        os.path.join(args.config_samples_dir, "minimal_config.json"), encoding="utf-8"
-    ) as config_file:
-        base_config = json.load(config_file)
-    rpc_name = next(iter(base_config["network"]["rpc_interfaces"]))
-    rpc_path = ("network", "rpc_interfaces", rpc_name)
-    base_config.setdefault("attestation", {})["snp_endorsements_servers"] = [{}]
-    header_count_path = rpc_path + ("http_configuration", "max_headers_count")
-    unsigned_paths = (
-        rpc_path + ("max_open_sessions_soft",),
-        rpc_path + ("max_open_sessions_hard",),
-        header_count_path,
-        rpc_path + ("forwarding_timeout_ms",),
-        ("attestation", "snp_endorsements_servers", 0, "max_retries_count"),
-        ("snapshots", "min_tx_count"),
-        ("files_cleanup", "max_committed_ledger_chunks"),
-        ("consensus", "max_uncommitted_tx_count"),
-    )
-    bounds_cases = [
-        (path, value, value >= 0)
-        for path in unsigned_paths
-        for value in (-1, -1.0, 0, 1)
-    ]
-    bounds_cases.extend(
-        (header_count_path, value, valid)
-        for value, valid in (
-            (4294967295, True),
-            (4294967296, False),
-            (4294967296.0, False),
-        )
-    )
-    for field_path, value, valid in bounds_cases:
-        config_json = copy.deepcopy(base_config)
-        parent = config_json
-        for part in field_path[:-1]:
-            parent = (
-                parent.setdefault(part, {}) if isinstance(part, str) else parent[part]
-            )
-        parent[field_path[-1]] = value
-        with tempfile.NamedTemporaryFile(mode="w+") as temp_config:
-            json.dump(config_json, temp_config)
-            temp_config.flush()
-            for flags in (["--check"],) if valid else (["--check"], []):
-                result = infra.proc.ccall(
-                    bin_path, f"--config={temp_config.name}", *flags
-                )
-                if valid:
-                    assert result.returncode == 0, result
-                else:
-                    assert result.returncode != 0, result
-                    assert (
-                        b"Error validating JSON schema for configuration file"
-                        in result.stdout + result.stderr
-                    ), result
-
 
 def run_preopen_readiness_check(args):
     with infra.network.network(

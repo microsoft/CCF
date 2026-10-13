@@ -18,8 +18,6 @@ The configuration for each CCF node must be contained in a single JSON configura
 
         $ /opt/ccf/bin/js_generic --config /path/to/config/file --check
 
-Integer settings stored as unsigned values reject negative numbers. The HTTP ``max_headers_count`` setting must also fit its 32-bit unsigned representation, from ``0`` to ``4294967295``. Previously, negative integer literals and oversized header counts could wrap during configuration parsing rather than fail validation. Existing stricter limits and the meaning of zero-valued settings are unchanged.
-
 .. include:: generated_config.rst
 
 
