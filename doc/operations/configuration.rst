@@ -21,6 +21,20 @@ The configuration for each CCF node must be contained in a single JSON configura
 .. include:: generated_config.rst
 
 
+Migrating Ringbuffer-Era Limits
+----------------------------------------
+
+The ringbuffer has been removed. Use ``ledger.max_pending_append_bytes`` instead of ``memory.circuit_size``, and configure ``ledger.max_read_size`` and ``node_to_node.max_message_size`` independently instead of ``memory.max_msg_size``.
+The defaults remain 16MB for pending ledger appends and 64MB for each size limit. ``memory.max_fragment_size`` is now ignored and should be removed.
+
+Legacy fields remain accepted in 7.x and produce INFO deprecation notices at startup and with ``--check``. For each limit, an explicitly supplied new setting takes precedence over its legacy alias; otherwise the alias supplies the value, falling back to the default when neither is supplied.
+The entire ``memory`` section will be removed in 8.0. See :doc:`resource_usage` for backlog threshold behavior.
+
+``ledger.max_read_size`` limits ledger-entry data bytes, including entry framing. No ringbuffer response metadata allowance is subtracted, even when using the legacy alias.
+This increases the effective read budget by 2048 bytes compared with previous releases at the same configured size.
+``ledger.max_transaction_size`` must not exceed this budget. The independent node-to-node limit includes message headers but excludes the 4-byte length prefix.
+
+
 IPv6 Addresses
 --------------
 
@@ -100,4 +114,3 @@ A rolling upgrade from ``Dual`` to ``CoseOnly`` is a two-step process:
 1. **CoseAllowDualJoin.** Deploy a binary that returns ``CoseAllowDualJoin``. Replace nodes one at a time. During this phase, new nodes running the old ``Dual`` binary can still join as replacements.
 
 2. **CoseOnly.** Once all nodes are upgraded, deploy a binary that returns ``CoseOnly``. Replace nodes again. After this, ``Dual`` joiners are rejected.
-

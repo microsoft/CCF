@@ -8,11 +8,6 @@
 
 namespace consensus
 {
-  // Retained so the ledger range read budget remains
-  // memory.max_msg_size minus this metadata allowance until the memory
-  // configuration is replaced.
-  static constexpr size_t ledger_range_response_metadata_size = 2048;
-
   using Index = uint64_t;
 
   enum class LedgerRangeStatus : uint8_t
