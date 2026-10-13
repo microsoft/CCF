@@ -474,10 +474,7 @@ TEST_CASE("Redirection policies infer legacy forwarding")
           ForwardingRequired::Always})
     {
       Endpoint explicit_endpoint;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       explicit_endpoint.set_forwarding_required(legacy);
-#pragma GCC diagnostic pop
       explicit_endpoint.set_redirection_strategy(strategy);
       CHECK(explicit_endpoint.properties.forwarding_required == legacy);
       CHECK(explicit_endpoint.properties.redirection_strategy == strategy);

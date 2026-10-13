@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ccf_deprecated.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/openapi.h"
 #include "ccf/endpoint_context.h"
@@ -530,9 +529,6 @@ namespace ccf::endpoints
      * @param fr Enum value with desired status
      * @return This Endpoint for further modification
      */
-    CCF_DEPRECATED(
-      "Use set_redirection_strategy instead; request forwarding will be "
-      "removed in CCF 8.0")
     Endpoint& set_forwarding_required(ForwardingRequired fr);
 
     /** Sets redirection and its corresponding legacy forwarding policy, unless
