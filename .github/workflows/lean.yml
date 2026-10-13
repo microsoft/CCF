@@ -83,7 +83,7 @@ jobs:
     name: Kernel checks (${{ matrix.package }})
     # Nanoda exhausts 11 GiB locally; use the existing 64 GiB VMSS pool.
     runs-on: [gha-vmss-d16av7-ci]
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -104,8 +104,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y elan bubblewrap
+          sudo tdnf install -y bubblewrap curl tar gzip
+          curl --fail --silent --show-error --location \
+            https://github.com/leanprover/elan/releases/download/v4.2.4/elan-x86_64-unknown-linux-gnu.tar.gz \
+            --output "$RUNNER_TEMP/elan.tar.gz"
+          echo "42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63  $RUNNER_TEMP/elan.tar.gz" |
+            sha256sum --check
+          tar -xzf "$RUNNER_TEMP/elan.tar.gz" -C "$RUNNER_TEMP"
+          export ELAN_HOME="$RUNNER_TEMP/elan"
+          "$RUNNER_TEMP/elan-init" -y --default-toolchain none --no-modify-path
+          export PATH="$ELAN_HOME/bin:$PATH"
+          echo "ELAN_HOME=$ELAN_HOME" >> "$GITHUB_ENV"
+          echo "$ELAN_HOME/bin" >> "$GITHUB_PATH"
           elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
 
       - name: Restore Mathlib cache

@@ -138,6 +138,7 @@ The replayer uses [`check-kernels.sh`](../../lean/disaster-recovery/replayer/che
 The matrix builds and exports every default target, including the complete library import root and replayer, and requires Lean's kernel and all bundled external checkers to accept the declarations with only the standard axioms.
 This supplements rather than replaces the build, axiom audit, linters, and executable tests.
 The larger pool accommodates the independent kernels' memory use, and temporary exports use disk-backed runner storage rather than `/tmp`.
+Native Azure Linux jobs install `bubblewrap` with `tdnf` and bootstrap checksum-pinned elan 4.2.4 in a per-job temporary directory.
 
 The disaster recovery job also checks the records of the recovery trace fixtures in `lean/disaster-recovery/replayer/fixtures` against `trace.schema.json`, with `check-schema.py`.
 It then builds `disaster-recovery-replay`, from its own Lake package in `lean/disaster-recovery/replayer`, which has no dependencies, and runs its `check-fixtures.sh`.
@@ -151,7 +152,7 @@ The workflow runs on pull requests that change `lean/`, any `.lean` file, the fo
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
-3rd party dependencies: Mathlib, axiom-audit, leanfmt (pinned in the Lake package), bubblewrap, and the kernel checkers bundled with Lean.
+3rd party dependencies: Mathlib, axiom-audit, leanfmt (pinned in the Lake package), elan (checksum-pinned in the kernel job), bubblewrap, and the kernel checkers bundled with Lean.
 
 # Vendored Dependency Verification
 
