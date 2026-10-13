@@ -36,8 +36,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
-          "commitHash": "bfffd37e1f804ca4fae1caae106935791696b6a9",
-          "tag": "v2.6.1"
+          "commitHash": "cbd58a3696887b34c70949aef21a71735a0c2ad5",
+          "tag": "v2.7.2"
         }
       }
     },
