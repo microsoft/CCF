@@ -1517,13 +1517,6 @@ if(BUILD_TESTS)
     BUILD_DEPENDS logging
   )
 
-  add_e2e_test(
-    NAME tls_groups_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tls_groups.py
-    BUCKET bucket_a
-    BUILD_DEPENDS logging
-  )
-
   if(CLIENT_PROTOCOLS_TEST)
     add_e2e_test(
       NAME client_protocols
@@ -1594,6 +1587,13 @@ if(BUILD_TESTS)
       set_tests_properties(lts_compatibility PROPERTIES TIMEOUT 900)
     endif()
   endif()
+
+  add_e2e_test(
+    NAME tls_groups_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tls_groups.py
+    BUCKET bucket_a
+    BUILD_DEPENDS logging
+  )
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)

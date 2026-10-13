@@ -1635,12 +1635,12 @@ if __name__ == "__main__":
     # relative order of the tests it contains.
     for name, target in (
         ("basic", run_basic_partitions),
-        ("certs", run_certificate_partitions),
-        ("isolate-reconnect", run_isolate_and_reconnect),
         ("reconfiguration", run_reconfiguration_partitions),
         ("forwarding", run_forwarding_and_sessions),
         ("recovery-elections", run_recovery_elections),
+        ("isolate-reconnect", run_isolate_and_reconnect),
         ("ledger-chunks", run_ledger_chunk_bytes_check),
+        ("certs", run_certificate_partitions),
         ("in-place-restart", run_in_place_restart_uncommittable_ledger_check),
     ):
         cr.add(
@@ -1653,5 +1653,6 @@ if __name__ == "__main__":
     # These groups deliberately isolate nodes and wait for elections, so they
     # are the most sensitive in the suite both to not getting CPU promptly and
     # to contention on the shared iptables table: a starved or still-partitioned
-    # node looks like a failed election. Run few at once.
-    cr.run(max_concurrent=2)
+    # node looks like a failed election. Run at most three at once, with the
+    # runner's instrumentation limits reducing this further when needed.
+    cr.run(max_concurrent=3)
