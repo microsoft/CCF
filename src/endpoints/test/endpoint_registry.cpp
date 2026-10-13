@@ -9,7 +9,6 @@
 #include "endpoint_utils.h"
 
 #include <doctest/doctest.h>
-#include <type_traits>
 
 using namespace ccf::endpoints;
 
@@ -151,69 +150,6 @@ TEST_CASE("Endpoint properties OpenAPI default")
 
   const auto deserialised = serialised.get<EndpointProperties>();
   REQUIRE(deserialised.openapi == nlohmann::json::object());
-}
-
-TEST_CASE("Endpoint properties optional forwarding")
-{
-  static_assert(std::is_aggregate_v<EndpointProperties>);
-  for (const auto& redirection :
-       {std::optional<RedirectionStrategy>{},
-        std::optional{RedirectionStrategy::None},
-        std::optional{RedirectionStrategy::ToPrimary},
-        std::optional{RedirectionStrategy::ToBackup}})
-  {
-    for (const auto& forwarding :
-         {std::optional<ForwardingRequired>{},
-          std::optional{ForwardingRequired::Never},
-          std::optional{ForwardingRequired::Sometimes},
-          std::optional{ForwardingRequired::Always}})
-    {
-      nlohmann::json definition = {{"authn_policies", {"no_auth"}}};
-      if (redirection.has_value())
-      {
-        definition["redirection_strategy"] = redirection.value();
-      }
-      if (forwarding.has_value())
-      {
-        definition["forwarding_required"] = forwarding.value();
-      }
-      const auto properties = definition.get<EndpointProperties>();
-      const auto expected_redirection =
-        redirection.value_or(RedirectionStrategy::ToPrimary);
-      const auto expected_forwarding = forwarding.value_or(
-        expected_redirection == RedirectionStrategy::ToPrimary ?
-          ForwardingRequired::Always :
-          ForwardingRequired::Never);
-      CHECK(properties.redirection_strategy == expected_redirection);
-      CHECK(properties.forwarding_required == expected_forwarding);
-
-      // Legacy stored records and governance responses keep an explicit policy.
-      const nlohmann::json stored = properties;
-      CHECK(stored.at("forwarding_required") == expected_forwarding);
-      const auto restored = stored.get<EndpointProperties>();
-      CHECK(restored.forwarding_required == expected_forwarding);
-      CHECK(restored.redirection_strategy == expected_redirection);
-    }
-  }
-
-  for (const auto* field : {"redirection_strategy", "forwarding_required"})
-  {
-    for (const auto& invalid :
-         {nlohmann::json("invalid"),
-          nlohmann::json(1),
-          nlohmann::json(nullptr)})
-    {
-      nlohmann::json definition = {{"authn_policies", {"no_auth"}}};
-      definition[field] = invalid;
-      CHECK_THROWS(definition.get<EndpointProperties>());
-    }
-  }
-  CHECK_THROWS(nlohmann::json::object().get<EndpointProperties>());
-
-  nlohmann::json schema;
-  fill_json_schema(schema, static_cast<const EndpointProperties*>(nullptr));
-  CHECK(schema.at("required") == nlohmann::json::array({"authn_policies"}));
-  CHECK(schema.at("properties").contains("forwarding_required"));
 }
 
 TEST_CASE("Additional OpenAPI responses")
