@@ -510,8 +510,6 @@ lemma systemStep_preserves_node_votes_sent
   rcases membership with ⟨previous, previousMember, rfl⟩
   split
   · rename_i atTarget
-    have targetEq : previous.1 = target :=
-      beq_iff_eq.mp atTarget
     rcases step_vote_origin config node event voter
       (by simpa [outputEq, atTarget] using vote) with
       old | added
@@ -586,15 +584,13 @@ lemma systemStep_preserves_vote_stability
             /\ (entry.2.phase = .voting -> entry.2.chosen = some envelope.target) := by
   simp [systemStep, Option.bind_eq_some_iff] at transition
   rcases transition with
-    ⟨node, ⟨key, found⟩, systemEq, outputEq⟩
+    ⟨node, ⟨key, found⟩, systemEq, _⟩
   rw [←systemEq]
   intro entry membership sourceEq
   rw [replaceNode, List.mem_map] at membership
   rcases membership with ⟨previous, previousMember, rfl⟩
   split
   · rename_i atTarget
-    have targetEq : previous.1 = target :=
-      beq_iff_eq.mp atTarget
     have targetSource : target = envelope.source := by simpa [atTarget] using sourceEq
     have keyEq : key = target :=
       beq_iff_eq.mp
@@ -1122,7 +1118,7 @@ lemma retry_preserves_sent_votes_functional
       rw [oldChoice] at secondChoice
       exact Option.some.inj secondChoice
   · rcases classify voter second secondVote with
-      secondOld | ⟨secondSource, secondPhase, secondChoice⟩
+      secondOld | ⟨_, _, secondChoice⟩
     · have oldState :=
         sentVote_stable_at_node stable secondOld
           (by simpa [firstSource] using found)
@@ -1253,7 +1249,6 @@ lemma reachable_quorum_invariant
 
 lemma quorum_lists_intersect
     {α : Type}
-    [DecidableEq α]
     (expected first second : List α)
     (firstNodup : first.Nodup)
     (secondNodup : second.Nodup)
@@ -1262,6 +1257,7 @@ lemma quorum_lists_intersect
     (firstQuorum : expected.length / 2 + 1 <= first.length)
     (secondQuorum : expected.length / 2 + 1 <= second.length)
     : exists value, value ∈ first /\ value ∈ second := by
+  classical
   by_contra noShared
   push Not at noShared
   have disjoint : Disjoint first.toFinset second.toFinset :=
