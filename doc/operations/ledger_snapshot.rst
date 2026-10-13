@@ -139,8 +139,7 @@ The ``.committed_prefix`` suffix distinguishes this synthetic resource from a ca
 The response contains a normal completed ledger representation - header, unchanged transaction bytes, and positions table - but only for the selected committed range.
 It can be read directly with :py:class:`ccf.ledger.LedgerChunk`.
 
-Both the temporary redirect and the committed-prefix response include ``Cache-Control: no-store``.
-The response also includes ``x-ms-ccf-ledger-chunk-kind: committed-prefix``.
+The response includes ``x-ms-ccf-ledger-chunk-kind: committed-prefix``.
 Clients must not archive, install, or use this resource for recovery as though it were a canonical ``.committed`` file.
 In particular, committed-prefix files are ignored by ledger directory discovery, both by nodes and by :py:class:`ccf.ledger.Ledger`, and can only be read individually with :py:class:`ccf.ledger.LedgerChunk`.
 

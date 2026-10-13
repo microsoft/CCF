@@ -1570,11 +1570,9 @@ def test_committed_ledger_prefix_access(network, args):
 
         r = c.head(f"{locator}&include_committed_prefix=true", allow_redirects=False)
         assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
-        assert r.headers["cache-control"] == "no-store", r
 
         r = c.get(f"{locator}&include_committed_prefix=true", allow_redirects=False)
         assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
-        assert r.headers["cache-control"] == "no-store", r
         prefix_url = urllib.parse.urlparse(r.headers["Location"]).path
         first_prefix_name = os.path.basename(prefix_url)
         assert first_prefix_name.endswith(
@@ -1586,7 +1584,6 @@ def test_committed_ledger_prefix_access(network, args):
 
         r = c.head(prefix_url, allow_redirects=False)
         assert r.status_code == http.HTTPStatus.OK, r
-        assert r.headers["cache-control"] == "no-store", r
         assert r.headers["x-ms-ccf-ledger-chunk-kind"] == "committed-prefix", r
         assert r.headers["x-ms-ccf-ledger-chunk-name"] == first_prefix_name, r
         prefix_size = int(r.headers["content-length"])
@@ -1598,7 +1595,6 @@ def test_committed_ledger_prefix_access(network, args):
             headers={"want-repr-digest": "sha-256=1"},
         )
         assert r.status_code == http.HTTPStatus.OK, r
-        assert r.headers["cache-control"] == "no-store", r
         first_prefix = r.body.data()
         assert len(first_prefix) == prefix_size
         expected_digest = base64.b64encode(
@@ -1613,7 +1609,6 @@ def test_committed_ledger_prefix_access(network, args):
             headers={"range": f"bytes=0-{range_end}"},
         )
         assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT, r
-        assert r.headers["cache-control"] == "no-store", r
         assert r.body.data() == first_prefix[: range_end + 1]
 
         # Ranges spanning the header, the entries, and the positions table
@@ -1672,7 +1667,6 @@ def test_committed_ledger_prefix_access(network, args):
                 allow_redirects=False,
             )
             assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
-            assert r.headers["cache-control"] == "no-store", r
             second_url = urllib.parse.urlparse(r.headers["Location"]).path
             second_prefix_name = os.path.basename(second_url)
             second_start, second_end = ccf.ledger.range_from_filename(
@@ -1702,14 +1696,12 @@ def test_committed_ledger_prefix_access(network, args):
             allow_redirects=False,
         )
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r
-        assert r.headers["cache-control"] == "no-store", r
 
         r = c.get(
             "/node/ledger_chunk/committed_prefix/not-a-prefix",
             allow_redirects=False,
         )
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
-        assert r.headers["cache-control"] == "no-store", r
 
 
 def test_ledger_chunk_redirect_recent(network, args):
@@ -1748,7 +1740,6 @@ def test_ledger_chunk_redirect_recent(network, args):
             allow_redirects=False,
         )
         assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value, r
-        assert r.headers["cache-control"] == "no-store", r
         assert (
             r.headers["Location"]
             == f"{expected_location}&include_committed_prefix=true"
@@ -1831,7 +1822,6 @@ def test_ledger_chunk_redirect_gap(network, args):
                 allow_redirects=False,
             )
             assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value, r
-            assert r.headers["cache-control"] == "no-store", r
             redirect_query = urllib.parse.parse_qs(
                 urllib.parse.urlparse(r.headers["Location"]).query
             )

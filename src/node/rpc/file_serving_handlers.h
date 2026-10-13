@@ -830,8 +830,6 @@ namespace ccf::node
           {
             location +=
               fmt::format("&{}=true", include_committed_prefix_param_key);
-            ctx.rpc_ctx->set_response_header(
-              ccf::http::headers::CACHE_CONTROL, "no-store");
           }
           ctx.rpc_ctx->set_response_header(http::headers::LOCATION, location);
           ctx.rpc_ctx->set_error(
@@ -864,8 +862,6 @@ namespace ccf::node
             "Redirecting to committed ledger prefix: {}", redirect_url);
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::LOCATION, redirect_url);
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CACHE_CONTROL, "no-store");
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
           return;
         }
@@ -933,11 +929,6 @@ namespace ccf::node
       }
 
       // Redirect possibilities exhausted
-      if (include_committed_prefix)
-      {
-        ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CACHE_CONTROL, "no-store");
-      }
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_NOT_FOUND,
         ccf::errors::ResourceNotFound,
@@ -1053,9 +1044,6 @@ namespace ccf::node
       ccf::endpoints::CommandEndpointContext& ctx,
       ccf::AbstractNodeContext& node_context)
     {
-      ctx.rpc_ctx->set_response_header(
-        ccf::http::headers::CACHE_CONTROL, "no-store");
-
       std::string chunk_name;
       std::string error;
       if (!ccf::endpoints::get_path_param(
