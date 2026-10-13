@@ -36,7 +36,8 @@ lemma changeConfigurationPreservesSystemInductiveInvariant
           /\ Not (((nodeOf state) source).membershipState = .retiredCommitted)
           /\ newConfiguration.Nonempty
           /\ Not
-              (newConfiguration = ((latestConfiguration (inferInstance) ((nodeOf state) source)).nodes))
+              (newConfiguration
+                = ((latestConfiguration (inferInstance) ((nodeOf state) source)).nodes))
           /\ Not
               ((refreshRetirementState (inferInstance) source
                   ({
@@ -53,10 +54,8 @@ lemma changeConfigurationPreservesSystemInductiveInvariant
         (joined :=
           leaderAppendJoined joinedNodes state source (.reconfiguration newConfiguration))
         (changeConfigurationEffect state source newConfiguration) := by
-  simpa [leaderAppendState, present, concrete_effects, present]
-    using leaderAppendPreservesSystemInductiveInvariant (present := present)
-      state source (.reconfiguration newConfiguration)
-      invariant enabled.1 enabled.2.1
+  exact leaderAppendPreservesSystemInductiveInvariant (present := present)
+    state source (.reconfiguration newConfiguration) invariant enabled.1 enabled.2.1
 
 /-- Demotion to a passive role preserves a leader's history and term ownership. -/
 lemma leaderDemotionPreservesSystemInductiveInvariant
@@ -65,7 +64,7 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
     {present : node ∈ state.nodes.map Prod.fst}
     (newRole : Role)
     (passive : newRole = .follower \/ newRole = .none)
-    (newFollower : Bool)
+    (newFollower newKnown : Bool)
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (_nodeAllocated : node ∈ joinedNodes)
     (oldRole : ((nodeOf state) node).role = .leader)
@@ -74,7 +73,10 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
           state with
             nodes :=
               replaceNode state.nodes node
-                { (nodeOf state) node with role := newRole, isNewFollower := newFollower }
+                {
+                  (nodeOf state) node with
+                    role := newRole, isNewFollower := newFollower, leaderKnown := newKnown
+                }
         } := by
   rcases invariant with
     ⟨votes, appendHistory, responseHistory,
@@ -87,7 +89,8 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
     { state with
       nodes :=
         replaceNode state.nodes node
-          { (nodeOf state) node with role := newRole, isNewFollower := newFollower } }
+          { (nodeOf state) node with
+                  role := newRole, isNewFollower := newFollower, leaderKnown := newKnown } }
   have packed : SystemInductiveInvariant (joined := joinedNodes) state :=
     ⟨votes, appendHistory, responseHistory,
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
@@ -479,7 +482,8 @@ lemma leaderStepDownPreservesSystemInductiveInvariant
     (oldRole : ((nodeOf state) node).role = .leader)
     : SystemInductiveInvariant (joined := joinedNodes) (stepDownState state node) :=
   leaderDemotionPreservesSystemInductiveInvariant (present := present)
-    state node .follower (Or.inl rfl) true invariant nodeAllocated oldRole
+    state node .follower (Or.inl rfl) ((nodeOf state) node).isNewFollower false invariant
+    nodeAllocated oldRole
 
 /-- The guarded CheckQuorum action uses the generic same-term demotion proof. -/
 lemma checkQuorumPreservesSystemInductiveInvariant
@@ -487,15 +491,12 @@ lemma checkQuorumPreservesSystemInductiveInvariant
     (node : Node)
     {present : node ∈ state.nodes.map Prod.fst}
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
-    (enabled
-      : (node ∈ joinedNodes
-          /\ ((nodeOf state) node).role = .leader
-          /\ hasOtherActiveReplica (inferInstance) (nodeOf state node) node))
+    (enabled : (node ∈ joinedNodes /\ ((nodeOf state) node).role = .leader))
     : SystemInductiveInvariant (joined := joinedNodes)
         (checkQuorumEffect state node) := by
   simpa [concrete_effects, present]
     using leaderStepDownPreservesSystemInductiveInvariant (present := present)
-      state node invariant enabled.1 enabled.2.1
+      state node invariant enabled.1 enabled.2
 
 /-- Commit advancement and terminal demotion preserve the safety invariant. -/
 lemma advanceCommitTransitionPreservesSystemInductiveInvariant
@@ -522,15 +523,15 @@ lemma advanceCommitTransitionPreservesSystemInductiveInvariant
     have leader :
         ((nodeOf (advanceCommitState state node)) node).role = .leader := by
       simp [advanceCommitState, advanceCommitNodeState, present, enabled.2.1]
-    simpa [demoteRetiredCommitted, Model.Local.demoteRetiredCommitted, terminal]
+    simpa [demoteRetiredCommitted, demoteRetiredCommittedNode, terminal]
       using leaderDemotionPreservesSystemInductiveInvariant
         (advanceCommitState state node) node
         (present := by simpa [advanceCommitState, replaceNode_keys] using present) .none
-        (Or.inr rfl) ((nodeOf (advanceCommitState state node)) node).isNewFollower
+        (Or.inr rfl) ((nodeOf (advanceCommitState state node)) node).isNewFollower false
         committed nodeAllocated leader
   · have keys : ((advanceCommitState state node).nodes.map Prod.fst).Nodup := by
       simpa [advanceCommitState, replaceNode_keys] using distinct
-    simpa [demoteRetiredCommitted, Model.Local.demoteRetiredCommitted, terminal,
+    simpa [demoteRetiredCommitted, demoteRetiredCommittedNode, terminal,
       replaceNode_nodeOf _ _ keys]
       using committed
 
@@ -545,14 +546,13 @@ lemma advanceCommitPreservesSystemInductiveInvariant
       : (node ∈ joinedNodes
           /\ ((nodeOf state) node).role = .leader
           /\ ((nodeOf state) node).commitIndex
-              < highestCommittableIndex (inferInstance) (nodeOf state node) node
-          /\ Not (terminalRetirementCommit (inferInstance) (nodeOf state node) node)))
+              < highestCommittableIndex (inferInstance) (nodeOf state node) node))
     : SystemInductiveInvariant (joined := joinedNodes)
         (advanceCommitIndexEffect state node) := by
   simpa [concrete_effects, present]
     using advanceCommitTransitionPreservesSystemInductiveInvariant (present := present)
       state node distinct invariant
-      ⟨enabled.1, enabled.2.1, enabled.2.2.1⟩
+      ⟨enabled.1, enabled.2.1, enabled.2.2⟩
 
 /-- A terminal commit atomically enqueues its explicitly selected successor. -/
 lemma advanceCommitAndProposeVotePreservesSystemInductiveInvariant
@@ -567,7 +567,6 @@ lemma advanceCommitAndProposeVotePreservesSystemInductiveInvariant
           /\ ((nodeOf state) source).role = .leader
           /\ ((nodeOf state) source).commitIndex
               < highestCommittableIndex (inferInstance) (nodeOf state source) source
-          /\ terminalRetirementCommit (inferInstance) (nodeOf state source) source
           /\ plausibleSuccessor (inferInstance) (nodeOf state source) source destination))
     : SystemInductiveInvariant (joined := joinedNodes)
         (advanceCommitIndexAndProposeVoteEffect state source destination) := by
@@ -924,9 +923,9 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
         · subst peer
           rw [same] at producible ⊢
           rcases producible with direct | future
-          · have follower := canProduceAppendAckAt_role direct
-            exact False.elim
-              (Role.noConfusion (follower.symm.trans roleNode))
+          · exfalso
+            rcases canProduceAppendAckAt_role direct with passive | passive <;>
+              simp [passive] at roleNode
           · exact Or.inr
               ⟨by simpa [termEq] using future.1, future.2⟩
         · have peerStateEq :

@@ -76,6 +76,12 @@ lemma refreshRetirementState_votedFor (node : Node) (state : NodeState Node TxId
   simp [refreshRetirementState]
 
 @[simp]
+lemma refreshRetirementState_leaderKnown (node : Node) (state : NodeState Node TxId)
+    : (refreshRetirementState (inferInstance) node state).leaderKnown
+      = state.leaderKnown := by
+  simp [refreshRetirementState]
+
+@[simp]
 lemma refreshRetirementState_votesGranted (node : Node) (state : NodeState Node TxId)
     : (refreshRetirementState (inferInstance) node state).votesGranted
       = state.votesGranted := by
