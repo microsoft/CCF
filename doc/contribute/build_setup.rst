@@ -42,6 +42,7 @@ when creating the Codespace. Installation and relay startup run in the backgroun
 on each Codespace start. The relay restarts if it exits and requires
 ``GITHUB_TOKEN`` (supplied by Codespaces) or
 ``COPILOTD_MISSION_CONTROL_TOKEN``. Logs are in ``~/.local/state/ccf-copilotd/copilotd.log``.
+Release archives are SHA-256 pinned; no downloaded installer is executed.
 
 Tweaks for codespaces:
 
