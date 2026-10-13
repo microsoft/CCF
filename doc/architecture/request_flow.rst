@@ -59,6 +59,8 @@ Forwarding flow
 
 When write request are submitted to a follower node, they must be forwarded to the primary for execution. This diagram shows how that is done, between a follower node A and a primary B. Decryption and some dispatch still occurs on the follower, as it must lookup the correct endpoint's metadata to determine whether this request should be forwarded. When A establishes that the request should be forwarded, it queues a node-to-node (N2N) forwarding message to the primary describing the original request. The synchronous execution the follower A now completes without writing any response to the user, but maintaining an open TLS session and some local state that a response is pending.
 
+The parser buffers and decodes HTTP/1.x chunked request bodies before dispatch. When such a request is forwarded, its decoded body is re-encoded as chunked for the node-to-node message, preserving the request headers and application-visible bytes but not the original chunk boundaries.
+
 When the primary B receives the forwarded command, it executes the same dispatch and execution that it would if it had directly received the request, but with a different stack at the top level. Specifically, it will eventually write its response back over the encrypted node-to-node channel to A, rather than the original caller.
 
 When follower A receives the forwarded response, it writes this to the TLS session that was maintained earlier, and marks the pending response as completed.

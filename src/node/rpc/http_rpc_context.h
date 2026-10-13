@@ -65,7 +65,7 @@ namespace http
     {
       if (!serialised)
       {
-        const auto request_prefix = fmt::format(
+        auto request_prefix = fmt::format(
           "{} {} HTTP/1.1\r\n"
           "{}"
           "\r\n",
@@ -73,7 +73,17 @@ namespace http
           url,
           ::http::get_header_string(request_headers));
 
-        serialised_request.resize(request_prefix.size() + request_body.size());
+        std::string_view request_suffix;
+        if (request_headers.contains("transfer-encoding"))
+        {
+          // Accepted transfer-encoded requests are chunked. Restore the framing
+          // removed by llhttp, preserving the original headers when forwarding.
+          request_prefix += fmt::format("{:x}\r\n", request_body.size());
+          request_suffix = request_body.empty() ? "\r\n" : "\r\n0\r\n\r\n";
+        }
+
+        serialised_request.resize(
+          request_prefix.size() + request_body.size() + request_suffix.size());
         ::memcpy(
           serialised_request.data(),
           request_prefix.data(),
@@ -84,6 +94,14 @@ namespace http
             serialised_request.data() + request_prefix.size(),
             request_body.data(),
             request_body.size());
+        }
+        if (!request_suffix.empty())
+        {
+          ::memcpy(
+            serialised_request.data() + request_prefix.size() +
+              request_body.size(),
+            request_suffix.data(),
+            request_suffix.size());
         }
       }
 
