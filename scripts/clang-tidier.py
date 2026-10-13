@@ -92,8 +92,7 @@ def modified_sources(root: Path, sources: list[Path]) -> list[Path]:
         print("Git worktree unavailable; checking all first-party C++ sources.")
         return sources
 
-    changed = set()
-    for arguments in (
+    commands = [
         [
             "ls-files",
             "--modified",
@@ -103,7 +102,18 @@ def modified_sources(root: Path, sources: list[Path]) -> list[Path]:
             "-z",
         ],
         ["diff", "--cached", "--name-only", "--no-renames", "-z"],
-    ):
+    ]
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        base_ref = os.environ.get("GITHUB_BASE_REF")
+        if not base_ref:
+            print("Non-PR GitHub Actions run; checking all first-party C++ sources.")
+            return sources
+        comparison = f"origin/{base_ref}...HEAD"
+        print(f"Selecting pull request changes against {comparison}.")
+        commands = [["diff", "--name-only", "--no-renames", "-z", comparison, "--"]]
+
+    changed = set()
+    for arguments in commands:
         result = subprocess.run(
             [executable, "-C", str(root), *arguments],
             stdout=subprocess.PIPE,
@@ -196,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="check all first-party C++ sources instead of Git working-tree changes",
+        help="check all first-party C++ sources instead of Git-selected changes",
     )
     parser.add_argument(
         "sources",

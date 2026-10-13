@@ -53,8 +53,12 @@ and Clang's extra tools (18 or newer). Run it with
 Local scans select staged, unstaged, and untracked C++ sources using Git, with
 full scans for shared C++ inputs, build/check configuration changes, or absent
 Git metadata. Use `--all` to check every source, including committed changes.
-CI explicitly uses `--all -j auto` so clean checkouts still receive full coverage
-and parallelism scales with the runner's detected logical CPU count.
+With `GITHUB_ACTIONS=true`, PR scans use `GITHUB_BASE_REF` and
+`git diff origin/<base>...HEAD` to select committed PR changes, with the same
+shared-input full-scan rules. The base ref and history must be available
+(`fetch-depth: 0`); Git comparison failures fail the check.
+Non-PR Actions runs scan all sources. CI uses `-j auto` so parallelism scales
+with the runner's detected logical CPU count.
 It runs up to four single-file invocations concurrently by default. Use `-j 1`
 for a serial check or `--jobs N` to choose a limit that fits available memory.
 Use `--jobs auto` to use all detected logical CPUs (one if unavailable), limited

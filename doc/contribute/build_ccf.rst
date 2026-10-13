@@ -76,11 +76,13 @@ After building, run the check from the repository root:
 
 In a Git worktree, the default local scan selects C++ sources with staged, unstaged, or untracked changes. Headers, included C/C++ files without their own compilation database entry, vendored inputs, CMake configuration, and checker/query changes trigger a full scan because they can affect unchanged translation units. If Git or worktree metadata is unavailable, it also scans all sources. A clean worktree or changes only to unrelated files produce an explicit successful no-op. Git command failures fail the check rather than silently skipping files.
 
-Use ``--all`` for a full scan, including already committed changes, and after changing the build configuration. Explicit source-file arguments check those compilation database entries regardless of Git changes.
+In GitHub Actions (``GITHUB_ACTIONS=true``), ``GITHUB_BASE_REF`` selects PR scans using ``git diff origin/<base>...HEAD``. The comparison uses the merge base and works with both the PR head and Actions' merged checkout; changes made only on the base branch are excluded. Shared inputs still trigger a full scan, and PRs changing only unrelated files produce an explicit no-op. The base ref and its history must be available (the CI workflow uses ``fetch-depth: 0``); missing refs or merge bases fail the check. Non-PR Actions runs, including merge queues and scheduled runs, scan all sources.
+
+Use ``--all`` to override Git selection for a full scan, including already committed local changes, and after changing the build configuration. Explicit source-file arguments check those compilation database entries regardless of Git changes.
 
 By default, up to four ``clang-query`` processes run concurrently, limited by the detected CPU count. Each process checks one source file, including all its compile variants, to bound memory use. Use ``--jobs auto`` to use the detected logical CPU count, falling back to one worker if it is unavailable. The worker count never exceeds the number of selected sources. Use ``-j 1`` for a serial scan or ``--jobs N`` to choose another concurrency limit based on available memory. Files may finish out of order, but their diagnostics are printed together. Tool or parse failures stop new files from being scheduled; already running invocations finish before the check exits.
 
-CI explicitly uses ``--all -j auto`` after the Debug build, separately from ``scripts/ci-checks.sh``, so clean CI checkouts still receive full coverage and parallelism scales with the runner's detected CPU count. Violations, missing required tools or files, parse errors, invalid source selections, and empty compilation databases fail the check; it does not automatically insert braces.
+CI uses ``-j auto`` after the Debug build, separately from ``scripts/ci-checks.sh``, so PRs check committed changes and parallelism scales with the runner's detected CPU count. Violations, missing required tools or files, parse errors, invalid source selections, and empty compilation databases fail the check; it does not automatically insert braces.
 
 Update the Documentation
 ------------------------

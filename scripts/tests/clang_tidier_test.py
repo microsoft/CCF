@@ -228,6 +228,11 @@ class ClangTidierRunnerTest(unittest.TestCase):
 
 class ClangTidierSelectionTest(unittest.TestCase):
     def setUp(self) -> None:
+        environment = mock.patch.dict(
+            os.environ, {"GITHUB_ACTIONS": "false", "GITHUB_BASE_REF": "pr-base"}
+        )
+        environment.start()
+        self.addCleanup(environment.stop)
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
@@ -239,10 +244,11 @@ class ClangTidierSelectionTest(unittest.TestCase):
         self.git("init", "--quiet")
         self.git("add", ".")
         self.git("commit", "--quiet", "-m", "Test baseline")
+        self.git("update-ref", "refs/remotes/origin/pr-base", "HEAD")
         self.write_database()
 
-    def git(self, *arguments: str) -> None:
-        subprocess.run(
+    def git(self, *arguments: str) -> bytes:
+        return subprocess.run(
             [
                 "git",
                 "-C",
@@ -259,7 +265,7 @@ class ClangTidierSelectionTest(unittest.TestCase):
             ],
             check=True,
             capture_output=True,
-        )
+        ).stdout
 
     def write_database(self, variants: tuple[int, ...] = (0,)) -> None:
         self.build_dir = self.root / "build"
@@ -364,6 +370,147 @@ class ClangTidierSelectionTest(unittest.TestCase):
         self.assertCountEqual(started, self.sources)
         self.assertIn("checking all sources", stdout)
 
+    def test_pull_request_selects_committed_changes_in_a_clean_checkout(self) -> None:
+        for source in self.sources[:2]:
+            source.write_text("void committed_change() {}\n")
+            self.git("add", str(source))
+            self.git("commit", "--quiet", "-m", "Test PR change")
+        self.assertEqual(self.git("status", "--porcelain"), b"")
+
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            status, stdout, stderr, started = self.invoke()
+            self.assertEqual(status, 0, stderr)
+            self.assertCountEqual(started, self.sources[:2])
+            self.assertIn("origin/pr-base...HEAD", stdout)
+
+            self.sources[2].write_text("void unstaged_change() {}\n")
+            (self.root / "untracked.h").write_text("#pragma once\n")
+            status, _, stderr, started = self.invoke()
+            self.assertEqual(status, 0, stderr)
+            self.assertCountEqual(started, self.sources[:2])
+
+    def test_pull_request_clean_or_documentation_only_changes_are_noops(self) -> None:
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            for documentation in (False, True):
+                with self.subTest(documentation=documentation):
+                    if documentation:
+                        (self.root / "README.md").write_text("Documentation change.\n")
+                        self.git("add", "README.md")
+                        self.git("commit", "--quiet", "-m", "Test PR documentation")
+                    status, stdout, stderr, started = self.invoke()
+                    self.assertEqual(status, 0, stderr)
+                    self.assertEqual(started, [])
+                    self.assertIn("No modified first-party C++ sources", stdout)
+                    self.assertNotIn("Case scopes checked", stdout)
+
+    def test_pull_request_shared_inputs_trigger_full_scans(self) -> None:
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            for filename in (
+                "new.h",
+                "new.hpp",
+                "new.h.in",
+                "helper.c",
+                "src/no_get_ledger_sign_mode.cpp",
+                "CMakeLists.txt",
+                "CMakePresets.json",
+                "cmake/options.cmake",
+                "scripts/clang-tidier.py",
+                "scripts/case-scopes.query",
+                "3rdparty/vendor/definitions.txt",
+            ):
+                with self.subTest(filename=filename):
+                    self.git("update-ref", "refs/remotes/origin/pr-base", "HEAD")
+                    path = self.root / filename
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text("Changed shared input.\n")
+                    self.git("add", filename)
+                    self.git("commit", "--quiet", "-m", "Test PR shared input")
+                    status, stdout, stderr, started = self.invoke()
+                    self.assertEqual(status, 0, stderr)
+                    self.assertCountEqual(started, self.sources)
+                    self.assertIn("checking all sources", stdout)
+
+    def test_pull_request_header_deletions_trigger_full_scans(self) -> None:
+        self.git("rm", "shared.h")
+        self.git("commit", "--quiet", "-m", "Test PR header deletion")
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            status, stdout, stderr, started = self.invoke()
+        self.assertEqual(status, 0, stderr)
+        self.assertCountEqual(started, self.sources)
+        self.assertIn("checking all sources", stdout)
+
+    def test_pull_request_uses_merge_base_and_checks_merge_checkout(self) -> None:
+        self.sources[0].write_text("void pr_change() {}\n")
+        self.git("add", str(self.sources[0]))
+        self.git("commit", "--quiet", "-m", "Test PR branch")
+        self.git("branch", "pr-head")
+        self.git("checkout", "--quiet", "--detach", "origin/pr-base")
+        (self.root / "shared.h").write_text("#pragma once\n#define BASE_ONLY 1\n")
+        self.git("add", "shared.h")
+        self.git("commit", "--quiet", "-m", "Test base branch advancement")
+        self.git("update-ref", "refs/remotes/origin/pr-base", "HEAD")
+        self.git("checkout", "--quiet", "--detach", "pr-head")
+
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            for merge_checkout in (False, True):
+                with self.subTest(merge_checkout=merge_checkout):
+                    if merge_checkout:
+                        self.git("merge", "--quiet", "--no-edit", "origin/pr-base")
+                    status, _, stderr, started = self.invoke()
+                    self.assertEqual(status, 0, stderr)
+                    self.assertEqual(started, [self.sources[0]])
+
+    def test_missing_pull_request_base_fails_instead_of_skipping(self) -> None:
+        with mock.patch.dict(
+            os.environ, {"GITHUB_ACTIONS": "true", "GITHUB_BASE_REF": "missing"}
+        ):
+            status, stdout, stderr, started = self.invoke()
+        self.assertEqual(status, 1)
+        self.assertEqual(started, [])
+        self.assertIn("Cannot list modified files with Git", stderr)
+        self.assertNotIn("No modified", stdout)
+        self.assertNotIn("Case scopes checked", stdout)
+
+    def test_shallow_pull_request_history_fails_instead_of_skipping(self) -> None:
+        self.sources[0].write_text("void pr_change() {}\n")
+        self.git("add", str(self.sources[0]))
+        self.git("commit", "--quiet", "-m", "Test shallow PR checkout")
+        (self.root / ".git" / "shallow").write_bytes(self.git("rev-parse", "HEAD"))
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            status, stdout, stderr, started = self.invoke()
+        self.assertEqual(status, 1)
+        self.assertEqual(started, [])
+        self.assertIn("Cannot list modified files with Git", stderr)
+        self.assertIn("no merge base", stderr)
+        self.assertNotIn("Case scopes checked", stdout)
+
+    def test_non_pr_github_actions_runs_check_all_sources(self) -> None:
+        for event in ("merge_group", "schedule", "workflow_dispatch", "push"):
+            with (
+                self.subTest(event=event),
+                mock.patch.dict(
+                    os.environ,
+                    {
+                        "GITHUB_ACTIONS": "true",
+                        "GITHUB_BASE_REF": "",
+                        "GITHUB_EVENT_NAME": event,
+                    },
+                ),
+            ):
+                status, stdout, stderr, started = self.invoke()
+                self.assertEqual(status, 0, stderr)
+                self.assertCountEqual(started, self.sources)
+                self.assertIn("Non-PR GitHub Actions run", stdout)
+
+    def test_base_ref_outside_github_actions_keeps_local_selection(self) -> None:
+        self.sources[0].write_text("void committed_change() {}\n")
+        self.git("add", str(self.sources[0]))
+        self.git("commit", "--quiet", "-m", "Test committed local change")
+        self.sources[1].write_text("void unstaged_change() {}\n")
+        status, _, stderr, started = self.invoke()
+        self.assertEqual(status, 0, stderr)
+        self.assertEqual(started, [self.sources[1]])
+
     def test_explicit_sources_and_all_bypass_git_selection(self) -> None:
         for arguments, expected in (
             (["--all"], self.sources),
@@ -371,6 +518,9 @@ class ClangTidierSelectionTest(unittest.TestCase):
         ):
             with (
                 self.subTest(arguments=arguments),
+                mock.patch.dict(
+                    os.environ, {"GITHUB_ACTIONS": "true", "GITHUB_BASE_REF": "missing"}
+                ),
                 mock.patch.object(
                     TIDIER, "modified_sources", side_effect=AssertionError("Used Git")
                 ),
@@ -439,6 +589,7 @@ class ClangTidierSelectionTest(unittest.TestCase):
         )
         self.git("add", str(self.sources[1]))
         self.git("commit", "--quiet", "-m", "Existing violation fixture")
+        self.git("update-ref", "refs/remotes/origin/pr-base", "HEAD")
         self.sources[0].write_text("""
 void modified(int value)
 {
@@ -455,24 +606,29 @@ void modified(int value)
 }
 """)
         self.write_database(variants=(0, 1))
-        for arguments, matches, checked_sources in (([], 1, 1), (["--all"], 3, 3)):
-            stdout, stderr = io.StringIO(), io.StringIO()
-            with (
-                self.subTest(arguments=arguments),
-                mock.patch.object(TIDIER, "ROOT_DIR", self.root),
-                contextlib.redirect_stdout(stdout),
-                contextlib.redirect_stderr(stderr),
-            ):
-                status = TIDIER.main(["-p", str(self.build_dir), *arguments])
-                self.assertEqual(status, 1)
-                self.assertIn(
-                    f"{matches} non-empty case/default body match(es)",
-                    stderr.getvalue(),
-                )
-                self.assertEqual(
-                    len(re.findall(r"(?m)^\[\d+/\d+\] ", stdout.getvalue())),
-                    checked_sources,
-                )
+        for github_actions in ("false", "true"):
+            if github_actions == "true":
+                self.git("add", str(self.sources[0]))
+                self.git("commit", "--quiet", "-m", "Test committed variant change")
+            for arguments, matches, checked_sources in (([], 1, 1), (["--all"], 3, 3)):
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with (
+                    self.subTest(github_actions=github_actions, arguments=arguments),
+                    mock.patch.dict(os.environ, {"GITHUB_ACTIONS": github_actions}),
+                    mock.patch.object(TIDIER, "ROOT_DIR", self.root),
+                    contextlib.redirect_stdout(stdout),
+                    contextlib.redirect_stderr(stderr),
+                ):
+                    status = TIDIER.main(["-p", str(self.build_dir), *arguments])
+                    self.assertEqual(status, 1)
+                    self.assertIn(
+                        f"{matches} non-empty case/default body match(es)",
+                        stderr.getvalue(),
+                    )
+                    self.assertEqual(
+                        len(re.findall(r"(?m)^\[\d+/\d+\] ", stdout.getvalue())),
+                        checked_sources,
+                    )
 
     def test_empty_database_still_fails_on_a_clean_worktree(self) -> None:
         (self.build_dir / "compile_commands.json").write_text("[]")
