@@ -452,6 +452,42 @@ lemma configurationsInLog_append_nonreconfiguration
     configurationsInLogFrom_append_nonreconfiguration
       (TxId := TxId) 1 log entry notReconfiguration
 
+omit [DecidableEq Node] [InitialConfig Node] in
+/-- Every projected configuration comes from a reconfiguration entry of the log. -/
+lemma configurationsInLogFrom_entry {start : Nat} {log : List (Entry Node TxId)}
+    {configuration : Configuration Node}
+    (member : configuration ∈ configurationsInLogFrom start log)
+    : ∃ entry ∈ log, entry.content = .reconfiguration configuration.nodes := by
+  induction log generalizing start with
+  | nil => simp [configurationsInLogFrom] at member
+  | cons head tail inductionHypothesis =>
+      unfold configurationsInLogFrom at member
+      split at member
+      · rename_i nodes content
+        rcases List.mem_cons.mp member with rfl | rest
+        · exact ⟨head, List.mem_cons_self, content⟩
+        · obtain ⟨entry, inTail, eq⟩ := inductionHypothesis rest
+          exact ⟨entry, List.mem_cons_of_mem _ inTail, eq⟩
+      · obtain ⟨entry, inTail, eq⟩ := inductionHypothesis member
+        exact ⟨entry, List.mem_cons_of_mem _ inTail, eq⟩
+
+omit [DecidableEq Node] [InitialConfig Node] in
+/-- Every reconfiguration entry of the log is projected to a configuration. -/
+lemma configurationsInLogFrom_of_entry {start : Nat} {log : List (Entry Node TxId)}
+    {entry : Entry Node TxId} {nodes : Finset Node}
+    (member : entry ∈ log) (content : entry.content = .reconfiguration nodes)
+    : ∃ configuration ∈ configurationsInLogFrom start log,
+        configuration.nodes = nodes := by
+  induction log generalizing start with
+  | nil => simp at member
+  | cons head tail inductionHypothesis =>
+      rcases List.mem_cons.mp member with rfl | rest
+      · exact ⟨{ index := start, nodes }, by simp [configurationsInLogFrom, content], rfl⟩
+      · obtain ⟨configuration, inTail, eq⟩ := inductionHypothesis (start := start + 1) rest
+        refine ⟨configuration, ?_, eq⟩
+        unfold configurationsInLogFrom
+        split <;> simp [inTail]
+
 /-- Appending a non-reconfiguration entry preserves the current authority. -/
 lemma currentConfigurationAt_append_nonreconfiguration
     (log : List (Entry Node TxId))
@@ -1479,6 +1515,44 @@ lemma acceptedOfSuccess
   · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj handled)
     simp [appendEntriesNackMetadata] at success
   · exact handled
+
+/-- Every entry of a handled node's log was already there or came with the request. -/
+lemma AppendRequestLocalPost.logMember
+    {before after : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
+    (post : AppendRequestLocalPost before after request response)
+    {entry : Entry Node TxId} (member : entry ∈ after.log)
+    : entry ∈ before.log ∨ entry ∈ request.entries := by
+  rcases post.logShape with shape | shape | shape <;> rw [shape] at member
+  · exact Or.inl member
+  · exact (List.mem_append.mp member).imp List.mem_of_mem_take id
+  · exact (List.mem_append.mp member).imp id List.mem_of_mem_drop
+
+/-- Node carriers of the old log's and the request's configurations cover the new log's. -/
+lemma AppendRequestLocalPost.configurationCarried
+    {before after : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
+    (post : AppendRequestLocalPost before after request response)
+    {carrier : Finset Node}
+    (old
+      : forall configuration,
+          configuration ∈ allConfigurations (inferInstance) before.log
+          -> configuration.nodes ⊆ carrier)
+    (learned
+      : forall configuration,
+          configuration ∈ allConfigurations (inferInstance) request.entries
+          -> configuration.nodes ⊆ carrier)
+    {configuration : Configuration Node}
+    (member : configuration ∈ allConfigurations (inferInstance) after.log)
+    : configuration.nodes ⊆ carrier := by
+  rcases List.mem_cons.mp member with rfl | physical
+  · exact old _ List.mem_cons_self
+  · obtain ⟨entry, inLog, content⟩ := configurationsInLogFrom_entry physical
+    rcases post.logMember inLog with inOld | inNew
+    · obtain ⟨found, inOld, foundEq⟩ := configurationsInLogFrom_of_entry (start := 1) inOld content
+      exact foundEq ▸ old found (List.mem_cons_of_mem _ inOld)
+    · obtain ⟨found, inNew, foundEq⟩ := configurationsInLogFrom_of_entry (start := 1) inNew content
+      exact foundEq ▸ learned found (List.mem_cons_of_mem _ inNew)
 
 /--
 The model handler of a node that does not step down either answers as the

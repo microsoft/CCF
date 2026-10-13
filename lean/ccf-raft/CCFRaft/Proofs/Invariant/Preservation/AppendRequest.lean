@@ -23,30 +23,6 @@ variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
-private lemma accepted_of_success
-    {self : Node} {before after : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
-    (notStepped
-      : ¬ (request.term = before.currentTerm
-            ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
-    (handled : handleAppendEntriesRequest? (inferInstance) self before request = some (after, response))
-    (success : response.success = true)
-    : acceptAppendEntriesRequest? (inferInstance) self before request = some (after, response) := by
-  simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
-  cases rejected : rejectAppendEntriesRequest? before request with
-  | none => simpa only [rejected] using handled
-  | some result =>
-      simp only [rejected] at handled
-      unfold rejectAppendEntriesRequest? at rejected
-      split at rejected
-      · have pair := Option.some.inj rejected
-        subst result
-        simp only [Option.some.injEq, Prod.mk.injEq] at handled
-        have failed := failureResponseMetadata before request
-        rw [handled.2] at failed
-        simp [failed] at success
-      · contradiction
-
 /-- Receiving an AppendEntries request preserves the full arbitrary-term invariant. -/
 lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
     (state : Model.State Node TxId)
@@ -66,7 +42,8 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
     (responseSource : response.1 = request.2.1)
     (responseDestination : response.2.1 = request.1)
     (handled
-      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1
+          ((nodeOf state) destination) request.2.2
         = some (nextNode, response.2.2))
     : SystemInductiveInvariant (joined := joinedNodes)
         {
@@ -171,7 +148,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
     · subst node
       have unchanged :=
         handleAppendEntriesRequestActiveUnchanged
-          notStepped handled oldActive
+          notStepped (queuedAppendRequestNotOwnTerm ownership requestMember) handled oldActive
       simp [after, present, nodeOf_replaceNode, unchanged]
     · simp [after, present, nodeOf_replaceNode, same]
   have committedSignatureAfter :
@@ -295,7 +272,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                   canonicalHistory owners ownership destination request nextNode
                   response.2.2 requestMember
                   (facts.networkHistory.appendRequest destination request requestMember).1
-                  notStepped handled index entry
+                  handled index entry
                   (by simpa [after, present, nodeOf_replaceNode] using found))
       · simpa [after, present, nodeOf_replaceNode, Function.update, same]
           using (ownership.logEntryAgreement node index entry
@@ -392,7 +369,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
         (facts.networkHistory.appendRequest destination request requestMember).1
         facts.commitIndicesBounded
         (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence facts) addressed
-        taken notStepped handled
+        taken handled
   have knownInherited :
       forall evidence supportedPrefix,
         KnownCommitEvidence
@@ -413,7 +390,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
       receiveAppendRequestKnownEvidenceInherited
         state source destination present request nextNode response.2.2 remaining
           appendHistory nodeEvidence requestEvidence evidenceFacts
-          facts.commitIndicesBounded addressed taken notStepped handled (by simpa only [responseKey, after, newNodeEvidence] using known)
+          facts.commitIndicesBounded addressed taken handled (by simpa only [responseKey, after, newNodeEvidence] using known)
   have termPositiveAfter :
       forall evidence supportedPrefix,
         KnownCommitEvidence
@@ -469,7 +446,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
             nodeEvidence requestEvidence evidenceFacts prospectiveFacts
             oldKnown oldAck requestMember
             (facts.networkHistory.appendRequest
-              destination request requestMember).1 notStepped handled
+              destination request requestMember).1 handled
       simpa [after, present, nodeOf_replaceNode, historySame, frontierSame] using retained
     · have old :=
         prospectiveFacts.currentMember
@@ -584,52 +561,28 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
     by_cases same : node = destination
     · subst node
       by_cases succeeded : response.2.2.success = true
-      · rcases post.logShape with unchanged | truncated | extended
-        · exact
-            (by
-            have oldMember :
-                entry ∈ ((nodeOf state) destination).log := by
-              simpa [after, present, nodeOf_replaceNode, unchanged] using member
-            simpa [termEq]
-              using facts.entriesDoNotExceedCurrentTerm destination entry oldMember)
-        · have oldMember :
-              entry ∈ ((nodeOf state) destination).log := by
+      · rcases post.logMember (by simpa [after, present, nodeOf_replaceNode] using member)
+          with oldMember | learned
+        · simpa [termEq]
+            using facts.entriesDoNotExceedCurrentTerm destination entry oldMember
+        · have historyMember : entry ∈ appendHistory request := by
             exact
               memOfPrefix
-                (List.take_prefix request.2.2.prevLogIndex _)
-                (by simpa [after, present, nodeOf_replaceNode, truncated] using member)
-          simpa [termEq]
-            using facts.entriesDoNotExceedCurrentTerm destination entry oldMember
-        · have nextMember :
-              entry ∈
-                ((nodeOf state) destination).log.take request.2.2.prevLogIndex ++
-                  request.2.2.entries := by
-            simpa [after, present, nodeOf_replaceNode, extended] using member
-          rcases List.mem_append.mp nextMember with old | learned
-          · have oldMember :
-                entry ∈ ((nodeOf state) destination).log :=
-              memOfPrefix
-                (List.take_prefix request.2.2.prevLogIndex _) old
-            simpa [termEq]
-              using facts.entriesDoNotExceedCurrentTerm destination entry oldMember
-          · have historyMember : entry ∈ appendHistory request := by
-              exact
-                memOfPrefix
-                  (List.take_prefix
-                    (request.2.2.prevLogIndex + request.2.2.entries.length) _)
-                  (by
-                    rw [
-                      (facts.networkHistory.appendRequest
-                        destination request requestMember).1.2.2
-                    ]
-                    exact List.mem_append_right _ learned)
-            have bounded :=
-              (ownership.queuedAppendMetadata
-                destination request requestMember).2.2
-                entry historyMember
-            simpa [
-              termEq, post.successfulCurrentTerm succeeded
-            ] using bounded
+                (List.take_prefix
+                  (request.2.2.prevLogIndex + request.2.2.entries.length) _)
+                (by
+                  rw [
+                    (facts.networkHistory.appendRequest
+                      destination request requestMember).1.2.2
+                  ]
+                  exact List.mem_append_right _ learned)
+          have bounded :=
+            (ownership.queuedAppendMetadata
+              destination request requestMember).2.2
+              entry historyMember
+          simpa [
+            termEq, post.successfulCurrentTerm succeeded
+          ] using bounded
       · have failed : response.2.2.success = false :=
           Bool.eq_false_of_not_eq_true succeeded
         have unchanged := post.failedStateUnchanged failed
@@ -758,8 +711,11 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
         Or.inr
           ⟨request, requestMember, rfl, requestDestination, requestTerm, Or.inl ?_, ?_⟩
       ⟩
-      · exact ⟨nextNode, response.2.2,
-          accepted_of_success notStepped handled succeeded, succeeded, acknowledged⟩
+      · have sameTerm := post.successfulCurrentTerm succeeded
+        have notLeader := queuedAppendRequestNotOwnTerm ownership requestMember
+        refine ⟨nextNode, response.2.2,
+          acceptedOfSuccess handled succeeded, succeeded, acknowledged, ?_⟩
+        cases role : ((nodeOf state) destination).role <;> simp_all
       · exact
           ownership.queuedActiveSourceHistory
             destination request requestMember requestTerm
@@ -909,8 +865,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
             destination request nextNode response.2.2 requestMember
             (facts.networkHistory.appendRequest
               destination request requestMember).1
-            (facts.commitIndicesBounded destination)
-            notStepped handled advanced
+            handled advanced
         have requestBound :
             frontier <=
               min request.2.2.leaderCommit
@@ -1215,7 +1170,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                   state votes appendHistory canonicalHistory owners ownership
                   destination request nextNode response.2.2 requestMember
                   (facts.networkHistory.appendRequest destination request requestMember).1
-                  notStepped handled succeeded retained activationInRequest
+                  handled succeeded retained activationInRequest
           · rcases
                 activationQuorums.queuedComparable
                   activationIndex activation destination request
@@ -1227,7 +1182,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                   state votes appendHistory canonicalHistory owners ownership
                   destination request nextNode response.2.2 requestMember
                   (facts.networkHistory.appendRequest destination request requestMember).1
-                  notStepped handled succeeded retained activationInRequest
+                  handled succeeded retained activationInRequest
             · have requestInNode :
                   appendHistory request <+:
                     ((nodeOf state) destination).log :=
@@ -1242,7 +1197,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                     destination request requestMember).1.1
               have unchanged :=
                 successfulAlreadyDoneAppendLogUnchanged
-                  already notStepped handled succeeded
+                  already handled succeeded
               exact Or.inl
                 (by simpa [after, present, nodeOf_replaceNode, unchanged] using retained)
         · have failed : response.2.2.success = false :=
@@ -1677,9 +1632,11 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
     have oldValid := knownCommitEvidenceValid evidenceFacts oldKnown
     calc
       evidence.authority
-          = currentConfigurationAt (inferInstance) evidence.history evidence.commitFrontier :=
+          = currentConfigurationAt (inferInstance) evidence.history
+              evidence.commitFrontier :=
         valid.2.2.2.2.1
-      _ = currentConfigurationAt (inferInstance) oldEvidence.history oldEvidence.commitFrontier := by
+      _ = currentConfigurationAt (inferInstance) oldEvidence.history
+            oldEvidence.commitFrontier := by
         rw [historySame, frontierSame]
       _ = oldEvidence.authority :=
         oldValid.2.2.2.2.1.symm
@@ -2168,34 +2125,12 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
       have nextMember :
           configuration ∈ allConfigurations (inferInstance) nextNode.log := by
         simpa [after, present, nodeOf_replaceNode] using member
-      rcases post.logShape with unchanged | truncated | extended
-      · apply joinedFromOld
-        simpa [unchanged] using nextMember
-      · apply joinedFromOld
-        exact
-          memOfPrefix
-            (allConfigurations_mono_prefix
-              (List.take_prefix request.2.2.prevLogIndex
-                ((nodeOf state) destination).log))
-            (by simpa [truncated] using nextMember)
-      · have carried :
-            configuration.nodes ⊆ joinedNodes :=
-          allConfigurations_append_nodes_carried
-            (((nodeOf state) destination).log.take request.2.2.prevLogIndex)
-            request.2.2.entries joinedNodes
-            (fun oldConfiguration oldMember =>
-              facts.joinedCarriers.configurationNodes
-                destination oldConfiguration
-                  (memOfPrefix
-                    (allConfigurations_mono_prefix
-                      (List.take_prefix request.2.2.prevLogIndex
-                        ((nodeOf state) destination).log))
-                    oldMember))
-            (facts.joinedCarriers.appendRequestConfigurations
-              destination request requestMember)
-            configuration
-            (by simpa [extended] using nextMember)
-        simpa [after, present] using carried inNodes
+      exact post.configurationCarried
+        (fun _ oldMember =>
+          facts.joinedCarriers.configurationNodes destination _ oldMember)
+        (facts.joinedCarriers.appendRequestConfigurations destination request
+          requestMember)
+        nextMember inNodes
     · apply joinedFromOld
       simpa [after, present, nodeOf_replaceNode, Function.update, same] using member
   refine ⟨
@@ -2614,7 +2549,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
       · rw [post.successfulResponseTerm success]
         exact facts.currentTermsValid destination
       · rw [post.failedResponse (Bool.eq_false_of_not_eq_true success)]
-        unfold failureResponse
+        unfold appendEntriesNack
         dsimp only
         split_ifs <;> first
         | exact facts.currentTermsValid destination
@@ -2645,7 +2580,8 @@ lemma receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
     (responseSource : response.1 = request.2.1)
     (responseDestination : response.2.1 = request.1)
     (handled
-      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1
+          ((nodeOf state) destination) request.2.2
         = some (nextNode, response.2.2))
     : SystemInductiveInvariant (joined := joinedNodes)
         {
