@@ -19,6 +19,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <new>
 #include <set>
 
 #ifdef ENABLE_HISTORICAL_VERBOSE_LOGGING
@@ -111,6 +112,36 @@ namespace ccf::historical
     return tree->get();
   }
 
+  // The TxID which a signature transaction declares for itself, taken from
+  // its raw signature where present, else from its described COSE signature.
+  // Returns nullopt if the store contains neither.
+  static std::optional<ccf::TxID> get_declared_signature_txid(
+    const ccf::kv::StorePtr& sig_store)
+  {
+    const auto sig = get_signature(sig_store);
+    if (sig.has_value())
+    {
+      return ccf::TxID{sig->view, sig->seqno};
+    }
+
+    const auto described_cose_sig =
+      select_described_cose_signature(get_cose_signatures(sig_store));
+    if (described_cose_sig.has_value())
+    {
+      const auto cose_receipt =
+        ccf::cose::decode_ccf_receipt(described_cose_sig.value(), false);
+      const auto& txid = cose_receipt.phdr.ccf.txid;
+      const auto parsed_txid = ccf::TxID::from_str(txid);
+      if (!parsed_txid.has_value())
+      {
+        throw std::logic_error(fmt::format("Cannot parse CCF TxID: {}", txid));
+      }
+      return parsed_txid;
+    }
+
+    return std::nullopt;
+  }
+
   class StateCacheImpl
   {
   protected:
@@ -191,6 +222,116 @@ namespace ccf::historical
     using WeakStoreDetailsPtr = std::weak_ptr<StoreDetails>;
     using AllRequestedStores = std::map<ccf::SeqNo, WeakStoreDetailsPtr>;
 
+    struct ReplyConsumerIndex
+    {
+      enum class Role : uint8_t
+      {
+        Direct = 0b001,
+        SupportingSignature = 0b010,
+        LedgerSecret = 0b100,
+      };
+
+      struct Consumers
+      {
+        std::map<CompoundHandle, uint8_t> roles;
+        size_t secret_waiters = 0;
+      };
+
+      std::map<ccf::SeqNo, Consumers> entries;
+
+      bool add(ccf::SeqNo seqno, const CompoundHandle& handle, Role role)
+      {
+        auto [it, _] = entries.try_emplace(seqno);
+        auto& consumers = it->second;
+        try
+        {
+          auto [consumer_it, inserted] = consumers.roles.try_emplace(handle, 0);
+          auto& roles = consumer_it->second;
+          const auto mask = static_cast<uint8_t>(role);
+          if ((roles & mask) != 0)
+          {
+            return false;
+          }
+          roles |= mask;
+          if (role == Role::LedgerSecret)
+          {
+            ++consumers.secret_waiters;
+          }
+          return true;
+        }
+        catch (const std::bad_alloc&)
+        {
+          if (consumers.roles.empty())
+          {
+            entries.erase(it);
+          }
+          throw;
+        }
+      }
+
+      void remove(ccf::SeqNo seqno, const CompoundHandle& handle, Role role)
+      {
+        auto it = entries.find(seqno);
+        if (it == entries.end())
+        {
+          throw std::logic_error("Missing historical reply consumer bucket");
+        }
+        auto& consumers = it->second;
+        auto consumer_it = consumers.roles.find(handle);
+        const auto mask = static_cast<uint8_t>(role);
+        if (
+          consumer_it == consumers.roles.end() ||
+          (consumer_it->second & mask) == 0)
+        {
+          throw std::logic_error("Missing historical reply consumer role");
+        }
+        consumer_it->second &= ~mask;
+        if (role == Role::LedgerSecret)
+        {
+          --consumers.secret_waiters;
+        }
+        if (consumer_it->second == 0)
+        {
+          consumers.roles.erase(consumer_it);
+        }
+        if (consumers.roles.empty())
+        {
+          entries.erase(it);
+        }
+      }
+
+      [[nodiscard]] bool has_secret_waiters(ccf::SeqNo seqno) const
+      {
+        const auto it = entries.find(seqno);
+        return it != entries.end() && it->second.secret_waiters != 0;
+      }
+
+      [[nodiscard]] std::vector<CompoundHandle> snapshot(ccf::SeqNo seqno) const
+      {
+        std::vector<CompoundHandle> handles;
+        const auto it = entries.find(seqno);
+        if (it != entries.end())
+        {
+          handles.reserve(it->second.roles.size());
+          for (const auto& [handle, _] : it->second.roles)
+          {
+            handles.push_back(handle);
+          }
+        }
+        return handles;
+      }
+    };
+
+  private:
+    // Non-owning routing, distinct from store_to_requests byte accounting.
+    ReplyConsumerIndex reply_consumers;
+
+  protected:
+    const ReplyConsumerIndex& get_reply_consumer_index() const
+    {
+      return reply_consumers;
+    }
+
     // Bookkeeping which lets tick visit only the stores which need work,
     // rather than every entry in all_stores. StatePtr owns payloads rather
     // than StoreDetails, so wrappers are only created and released under
@@ -241,6 +382,8 @@ namespace ccf::historical
     {
       AllRequestedStores& all_stores;
       StoreMaintenance& maintenance;
+      ReplyConsumerIndex& reply_consumers;
+      const CompoundHandle handle;
 
       RequestedStores my_stores;
       std::chrono::milliseconds expiry_at{};
@@ -255,10 +398,36 @@ namespace ccf::historical
       // Only set when recovering ledger secrets
       std::optional<ccf::SeqNo> awaiting_ledger_secrets = std::nullopt;
 
-      Request(AllRequestedStores& all_stores_, StoreMaintenance& maintenance_) :
+      Request(
+        AllRequestedStores& all_stores_,
+        StoreMaintenance& maintenance_,
+        ReplyConsumerIndex& reply_consumers_,
+        CompoundHandle handle_) :
         all_stores(all_stores_),
-        maintenance(maintenance_)
+        maintenance(maintenance_),
+        reply_consumers(reply_consumers_),
+        handle(std::move(handle_))
       {}
+
+      void set_awaiting_ledger_secrets(std::optional<ccf::SeqNo> seqno)
+      {
+        if (seqno == awaiting_ledger_secrets)
+        {
+          return;
+        }
+        if (seqno.has_value())
+        {
+          reply_consumers.add(
+            *seqno, handle, ReplyConsumerIndex::Role::LedgerSecret);
+        }
+        const auto previous = awaiting_ledger_secrets;
+        awaiting_ledger_secrets = seqno;
+        if (previous.has_value())
+        {
+          reply_consumers.remove(
+            *previous, handle, ReplyConsumerIndex::Role::LedgerSecret);
+        }
+      }
 
       [[nodiscard]] StoreDetailsPtr get_store_details(ccf::SeqNo seqno) const
       {
@@ -330,6 +499,8 @@ namespace ccf::historical
                 supporting_signatures.end())
               {
                 removed.push_back(prev_it->first);
+                reply_consumers.remove(
+                  prev_it->first, handle, ReplyConsumerIndex::Role::Direct);
                 prev_it = my_stores.erase(prev_it);
               }
               else
@@ -348,7 +519,12 @@ namespace ccf::historical
                 // If this is too early for known secrets, just record that it
                 // was requested but don't add it to all_stores yet
                 added.push_back(*new_it);
-                prev_it = my_stores.insert_or_assign(prev_it, *new_it, nullptr);
+                prev_it = set_store_dependency(
+                  my_stores,
+                  prev_it,
+                  *new_it,
+                  nullptr,
+                  ReplyConsumerIndex::Role::Direct);
                 any_too_early = true;
               }
               else
@@ -364,7 +540,12 @@ namespace ccf::historical
                   maintenance.track(*new_it, details);
                 }
                 added.push_back(*new_it);
-                prev_it = my_stores.insert_or_assign(prev_it, *new_it, details);
+                prev_it = set_store_dependency(
+                  my_stores,
+                  prev_it,
+                  *new_it,
+                  details,
+                  ReplyConsumerIndex::Role::Direct);
               }
             }
           }
@@ -381,6 +562,8 @@ namespace ccf::historical
                 supporting_signatures.end())
               {
                 removed.push_back(it->first);
+                reply_consumers.remove(
+                  it->first, handle, ReplyConsumerIndex::Role::Direct);
                 it = my_stores.erase(it);
               }
               else
@@ -412,6 +595,11 @@ namespace ccf::historical
         for (const auto& [seqno, _] : supporting_signatures)
         {
           maintenance.release(seqno);
+        }
+        for (const auto& [seqno, _] : supporting_signatures)
+        {
+          reply_consumers.remove(
+            seqno, handle, ReplyConsumerIndex::Role::SupportingSignature);
         }
         supporting_signatures.clear();
         if (should_include_receipts)
@@ -478,8 +666,15 @@ namespace ccf::historical
             // the code much simpler.
 
             HISTORICAL_LOG("{} is not a signature", new_seqno);
-            if (supporting_signatures.erase(new_seqno) > 0)
+            const auto previous_supporting_it =
+              supporting_signatures.find(new_seqno);
+            if (previous_supporting_it != supporting_signatures.end())
             {
+              reply_consumers.remove(
+                new_seqno,
+                handle,
+                ReplyConsumerIndex::Role::SupportingSignature);
+              supporting_signatures.erase(previous_supporting_it);
               maintenance.release(new_seqno);
             }
 
@@ -513,7 +708,12 @@ namespace ccf::historical
                     new_seqno,
                     next_seqno);
                   added.push_back(next_seqno);
-                  my_stores.insert_or_assign(my_it, next_seqno, details);
+                  set_store_dependency(
+                    my_stores,
+                    my_it,
+                    next_seqno,
+                    details,
+                    ReplyConsumerIndex::Role::Direct);
                 }
 
                 all_stores.insert_or_assign(all_it, next_seqno, details);
@@ -529,12 +729,21 @@ namespace ccf::historical
                   "Assigning {} as potential signature for {}",
                   next_seqno,
                   new_seqno);
-                auto& supporting = supporting_signatures[next_seqno];
-                if (supporting != nullptr && supporting != details)
+                const auto supporting_it =
+                  supporting_signatures.find(next_seqno);
+                if (
+                  supporting_it != supporting_signatures.end() &&
+                  supporting_it->second != nullptr &&
+                  supporting_it->second != details)
                 {
                   maintenance.release(next_seqno);
                 }
-                supporting = details;
+                set_store_dependency(
+                  supporting_signatures,
+                  supporting_it,
+                  next_seqno,
+                  details,
+                  ReplyConsumerIndex::Role::SupportingSignature);
                 return added;
               }
 
@@ -569,6 +778,30 @@ namespace ccf::historical
       }
 
     private:
+      RequestedStores::iterator set_store_dependency(
+        RequestedStores& stores,
+        RequestedStores::const_iterator hint,
+        ccf::SeqNo seqno,
+        const StoreDetailsPtr& details,
+        ReplyConsumerIndex::Role role)
+      {
+        // Register before publishing a dependency; roll back only the new
+        // role if the forward map allocation fails.
+        const bool added = reply_consumers.add(seqno, handle, role);
+        try
+        {
+          return stores.insert_or_assign(hint, seqno, details);
+        }
+        catch (const std::bad_alloc&)
+        {
+          if (added)
+          {
+            reply_consumers.remove(seqno, handle, role);
+          }
+          throw;
+        }
+      }
+
       bool fill_receipts_from_signature(
         const std::shared_ptr<StoreDetails>& sig_details,
         std::optional<ccf::SeqNo> should_fill = std::nullopt)
@@ -607,51 +840,56 @@ namespace ccf::historical
               auto details = search_rit->second;
               if (details != nullptr && details->store != nullptr)
               {
-                auto proof = tree.get_proof(seqno);
-
-                if (sig.has_value())
+                if (details->receipt == nullptr)
                 {
-                  details->transaction_id = {sig->view, seqno};
-                  details->receipt = std::make_shared<TxReceiptImpl>(
-                    sig->sig,
-                    cose_sigs,
-                    proof.get_root(),
-                    proof.get_path(),
-                    sig->node,
-                    sig->cert,
-                    details->entry_digest,
-                    details->get_commit_evidence(),
-                    details->claims_digest);
+                  auto proof = tree.get_proof(seqno);
+
+                  if (sig.has_value())
+                  {
+                    details->receipt = std::make_shared<TxReceiptImpl>(
+                      sig->sig,
+                      cose_sigs,
+                      proof.get_root(),
+                      proof.get_path(),
+                      sig->node,
+                      sig->cert,
+                      details->entry_digest,
+                      details->get_commit_evidence(),
+                      details->claims_digest);
+                  }
+                  else
+                  {
+                    details->receipt = std::make_shared<TxReceiptImpl>(
+                      std::nullopt,
+                      cose_sigs,
+                      proof.get_root(),
+                      proof.get_path(),
+                      ccf::NodeId{},
+                      std::nullopt,
+                      details->entry_digest,
+                      details->get_commit_evidence(),
+                      details->claims_digest);
+                  }
+
+                  HISTORICAL_LOG(
+                    "Assigned a receipt for {} after given signature at {}",
+                    seqno,
+                    sig_details->transaction_id.to_str());
                 }
                 else
                 {
-                  auto cose_receipt = ccf::cose::decode_ccf_receipt(
-                    described_cose_sig.value(), false);
-                  auto parsed_txid =
-                    ccf::TxID::from_str(cose_receipt.phdr.ccf.txid);
-                  if (!parsed_txid.has_value())
-                  {
-                    throw std::logic_error(fmt::format(
-                      "Cannot parse CCF TxID: {}", cose_receipt.phdr.ccf.txid));
-                  }
-
-                  details->transaction_id = {parsed_txid->view, seqno};
-                  details->receipt = std::make_shared<TxReceiptImpl>(
-                    std::nullopt,
-                    cose_sigs,
-                    proof.get_root(),
-                    proof.get_path(),
-                    ccf::NodeId{},
-                    std::nullopt,
-                    details->entry_digest,
-                    details->get_commit_evidence(),
-                    details->claims_digest);
+                  // Every receipt we construct is valid, so keep the first
+                  // one rather than letting later signatures replace it. This
+                  // keeps the receipt for a given seqno stable, regardless of
+                  // the order in which entries arrive or which other requests
+                  // share this store. In particular, signature transactions
+                  // keep the receipt formed from their own signature.
+                  HISTORICAL_LOG(
+                    "Keeping existing receipt for {}, not replacing it with "
+                    "one from signature at {}",
+                    seqno,
+                    sig_details->transaction_id.to_str());
                 }
-
-                HISTORICAL_LOG(
-                  "Assigned a receipt for {} after given signature at {}",
-                  seqno,
-                  sig_details->transaction_id.to_str());
 
                 if (should_fill.has_value() && seqno == *should_fill)
                 {
@@ -704,6 +942,14 @@ namespace ccf::historical
       size_t pending_fetches_visited = 0;
     };
     TickWork last_tick_work;
+
+    // Reset for every handle_ledger_entry attempt, including rejected entries.
+    // Count actual consumer handles, once each even with overlapping roles.
+    struct ReplyWork
+    {
+      size_t requests_visited = 0;
+    };
+    ReplyWork last_reply_work;
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
@@ -855,6 +1101,22 @@ namespace ccf::historical
       }
       expiry_order.erase({request.expiry_at, handle});
       lru_evict(handle);
+      for (const auto& [seqno, _] : request.my_stores)
+      {
+        reply_consumers.remove(seqno, handle, ReplyConsumerIndex::Role::Direct);
+      }
+      for (const auto& [seqno, _] : request.supporting_signatures)
+      {
+        reply_consumers.remove(
+          seqno, handle, ReplyConsumerIndex::Role::SupportingSignature);
+      }
+      if (request.awaiting_ledger_secrets.has_value())
+      {
+        reply_consumers.remove(
+          *request.awaiting_ledger_secrets,
+          handle,
+          ReplyConsumerIndex::Role::LedgerSecret);
+      }
       return requests.erase(it);
     }
 
@@ -1003,7 +1265,8 @@ namespace ccf::historical
       ccf::SeqNo seqno,
       bool is_signature,
       ccf::ClaimsDigest&& claims_digest,
-      bool has_commit_evidence)
+      bool has_commit_evidence,
+      const std::vector<CompoundHandle>& consumers)
     {
       // Deserialisation includes a GCM integrity check, so all entries
       // have been verified by the time we get here.
@@ -1023,6 +1286,13 @@ namespace ccf::historical
         seqno);
       details->store = store;
 
+      // Every entry's TxID comes from the entry itself (validated against
+      // this service's view history in handle_ledger_entry), including
+      // signature transactions. Receipts and callers rely on this being the
+      // view the transaction was committed in, not the view of whichever
+      // signature later produced a receipt for it.
+      details->transaction_id = store->current_txid();
+
       details->is_signature = is_signature;
       if (is_signature)
       {
@@ -1037,23 +1307,11 @@ namespace ccf::historical
           select_described_cose_signature(cose_sigs);
         if (sig.has_value())
         {
-          details->transaction_id = {sig->view, sig->seqno};
           details->receipt = std::make_shared<TxReceiptImpl>(
             sig->sig, cose_sigs, sig->root.h, nullptr, sig->node, sig->cert);
         }
         else if (described_cose_sig.has_value())
         {
-          auto as_receipt =
-            ccf::cose::decode_ccf_receipt(described_cose_sig.value(), false);
-          const auto& txid = as_receipt.phdr.ccf.txid;
-          auto parsed_txid = ccf::TxID::from_str(txid);
-
-          if (!parsed_txid.has_value())
-          {
-            throw std::logic_error(
-              fmt::format("Cannot parse CCF TxID: {}", txid));
-          }
-          details->transaction_id = parsed_txid.value();
           details->receipt = std::make_shared<TxReceiptImpl>(
             std::nullopt,
             cose_sigs,
@@ -1069,10 +1327,10 @@ namespace ccf::historical
         }
       }
 
-      auto request_it = requests.begin();
-      while (request_it != requests.end())
+      for (const auto& handle : consumers)
       {
-        auto& [handle, request] = *request_it;
+        ++last_reply_work.requests_visited;
+        auto& request = requests.at(handle);
 
         // If this request was still waiting for a ledger secret, and this is
         // that secret
@@ -1083,8 +1341,8 @@ namespace ccf::historical
           LOG_TRACE_FMT(
             "{} is a ledger secret seqno this request was waiting for", seqno);
 
-          request.awaiting_ledger_secrets =
-            fetch_supporting_secret_if_needed(request.first_requested_seqno());
+          request.set_awaiting_ledger_secrets(
+            fetch_supporting_secret_if_needed(request.first_requested_seqno()));
           if (!request.awaiting_ledger_secrets.has_value())
           {
             // Newly have all required secrets - begin fetching the actual
@@ -1117,7 +1375,6 @@ namespace ccf::historical
           }
 
           // In either case, done with this request, try the next
-          ++request_it;
           continue;
         }
 
@@ -1136,8 +1393,6 @@ namespace ccf::historical
             }
           }
         }
-
-        ++request_it;
       }
     }
 
@@ -1251,8 +1506,10 @@ namespace ccf::historical
       if (it == requests.end())
       {
         // This is a new handle - insert a newly created Request for it
-        it =
-          requests.emplace_hint(it, handle, Request(all_stores, maintenance));
+        it = requests.emplace_hint(
+          it,
+          handle,
+          Request(all_stores, maintenance, reply_consumers, handle));
         HISTORICAL_LOG("First time I've seen handle {}", handle);
       }
       else
@@ -1294,8 +1551,8 @@ namespace ccf::historical
       // If the earliest target entry cannot be deserialised with the earliest
       // known ledger secret, record the target seqno and begin fetching the
       // previous historical ledger secret.
-      request.awaiting_ledger_secrets =
-        fetch_supporting_secret_if_needed(request.first_requested_seqno());
+      request.set_awaiting_ledger_secrets(
+        fetch_supporting_secret_if_needed(request.first_requested_seqno()));
 
       std::vector<StatePtr> trusted_states;
 
@@ -1516,6 +1773,7 @@ namespace ccf::historical
     bool handle_ledger_entry(ccf::SeqNo seqno, const uint8_t* data, size_t size)
     {
       std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+      last_reply_work = {};
       const auto it = all_stores.find(seqno);
       auto details = it == all_stores.end() ? nullptr : it->second.lock();
       if (details == nullptr || details->current_stage != StoreStage::Fetching)
@@ -1540,6 +1798,9 @@ namespace ccf::historical
       {
         return false;
       }
+
+      const auto is_signature =
+        deserialise_result == ccf::kv::ApplyResult::PASS_SIGNATURE;
 
       {
         // Confirm this entry is from a precursor of the current state, and not
@@ -1575,10 +1836,29 @@ namespace ccf::historical
             seqno);
           return false;
         }
+
+        if (is_signature)
+        {
+          // Receipts are produced from the signature's tree, so the TxID a
+          // signature declares for itself must be the TxID of the entry
+          // which contains it
+          const auto declared_txid = get_declared_signature_txid(store);
+          if (declared_txid.has_value() && declared_txid.value() != tx_id)
+          {
+            LOG_FAIL_FMT(
+              "Corrupt ledger entry received - signature at {}.{} declares "
+              "itself to be {}",
+              tx_id.view,
+              tx_id.seqno,
+              declared_txid->to_str());
+            return false;
+          }
+        }
       }
 
-      const auto is_signature =
-        deserialise_result == ccf::kv::ApplyResult::PASS_SIGNATURE;
+      // Allocate before publishing stores or recovered secrets. Processing a
+      // consumer may change this index, so visit the original ordered handles.
+      const auto consumers = reply_consumers.snapshot(seqno);
 
       update_earliest_known_ledger_secret();
 
@@ -1612,7 +1892,8 @@ namespace ccf::historical
         seqno,
         is_signature,
         std::move(claims_digest),
-        has_commit_evidence);
+        has_commit_evidence,
+        consumers);
 
       update_store_raw_size(seqno, size);
       return true;
@@ -1741,16 +2022,7 @@ namespace ccf::historical
         // Merkle tree integrity is not verified: even if the recovered ledger
         // secret was bogus, the deserialisation of subsequent ledger entries
         // would fail.
-        bool public_only = false;
-        for (const auto& [_, request] : requests)
-        {
-          const auto& als = request.awaiting_ledger_secrets;
-          if (als.has_value() && als.value() == seqno)
-          {
-            public_only = true;
-            break;
-          }
-        }
+        const bool public_only = reply_consumers.has_secret_waiters(seqno);
 
         auto exec = store->deserialize({data, data + size}, public_only);
         if (exec == nullptr)

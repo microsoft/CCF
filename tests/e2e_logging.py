@@ -2041,6 +2041,81 @@ def test_random_receipts(
     return network
 
 
+@reqs.description("Receipts stay valid after a range query spanning a view change")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
+@reqs.at_least_n_nodes(2)
+def test_historical_receipts_across_views(network, args):
+    idx = 20000
+    service_key = get_service_key(network)
+    primary, backup = network.find_primary_and_any_backup()
+
+    # Add a node so that the remaining nodes can elect a replacement primary
+    new_node = network.create_node()
+    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.trust_node(new_node, args)
+
+    first_tx = network.txs.issue(network, number_txs=1, idx=idx, send_private=False)
+
+    # Retiring the primary forces a view change. The successor only learns
+    # that the final transactions of the old view are committed once it has
+    # signed in the new view, so its first signature's Merkle tree still
+    # covers them, and a range query uses that later signature to produce
+    # receipts for those old-view transactions.
+    network.retire_node(primary, primary, timeout=15)
+    primary.stop()
+    network.wait_for_new_primary(primary, nodes=[backup])
+
+    second_tx = network.txs.issue(network, number_txs=1, idx=idx, send_private=False)
+    assert second_tx.view > first_tx.view, (first_tx, second_tx)
+
+    with backup.client("user0") as c:
+        r = c.get("/node/commit?view_history=true")
+        assert r.status_code == http.HTTPStatus.OK, r
+        view_starts = [TxID.from_str(s) for s in r.body.json()["view_history"]]
+
+        def view_of(seqno):
+            return max(tx_id.view for tx_id in view_starts if tx_id.seqno <= seqno)
+
+        def check_receipts():
+            for seqno in range(first_tx.seqno, second_tx.seqno + 1):
+                tx_id = TxID(view_of(seqno), seqno)
+                end_time = time.time() + 3.0
+                while True:
+                    rc = c.get(f"/node/receipt/cose?transaction_id={tx_id}")
+                    if rc.status_code != http.HTTPStatus.ACCEPTED:
+                        break
+                    assert time.time() < end_time, f"Timed out fetching {tx_id}"
+                    time.sleep(0.1)
+                if rc.status_code == http.HTTPStatus.NOT_FOUND:
+                    # Signature transactions have no COSE receipt
+                    continue
+                assert rc.status_code == http.HTTPStatus.OK, rc
+                receipt_bytes = rc.body.data()
+                # Leaf of the inclusion proof, as [write set digest, commit
+                # evidence, claims digest]. Governance transactions carry
+                # claims, so the digest is taken from the leaf rather than
+                # assumed, but the commit evidence must name this transaction
+                _, uhdr, _, _ = cbor2.loads(receipt_bytes).value
+                leaf = cbor2.loads(uhdr[396][-1][0])[1]
+                assert leaf[1].startswith(f"ce:{tx_id}:"), (tx_id, leaf[1])
+                ccf.receipt.verify_cose(receipt_bytes, service_key, leaf[2])
+
+        # Each of these point queries creates a historical request on the
+        # backup which outlives this call, keeping the transaction's cached
+        # state (and receipt) alive
+        check_receipts()
+
+        # Range query over the same transactions, including both views
+        network.txs.verify_range_for_idx(
+            idx, node=backup, from_seqno=first_tx.seqno, to_seqno=second_tx.seqno
+        )
+
+        # Cached receipts must still verify
+        check_receipts()
+
+    return network
+
+
 @reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
 @app.scoped_txs()
@@ -2659,6 +2734,9 @@ def do_main_tests(network, args):
     is_cose_only_from_genesis = args.package.endswith("_cose_only")
     if is_cose_only_from_genesis and not args.http2:
         test_cose_set_member(network, args)
+
+    # Last, as it retires the primary
+    test_historical_receipts_across_views(network, args)
 
 
 def run_parsing_errors(args):
