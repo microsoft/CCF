@@ -15,17 +15,13 @@ namespace CCFRaft.Proofs.Invariant
 open CCFRaft.Proofs.Config
 
 open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
+  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState
+    PreVoteStatus Role becomeCandidateNodeState campaignEligible
+    configurationHistory configurationMembers entryAt? findHighestPossibleMatch
+    firstLogIndexAfter hasConfigurationMajority initialNodeState isSignatureAt
+    lastCommittableIndex lastCommittableTerm maxCommittableIndex maxCommittableIndexUpTo
+    maxCommittableTerm messageEntries refreshRetirementState retiredCommittedNodes
+    retirementIndexInLog termAt
   )
 open CCFRaft.Proofs.Ledger
 
@@ -67,11 +63,11 @@ lemma ConfigurationCoverageWitness.ballotConfigurationCoverage
   intro _positive
   refine ⟨witness.activationIndex, witness.activation, witness.stored, ?_, ?_, ?_, ?_⟩
   · simpa [
-      currentConfiguration (inferInstance), ballotLog, ballotCommitIndex
+      currentConfiguration, ballotLog, ballotCommitIndex
     ] using witness.configurationCovered
   · simpa [ballotTerm] using witness.candidateTermStrict role
   · simpa [
-      currentConfiguration (inferInstance), ballotLog, ballotCommitIndex
+      currentConfiguration, ballotLog, ballotCommitIndex
     ] using witness.configurationIndexBound
   · simpa [ballotLog, ballotCommitIndex] using witness.historyAgreement
 
@@ -265,7 +261,8 @@ lemma configuration_mem_activationHistoryTake
     (historyFacts : ActivationHistoryFacts activations)
     (witness : ConfigurationCoverageWitness state activations node)
     : currentConfiguration (inferInstance) ((nodeOf state) node)
-      ∈ allConfigurations (inferInstance) (witness.activation.history.take witness.sharedFrontier) := by
+      ∈ allConfigurations (inferInstance)
+          (witness.activation.history.take witness.sharedFrontier) := by
   let sharedFrontier := witness.sharedFrontier
   have valid := witness.activationValid historyFacts
   have known :
@@ -313,7 +310,7 @@ lemma configurationIndex_le_activationConfiguration
       (currentConfiguration (inferInstance) ((nodeOf state) node))
       (by simpa [activationState] using known)
       (by simpa [activationState] using within)
-  simpa [activationState, currentConfiguration (inferInstance), valid.2.2.2.1] using ordered
+  simpa [activationState, currentConfiguration, valid.2.2.2.1] using ordered
 
 omit [DecidableEq TxId] in
 /-- The stable shared prefix precedes every strictly higher activation event. -/
@@ -343,7 +340,8 @@ lemma lowerAuthority_prefix_sharedPrefix
     {lower : ActivationRecord Node TxId}
     (stored : activations lowerIndex = some lower)
     (order
-      : lower.newConfiguration.index < (currentConfiguration (inferInstance) ((nodeOf state) node)).index)
+      : lower.newConfiguration.index
+        < (currentConfiguration (inferInstance) ((nodeOf state) node)).index)
     : lower.history.take lower.activationFrontier <+: witness.sharedPrefix := by
   simpa [sharedPrefix, sharedFrontier]
     using witness.lowerAuthority lowerIndex lower stored order
@@ -359,8 +357,10 @@ lemma sameAuthority_configurationEq
     {same : ActivationRecord Node TxId}
     (stored : activations sameIndex = some same)
     (sameConfigurationIndex
-      : same.newConfiguration.index = (currentConfiguration (inferInstance) ((nodeOf state) node)).index)
-    : same.newConfiguration = currentConfiguration (inferInstance) ((nodeOf state) node) :=
+      : same.newConfiguration.index
+        = (currentConfiguration (inferInstance) ((nodeOf state) node)).index)
+    : same.newConfiguration
+      = currentConfiguration (inferInstance) ((nodeOf state) node) :=
   witness.sameAuthority sameIndex same stored sameConfigurationIndex
 
 omit [DecidableEq TxId] in
@@ -396,8 +396,10 @@ lemma configurationCoverageCurrentIndexUnique
     (historyFacts : ActivationHistoryFacts activations)
     (coverage : ConfigurationCoverageFacts state activations)
     {left right : Node}
-    (leftPositive : 0 < (currentConfiguration (inferInstance) ((nodeOf state) left)).index)
-    (rightPositive : 0 < (currentConfiguration (inferInstance) ((nodeOf state) right)).index)
+    (leftPositive
+      : 0 < (currentConfiguration (inferInstance) ((nodeOf state) left)).index)
+    (rightPositive
+      : 0 < (currentConfiguration (inferInstance) ((nodeOf state) right)).index)
     (sameIndex
       : (currentConfiguration (inferInstance) ((nodeOf state) left)).index
         = (currentConfiguration (inferInstance) ((nodeOf state) right)).index)

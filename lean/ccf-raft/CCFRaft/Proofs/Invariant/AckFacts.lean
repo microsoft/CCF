@@ -22,47 +22,43 @@ theorem canProduceAppendAckAt_iff (node : NodeState Node TxId)
     (request : AppendRequestKey Node TxId) (index : Nat)
     : canProduceAppendAckAt node request index
       ↔ request.2.2.term = node.currentTerm
-        ∧ node.role = .follower
         ∧ logOk node request.2.2
         ∧ node.commitIndex ≤ request.2.2.prevLogIndex
-        ∧ index ≤ request.2.2.prevLogIndex + request.2.2.entries.length
-        ∧ (alreadyDone node request.2.2
-            ∨ noConflictExtension node request.2.2
-            ∨ (hasTermConflict node request.2.2
-                ∧ node.isNewFollower = true
-                ∧ (alreadyDone
-                      {
-                        node with
-                          log := node.log.take request.2.2.prevLogIndex
-                          isNewFollower := false
-                      }
-                      request.2.2
-                    ∨ noConflictExtension
-                        {
-                          node with
-                            log := node.log.take request.2.2.prevLogIndex
-                            isNewFollower := false
-                        }
-                        request.2.2))) := by
-  unfold canProduceAppendAckAt acceptAppendEntriesRequest?
-  split_ifs with accepted
-  · simp only [accepted, true_and]
-    unfold appendEntriesAlreadyDone? noConflictAppendEntriesRequest? conflictAppendEntriesRequest?
-    split_ifs <;> simp_all [successResponse, noConflictExtension, List.length_take,
-      Nat.min_eq_left, List.take_take]
-    all_goals split_ifs <;> simp_all [successResponse, noConflictExtension,
-      List.length_take, Nat.min_eq_left, List.take_take]
-  · simp_all
+        ∧ ¬(hasTermConflict node request.2.2 ∧ node.isNewFollower = false)
+        ∧ index ≤ request.2.2.prevLogIndex + request.2.2.entries.length := by
+  constructor
+  · rintro ⟨next, response, accepted, -, covered⟩
+    obtain ⟨term, matching, committed, shape, -, -, -, -, -, -, -, -, -, rfl⟩ :=
+      acceptAppendEntriesRequest_eq accepted
+    refine ⟨term, matching, committed, ?_, covered⟩
+    rintro ⟨conflict, fresh⟩
+    rcases shape with ⟨noConflict, -⟩ | ⟨-, fresh', -⟩
+    · exact noConflict conflict
+    · simp [fresh] at fresh'
+  · rintro ⟨term, matching, committed, notBlocked, covered⟩
+    have enabled :
+        request.2.2.term = node.currentTerm
+          ∧ logOk node request.2.2
+          ∧ node.commitIndex ≤ request.2.2.prevLogIndex
+          ∧ ¬(hasTermConflict node request.2.2 ∧ (!node.isNewFollower) = true) :=
+      ⟨term, matching, committed, by simpa using notBlocked⟩
+    have isSome : (acceptAppendEntriesRequest? (inferInstance) request.2.1 node
+        request.2.2).isSome := by
+      unfold acceptAppendEntriesRequest?
+      split_ifs
+      rfl
+    obtain ⟨⟨next, response⟩, accepted⟩ := Option.isSome_iff_exists.mp isSome
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := acceptAppendEntriesRequest_eq accepted
+    exact ⟨next, _, accepted, rfl, covered⟩
 
 theorem canProduceAppendAckAt_frame
     {before after : NodeState Node TxId}
-    (role : after.role = before.role) (term : after.currentTerm = before.currentTerm)
+    (term : after.currentTerm = before.currentTerm)
     (log : after.log = before.log) (commit : after.commitIndex = before.commitIndex)
     (follower : after.isNewFollower = before.isNewFollower)
     (request : AppendRequestKey Node TxId) (index : Nat)
     : canProduceAppendAckAt after request index
       ↔ canProduceAppendAckAt before request index := by
-  simp only [canProduceAppendAckAt_iff, logOk, alreadyDone, noConflictExtension,
-    hasTermConflict, overlapLength, role, term, log, commit, follower]
+  simp only [canProduceAppendAckAt_iff, logOk, hasTermConflict, term, log, commit, follower]
 
 end CCFRaft.Proofs.Invariant

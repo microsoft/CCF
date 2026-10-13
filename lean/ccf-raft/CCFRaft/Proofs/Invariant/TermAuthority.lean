@@ -15,17 +15,13 @@ namespace CCFRaft.Proofs.Invariant
 open CCFRaft.Proofs.Config
 
 open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
+  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState
+    PreVoteStatus Role becomeCandidateNodeState campaignEligible
+    configurationHistory configurationMembers entryAt? findHighestPossibleMatch
+    firstLogIndexAfter hasConfigurationMajority initialNodeState isSignatureAt
+    lastCommittableIndex lastCommittableTerm maxCommittableIndex maxCommittableIndexUpTo
+    maxCommittableTerm messageEntries refreshRetirementState retiredCommittedNodes
+    retirementIndexInLog termAt
   )
 open CCFRaft.Proofs.Ledger
 
@@ -99,10 +95,10 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
     (candidateRole : ((nodeOf after) candidate).role = .candidate)
     (candidateMajority : hasPotentialElectionMajority (joined := joined) after candidate)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) source))
+      : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) source))
     (configurationGoverns : configuration.index <= index)
     (candidateConfigurationActive
-      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) candidate))
+      : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) candidate))
     (newer : ((nodeOf after) source).currentTerm < ((nodeOf after) candidate).currentTerm)
     (preGhostAuthority
       : CurrentTermsPositive before -> CommittedFrontierIsSignature before

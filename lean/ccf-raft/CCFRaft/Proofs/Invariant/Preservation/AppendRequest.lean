@@ -697,8 +697,8 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
       forall node,
         (((nodeOf after) node).role = .candidate \/
           ((nodeOf after) node).role = .leader) ->
-          activeConfigurations (inferInstance) ((nodeOf after) node) =
-            activeConfigurations (inferInstance) ((nodeOf state) node) := by
+          activeConfigurationsOf (inferInstance) ((nodeOf after) node) =
+            activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
     intro node active
     rw [activeNodeEq node active]
   have leaderStateEq :
@@ -1027,27 +1027,27 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                   witness.activationIndex,
                   witness.activation,
                   witness.stored,
-                  by simpa [currentConfiguration (inferInstance)] using witness.configurationCovered,
+                  by simpa [currentConfiguration] using witness.configurationCovered,
                   witness.activationTermBound,
-                  by simpa [currentConfiguration (inferInstance)] using witness.configurationIndexBound,
-                  by simpa [currentConfiguration (inferInstance)] using witness.historyAgreement,
+                  by simpa [currentConfiguration] using witness.configurationIndexBound,
+                  by simpa [currentConfiguration] using witness.historyAgreement,
                   ?_,
                   ?_,
                   ?_,
                   ?_
                 ⟩⟩
         · intro higherIndex higher stored order
-          simpa [currentConfiguration (inferInstance)]
+          simpa [currentConfiguration]
             using witness.higherAuthority higherIndex higher stored
-              (by simpa [currentConfiguration (inferInstance)] using order)
+              (by simpa [currentConfiguration] using order)
         · intro lowerIndex lower stored order
-          simpa [currentConfiguration (inferInstance)]
+          simpa [currentConfiguration]
             using witness.lowerAuthority lowerIndex lower stored
-              (by simpa [currentConfiguration (inferInstance)] using order)
+              (by simpa [currentConfiguration] using order)
         · intro sameIndex same stored sameConfiguration
-          simpa [currentConfiguration (inferInstance)]
+          simpa [currentConfiguration]
             using witness.sameAuthority sameIndex same stored
-              (by simpa [currentConfiguration (inferInstance)] using sameConfiguration)
+              (by simpa [currentConfiguration] using sameConfiguration)
         · intro role
           exact False.elim (candidateRole role)
       · have nodeStateEq :
@@ -1322,10 +1322,10 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
             ((nodeOf after) source).log.take index <+:
                 ((nodeOf after) candidate).log \/
               Exists fun configuration =>
-                configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) source) /\
+                configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) source) /\
                   configuration.index <= index /\
                   configuration ∈
-                    activeConfigurations (inferInstance) ((nodeOf after) candidate) := by
+                    activeConfigurationsOf (inferInstance) ((nodeOf after) candidate) := by
     intro bridgeSource index sourceRole current signature potential
         candidate candidateRole candidateMajority newer
     left
@@ -1877,7 +1877,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
               evidenceNode candidateConfiguration
               (by simpa [evidenceNode] using candidateConfigurationKnownEvidence)
               frontierBound
-          simpa [evidenceNode, currentConfiguration (inferInstance), candidateValid.2.2.2.2.1] using bound
+          simpa [evidenceNode, currentConfiguration, candidateValid.2.2.2.2.1] using bound
         have evidenceBeforeCandidateEvidence :
             evidence.authority.index <
               candidateEvidence.authority.index :=
@@ -1958,7 +1958,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                 evidenceNode candidateConfiguration
                 (by simpa [evidenceNode] using candidateKnownEvidence)
                 (by simpa [evidenceNode] using candidateIndexWithinEvidence)
-            simpa [evidenceNode, currentConfiguration (inferInstance), valid.2.2.2.2.1] using maximal
+            simpa [evidenceNode, currentConfiguration, valid.2.2.2.2.1] using maximal
           omega
         have coveredCommitted :
             evidence.history.take evidence.commitFrontier <+:
@@ -1996,7 +1996,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
               have knownConfiguration :=
                 currentConfiguration_mem_allConfigurations evidenceNode
               simpa [
-                evidenceNode, currentConfiguration (inferInstance),
+                evidenceNode, currentConfiguration,
                 valid.2.2.2.2.1
               ] using knownConfiguration
             have evidenceImplicit :
@@ -2006,7 +2006,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                   (TxId := TxId) evidence.history
               · exact evidenceKnown
               · simp [allConfigurations, implicitConfiguration]
-              · simpa [implicitConfiguration (inferInstance)] using zero
+              · simpa [implicitConfiguration] using zero
             have candidateZero : candidateConfiguration.index = 0 := by
               simpa [sameIndex] using zero
             have candidateImplicit :
@@ -2018,7 +2018,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                   using currentConfiguration_mem_allConfigurations
                     ((nodeOf after) candidate)
               · simp [allConfigurations, implicitConfiguration]
-              · simpa [implicitConfiguration (inferInstance)] using candidateZero
+              · simpa [implicitConfiguration] using candidateZero
             exact evidenceImplicit.trans candidateImplicit.symm
           · rcases
                 authorityRecordedAfter evidence supportedPrefix known with
@@ -2142,7 +2142,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                   (List.mem_filter.mp governing).2).2
           exact Or.inr
             (by
-              simpa [activeConfigurations (inferInstance), candidateConfiguration] using
+              simpa [activeConfigurationsOf, candidateConfiguration] using
                 And.intro authorityKnownCandidate
                   candidateBeforeAuthority.le)
   have electionQueuedFactsAfter :

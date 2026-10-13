@@ -5,17 +5,13 @@ import CCFRaft.Proofs.Invariant.Facts
 import CCFRaft.Proofs.Direct.Framework
 
 open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
+  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState
+    PreVoteStatus Role becomeCandidateNodeState campaignEligible
+    configurationHistory configurationMembers entryAt? findHighestPossibleMatch
+    firstLogIndexAfter hasConfigurationMajority initialNodeState isSignatureAt
+    lastCommittableIndex lastCommittableTerm maxCommittableIndex maxCommittableIndexUpTo
+    maxCommittableTerm messageEntries refreshRetirementState retiredCommittedNodes
+    retirementIndexInLog termAt
   )
 
 set_option autoImplicit false

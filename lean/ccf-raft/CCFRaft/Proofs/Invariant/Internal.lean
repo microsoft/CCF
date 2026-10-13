@@ -98,7 +98,7 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
       ⟩
       simpa [concrete_effects, leaderAppendJoined,
         replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
-        Model.Local.appendEntry (inferInstance)]
+        Model.Local.appendEntry]
         using clientRequestPreservesSystemInductiveInvariant state node
           (present := present) txId invariant.safety ⟨joined, enabled⟩
   | changeConfiguration configuration =>
@@ -109,7 +109,7 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
         invariant.update joined Finset.subset_union_left ?_ ?_⟩
       · simpa only [concrete_effects, leaderAppendJoined,
           replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
-          Model.Local.appendEntry (inferInstance), added, refresh_sentIndex]
+          Model.Local.appendEntry, added, refresh_sentIndex]
           using changeConfigurationPreservesSystemInductiveInvariant state node
             (present := present) configuration invariant.safety ⟨joined, enabled⟩
       · intro message member
@@ -124,7 +124,7 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
       ⟩
       simpa [concrete_effects, leaderAppendJoined,
         replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
-        Model.Local.appendEntry (inferInstance), allRetiredCommittedNodes]
+        Model.Local.appendEntry, allRetiredCommittedNodes]
         using appendRetiredCommittedPreservesSystemInductiveInvariant state node
           (present := present) invariant.safety ⟨joined, enabled⟩
   | signCommittableMessages =>
@@ -136,7 +136,7 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
       ⟩
       simpa [concrete_effects, leaderAppendJoined,
         replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
-        Model.Local.appendEntry (inferInstance)]
+        Model.Local.appendEntry]
         using signCommittableMessagesPreservesSystemInductiveInvariant state node
           (present := present) invariant.safety ⟨joined, enabled⟩
   | appendEntries destination batchEnd =>

@@ -91,7 +91,7 @@ theorem appendRequest_safety {state : Model.State Node TxId} {joined : Finset No
       simp [middle, present]
     have handledMiddle : handleAppendEntriesRequest? (inferInstance) destination (nodeOf middle destination) request
         = some (nextNode, response) := by
-      simpa [middle, present, handleAppendEntriesRequest? (inferInstance), stepping] using handled
+      simpa [middle, present, handleAppendEntriesRequest?, stepping] using handled
     have preserved := receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
       middle source destination (present := middlePresent) (source, destination, request) _
       nextNode (destination, source, response) middleInvariant nodeJoined rfl

@@ -299,10 +299,10 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
     simp [NodeState.committedLog, commitEq, logEq]
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations (inferInstance) ((nodeOf after) node) =
-          activeConfigurations (inferInstance) ((nodeOf state) node) := by
+        activeConfigurationsOf (inferInstance) ((nodeOf after) node) =
+          activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
     intro node
-    unfold activeConfigurations currentConfiguration
+    unfold activeConfigurationsOf currentConfiguration
     rw [logEq, commitEq]
   have lastIndexEq :
       forall node,
@@ -326,7 +326,7 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
     apply decide_eq_true
     intro governs
     have afterActive :
-        configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) leader) := by
+        configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) leader) := by
       simpa [activeConfigurationsEq] using active
     exact
       hasConfigurationMajority_mono
@@ -355,7 +355,7 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
     apply decide_eq_true
     intro governs
     have afterActive :
-        configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) leader) := by
+        configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) leader) := by
       simpa [activeConfigurationsEq] using active
     exact
       hasConfigurationMajority_mono
@@ -723,7 +723,7 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
             (by simpa [activeConfigurationsEq] using shared)
       · intro source index role current signature majority node
         simpa [termEq, logEq, commitEq, NodeState.committedLog, activeConfigurationsEq,
-          currentConfiguration (inferInstance)]
+          currentConfiguration]
           using activationQuorums.committedBridge
             source index
             (leaderBack source role)
@@ -1078,7 +1078,7 @@ lemma networkFramePreservesSystemInductiveInvariant
     intro configuration active
     apply decide_eq_true
     have afterActive :
-        configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) candidate) := by
+        configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) candidate) := by
       simpa [nodesEq] using active
     apply
       hasConfigurationMajority_mono
@@ -1424,10 +1424,10 @@ lemma retirementMetadataFramePreservesSystemInductiveInvariant
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations (inferInstance) ((nodeOf after) node) =
-          activeConfigurations (inferInstance) ((nodeOf state) node) := by
+        activeConfigurationsOf (inferInstance) ((nodeOf after) node) =
+          activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
     intro node
-    unfold activeConfigurations currentConfiguration
+    unfold activeConfigurationsOf currentConfiguration
     rw [logEq, commitEq]
   have effectiveAckersEq :
       forall actualResponseHistory leader index,

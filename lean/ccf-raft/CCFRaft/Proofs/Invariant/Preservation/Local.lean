@@ -168,10 +168,10 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
       ]
   have activeConfigurationsEq :
       forall candidate,
-        activeConfigurations (inferInstance) ((nodeOf after) candidate) =
-          activeConfigurations (inferInstance) ((nodeOf state) candidate) := by
+        activeConfigurationsOf (inferInstance) ((nodeOf after) candidate) =
+          activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
     intro candidate
-    unfold activeConfigurations currentConfiguration
+    unfold activeConfigurationsOf currentConfiguration
     rw [logEq, commitEq]
   have participatingBack :
       forall candidate,
@@ -700,10 +700,10 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
       ]
   have activeConfigurationsEq :
       forall candidate,
-        activeConfigurations (inferInstance) ((nodeOf after) candidate) =
-          activeConfigurations (inferInstance) ((nodeOf state) candidate) := by
+        activeConfigurationsOf (inferInstance) ((nodeOf after) candidate) =
+          activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
     intro candidate
-    unfold activeConfigurations currentConfiguration
+    unfold activeConfigurationsOf currentConfiguration
     rw [logEq, commitEq]
   have participatingBack :
       forall candidate,
@@ -979,7 +979,7 @@ lemma initializeConfigurationPreservesSystemInductiveInvariant
   let appended := leaderAppendState state node
     (.reconfiguration INITIAL_CONFIGURATION)
   have appendedInvariant : SystemInductiveInvariant (joined := joinedNodes) appended := by
-    simpa only [leaderAppendJoined, latest, implicitConfiguration (inferInstance), Finset.sdiff_self,
+    simpa only [leaderAppendJoined, latest, implicitConfiguration, Finset.sdiff_self,
       Finset.union_empty]
       using leaderAppendPreservesSystemInductiveInvariant state node (present := present)
         (.reconfiguration INITIAL_CONFIGURATION) invariant allocated leader

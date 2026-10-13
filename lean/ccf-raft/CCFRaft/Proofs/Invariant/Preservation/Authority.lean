@@ -556,7 +556,7 @@ lemma activationPrefixInPotentialCandidatePromotionOfGoverningConfiguration
       : activation.activationTerm < ((nodeOf state) candidate).currentTerm)
     {configuration : Configuration Node}
     (governing : configuration ∈ activation.governingActive)
-    (candidateActive : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate))
+    (candidateActive : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate))
     : activation.history.take activation.activationFrontier
       <+: ((nodeOf state) candidate).log.take
             (maxCommittableIndex ((nodeOf state) candidate).log) := by
@@ -761,7 +761,7 @@ lemma activationOldConfigurationIndexLtNew
         allConfigurations (inferInstance) activation.history := by
     have known := currentConfiguration_mem_allConfigurations priorNode
     simpa [
-      priorNode, currentConfiguration (inferInstance),
+      priorNode, currentConfiguration,
       valid.2.2.1
     ] using known
   have oldLeNew :
@@ -817,7 +817,7 @@ lemma activationGoverningConfigurationIndexLeNew
       activationNode configuration
       (by simpa [activationNode] using governingParts.1)
       (by simpa [activationNode] using governingParts.2.2)
-  simpa [activationNode, currentConfiguration (inferInstance), valid.2.2.2.1] using ordered
+  simpa [activationNode, currentConfiguration, valid.2.2.2.1] using ordered
 
 /--
 Prefix inclusion between two signed activation frontiers orders their terms.
@@ -952,7 +952,7 @@ lemma activationPrefixInHigherActivationCore
         (by simpa [lowerNode] using higherIndexBound)
     have lowerCurrent :
         currentConfiguration (inferInstance) lowerNode = lower.newConfiguration := by
-      simpa [lowerNode, currentConfiguration (inferInstance)] using lowerValid.2.2.2.1.symm
+      simpa [lowerNode, currentConfiguration] using lowerValid.2.2.2.1.symm
     rw [lowerCurrent] at maximal
     omega
   rcases Nat.lt_trichotomy
@@ -1172,7 +1172,7 @@ lemma activationPrefixInTargetByAuthorityChainCore
           -> Eligible activation
           -> forall configuration,
               configuration ∈ activation.governingActive
-              -> configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate)
+              -> configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate)
               -> activation.history.take activation.activationFrontier <+: targetHistory)
     (candidateKnownInActivation
       : forall activationIndex activation,
@@ -1211,7 +1211,7 @@ lemma activationPrefixInTargetByAuthorityChainCore
         have known :=
           currentConfiguration_mem_allConfigurations priorNode
         simpa [
-          priorNode, currentConfiguration (inferInstance),
+          priorNode, currentConfiguration,
           valid.2.2.1
         ] using known
       have newKnownActivation :
@@ -1259,7 +1259,7 @@ lemma activationPrefixInTargetByAuthorityChainCore
           ⟩
         have candidateActive :
             candidateConfiguration ∈
-              activeConfigurations (inferInstance) ((nodeOf state) candidate) := by
+              activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
           simpa [candidateConfiguration]
             using currentConfiguration_mem_activeConfigurations ((nodeOf state) candidate)
         exact
@@ -1322,8 +1322,8 @@ lemma activationPrefixInTargetByAuthorityChainCore
                 priorValid.2.1 oldCoveredParts.1 oldCoveredParts.2)
         have oldActiveCandidate :
             activation.oldConfiguration ∈
-              activeConfigurations (inferInstance) ((nodeOf state) candidate) := by
-          simpa [activeConfigurations (inferInstance)]
+              activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
+          simpa [activeConfigurationsOf]
             using And.intro oldKnownCandidate candidateBeforeOld.le
         have oldCommitted :
             activation.oldConfiguration.index <=
@@ -1335,7 +1335,7 @@ lemma activationPrefixInTargetByAuthorityChainCore
           have bound :=
             currentConfiguration_index_le_commitIndex priorNode
           simpa [
-            priorNode, currentConfiguration (inferInstance),
+            priorNode, currentConfiguration,
             valid.2.2.1
           ] using bound
         have oldGoverning :
@@ -1384,7 +1384,7 @@ lemma activationPrefixInTargetByCoverageAuthorityChain
           -> Eligible activation
           -> forall configuration,
               configuration ∈ activation.governingActive
-              -> configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate)
+              -> configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate)
               -> activation.history.take activation.activationFrontier <+: targetHistory)
     : forall configurationIndex activationIndex activation,
         activation.newConfiguration.index = configurationIndex
@@ -1407,7 +1407,7 @@ lemma activationPrefixInTargetByCoverageAuthorityChain
           (TxId := TxId) ((nodeOf state) candidate).log
       · exact currentConfiguration_mem_allConfigurations _
       · simp [allConfigurations, implicitConfiguration]
-      · simpa [implicitConfiguration (inferInstance)] using candidateZero
+      · simpa [implicitConfiguration] using candidateZero
     simp [candidateConfiguration, candidateImplicit, allConfigurations]
   · rcases coverage candidate
         (by simpa [candidateConfiguration] using
@@ -1448,7 +1448,7 @@ lemma activationPrefixInFutureCandidateByCoverageAuthorityChain
     (futureMajority
       : hasFutureElectionMajority (joined := joined) state candidate targetTerm
           ballotActive)
-    (ballotActiveEq : ballotActive = activeConfigurations (inferInstance) ((nodeOf state) candidate))
+    (ballotActiveEq : ballotActive = activeConfigurationsOf (inferInstance) ((nodeOf state) candidate))
     : forall configurationIndex activationIndex activation,
         activation.newConfiguration.index = configurationIndex
         -> activations activationIndex = some activation
@@ -1644,16 +1644,16 @@ lemma potentialCandidatesSharedConfigurationCoverage
     (rightPotential : hasPotentialElectionMajority (joined := joined) state right)
     : Exists
         fun configuration =>
-          configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) left)
-          /\ configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) right) := by
+          configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) left)
+          /\ configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) right) := by
   let leftConfiguration := currentConfiguration (inferInstance) ((nodeOf state) left)
   let rightConfiguration := currentConfiguration (inferInstance) ((nodeOf state) right)
   have leftActive :
-      leftConfiguration ∈ activeConfigurations (inferInstance) ((nodeOf state) left) := by
+      leftConfiguration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) left) := by
     simpa [leftConfiguration]
       using currentConfiguration_mem_activeConfigurations ((nodeOf state) left)
   have rightActive :
-      rightConfiguration ∈ activeConfigurations (inferInstance) ((nodeOf state) right) := by
+      rightConfiguration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) right) := by
     simpa [rightConfiguration]
       using currentConfiguration_mem_activeConfigurations ((nodeOf state) right)
   rcases Nat.lt_trichotomy
@@ -1697,7 +1697,7 @@ lemma potentialCandidatesSharedConfigurationCoverage
     exact ⟨
       rightConfiguration,
       by
-        simpa [activeConfigurations (inferInstance), leftConfiguration]
+        simpa [activeConfigurationsOf, leftConfiguration]
           using And.intro rightKnownLeft leftBefore.le,
       rightActive
     ⟩
@@ -1710,7 +1710,7 @@ lemma potentialCandidatesSharedConfigurationCoverage
         · simpa [leftConfiguration]
             using currentConfiguration_mem_allConfigurations ((nodeOf state) left)
         · simp [allConfigurations, implicitConfiguration]
-        · simpa [implicitConfiguration (inferInstance)] using zero
+        · simpa [implicitConfiguration] using zero
       have rightImplicit : rightConfiguration = implicitConfiguration (inferInstance) := by
         apply
           allConfigurations_index_unique
@@ -1718,7 +1718,7 @@ lemma potentialCandidatesSharedConfigurationCoverage
         · simpa [rightConfiguration]
             using currentConfiguration_mem_allConfigurations ((nodeOf state) right)
         · simp [allConfigurations, implicitConfiguration]
-        · simpa [implicitConfiguration (inferInstance)] using rightZero
+        · simpa [implicitConfiguration] using rightZero
       exact ⟨
         leftConfiguration,
         leftActive,
@@ -1780,7 +1780,7 @@ lemma potentialCandidatesSharedConfigurationCoverage
       leftConfiguration,
       leftActive,
       by
-        simpa [activeConfigurations (inferInstance), rightConfiguration]
+        simpa [activeConfigurationsOf, rightConfiguration]
           using And.intro leftKnownRight rightBefore.le
     ⟩
 
@@ -1823,13 +1823,13 @@ lemma potentialCandidateElectionRecordSharedConfigurationCoverage
     : Exists
         fun configuration =>
           configuration ∈ record.ballotActive
-          /\ configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate) := by
+          /\ configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
   let candidateConfiguration := currentConfiguration (inferInstance) ((nodeOf state) candidate)
   let ballotConfiguration :=
     currentConfigurationAt (inferInstance) record.ballotLog record.ballotCommitIndex
   have candidateActive :
       candidateConfiguration ∈
-        activeConfigurations (inferInstance) ((nodeOf state) candidate) := by
+        activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
     simpa [candidateConfiguration]
       using currentConfiguration_mem_activeConfigurations ((nodeOf state) candidate)
   have ballotActive : ballotConfiguration ∈ record.ballotActive := by
@@ -1922,7 +1922,7 @@ lemma potentialCandidateElectionRecordSharedConfigurationCoverage
       ballotConfiguration,
       ballotActive,
       by
-        simpa [activeConfigurations (inferInstance), candidateConfiguration]
+        simpa [activeConfigurationsOf, candidateConfiguration]
           using And.intro ballotKnownCandidate candidateBefore.le
     ⟩
   · by_cases zero : candidateConfiguration.index = 0
@@ -1934,14 +1934,14 @@ lemma potentialCandidateElectionRecordSharedConfigurationCoverage
         · simpa [candidateConfiguration]
             using currentConfiguration_mem_allConfigurations ((nodeOf state) candidate)
         · simp [allConfigurations, implicitConfiguration]
-        · simpa [implicitConfiguration (inferInstance)] using zero
+        · simpa [implicitConfiguration] using zero
       have ballotZero : ballotConfiguration.index = 0 := by simpa [sameIndex] using zero
       have ballotImplicit :
           ballotConfiguration = implicitConfiguration (inferInstance) := by
         apply
           allConfigurations_index_unique
             (TxId := TxId) record.ballotLog
-        · simpa [ballotConfiguration, currentConfiguration (inferInstance)]
+        · simpa [ballotConfiguration, currentConfiguration]
             using currentConfiguration_mem_allConfigurations
               {
                 ((nodeOf state) candidate) with
@@ -1949,7 +1949,7 @@ lemma potentialCandidateElectionRecordSharedConfigurationCoverage
                   commitIndex := record.ballotCommitIndex
               }
         · simp [allConfigurations, implicitConfiguration]
-        · simpa [implicitConfiguration (inferInstance)] using ballotZero
+        · simpa [implicitConfiguration] using ballotZero
       exact ⟨
         ballotConfiguration,
         ballotActive,
@@ -2130,9 +2130,9 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
     (newer : ((nodeOf after) source).currentTerm < ((nodeOf after) candidate).currentTerm)
     (directOfShared
       : forall configuration,
-          configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) source)
+          configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) source)
           -> configuration.index <= index
-          -> configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) candidate)
+          -> configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) candidate)
           -> ((nodeOf after) source).log.take index <+: ((nodeOf after) candidate).log)
     : ((nodeOf after) source).log.take index <+: ((nodeOf after) candidate).log := by
   let sourceConfiguration :=
@@ -2141,12 +2141,12 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
     currentConfiguration (inferInstance) ((nodeOf after) candidate)
   have sourceActive :
       sourceConfiguration ∈
-        activeConfigurations (inferInstance) ((nodeOf after) source) := by
+        activeConfigurationsOf (inferInstance) ((nodeOf after) source) := by
     simpa [sourceConfiguration]
       using currentConfiguration_mem_activeConfigurations ((nodeOf after) source)
   have candidateActive :
       candidateConfiguration ∈
-        activeConfigurations (inferInstance) ((nodeOf after) candidate) := by
+        activeConfigurationsOf (inferInstance) ((nodeOf after) candidate) := by
     simpa [candidateConfiguration]
       using currentConfiguration_mem_activeConfigurations ((nodeOf after) candidate)
   have activationInCandidate
@@ -2183,7 +2183,7 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
         · simpa [sourceConfiguration]
             using currentConfiguration_mem_allConfigurations ((nodeOf after) source)
         · simp [allConfigurations, implicitConfiguration]
-        · simpa [implicitConfiguration (inferInstance)] using sourceZero
+        · simpa [implicitConfiguration] using sourceZero
       simp [sourceImplicit, allConfigurations]
     · rcases coverage source
           (by simpa [sourceConfiguration] using
@@ -2387,7 +2387,7 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
               using candidateWitness.configuration_mem_activationHistoryTake historyFacts
           exact directOfShared candidateConfiguration
             (by
-              simpa [activeConfigurations (inferInstance), sourceConfiguration]
+              simpa [activeConfigurationsOf, sourceConfiguration]
                 using And.intro candidateKnownSource sourceBeforeCandidate.le)
             candidateGoverns candidateActive
         · have activationLength :
@@ -2466,7 +2466,7 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
               using candidateWitness.configuration_mem_activationHistoryTake historyFacts
           exact directOfShared candidateConfiguration
             (by
-              simpa [activeConfigurations (inferInstance), sourceConfiguration]
+              simpa [activeConfigurationsOf, sourceConfiguration]
                 using And.intro candidateKnownSource sourceBeforeCandidate.le)
             candidateGoverns candidateActive
         · have activationLength :
@@ -2544,7 +2544,7 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
         · simpa [sourceConfiguration]
             using currentConfiguration_mem_allConfigurations ((nodeOf after) source)
         · simp [allConfigurations, implicitConfiguration]
-        · simpa [implicitConfiguration (inferInstance)] using sourceZero
+        · simpa [implicitConfiguration] using sourceZero
       have candidateZero : candidateConfiguration.index = 0 := by
         simpa [sameIndex] using sourceZero
       have candidateImplicit :
@@ -2555,7 +2555,7 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
         · simpa [candidateConfiguration]
             using currentConfiguration_mem_allConfigurations ((nodeOf after) candidate)
         · simp [allConfigurations, implicitConfiguration]
-        · simpa [implicitConfiguration (inferInstance)] using candidateZero
+        · simpa [implicitConfiguration] using candidateZero
       exact directOfShared sourceConfiguration sourceActive
         (by
           omega)
@@ -2601,7 +2601,7 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
         exact directOfShared sourceConfiguration sourceActive
           (sourceWitness.configurationIndexBound.trans (Nat.lt_of_not_ge indexWithin).le)
           (by
-            simpa [activeConfigurations (inferInstance), candidateConfiguration]
+            simpa [activeConfigurationsOf, candidateConfiguration]
               using And.intro sourceKnownCandidate (by simpa [
                   sourceConfiguration, candidateConfiguration
                 ] using sameIndex.symm.le))
@@ -2646,7 +2646,7 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
       exact directOfShared sourceConfiguration sourceActive
         (sourceWitness.configurationIndexBound.trans (Nat.lt_of_not_ge indexWithin).le)
         (by
-          simpa [activeConfigurations (inferInstance), candidateConfiguration]
+          simpa [activeConfigurationsOf, candidateConfiguration]
             using And.intro sourceKnownCandidate candidateBeforeSource.le)
 
 /-- Coverage-native frozen ballot and future election sharing. -/
@@ -2675,11 +2675,11 @@ lemma futureElectionRecordSharedConfigurationCoverage
     (futureMajority
       : hasFutureElectionMajority (joined := joined)
           state candidate term
-          (activeConfigurations (inferInstance) ((nodeOf state) candidate)))
+          (activeConfigurationsOf (inferInstance) ((nodeOf state) candidate)))
     : Exists
         fun configuration =>
           configuration ∈ record.ballotActive
-          /\ configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate) := by
+          /\ configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
   let ballotConfiguration :=
     currentConfigurationAt (inferInstance) record.ballotLog record.ballotCommitIndex
   let candidateConfiguration := currentConfiguration (inferInstance) ((nodeOf state) candidate)
@@ -2689,7 +2689,7 @@ lemma futureElectionRecordSharedConfigurationCoverage
       using configurationFacts.ballotCurrentAuthorityActive term record recorded
   have candidateActive :
       candidateConfiguration ∈
-        activeConfigurations (inferInstance) ((nodeOf state) candidate) := by
+        activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
     simpa [candidateConfiguration]
       using currentConfiguration_mem_activeConfigurations ((nodeOf state) candidate)
   rcases Nat.lt_trichotomy
@@ -2739,14 +2739,14 @@ lemma futureElectionRecordSharedConfigurationCoverage
         · simpa [candidateConfiguration]
             using currentConfiguration_mem_allConfigurations ((nodeOf state) candidate)
         · simp [allConfigurations, implicitConfiguration]
-        · simpa [implicitConfiguration (inferInstance)] using zero
+        · simpa [implicitConfiguration] using zero
       have ballotZero : ballotConfiguration.index = 0 := by simpa [sameIndex] using zero
       have ballotImplicit :
           ballotConfiguration = implicitConfiguration (inferInstance) := by
         apply
           allConfigurations_index_unique
             (TxId := TxId) record.ballotLog
-        · simpa [ballotConfiguration, currentConfiguration (inferInstance)]
+        · simpa [ballotConfiguration, currentConfiguration]
             using currentConfiguration_mem_allConfigurations
               {
                 ((nodeOf state) candidate) with
@@ -2754,7 +2754,7 @@ lemma futureElectionRecordSharedConfigurationCoverage
                   commitIndex := record.ballotCommitIndex
               }
         · simp [allConfigurations, implicitConfiguration]
-        · simpa [implicitConfiguration (inferInstance)] using ballotZero
+        · simpa [implicitConfiguration] using ballotZero
       exact ⟨
         ballotConfiguration,
         ballotActive,
@@ -2875,7 +2875,7 @@ lemma futureElectionRecordSharedConfigurationCoverage
       ballotConfiguration,
       ballotActive,
       by
-        simpa [activeConfigurations (inferInstance), candidateConfiguration]
+        simpa [activeConfigurationsOf, candidateConfiguration]
           using And.intro ballotKnownCandidate candidateBeforeBallot.le
     ⟩
 
@@ -3474,12 +3474,12 @@ lemma potentialPrefixInFutureCandidateOfSharedConfiguration
       : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
           source index)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) source))
+      : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) source))
     (configurationGoverns : configuration.index <= index)
     (candidateMajority
       : hasPotentialElectionMajority (joined := joinedNext) after candidate)
     (candidateConfigurationActive
-      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) candidate))
+      : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) candidate))
     (sourceBefore : ((nodeOf state) source).currentTerm < targetTerm)
     (candidateBefore : ((nodeOf state) candidate).currentTerm < targetTerm)
     (_sourceLogEq : ((nodeOf after) source).log = ((nodeOf state) source).log)

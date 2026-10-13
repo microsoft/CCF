@@ -477,10 +477,10 @@ lemma receiveRequestVoteResponsePreservesSystemInductiveInvariant
         responseDestination rfl rfl termEq votesDestinationPlain votesOther
   have activeConfigurationsEq :
       forall candidate,
-        activeConfigurations (inferInstance) ((nodeOf intermediate) candidate) =
-          activeConfigurations (inferInstance) ((nodeOf state) candidate) := by
+        activeConfigurationsOf (inferInstance) ((nodeOf intermediate) candidate) =
+          activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
     intro candidate
-    unfold activeConfigurations currentConfiguration
+    unfold activeConfigurationsOf currentConfiguration
     rw [logEq, commitEq]
   have candidatesSelfVoteIntermediate : CandidatesSelfVote intermediate := by
     intro candidate role
@@ -799,7 +799,7 @@ lemma receiveRequestVoteResponsePreservesSystemInductiveInvariant
     intro configuration active
     apply decide_eq_true
     have afterActive :
-        configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) candidate) := by
+        configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) candidate) := by
       simpa [nodeStateEq] using active
     exact
       hasConfigurationMajority_mono

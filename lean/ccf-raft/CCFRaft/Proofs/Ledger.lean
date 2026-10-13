@@ -14,17 +14,13 @@ namespace CCFRaft.Proofs.Ledger
 open CCFRaft.Proofs.Config
 
 open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
+  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState
+    PreVoteStatus Role becomeCandidateNodeState campaignEligible
+    configurationHistory configurationMembers entryAt? findHighestPossibleMatch
+    firstLogIndexAfter hasConfigurationMajority initialNodeState isSignatureAt
+    lastCommittableIndex lastCommittableTerm maxCommittableIndex maxCommittableIndexUpTo
+    maxCommittableTerm messageEntries refreshRetirementState retiredCommittedNodes
+    retirementIndexInLog termAt
   )
 
 variable {Node TxId : Type}
@@ -315,6 +311,64 @@ lemma maxCommittableIndexUpToPositiveIsSignature
       (List.take_prefix frontier log)
       (maxCommittableIndexPositiveIsSignature positive)
 
+lemma configurationHistory_filterMap (index : Nat) (log : List (Entry Node TxId))
+    : (log.zipIdx index).filterMap
+        (fun (entry, index) =>
+          match entry.content with
+          | .reconfiguration nodes => some ({ index, nodes } : Configuration Node)
+          | _ => none)
+      = configurationsInLogFrom index log := by
+  induction log generalizing index with
+  | nil => rfl
+  | cons entry entries ih =>
+      rcases entry with ⟨term, content⟩
+      cases content <;> simp [configurationsInLogFrom, ih]
+
+@[simp]
+lemma configurationHistory_eq (config : InitialConfig Node) (log : List (Entry Node TxId))
+    : configurationHistory config log = allConfigurations config log := by
+  simp only [configurationHistory, allConfigurations, configurationsInLog,
+    implicitConfiguration]
+  congr 1
+  exact configurationHistory_filterMap 1 log
+
+lemma foldl_current_index (commitIndex : Nat) (configurations : List (Configuration Node))
+    (current : Configuration Node)
+    : (configurations.foldl
+        (fun current configuration =>
+          if configuration.index <= commitIndex then configuration else current)
+        current).index
+      = configurations.foldl
+          (fun current configuration =>
+            if configuration.index <= commitIndex then configuration.index else current)
+          current.index := by
+  induction configurations generalizing current with
+  | nil => rfl
+  | cons head tail ih =>
+      simp only [List.foldl_cons]
+      rw [ih]
+      split <;> rfl
+
+@[simp]
+lemma activeConfigurations_eq (config : InitialConfig Node) (state : NodeState Node TxId)
+    : Model.Local.activeConfigurations config state.log state.commitIndex
+      = activeConfigurationsOf config state := by
+  simp only [Model.Local.activeConfigurations, activeConfigurationsOf, currentConfiguration,
+    currentConfigurationAt, configurationHistory_eq]
+  simp [foldl_current_index, allConfigurations, implicitConfiguration]
+
+@[simp]
+lemma NodeState.activeConfigurations_eq (config : InitialConfig Node)
+    (state : NodeState Node TxId)
+    : state.activeConfigurations config = activeConfigurationsOf config state :=
+  CCFRaft.Proofs.Ledger.activeConfigurations_eq config state
+
+@[simp]
+lemma NodeState.activeMembers_eq (config : InitialConfig Node)
+    (state : NodeState Node TxId)
+    : state.activeMembers config = activeNodeUnion config state := by
+  simp [Model.Local.NodeState.activeMembers, activeNodeUnion, configurationMembers]
+
 variable [InitialConfig Node]
 
 @[simp]
@@ -324,7 +378,8 @@ lemma refreshRetirementState_log (node : Node) (state : NodeState Node TxId)
 
 @[simp]
 lemma refreshRetirementState_commitIndex (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState (inferInstance) node state).commitIndex = state.commitIndex := by
+    : (refreshRetirementState (inferInstance) node state).commitIndex
+      = state.commitIndex := by
   simp [refreshRetirementState]
 
 end CCFRaft.Proofs.Ledger

@@ -204,7 +204,8 @@ omit [DecidableEq TxId]
 lemma allConfigurations_mono_prefix
     {left right : List (Entry Node TxId)}
     (isPrefix : left <+: right)
-    : allConfigurations (inferInstance) left <+: allConfigurations (inferInstance) right := by
+    : allConfigurations (inferInstance) left
+      <+: allConfigurations (inferInstance) right := by
   unfold allConfigurations configurationsInLog
   rcases configurationsInLogFrom_mono_prefix 1 isPrefix with
     ⟨suffix, agreed⟩
@@ -352,14 +353,15 @@ lemma configurationsInLog_pairwise_index_lt (log : List (Entry Node TxId))
 
 /-- The implicit index zero precedes every physical configuration index. -/
 lemma allConfigurations_pairwise_index_lt (log : List (Entry Node TxId))
-    : (allConfigurations (inferInstance) log).Pairwise (fun left right => left.index < right.index) := by
+    : (allConfigurations (inferInstance) log).Pairwise
+        (fun left right => left.index < right.index) := by
   rw [allConfigurations, List.pairwise_cons]
   constructor
   · intro configuration member
     have positive :=
       (configurationsInLog_index_bounds
         (TxId := TxId) log member).1
-    simpa [implicitConfiguration (inferInstance)] using positive
+    simpa [implicitConfiguration] using positive
   · exact configurationsInLog_pairwise_index_lt (TxId := TxId) log
 
 omit [InitialConfig Node] in
@@ -610,11 +612,12 @@ lemma currentConfiguration_eq_implicit_or_mem_configurationsInLog
     foldlSelectConfiguration_mem
       state.commitIndex
       (configurationsInLog state.log)
-      implicitConfiguration (inferInstance)
+      (implicitConfiguration (inferInstance))
 
 /-- The current configuration is always known from the local log. -/
 lemma currentConfiguration_mem_allConfigurations (state : NodeState Node TxId)
-    : currentConfiguration (inferInstance) state ∈ allConfigurations (inferInstance) state.log := by
+    : currentConfiguration (inferInstance) state
+      ∈ allConfigurations (inferInstance) state.log := by
   rcases
       currentConfiguration_eq_implicit_or_mem_configurationsInLog state with
     implicit | physical
@@ -627,7 +630,7 @@ lemma currentConfiguration_index_le_commitIndex (state : NodeState Node TxId)
   exact foldlSelectConfiguration_index_le
     state.commitIndex
     (configurationsInLog state.log)
-    implicitConfiguration (inferInstance)
+    (implicitConfiguration (inferInstance))
     (by simp [implicitConfiguration])
 
 /--
@@ -653,12 +656,12 @@ lemma configuration_index_le_currentConfiguration
       have positive :=
         (configurationsInLog_index_bounds
           (TxId := TxId) state.log member).1
-      simpa [implicitConfiguration (inferInstance)] using positive
+      simpa [implicitConfiguration] using positive
     exact
       foldlSelectConfiguration_greatest
         state.commitIndex
         (configurationsInLog state.log)
-        implicitConfiguration (inferInstance)
+        (implicitConfiguration (inferInstance))
         afterImplicit
         (configurationsInLog_pairwise_index_lt
           (TxId := TxId) state.log)
@@ -667,9 +670,10 @@ lemma configuration_index_le_currentConfiguration
 
 /-- The current configuration is one of the active configurations. -/
 lemma currentConfiguration_mem_activeConfigurations (state : NodeState Node TxId)
-    : currentConfiguration (inferInstance) state ∈ activeConfigurations (inferInstance) state := by
+    : currentConfiguration (inferInstance) state
+      ∈ activeConfigurationsOf (inferInstance) state := by
   simp [
-    activeConfigurations,
+    activeConfigurationsOf,
     currentConfiguration_mem_allConfigurations
   ]
 
@@ -709,11 +713,27 @@ section BootstrapCommit
 
 variable [InitialConfig Node]
 
+/-- The model commit frontier, phrased with the proof-side majority predicate. -/
+lemma highestCommittableIndex_eq (config : InitialConfig Node)
+    (state : NodeState Node TxId) (self : Node)
+    : highestCommittableIndex config state self
+      = (List.range (state.log.length + 1)).foldl
+          (fun best index =>
+            if index > state.commitIndex
+                /\ isSignatureAt state.log index = true
+                /\ termAt state.log index = state.currentTerm
+                /\ hasMajorityAt config state self index then
+              max best index
+            else
+              best)
+          0 := by
+  simp [highestCommittableIndex, hasMajorityAt, acknowledgingNodes]
+
 /-- The computed commit frontier never exceeds the leader log length. -/
 lemma highestCommittableIndexBounded (state : Model.State Node TxId) (leader : Node)
     : highestCommittableIndex (inferInstance) (nodeOf state leader) leader
       <= ((nodeOf state) leader).log.length := by
-  unfold highestCommittableIndex
+  rw [highestCommittableIndex_eq]
   let candidates := List.range (((nodeOf state) leader).log.length + 1)
   let choose :=
     fun best index =>
@@ -770,7 +790,7 @@ lemma highestCommittableIndexFacts
           = ((nodeOf state) leader).currentTerm
       /\ hasMajorityAt (inferInstance) (nodeOf state leader) leader
           (highestCommittableIndex (inferInstance) (nodeOf state leader) leader) := by
-  unfold highestCommittableIndex at advances ⊢
+  rw [highestCommittableIndex_eq] at advances ⊢
   let leaderState := (nodeOf state) leader
   let valid :=
     fun index =>
@@ -931,31 +951,12 @@ lemma handleRequestPreVoteResponsePreserves
       Or.inr ⟨granted.2.2, granted.2.1, granted.1, rfl⟩⟩
   · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
 
-lemma handleProposeVoteRequestCases
-    (state : NodeState Node TxId) (destination : Node) (term : Nat)
-    : handleProposeVoteRequest (inferInstance) state destination term = state
-      ∨ (term = state.currentTerm
-          ∧ candidateTransitionEnabled (inferInstance) state destination
-          ∧ handleProposeVoteRequest (inferInstance) state destination term
-            = becomeCandidateNodeState state destination) := by
-  unfold handleProposeVoteRequest
-  split_ifs with eligible
-  · exact Or.inr ⟨eligible.1, eligible.2, rfl⟩
-  · exact Or.inl rfl
-
 omit [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node] in
-lemma failureResponseMetadata (before : NodeState Node TxId)
+lemma appendEntriesNackMetadata (before : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
-    : (failureResponse before request).success = false := by
-  unfold failureResponse
-  split
-  · rfl
-  · dsimp
-    split
-    · rfl
-    · split
-      · rfl
-      · split <;> rfl
+    : (appendEntriesNack before request).success = false := by
+  unfold appendEntriesNack
+  split <;> rfl
 
 omit [InitialConfig Node] in
 /-- A follower commit learned from a request stays below the advertised
@@ -1067,7 +1068,179 @@ lemma committedFromLeader_isSignature
       maxCommittableIndexUpToPositiveIsSignature
         (by omega)
 
-/-- State facts needed from the AppendEntries request handler in both phases. -/
+/-- The state after a same-term candidate steps down for an AppendEntries request. -/
+def appendEntriesSteppedDown (state : NodeState Node TxId)
+    (request : AppendEntriesRequest Node TxId)
+    : NodeState Node TxId :=
+  if request.term = state.currentTerm
+      /\ (state.role = .candidate \/ state.role = .preVoteCandidate) then
+    { state with role := .follower, isNewFollower := true }
+  else
+    state
+
+omit [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node] in
+/-- Stepping down only changes the role and the new-follower flag. -/
+lemma appendEntriesSteppedDown_eq (state : NodeState Node TxId)
+    (request : AppendEntriesRequest Node TxId)
+    : appendEntriesSteppedDown state request
+      = {
+        state with
+          role := (appendEntriesSteppedDown state request).role
+          isNewFollower := (appendEntriesSteppedDown state request).isNewFollower
+      } := by
+  unfold appendEntriesSteppedDown
+  split <;> rfl
+
+omit [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node] in
+lemma appendEntriesSteppedDown_of_not
+    {state : NodeState Node TxId} {request : AppendEntriesRequest Node TxId}
+    (notStepped
+      : ¬ (request.term = state.currentTerm
+            ∧ (state.role = .candidate ∨ state.role = .preVoteCandidate)))
+    : appendEntriesSteppedDown state request = state := by
+  simp only [appendEntriesSteppedDown, notStepped, ite_false]
+
+/--
+The three outcomes of the AppendEntries handler for a request that is not from
+a newer term: a NACK, a dropped request, or the accepting branch.
+-/
+lemma handleAppendEntriesRequest_cases
+    {self : Node} {before after : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId}
+    {response : Option AppendEntriesResponse}
+    (notNewer : request.term <= before.currentTerm)
+    (handled
+      : handleAppendEntriesRequest (inferInstance) self before request
+        = (after, response))
+    : ((request.term < before.currentTerm \/ Not (logOk before request))
+        /\ after = appendEntriesSteppedDown before request
+        /\ response = some (appendEntriesNack before request))
+      \/ (request.term = before.currentTerm
+          /\ logOk before request
+          /\ (request.prevLogIndex < before.commitIndex
+              \/ (hasTermConflict before request
+                  /\ (appendEntriesSteppedDown before request).isNewFollower = false))
+          /\ after = { appendEntriesSteppedDown before request with leaderKnown := true }
+          /\ response = none)
+      \/ Exists
+          fun accepted =>
+            acceptAppendEntriesRequest? (inferInstance) self
+                (appendEntriesSteppedDown before request) request
+              = some (after, accepted)
+            /\ response = some accepted := by
+  have shape := appendEntriesSteppedDown_eq before request
+  generalize steppedEq : appendEntriesSteppedDown before request = stepped at shape ⊢
+  have unfolded :
+      handleAppendEntriesRequest (inferInstance) self before request =
+        if request.term < stepped.currentTerm \/ Not (logOk stepped request) then
+          (stepped, some (appendEntriesNack stepped request))
+        else
+          if request.prevLogIndex < stepped.commitIndex
+              \/ (hasTermConflict stepped request /\ !stepped.isNewFollower) then
+            ({ stepped with leaderKnown := true }, none)
+          else
+            let state :=
+              if hasTermConflict stepped request then
+                {
+                  stepped with
+                    leaderKnown := true
+                    log := stepped.log.take request.prevLogIndex
+                    isNewFollower := false
+                }
+              else
+                { stepped with leaderKnown := true }
+            let (next, response) := appendEntriesFromLeader (inferInstance) self state request
+            (next, some response) := by
+    rw [← steppedEq]
+    rfl
+  have logEq : stepped.log = before.log := by rw [shape]
+  have termEq : stepped.currentTerm = before.currentTerm := by rw [shape]
+  have commitEq : stepped.commitIndex = before.commitIndex := by rw [shape]
+  have nackEq : appendEntriesNack stepped request = appendEntriesNack before request := by
+    simp only [appendEntriesNack, logEq, termEq]
+  rw [unfolded] at handled
+  split_ifs at handled with nack drop conflict
+  · left
+    simp only [Prod.mk.injEq] at handled
+    obtain ⟨rfl, rfl⟩ := handled
+    simp only [logOk, logEq, termEq] at nack
+    exact ⟨nack, rfl, by rw [nackEq]⟩
+  · right
+    left
+    simp only [Prod.mk.injEq] at handled
+    obtain ⟨rfl, rfl⟩ := handled
+    simp only [logOk, hasTermConflict, logEq, termEq, commitEq] at nack drop ⊢
+    refine ⟨by omega, by tauto, ?_⟩
+    simpa using drop
+  all_goals
+    right
+    right
+    dsimp only at handled
+    simp only [Prod.mk.injEq] at handled
+    obtain ⟨rfl, rfl⟩ := handled
+    refine ⟨_, ?_, rfl⟩
+    unfold acceptAppendEntriesRequest?
+    dsimp only
+    split_ifs with accept
+    all_goals first
+      | rfl
+      | (exfalso
+         apply accept
+         simp only [logOk, hasTermConflict, logEq, termEq, commitEq] at nack drop ⊢
+         exact ⟨by omega, by tauto, by omega, by tauto⟩)
+
+/-- Facts about the accepting AppendEntries branch. -/
+lemma acceptAppendEntriesRequest_eq
+    {self : Node} {before after : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
+    (accepted
+      : acceptAppendEntriesRequest? (inferInstance) self before request
+        = some (after, response))
+    : request.term = before.currentTerm
+      /\ logOk before request
+      /\ before.commitIndex <= request.prevLogIndex
+      /\ ((Not (hasTermConflict before request)
+            /\ after.log
+                = before.log
+                  ++ request.entries.drop (before.log.length - request.prevLogIndex))
+          \/ (hasTermConflict before request
+              /\ before.isNewFollower = true
+              /\ after.log = before.log.take request.prevLogIndex ++ request.entries))
+      /\ after.commitIndex = committedFromLeader before request after.log
+      /\ after.role = before.role
+      /\ after.currentTerm = before.currentTerm
+      /\ after.sentIndex = before.sentIndex
+      /\ after.matchIndex = before.matchIndex
+      /\ after.votedFor = before.votedFor
+      /\ after.votesGranted = before.votesGranted
+      /\ after.preVotesGranted = before.preVotesGranted
+      /\ after.leaderKnown = true
+      /\ response
+          = {
+            term := before.currentTerm
+            success := true
+            lastLogIndex := request.prevLogIndex + request.entries.length
+          } := by
+  unfold acceptAppendEntriesRequest? at accepted
+  split_ifs at accepted with guard
+  obtain ⟨term, matching, committed, notBlocked⟩ := guard
+  have previousBound : request.prevLogIndex <= before.log.length := by
+    rcases matching with zero | ⟨bound, _⟩ <;> omega
+  refine ⟨term, matching, committed, ?_⟩
+  dsimp only at accepted
+  split_ifs at accepted with conflict
+  all_goals
+    simp only [appendEntriesFromLeader, refreshRetirementState, Option.some.injEq,
+      Prod.mk.injEq] at accepted
+    obtain ⟨rfl, rfl⟩ := accepted
+  · refine ⟨Or.inr ⟨conflict, ?_, ?_⟩, ?_⟩
+    · by_contra fresh
+      exact notBlocked ⟨conflict, by simpa using fresh⟩
+    · simp [List.length_take, previousBound]
+    · simp [committedFromLeader, List.length_take, previousBound]
+  · exact ⟨Or.inl ⟨conflict, rfl⟩, by simp [committedFromLeader], by simp⟩
+
+/-- State facts needed from the accepting AppendEntries request branch. -/
 structure AppendRequestLocalPost
     (before after : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
@@ -1080,16 +1253,9 @@ structure AppendRequestLocalPost
   votedForUnchanged : after.votedFor = before.votedFor
   votesGrantedUnchanged : after.votesGranted = before.votesGranted
   logShape
-    : after.log = before.log
-      \/ after.log = before.log.take request.prevLogIndex
+    : after.log
+        = before.log ++ request.entries.drop (before.log.length - request.prevLogIndex)
       \/ after.log = before.log.take request.prevLogIndex ++ request.entries
-  logUnchangedOrPreviousBound
-    : after.log = before.log \/ request.prevLogIndex <= before.log.length
-  logUnchangedOrPreviousMatches
-    : after.log = before.log
-      \/ request.prevLogIndex = 0
-      \/ termAt before.log request.prevLogIndex = request.prevLogTerm
-  logUnchangedOrCurrentTerm : after.log = before.log \/ request.term = before.currentTerm
   previousCommittedPrefix : before.committedLog <+: after.log
   commitIndexBounded
     : before.commitIndex <= before.log.length -> after.commitIndex <= after.log.length
@@ -1098,8 +1264,6 @@ structure AppendRequestLocalPost
     : after.commitIndex
       <= max before.commitIndex (request.prevLogIndex + request.entries.length)
   commitUpperBound : after.commitIndex <= max before.commitIndex request.leaderCommit
-  commitCommittableBound
-    : after.commitIndex <= max before.commitIndex (maxCommittableIndex after.log)
   commitIndexSignature
     : (0 < before.commitIndex -> isSignatureAt before.log before.commitIndex = true)
       -> 0 < after.commitIndex -> isSignatureAt after.log after.commitIndex = true
@@ -1109,559 +1273,83 @@ structure AppendRequestLocalPost
   successfulCurrentTerm : response.success = true -> request.term = before.currentTerm
   commitAdvancedSuccessful
     : before.commitIndex < after.commitIndex -> response.success = true
-  successfulUnchangedEntryTerms
-    : response.success = true -> after.log = before.log
-      -> ((before.log.drop request.prevLogIndex).take request.entries.length).map
-            Entry.term
-          = request.entries.map Entry.term
   successfulLogOk : response.success = true -> logOk before request
   successfulResponseTerm : response.success = true -> response.term = before.currentTerm
   successfulIndexExact
     : response.success = true
       -> response.lastLogIndex = request.prevLogIndex + request.entries.length
-  failedResponse : response.success = false -> response = failureResponse before request
-  failedStateUnchanged : response.success = false -> after = before
-  failedRequestNotNewer : response.success = false -> request.term <= before.currentTerm
-  failedSameTermNotLogOk
-    : response.success = false -> request.term = before.currentTerm
-      -> Not (logOk before request)
-
-/-- Every successful AppendEntries handler branch has the common local shape. -/
-lemma handleAppendEntriesRequestLocalPost
-    {self : Node} {before after : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId}
-    {response : AppendEntriesResponse}
-    (notStepped
-      : ¬ (request.term = before.currentTerm
-            ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
-    (handled : handleAppendEntriesRequest? (inferInstance) self before request = some (after, response))
-    : AppendRequestLocalPost before after request response := by
-  simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
-  split at handled
-  · rename_i rejectedState rejectedResponse rejected
-    unfold rejectAppendEntriesRequest? at rejected
-    split at rejected
-    · have pairEq :=
-        (Option.some.inj rejected).trans (Option.some.inj handled)
-      have afterEq := congrArg Prod.fst pairEq
-      have responseEq := congrArg Prod.snd pairEq
-      dsimp at afterEq responseEq
-      subst after
-      subst response
-      have metadata := failureResponseMetadata before request
-      exact ⟨
-        rfl,
-        rfl,
-        rfl,
-        rfl,
-        rfl,
-        rfl,
-        Or.inl rfl,
-        Or.inl rfl,
-        Or.inl rfl,
-        Or.inl rfl,
-        List.take_prefix _ _,
-        (by intro bound; exact bound),
-        le_rfl,
-        le_max_left _ _,
-        le_max_left _ _,
-        le_max_left _ _,
-        (by intro oldSignature positive; exact oldSignature positive),
-        (by intro succeeded; rw [metadata] at succeeded; contradiction),
-        (by intro succeeded; rw [metadata] at succeeded; contradiction),
-        (by intro advanced; omega),
-        (by intro succeeded; rw [metadata] at succeeded; contradiction),
-        (by intro succeeded; rw [metadata] at succeeded; contradiction),
-        (by intro succeeded; rw [metadata] at succeeded; contradiction),
-        (by intro succeeded; rw [metadata] at succeeded; contradiction),
-        (by intro _; rfl),
-        (by intro _; rfl),
-        (by
-          intro _
-          rcases ‹request.term < before.currentTerm \/
-              (request.term = before.currentTerm /\
-                before.role = .follower /\
-                Not (logOk before request))› with stale | same
-          · omega
-          · omega),
-        (by
-          intro _ equal
-          rcases ‹request.term < before.currentTerm \/
-              (request.term = before.currentTerm /\
-                before.role = .follower /\
-                Not (logOk before request))› with stale | same
-          · omega
-          · exact same.2.2)
-      ⟩
-    · contradiction
-  · unfold acceptAppendEntriesRequest? at handled
-    split at handled
-    · rename_i accepted
-      split at handled
-      · rename_i alreadyState alreadyResponse already
-        unfold appendEntriesAlreadyDone? at already
-        split at already
-        · rename_i truncatedAlreadyDone
-          have pairEq :=
-            (Option.some.inj already).trans (Option.some.inj handled)
-          have afterEq := congrArg Prod.fst pairEq
-          have responseEq := congrArg Prod.snd pairEq
-          dsimp at afterEq responseEq
-          subst after
-          subst response
-          simp only [committedFromLeader]
-          exact ⟨
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            rfl,
-            Or.inl rfl,
-            Or.inl rfl,
-            Or.inl rfl,
-            Or.inl rfl,
-            List.take_prefix _ _,
-            (by
-              intro bound
-              exact
-                committedFromLeader_bounded
-                  before request before.log bound),
-            le_max_left _ _,
-            committedFromLeader_le_max_requestEnd before request before.log,
-            committedFromLeader_le_max_leaderCommit before request before.log,
-            committedFromLeader_le_max_committable before request before.log,
-            (by
-              intro oldSignature positive
-              exact
-                committedFromLeader_isSignature
-                  before request before.log oldSignature positive),
-            by simp [successResponse],
-            by intro; exact accepted.1,
-            by simp [successResponse],
-            (by
-              intro _ _
-              have done : alreadyDone before request := by assumption
-              rcases done with empty | represented
-              · simp [empty]
-              · exact represented.2),
-            by intro; exact accepted.2.2.1,
-            by simp [successResponse],
-            by simp [successResponse],
-            by simp [successResponse],
-            by simp [successResponse],
-            by simp [successResponse],
-            by simp [successResponse]
-          ⟩
-        · contradiction
-      · split at handled
-        · rename_i extendedState extendedResponse extended
-          unfold noConflictAppendEntriesRequest? at extended
-          split at extended
-          · have pairEq :=
-              (Option.some.inj extended).trans (Option.some.inj handled)
-            have afterEq := congrArg Prod.fst pairEq
-            have responseEq := congrArg Prod.snd pairEq
-            dsimp at afterEq responseEq
-            subst after
-            subst response
-            simp only [committedFromLeader]
-            exact ⟨
-              rfl,
-              rfl,
-              rfl,
-              rfl,
-              rfl,
-              rfl,
-              Or.inr (Or.inr rfl),
-              Or.inr ‹noConflictExtension before request›.2.1,
-              Or.inr
-                (by
-                  rcases accepted.2.2.1 with zero | present
-                  · exact Or.inl zero
-                  · exact Or.inr present.2),
-              Or.inr accepted.1,
-              (by
-                unfold NodeState.committedLog
-                have first :
-                    before.log.take before.commitIndex <+:
-                      before.log.take request.prevLogIndex := by
-                  rw [List.prefix_take_iff]
-                  constructor
-                  · exact List.take_prefix _ _
-                  · simp only [List.length_take]
-                    omega
-                exact first.trans
-                  (List.prefix_append
-                    (before.log.take request.prevLogIndex)
-                    request.entries)),
-              (by
-                intro bound
-                have previousBound :=
-                  ‹noConflictExtension before request›.2.1
-                apply committedFromLeader_bounded
-                simp [List.length_take, previousBound]
-                omega),
-              le_max_left _ _,
-              committedFromLeader_le_max_requestEnd
-                before request
-                (before.log.take request.prevLogIndex ++ request.entries),
-              committedFromLeader_le_max_leaderCommit
-                before request
-                (before.log.take request.prevLogIndex ++ request.entries),
-              committedFromLeader_le_max_committable
-                before request
-                (before.log.take request.prevLogIndex ++ request.entries),
-              (by
-                intro oldSignature positive
-                apply
-                  committedFromLeader_isSignature
-                    before request
-                      (before.log.take request.prevLogIndex ++
-                        request.entries)
-                · intro oldPositive
-                  apply committedSignature_retained before
-                  · unfold NodeState.committedLog
-                    have first :
-                        before.log.take before.commitIndex <+:
-                          before.log.take request.prevLogIndex := by
-                      rw [List.prefix_take_iff]
-                      constructor
-                      · exact List.take_prefix _ _
-                      · simp only [List.length_take]
-                        omega
-                    exact first.trans
-                      (List.prefix_append
-                        (before.log.take request.prevLogIndex)
-                        request.entries)
-                  · exact oldSignature oldPositive
-                · exact positive),
-              by
-                intro
-                simp only [successResponse]
-                have previousBound :=
-                  ‹noConflictExtension before request›.2.1
-                simp [List.length_take, previousBound],
-              by intro; exact accepted.1,
-              by simp [successResponse],
-              (by
-                intro _ same
-                have logEq :
-                    before.log =
-                      before.log.take request.prevLogIndex ++
-                        request.entries := same.symm
-                nth_rewrite 1 [logEq]
-                simp [
-                  ‹noConflictExtension before request›.2.1]),
-              by intro; exact accepted.2.2.1,
-              by simp [successResponse],
-              (by
-                intro
-                simp [
-                  successResponse, List.length_take,
-                  ‹noConflictExtension before request›.2.1]),
-              by simp [successResponse],
-              by simp [successResponse],
-              by simp [successResponse],
-              by simp [successResponse]
-            ⟩
-          · contradiction
-        · split at handled
-          · contradiction
-          · rename_i truncated conflict
-            unfold conflictAppendEntriesRequest? at conflict
-            split at conflict
-            · have truncatedEq := Option.some.inj conflict
-              subst truncated
-              split at handled
-              · rename_i alreadyState alreadyResponse already
-                unfold appendEntriesAlreadyDone? at already
-                split at already
-                · rename_i truncatedAlreadyDone
-                  have pairEq :=
-                    (Option.some.inj already).trans
-                      (Option.some.inj handled)
-                  have afterEq := congrArg Prod.fst pairEq
-                  have responseEq := congrArg Prod.snd pairEq
-                  dsimp at afterEq responseEq
-                  subst after
-                  subst response
-                  simp only [committedFromLeader]
-                  exact ⟨
-                    rfl,
-                    rfl,
-                    rfl,
-                    rfl,
-                    rfl,
-                    rfl,
-                    Or.inr (Or.inl rfl),
-                    Or.inr
-                      (by
-                        rcases accepted.2.2.1 with zero | present
-                        · omega
-                        · exact present.1),
-                    Or.inr
-                      (by
-                        rcases accepted.2.2.1 with zero | present
-                        · exact Or.inl zero
-                        · exact Or.inr present.2),
-                    Or.inr accepted.1,
-                    (by
-                      unfold NodeState.committedLog
-                      rw [List.prefix_take_iff]
-                      constructor
-                      · exact List.take_prefix _ _
-                      · simp [List.length_take]
-                        omega),
-                    (by
-                      intro bound
-                      apply committedFromLeader_bounded
-                      simp [List.length_take]
-                      rcases accepted.2.2.1 with zero | present
-                      · omega
-                      · omega),
-                    le_max_left _ _,
-                    committedFromLeader_le_max_requestEnd
-                      before request
-                      (before.log.take request.prevLogIndex),
-                    committedFromLeader_le_max_leaderCommit
-                      before request
-                      (before.log.take request.prevLogIndex),
-                    committedFromLeader_le_max_committable
-                      before request
-                      (before.log.take request.prevLogIndex),
-                    (by
-                      intro oldSignature positive
-                      apply
-                        committedFromLeader_isSignature
-                          before request
-                            (before.log.take request.prevLogIndex)
-                      · intro oldPositive
-                        apply committedSignature_retained before
-                        · unfold NodeState.committedLog
-                          rw [List.prefix_take_iff]
-                          constructor
-                          · exact List.take_prefix _ _
-                          · simp [List.length_take]
-                            omega
-                        · exact oldSignature oldPositive
-                      · exact positive),
-                    by simp [successResponse],
-                    by intro; exact accepted.1,
-                    by simp [successResponse],
-                    (by
-                      intro _ same
-                      have done :
-                          alreadyDone
-                            { before with
-                              log := before.log.take request.prevLogIndex
-                              isNewFollower := false }
-                            request := by
-                        assumption
-                      rcases done with empty | represented
-                      · simp [empty]
-                      · rw [← same]
-                        exact represented.2),
-                    by intro; exact accepted.2.2.1,
-                    by simp [successResponse],
-                    by simp [successResponse],
-                    by simp [successResponse],
-                    by simp [successResponse],
-                    by simp [successResponse],
-                    by simp [successResponse]
-                  ⟩
-                · contradiction
-              · unfold noConflictAppendEntriesRequest? at handled
-                split at handled
-                · have pairEq := Option.some.inj handled
-                  have afterEq := congrArg Prod.fst pairEq
-                  have responseEq := congrArg Prod.snd pairEq
-                  dsimp at afterEq responseEq
-                  subst after
-                  subst response
-                  simp only [committedFromLeader]
-                  refine ⟨
-                    rfl,
-                    rfl,
-                    rfl,
-                    rfl,
-                    rfl,
-                    rfl,
-                    ?_,
-                    Or.inr
-                      (by
-                        rcases accepted.2.2.1 with zero | present
-                        · omega
-                        · exact present.1),
-                    Or.inr
-                      (by
-                        rcases accepted.2.2.1 with zero | present
-                        · exact Or.inl zero
-                        · exact Or.inr present.2),
-                    Or.inr accepted.1,
-                    (by
-                      unfold NodeState.committedLog
-                      simp only [List.take_take, Nat.min_self]
-                      have first :
-                          before.log.take before.commitIndex <+:
-                            before.log.take request.prevLogIndex := by
-                        rw [List.prefix_take_iff]
-                        constructor
-                        · exact List.take_prefix _ _
-                        · simp only [List.length_take]
-                          omega
-                      exact first.trans
-                        (List.prefix_append
-                          (before.log.take request.prevLogIndex)
-                          request.entries)),
-                    (by
-                      intro bound
-                      apply committedFromLeader_bounded
-                      simp [List.length_take, List.take_take]
-                      rcases accepted.2.2.1 with zero | present
-                      · omega
-                      · omega),
-                    le_max_left _ _,
-                    committedFromLeader_le_max_requestEnd
-                      before request
-                      ((before.log.take request.prevLogIndex).take request.prevLogIndex
-                        ++ request.entries),
-                    committedFromLeader_le_max_leaderCommit
-                      before request
-                      ((before.log.take request.prevLogIndex).take request.prevLogIndex
-                        ++ request.entries),
-                    committedFromLeader_le_max_committable
-                      before request
-                      ((before.log.take request.prevLogIndex).take request.prevLogIndex
-                        ++ request.entries),
-                    (by
-                      intro oldSignature positive
-                      apply
-                        committedFromLeader_isSignature
-                          before request
-                            ((before.log.take request.prevLogIndex).take
-                                request.prevLogIndex ++
-                              request.entries)
-                      · intro oldPositive
-                        apply committedSignature_retained before
-                        · unfold NodeState.committedLog
-                          simp only [List.take_take, Nat.min_self]
-                          have first :
-                              before.log.take before.commitIndex <+:
-                                before.log.take
-                                  request.prevLogIndex := by
-                            rw [List.prefix_take_iff]
-                            constructor
-                            · exact List.take_prefix _ _
-                            · simp only [List.length_take]
-                              omega
-                          exact first.trans
-                            (List.prefix_append
-                              (before.log.take request.prevLogIndex)
-                              request.entries)
-                        · exact oldSignature oldPositive
-                      · exact positive),
-                    by
-                      intro
-                      simp only [successResponse]
-                      simp [List.length_take],
-                    by intro; exact accepted.1,
-                    by simp [successResponse],
-                    (by
-                      intro _ same
-                      have logEq :
-                          before.log =
-                            (before.log.take request.prevLogIndex).take
-                                request.prevLogIndex ++ request.entries :=
-                        same.symm
-                      nth_rewrite 1 [logEq]
-                      have previousBound :
-                          request.prevLogIndex <= before.log.length := by
-                        rcases accepted.2.2.1 with zero | present
-                        · omega
-                        · exact present.1
-                      simp [
-                        List.take_take, previousBound]),
-                    by intro; exact accepted.2.2.1,
-                    by simp [successResponse],
-                    (by
-                      intro
-                      have previousBound :
-                          request.prevLogIndex <= before.log.length := by
-                        rcases accepted.2.2.1 with zero | present
-                        · omega
-                        · exact present.1
-                      simp [
-                        successResponse, List.take_take,
-                        List.length_take, previousBound]),
-                    by simp [successResponse],
-                    by simp [successResponse],
-                    by simp [successResponse],
-                    by simp [successResponse]
-                  ⟩
-                  right
-                  right
-                  simp [List.take_take]
-                · contradiction
-            · contradiction
-    · contradiction
-
-/-- A node which is already a leader can only take a rejecting request branch. -/
-lemma handleAppendEntriesRequestLeaderUnchanged
-    {self : Node} {before after : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId}
-    {response : AppendEntriesResponse}
-    (leader : before.role = .leader)
-    (notStepped
-      : ¬ (request.term = before.currentTerm
-            ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
-    (handled : handleAppendEntriesRequest? (inferInstance) self before request = some (after, response))
-    : after = before := by
-  simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
-  split at handled
-  · rename_i rejectedState rejectedResponse rejected
-    unfold rejectAppendEntriesRequest? at rejected
-    split at rejected
-    · have pairEq :=
-        (Option.some.inj rejected).trans (Option.some.inj handled)
-      have beforeAfter := congrArg Prod.fst pairEq
-      dsimp at beforeAfter
-      exact beforeAfter.symm
-    · contradiction
-  · unfold acceptAppendEntriesRequest? at handled
-    split at handled
-    · rename_i accepted
-      exact Role.noConfusion (accepted.2.1.symm.trans leader)
-    · contradiction
-
-lemma acceptAppendEntriesRequest_conditions
-    {self : Node} {before after : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
-    (accepted : acceptAppendEntriesRequest? (inferInstance) self before request = some (after, response))
-    : request.term = before.currentTerm
-      ∧ before.role = .follower
-      ∧ logOk before request
-      ∧ before.commitIndex ≤ request.prevLogIndex := by
-  unfold acceptAppendEntriesRequest? at accepted
-  split at accepted
-  · assumption
-  · contradiction
-
-lemma acceptAppendEntriesRequest_handled
-    {self : Node} {before after : NodeState Node TxId}
-    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
-    (accepted : acceptAppendEntriesRequest? (inferInstance) self before request = some (after, response))
-    : handleAppendEntriesRequest? (inferInstance) self before request = some (after, response) := by
-  obtain ⟨term, role, matching, _⟩ := acceptAppendEntriesRequest_conditions accepted
-  simpa [handleAppendEntriesRequest? (inferInstance), rejectAppendEntriesRequest?, term, role, matching] using accepted
 
 lemma acceptAppendEntriesRequestLocalPost
     {self : Node} {before after : NodeState Node TxId}
     {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
-    (accepted : acceptAppendEntriesRequest? (inferInstance) self before request = some (after, response))
+    (accepted
+      : acceptAppendEntriesRequest? (inferInstance) self before request
+        = some (after, response))
     : AppendRequestLocalPost before after request response := by
-  have follower := (acceptAppendEntriesRequest_conditions accepted).2.1
-  exact handleAppendEntriesRequestLocalPost (by simp [follower])
-    (acceptAppendEntriesRequest_handled accepted)
+  obtain ⟨term, matching, committed, shape, commitEq, role, currentTerm, sent, matchEq,
+    voted, votes, -, -, rfl⟩ := acceptAppendEntriesRequest_eq accepted
+  have previousBound : request.prevLogIndex <= before.log.length := by
+    rcases matching with zero | ⟨bound, _⟩ <;> omega
+  have retained : before.committedLog <+: after.log := by
+    unfold NodeState.committedLog
+    rcases shape with ⟨-, logEq⟩ | ⟨-, -, logEq⟩ <;> rw [logEq]
+    · exact (List.take_prefix _ _).trans (List.prefix_append _ _)
+    · rw [show before.log.take before.commitIndex =
+          (before.log.take request.prevLogIndex).take before.commitIndex by
+        rw [List.take_take, min_eq_left committed]]
+      exact (List.take_prefix _ _).trans (List.prefix_append _ _)
+  refine ⟨
+    role,
+    currentTerm,
+    sent,
+    matchEq,
+    voted,
+    votes,
+    ?_,
+    retained,
+    ?_,
+    ?_,
+    ?_,
+    ?_,
+    ?_,
+    fun _ => le_rfl,
+    fun _ => term,
+    fun _ => rfl,
+    fun _ => matching,
+    fun _ => rfl,
+    fun _ => rfl
+  ⟩
+  · rcases shape with ⟨-, logEq⟩ | ⟨-, -, logEq⟩
+    · exact Or.inl logEq
+    · exact Or.inr logEq
+  · intro bound
+    rw [commitEq]
+    apply committedFromLeader_bounded
+    have := retained.length_le
+    simp only [NodeState.committedLog, List.length_take] at this
+    omega
+  · rw [commitEq]
+    exact le_max_left _ _
+  · rw [commitEq]
+    exact committedFromLeader_le_max_requestEnd before request after.log
+  · rw [commitEq]
+    exact committedFromLeader_le_max_leaderCommit before request after.log
+  · intro oldSignature positive
+    rw [commitEq] at positive ⊢
+    apply committedFromLeader_isSignature _ _ _ _ positive
+    intro oldPositive
+    exact committedSignature_retained before after.log retained (oldSignature oldPositive)
+
+lemma acceptAppendEntriesRequest_conditions
+    {self : Node} {before after : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
+    (accepted
+      : acceptAppendEntriesRequest? (inferInstance) self before request
+        = some (after, response))
+    : request.term = before.currentTerm
+      ∧ logOk before request
+      ∧ before.commitIndex ≤ request.prevLogIndex :=
+  let facts := acceptAppendEntriesRequest_eq accepted
+  ⟨facts.1, facts.2.1, facts.2.2.1⟩
 
 end CCFRaft.Proofs.Invariant

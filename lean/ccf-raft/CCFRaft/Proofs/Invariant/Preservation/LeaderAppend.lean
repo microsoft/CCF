@@ -447,7 +447,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node
     · subst candidate
-      simpa [currentConfiguration (inferInstance), commitIndexEq]
+      simpa [currentConfiguration, commitIndexEq]
         using currentConfigurationAtEq
           ((nodeOf state) node).commitIndex
           (facts.commitIndicesBounded node)
@@ -457,9 +457,9 @@ lemma leaderAppendPreservesSystemInductiveInvariant
     ]
   have activeConfigurationsForward :
       forall candidate configuration,
-        configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate) ->
+        configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) ->
           configuration ∈
-            activeConfigurations (inferInstance)
+            activeConfigurationsOf (inferInstance)
               ((nodeOf (leaderAppendState state node content))
                 candidate) := by
     intro candidate configuration active
@@ -812,7 +812,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
     intro governs
     have afterActive :
         configuration ∈
-          activeConfigurations (inferInstance)
+          activeConfigurationsOf (inferInstance)
             ((nodeOf (leaderAppendState state node content))
               leader) := by
       exact activeConfigurationsForward leader configuration active
@@ -1377,7 +1377,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
     intro governs
     have afterActive :
         configuration ∈
-          activeConfigurations (inferInstance)
+          activeConfigurationsOf (inferInstance)
             ((nodeOf (leaderAppendState state node content))
               source) := by
       exact activeConfigurationsForward source configuration active
@@ -2306,11 +2306,11 @@ lemma leaderAppendPreservesSystemInductiveInvariant
                     candidate).log \/
                 Exists fun configuration =>
                   configuration ∈
-                      activeConfigurations (inferInstance)
+                      activeConfigurationsOf (inferInstance)
                         ((nodeOf (leaderAppendState state node content)) source) /\
                     configuration.index <= index /\
                     configuration ∈
-                      activeConfigurations (inferInstance)
+                      activeConfigurationsOf (inferInstance)
                         ((nodeOf (leaderAppendState state node content))
                             candidate) := by
     intro source index sourceRole current signature potential
@@ -3258,7 +3258,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
             subst newConfiguration
             exact hasJoinedMono
               (facts.joinedCarriers.configurationNodes
-                node implicitConfiguration (inferInstance)
+                node (implicitConfiguration (inferInstance))
                 (by simp [allConfigurations])
                 newPeerMember)
         | signature =>
@@ -3269,7 +3269,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
             subst newConfiguration
             exact hasJoinedMono
               (facts.joinedCarriers.configurationNodes
-                node implicitConfiguration (inferInstance)
+                node (implicitConfiguration (inferInstance))
                 (by simp [allConfigurations])
                 newPeerMember)
         | retiredCommitted retired =>
@@ -3280,7 +3280,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
             subst newConfiguration
             exact hasJoinedMono
               (facts.joinedCarriers.configurationNodes
-                node implicitConfiguration (inferInstance)
+                node (implicitConfiguration (inferInstance))
                 (by simp [allConfigurations])
                 newPeerMember)
         | reconfiguration newNodes =>
@@ -3293,7 +3293,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
               exact
                 hasJoinedMono
                   (facts.joinedCarriers.configurationNodes
-                    node implicitConfiguration (inferInstance)
+                    node (implicitConfiguration (inferInstance))
                       (by simp [allConfigurations])
                       newPeerMember)
             · subst newConfiguration

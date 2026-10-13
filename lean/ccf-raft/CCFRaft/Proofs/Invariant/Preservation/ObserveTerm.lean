@@ -143,11 +143,11 @@ lemma updateTermPreservesSystemInductiveInvariant
     simp [NodeState.committedLog, commitEq, logEq]
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations (inferInstance)
+        activeConfigurationsOf (inferInstance)
             ((nodeOf (observeTermEffect state destination selected.payload.term)) node) =
-          activeConfigurations (inferInstance) ((nodeOf state) node) := by
+          activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
     intro node
-    unfold activeConfigurations currentConfiguration
+    unfold activeConfigurationsOf currentConfiguration
     rw [logEq, commitEq]
   have sentEq :
       forall node,
@@ -409,7 +409,7 @@ lemma updateTermPreservesSystemInductiveInvariant
     intro governs
     have afterActive :
         configuration ∈
-          activeConfigurations (inferInstance)
+          activeConfigurationsOf (inferInstance)
             ((nodeOf (observeTermEffect state destination selected.payload.term))
               leader) := by
       simpa [activeConfigurationsEq] using active
@@ -1102,7 +1102,7 @@ lemma updateTermPreservesSystemInductiveInvariant
             evidence.history.take evidence.commitFrontier <+:
                 ((nodeOf (observeTermEffect state destination selected.payload.term)) candidate).log \/
               evidence.authority ∈
-                activeConfigurations (inferInstance)
+                activeConfigurationsOf (inferInstance)
                   ((nodeOf (observeTermEffect state destination selected.payload.term)) candidate) := by
     intro evidence supportedPrefix known candidate candidateRole
         candidateMajority evidenceBeforeCandidate
@@ -1123,7 +1123,7 @@ lemma updateTermPreservesSystemInductiveInvariant
     have directOfActive
         (authorityActive :
           evidence.authority ∈
-            activeConfigurations (inferInstance)
+            activeConfigurationsOf (inferInstance)
               ((nodeOf (observeTermEffect state destination selected.payload.term)) candidate)) :
         evidence.history.take evidence.commitFrontier <+:
           ((nodeOf (observeTermEffect state destination selected.payload.term)) candidate).log := by
@@ -1231,7 +1231,7 @@ lemma updateTermPreservesSystemInductiveInvariant
             evidenceNode candidateConfiguration
             (by simpa [evidenceNode] using candidateConfigurationKnownEvidence)
             (supportedBound.trans candidateValid.2.2.1)
-        simpa [evidenceNode, currentConfiguration (inferInstance), candidateValid.2.2.2.2.1] using bound
+        simpa [evidenceNode, currentConfiguration, candidateValid.2.2.2.2.1] using bound
       have evidenceBeforeCandidateEvidence :
           evidence.authority.index <
             candidateEvidence.authority.index :=
@@ -1312,7 +1312,7 @@ lemma updateTermPreservesSystemInductiveInvariant
               (by simpa [evidenceNode] using candidateKnownEvidence)
               (by simpa [evidenceNode] using candidateIndexWithinEvidence)
           simpa [
-            evidenceNode, currentConfiguration (inferInstance),
+            evidenceNode, currentConfiguration,
             valid.2.2.2.2.1
           ] using maximal
         omega
@@ -1350,7 +1350,7 @@ lemma updateTermPreservesSystemInductiveInvariant
               { (nodeOf state) candidate with
                 log := evidence.history
                 commitIndex := evidence.commitFrontier }
-            simpa [evidenceNode, currentConfiguration (inferInstance), valid.2.2.2.2.1]
+            simpa [evidenceNode, currentConfiguration, valid.2.2.2.2.1]
               using currentConfiguration_mem_allConfigurations evidenceNode
           have evidenceImplicit :
               evidence.authority = implicitConfiguration (inferInstance) := by
@@ -1359,7 +1359,7 @@ lemma updateTermPreservesSystemInductiveInvariant
                 (TxId := TxId) evidence.history
                 evidenceKnown
             · simp [allConfigurations, implicitConfiguration]
-            · simpa [implicitConfiguration (inferInstance)] using zero
+            · simpa [implicitConfiguration] using zero
           have candidateZero :
               candidateConfiguration.index = 0 := by
             simpa [sameIndex] using zero
@@ -1372,7 +1372,7 @@ lemma updateTermPreservesSystemInductiveInvariant
                 using currentConfiguration_mem_allConfigurations
                   ((nodeOf state) candidate)
             · simp [allConfigurations, implicitConfiguration]
-            · simpa [implicitConfiguration (inferInstance)] using candidateZero
+            · simpa [implicitConfiguration] using candidateZero
           exact evidenceImplicit.trans candidateImplicit.symm
         · rcases
               activationEvidence.authorityRecorded
@@ -1500,7 +1500,7 @@ lemma updateTermPreservesSystemInductiveInvariant
               (List.mem_filter.mp governing).1
               (of_decide_eq_true
                 (List.mem_filter.mp governing).2).2
-        simpa [activeConfigurations (inferInstance), candidateConfiguration, candidateUnchanged]
+        simpa [activeConfigurationsOf, candidateConfiguration, candidateUnchanged]
           using And.intro authorityKnownCandidate candidateBeforeAuthority.le
   have activationEvidenceAfter :
       ActivationEvidenceFacts (joined := joinedNodes)
@@ -1865,7 +1865,7 @@ lemma updateTermPreservesSystemInductiveInvariant
     · intro node peer member
       simpa [concrete_effects, updateTerm, newer, present]
         using facts.joinedCarriers.activeNodes node
-          (by simpa [activeNodeUnion (inferInstance), activeConfigurationsEq] using member)
+          (by simpa [activeNodeUnion, activeConfigurationsEq] using member)
     · intro node configuration member peer inNodes
       simpa [concrete_effects, updateTerm, newer, present]
         using facts.joinedCarriers.configurationNodes node configuration

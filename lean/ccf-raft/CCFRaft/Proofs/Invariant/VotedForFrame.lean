@@ -26,110 +26,20 @@ private def withVotedFor
     : NodeState Node TxId × AppendEntriesResponse :=
   ({ result.1 with votedFor := votedFor }, result.2)
 
-lemma appendEntriesAlreadyDone_votedFor
-    (node : NodeState Node TxId)
-    (votedFor : Option Node)
-    (request : AppendEntriesRequest Node TxId)
-    : appendEntriesAlreadyDone? { node with votedFor := votedFor } request
-      = (appendEntriesAlreadyDone? node request).map (withVotedFor votedFor) := by
-  unfold appendEntriesAlreadyDone?
-  simp only [alreadyDone]
-  split_ifs <;>
-    simp_all [
-      committedFromLeader, successResponse, withVotedFor
-    ]
-
-omit [DecidableEq Node] [DecidableEq TxId] in
-lemma conflictAppendEntriesRequest_votedFor
-    (node : NodeState Node TxId)
-    (votedFor : Option Node)
-    (request : AppendEntriesRequest Node TxId)
-    : conflictAppendEntriesRequest? { node with votedFor := votedFor } request
-      = (conflictAppendEntriesRequest? node request).map
-          fun next =>
-            { next with votedFor := votedFor } := by
-  unfold conflictAppendEntriesRequest?
-  simp only [hasTermConflict, overlapLength]
-  split_ifs <;> simp_all
-
 variable [InitialConfig Node]
 variable (self : Node)
-
-lemma noConflictAppendEntriesRequest_votedFor
-    (node : NodeState Node TxId)
-    (votedFor : Option Node)
-    (request : AppendEntriesRequest Node TxId)
-    : noConflictAppendEntriesRequest? (inferInstance) self { node with votedFor := votedFor } request
-      = (noConflictAppendEntriesRequest? (inferInstance) self node request).map
-          (withVotedFor votedFor) := by
-  by_cases enabled : noConflictExtension node request
-  · have changed : noConflictExtension { node with votedFor := votedFor } request :=
-      enabled
-    simp only [noConflictAppendEntriesRequest?, ite_eq_left enabled, ite_eq_left changed,
-      Option.map_some]
-    rfl
-  · have changed : ¬noConflictExtension { node with votedFor := votedFor } request :=
-      enabled
-    simp only [noConflictAppendEntriesRequest?, ite_eq_right enabled, ite_eq_right changed,
-      Option.map_none]
 
 lemma acceptAppendEntriesRequest_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
     (request : AppendEntriesRequest Node TxId)
-    : acceptAppendEntriesRequest? (inferInstance) self { node with votedFor := votedFor } request
-      = (acceptAppendEntriesRequest? (inferInstance) self node request).map (withVotedFor votedFor) := by
+    : acceptAppendEntriesRequest? (inferInstance) self { node with votedFor := votedFor }
+        request
+      = (acceptAppendEntriesRequest? (inferInstance) self node request).map
+          (withVotedFor votedFor) := by
   unfold acceptAppendEntriesRequest?
-  by_cases accepted :
-      request.term = node.currentTerm /\
-        node.role = .follower /\
-        logOk node request /\
-        request.prevLogIndex >= node.commitIndex
-  · have acceptedChanged :
-        request.term =
-            ({ node with votedFor := votedFor } : NodeState Node TxId).currentTerm /\
-          ({ node with votedFor := votedFor } : NodeState Node TxId).role =
-            .follower /\
-          logOk { node with votedFor := votedFor } request /\
-          request.prevLogIndex >=
-            ({ node with votedFor := votedFor } :
-              NodeState Node TxId).commitIndex := by
-      simpa [logOk] using accepted
-    rw [ite_eq_left acceptedChanged, ite_eq_left accepted]
-    rw [
-      appendEntriesAlreadyDone_votedFor,
-      noConflictAppendEntriesRequest_votedFor,
-      conflictAppendEntriesRequest_votedFor
-    ]
-    cases appendEntriesAlreadyDone? node request <;>
-      simp [withVotedFor]
-    cases noConflictAppendEntriesRequest? (inferInstance) self node request <;> simp
-    cases conflictResult : conflictAppendEntriesRequest? node request with
-    | none => simp
-    | some truncated =>
-        have nestedAppend :=
-          appendEntriesAlreadyDone_votedFor
-            truncated votedFor request
-        have nestedNoConflict :=
-          noConflictAppendEntriesRequest_votedFor self
-            truncated votedFor request
-        simp only [Option.map_some]
-        rw [nestedAppend, nestedNoConflict]
-        cases appendEntriesAlreadyDone? truncated request <;> simp
-  · have rejectedChanged :
-        Not (
-          request.term =
-              ({ node with votedFor := votedFor } :
-                NodeState Node TxId).currentTerm /\
-            ({ node with votedFor := votedFor } : NodeState Node TxId).role =
-              .follower /\
-            logOk { node with votedFor := votedFor } request /\
-            request.prevLogIndex >=
-              ({ node with votedFor := votedFor } :
-                NodeState Node TxId).commitIndex) := by
-      simpa [logOk] using accepted
-    rw [ite_eq_right rejectedChanged, ite_eq_right accepted]
-    rfl
+  dsimp only
+  split_ifs <;> rfl
 
 lemma canProduceAppendAckEventuallyAt_votedFor
     (node : NodeState Node TxId)

@@ -76,80 +76,36 @@ theorem Extends.append {state : NodeState Node TxId} (frontier : CommitFrontier 
   simp only
   rw [List.take_append_of_le_length frontier.1]
 
-theorem Extends.appendEntry {state : NodeState Node TxId}
+theorem Extends.leaderAppendState {state : NodeState Node TxId}
     (frontier : CommitFrontier state) (self : Node) (content : EntryContent Node TxId)
-    : Extends state (appendEntry (inferInstance) state self content) := by
-  unfold Model.Local.appendEntry
-  exact (Extends.append frontier _).trans
-    (Extends.of_log (refreshRetirementState_log _ _) (refreshRetirementState_commitIndex _ _))
+    : Extends state
+        (refreshRetirementState (inferInstance) self
+          { state with log := state.log ++ [{ term := state.currentTerm, content }] }) :=
+  (Extends.append frontier _).trans
+    (Extends.of_log (refreshRetirementState_log _ _)
+      (refreshRetirementState_commitIndex _ _))
 
 section AppendEntries
 
 variable {self : Node} {state : NodeState Node TxId}
   {request : AppendEntriesRequest Node TxId}
-  {result : NodeState Node TxId × AppendEntriesResponse}
 
-theorem Extends.alreadyDone (done : appendEntriesAlreadyDone? state request = some result)
-    : Extends state result.1 := by
-  unfold appendEntriesAlreadyDone? at done
-  split at done
-  · obtain rfl := (Option.some.inj done).symm
-    exact ⟨le_max_left _ _, rfl⟩
-  · simp at done
-
-theorem Extends.noConflict (bounded : state.commitIndex <= state.log.length)
-    (within : state.commitIndex <= request.prevLogIndex)
-    (appended : noConflictAppendEntriesRequest? (inferInstance) self state request = some result)
-    : Extends state result.1 := by
-  unfold noConflictAppendEntriesRequest? at appended
-  split at appended
-  · obtain rfl := (Option.some.inj appended).symm
-    have kept := Extends.keep (state := state) bounded within (suffix := request.entries)
-      (commitIndex := committedFromLeader state request
-        (state.log.take request.prevLogIndex ++ request.entries)) (le_max_left _ _)
-    exact kept.trans (Extends.of_log (by simp) rfl)
-  · simp at appended
-
-theorem Extends.accept (bounded : state.commitIndex <= state.log.length)
-    (accepted : acceptAppendEntriesRequest? (inferInstance) self state request = some result)
-    : Extends state result.1 := by
-  unfold acceptAppendEntriesRequest? at accepted
-  split at accepted
-  · rename_i guard
-    have within : state.commitIndex <= request.prevLogIndex := guard.2.2.2
-    split at accepted
-    · rename_i done
-      obtain rfl := Option.some.inj accepted
-      exact Extends.alreadyDone done
-    · split at accepted
-      · rename_i appended
-        obtain rfl := Option.some.inj accepted
-        exact Extends.noConflict bounded within appended
-      · split at accepted
-        · simp at accepted
-        · rename_i truncated conflicted
-          unfold conflictAppendEntriesRequest? at conflicted
-          split at conflicted
-          · obtain rfl := (Option.some.inj conflicted).symm
-            have truncatedExtends : Extends state { state with
-                log := state.log.take request.prevLogIndex, isNewFollower := false } := by
-              have kept := Extends.keep (state := state) bounded within (suffix := [])
-                (commitIndex := state.commitIndex) le_rfl
-              exact kept.trans (Extends.of_log (by simp) rfl)
-            split at accepted
-            · rename_i done
-              obtain rfl := Option.some.inj accepted
-              exact truncatedExtends.trans (Extends.alreadyDone done)
-            · exact truncatedExtends.trans (Extends.noConflict
-                (by simp only [List.length_take]; omega) within accepted)
-          · simp at conflicted
-  · simp at accepted
+theorem Extends.fromLeader (bounded : state.commitIndex <= state.log.length)
+    : Extends state (appendEntriesFromLeader (inferInstance) self state request).1 := by
+  have kept := Extends.keep (state := state) (count := state.log.length) bounded bounded
+    (suffix := request.entries.drop (state.log.length - request.prevLogIndex))
+    (commitIndex := committedFromLeader state request
+      (state.log ++ request.entries.drop (state.log.length - request.prevLogIndex)))
+    (le_max_left _ _)
+  unfold appendEntriesFromLeader
+  exact kept.trans (Extends.of_log (by simp) (by simp))
 
 theorem Extends.handleAppendEntriesRequest
     (bounded : state.commitIndex <= state.log.length)
-    (handled : handleAppendEntriesRequest? (inferInstance) self state request = some result)
-    : Extends state result.1 := by
-  unfold handleAppendEntriesRequest? at handled
+    : Extends state
+        (Model.Local.handleAppendEntriesRequest (inferInstance) self state
+          request).1 := by
+  unfold Model.Local.handleAppendEntriesRequest
   have stepped : Extends state (if request.term = state.currentTerm /\
       (state.role = .candidate \/ state.role = .preVoteCandidate) then
         { state with role := .follower, isNewFollower := true } else state) := by
@@ -166,42 +122,56 @@ theorem Extends.handleAppendEntriesRequest
   generalize (if request.term = state.currentTerm /\
       (state.role = .candidate \/ state.role = .preVoteCandidate) then
         { state with role := .follower, isNewFollower := true } else state) = current
-    at handled stepped currentBounded
-  dsimp only at handled
-  split at handled
-  · rename_i rejected
-    unfold rejectAppendEntriesRequest? at rejected
-    split at rejected
-    · obtain rfl := Option.some.inj handled
-      obtain rfl := (Option.some.inj rejected).symm
-      exact stepped
-    · simp at rejected
-  · exact stepped.trans (Extends.accept currentBounded handled)
+    at stepped currentBounded
+  dsimp only
+  split
+  · exact stepped
+  split
+  · exact stepped.trans (Extends.of_log rfl rfl)
+  rename_i _ notBefore
+  have within : current.commitIndex <= request.prevLogIndex := by
+    simp only [not_or] at notBefore
+    omega
+  split
+  · have kept := Extends.keep (state := current) currentBounded within (suffix := [])
+      (commitIndex := current.commitIndex) le_rfl
+    have truncated : Extends current { current with
+        leaderKnown := true, log := current.log.take request.prevLogIndex,
+        isNewFollower := false } := kept.trans (Extends.of_log (by simp) rfl)
+    exact (stepped.trans truncated).trans
+      (Extends.fromLeader (by simp only [List.length_take]; omega))
+  · exact (stepped.trans (Extends.of_log rfl rfl)).trans
+      (Extends.fromLeader (self := self) currentBounded)
 
 end AppendEntries
 
-theorem Extends.promoted {state : NodeState Node TxId} (self : Node)
-    (frontier : CommitFrontier state) {role : Role} {sentIndex matchIndex : Node -> Nat}
+theorem Extends.promotedLog {state : NodeState Node TxId}
+    (frontier : CommitFrontier state)
     : Extends state
-        (refreshRetirementState (inferInstance) self
-          {
-            state with
-              log := state.log.take (maxCommittableIndex state.log)
-              role
-              sentIndex
-              matchIndex
-          }) := by
-  have kept := Extends.keep (state := state) frontier.1 frontier.truncateToSignature (suffix := [])
-    (commitIndex := state.commitIndex) le_rfl
-  exact kept.trans (Extends.of_log (by simp) (by simp))
+        {
+          state with
+            log :=
+              if state.commitIndex > 0 then
+                state.log.take (lastCommittableIndex state)
+              else
+                state.log
+        } := by
+  split
+  · have kept := Extends.keep (state := state) (count := lastCommittableIndex state) frontier.1
+      (by unfold lastCommittableIndex; omega) (suffix := []) (commitIndex := state.commitIndex)
+      le_rfl
+    exact kept.trans (Extends.of_log (by simp) rfl)
+  · exact Extends.of_log rfl rfl
 
 theorem Extends.advanced {state : NodeState Node TxId} (self : Node)
     (advances : state.commitIndex < highestCommittableIndex (inferInstance) state self)
-    : Extends state (demoteRetiredCommitted (Model.Local.advanceCommit (inferInstance) state self)) := by
-  have advanced : Extends state (Model.Local.advanceCommit (inferInstance) state self) := by
-    unfold Model.Local.advanceCommit
-    exact ⟨by simp; omega, by simp⟩
-  unfold demoteRetiredCommitted
+    : Extends state (Model.Local.advanceCommit (inferInstance) state self) := by
+  have advanced : Extends state
+      (refreshRetirementState (inferInstance) self
+        { state with commitIndex := highestCommittableIndex (inferInstance) state self }) :=
+    ⟨by simp; omega, by simp⟩
+  unfold Model.Local.advanceCommit
+  dsimp only
   split
   · exact advanced.trans (Extends.of_log rfl rfl)
   · exact advanced
@@ -211,85 +181,71 @@ theorem Extends.observeTerm (state : NodeState Node TxId) (message : Message Nod
   Extends.of_log (Concrete.observeTerm_log _ _) (Concrete.observeTerm_commitIndex _ _)
 
 /-- Every local step extends the acting node's committed log. -/
-theorem extends_step {self : Node} {state : NodeState Node TxId}
-    {event : Event Node TxId} {execute : NodeEffect Node TxId (NodeState Node TxId)}
+theorem extends_step {self : Node} {state after : NodeState Node TxId}
+    {event : Event Node TxId} {outputs : Outputs Node (Message Node TxId) Notification}
     (frontier : CommitFrontier state)
     (stepped
-      : Model.Local.step (inferInstance) (Capabilities.record self) self state event = some execute)
-    : Extends state (execute.run {}).1 := by
+      : (Model.Local.step (inferInstance) (Capabilities.record self) self state event).run
+          {}
+        = some (after, outputs))
+    : Extends state after := by
   cases event with
   | internal input =>
-      simp only [Model.Local.step] at stepped
       cases input <;>
-        simp only [Model.Local.act, guard, bind, Option.bind] at stepped <;>
-        split at stepped <;> (try simp at stepped) <;>
-        rename_i condition <;>
-        have holds := Concrete.guard_holds condition <;>
-        subst stepped <;>
-        simp only [run_pure, run_send]
+        simp only [Model.Local.step, Model.Local.act, Model.Local.leaderAppend] at stepped <;>
+        simp [Capabilities.record] at stepped
+      all_goals
+        casesm* _ ∧ _
+        subst after
+      case initializeConfiguration =>
+        exact ⟨le_rfl, by simp [*]⟩
+      case changeConfiguration =>
+        exact (Extends.leaderAppendState frontier self _).trans (Extends.of_log rfl rfl)
+      case becomeLeader =>
+        exact (Extends.promotedLog frontier).trans (Extends.of_log (by simp) (by simp))
       all_goals first
         | exact Extends.refl _
         | exact Extends.of_log rfl rfl
-        | exact Extends.appendEntry frontier _ _
-        | exact (Extends.appendEntry frontier _ _).trans Extends.withSent
-        | exact Extends.promoted _ frontier
-        | exact ⟨by simp [holds.2.2.2.2.1], by simp [holds.2.2.2.2.1]⟩
-        | exact Extends.advanced _ holds.2.1
+        | exact Extends.leaderAppendState frontier _ _
+        | exact Extends.advanced _ (by assumption)
   | receive source message =>
-      simp only [Model.Local.step] at stepped
       have observed := Extends.observeTerm state message
       have bounded : (Model.Local.observeTerm state message).commitIndex
           <= (Model.Local.observeTerm state message).log.length := by
         rw [Concrete.observeTerm_log, Concrete.observeTerm_commitIndex]
         exact frontier.1
-      cases message with
-      | appendEntriesRequest request =>
-          simp only [Model.Local.receive] at stepped
-          obtain ⟨⟨next, response⟩, handled, done⟩ := Option.bind_eq_some_iff.mp stepped
-          obtain rfl := (Option.some.inj done).symm
-          exact (observed.trans (Extends.handleAppendEntriesRequest bounded handled)).trans
-            (Extends.of_log (refreshRetirementState_log _ _)
-              (refreshRetirementState_commitIndex _ _))
-      | appendEntriesResponse response =>
-          simp only [Model.Local.receive] at stepped
-          obtain rfl := (Option.some.inj stepped).symm
-          have kept := Concrete.handleAppendEntriesResponse_log
-            (Model.Local.observeTerm state (.appendEntriesResponse response)) source response
-          exact observed.trans (Extends.of_log kept.1 kept.2)
-      | requestVoteRequest request =>
-          simp only [Model.Local.receive] at stepped
-          obtain rfl := (Option.some.inj stepped).symm
-          have kept := Concrete.handleRequestVoteRequest_log
-            (Model.Local.observeTerm state (.requestVoteRequest request)) source request
-          exact observed.trans (Extends.of_log kept.1 kept.2)
-      | requestVoteResponse response =>
-          simp only [Model.Local.receive] at stepped
-          obtain rfl := (Option.some.inj stepped).symm
-          have kept := Concrete.handleRequestVoteResponse_log
-            (Model.Local.observeTerm state (.requestVoteResponse response)) source response
-          exact observed.trans (Extends.of_log kept.1 kept.2)
-      | requestPreVote request =>
-          simp only [Model.Local.receive] at stepped
-          obtain rfl := (Option.some.inj stepped).symm
-          exact observed
-      | requestPreVoteResponse response =>
-          simp only [Model.Local.receive] at stepped
-          obtain rfl := (Option.some.inj stepped).symm
-          have kept := Concrete.handleRequestPreVoteResponse_log
-            (Model.Local.observeTerm state (.requestPreVoteResponse response)) source response
-          exact observed.trans (Extends.of_log kept.1 kept.2)
-      | proposeVoteRequest term =>
-          simp only [Model.Local.receive] at stepped
-          obtain rfl := (Option.some.inj stepped).symm
-          have kept := Concrete.handleProposeVoteRequest_log
-            (Model.Local.observeTerm state (.proposeVoteRequest term)) self term
-          exact observed.trans (Extends.of_log kept.1 kept.2)
+      cases message <;>
+        simp only [Model.Local.step, Model.Local.receive] at stepped
+      case appendEntriesRequest request =>
+        have handled := (observed.trans (Extends.handleAppendEntriesRequest (self := self)
+          (request := request) bounded)).trans
+          (Extends.of_log (refreshRetirementState_log _ _)
+            (refreshRetirementState_commitIndex _ _) (after := refreshRetirementState
+              (inferInstance) self _))
+        split at stepped <;> simp [Capabilities.record] at stepped <;>
+          obtain ⟨rfl, -⟩ := stepped <;> exact handled
+      all_goals
+        (try split at stepped) <;> simp [Capabilities.record] at stepped <;>
+          (try casesm* _ ∧ _) <;> subst after
+      all_goals first
+        | exact observed
+        | exact observed.trans (Extends.of_log rfl rfl)
+        | exact observed.trans (Extends.of_log (Concrete.handleAppendEntriesResponse_log _ _ _).1
+            (Concrete.handleAppendEntriesResponse_log _ _ _).2)
+        | exact observed.trans (Extends.of_log (Concrete.handleRequestVoteRequest_log _ _ _).1
+            (Concrete.handleRequestVoteRequest_log _ _ _).2)
+        | exact observed.trans (Extends.of_log (Concrete.handleRequestVoteResponse_log _ _ _).1
+            (Concrete.handleRequestVoteResponse_log _ _ _).2)
+        | exact observed.trans (Extends.of_log (Concrete.handleRequestPreVoteResponse_log _ _ _).1
+            (Concrete.handleRequestPreVoteResponse_log _ _ _).2)
 
 /-- A step keeps every other node's state and extends the actor's committed log. -/
 theorem committed_log_step {nodes : List Node} {before after : Model.State Node TxId}
     {action : Model.Action Node TxId}
-    (reachable : (Model.transitionSystem (inferInstance) (TxId := TxId) nodes).Reachable before)
-    (stepped : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
+    (reachable
+      : (Model.transitionSystem (inferInstance) (TxId := TxId) nodes).Reachable before)
+    (stepped
+      : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
     {node : Node} {beforeState afterState : NodeState Node TxId}
     (beforeMember : (node, beforeState) ∈ before.nodes)
     (afterMember : (node, afterState) ∈ after.nodes)
@@ -297,12 +253,13 @@ theorem committed_log_step {nodes : List Node} {before after : Model.State Node 
   have distinct := keys_nodup reachable
   have frontiers := commitFrontier_invariant.reachable reachable
   have extended : forall {actor : Node} {old : NodeState Node TxId}
-      {event : Event Node TxId} {execute : NodeEffect Node TxId (NodeState Node TxId)},
+      {event : Event Node TxId} {new : NodeState Node TxId} {outputs},
       nodeState before actor = some old
-      -> Model.Local.step (inferInstance) (Capabilities.record actor) actor old event = some execute
-      -> (node, afterState) ∈ replaceNode before.nodes actor (execute.run {}).1
+      -> (Model.Local.step (inferInstance) (Capabilities.record actor) actor old event).run {}
+        = some (new, outputs)
+      -> (node, afterState) ∈ replaceNode before.nodes actor new
       -> beforeState.committedLog <+: afterState.committedLog := by
-    intro actor old event execute found acted member
+    intro actor old event new outputs found acted member
     rcases mem_replaceNode member with ⟨rfl, rfl⟩ | ⟨_, listed⟩
     · have same : beforeState = old :=
         Option.some.inj ((nodeState_of_mem distinct beforeMember).symm.trans found)
@@ -315,16 +272,17 @@ theorem committed_log_step {nodes : List Node} {before after : Model.State Node 
       exact List.prefix_refl _
   cases action with
   | «local» actor input =>
-      obtain ⟨old, execute, found, acted, rfl⟩ := step_local stepped
+      obtain ⟨old, new, outputs, found, acted, rfl⟩ := step_local stepped
       exact extended (event := .internal input) found acted afterMember
   | deliver envelope =>
-      obtain ⟨_, old, execute, found, received, rfl⟩ := step_deliver stepped
+      obtain ⟨_, old, new, outputs, found, received, rfl⟩ := step_deliver stepped
       exact extended (event := .receive envelope.source envelope.payload) found received afterMember
 
 /-- A node present before a step is present after it. -/
 theorem present_after_step {nodes : List Node} {before after : Model.State Node TxId}
     {action : Model.Action Node TxId}
-    (stepped : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
+    (stepped
+      : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
     {node : Node} {beforeState : NodeState Node TxId}
     (member : (node, beforeState) ∈ before.nodes)
     : exists afterState, (node, afterState) ∈ after.nodes := by
@@ -337,10 +295,10 @@ theorem present_after_step {nodes : List Node} {before after : Model.State Node 
     · exact ⟨beforeState, List.mem_map.mpr ⟨_, member, by simp [same]⟩⟩
   cases action with
   | «local» actor input =>
-      obtain ⟨_, _, _, _, rfl⟩ := step_local stepped
+      obtain ⟨_, _, _, _, _, rfl⟩ := step_local stepped
       exact present
   | deliver envelope =>
-      obtain ⟨_, _, _, _, _, rfl⟩ := step_deliver stepped
+      obtain ⟨_, _, _, _, _, _, rfl⟩ := step_deliver stepped
       exact present
 
 /-- A node's committed log at one state of a trace is a prefix of the same node's

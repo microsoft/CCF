@@ -226,11 +226,11 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     simp [NodeState.committedLog, commitIndexEq, logEq]
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations (inferInstance)
+        activeConfigurationsOf (inferInstance)
             ((nodeOf (appendEntriesEffect state source destination batchEnd)) node) =
-          activeConfigurations (inferInstance) ((nodeOf state) node) := by
+          activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
     intro node
-    unfold activeConfigurations currentConfiguration
+    unfold activeConfigurationsOf currentConfiguration
     rw [logEq, commitIndexEq]
   have currentConfigurationEq :
       forall node,
@@ -1280,7 +1280,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           currentConfiguration (inferInstance) ((nodeOf state) candidate)
         have sourceActive :
             sourceConfiguration ∈
-              activeConfigurations (inferInstance) ((nodeOf state) bridgeSource) :=
+              activeConfigurationsOf (inferInstance) ((nodeOf state) bridgeSource) :=
           currentConfiguration_mem_activeConfigurations _
         have sourceGoverns :
             sourceConfiguration.index <= bridgeIndex := by
@@ -1304,7 +1304,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                       ((nodeOf state) bridgeSource).log
                   · exact currentConfiguration_mem_allConfigurations _
                   · simp [allConfigurations, implicitConfiguration]
-                  · simpa [implicitConfiguration (inferInstance)] using zero
+                  · simpa [implicitConfiguration] using zero
                 have candidateImplicit :
                     candidateConfiguration = implicitConfiguration (inferInstance) := by
                   apply
@@ -1391,7 +1391,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
               by
                 rw [activeConfigurationsEq]
                 simpa [
-                  activeConfigurations (inferInstance), candidateConfiguration
+                  activeConfigurationsOf, candidateConfiguration
                 ] using And.intro
                   sourceKnownCandidate candidateBefore
             ⟩
@@ -1575,7 +1575,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                   by
                     rw [activeConfigurationsEq]
                     simpa [
-                      activeConfigurations (inferInstance), sourceConfiguration
+                      activeConfigurationsOf, sourceConfiguration
                     ] using And.intro
                       candidateKnownSource sourceBeforeCandidate.le,
                   candidateGoverns,
@@ -1677,7 +1677,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                   by
                     rw [activeConfigurationsEq]
                     simpa [
-                      activeConfigurations (inferInstance), sourceConfiguration
+                      activeConfigurationsOf, sourceConfiguration
                     ] using And.intro
                       candidateKnownSource sourceBeforeCandidate.le,
                   by
@@ -2167,7 +2167,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     · intro node peer member
       simpa [concrete_effects, present]
         using facts.joinedCarriers.activeNodes node
-          (by simpa [activeNodeUnion (inferInstance), activeConfigurationsEq] using member)
+          (by simpa [activeNodeUnion, activeConfigurationsEq] using member)
     · intro node configuration member peer inNodes
       simpa [concrete_effects, present]
         using facts.joinedCarriers.configurationNodes node configuration

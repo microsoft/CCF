@@ -112,7 +112,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       supporters := ((nodeOf state) node).votesGranted
       ballotLog := ((nodeOf state) node).log
       ballotCommitIndex := ((nodeOf state) node).commitIndex
-      ballotActive := activeConfigurations (inferInstance) ((nodeOf state) node)
+      ballotActive := activeConfigurationsOf (inferInstance) ((nodeOf state) node)
       promotionLog
       candidateLog := fun voter =>
         if voter = node then
@@ -394,9 +394,9 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
   have activeConfigurationsNodeSubset :
       forall configuration,
         configuration ∈
-            activeConfigurations (inferInstance)
+            activeConfigurationsOf (inferInstance)
               ((nodeOf (becomeLeaderEffect state node)) node) ->
-          configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) node) := by
+          configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
     intro configuration active
     have parts :
         configuration ∈
@@ -405,23 +405,23 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           (currentConfiguration (inferInstance)
               ((nodeOf (becomeLeaderEffect state node)) node)).index <=
             configuration.index := by
-      simpa [activeConfigurations (inferInstance)] using active
+      simpa [activeConfigurationsOf] using active
     have knownOld :
         configuration ∈ allConfigurations (inferInstance) ((nodeOf state) node).log := by
       apply
         memOfPrefix
           (allConfigurations_mono_prefix promotionPrefix)
       simpa [logNode] using parts.1
-    simpa [activeConfigurations (inferInstance), currentConfigurationNodeEq]
+    simpa [activeConfigurationsOf, currentConfigurationNodeEq]
       using And.intro knownOld parts.2
   have activeConfigurationsOtherEq :
       forall candidate,
         Not (candidate = node) ->
-          activeConfigurations (inferInstance)
+          activeConfigurationsOf (inferInstance)
               ((nodeOf (becomeLeaderEffect state node)) candidate) =
-            activeConfigurations (inferInstance) ((nodeOf state) candidate) := by
+            activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
     intro candidate candidateNe
-    unfold activeConfigurations currentConfiguration
+    unfold activeConfigurationsOf currentConfiguration
     rw [logOther candidate candidateNe, commitEq]
   have effectiveElectionVotersEq :
       forall candidate,
@@ -659,7 +659,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     intro governs
     have afterActive :
         configuration ∈
-          activeConfigurations (inferInstance)
+          activeConfigurationsOf (inferInstance)
             ((nodeOf (becomeLeaderEffect state node)) leader) := by
       simpa [activeConfigurationsOtherEq leader leaderNe] using active
     exact
@@ -1935,7 +1935,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           subst record
           rcases
               configurationActivations node
-                (by simpa [electionRecord, currentConfiguration (inferInstance)] using
+                (by simpa [electionRecord, currentConfiguration] using
                   positive) with
             ⟨coverage⟩
           simpa [electionRecord]
@@ -1957,7 +1957,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           have recordEq : electionRecord = record :=
             Option.some.inj (by simpa [newElections] using recorded)
           subst record
-          simpa [electionRecord, currentConfiguration (inferInstance)]
+          simpa [electionRecord, currentConfiguration]
             using currentConfiguration_mem_activeConfigurations ((nodeOf state) node)
         · exact
             configurationFacts.ballotCurrentAuthorityActive

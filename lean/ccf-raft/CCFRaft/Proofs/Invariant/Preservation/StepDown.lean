@@ -109,10 +109,10 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
       simp [after, present, nodeOf_replaceNode, same]
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations (inferInstance) ((nodeOf after) node) =
-          activeConfigurations (inferInstance) ((nodeOf state) node) := by
+        activeConfigurationsOf (inferInstance) ((nodeOf after) node) =
+          activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
     intro node
-    unfold activeConfigurations currentConfiguration
+    unfold activeConfigurationsOf currentConfiguration
     rw [logEq, commitEq]
   have lastIndexEq :
       forall node,
@@ -134,10 +134,10 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
     simp [NodeState.committedLog, commitEq, logEq]
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations (inferInstance) ((nodeOf after) node) =
-          activeConfigurations (inferInstance) ((nodeOf state) node) := by
+        activeConfigurationsOf (inferInstance) ((nodeOf after) node) =
+          activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
     intro node
-    unfold activeConfigurations currentConfiguration
+    unfold activeConfigurationsOf currentConfiguration
     rw [logEq, commitEq]
   have votedEq :
       forall node,
@@ -890,7 +890,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
           currentConfiguration (inferInstance) ((nodeOf state) candidate)
         have sourceActive :
             sourceConfiguration ∈
-              activeConfigurations (inferInstance) ((nodeOf state) source) := by
+              activeConfigurationsOf (inferInstance) ((nodeOf state) source) := by
           simpa [sourceConfiguration]
             using currentConfiguration_mem_activeConfigurations ((nodeOf state) source)
         have sourceGoverns : sourceConfiguration.index <= index := by
@@ -914,7 +914,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                     using currentConfiguration_mem_allConfigurations
                       ((nodeOf state) source)
                 · simp [allConfigurations, implicitConfiguration]
-                · simpa [implicitConfiguration (inferInstance)] using sourceZero
+                · simpa [implicitConfiguration] using sourceZero
               simp [sourceImplicit, allConfigurations]
             · rcases
                   configurationActivations source
@@ -959,7 +959,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
             sourceGoverns,
             by
               rw [activeConfigurationsEq]
-              simpa [activeConfigurations (inferInstance), candidateConfiguration]
+              simpa [activeConfigurationsOf, candidateConfiguration]
                 using And.intro sourceKnownCandidate candidateBefore
           ⟩
         · have sourceBeforeCandidate :
@@ -1073,7 +1073,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                 ⟨candidateConfiguration,
                   by
                     rw [activeConfigurationsEq]
-                    simpa [activeConfigurations (inferInstance), sourceConfiguration] using
+                    simpa [activeConfigurationsOf, sourceConfiguration] using
                       And.intro candidateKnownSource
                         sourceBeforeCandidate.le,
                   governs,
@@ -1169,7 +1169,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                   ⟨candidateConfiguration,
                     by
                       rw [activeConfigurationsEq]
-                      simpa [activeConfigurations (inferInstance), sourceConfiguration] using
+                      simpa [activeConfigurationsOf, sourceConfiguration] using
                         And.intro candidateKnownSource
                           sourceBeforeCandidate.le,
                     governs,
@@ -1241,7 +1241,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
           configuration,
           by simpa [activeConfigurationsEq] using sourceActive,
           governs,
-          by simpa [currentConfiguration (inferInstance), logEq, commitEq] using configurationEq
+          by simpa [currentConfiguration, logEq, commitEq] using configurationEq
         ⟩
     · intro left leftIndex leftRole leftCurrent leftSignature leftMajority
         right rightIndex rightRole rightCurrent rightSignature rightMajority

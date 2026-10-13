@@ -16,17 +16,13 @@ namespace CCFRaft.Proofs.Invariant
 open CCFRaft.Proofs.Config
 
 open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState PreVoteStatus Role
-    activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
-    becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
-    currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
-    hasConfigurationMajority highestActiveConfigurationWithNode implicitConfiguration
-    initialNodeState isSignatureAt lastCommittableIndex lastCommittableTerm
-    latestConfiguration maxCommittableIndex maxCommittableIndexUpTo maxCommittableTerm
-    messageEntries refreshRetirementState retiredCommittedIndexFrom
-    retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
-    retirementCommittableIndexInLog retirementCompletedNodes
-    retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
+  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState
+    PreVoteStatus Role becomeCandidateNodeState campaignEligible
+    configurationHistory configurationMembers entryAt? findHighestPossibleMatch
+    firstLogIndexAfter hasConfigurationMajority initialNodeState isSignatureAt
+    lastCommittableIndex lastCommittableTerm maxCommittableIndex maxCommittableIndexUpTo
+    maxCommittableTerm messageEntries refreshRetirementState retiredCommittedNodes
+    retirementIndexInLog termAt
   )
 open CCFRaft.Proofs.Ledger
 
@@ -52,22 +48,26 @@ lemma refreshRetirementState_role (node : Node) (state : NodeState Node TxId)
 
 @[simp]
 lemma refreshRetirementState_currentTerm (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState (inferInstance) node state).currentTerm = state.currentTerm := by
+    : (refreshRetirementState (inferInstance) node state).currentTerm
+      = state.currentTerm := by
   simp [refreshRetirementState]
 
 @[simp]
 lemma refreshRetirementState_sentIndex (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState (inferInstance) node state).sentIndex = state.sentIndex := by
+    : (refreshRetirementState (inferInstance) node state).sentIndex
+      = state.sentIndex := by
   simp [refreshRetirementState]
 
 @[simp]
 lemma refreshRetirementState_matchIndex (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState (inferInstance) node state).matchIndex = state.matchIndex := by
+    : (refreshRetirementState (inferInstance) node state).matchIndex
+      = state.matchIndex := by
   simp [refreshRetirementState]
 
 @[simp]
 lemma refreshRetirementState_isNewFollower (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState (inferInstance) node state).isNewFollower = state.isNewFollower := by
+    : (refreshRetirementState (inferInstance) node state).isNewFollower
+      = state.isNewFollower := by
   simp [refreshRetirementState]
 
 @[simp]
@@ -77,12 +77,14 @@ lemma refreshRetirementState_votedFor (node : Node) (state : NodeState Node TxId
 
 @[simp]
 lemma refreshRetirementState_votesGranted (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState (inferInstance) node state).votesGranted = state.votesGranted := by
+    : (refreshRetirementState (inferInstance) node state).votesGranted
+      = state.votesGranted := by
   simp [refreshRetirementState]
 
 @[simp]
 lemma refreshRetirementState_preVotesGranted (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState (inferInstance) node state).preVotesGranted = state.preVotesGranted := by
+    : (refreshRetirementState (inferInstance) node state).preVotesGranted
+      = state.preVotesGranted := by
   simp [refreshRetirementState]
 
 omit [InitialConfig Node] in

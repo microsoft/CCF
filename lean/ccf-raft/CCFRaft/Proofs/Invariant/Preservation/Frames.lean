@@ -143,7 +143,8 @@ lemma currentConfigurationAt_eq_of_take_eq
     (leftBound : frontier <= left.length)
     (rightBound : frontier <= right.length)
     (takeEq : left.take frontier = right.take frontier)
-    : currentConfigurationAt (inferInstance) left frontier = currentConfigurationAt (inferInstance) right frontier := by
+    : currentConfigurationAt (inferInstance) left frontier
+      = currentConfigurationAt (inferInstance) right frontier := by
   let leftNode : NodeState Node TxId :=
     { initialNodeState (inferInstance) (TxId := TxId) INITIAL_LEADER with
       log := left
@@ -154,19 +155,19 @@ lemma currentConfigurationAt_eq_of_take_eq
       commitIndex := frontier }
   have leftCurrentKnown :
       currentConfigurationAt (inferInstance) left frontier ∈ allConfigurations (inferInstance) left := by
-    simpa [leftNode, currentConfiguration (inferInstance)]
+    simpa [leftNode, currentConfiguration]
       using currentConfiguration_mem_allConfigurations leftNode
   have rightCurrentKnown :
       currentConfigurationAt (inferInstance) right frontier ∈ allConfigurations (inferInstance) right := by
-    simpa [rightNode, currentConfiguration (inferInstance)]
+    simpa [rightNode, currentConfiguration]
       using currentConfiguration_mem_allConfigurations rightNode
   have leftCurrentBound :
       (currentConfigurationAt (inferInstance) left frontier).index <= frontier := by
-    simpa [leftNode, currentConfiguration (inferInstance)]
+    simpa [leftNode, currentConfiguration]
       using currentConfiguration_index_le_commitIndex leftNode
   have rightCurrentBound :
       (currentConfigurationAt (inferInstance) right frontier).index <= frontier := by
-    simpa [rightNode, currentConfiguration (inferInstance)]
+    simpa [rightNode, currentConfiguration]
       using currentConfiguration_index_le_commitIndex rightNode
   have leftKnownRight :
       currentConfigurationAt (inferInstance) left frontier ∈ allConfigurations (inferInstance) right := by
@@ -191,7 +192,7 @@ lemma currentConfigurationAt_eq_of_take_eq
   have leftLeRight :
       (currentConfigurationAt (inferInstance) left frontier).index <=
         (currentConfigurationAt (inferInstance) right frontier).index := by
-    simpa [rightNode, currentConfiguration (inferInstance)]
+    simpa [rightNode, currentConfiguration]
       using configuration_index_le_currentConfiguration
         rightNode (currentConfigurationAt (inferInstance) left frontier)
         (by simpa [rightNode] using leftKnownRight)
@@ -199,7 +200,7 @@ lemma currentConfigurationAt_eq_of_take_eq
   have rightLeLeft :
       (currentConfigurationAt (inferInstance) right frontier).index <=
         (currentConfigurationAt (inferInstance) left frontier).index := by
-    simpa [leftNode, currentConfiguration (inferInstance)]
+    simpa [leftNode, currentConfiguration]
       using configuration_index_le_currentConfiguration
         leftNode (currentConfigurationAt (inferInstance) right frontier)
         (by simpa [leftNode] using rightKnownLeft)
@@ -632,10 +633,10 @@ lemma prospectiveCommitEvidenceFrame
 lemma configurationNodes_subset_activeNodeUnion
     (nodeState : NodeState Node TxId)
     (configuration : Configuration Node)
-    (active : configuration ∈ activeConfigurations (inferInstance) nodeState)
+    (active : configuration ∈ activeConfigurationsOf (inferInstance) nodeState)
     : configuration.nodes ⊆ activeNodeUnion (inferInstance) nodeState := by
   unfold activeNodeUnion
-  generalize activeConfigurations (inferInstance) nodeState = configurations at active ⊢
+  generalize activeConfigurationsOf (inferInstance) nodeState = configurations at active ⊢
   have foldlPreserves :
       forall (remaining : List (Configuration Node)) (accumulator : Finset Node),
         accumulator ⊆
@@ -687,13 +688,13 @@ lemma activeNodeUnion_subset_of_activeConfigurations_subset
     (before after : NodeState Node TxId)
     (subset
       : forall configuration,
-          configuration ∈ activeConfigurations (inferInstance) after
-          -> configuration ∈ activeConfigurations (inferInstance) before)
+          configuration ∈ activeConfigurationsOf (inferInstance) after
+          -> configuration ∈ activeConfigurationsOf (inferInstance) before)
     : activeNodeUnion (inferInstance) after ⊆ activeNodeUnion (inferInstance) before := by
   intro peer member
   unfold activeNodeUnion at member
   generalize configurationsEq :
-    activeConfigurations (inferInstance) after = configurations at member
+    activeConfigurationsOf (inferInstance) after = configurations at member
   have foldMember :
       forall (remaining : List (Configuration Node))
         (accumulator : Finset Node),
@@ -744,7 +745,8 @@ lemma configurationsInLogFrom_node_sets_independent
 
 /-- The latest projected configuration is among all known configurations. -/
 lemma latestConfiguration_mem_allConfigurations (nodeState : NodeState Node TxId)
-    : latestConfiguration (inferInstance) nodeState ∈ allConfigurations (inferInstance) nodeState.log := by
+    : latestConfiguration (inferInstance) nodeState
+      ∈ allConfigurations (inferInstance) nodeState.log := by
   unfold latestConfiguration allConfigurations
   generalize configurationsInLog nodeState.log = configurations
   have foldMember :
@@ -761,7 +763,7 @@ lemma latestConfiguration_mem_allConfigurations (nodeState : NodeState Node TxId
         rcases inductionHypothesis head with same | member
         · exact Or.inr (by simp [same])
         · exact Or.inr (by simp [member])
-  rcases foldMember configurations implicitConfiguration (inferInstance) with same | member
+  rcases foldMember configurations (implicitConfiguration (inferInstance)) with same | member
   · exact List.mem_cons.mpr (Or.inl same)
   · exact List.mem_cons.mpr (Or.inr member)
 
@@ -771,10 +773,12 @@ lemma allConfigurations_append_nodes_carried
     (carrier : Finset Node)
     (leftCarried
       : forall configuration,
-          configuration ∈ allConfigurations (inferInstance) left -> configuration.nodes ⊆ carrier)
+          configuration ∈ allConfigurations (inferInstance) left
+          -> configuration.nodes ⊆ carrier)
     (rightCarried
       : forall configuration,
-          configuration ∈ allConfigurations (inferInstance) right -> configuration.nodes ⊆ carrier)
+          configuration ∈ allConfigurations (inferInstance) right
+          -> configuration.nodes ⊆ carrier)
     : forall configuration,
         configuration ∈ allConfigurations (inferInstance) (left ++ right)
         -> configuration.nodes ⊆ carrier := by
@@ -783,7 +787,7 @@ lemma allConfigurations_append_nodes_carried
   rcases List.mem_cons.mp member with implicit | physical
   · subst configuration
     exact
-      leftCarried implicitConfiguration (inferInstance)
+      leftCarried (implicitConfiguration (inferInstance))
         (by simp [allConfigurations])
   · rw [
       configurationsInLog, configurationsInLogFrom_append
@@ -820,13 +824,14 @@ lemma allConfigurations_suffix_nodes_carried
           configuration ∈ allConfigurations (inferInstance) (left ++ right)
           -> configuration.nodes ⊆ carrier)
     : forall configuration,
-        configuration ∈ allConfigurations (inferInstance) right -> configuration.nodes ⊆ carrier := by
+        configuration ∈ allConfigurations (inferInstance) right
+        -> configuration.nodes ⊆ carrier := by
   intro configuration member
   rw [allConfigurations] at member
   rcases List.mem_cons.mp member with implicit | physical
   · subst configuration
     exact
-      carried implicitConfiguration (inferInstance)
+      carried (implicitConfiguration (inferInstance))
         (by simp [allConfigurations])
   · have nodeSetMember :
         configuration.nodes ∈
@@ -882,7 +887,7 @@ lemma activeNodeUnion_subset_of_allConfigurations_carrier
               (configurationsCovered head (by simp))
         · intro configuration member
           exact configurationsCovered configuration (by simp [member])
-  apply foldCovered (activeConfigurations (inferInstance) nodeState) ∅
+  apply foldCovered (activeConfigurationsOf (inferInstance) nodeState) ∅
   · exact Finset.empty_subset _
   · intro configuration member
     apply covered configuration
@@ -935,8 +940,8 @@ lemma joinedCarrierFactsFrame
     (hasJoinedEq : joinedNext = joined)
     (activeSubset
       : forall node configuration,
-          configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) node)
-          -> configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) node))
+          configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) node)
+          -> configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) node))
     (configurationSubset
       : forall node configuration,
           configuration ∈ allConfigurations (inferInstance) ((nodeOf after) node).log
@@ -1081,8 +1086,10 @@ lemma activationEvidenceFrame
     (candidateActive
       : forall candidate configuration,
           ((nodeOf after) candidate).role = .candidate
-          -> configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate)
-          -> configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) candidate))
+          -> configuration
+              ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate)
+          -> configuration
+              ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) candidate))
     : ActivationEvidenceFacts (joined := joinedNext)
         after newAppendHistory newResponseHistory
         newNodeEvidence newRequestEvidence
@@ -1528,8 +1535,10 @@ lemma electionConfigurationFrame
     (activeForward
       : forall candidate configuration,
           ((nodeOf after) candidate).role = .candidate
-          -> configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate)
-          -> configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) candidate))
+          -> configuration
+              ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate)
+          -> configuration
+              ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) candidate))
     (candidateEntriesBefore
       : forall candidate,
           ((nodeOf after) candidate).role = .candidate
@@ -1667,13 +1676,8 @@ lemma appendRequestCommitEvidenceFacts
     (oldCommitBound
       : ((nodeOf state) destination).commitIndex
         <= ((nodeOf state) destination).log.length)
-    (notStepped
-      : ¬ (request.2.2.term = (nodeOf state destination).currentTerm
-            ∧ ((nodeOf state destination).role = .candidate
-                ∨ (nodeOf state destination).role = .preVoteCandidate)))
-    (handled
-      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
-        = some (nextNode, response))
+    (post
+      : AppendRequestLocalPost ((nodeOf state) destination) nextNode request.2.2 response)
     (requestMember
       : (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination))
     (advancedHistory
@@ -1702,8 +1706,6 @@ lemma appendRequestCommitEvidenceFacts
           state destination request nextNode
           nodeEvidence requestEvidence)
         requestEvidence := by
-  let post :=
-    CCFRaft.Proofs.Invariant.handleAppendEntriesRequestLocalPost notStepped handled
   let newNodeEvidence : NodeCommitEvidence Node TxId :=
     appendRequestNodeEvidence
       state destination request nextNode nodeEvidence requestEvidence

@@ -28,7 +28,7 @@ def freshNodeState : NodeState Node TxId where
   commitIndex := 0
   sentIndex := fun _ => 0
   matchIndex := fun _ => 0
-  isNewFollower := true
+  isNewFollower := false
   votedFor := none
   votesGranted := ∅
 
@@ -46,7 +46,8 @@ def advanceCommitState (state : Model.State Node TxId) (node : Node)
   {
     state with
       nodes :=
-        replaceNode state.nodes node (Model.Local.advanceCommit (inferInstance) (nodeOf state node) node)
+        replaceNode state.nodes node
+          (Model.Local.advanceCommit (inferInstance) (nodeOf state node) node)
   }
 
 def stepDownState (state : Model.State Node TxId) (node : Node) : Model.State Node TxId :=
@@ -54,16 +55,7 @@ def stepDownState (state : Model.State Node TxId) (node : Node) : Model.State No
     state with
       nodes :=
         replaceNode state.nodes node
-          { nodeOf state node with role := .follower, isNewFollower := true }
-  }
-
-def demoteRetiredCommitted (state : Model.State Node TxId) (node : Node)
-    : Model.State Node TxId :=
-  {
-    state with
-      nodes :=
-        replaceNode state.nodes node
-          (Model.Local.demoteRetiredCommitted (nodeOf state node))
+          { nodeOf state node with role := .follower, leaderKnown := false }
   }
 
 /-- One occurrence is selected from the concrete network. -/

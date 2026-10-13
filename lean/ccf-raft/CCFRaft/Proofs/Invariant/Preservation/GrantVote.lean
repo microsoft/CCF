@@ -208,10 +208,10 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
     simp [NodeState.committedLog, commitEq, logEq]
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations (inferInstance) ((nodeOf after) node) =
-          activeConfigurations (inferInstance) ((nodeOf state) node) := by
+        activeConfigurationsOf (inferInstance) ((nodeOf after) node) =
+          activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
     intro node
-    unfold activeConfigurations currentConfiguration
+    unfold activeConfigurationsOf currentConfiguration
     rw [logEq, commitEq]
   have appendRequestEq :
       forall queuedDestination queuedRequest,
@@ -1346,7 +1346,7 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
           node
       simpa [
         logEq, committedEq, activeConfigurationsEq,
-        currentConfiguration (inferInstance), commitEq
+        currentConfiguration, commitEq
       ] using old
     · intro left leftIndex leftRole leftCurrent leftSignature leftMajority
         right rightIndex rightRole rightCurrent rightSignature rightMajority

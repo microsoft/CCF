@@ -601,10 +601,10 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         simp [intermediate, present, nodeOf_replaceNode, present, same]
     have activeConfigurationsEq :
         forall node,
-          activeConfigurations (inferInstance) ((nodeOf intermediate) node) =
-            activeConfigurations (inferInstance) ((nodeOf state) node) := by
+          activeConfigurationsOf (inferInstance) ((nodeOf intermediate) node) =
+            activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
       intro node
-      unfold activeConfigurations currentConfiguration
+      unfold activeConfigurationsOf currentConfiguration
       rw [logEq, commitEq]
     have matchDestination :
         forall peer,
@@ -680,9 +680,9 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           (by
             intro node configuration active
             have same :
-                activeConfigurations (inferInstance) ((nodeOf intermediate) node) =
-                  activeConfigurations (inferInstance) ((nodeOf state) node) := by
-              unfold activeConfigurations currentConfiguration
+                activeConfigurationsOf (inferInstance) ((nodeOf intermediate) node) =
+                  activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
+              unfold activeConfigurationsOf currentConfiguration
               rw [logEq, commitEq]
             rw [same] at active
             exact active)
@@ -1079,10 +1079,10 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           simp [intermediate, present, nodeOf_replaceNode, present, same]
       have activeConfigurationsEq :
           forall node,
-            activeConfigurations (inferInstance) ((nodeOf intermediate) node) =
-              activeConfigurations (inferInstance) ((nodeOf state) node) := by
+            activeConfigurationsOf (inferInstance) ((nodeOf intermediate) node) =
+              activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
         intro node
-        unfold activeConfigurations currentConfiguration
+        unfold activeConfigurationsOf currentConfiguration
         rw [logEq, commitEq]
       have progressIntermediate : LeaderProgressBounded intermediate := by
         intro leader leaderRole peer
@@ -1123,9 +1123,9 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
             (by
               intro node configuration active
               have same :
-                  activeConfigurations (inferInstance) ((nodeOf intermediate) node) =
-                    activeConfigurations (inferInstance) ((nodeOf state) node) := by
-                unfold activeConfigurations currentConfiguration
+                  activeConfigurationsOf (inferInstance) ((nodeOf intermediate) node) =
+                    activeConfigurationsOf (inferInstance) ((nodeOf state) node) := by
+                unfold activeConfigurationsOf currentConfiguration
                 rw [logEq, commitEq]
               rw [same] at active
               exact active)

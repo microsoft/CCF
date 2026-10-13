@@ -48,7 +48,8 @@ def clientRequestEffect (state : Model.State Node TxId) (node : Node) (txId : Tx
       content := .transaction txId
     }
   let refreshed :=
-    refreshRetirementState (inferInstance) node { nodeState with log := nodeState.log ++ [entry] }
+    refreshRetirementState (inferInstance) node
+      { nodeState with log := nodeState.log ++ [entry] }
   { state with nodes := replaceNode state.nodes node refreshed }
 
 @[concrete_effects]
@@ -63,18 +64,19 @@ def changeConfigurationEffect (state : Model.State Node TxId) (source : Node)
       term := sourceState.currentTerm
       content := .reconfiguration newConfiguration
     }
-  let appended := { sourceState with log := sourceState.log ++ [entry] }
-  let nextSourceState :=
+  let appended :=
     refreshRetirementState (inferInstance) source
-      {
-        appended with
-          sentIndex :=
-            fun peer =>
-              if peer ∈ addedNodes then
-                sourceState.log.length
-              else
-                sourceState.sentIndex peer
-      }
+      { sourceState with log := sourceState.log ++ [entry] }
+  let nextSourceState :=
+    {
+      appended with
+        sentIndex :=
+          fun peer =>
+            if peer ∈ addedNodes then
+              sourceState.log.length
+            else
+              sourceState.sentIndex peer
+    }
   { state with nodes := replaceNode state.nodes source nextSourceState }
 
 @[concrete_effects]
@@ -90,7 +92,8 @@ def appendRetiredCommittedEffect (state : Model.State Node TxId) (node : Node)
       content := .retiredCommitted pending
     }
   let refreshed :=
-    refreshRetirementState (inferInstance) node { nodeState with log := nodeState.log ++ [entry] }
+    refreshRetirementState (inferInstance) node
+      { nodeState with log := nodeState.log ++ [entry] }
   { state with nodes := replaceNode state.nodes node refreshed }
 
 @[concrete_effects]
@@ -103,7 +106,8 @@ def signCommittableMessagesEffect (state : Model.State Node TxId) (node : Node)
       content := .signature
     }
   let refreshed :=
-    refreshRetirementState (inferInstance) node { nodeState with log := nodeState.log ++ [entry] }
+    refreshRetirementState (inferInstance) node
+      { nodeState with log := nodeState.log ++ [entry] }
   { state with nodes := replaceNode state.nodes node refreshed }
 
 @[concrete_effects]
@@ -127,7 +131,7 @@ def appendEntriesEffect (state : Model.State Node TxId) (source : Node)
 @[concrete_effects]
 def advanceCommitIndexEffect (state : Model.State Node TxId) (node : Node)
     : Model.State Node TxId :=
-  demoteRetiredCommitted (advanceCommitState state node) node
+  advanceCommitState state node
 
 @[concrete_effects]
 def timeoutEffect (state : Model.State Node TxId) (node : Node) : Model.State Node TxId :=
@@ -144,6 +148,7 @@ def becomePreVoteCandidateEffect (state : Model.State Node TxId) (node : Node)
           {
             nodeState with
               role := .preVoteCandidate
+              leaderKnown := false
               preVotesGranted := {node}
           }
   }
@@ -175,13 +180,18 @@ def checkQuorumEffect (state : Model.State Node TxId) (node : Node)
 def becomeLeaderEffect (state : Model.State Node TxId) (node : Node)
     : Model.State Node TxId :=
   let nodeState := (nodeOf state) node
-  let log := nodeState.log.take (maxCommittableIndex nodeState.log)
-  let truncated := { nodeState with log }
+  let log :=
+    if nodeState.commitIndex > 0 then
+      nodeState.log.take (lastCommittableIndex nodeState)
+    else
+      nodeState.log
   let nextNode :=
     refreshRetirementState (inferInstance) node
       {
-        truncated with
+        nodeState with
           role := .leader
+          log
+          leaderKnown := true
           sentIndex := fun _ => log.length
           matchIndex := fun _ => 0
       }
@@ -197,7 +207,7 @@ def proposeVoteEffect (state : Model.State Node TxId) (source : Node) (destinati
 def advanceCommitIndexAndProposeVoteEffect (state : Model.State Node TxId) (source : Node)
     (destination : Node)
     : Model.State Node TxId :=
-  let advanced := demoteRetiredCommitted (advanceCommitState state source) source
+  let advanced := advanceCommitState state source
   let request := (source, destination, (nodeOf state source).currentTerm)
   { advanced with network := advanced.network ++ [proposeVoteEnvelope request] }
 

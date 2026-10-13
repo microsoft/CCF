@@ -32,57 +32,48 @@ theorem step_local
     {nodes : List Node} {before after : Model.State Node TxId}
     {node : Node} {input : Model.Local.Input Node TxId}
     (stepped
-      : (Model.transitionSystem (inferInstance) nodes).step before (.local node input) = some after)
-    : exists state execute,
+      : (Model.transitionSystem (inferInstance) nodes).step before (.local node input)
+        = some after)
+    : exists state next outputs,
         nodeState before node = some state
-        /\ Model.Local.act (inferInstance) (Capabilities.record node) node state input = some execute
+        /\ (Model.Local.act (inferInstance) (Capabilities.record node) node state
+              input).run
+              {}
+            = some (next, outputs)
         /\ after
             = {
               before with
-                nodes := replaceNode before.nodes node (execute.run {}).1
-                network := before.network ++ (execute.run {}).2.outgoing
+                nodes := replaceNode before.nodes node next
+                network := before.network ++ outputs.outgoing
             } := by
   simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
-  simp at stepped
-  simp only [Option.bind_eq_some_iff] at stepped
-  obtain ⟨_, _, state, found, execute, acted, result⟩ := stepped
-  refine ⟨state, execute, found, acted, ?_⟩
-  rcases run : StateT.run execute {} with ⟨value, outputs⟩
-  rw [run] at result
-  simp only [Option.some.injEq] at result
-  subst result
-  simp [replaceNode]
+  simp [Model.Local.step, guard, Option.bind_eq_some_iff] at stepped
+  obtain ⟨_, state, found, next, outputs, ran, rfl⟩ := stepped
+  exact ⟨state, next, outputs, found, ran, by simp [replaceNode]⟩
 
 theorem step_deliver
     {nodes : List Node} {before after : Model.State Node TxId}
     {envelope : Model.Envelope Node TxId}
     (stepped
-      : (Model.transitionSystem (inferInstance) nodes).step before (.deliver envelope) = some after)
+      : (Model.transitionSystem (inferInstance) nodes).step before (.deliver envelope)
+        = some after)
     : envelope ∈ before.network
-      /\ exists state execute,
+      /\ exists state next outputs,
           nodeState before envelope.target = some state
-          /\ Model.Local.receive (inferInstance) (Capabilities.record envelope.target) envelope.target
-                envelope.source state envelope.payload
-              = some execute
+          /\ (Model.Local.receive (inferInstance) (Capabilities.record envelope.target)
+                envelope.target envelope.source state envelope.payload).run
+                {}
+              = some (next, outputs)
           /\ after
               = {
                 before with
-                  nodes := replaceNode before.nodes envelope.target (execute.run {}).1
-                  network :=
-                    removeOne envelope before.network ++ (execute.run {}).2.outgoing
+                  nodes := replaceNode before.nodes envelope.target next
+                  network := removeOne envelope before.network ++ outputs.outgoing
               } := by
   simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
-  simp at stepped
-  simp only [Option.bind_eq_some_iff] at stepped
-  obtain ⟨_, queued, _, _, state, found, execute, acted, result⟩ := stepped
-  refine ⟨?_, state, execute, found, acted, ?_⟩
-  · by_contra absent
-    simp [guard, absent] at queued
-  · rcases run : StateT.run execute {} with ⟨value, outputs⟩
-    rw [run] at result
-    simp only [Option.some.injEq] at result
-    subst result
-    simp [replaceNode]
+  simp [Model.Local.step, guard, Option.bind_eq_some_iff] at stepped
+  obtain ⟨queued, _, state, found, next, outputs, ran, rfl⟩ := stepped
+  exact ⟨queued, state, next, outputs, found, ran, by simp [replaceNode]⟩
 
 theorem mem_replaceNode {nodes : List (Node × NodeState Node TxId)} {node member : Node}
     {value state : NodeState Node TxId}
@@ -168,13 +159,23 @@ theorem handleRequestPreVoteResponse_log (state : NodeState Node TxId) (source :
   unfold Model.Local.handleRequestPreVoteResponse
   split_ifs <;> exact ⟨rfl, rfl⟩
 
-theorem handleProposeVoteRequest_log (state : NodeState Node TxId) (self : Node)
-    (term : Nat)
-    : (Model.Local.handleProposeVoteRequest (inferInstance) state self term).log = state.log
-      /\ (Model.Local.handleProposeVoteRequest (inferInstance) state self term).commitIndex
-          = state.commitIndex := by
-  unfold Model.Local.handleProposeVoteRequest
-  split_ifs <;> exact ⟨rfl, rfl⟩
+@[simp]
+theorem run_guard {σ : Type} (p : Prop) [Decidable p] (s : σ)
+    : (guard p : StateT σ Option Unit).run s = if p then some ((), s) else none := by
+  unfold guard
+  split <;> rfl
+
+@[simp]
+theorem ite_some_none_bind {α β : Type} (p : Prop) [Decidable p] (a : α)
+    (f : α -> Option β)
+    : (if p then some a else none).bind f = if p then f a else none := by
+  split <;> rfl
+
+@[simp]
+theorem ite_none_some_bind {α β : Type} (p : Prop) [Decidable p] (a : α)
+    (f : α -> Option β)
+    : (if p then none else some a).bind f = if p then none else f a := by
+  split <;> rfl
 
 theorem guard_holds {p : Prop} [Decidable p] {done : Unit}
     (holds : (if p then pure () else failure : Option Unit) = some done)
