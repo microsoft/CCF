@@ -25,6 +25,8 @@ CCF (Confidential Consortium Framework) is a replicated state machine for confid
 - For C/C++ changes and security-sensitive reviews in any language, read [security/safety review guidance and C/C++ conventions](/.github/instructions/reviewing.instructions.md).
 - Before selecting, running, or writing tests, load the [testing skill](/.github/skills/testing/SKILL.md).
 - Before formatting or linting, load the [formatting-and-linting skill](/.github/skills/formatting-and-linting/SKILL.md).
+- In Markdown and reStructuredText prose, put each sentence on its own line.
+  Do not manually wrap prose to a fixed column width or insert line breaks within a sentence.
 - For user-facing API or behaviour changes, update existing documentation and follow the [changelog instructions](/.github/instructions/changelog.instructions.md). Link to existing documentation rather than duplicating it.
 
 ## Validation
