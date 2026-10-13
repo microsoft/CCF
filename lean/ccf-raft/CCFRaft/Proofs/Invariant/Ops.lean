@@ -11,12 +11,14 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 /-- The fresh local state assigned when a configuration first adds a node. -/
 def freshNodeState : NodeState Node TxId where
@@ -44,7 +46,7 @@ def advanceCommitState (state : Model.State Node TxId) (node : Node)
   {
     state with
       nodes :=
-        replaceNode state.nodes node (Model.Local.advanceCommit (nodeOf state node) node)
+        replaceNode state.nodes node (Model.Local.advanceCommit (inferInstance) (nodeOf state node) node)
   }
 
 def stepDownState (state : Model.State Node TxId) (node : Node) : Model.State Node TxId :=

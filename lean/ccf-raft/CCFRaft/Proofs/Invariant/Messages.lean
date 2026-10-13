@@ -7,6 +7,8 @@ set_option autoImplicit false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open Model.Local
 
 /-- History keys retain both endpoints and the unchanged local payload. -/
@@ -80,7 +82,7 @@ def IsSafetyInert : Message Node TxId -> Prop
   | .requestPreVote _ | .requestPreVoteResponse _ | .proposeVoteRequest _ => True
   | _ => False
 
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 def voteRequestKey (state : Model.State Node TxId) (source target : Node)
     : VoteRequestKey Node :=

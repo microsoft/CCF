@@ -11,13 +11,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -107,8 +109,8 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
       simp [after, present, nodeOf_replaceNode, same]
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations ((nodeOf after) node) =
-          activeConfigurations ((nodeOf state) node) := by
+        activeConfigurations (inferInstance) ((nodeOf after) node) =
+          activeConfigurations (inferInstance) ((nodeOf state) node) := by
     intro node
     unfold activeConfigurations currentConfiguration
     rw [logEq, commitEq]
@@ -132,8 +134,8 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
     simp [NodeState.committedLog, commitEq, logEq]
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations ((nodeOf after) node) =
-          activeConfigurations ((nodeOf state) node) := by
+        activeConfigurations (inferInstance) ((nodeOf after) node) =
+          activeConfigurations (inferInstance) ((nodeOf state) node) := by
     intro node
     unfold activeConfigurations currentConfiguration
     rw [logEq, commitEq]
@@ -171,8 +173,8 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
     rfl
   have acknowledgingNodesEq :
       forall leader index,
-        acknowledgingNodes (nodeOf after leader) leader index =
-          acknowledgingNodes (nodeOf state leader) leader index := by
+        acknowledgingNodes (inferInstance) (nodeOf after leader) leader index =
+          acknowledgingNodes (inferInstance) (nodeOf state leader) leader index := by
     intro leader index
     ext peer
     simp [
@@ -883,12 +885,12 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
         exact Or.inl
           (by simpa [logEq] using sourceInCommitted.trans committedInCandidate)
       · let sourceConfiguration :=
-          currentConfiguration ((nodeOf state) source)
+          currentConfiguration (inferInstance) ((nodeOf state) source)
         let candidateConfiguration :=
-          currentConfiguration ((nodeOf state) candidate)
+          currentConfiguration (inferInstance) ((nodeOf state) candidate)
         have sourceActive :
             sourceConfiguration ∈
-              activeConfigurations ((nodeOf state) source) := by
+              activeConfigurations (inferInstance) ((nodeOf state) source) := by
           simpa [sourceConfiguration]
             using currentConfiguration_mem_activeConfigurations ((nodeOf state) source)
         have sourceGoverns : sourceConfiguration.index <= index := by
@@ -901,10 +903,10 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
             candidateConfiguration.index <= sourceConfiguration.index
         · have sourceKnownCandidate :
               sourceConfiguration ∈
-                allConfigurations ((nodeOf state) candidate).log := by
+                allConfigurations (inferInstance) ((nodeOf state) candidate).log := by
             by_cases sourceZero : sourceConfiguration.index = 0
             · have sourceImplicit :
-                  sourceConfiguration = implicitConfiguration := by
+                  sourceConfiguration = implicitConfiguration (inferInstance) := by
                 apply
                   allConfigurations_index_unique
                     (TxId := TxId) ((nodeOf state) source).log
@@ -912,7 +914,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                     using currentConfiguration_mem_allConfigurations
                       ((nodeOf state) source)
                 · simp [allConfigurations, implicitConfiguration]
-                · simpa [implicitConfiguration] using sourceZero
+                · simpa [implicitConfiguration (inferInstance)] using sourceZero
               simp [sourceImplicit, allConfigurations]
             · rcases
                   configurationActivations source
@@ -957,7 +959,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
             sourceGoverns,
             by
               rw [activeConfigurationsEq]
-              simpa [activeConfigurations, candidateConfiguration]
+              simpa [activeConfigurations (inferInstance), candidateConfiguration]
                 using And.intro sourceKnownCandidate candidateBefore
           ⟩
         · have sourceBeforeCandidate :
@@ -979,7 +981,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
             candidateWitness.stored
           have candidateConfigurationKnown :
               candidateConfiguration ∈
-                allConfigurations
+                allConfigurations (inferInstance)
                   (candidateActivation.history.take
                     candidateActivation.activationFrontier) := by
             apply
@@ -1061,7 +1063,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
               exact List.take_prefix _ _
             have candidateKnownSource :
                 candidateConfiguration ∈
-                  allConfigurations ((nodeOf state) source).log := by
+                  allConfigurations (inferInstance) ((nodeOf state) source).log := by
               apply
                 memOfPrefix
                   (allConfigurations_mono_prefix activationInSource)
@@ -1071,7 +1073,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                 ⟨candidateConfiguration,
                   by
                     rw [activeConfigurationsEq]
-                    simpa [activeConfigurations, sourceConfiguration] using
+                    simpa [activeConfigurations (inferInstance), sourceConfiguration] using
                       And.intro candidateKnownSource
                         sourceBeforeCandidate.le,
                   governs,
@@ -1156,7 +1158,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                     ]))
               have candidateKnownSource :
                   candidateConfiguration ∈
-                    allConfigurations ((nodeOf state) source).log := by
+                    allConfigurations (inferInstance) ((nodeOf state) source).log := by
                 apply
                   memOfPrefix
                     (allConfigurations_mono_prefix activationInSource)
@@ -1167,7 +1169,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
                   ⟨candidateConfiguration,
                     by
                       rw [activeConfigurationsEq]
-                      simpa [activeConfigurations, sourceConfiguration] using
+                      simpa [activeConfigurations (inferInstance), sourceConfiguration] using
                         And.intro candidateKnownSource
                           sourceBeforeCandidate.le,
                     governs,
@@ -1239,7 +1241,7 @@ lemma returnToFollowerPreservesSystemInductiveInvariant
           configuration,
           by simpa [activeConfigurationsEq] using sourceActive,
           governs,
-          by simpa [currentConfiguration, logEq, commitEq] using configurationEq
+          by simpa [currentConfiguration (inferInstance), logEq, commitEq] using configurationEq
         ⟩
     · intro left leftIndex leftRole leftCurrent leftSignature leftMajority
         right rightIndex rightRole rightCurrent rightSignature rightMajority

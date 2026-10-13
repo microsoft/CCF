@@ -11,13 +11,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -31,9 +33,9 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       : (node ∈ joinedNodes
           /\ ((nodeOf state) node).role = .candidate
           /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
-          /\ hasElectionMajority (nodeOf state node)
+          /\ hasElectionMajority (inferInstance) (nodeOf state node)
           /\ Not
-              ((refreshRetirementState node
+              ((refreshRetirementState (inferInstance) node
                   ({
                     ((nodeOf state) node) with
                       log :=
@@ -61,7 +63,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
   have candidatesAboveBootstrap :=
     invariantFactsCandidatesAboveBootstrap facts
   have oldRole : ((nodeOf state) node).role = .candidate := enabled.2.1
-  have oldMajority : hasElectionMajority (nodeOf state node) := enabled.2.2.2.1
+  have oldMajority : hasElectionMajority (inferInstance) (nodeOf state node) := enabled.2.2.2.1
   have oldEffectiveMajority :
       hasEffectiveElectionMajority (joined := joinedNodes) state node :=
     electionMajorityImpliesEffective
@@ -110,7 +112,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       supporters := ((nodeOf state) node).votesGranted
       ballotLog := ((nodeOf state) node).log
       ballotCommitIndex := ((nodeOf state) node).commitIndex
-      ballotActive := activeConfigurations ((nodeOf state) node)
+      ballotActive := activeConfigurations (inferInstance) ((nodeOf state) node)
       promotionLog
       candidateLog := fun voter =>
         if voter = node then
@@ -327,13 +329,13 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       (becomeLeaderEffect state node).network = state.network := by
     simp [concrete_effects, present]
   have currentConfigurationNodeEq :
-      currentConfiguration
+      currentConfiguration (inferInstance)
           ((nodeOf (becomeLeaderEffect state node)) node) =
-        currentConfiguration ((nodeOf state) node) := by
+        currentConfiguration (inferInstance) ((nodeOf state) node) := by
     let afterNode := (nodeOf (becomeLeaderEffect state node)) node
     have oldKnownAfter :
-        currentConfiguration ((nodeOf state) node) ∈
-          allConfigurations afterNode.log := by
+        currentConfiguration (inferInstance) ((nodeOf state) node) ∈
+          allConfigurations (inferInstance) afterNode.log := by
       rw [show afterNode.log = promotionLog by
         simpa [afterNode] using logNode]
       simpa [promotionLog]
@@ -347,28 +349,28 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
               ((nodeOf state) node)
               (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence facts node)))
     have afterKnownOld :
-        currentConfiguration afterNode ∈
-          allConfigurations ((nodeOf state) node).log := by
+        currentConfiguration (inferInstance) afterNode ∈
+          allConfigurations (inferInstance) ((nodeOf state) node).log := by
       apply
         memOfPrefix
           (allConfigurations_mono_prefix promotionPrefix)
       simpa [afterNode, logNode]
         using currentConfiguration_mem_allConfigurations afterNode
     have oldIndexLeAfter :
-        (currentConfiguration ((nodeOf state) node)).index <=
-          (currentConfiguration afterNode).index := by
+        (currentConfiguration (inferInstance) ((nodeOf state) node)).index <=
+          (currentConfiguration (inferInstance) afterNode).index := by
       apply
         configuration_index_le_currentConfiguration
-          afterNode (currentConfiguration ((nodeOf state) node))
+          afterNode (currentConfiguration (inferInstance) ((nodeOf state) node))
           oldKnownAfter
       simpa [afterNode, commitEq]
         using currentConfiguration_index_le_commitIndex ((nodeOf state) node)
     have afterIndexLeOld :
-        (currentConfiguration afterNode).index <=
-          (currentConfiguration ((nodeOf state) node)).index := by
+        (currentConfiguration (inferInstance) afterNode).index <=
+          (currentConfiguration (inferInstance) ((nodeOf state) node)).index := by
       apply
         configuration_index_le_currentConfiguration
-          ((nodeOf state) node) (currentConfiguration afterNode)
+          ((nodeOf state) node) (currentConfiguration (inferInstance) afterNode)
           afterKnownOld
       have bound :=
         currentConfiguration_index_le_commitIndex afterNode
@@ -380,9 +382,9 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
         (Nat.le_antisymm afterIndexLeOld oldIndexLeAfter)
   have currentConfigurationEq :
       forall candidate,
-        currentConfiguration
+        currentConfiguration (inferInstance)
             ((nodeOf (becomeLeaderEffect state node)) candidate) =
-          currentConfiguration ((nodeOf state) candidate) := by
+          currentConfiguration (inferInstance) ((nodeOf state) candidate) := by
     intro candidate
     by_cases candidateEq : candidate = node
     · subst candidate
@@ -392,32 +394,32 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
   have activeConfigurationsNodeSubset :
       forall configuration,
         configuration ∈
-            activeConfigurations
+            activeConfigurations (inferInstance)
               ((nodeOf (becomeLeaderEffect state node)) node) ->
-          configuration ∈ activeConfigurations ((nodeOf state) node) := by
+          configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) node) := by
     intro configuration active
     have parts :
         configuration ∈
-            allConfigurations
+            allConfigurations (inferInstance)
               ((nodeOf (becomeLeaderEffect state node)) node).log /\
-          (currentConfiguration
+          (currentConfiguration (inferInstance)
               ((nodeOf (becomeLeaderEffect state node)) node)).index <=
             configuration.index := by
-      simpa [activeConfigurations] using active
+      simpa [activeConfigurations (inferInstance)] using active
     have knownOld :
-        configuration ∈ allConfigurations ((nodeOf state) node).log := by
+        configuration ∈ allConfigurations (inferInstance) ((nodeOf state) node).log := by
       apply
         memOfPrefix
           (allConfigurations_mono_prefix promotionPrefix)
       simpa [logNode] using parts.1
-    simpa [activeConfigurations, currentConfigurationNodeEq]
+    simpa [activeConfigurations (inferInstance), currentConfigurationNodeEq]
       using And.intro knownOld parts.2
   have activeConfigurationsOtherEq :
       forall candidate,
         Not (candidate = node) ->
-          activeConfigurations
+          activeConfigurations (inferInstance)
               ((nodeOf (becomeLeaderEffect state node)) candidate) =
-            activeConfigurations ((nodeOf state) candidate) := by
+            activeConfigurations (inferInstance) ((nodeOf state) candidate) := by
     intro candidate candidateNe
     unfold activeConfigurations currentConfiguration
     rw [logOther candidate candidateNe, commitEq]
@@ -657,7 +659,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     intro governs
     have afterActive :
         configuration ∈
-          activeConfigurations
+          activeConfigurations (inferInstance)
             ((nodeOf (becomeLeaderEffect state node)) leader) := by
       simpa [activeConfigurationsOtherEq leader leaderNe] using active
     exact
@@ -765,7 +767,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     by_cases leaderEq : leader = node
     · subst leader
       refine Or.inr
-        ⟨currentConfiguration ((nodeOf state) node), ?_, ?_⟩
+        ⟨currentConfiguration (inferInstance) ((nodeOf state) node), ?_, ?_⟩
       · rw [← currentConfigurationNodeEq]
         exact currentConfiguration_mem_allConfigurations _
       · rw [votesEq]
@@ -1933,7 +1935,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           subst record
           rcases
               configurationActivations node
-                (by simpa [electionRecord, currentConfiguration] using
+                (by simpa [electionRecord, currentConfiguration (inferInstance)] using
                   positive) with
             ⟨coverage⟩
           simpa [electionRecord]
@@ -1955,7 +1957,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           have recordEq : electionRecord = record :=
             Option.some.inj (by simpa [newElections] using recorded)
           subst record
-          simpa [electionRecord, currentConfiguration]
+          simpa [electionRecord, currentConfiguration (inferInstance)]
             using currentConfiguration_mem_activeConfigurations ((nodeOf state) node)
         · exact
             configurationFacts.ballotCurrentAuthorityActive

@@ -5,8 +5,7 @@ import CCFRaft.Proofs.Invariant.Facts
 import CCFRaft.Proofs.Direct.Framework
 
 open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
+  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState PreVoteStatus Role
     activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
     becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
     currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
@@ -17,7 +16,6 @@ open CCFRaft.Model.Local (
     retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
     retirementCommittableIndexInLog retirementCompletedNodes
     retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
   )
 
 set_option autoImplicit false
@@ -33,10 +31,12 @@ node table of the concrete state.
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open Shared Shared.MultiNodeTransitionSystem
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 variable {joined : Finset Node}
 
 /-- No two distinct nodes lead in the same term. -/

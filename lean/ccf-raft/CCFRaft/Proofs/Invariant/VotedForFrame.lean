@@ -12,6 +12,8 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open CCFRaft.Proofs.Ledger
 
@@ -50,15 +52,15 @@ lemma conflictAppendEntriesRequest_votedFor
   simp only [hasTermConflict, overlapLength]
   split_ifs <;> simp_all
 
-variable [Bootstrap Node]
+variable [InitialConfig Node]
 variable (self : Node)
 
 lemma noConflictAppendEntriesRequest_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
     (request : AppendEntriesRequest Node TxId)
-    : noConflictAppendEntriesRequest? self { node with votedFor := votedFor } request
-      = (noConflictAppendEntriesRequest? self node request).map
+    : noConflictAppendEntriesRequest? (inferInstance) self { node with votedFor := votedFor } request
+      = (noConflictAppendEntriesRequest? (inferInstance) self node request).map
           (withVotedFor votedFor) := by
   by_cases enabled : noConflictExtension node request
   · have changed : noConflictExtension { node with votedFor := votedFor } request :=
@@ -75,8 +77,8 @@ lemma acceptAppendEntriesRequest_votedFor
     (node : NodeState Node TxId)
     (votedFor : Option Node)
     (request : AppendEntriesRequest Node TxId)
-    : acceptAppendEntriesRequest? self { node with votedFor := votedFor } request
-      = (acceptAppendEntriesRequest? self node request).map (withVotedFor votedFor) := by
+    : acceptAppendEntriesRequest? (inferInstance) self { node with votedFor := votedFor } request
+      = (acceptAppendEntriesRequest? (inferInstance) self node request).map (withVotedFor votedFor) := by
   unfold acceptAppendEntriesRequest?
   by_cases accepted :
       request.term = node.currentTerm /\
@@ -101,7 +103,7 @@ lemma acceptAppendEntriesRequest_votedFor
     ]
     cases appendEntriesAlreadyDone? node request <;>
       simp [withVotedFor]
-    cases noConflictAppendEntriesRequest? self node request <;> simp
+    cases noConflictAppendEntriesRequest? (inferInstance) self node request <;> simp
     cases conflictResult : conflictAppendEntriesRequest? node request with
     | none => simp
     | some truncated =>

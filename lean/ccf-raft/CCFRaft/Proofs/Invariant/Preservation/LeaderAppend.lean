@@ -11,13 +11,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -27,7 +29,7 @@ def leaderAppendJoined (joined : Finset Node)
   joined
   ∪ match content with
     | .reconfiguration newConfiguration =>
-        newConfiguration \ (latestConfiguration (nodeOf state node)).nodes
+        newConfiguration \ (latestConfiguration (inferInstance) (nodeOf state node)).nodes
     | _ => ∅
 
 /-- Append a current-term entry in the concrete node table. -/
@@ -44,10 +46,10 @@ def leaderAppendState
   let addedNodes :=
     match content with
     | .reconfiguration newConfiguration =>
-        newConfiguration \ (latestConfiguration ((nodeOf state) node)).nodes
+        newConfiguration \ (latestConfiguration (inferInstance) ((nodeOf state) node)).nodes
     | _ => ∅
   let nextNode :=
-    refreshRetirementState node
+    refreshRetirementState (inferInstance) node
       {
         (nodeOf state) node with
           log := ((nodeOf state) node).log ++ [entry]
@@ -390,9 +392,9 @@ lemma leaderAppendPreservesSystemInductiveInvariant
   have currentConfigurationAtEq :
       forall frontier,
         frontier <= ((nodeOf state) node).log.length ->
-          currentConfigurationAt
+          currentConfigurationAt (inferInstance)
               ((nodeOf (leaderAppendState state node content)) node).log frontier =
-            currentConfigurationAt ((nodeOf state) node).log frontier := by
+            currentConfigurationAt (inferInstance) ((nodeOf state) node).log frontier := by
     intro frontier within
     rw [logEqNode]
     cases content with
@@ -422,12 +424,12 @@ lemma leaderAppendPreservesSystemInductiveInvariant
           frontier (by simp)
     | reconfiguration newConfiguration =>
         change
-          currentConfigurationAt
+          currentConfigurationAt (inferInstance)
               (((nodeOf state) node).log ++
                 [{ term := ((nodeOf state) node).currentTerm
                    content := .reconfiguration newConfiguration }])
               frontier =
-            currentConfigurationAt ((nodeOf state) node).log frontier
+            currentConfigurationAt (inferInstance) ((nodeOf state) node).log frontier
         have pending :
             ¬1 + ((nodeOf state) node).log.length <= frontier := by
           omega
@@ -438,14 +440,14 @@ lemma leaderAppendPreservesSystemInductiveInvariant
         ]
   have currentConfigurationEq :
     forall candidate,
-      currentConfiguration
+      currentConfiguration (inferInstance)
           ((nodeOf (leaderAppendState state node content))
             candidate) =
-        currentConfiguration ((nodeOf state) candidate) := by
+        currentConfiguration (inferInstance) ((nodeOf state) candidate) := by
     intro candidate
     by_cases same : candidate = node
     · subst candidate
-      simpa [currentConfiguration, commitIndexEq]
+      simpa [currentConfiguration (inferInstance), commitIndexEq]
         using currentConfigurationAtEq
           ((nodeOf state) node).commitIndex
           (facts.commitIndicesBounded node)
@@ -455,17 +457,17 @@ lemma leaderAppendPreservesSystemInductiveInvariant
     ]
   have activeConfigurationsForward :
       forall candidate configuration,
-        configuration ∈ activeConfigurations ((nodeOf state) candidate) ->
+        configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate) ->
           configuration ∈
-            activeConfigurations
+            activeConfigurations (inferInstance)
               ((nodeOf (leaderAppendState state node content))
                 candidate) := by
     intro candidate configuration active
     have oldKnown :
-        configuration ∈ allConfigurations ((nodeOf state) candidate).log :=
+        configuration ∈ allConfigurations (inferInstance) ((nodeOf state) candidate).log :=
       (List.mem_filter.mp active).1
     have oldOrder :
-        (currentConfiguration ((nodeOf state) candidate)).index <=
+        (currentConfiguration (inferInstance) ((nodeOf state) candidate)).index <=
           configuration.index := by
       exact of_decide_eq_true (List.mem_filter.mp active).2
     apply List.mem_filter.mpr
@@ -571,7 +573,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
                   (leaderAppendState state node content)
                     candidate ->
               voter ∈
-                  activeNodeUnion
+                  activeNodeUnion (inferInstance)
                     ((nodeOf (leaderAppendState state node content))
                       candidate) ->
                 voter ∈ potentialElectionVoters (joined := joinedNodes) state candidate := by
@@ -810,7 +812,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
     intro governs
     have afterActive :
         configuration ∈
-          activeConfigurations
+          activeConfigurations (inferInstance)
             ((nodeOf (leaderAppendState state node content))
               leader) := by
       exact activeConfigurationsForward leader configuration active
@@ -1375,7 +1377,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
     intro governs
     have afterActive :
         configuration ∈
-          activeConfigurations
+          activeConfigurations (inferInstance)
             ((nodeOf (leaderAppendState state node content))
               source) := by
       exact activeConfigurationsForward source configuration active
@@ -2304,11 +2306,11 @@ lemma leaderAppendPreservesSystemInductiveInvariant
                     candidate).log \/
                 Exists fun configuration =>
                   configuration ∈
-                      activeConfigurations
+                      activeConfigurations (inferInstance)
                         ((nodeOf (leaderAppendState state node content)) source) /\
                     configuration.index <= index /\
                     configuration ∈
-                      activeConfigurations
+                      activeConfigurations (inferInstance)
                         ((nodeOf (leaderAppendState state node content))
                             candidate) := by
     intro source index sourceRole current signature potential
@@ -3226,7 +3228,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
   · have configurationNodesAfter :
         forall candidate configuration,
           configuration ∈
-              allConfigurations
+              allConfigurations (inferInstance)
                 ((nodeOf (leaderAppendState state node content)) candidate).log ->
             configuration.nodes ⊆
               (leaderAppendJoined joinedNodes state node content) := by
@@ -3235,7 +3237,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
       · subst candidate
         have appendedMember :
             configuration ∈
-              allConfigurations (((nodeOf state) node).log ++ [entry]) := by
+              allConfigurations (inferInstance) (((nodeOf state) node).log ++ [entry]) := by
           simpa [logEqNode] using member
         apply
           allConfigurations_append_nodes_carried
@@ -3256,7 +3258,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
             subst newConfiguration
             exact hasJoinedMono
               (facts.joinedCarriers.configurationNodes
-                node implicitConfiguration
+                node implicitConfiguration (inferInstance)
                 (by simp [allConfigurations])
                 newPeerMember)
         | signature =>
@@ -3267,7 +3269,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
             subst newConfiguration
             exact hasJoinedMono
               (facts.joinedCarriers.configurationNodes
-                node implicitConfiguration
+                node implicitConfiguration (inferInstance)
                 (by simp [allConfigurations])
                 newPeerMember)
         | retiredCommitted retired =>
@@ -3278,7 +3280,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
             subst newConfiguration
             exact hasJoinedMono
               (facts.joinedCarriers.configurationNodes
-                node implicitConfiguration
+                node implicitConfiguration (inferInstance)
                 (by simp [allConfigurations])
                 newPeerMember)
         | reconfiguration newNodes =>
@@ -3291,17 +3293,17 @@ lemma leaderAppendPreservesSystemInductiveInvariant
               exact
                 hasJoinedMono
                   (facts.joinedCarriers.configurationNodes
-                    node implicitConfiguration
+                    node implicitConfiguration (inferInstance)
                       (by simp [allConfigurations])
                       newPeerMember)
             · subst newConfiguration
               simp only at newPeerMember
               by_cases retained :
-                  newPeer ∈ (latestConfiguration ((nodeOf state) node)).nodes
+                  newPeer ∈ (latestConfiguration (inferInstance) ((nodeOf state) node)).nodes
               · apply hasJoinedMono
                 exact
                   facts.joinedCarriers.configurationNodes
-                    node (latestConfiguration ((nodeOf state) node))
+                    node (latestConfiguration (inferInstance) ((nodeOf state) node))
                       (latestConfiguration_mem_allConfigurations
                         ((nodeOf state) node))
                       retained
@@ -3395,10 +3397,10 @@ lemma appendRetiredCommittedPreservesSystemInductiveInvariant
       : (node ∈ joinedNodes
           /\ ((nodeOf state) node).role = .leader
           /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
-          /\ (((nodeOf state node).retirementCompleted
+          /\ (((nodeOf state node).retirementCompleted (inferInstance)
                 \ allRetiredCommittedNodes (nodeOf state node).log)).Nonempty
           /\ Not
-              ((refreshRetirementState node
+              ((refreshRetirementState (inferInstance) node
                   {
                     ((nodeOf state) node) with
                       log :=
@@ -3407,7 +3409,7 @@ lemma appendRetiredCommittedPreservesSystemInductiveInvariant
                               term := ((nodeOf state) node).currentTerm,
                               content :=
                                 .retiredCommitted
-                                  (((nodeOf state node).retirementCompleted
+                                  (((nodeOf state node).retirementCompleted (inferInstance)
                                     \ allRetiredCommittedNodes (nodeOf state node).log))
                             })]
                   }).membershipState
@@ -3419,7 +3421,7 @@ lemma appendRetiredCommittedPreservesSystemInductiveInvariant
     using leaderAppendPreservesSystemInductiveInvariant (present := present)
       state node
       (.retiredCommitted
-        (((nodeOf state node).retirementCompleted
+        (((nodeOf state node).retirementCompleted (inferInstance)
           \ allRetiredCommittedNodes (nodeOf state node).log)))
       invariant enabled.1 enabled.2.1
 
@@ -3435,7 +3437,7 @@ lemma clientRequestPreservesSystemInductiveInvariant
           /\ ((nodeOf state) node).role = .leader
           /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
           /\ Not
-              ((refreshRetirementState node
+              ((refreshRetirementState (inferInstance) node
                   {
                     ((nodeOf state) node) with
                       log :=
@@ -3466,7 +3468,7 @@ lemma signCommittableMessagesPreservesSystemInductiveInvariant
           /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
           /\ Not (((nodeOf state) node).log = [])
           /\ Not
-              ((refreshRetirementState node
+              ((refreshRetirementState (inferInstance) node
                   {
                     ((nodeOf state) node) with
                       log :=

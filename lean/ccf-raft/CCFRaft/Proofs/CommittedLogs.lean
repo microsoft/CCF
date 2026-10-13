@@ -14,9 +14,12 @@ grown, then compare the two nodes' committed logs in that one state.
 
 namespace CCFRaft.Proofs.CommittedLogs
 
+open CCFRaft.Proofs.Config
+
 theorem committed_logs_prefix : Properties.CommittedLogsPrefix := by
-  intro Node TxId _ _ _ nodes trace first second left right leftState rightState
+  intro Node TxId _ _ config nodes trace first second left right leftState rightState
     ⟨valid, firstMember, secondMember, leftMember, rightMember⟩
+  let _ : Model.Local.InitialConfig Node := config
   obtain ⟨firstIndex, atFirst⟩ := List.mem_iff_getElem?.mp firstMember
   obtain ⟨secondIndex, atSecond⟩ := List.mem_iff_getElem?.mp secondMember
   /- Move the node of the earlier state to the later state, then compare there. -/

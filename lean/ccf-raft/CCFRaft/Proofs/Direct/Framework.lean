@@ -17,35 +17,37 @@ every node of every reachable state.
 
 namespace CCFRaft.Proofs.Direct
 
-open Shared Shared.MultiNodeTransitionSystem Concrete
-open Model.Local (NodeState Bootstrap initialNodeState)
+open CCFRaft.Proofs.Config
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+open Shared Shared.MultiNodeTransitionSystem Concrete
+open Model.Local (NodeState InitialConfig initialNodeState)
+
+variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 /-- A node-local predicate that holds initially and survives every local step. -/
 structure NodeInvariant (P : Node -> NodeState Node TxId -> Prop) : Prop where
-  initial : forall node, P node (initialNodeState node)
+  initial : forall node, P node (initialNodeState (inferInstance) node)
   step
     : forall node state event execute,
         P node state
-        -> Model.Local.step (Capabilities.record node) node state event = some execute
+        -> Model.Local.step (inferInstance) (Capabilities.record node) node state event = some execute
         -> P node (execute.run {}).1
 
 theorem NodeInvariant.reachable {P : Node -> NodeState Node TxId -> Prop}
     (invariant : NodeInvariant P) {nodes : List Node} {state : Model.State Node TxId}
-    (reachable : (Model.transitionSystem (TxId := TxId) nodes).Reachable state)
+    (reachable : (Model.transitionSystem (inferInstance) (TxId := TxId) nodes).Reachable state)
     : forall node local_, (node, local_) ∈ state.nodes -> P node local_ := by
   induction reachable with
   | initial initialized =>
       intro node local_ member
-      have initial : local_ = initialNodeState node := initialized.2.2.2.2.2 (node, local_) member
+      have initial : local_ = initialNodeState (inferInstance) node := initialized.2.2.2.2.2 (node, local_) member
       subst initial
       exact invariant.initial node
   | @step before after action _ stepped ih =>
       have preserved : forall {actor : Node} {old : NodeState Node TxId}
           {event : Model.Local.Event Node TxId} {execute},
           nodeState before actor = some old ->
-          Model.Local.step (Capabilities.record actor) actor old event = some execute ->
+          Model.Local.step (inferInstance) (Capabilities.record actor) actor old event = some execute ->
           forall node local_,
             (node, local_) ∈ replaceNode before.nodes actor (execute.run {}).1 ->
             P node local_ := by
@@ -62,7 +64,7 @@ theorem NodeInvariant.reachable {P : Node -> NodeState Node TxId -> Prop}
           exact preserved (event := .receive envelope.source envelope.payload) found received
 
 theorem keys_nodup {nodes : List Node} {state : Model.State Node TxId}
-    (reachable : (Model.transitionSystem (TxId := TxId) nodes).Reachable state)
+    (reachable : (Model.transitionSystem (inferInstance) (TxId := TxId) nodes).Reachable state)
     : (state.nodes.map Prod.fst).Nodup := by
   induction reachable with
   | initial initialized => exact initialized.2.1 ▸ initialized.1

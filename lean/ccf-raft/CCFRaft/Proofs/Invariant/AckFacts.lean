@@ -11,9 +11,11 @@ set_option maxHeartbeats 700000
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open Model.Local
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 /-- Immediate ACK eligibility depends on protocol fields, not retirement metadata. -/
 theorem canProduceAppendAckAt_iff (node : NodeState Node TxId)

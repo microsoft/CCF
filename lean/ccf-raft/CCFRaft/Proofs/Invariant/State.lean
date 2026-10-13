@@ -8,14 +8,16 @@ set_option linter.unusedSectionVars false
 
 namespace CCFRaft.Proofs.Invariant
 
-open Shared.MultiNodeTransitionSystem Concrete
-open Model.Local (Bootstrap NodeState initialNodeState)
+open CCFRaft.Proofs.Config
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+open Shared.MultiNodeTransitionSystem Concrete
+open Model.Local (InitialConfig NodeState initialNodeState)
+
+variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 /-- Total lookup; identities absent from the node table retain their initial state. -/
 def nodeOf (state : Model.State Node TxId) (node : Node) : NodeState Node TxId :=
-  (nodeState state node).getD (initialNodeState node)
+  (nodeState state node).getD (initialNodeState (inferInstance) node)
 
 theorem nodeOf_of_lookup {state : Model.State Node TxId} {node : Node}
     {value : NodeState Node TxId} (found : nodeState state node = some value)
@@ -122,15 +124,15 @@ theorem nodeOf_network (state : Model.State Node TxId)
   rfl
 
 theorem nodeOf_initial {nodes : List Node} {state : Model.State Node TxId}
-    (initialized : (Model.transitionSystem nodes).init state) (node : Node)
-    : nodeOf state node = initialNodeState node := by
+    (initialized : (Model.transitionSystem (inferInstance) nodes).init state) (node : Node)
+    : nodeOf state node = initialNodeState (inferInstance) node := by
   cases found : nodeState state node with
   | none => simp [nodeOf, found]
   | some value =>
       rw [nodeOf_of_lookup found]
       exact initialized.2.2.2.2.2 (node, value) (mem_of_nodeState found)
 
-omit [Bootstrap Node] in
+omit [InitialConfig Node] in
 theorem removeOne_eq_list_erase (envelope : Model.Envelope Node TxId)
     (network : List (Model.Envelope Node TxId))
     : removeOne envelope network = network.erase envelope := by

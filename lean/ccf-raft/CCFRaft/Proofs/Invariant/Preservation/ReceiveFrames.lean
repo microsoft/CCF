@@ -11,13 +11,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes joinedNext : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -289,7 +291,7 @@ lemma appendRequestAckerTemporalFacts
     (responseSource : response.1 = request.2.1)
     (responseDestination : response.2.1 = request.1)
     (handled
-      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response.2.2))
     : let after : Model.State Node TxId :=
         {

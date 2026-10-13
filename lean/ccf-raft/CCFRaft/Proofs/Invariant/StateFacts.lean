@@ -12,9 +12,10 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
+  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState PreVoteStatus Role
     activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
     becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
     currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
@@ -25,12 +26,11 @@ open CCFRaft.Model.Local (
     retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
     retirementCommittableIndexInLog retirementCompletedNodes
     retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
   )
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 open Shared Shared.MultiNodeTransitionSystem Concrete
 
@@ -59,8 +59,8 @@ theorem mem_foldl_union {P : Configuration Node -> Prop} [DecidablePred P]
 
 theorem retirementCompletedNodes_configured {log : List (Entry Node TxId)}
     {commitIndex : Nat} {member : Node}
-    (found : member ∈ retirementCompletedNodes log commitIndex)
-    : ∃ configuration ∈ allConfigurations log, member ∈ configuration.nodes := by
+    (found : member ∈ retirementCompletedNodes (inferInstance) log commitIndex)
+    : ∃ configuration ∈ allConfigurations (inferInstance) log, member ∈ configuration.nodes := by
   unfold retirementCompletedNodes at found
   simp only [Finset.mem_filter, Finset.mem_sdiff] at found
   rcases mem_foldl_union _ _ _ found.1.1.1 with empty | configured
@@ -68,10 +68,10 @@ theorem retirementCompletedNodes_configured {log : List (Entry Node TxId)}
   · exact configured
 
 theorem initialNodeState_of_not_mem {node : Node} (absent : node ∉ INITIAL_CONFIGURATION)
-    : (initialNodeState node : NodeState Node TxId) = freshNodeState := by
+    : (initialNodeState (inferInstance) node : NodeState Node TxId) = freshNodeState := by
   have notLeader : Not (node = INITIAL_LEADER) := by
     rintro rfl
-    exact absent (Bootstrap.leader_mem)
+    exact absent (InitialConfig.leader_mem (inferInstance))
   simp [initialNodeState, freshNodeState, absent, notLeader]
 
 theorem observeTerm_eq_updateTerm (state : NodeState Node TxId)
@@ -140,13 +140,13 @@ theorem StateInvariant.joined_of_role {state : Model.State Node TxId}
 
 theorem StateInvariant.activeJoined {state : Model.State Node TxId} {joined : Finset Node}
     (invariant : StateInvariant state joined) {node member : Node}
-    (active : member ∈ activeNodeUnion (nodeOf state node))
+    (active : member ∈ activeNodeUnion (inferInstance) (nodeOf state node))
     : member ∈ joined :=
   invariant.joinedCarriers.activeNodes node active
 
 theorem StateInvariant.retiredJoined {state : Model.State Node TxId}
     {joined : Finset Node} (invariant : StateInvariant state joined) {node member : Node}
-    (retired : member ∈ (nodeOf state node).retirementCompleted)
+    (retired : member ∈ (nodeOf state node).retirementCompleted (inferInstance))
     : member ∈ joined := by
   obtain ⟨configuration, listed, member⟩ := retirementCompletedNodes_configured retired
   exact invariant.joinedCarriers.configurationNodes node configuration listed member

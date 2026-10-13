@@ -11,13 +11,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -185,7 +187,7 @@ lemma receiveProposeVoteRequestPreservesSystemInductiveInvariant
           state with
             nodes :=
               replaceNode state.nodes destination
-                (handleProposeVoteRequest (nodeOf state destination) destination term)
+                (handleProposeVoteRequest (inferInstance) (nodeOf state destination) destination term)
             network := remaining
         } := by
   rcases handleProposeVoteRequestCases (nodeOf state destination) destination term with same | changed

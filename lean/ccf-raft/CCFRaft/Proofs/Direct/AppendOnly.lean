@@ -18,11 +18,13 @@ to its latest signature, which the commit frontier does not pass.
 
 namespace CCFRaft.Proofs.Direct
 
+open CCFRaft.Proofs.Config
+
 open Shared Shared.MultiNodeTransitionSystem Concrete
 open Model.Local
 open Ledger (refreshRetirementState_log refreshRetirementState_commitIndex)
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 /-- `after` keeps the committed prefix of `before` and commits no less. -/
 def Extends (before after : NodeState Node TxId) : Prop :=
@@ -76,7 +78,7 @@ theorem Extends.append {state : NodeState Node TxId} (frontier : CommitFrontier 
 
 theorem Extends.appendEntry {state : NodeState Node TxId}
     (frontier : CommitFrontier state) (self : Node) (content : EntryContent Node TxId)
-    : Extends state (appendEntry state self content) := by
+    : Extends state (appendEntry (inferInstance) state self content) := by
   unfold Model.Local.appendEntry
   exact (Extends.append frontier _).trans
     (Extends.of_log (refreshRetirementState_log _ _) (refreshRetirementState_commitIndex _ _))
@@ -97,7 +99,7 @@ theorem Extends.alreadyDone (done : appendEntriesAlreadyDone? state request = so
 
 theorem Extends.noConflict (bounded : state.commitIndex <= state.log.length)
     (within : state.commitIndex <= request.prevLogIndex)
-    (appended : noConflictAppendEntriesRequest? self state request = some result)
+    (appended : noConflictAppendEntriesRequest? (inferInstance) self state request = some result)
     : Extends state result.1 := by
   unfold noConflictAppendEntriesRequest? at appended
   split at appended
@@ -109,7 +111,7 @@ theorem Extends.noConflict (bounded : state.commitIndex <= state.log.length)
   · simp at appended
 
 theorem Extends.accept (bounded : state.commitIndex <= state.log.length)
-    (accepted : acceptAppendEntriesRequest? self state request = some result)
+    (accepted : acceptAppendEntriesRequest? (inferInstance) self state request = some result)
     : Extends state result.1 := by
   unfold acceptAppendEntriesRequest? at accepted
   split at accepted
@@ -145,7 +147,7 @@ theorem Extends.accept (bounded : state.commitIndex <= state.log.length)
 
 theorem Extends.handleAppendEntriesRequest
     (bounded : state.commitIndex <= state.log.length)
-    (handled : handleAppendEntriesRequest? self state request = some result)
+    (handled : handleAppendEntriesRequest? (inferInstance) self state request = some result)
     : Extends state result.1 := by
   unfold handleAppendEntriesRequest? at handled
   have stepped : Extends state (if request.term = state.currentTerm /\
@@ -181,7 +183,7 @@ end AppendEntries
 theorem Extends.promoted {state : NodeState Node TxId} (self : Node)
     (frontier : CommitFrontier state) {role : Role} {sentIndex matchIndex : Node -> Nat}
     : Extends state
-        (refreshRetirementState self
+        (refreshRetirementState (inferInstance) self
           {
             state with
               log := state.log.take (maxCommittableIndex state.log)
@@ -194,9 +196,9 @@ theorem Extends.promoted {state : NodeState Node TxId} (self : Node)
   exact kept.trans (Extends.of_log (by simp) (by simp))
 
 theorem Extends.advanced {state : NodeState Node TxId} (self : Node)
-    (advances : state.commitIndex < highestCommittableIndex state self)
-    : Extends state (demoteRetiredCommitted (Model.Local.advanceCommit state self)) := by
-  have advanced : Extends state (Model.Local.advanceCommit state self) := by
+    (advances : state.commitIndex < highestCommittableIndex (inferInstance) state self)
+    : Extends state (demoteRetiredCommitted (Model.Local.advanceCommit (inferInstance) state self)) := by
+  have advanced : Extends state (Model.Local.advanceCommit (inferInstance) state self) := by
     unfold Model.Local.advanceCommit
     exact ⟨by simp; omega, by simp⟩
   unfold demoteRetiredCommitted
@@ -213,7 +215,7 @@ theorem extends_step {self : Node} {state : NodeState Node TxId}
     {event : Event Node TxId} {execute : NodeEffect Node TxId (NodeState Node TxId)}
     (frontier : CommitFrontier state)
     (stepped
-      : Model.Local.step (Capabilities.record self) self state event = some execute)
+      : Model.Local.step (inferInstance) (Capabilities.record self) self state event = some execute)
     : Extends state (execute.run {}).1 := by
   cases event with
   | internal input =>
@@ -286,8 +288,8 @@ theorem extends_step {self : Node} {state : NodeState Node TxId}
 /-- A step keeps every other node's state and extends the actor's committed log. -/
 theorem committed_log_step {nodes : List Node} {before after : Model.State Node TxId}
     {action : Model.Action Node TxId}
-    (reachable : (Model.transitionSystem (TxId := TxId) nodes).Reachable before)
-    (stepped : (Model.transitionSystem nodes).step before action = some after)
+    (reachable : (Model.transitionSystem (inferInstance) (TxId := TxId) nodes).Reachable before)
+    (stepped : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
     {node : Node} {beforeState afterState : NodeState Node TxId}
     (beforeMember : (node, beforeState) ∈ before.nodes)
     (afterMember : (node, afterState) ∈ after.nodes)
@@ -297,7 +299,7 @@ theorem committed_log_step {nodes : List Node} {before after : Model.State Node 
   have extended : forall {actor : Node} {old : NodeState Node TxId}
       {event : Event Node TxId} {execute : NodeEffect Node TxId (NodeState Node TxId)},
       nodeState before actor = some old
-      -> Model.Local.step (Capabilities.record actor) actor old event = some execute
+      -> Model.Local.step (inferInstance) (Capabilities.record actor) actor old event = some execute
       -> (node, afterState) ∈ replaceNode before.nodes actor (execute.run {}).1
       -> beforeState.committedLog <+: afterState.committedLog := by
     intro actor old event execute found acted member
@@ -322,7 +324,7 @@ theorem committed_log_step {nodes : List Node} {before after : Model.State Node 
 /-- A node present before a step is present after it. -/
 theorem present_after_step {nodes : List Node} {before after : Model.State Node TxId}
     {action : Model.Action Node TxId}
-    (stepped : (Model.transitionSystem nodes).step before action = some after)
+    (stepped : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
     {node : Node} {beforeState : NodeState Node TxId}
     (member : (node, beforeState) ∈ before.nodes)
     : exists afterState, (node, afterState) ∈ after.nodes := by
@@ -345,7 +347,7 @@ theorem present_after_step {nodes : List Node} {before after : Model.State Node 
 committed log at every later state. -/
 theorem committed_log_later {nodes : List Node}
     {trace : Properties.GlobalTrace Node TxId}
-    (valid : trace.Valid (Model.transitionSystem nodes)) {index : Nat}
+    (valid : trace.Valid (Model.transitionSystem (inferInstance) nodes)) {index : Nat}
     {first : Model.State Node TxId} (atFirst : trace.states[index]? = some first)
     {node : Node} {firstState : NodeState Node TxId}
     (member : (node, firstState) ∈ first.nodes)

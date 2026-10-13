@@ -11,13 +11,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joined joinedNext : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -214,11 +216,11 @@ lemma majorityImpliesEffectiveMajority
     (responseHistory : AppendResponseKey Node -> List (Entry Node TxId))
     (leader : Node)
     (index : Nat)
-    (activeNodesJoined : activeNodeUnion ((nodeOf state) leader) ⊆ joined)
-    (majority : hasMajorityAt (nodeOf state leader) leader index)
+    (activeNodesJoined : activeNodeUnion (inferInstance) ((nodeOf state) leader) ⊆ joined)
+    (majority : hasMajorityAt (inferInstance) (nodeOf state leader) leader index)
     : hasEffectiveMajorityAt (joined := joined) state responseHistory leader index := by
   have subset :
-      acknowledgingNodes (nodeOf state leader) leader index ⊆
+      acknowledgingNodes (inferInstance) (nodeOf state leader) leader index ⊆
         effectiveAckers (joined := joined) state responseHistory leader index := by
     intro node member
     simp only [
@@ -242,7 +244,7 @@ lemma electionMajorityImpliesEffective
     (state : Model.State Node TxId)
     (candidate : Node)
     (votersJoined : ((nodeOf state) candidate).votesGranted ⊆ joined)
-    (majority : hasElectionMajority (nodeOf state candidate))
+    (majority : hasElectionMajority (inferInstance) (nodeOf state candidate))
     : hasEffectiveElectionMajority (joined := joined) state candidate := by
   have subset :
       ((nodeOf state) candidate).votesGranted ⊆
@@ -290,8 +292,8 @@ lemma potentialElectionMajorityOfSubset
       : potentialElectionVoters (joined := joinedNext) after candidate
         ⊆ potentialElectionVoters (joined := joined) state candidate)
     (activeEq
-      : activeConfigurations ((nodeOf after) candidate)
-        = activeConfigurations ((nodeOf state) candidate))
+      : activeConfigurations (inferInstance) ((nodeOf after) candidate)
+        = activeConfigurations (inferInstance) ((nodeOf state) candidate))
     (majority : hasPotentialElectionMajority (joined := joinedNext) after candidate)
     : hasPotentialElectionMajority (joined := joined) state candidate := by
   rw [hasPotentialElectionMajority, List.all_eq_true] at majority
@@ -299,7 +301,7 @@ lemma potentialElectionMajorityOfSubset
   intro configuration active
   apply decide_eq_true
   have afterActive :
-      configuration ∈ activeConfigurations ((nodeOf after) candidate) := by
+      configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) candidate) := by
     simpa [activeEq] using active
   exact
     hasConfigurationMajority_mono subset
@@ -438,14 +440,14 @@ lemma potentialElectionMajorityIntersectionEffective
     (potential
       : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
           leader index)
-    (leaderActive : configuration ∈ activeConfigurations ((nodeOf state) leader))
+    (leaderActive : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) leader))
     (configurationGoverns : configuration.index <= index)
     (candidateActive
       : ((nodeOf state) candidate).role = .candidate
         \/ ((nodeOf state) candidate).role = .leader)
     (elected : hasPotentialElectionMajority (joined := joined) state candidate)
     (candidateConfigurationActive
-      : configuration ∈ activeConfigurations ((nodeOf state) candidate))
+      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate))
     (newer : ((nodeOf state) leader).currentTerm < ((nodeOf state) candidate).currentTerm)
     : Exists
         fun voter =>
@@ -490,7 +492,7 @@ lemma potentialElectionRecordIntersectionEffective
     (potential
       : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
           leader index)
-    (leaderActive : configuration ∈ activeConfigurations ((nodeOf state) leader))
+    (leaderActive : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) leader))
     (configurationGoverns : configuration.index <= index)
     (recorded : elections term = some record)
     (ballotActive : configuration ∈ record.ballotActive)
@@ -672,7 +674,7 @@ lemma potentialPrefixInActivation
     (potential
       : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
           source index)
-    (sourceActive : configuration ∈ activeConfigurations ((nodeOf state) source))
+    (sourceActive : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (activationStored : activations activationIndex = some activation)
     (activationGoverning : configuration ∈ activation.governingActive)
@@ -839,17 +841,17 @@ lemma activationNewConfigurationKnown
     {activation : ActivationRecord Node TxId}
     (activationStored : activations activationIndex = some activation)
     : activation.newConfiguration
-      ∈ allConfigurations (activation.history.take activation.activationFrontier) := by
+      ∈ allConfigurations (inferInstance) (activation.history.take activation.activationFrontier) := by
   have valid :=
     historyFacts.valid activationIndex activation activationStored
   have governingMember : activation.newConfiguration ∈
-      ((allConfigurations activation.history).filter fun configuration =>
+      ((allConfigurations (inferInstance) activation.history).filter fun configuration =>
         activation.oldConfiguration.index <= configuration.index /\
           configuration.index <= activation.activationFrontier) := by
     simpa [valid.2.2.2.2.2.2.1] using valid.2.2.2.2.2.2.2.1
   have known :
       activation.newConfiguration ∈
-        allConfigurations activation.history :=
+        allConfigurations (inferInstance) activation.history :=
     (List.mem_filter.mp governingMember).1
   have within :
       activation.newConfiguration.index <=
@@ -872,9 +874,9 @@ lemma electionConfigurationActiveOfKnown
     {record : ElectionRecord Node TxId}
     {configuration : Configuration Node}
     (recorded : elections term = some record)
-    (known : configuration ∈ allConfigurations record.ballotLog)
+    (known : configuration ∈ allConfigurations (inferInstance) record.ballotLog)
     (notRetired
-      : (currentConfigurationAt record.ballotLog record.ballotCommitIndex).index
+      : (currentConfigurationAt (inferInstance) record.ballotLog record.ballotCommitIndex).index
         <= configuration.index)
     : configuration ∈ record.ballotActive := by
   rw [
@@ -908,7 +910,7 @@ lemma leastBadElectionHasPrefixVoterForActivation
       : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
           source index)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations ((nodeOf state) source))
+      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (recorded : elections term = some record)
     (ballotActive : configuration ∈ record.ballotActive)
@@ -967,7 +969,7 @@ lemma leastBadElectionPromotionContainsPrefixForActivation
       : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
           source index)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations ((nodeOf state) source))
+      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (recorded : elections term = some record)
     (ballotActive : configuration ∈ record.ballotActive)
@@ -1304,13 +1306,13 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
             ((validEvidenceSupportedPrefixFrontier valid).trans
               evidenceInElection)
       · let sourceConfiguration :=
-          currentConfiguration ((nodeOf state) source)
+          currentConfiguration (inferInstance) ((nodeOf state) source)
         let ballotConfiguration :=
-          currentConfigurationAt
+          currentConfigurationAt (inferInstance)
             record.ballotLog record.ballotCommitIndex
         have sourceConfigurationActive :
             sourceConfiguration ∈
-              activeConfigurations ((nodeOf state) source) := by
+              activeConfigurations (inferInstance) ((nodeOf state) source) := by
           exact currentConfiguration_mem_activeConfigurations _
         have sourceConfigurationGoverns :
             sourceConfiguration.index <= index := by
@@ -1342,7 +1344,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
         have directOfShared :
             forall configuration,
               configuration ∈
-                  activeConfigurations ((nodeOf state) source) ->
+                  activeConfigurations (inferInstance) ((nodeOf state) source) ->
               configuration.index <= index ->
               configuration ∈ record.ballotActive ->
                 ((nodeOf state) source).log.take index <+:
@@ -1358,9 +1360,9 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
             inductionHypothesis earlierTerm below
               earlierRecord earlierRecorded above
         by_cases ballotImplicit :
-            ballotConfiguration = implicitConfiguration
+            ballotConfiguration = implicitConfiguration (inferInstance)
         · by_cases sourceImplicit :
-              sourceConfiguration = implicitConfiguration
+              sourceConfiguration = implicitConfiguration (inferInstance)
           · exact
               directOfShared
                 sourceConfiguration sourceConfigurationActive
@@ -1376,14 +1378,14 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                   sourceConfiguration.index ≠ 0 := by
                 intro zero
                 have implicitEq :
-                    sourceConfiguration = implicitConfiguration := by
+                    sourceConfiguration = implicitConfiguration (inferInstance) := by
                   apply
                     allConfigurations_index_unique
                       (TxId := TxId)
                       ((nodeOf state) source).log
                   · exact currentConfiguration_mem_allConfigurations _
                   · simp [allConfigurations, implicitConfiguration]
-                  · simpa [implicitConfiguration] using zero
+                  · simpa [implicitConfiguration (inferInstance)] using zero
                 exact sourceImplicit implicitEq
               exact Nat.pos_of_ne_zero sourceNonzero
             rcases
@@ -1395,7 +1397,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                 (sourceCoverage.activationTerm_le_currentTerm.trans_lt later)
             have sourceConfigurationKnownEvent :
                 sourceConfiguration ∈
-                  allConfigurations
+                  allConfigurations (inferInstance)
                     (sourceCoverage.activation.history.take
                       sourceCoverage.activation.activationFrontier) := by
               apply
@@ -1408,14 +1410,14 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
               sourceConfigurationKnownEvent
             have sourceConfigurationKnownPromotion :
                 sourceConfiguration ∈
-                  allConfigurations record.promotionLog := by
+                  allConfigurations (inferInstance) record.promotionLog := by
               have configurationsPrefix :=
                 allConfigurations_mono_prefix sourceActivationInPromotion
               apply memOfPrefix configurationsPrefix
               exact sourceConfigurationKnownActivation
             have sourceConfigurationKnownBallot :
                 sourceConfiguration ∈
-                  allConfigurations record.ballotLog :=
+                  allConfigurations (inferInstance) record.ballotLog :=
               memOfPrefix
                 (allConfigurations_mono_prefix
                   ((electionFacts.promotionFromBallot
@@ -1440,8 +1442,8 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
               0 < ballotConfiguration.index := by
             have known :
                 ballotConfiguration ∈
-                  allConfigurations record.ballotLog := by
-              simpa [ballotConfiguration, currentConfiguration]
+                  allConfigurations (inferInstance) record.ballotLog := by
+              simpa [ballotConfiguration, currentConfiguration (inferInstance)]
                 using currentConfiguration_mem_allConfigurations
                   {
                     ((nodeOf state) record.leader) with
@@ -1491,7 +1493,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
               exact promotionPrefix
           have ballotConfigurationKnownActivation :
               ballotConfiguration ∈
-                allConfigurations ballotActivation.history := by
+                allConfigurations (inferInstance) ballotActivation.history := by
             have valid :=
               historyFacts.valid
                 ballotActivationIndex ballotActivation
@@ -1505,7 +1507,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
             ballotAuthorityWithinShared.trans (Nat.min_le_right _ _)
           have ballotConfigurationKnownActivationPrefix :
               ballotConfiguration ∈
-                allConfigurations
+                allConfigurations (inferInstance)
                   (ballotActivation.history.take
                     ballotActivation.activationFrontier) := by
             exact
@@ -1525,20 +1527,20 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                   ballotConfiguration = sourceConfiguration := by
                 by_cases sourceZero : sourceConfiguration.index = 0
                 · have sourceEq :
-                      sourceConfiguration = implicitConfiguration := by
+                      sourceConfiguration = implicitConfiguration (inferInstance) := by
                     apply
                       allConfigurations_index_unique
                         (TxId := TxId)
                         ((nodeOf state) source).log
                     · exact currentConfiguration_mem_allConfigurations _
                     · simp [allConfigurations, implicitConfiguration]
-                    · simpa [implicitConfiguration] using sourceZero
+                    · simpa [implicitConfiguration (inferInstance)] using sourceZero
                   have ballotEq :
-                      ballotConfiguration = implicitConfiguration := by
+                      ballotConfiguration = implicitConfiguration (inferInstance) := by
                     apply
                       allConfigurations_index_unique
                         (TxId := TxId) record.ballotLog
-                    · simpa [ballotConfiguration, currentConfiguration]
+                    · simpa [ballotConfiguration, currentConfiguration (inferInstance)]
                         using currentConfiguration_mem_allConfigurations
                           {
                             ((nodeOf state) record.leader) with
@@ -1574,7 +1576,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                         (by
                           simpa [ballotEventState]
                             using ballotConfigurationWithinActivation)
-                    simpa [ballotEventState, currentConfiguration,
+                    simpa [ballotEventState, currentConfiguration (inferInstance),
                       ballotEventValid.2.2.2.1]
                       using ordered
                   have sourceBeforeEvent :
@@ -1583,7 +1585,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                     simpa [sameIndex] using ballotBeforeEvent
                   have sourceKnownActivation :
                       sourceConfiguration ∈
-                        allConfigurations ballotActivation.history := by
+                        allConfigurations (inferInstance) ballotActivation.history := by
                     rcases Nat.lt_or_eq_of_le sourceBeforeEvent with
                       strict | equal
                     · have sourcePrefixInBallot :=
@@ -1641,7 +1643,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                   (sourceCoverage.activationTerm_le_currentTerm.trans_lt later)
               have sourceConfigurationKnownEvent :
                   sourceConfiguration ∈
-                    allConfigurations
+                    allConfigurations (inferInstance)
                       (sourceCoverage.activation.history.take
                         sourceCoverage.activation.activationFrontier) := by
                 apply
@@ -1653,7 +1655,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                     historyFacts
               have sourceConfigurationKnownPromotion :
                   sourceConfiguration ∈
-                    allConfigurations record.promotionLog := by
+                    allConfigurations (inferInstance) record.promotionLog := by
                 exact
                   memOfPrefix
                     (allConfigurations_mono_prefix
@@ -1661,7 +1663,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                     sourceConfigurationKnownEvent
               have sourceConfigurationKnownBallot :
                   sourceConfiguration ∈
-                    allConfigurations record.ballotLog := by
+                    allConfigurations (inferInstance) record.ballotLog := by
                 apply
                   memOfPrefix
                     (allConfigurations_mono_prefix
@@ -1791,7 +1793,7 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                         (Nat.lt_of_not_ge indexBefore).le
                   have ballotKnownSource :
                       ballotConfiguration ∈
-                        allConfigurations ((nodeOf state) source).log := by
+                        allConfigurations (inferInstance) ((nodeOf state) source).log := by
                     have activationPrefixSource :
                         ballotActivation.history.take
                             ballotActivation.activationFrontier <+:
@@ -1810,8 +1812,8 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                     exact ballotConfigurationKnownActivationPrefix
                   have ballotActiveSource :
                       ballotConfiguration ∈
-                        activeConfigurations ((nodeOf state) source) := by
-                    simpa [activeConfigurations, sourceConfiguration]
+                        activeConfigurations (inferInstance) ((nodeOf state) source) := by
+                    simpa [activeConfigurations (inferInstance), sourceConfiguration]
                       using And.intro ballotKnownSource sourceBeforeBallot.le
                   exact
                     directOfShared
@@ -1852,14 +1854,14 @@ lemma potentialPrefixInElectionRecordsFromActivationHistory
                             ]))
                   have ballotKnownSource :
                       ballotConfiguration ∈
-                        allConfigurations ((nodeOf state) source).log :=
+                        allConfigurations (inferInstance) ((nodeOf state) source).log :=
                     memOfPrefix
                       (allConfigurations_mono_prefix activationInSource)
                       ballotConfigurationKnownActivationPrefix
                   have ballotActiveSource :
                       ballotConfiguration ∈
-                        activeConfigurations ((nodeOf state) source) := by
-                    simpa [activeConfigurations, sourceConfiguration]
+                        activeConfigurations (inferInstance) ((nodeOf state) source) := by
+                    simpa [activeConfigurations (inferInstance), sourceConfiguration]
                       using And.intro ballotKnownSource sourceBeforeBallot.le
                   have frontierBeforeIndex :
                       ballotActivation.activationFrontier < index := by
@@ -1949,7 +1951,7 @@ lemma leastBadElectionHasPrefixVoter
       : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
           source index)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations ((nodeOf state) source))
+      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (recorded : elections term = some record)
     (ballotActive : configuration ∈ record.ballotActive)
@@ -2011,7 +2013,7 @@ lemma leastBadElectionPromotionContainsPrefix
       : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
           source index)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations ((nodeOf state) source))
+      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (recorded : elections term = some record)
     (ballotActive : configuration ∈ record.ballotActive)
@@ -2746,10 +2748,10 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
     (candidateRole : ((nodeOf state) candidate).role = .candidate)
     (candidateMajority : hasPotentialElectionMajority (joined := joined) state candidate)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations ((nodeOf state) source))
+      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (candidateConfigurationActive
-      : configuration ∈ activeConfigurations ((nodeOf state) candidate))
+      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate))
     (newer : ((nodeOf state) source).currentTerm < ((nodeOf state) candidate).currentTerm)
     : ((nodeOf state) source).log.take index <+: ((nodeOf state) candidate).log := by
   rcases
@@ -3044,7 +3046,7 @@ lemma prospectiveKnownEffectiveWinnerCompletenessOfSharedAuthority
     (candidateRole : ((nodeOf state) candidate).role = .candidate)
     (candidateMajority : hasPotentialElectionMajority (joined := joined) state candidate)
     (authorityActive
-      : evidence.authority ∈ activeConfigurations ((nodeOf state) candidate))
+      : evidence.authority ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate))
     (newer : evidence.commitTerm < ((nodeOf state) candidate).currentTerm)
     : supportedPrefix <+: ((nodeOf state) candidate).log := by
   have candidateEntriesBefore :

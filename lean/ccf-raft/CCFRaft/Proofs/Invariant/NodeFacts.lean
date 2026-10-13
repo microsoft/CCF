@@ -13,9 +13,10 @@ register_simp_attr concrete_effects
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
+  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState PreVoteStatus Role
     activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
     becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
     currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
@@ -26,7 +27,6 @@ open CCFRaft.Model.Local (
     retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
     retirementCommittableIndexInLog retirementCompletedNodes
     retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
   )
 open CCFRaft.Proofs.Ledger
 
@@ -34,7 +34,7 @@ open CCFRaft.Proofs.Ledger
 lemma initialLeader_mem_initialConfiguration
     {Node : Type}
     [DecidableEq Node]
-    [bootstrap : Bootstrap Node]
+    [bootstrap : InitialConfig Node]
     : Membership.mem
         (INITIAL_CONFIGURATION (Node := Node))
         (INITIAL_LEADER (Node := Node)) :=
@@ -43,55 +43,49 @@ lemma initialLeader_mem_initialConfiguration
 variable {Node TxId : Type}
 variable [DecidableEq Node]
 
-/-- Reading the updated peer index returns the new value. -/
-@[simp]
-lemma updateIndex_same (indices : Node -> Nat) (node : Node) (value : Nat)
-    : updateIndex indices node value node = value := by
-  simp [updateIndex]
-
-variable [Bootstrap Node] [DecidableEq TxId]
+variable [InitialConfig Node] [DecidableEq TxId]
 
 @[simp]
 lemma refreshRetirementState_role (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState node state).role = state.role := by
+    : (refreshRetirementState (inferInstance) node state).role = state.role := by
   simp [refreshRetirementState]
 
 @[simp]
 lemma refreshRetirementState_currentTerm (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState node state).currentTerm = state.currentTerm := by
+    : (refreshRetirementState (inferInstance) node state).currentTerm = state.currentTerm := by
   simp [refreshRetirementState]
 
 @[simp]
 lemma refreshRetirementState_sentIndex (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState node state).sentIndex = state.sentIndex := by
+    : (refreshRetirementState (inferInstance) node state).sentIndex = state.sentIndex := by
   simp [refreshRetirementState]
 
 @[simp]
 lemma refreshRetirementState_matchIndex (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState node state).matchIndex = state.matchIndex := by
+    : (refreshRetirementState (inferInstance) node state).matchIndex = state.matchIndex := by
   simp [refreshRetirementState]
 
 @[simp]
 lemma refreshRetirementState_isNewFollower (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState node state).isNewFollower = state.isNewFollower := by
+    : (refreshRetirementState (inferInstance) node state).isNewFollower = state.isNewFollower := by
   simp [refreshRetirementState]
 
 @[simp]
 lemma refreshRetirementState_votedFor (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState node state).votedFor = state.votedFor := by
+    : (refreshRetirementState (inferInstance) node state).votedFor = state.votedFor := by
   simp [refreshRetirementState]
 
 @[simp]
 lemma refreshRetirementState_votesGranted (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState node state).votesGranted = state.votesGranted := by
+    : (refreshRetirementState (inferInstance) node state).votesGranted = state.votesGranted := by
   simp [refreshRetirementState]
 
 @[simp]
 lemma refreshRetirementState_preVotesGranted (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState node state).preVotesGranted = state.preVotesGranted := by
+    : (refreshRetirementState (inferInstance) node state).preVotesGranted = state.preVotesGranted := by
   simp [refreshRetirementState]
 
-omit [Bootstrap Node] in
+omit [InitialConfig Node] in
 /-- Erasing a selected occurrence preserves membership of every remaining message. -/
 lemma selectedSound
     {source : Node} {queue remaining : List (Model.Envelope Node TxId)}

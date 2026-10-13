@@ -1,7 +1,7 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Model.Node
+import CCFRaft.Proofs.Config
 import Mathlib.Tactic
 
 set_option autoImplicit false
@@ -11,9 +11,10 @@ set_option linter.unusedSectionVars false
 
 namespace CCFRaft.Proofs.Ledger
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
+  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState PreVoteStatus Role
     activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
     becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
     currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
@@ -24,7 +25,6 @@ open CCFRaft.Model.Local (
     retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
     retirementCommittableIndexInLog retirementCompletedNodes
     retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
   )
 
 variable {Node TxId : Type}
@@ -315,16 +315,16 @@ lemma maxCommittableIndexUpToPositiveIsSignature
       (List.take_prefix frontier log)
       (maxCommittableIndexPositiveIsSignature positive)
 
-variable [Bootstrap Node]
+variable [InitialConfig Node]
 
 @[simp]
 lemma refreshRetirementState_log (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState node state).log = state.log := by
+    : (refreshRetirementState (inferInstance) node state).log = state.log := by
   simp [refreshRetirementState]
 
 @[simp]
 lemma refreshRetirementState_commitIndex (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState node state).commitIndex = state.commitIndex := by
+    : (refreshRetirementState (inferInstance) node state).commitIndex = state.commitIndex := by
   simp [refreshRetirementState]
 
 end CCFRaft.Proofs.Ledger

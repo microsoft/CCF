@@ -12,13 +12,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes joinedNext : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -297,8 +299,8 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
     simp [NodeState.committedLog, commitEq, logEq]
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations ((nodeOf after) node) =
-          activeConfigurations ((nodeOf state) node) := by
+        activeConfigurations (inferInstance) ((nodeOf after) node) =
+          activeConfigurations (inferInstance) ((nodeOf state) node) := by
     intro node
     unfold activeConfigurations currentConfiguration
     rw [logEq, commitEq]
@@ -324,7 +326,7 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
     apply decide_eq_true
     intro governs
     have afterActive :
-        configuration ∈ activeConfigurations ((nodeOf after) leader) := by
+        configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) leader) := by
       simpa [activeConfigurationsEq] using active
     exact
       hasConfigurationMajority_mono
@@ -353,7 +355,7 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
     apply decide_eq_true
     intro governs
     have afterActive :
-        configuration ∈ activeConfigurations ((nodeOf after) leader) := by
+        configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) leader) := by
       simpa [activeConfigurationsEq] using active
     exact
       hasConfigurationMajority_mono
@@ -721,7 +723,7 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
             (by simpa [activeConfigurationsEq] using shared)
       · intro source index role current signature majority node
         simpa [termEq, logEq, commitEq, NodeState.committedLog, activeConfigurationsEq,
-          currentConfiguration]
+          currentConfiguration (inferInstance)]
           using activationQuorums.committedBridge
             source index
             (leaderBack source role)
@@ -1076,7 +1078,7 @@ lemma networkFramePreservesSystemInductiveInvariant
     intro configuration active
     apply decide_eq_true
     have afterActive :
-        configuration ∈ activeConfigurations ((nodeOf after) candidate) := by
+        configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) candidate) := by
       simpa [nodesEq] using active
     apply
       hasConfigurationMajority_mono
@@ -1211,7 +1213,7 @@ lemma requestPreVotePreservesSystemInductiveInvariant
           /\ destination ∈ joinedNodes
           /\ ((nodeOf state) source).role = .preVoteCandidate
           /\ Not (source = destination)
-          /\ destination ∈ activeNodeUnion ((nodeOf state) source)))
+          /\ destination ∈ activeNodeUnion (inferInstance) ((nodeOf state) source)))
     : SystemInductiveInvariant (joined := joinedNodes)
         (requestPreVoteEffect state source destination) := by
   let request := voteRequestKey state source destination
@@ -1275,7 +1277,7 @@ lemma proposeVotePreservesSystemInductiveInvariant
       : (source ∈ joinedNodes
           /\ destination ∈ joinedNodes
           /\ ((nodeOf state) source).role = .leader
-          /\ plausibleSuccessor (nodeOf state source) source destination))
+          /\ plausibleSuccessor (inferInstance) (nodeOf state source) source destination))
     : SystemInductiveInvariant (joined := joinedNodes)
         (proposeVoteEffect state source destination) := by
   simpa [concrete_effects]
@@ -1422,8 +1424,8 @@ lemma retirementMetadataFramePreservesSystemInductiveInvariant
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations ((nodeOf after) node) =
-          activeConfigurations ((nodeOf state) node) := by
+        activeConfigurations (inferInstance) ((nodeOf after) node) =
+          activeConfigurations (inferInstance) ((nodeOf state) node) := by
     intro node
     unfold activeConfigurations currentConfiguration
     rw [logEq, commitEq]

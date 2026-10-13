@@ -12,9 +12,10 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
+  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState PreVoteStatus Role
     activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
     becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
     currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
@@ -25,12 +26,11 @@ open CCFRaft.Model.Local (
     retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
     retirementCommittableIndexInLog retirementCompletedNodes
     retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
   )
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 variable {joined : Finset Node}
 
 omit [DecidableEq Node] [DecidableEq TxId] in
@@ -67,11 +67,11 @@ lemma ConfigurationCoverageWitness.ballotConfigurationCoverage
   intro _positive
   refine ⟨witness.activationIndex, witness.activation, witness.stored, ?_, ?_, ?_, ?_⟩
   · simpa [
-      currentConfiguration, ballotLog, ballotCommitIndex
+      currentConfiguration (inferInstance), ballotLog, ballotCommitIndex
     ] using witness.configurationCovered
   · simpa [ballotTerm] using witness.candidateTermStrict role
   · simpa [
-      currentConfiguration, ballotLog, ballotCommitIndex
+      currentConfiguration (inferInstance), ballotLog, ballotCommitIndex
     ] using witness.configurationIndexBound
   · simpa [ballotLog, ballotCommitIndex] using witness.historyAgreement
 
@@ -83,8 +83,8 @@ lemma configurationCoverageFrame
     (facts : ConfigurationCoverageFacts state activations)
     (currentConfigurationEq
       : forall node,
-          currentConfiguration ((nodeOf after) node)
-          = currentConfiguration ((nodeOf state) node))
+          currentConfiguration (inferInstance) ((nodeOf after) node)
+          = currentConfiguration (inferInstance) ((nodeOf state) node))
     (termMonotone
       : forall node,
           ((nodeOf state) node).currentTerm <= ((nodeOf after) node).currentTerm)
@@ -103,7 +103,7 @@ lemma configurationCoverageFrame
     : ConfigurationCoverageFacts after activations := by
   intro node positive
   have oldPositive :
-      0 < (currentConfiguration ((nodeOf state) node)).index := by
+      0 < (currentConfiguration (inferInstance) ((nodeOf state) node)).index := by
     simpa [currentConfigurationEq node] using positive
   rcases facts node oldPositive with ⟨witness⟩
   let shared :=
@@ -142,20 +142,20 @@ lemma configurationCoverageFrame
       simp [shared, commitEq node]
   · intro higherIndex higher stored order
     have oldOrder :
-        (currentConfiguration ((nodeOf state) node)).index <
+        (currentConfiguration (inferInstance) ((nodeOf state) node)).index <
           higher.newConfiguration.index := by
       simpa [currentConfigurationEq node] using order
     simpa [commitEq node] using witness.higherAuthority higherIndex higher stored oldOrder
   · intro lowerIndex lower stored order
     have oldOrder :
         lower.newConfiguration.index <
-          (currentConfiguration ((nodeOf state) node)).index := by
+          (currentConfiguration (inferInstance) ((nodeOf state) node)).index := by
       simpa [currentConfigurationEq node] using order
     simpa [commitEq node] using witness.lowerAuthority lowerIndex lower stored oldOrder
   · intro sameIndex same stored sameConfigurationIndex
     have oldConfigurationIndex :
         same.newConfiguration.index =
-          (currentConfiguration ((nodeOf state) node)).index := by
+          (currentConfiguration (inferInstance) ((nodeOf state) node)).index := by
       simpa [currentConfigurationEq node] using sameConfigurationIndex
     exact (witness.sameAuthority sameIndex same stored oldConfigurationIndex).trans
       (currentConfigurationEq node).symm
@@ -264,13 +264,13 @@ lemma configuration_mem_activationHistoryTake
     {node : Node}
     (historyFacts : ActivationHistoryFacts activations)
     (witness : ConfigurationCoverageWitness state activations node)
-    : currentConfiguration ((nodeOf state) node)
-      ∈ allConfigurations (witness.activation.history.take witness.sharedFrontier) := by
+    : currentConfiguration (inferInstance) ((nodeOf state) node)
+      ∈ allConfigurations (inferInstance) (witness.activation.history.take witness.sharedFrontier) := by
   let sharedFrontier := witness.sharedFrontier
   have valid := witness.activationValid historyFacts
   have known :
-      currentConfiguration ((nodeOf state) node) ∈
-        allConfigurations witness.activation.history := by
+      currentConfiguration (inferInstance) ((nodeOf state) node) ∈
+        allConfigurations (inferInstance) witness.activation.history := by
     have covered := witness.configurationCovered
     rw [valid.2.2.2.2.2.2.1] at covered
     exact (List.mem_filter.mp covered).1
@@ -279,7 +279,7 @@ lemma configuration_mem_activationHistoryTake
     (witness.sharedFrontier_le_activationFrontier.trans valid.2.1)
     known
     (by
-      change (currentConfiguration ((nodeOf state) node)).index
+      change (currentConfiguration (inferInstance) ((nodeOf state) node)).index
       <= min ((nodeOf state) node).commitIndex witness.activation.activationFrontier
       exact witness.configurationIndexBound)
 
@@ -290,17 +290,17 @@ lemma configurationIndex_le_activationConfiguration
     {node : Node}
     (historyFacts : ActivationHistoryFacts activations)
     (witness : ConfigurationCoverageWitness state activations node)
-    : (currentConfiguration ((nodeOf state) node)).index
+    : (currentConfiguration (inferInstance) ((nodeOf state) node)).index
       <= witness.activation.newConfiguration.index := by
   have valid := witness.activationValid historyFacts
   have covered := witness.configurationCovered
   rw [valid.2.2.2.2.2.2.1] at covered
   have known :
-      currentConfiguration ((nodeOf state) node) ∈
-        allConfigurations witness.activation.history :=
+      currentConfiguration (inferInstance) ((nodeOf state) node) ∈
+        allConfigurations (inferInstance) witness.activation.history :=
     (List.mem_filter.mp covered).1
   have within :
-      (currentConfiguration ((nodeOf state) node)).index <=
+      (currentConfiguration (inferInstance) ((nodeOf state) node)).index <=
         witness.activation.activationFrontier :=
     (of_decide_eq_true (List.mem_filter.mp covered).2).2
   let activationState : NodeState Node TxId :=
@@ -310,10 +310,10 @@ lemma configurationIndex_le_activationConfiguration
   have ordered :=
     configuration_index_le_currentConfiguration
       activationState
-      (currentConfiguration ((nodeOf state) node))
+      (currentConfiguration (inferInstance) ((nodeOf state) node))
       (by simpa [activationState] using known)
       (by simpa [activationState] using within)
-  simpa [activationState, currentConfiguration, valid.2.2.2.1] using ordered
+  simpa [activationState, currentConfiguration (inferInstance), valid.2.2.2.1] using ordered
 
 omit [DecidableEq TxId] in
 /-- The stable shared prefix precedes every strictly higher activation event. -/
@@ -326,7 +326,7 @@ lemma sharedPrefix_prefix_higherAuthority
     {higher : ActivationRecord Node TxId}
     (stored : activations higherIndex = some higher)
     (order
-      : (currentConfiguration ((nodeOf state) node)).index
+      : (currentConfiguration (inferInstance) ((nodeOf state) node)).index
         < higher.newConfiguration.index)
     : witness.sharedPrefix <+: higher.history.take higher.activationFrontier := by
   simpa [sharedPrefix, sharedFrontier]
@@ -343,7 +343,7 @@ lemma lowerAuthority_prefix_sharedPrefix
     {lower : ActivationRecord Node TxId}
     (stored : activations lowerIndex = some lower)
     (order
-      : lower.newConfiguration.index < (currentConfiguration ((nodeOf state) node)).index)
+      : lower.newConfiguration.index < (currentConfiguration (inferInstance) ((nodeOf state) node)).index)
     : lower.history.take lower.activationFrontier <+: witness.sharedPrefix := by
   simpa [sharedPrefix, sharedFrontier]
     using witness.lowerAuthority lowerIndex lower stored order
@@ -359,8 +359,8 @@ lemma sameAuthority_configurationEq
     {same : ActivationRecord Node TxId}
     (stored : activations sameIndex = some same)
     (sameConfigurationIndex
-      : same.newConfiguration.index = (currentConfiguration ((nodeOf state) node)).index)
-    : same.newConfiguration = currentConfiguration ((nodeOf state) node) :=
+      : same.newConfiguration.index = (currentConfiguration (inferInstance) ((nodeOf state) node)).index)
+    : same.newConfiguration = currentConfiguration (inferInstance) ((nodeOf state) node) :=
   witness.sameAuthority sameIndex same stored sameConfigurationIndex
 
 omit [DecidableEq TxId] in
@@ -396,13 +396,13 @@ lemma configurationCoverageCurrentIndexUnique
     (historyFacts : ActivationHistoryFacts activations)
     (coverage : ConfigurationCoverageFacts state activations)
     {left right : Node}
-    (leftPositive : 0 < (currentConfiguration ((nodeOf state) left)).index)
-    (rightPositive : 0 < (currentConfiguration ((nodeOf state) right)).index)
+    (leftPositive : 0 < (currentConfiguration (inferInstance) ((nodeOf state) left)).index)
+    (rightPositive : 0 < (currentConfiguration (inferInstance) ((nodeOf state) right)).index)
     (sameIndex
-      : (currentConfiguration ((nodeOf state) left)).index
-        = (currentConfiguration ((nodeOf state) right)).index)
-    : currentConfiguration ((nodeOf state) left)
-      = currentConfiguration ((nodeOf state) right) := by
+      : (currentConfiguration (inferInstance) ((nodeOf state) left)).index
+        = (currentConfiguration (inferInstance) ((nodeOf state) right)).index)
+    : currentConfiguration (inferInstance) ((nodeOf state) left)
+      = currentConfiguration (inferInstance) ((nodeOf state) right) := by
   rcases coverage left leftPositive with ⟨leftWitness⟩
   rcases coverage right rightPositive with ⟨rightWitness⟩
   have leftKnownShared :=
@@ -410,8 +410,8 @@ lemma configurationCoverageCurrentIndexUnique
   have rightKnownShared :=
     rightWitness.configuration_mem_activationHistoryTake historyFacts
   have leftKnownOwn :
-      currentConfiguration ((nodeOf state) left) ∈
-        allConfigurations leftWitness.activation.history := by
+      currentConfiguration (inferInstance) ((nodeOf state) left) ∈
+        allConfigurations (inferInstance) leftWitness.activation.history := by
     apply
       CCFRaft.Proofs.Invariant.memOfPrefix
         (allConfigurations_mono_prefix
@@ -420,8 +420,8 @@ lemma configurationCoverageCurrentIndexUnique
             leftWitness.activation.history))
     simpa [ConfigurationCoverageWitness.sharedFrontier] using leftKnownShared
   have rightKnownOwn :
-      currentConfiguration ((nodeOf state) right) ∈
-        allConfigurations rightWitness.activation.history := by
+      currentConfiguration (inferInstance) ((nodeOf state) right) ∈
+        allConfigurations (inferInstance) rightWitness.activation.history := by
     apply
       CCFRaft.Proofs.Invariant.memOfPrefix
         (allConfigurations_mono_prefix
@@ -434,7 +434,7 @@ lemma configurationCoverageCurrentIndexUnique
       rightWitness.activation.newConfiguration.index with
     leftBefore | sameActivationIndex | rightBefore
   · have leftCurrentBeforeRight :
-        (currentConfiguration ((nodeOf state) left)).index <
+        (currentConfiguration (inferInstance) ((nodeOf state) left)).index <
           rightWitness.activation.newConfiguration.index :=
       (leftWitness.configurationIndex_le_activationConfiguration
         historyFacts).trans_lt leftBefore
@@ -442,8 +442,8 @@ lemma configurationCoverageCurrentIndexUnique
       leftWitness.sharedPrefix_prefix_higherAuthority
         rightWitness.stored leftCurrentBeforeRight
     have leftKnownRight :
-        currentConfiguration ((nodeOf state) left) ∈
-          allConfigurations rightWitness.activation.history := by
+        currentConfiguration (inferInstance) ((nodeOf state) left) ∈
+          allConfigurations (inferInstance) rightWitness.activation.history := by
       apply
         CCFRaft.Proofs.Invariant.memOfPrefix
           (allConfigurations_mono_prefix
@@ -466,8 +466,8 @@ lemma configurationCoverageCurrentIndexUnique
           leftWitness.stored rightWitness.stored sameActivationIndex with
       leftBeforeRight | rightBeforeLeft
     · have leftKnownRight :
-          currentConfiguration ((nodeOf state) left) ∈
-            allConfigurations rightWitness.activation.history := by
+          currentConfiguration (inferInstance) ((nodeOf state) left) ∈
+            allConfigurations (inferInstance) rightWitness.activation.history := by
         apply
           CCFRaft.Proofs.Invariant.memOfPrefix
             (allConfigurations_mono_prefix
@@ -482,8 +482,8 @@ lemma configurationCoverageCurrentIndexUnique
           (TxId := TxId) rightWitness.activation.history
           leftKnownRight rightKnownOwn sameIndex
     · have rightKnownLeft :
-          currentConfiguration ((nodeOf state) right) ∈
-            allConfigurations leftWitness.activation.history := by
+          currentConfiguration (inferInstance) ((nodeOf state) right) ∈
+            allConfigurations (inferInstance) leftWitness.activation.history := by
         apply
           CCFRaft.Proofs.Invariant.memOfPrefix
             (allConfigurations_mono_prefix
@@ -498,7 +498,7 @@ lemma configurationCoverageCurrentIndexUnique
           (TxId := TxId) leftWitness.activation.history
           leftKnownOwn rightKnownLeft sameIndex
   · have rightCurrentBeforeLeft :
-        (currentConfiguration ((nodeOf state) right)).index <
+        (currentConfiguration (inferInstance) ((nodeOf state) right)).index <
           leftWitness.activation.newConfiguration.index :=
       (rightWitness.configurationIndex_le_activationConfiguration
         historyFacts).trans_lt rightBefore
@@ -506,8 +506,8 @@ lemma configurationCoverageCurrentIndexUnique
       rightWitness.sharedPrefix_prefix_higherAuthority
         leftWitness.stored rightCurrentBeforeLeft
     have rightKnownLeft :
-        currentConfiguration ((nodeOf state) right) ∈
-          allConfigurations leftWitness.activation.history := by
+        currentConfiguration (inferInstance) ((nodeOf state) right) ∈
+          allConfigurations (inferInstance) leftWitness.activation.history := by
       apply
         CCFRaft.Proofs.Invariant.memOfPrefix
           (allConfigurations_mono_prefix

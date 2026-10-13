@@ -11,13 +11,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joined : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -266,11 +268,11 @@ lemma majorityAtConfiguration
     {state : Model.State Node TxId}
     {leader : Node}
     {index : Nat}
-    (majority : hasMajorityAt (nodeOf state leader) leader index)
+    (majority : hasMajorityAt (inferInstance) (nodeOf state leader) leader index)
     {configuration : Configuration Node}
-    (active : configuration ∈ activeConfigurations ((nodeOf state) leader))
+    (active : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) leader))
     (governs : configuration.index <= index)
-    : hasConfigurationMajority (acknowledgingNodes (nodeOf state leader) leader index)
+    : hasConfigurationMajority (acknowledgingNodes (inferInstance) (nodeOf state leader) leader index)
         configuration := by
   rw [hasMajorityAt, List.all_eq_true] at majority
   exact (of_decide_eq_true (majority configuration active)) governs
@@ -284,7 +286,7 @@ lemma effectiveMajorityAtConfiguration
     (majority
       : hasEffectiveMajorityAt (joined := joined) state responseHistory leader index)
     {configuration : Configuration Node}
-    (active : configuration ∈ activeConfigurations ((nodeOf state) leader))
+    (active : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) leader))
     (governs : configuration.index <= index)
     : hasConfigurationMajority
         (effectiveAckers (joined := joined) state responseHistory leader index)
@@ -303,7 +305,7 @@ lemma potentialMajorityAtConfiguration
       : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
           leader index)
     {configuration : Configuration Node}
-    (active : configuration ∈ activeConfigurations ((nodeOf state) leader))
+    (active : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) leader))
     (governs : configuration.index <= index)
     : hasConfigurationMajority
         (potentialAckers (joined := joined) state appendHistory responseHistory leader
@@ -316,9 +318,9 @@ lemma potentialMajorityAtConfiguration
 lemma electionMajorityAtConfiguration
     {state : Model.State Node TxId}
     {candidate : Node}
-    (majority : hasElectionMajority (nodeOf state candidate))
+    (majority : hasElectionMajority (inferInstance) (nodeOf state candidate))
     {configuration : Configuration Node}
-    (active : configuration ∈ activeConfigurations ((nodeOf state) candidate))
+    (active : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate))
     : hasConfigurationMajority ((nodeOf state) candidate).votesGranted configuration := by
   rw [hasElectionMajority, List.all_eq_true] at majority
   exact of_decide_eq_true (majority configuration active)
@@ -329,7 +331,7 @@ lemma effectiveElectionMajorityAtConfiguration
     {candidate : Node}
     (majority : hasEffectiveElectionMajority (joined := joined) state candidate)
     {configuration : Configuration Node}
-    (active : configuration ∈ activeConfigurations ((nodeOf state) candidate))
+    (active : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate))
     : hasConfigurationMajority
         (effectiveElectionVoters (joined := joined) state candidate)
         configuration := by
@@ -342,7 +344,7 @@ lemma potentialElectionMajorityAtConfiguration
     {candidate : Node}
     (majority : hasPotentialElectionMajority (joined := joined) state candidate)
     {configuration : Configuration Node}
-    (active : configuration ∈ activeConfigurations ((nodeOf state) candidate))
+    (active : configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate))
     : hasConfigurationMajority
         (potentialElectionVoters (joined := joined) state candidate)
         configuration := by
@@ -394,7 +396,7 @@ lemma potentialElectionMajorityImpliesFuture
     (subset
       : potentialElectionVoters (joined := joined) after candidate
         ⊆ futureElectionVoters (joined := joined) state candidate targetTerm)
-    (active : ballotActive = activeConfigurations ((nodeOf after) candidate))
+    (active : ballotActive = activeConfigurations (inferInstance) ((nodeOf after) candidate))
     (majority : hasPotentialElectionMajority (joined := joined) after candidate)
     : hasFutureElectionMajority (joined := joined) state candidate targetTerm
         ballotActive := by
@@ -404,7 +406,7 @@ lemma potentialElectionMajorityImpliesFuture
   apply decide_eq_true
   have afterMember :
       configuration ∈
-        activeConfigurations ((nodeOf after) candidate) := by
+        activeConfigurations (inferInstance) ((nodeOf after) candidate) := by
     simpa [active] using ballotMember
   exact
     hasConfigurationMajority_mono subset
@@ -817,7 +819,7 @@ lemma handledAppendRequestAdvancedCommittedHistory
             ∧ ((((nodeOf state) destination)).role = .candidate
                 ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     (advanced : ((nodeOf state) destination).commitIndex < nextNode.commitIndex)
     : nextNode.committedLog = (appendHistory request).take nextNode.commitIndex := by
@@ -1063,7 +1065,7 @@ lemma successfulAppendRequestSharedPrefixLength
       : ¬ (request.2.2.term = (before).currentTerm
             ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? request.2.1 before request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 before request.2.2
         = some (nextNode, response))
     (success : response.success = true)
     : sharedPrefix.length <= nextNode.log.length := by
@@ -1197,7 +1199,7 @@ lemma handledAppendRequestRetainsSharedPrefix
             ∧ ((((nodeOf state) destination)).role = .candidate
                 ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     (success : response.success = true)
     {sharedPrefix : List (Entry Node TxId)}
@@ -1294,7 +1296,7 @@ lemma handleAppendEntriesRequestActiveUnchanged
       : ¬ (request.2.2.term = before.currentTerm
             ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? request.2.1 before request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 before request.2.2
         = some (nextNode, response))
     (active : before.role = .candidate \/ before.role = .leader)
     : nextNode = before := by
@@ -1320,7 +1322,7 @@ lemma successfulAppendResponseIndexWithinLog
       : ¬ (request.2.2.term = (before).currentTerm
             ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? request.2.1 before request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 before request.2.2
         = some (nextNode, response))
     (success : response.success = true)
     : response.lastLogIndex <= nextNode.log.length := by
@@ -1442,7 +1444,7 @@ lemma successfulAlreadyDoneAppendLogUnchanged
       : ¬ (request.2.2.term = (before).currentTerm
             ∧ ((before).role = .candidate ∨ (before).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? request.2.1 before request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 before request.2.2
         = some (nextNode, response))
     (success : response.success = true)
     : nextNode.log = before.log := by
@@ -1496,7 +1498,7 @@ lemma handledAppendRequestAcknowledgesSourcePrefix
             ∧ ((((nodeOf state) destination)).role = .candidate
                 ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     (success : response.success = true)
     (sourceRole : ((nodeOf state) request.1).role = .leader)
@@ -1708,7 +1710,7 @@ lemma handledAppendRequestCanonicalAgreement
             ∧ ((((nodeOf state) destination)).role = .candidate
                 ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     : forall index entry,
         entryAt? nextNode.log index = some entry
@@ -2342,7 +2344,7 @@ lemma receiveAppendRequestCommitEvidenceFacts
             ∧ ((((nodeOf state) destination)).role = .candidate
                 ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     : CommitEvidenceFacts
         {
@@ -2397,7 +2399,7 @@ lemma receiveAppendRequestKnownEvidenceInherited
             ∧ ((((nodeOf state) destination)).role = .candidate
                 ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     {evidence : CommitEvidence Node TxId}
     {supportedPrefix : List (Entry Node TxId)}
@@ -2588,7 +2590,7 @@ lemma handledAppendRequestRetainsEvidenceFrontier
             ∧ ((((nodeOf state) destination)).role = .candidate
                 ∨ (((nodeOf state) destination)).role = .preVoteCandidate)))
     (handled
-      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response))
     : evidence.history.take evidence.commitFrontier <+: nextNode.log := by
   let post := handleAppendEntriesRequestLocalPost notStepped handled

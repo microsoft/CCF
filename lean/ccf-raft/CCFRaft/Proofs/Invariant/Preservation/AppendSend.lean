@@ -11,13 +11,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -33,8 +35,8 @@ lemma madeAppendRequestSupport
           /\ destination ∈ joinedNodes
           /\ ((nodeOf state) source).role = .leader
           /\ Not (source = destination)
-          /\ (destination ∈ activeNodeUnion ((nodeOf state) source)
-              \/ destination ∈ ((nodeOf state) source).retirementCompleted)
+          /\ (destination ∈ activeNodeUnion (inferInstance) ((nodeOf state) source)
+              \/ destination ∈ ((nodeOf state) source).retirementCompleted (inferInstance))
           /\ ((nodeOf state) source).sentIndex destination <= batchEnd
           /\ batchEnd <= ((nodeOf state) source).log.length
           /\ ((messageEntries ((nodeOf state) source).log
@@ -92,8 +94,8 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           /\ destination ∈ joinedNodes
           /\ ((nodeOf state) source).role = .leader
           /\ Not (source = destination)
-          /\ (destination ∈ activeNodeUnion ((nodeOf state) source)
-              \/ destination ∈ ((nodeOf state) source).retirementCompleted)
+          /\ (destination ∈ activeNodeUnion (inferInstance) ((nodeOf state) source)
+              \/ destination ∈ ((nodeOf state) source).retirementCompleted (inferInstance))
           /\ ((nodeOf state) source).sentIndex destination <= batchEnd
           /\ batchEnd <= ((nodeOf state) source).log.length
           /\ ((messageEntries ((nodeOf state) source).log
@@ -224,17 +226,17 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     simp [NodeState.committedLog, commitIndexEq, logEq]
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations
+        activeConfigurations (inferInstance)
             ((nodeOf (appendEntriesEffect state source destination batchEnd)) node) =
-          activeConfigurations ((nodeOf state) node) := by
+          activeConfigurations (inferInstance) ((nodeOf state) node) := by
     intro node
     unfold activeConfigurations currentConfiguration
     rw [logEq, commitIndexEq]
   have currentConfigurationEq :
       forall node,
-        currentConfiguration
+        currentConfiguration (inferInstance)
             ((nodeOf (appendEntriesEffect state source destination batchEnd)) node) =
-          currentConfiguration ((nodeOf state) node) := by
+          currentConfiguration (inferInstance) ((nodeOf state) node) := by
     intro node
     unfold currentConfiguration
     rw [logEq, commitIndexEq]
@@ -534,12 +536,12 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       · by_cases peerEq : peer = destination
         · subst peer
           simp [
-            concrete_effects, present, updateIndex,
+            concrete_effects, present, Function.update,
             Function.update
           ]
           exact enabled.2.2.2.2.2.2.1
         · simpa [
-            concrete_effects, present, updateIndex,
+            concrete_effects, present, Function.update,
             Function.update, peerEq
           ] using oldProgress.1
       · simpa [concrete_effects, present] using oldProgress.2
@@ -1273,12 +1275,12 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           exact Or.inl
             (by simpa [logEq] using sourceInCommitted.trans committedInCandidate)
         let sourceConfiguration :=
-          currentConfiguration ((nodeOf state) bridgeSource)
+          currentConfiguration (inferInstance) ((nodeOf state) bridgeSource)
         let candidateConfiguration :=
-          currentConfiguration ((nodeOf state) candidate)
+          currentConfiguration (inferInstance) ((nodeOf state) candidate)
         have sourceActive :
             sourceConfiguration ∈
-              activeConfigurations ((nodeOf state) bridgeSource) :=
+              activeConfigurations (inferInstance) ((nodeOf state) bridgeSource) :=
           currentConfiguration_mem_activeConfigurations _
         have sourceGoverns :
             sourceConfiguration.index <= bridgeIndex := by
@@ -1295,16 +1297,16 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 candidateConfiguration = sourceConfiguration := by
               by_cases zero : sourceConfiguration.index = 0
               · have sourceImplicit :
-                    sourceConfiguration = implicitConfiguration := by
+                    sourceConfiguration = implicitConfiguration (inferInstance) := by
                   apply
                     allConfigurations_index_unique
                       (TxId := TxId)
                       ((nodeOf state) bridgeSource).log
                   · exact currentConfiguration_mem_allConfigurations _
                   · simp [allConfigurations, implicitConfiguration]
-                  · simpa [implicitConfiguration] using zero
+                  · simpa [implicitConfiguration (inferInstance)] using zero
                 have candidateImplicit :
-                    candidateConfiguration = implicitConfiguration := by
+                    candidateConfiguration = implicitConfiguration (inferInstance) := by
                   apply
                     allConfigurations_index_unique
                       (TxId := TxId)
@@ -1365,7 +1367,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                   (by simpa [currentTermEq] using later))
             have sourceKnownCommitted :
                 sourceConfiguration ∈
-                  allConfigurations
+                  allConfigurations (inferInstance)
                     ((nodeOf state) bridgeSource).committedLog := by
               unfold NodeState.committedLog
               apply
@@ -1377,7 +1379,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
               · exact currentConfiguration_index_le_commitIndex _
             have sourceKnownCandidate :
                 sourceConfiguration ∈
-                  allConfigurations ((nodeOf state) candidate).log :=
+                  allConfigurations (inferInstance) ((nodeOf state) candidate).log :=
               memOfPrefix
                 (allConfigurations_mono_prefix committedInCandidate)
                 sourceKnownCommitted
@@ -1389,7 +1391,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
               by
                 rw [activeConfigurationsEq]
                 simpa [
-                  activeConfigurations, candidateConfiguration
+                  activeConfigurations (inferInstance), candidateConfiguration
                 ] using And.intro
                   sourceKnownCandidate candidateBefore
             ⟩
@@ -1545,7 +1547,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                         (Nat.lt_of_not_ge indexBefore).le)
                 have candidateKnownSource :
                     candidateConfiguration ∈
-                      allConfigurations ((nodeOf state) bridgeSource).log := by
+                      allConfigurations (inferInstance) ((nodeOf state) bridgeSource).log := by
                   have activationPrefixSource :
                       candidateActivation.history.take
                           candidateActivation.activationFrontier <+:
@@ -1573,7 +1575,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                   by
                     rw [activeConfigurationsEq]
                     simpa [
-                      activeConfigurations, sourceConfiguration
+                      activeConfigurations (inferInstance), sourceConfiguration
                     ] using And.intro
                       candidateKnownSource sourceBeforeCandidate.le,
                   candidateGoverns,
@@ -1612,7 +1614,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                       ]))
                 have candidateKnownSource
                     : candidateConfiguration
-                      ∈ allConfigurations ((nodeOf state) bridgeSource).log :=
+                      ∈ allConfigurations (inferInstance) ((nodeOf state) bridgeSource).log :=
                   memOfPrefix
                     (allConfigurations_mono_prefix activationInSource)
                     (by
@@ -1675,7 +1677,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                   by
                     rw [activeConfigurationsEq]
                     simpa [
-                      activeConfigurations, sourceConfiguration
+                      activeConfigurations (inferInstance), sourceConfiguration
                     ] using And.intro
                       candidateKnownSource sourceBeforeCandidate.le,
                   by
@@ -2165,7 +2167,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
     · intro node peer member
       simpa [concrete_effects, present]
         using facts.joinedCarriers.activeNodes node
-          (by simpa [activeNodeUnion, activeConfigurationsEq] using member)
+          (by simpa [activeNodeUnion (inferInstance), activeConfigurationsEq] using member)
     · intro node configuration member peer inNodes
       simpa [concrete_effects, present]
         using facts.joinedCarriers.configurationNodes node configuration

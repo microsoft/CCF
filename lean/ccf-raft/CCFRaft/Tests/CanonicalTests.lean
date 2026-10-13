@@ -9,7 +9,7 @@ open CCFRaft.Shared.MultiNodeTransitionSystem (nodeState)
 
 private abbrev Node := Fin 15
 
-private instance : Bootstrap Node where
+private def initialConfig : InitialConfig Node where
   configuration := Finset.univ.filter fun node => node.val < 5
   leader := ⟨0, by decide⟩
   leader_mem := by decide
@@ -19,11 +19,11 @@ private abbrev Envelope := Model.Envelope Node Nat
 
 private def allNodes : List Node := List.finRange 15
 
-private def system := Model.transitionSystem (TxId := Nat) allNodes
+private def system := Model.transitionSystem initialConfig (TxId := Nat) allNodes
 
 private def initial : State :=
   {
-    nodes := allNodes.map fun node => (node, initialNodeState node)
+    nodes := allNodes.map fun node => (node, initialNodeState initialConfig node)
     active := allNodes
   }
 
@@ -31,8 +31,164 @@ private def check (condition : Bool) (message : String) : IO Unit :=
   unless condition do
     throw (IO.userError message)
 
+private def configurationQueries : IO Unit := do
+  let empty : List (Entry Node Nat) := []
+  let initialHistory := configurationHistory initialConfig empty
+  check (initialHistory.map (·.index) == [0])
+    "an empty log must retain the initial configuration at index zero"
+  check (configurationMembers initialHistory == initialConfig.configuration)
+    "initial membership must not depend on a reconfiguration entry"
+  let log : List (Entry Node Nat) :=
+    [
+      { term := 1, content := .transaction 10 },
+      { term := 1, content := .reconfiguration {0, 1} },
+      { term := 1, content := .signature },
+      { term := 1, content := .reconfiguration {1, 5} },
+      { term := 1, content := .reconfiguration {5} },
+      { term := 1, content := .signature },
+      { term := 1, content := .retiredCommitted {0} }
+    ]
+  check ((configurationHistory initialConfig log).map (·.index) == [0, 2, 4, 5])
+    "configuration indices must count intervening nonconfiguration entries"
+  for (commitIndex, expected)
+      in [
+        (0, [0, 2, 4, 5]),
+        (1, [0, 2, 4, 5]),
+        (2, [2, 4, 5]),
+        (3, [2, 4, 5]),
+        (4, [4, 5]),
+        (5, [5]),
+        (7, [5]),
+        (10, [5])
+      ] do
+    check
+      ((activeConfigurations initialConfig log commitIndex).map (·.index) == expected)
+      s!"wrong active configuration indices at commit index {commitIndex}"
+  check
+    (configurationMembers (activeConfigurations initialConfig log 4) == {1, 5})
+    "active membership must include pending configurations but exclude obsolete ones"
+  let tied : NodeState Node Nat :=
+    { (initialNodeState initialConfig 0 : NodeState Node Nat) with log, commitIndex := 4 }
+  check (decide (plausibleSuccessor initialConfig tied 0 5))
+    "a replication tie must favor membership in the highest active configuration"
+  check (!decide (plausibleSuccessor initialConfig tied 0 1))
+    "a lower configuration must not win a replication tie"
+  check (!decide (plausibleSuccessor initialConfig tied 0 3))
+    "obsolete membership must not make a node a plausible successor"
+  let ahead := { tied with matchIndex := Function.update tied.matchIndex 1 8 }
+  check (decide (plausibleSuccessor initialConfig ahead 0 1))
+    "replication progress must take priority over configuration membership"
+  check (!decide (plausibleSuccessor initialConfig ahead 0 5))
+    "newer membership must not outweigh a higher replication frontier"
+  check (retirementIndexInLog initialConfig (0 : Node) log == some 4)
+    "retirement must start at the first removal after membership"
+  check (retirementIndexInLog initialConfig (5 : Node) log == none)
+    "absence before joining must not count as retirement"
+  for (commitIndex, expected)
+      in [
+        (0, (∅ : Finset Node)),
+        (2, {2, 3, 4}),
+        (4, {0, 2, 3, 4}),
+        (5, {0, 1, 2, 3, 4}),
+        (6, {0, 1, 2, 3, 4}),
+        (7, {1, 2, 3, 4})
+      ] do
+    let state : NodeState Node Nat :=
+      { (initialNodeState initialConfig 0 : NodeState Node Nat) with log, commitIndex }
+    check (state.retirementCompleted initialConfig == expected)
+      s!"wrong completed retirements at commit index {commitIndex}"
+  let rejoined := log ++ [{ term := 1, content := .reconfiguration {0, 1, 5} }]
+  check (retirementIndexInLog initialConfig (0 : Node) rejoined == some 4)
+    "rejoining must not change the first removal index"
+  let rejoinedState : NodeState Node Nat :=
+    {
+      (initialNodeState initialConfig 0 : NodeState Node Nat) with
+        log := rejoined
+        commitIndex := 8
+    }
+  check (rejoinedState.retirementCompleted initialConfig == {2, 3, 4})
+    "current members must not appear among completed retirements"
+
+private def retirementQueries : IO Unit := do
+  let log : List (Entry Node Nat) :=
+    [
+      { term := 1, content := .signature },
+      { term := 1, content := .reconfiguration {1, 5} },
+      { term := 1, content := .transaction 3 },
+      { term := 1, content := .signature },
+      { term := 1, content := .retiredCommitted {0} },
+      { term := 1, content := .retiredCommitted {1, 5} },
+      { term := 1, content := .signature },
+      { term := 1, content := .retiredCommitted {0, 6} }
+    ]
+  let isSignature :=
+    fun (content : EntryContent Node Nat) => decide (content = .signature)
+  check ((firstLogIndexAfter ([] : List (Entry Node Nat)) 0 isSignature).isNone)
+    "an empty log must have no matching index"
+  for afterIndex in List.range (log.length + 3) do
+    let expected := if afterIndex < log.length then some (afterIndex + 1) else none
+    check (firstLogIndexAfter log afterIndex (fun _ => true) == expected)
+      s!"wrong one-based index after {afterIndex}"
+  for (afterIndex, expected)
+      in [(0, some 1), (1, some 4), (2, some 4), (4, some 7), (7, none), (99, none)] do
+    check (firstLogIndexAfter log afterIndex isSignature == expected)
+      s!"wrong first signature after {afterIndex}"
+  let namesNode :=
+    fun (content : EntryContent Node Nat) =>
+      match content with
+      | EntryContent.retiredCommitted nodes => decide ((0 : Node) ∈ nodes)
+      | _ => false
+  check (firstLogIndexAfter log 0 namesNode == some 5)
+    "retirement lookup must select the first record naming the node"
+  check (firstLogIndexAfter log 5 namesNode == some 8)
+    "retirement lookup must exclude the supplied lower bound"
+  for (length, expected)
+      in [
+        (0, (∅ : Finset Node)),
+        (4, ∅),
+        (5, {0}),
+        (6, {0, 1, 5}),
+        (7, {0, 1, 5}),
+        (8, {0, 1, 5, 6}),
+        (99, {0, 1, 5, 6})
+      ] do
+    check (retiredCommittedNodes (log.take length) == expected)
+      s!"wrong recorded retirements in prefix {length}"
+  for (length, commitIndex, phase)
+      in [
+        (1, 0, MembershipState.active),
+        (2, 0, .retirementOrdered),
+        (3, 0, .retirementOrdered),
+        (4, 0, .retirementSigned),
+        (5, 4, .retirementCompleted),
+        (6, 4, .retirementCompleted),
+        (7, 7, .retiredCommitted)
+      ] do
+    let state :=
+      refreshRetirementState initialConfig (0 : Node)
+        {
+          (initialNodeState initialConfig 0 : NodeState Node Nat) with
+            log := log.take length
+            commitIndex
+        }
+    check (state.membershipState == phase)
+      s!"wrong retirement phase at length {length}, commit {commitIndex}"
+    check (state.retirementIndex == if length < 2 then none else some 2)
+      "retirement metadata must use the first membership removal"
+    check (state.retirementCommittableIndex == if length < 4 then none else some 4)
+      "the signature before removal must not make retirement committable"
+    check (state.retiredCommittedIndex == if commitIndex < 5 then none else some 7)
+      "uncommitted records must not set the retirement commit frontier"
+  let rejoined := log ++ [{ term := 1, content := .reconfiguration {0, 1} }]
+  check (retirementIndexInLog initialConfig (0 : Node) rejoined == some 2)
+    "rejoining must preserve the first retirement index"
+  check (retirementIndexInLog initialConfig (5 : Node) rejoined == some 9)
+    "a later join must precede the first retirement of a fresh node"
+  check ((retirementIndexInLog initialConfig (6 : Node) log).isNone)
+    "a retirement record alone must not imply prior membership"
+
 private def get (state : State) (node : Node) : NodeState Node Nat :=
-  (nodeState state node).getD (initialNodeState node)
+  (nodeState state node).getD (initialNodeState initialConfig node)
 
 /-- Pending envelopes from `source` to `destination`, oldest first. -/
 private def pending (state : State) (source destination : Node) : List Envelope :=
@@ -85,7 +241,8 @@ private def bootstrapAndNoMatchingPrefixTerms : IO Unit := do
   check
     (findHighestPossibleMatch follower.log request.prevLogIndex request.prevLogTerm == 0)
     "conflicting prefix must have no possible matching index"
-  let some (after, response) := handleAppendEntriesRequest? destination follower request
+  let some (after, response) :=
+    handleAppendEntriesRequest? initialConfig destination follower request
   | throw (IO.userError "conflicting prefix did not produce a response")
   check (!response.success && response.lastLogIndex == 0 && response.term == 0)
     "no matching prefix must produce a NACK with index 0 and term 0"
@@ -655,9 +812,9 @@ private def retirementCommitFrontiers : IO Unit := do
       { term := 1, content := .signature }
     ]
   let before : NodeState Node Nat :=
-    refreshRetirementState node
+    refreshRetirementState initialConfig node
       {
-        (initialNodeState node : NodeState Node Nat) with
+        (initialNodeState initialConfig node : NodeState Node Nat) with
           role := .follower
           currentTerm := 1
           log := log.take 5
@@ -666,10 +823,12 @@ private def retirementCommitFrontiers : IO Unit := do
   check (before.retiredCommittedIndex.isNone)
     "an uncommitted retirement marker must not set the commit frontier"
   let jumped :=
-    refreshRetirementState node { before with log := log.take 8, commitIndex := 8 }
+    refreshRetirementState initialConfig node
+      { before with log := log.take 8, commitIndex := 8 }
   check (jumped.retiredCommittedIndex == some 8)
     "commit frontier must not be the marker index or marker index plus one"
-  let later := refreshRetirementState node { jumped with log, commitIndex := 10 }
+  let later :=
+    refreshRetirementState initialConfig node { jumped with log, commitIndex := 10 }
   check (later.retiredCommittedIndex == some 8)
     "later commits must preserve the first covering retirement frontier"
   for (oldLength, expected) in [(5, 6), (6, 8)] do
@@ -682,13 +841,15 @@ private def retirementCommitFrontiers : IO Unit := do
         entries := (log.take 8).drop oldLength
         leaderCommit := 8
       }
-    let some (received, _) := handleAppendEntriesRequest? node state request
+    let some (received, _) := handleAppendEntriesRequest? initialConfig node state request
     | throw (IO.userError "retirement batch was rejected")
-    let received := refreshRetirementState node received
+    let received := refreshRetirementState initialConfig node received
     check (received.commitIndex == 8 && received.retiredCommittedIndex == some expected)
       s!"batch from {oldLength}: wrong first covering retirement commit"
 
 def main : IO Unit := do
+  configurationQueries
+  retirementQueries
   bootstrapAndNoMatchingPrefixTerms
   nominationTerms
   appendEntriesResponseTerms

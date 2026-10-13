@@ -11,13 +11,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -27,9 +29,9 @@ private lemma accepted_of_success
     (notStepped
       : ¬ (request.term = before.currentTerm
             ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
-    (handled : handleAppendEntriesRequest? self before request = some (after, response))
+    (handled : handleAppendEntriesRequest? (inferInstance) self before request = some (after, response))
     (success : response.success = true)
-    : acceptAppendEntriesRequest? self before request = some (after, response) := by
+    : acceptAppendEntriesRequest? (inferInstance) self before request = some (after, response) := by
   simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
   cases rejected : rejectAppendEntriesRequest? before request with
   | none => simpa only [rejected] using handled
@@ -64,7 +66,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
     (responseSource : response.1 = request.2.1)
     (responseDestination : response.2.1 = request.1)
     (handled
-      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response.2.2))
     : SystemInductiveInvariant (joined := joinedNodes)
         {
@@ -695,8 +697,8 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
       forall node,
         (((nodeOf after) node).role = .candidate \/
           ((nodeOf after) node).role = .leader) ->
-          activeConfigurations ((nodeOf after) node) =
-            activeConfigurations ((nodeOf state) node) := by
+          activeConfigurations (inferInstance) ((nodeOf after) node) =
+            activeConfigurations (inferInstance) ((nodeOf state) node) := by
     intro node active
     rw [activeNodeEq node active]
   have leaderStateEq :
@@ -1006,7 +1008,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
         ((nodeOf after) coveredNode).role = .candidate
     · have unchanged := activeNodeEq coveredNode (Or.inl candidateRole)
       have oldPositive :
-          0 < (currentConfiguration ((nodeOf state) coveredNode)).index := by
+          0 < (currentConfiguration (inferInstance) ((nodeOf state) coveredNode)).index := by
         simpa [unchanged] using positive
       rcases configurationActivations coveredNode oldPositive with
         ⟨witness⟩
@@ -1025,34 +1027,34 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                   witness.activationIndex,
                   witness.activation,
                   witness.stored,
-                  by simpa [currentConfiguration] using witness.configurationCovered,
+                  by simpa [currentConfiguration (inferInstance)] using witness.configurationCovered,
                   witness.activationTermBound,
-                  by simpa [currentConfiguration] using witness.configurationIndexBound,
-                  by simpa [currentConfiguration] using witness.historyAgreement,
+                  by simpa [currentConfiguration (inferInstance)] using witness.configurationIndexBound,
+                  by simpa [currentConfiguration (inferInstance)] using witness.historyAgreement,
                   ?_,
                   ?_,
                   ?_,
                   ?_
                 ⟩⟩
         · intro higherIndex higher stored order
-          simpa [currentConfiguration]
+          simpa [currentConfiguration (inferInstance)]
             using witness.higherAuthority higherIndex higher stored
-              (by simpa [currentConfiguration] using order)
+              (by simpa [currentConfiguration (inferInstance)] using order)
         · intro lowerIndex lower stored order
-          simpa [currentConfiguration]
+          simpa [currentConfiguration (inferInstance)]
             using witness.lowerAuthority lowerIndex lower stored
-              (by simpa [currentConfiguration] using order)
+              (by simpa [currentConfiguration (inferInstance)] using order)
         · intro sameIndex same stored sameConfiguration
-          simpa [currentConfiguration]
+          simpa [currentConfiguration (inferInstance)]
             using witness.sameAuthority sameIndex same stored
-              (by simpa [currentConfiguration] using sameConfiguration)
+              (by simpa [currentConfiguration (inferInstance)] using sameConfiguration)
         · intro role
           exact False.elim (candidateRole role)
       · have nodeStateEq :
             (nodeOf after) coveredNode = (nodeOf state) coveredNode := by
           simp [after, present, nodeOf_replaceNode, nodeEq]
         have oldPositive :
-            0 < (currentConfiguration ((nodeOf state) coveredNode)).index := by
+            0 < (currentConfiguration (inferInstance) ((nodeOf state) coveredNode)).index := by
           simpa [nodeStateEq] using positive
         rcases configurationActivations coveredNode oldPositive with
           ⟨witness⟩
@@ -1320,10 +1322,10 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
             ((nodeOf after) source).log.take index <+:
                 ((nodeOf after) candidate).log \/
               Exists fun configuration =>
-                configuration ∈ activeConfigurations ((nodeOf after) source) /\
+                configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) source) /\
                   configuration.index <= index /\
                   configuration ∈
-                    activeConfigurations ((nodeOf after) candidate) := by
+                    activeConfigurations (inferInstance) ((nodeOf after) candidate) := by
     intro bridgeSource index sourceRole current signature potential
         candidate candidateRole candidateMajority newer
     left
@@ -1675,9 +1677,9 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
     have oldValid := knownCommitEvidenceValid evidenceFacts oldKnown
     calc
       evidence.authority
-          = currentConfigurationAt evidence.history evidence.commitFrontier :=
+          = currentConfigurationAt (inferInstance) evidence.history evidence.commitFrontier :=
         valid.2.2.2.2.1
-      _ = currentConfigurationAt oldEvidence.history oldEvidence.commitFrontier := by
+      _ = currentConfigurationAt (inferInstance) oldEvidence.history oldEvidence.commitFrontier := by
         rw [historySame, frontierSame]
       _ = oldEvidence.authority :=
         oldValid.2.2.2.2.1.symm
@@ -1686,7 +1688,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
         KnownCommitEvidence
             after appendHistory newNodeEvidence requestEvidence
             evidence supportedPrefix ->
-          evidence.authority = implicitConfiguration \/
+          evidence.authority = implicitConfiguration (inferInstance) \/
             Exists fun activationIndex =>
               Exists fun record =>
                 activations activationIndex = some record /\
@@ -1803,7 +1805,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
         · exact Or.inr rightBefore
     · intro evidence supportedPrefix known candidate role majority newer
       let candidateConfiguration :=
-        currentConfiguration ((nodeOf after) candidate)
+        currentConfiguration (inferInstance) ((nodeOf after) candidate)
       rcases Nat.lt_trichotomy
           evidence.authority.index candidateConfiguration.index with
         authorityBefore | sameIndex | candidateBeforeAuthority
@@ -1827,7 +1829,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
           Or.inl ⟨candidate, commitPositive, candidateStored, rfl⟩
         have candidateConfigurationKnownCommitted :
             candidateConfiguration ∈
-              allConfigurations ((nodeOf after) candidate).committedLog := by
+              allConfigurations (inferInstance) ((nodeOf after) candidate).committedLog := by
           unfold NodeState.committedLog
           apply
             allConfigurations_mem_take_of_index_le
@@ -1850,7 +1852,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
           exact List.take_prefix _ _
         have candidateConfigurationKnownEvidence :
             candidateConfiguration ∈
-              allConfigurations candidateEvidence.history :=
+              allConfigurations (inferInstance) candidateEvidence.history :=
           memOfPrefix
             (allConfigurations_mono_prefix committedInEvidence)
             candidateConfigurationKnownCommitted
@@ -1875,7 +1877,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
               evidenceNode candidateConfiguration
               (by simpa [evidenceNode] using candidateConfigurationKnownEvidence)
               frontierBound
-          simpa [evidenceNode, currentConfiguration, candidateValid.2.2.2.2.1] using bound
+          simpa [evidenceNode, currentConfiguration (inferInstance), candidateValid.2.2.2.2.1] using bound
         have evidenceBeforeCandidateEvidence :
             evidence.authority.index <
               candidateEvidence.authority.index :=
@@ -1916,7 +1918,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
             frontierWithinCandidateFrontier.trans candidateValid.1
           have candidateKnownAtEvidenceFrontier :
               candidateConfiguration ∈
-                allConfigurations
+                allConfigurations (inferInstance)
                   (candidateEvidence.history.take evidence.commitFrontier) :=
             allConfigurations_mem_take_of_index_le
               candidateEvidence.history evidence.commitFrontier
@@ -1938,7 +1940,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
             ] using agreed.symm
           have candidateKnownEvidence :
               candidateConfiguration ∈
-                allConfigurations evidence.history := by
+                allConfigurations (inferInstance) evidence.history := by
             apply
               memOfPrefix
                 (allConfigurations_mono_prefix
@@ -1956,7 +1958,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                 evidenceNode candidateConfiguration
                 (by simpa [evidenceNode] using candidateKnownEvidence)
                 (by simpa [evidenceNode] using candidateIndexWithinEvidence)
-            simpa [evidenceNode, currentConfiguration, valid.2.2.2.2.1] using maximal
+            simpa [evidenceNode, currentConfiguration (inferInstance), valid.2.2.2.2.1] using maximal
           omega
         have coveredCommitted :
             evidence.history.take evidence.commitFrontier <+:
@@ -1986,7 +1988,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
           · have valid := knownCommitEvidenceValid evidenceAfter known
             have evidenceKnown :
                 evidence.authority ∈
-                  allConfigurations evidence.history := by
+                  allConfigurations (inferInstance) evidence.history := by
               let evidenceNode : NodeState Node TxId :=
                 { (nodeOf after) candidate with
                   log := evidence.history
@@ -1994,21 +1996,21 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
               have knownConfiguration :=
                 currentConfiguration_mem_allConfigurations evidenceNode
               simpa [
-                evidenceNode, currentConfiguration,
+                evidenceNode, currentConfiguration (inferInstance),
                 valid.2.2.2.2.1
               ] using knownConfiguration
             have evidenceImplicit :
-                evidence.authority = implicitConfiguration := by
+                evidence.authority = implicitConfiguration (inferInstance) := by
               apply
                 allConfigurations_index_unique
                   (TxId := TxId) evidence.history
               · exact evidenceKnown
               · simp [allConfigurations, implicitConfiguration]
-              · simpa [implicitConfiguration] using zero
+              · simpa [implicitConfiguration (inferInstance)] using zero
             have candidateZero : candidateConfiguration.index = 0 := by
               simpa [sameIndex] using zero
             have candidateImplicit :
-                candidateConfiguration = implicitConfiguration := by
+                candidateConfiguration = implicitConfiguration (inferInstance) := by
               apply
                 allConfigurations_index_unique
                   (TxId := TxId) ((nodeOf after) candidate).log
@@ -2016,7 +2018,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                   using currentConfiguration_mem_allConfigurations
                     ((nodeOf after) candidate)
               · simp [allConfigurations, implicitConfiguration]
-              · simpa [implicitConfiguration] using candidateZero
+              · simpa [implicitConfiguration (inferInstance)] using candidateZero
             exact evidenceImplicit.trans candidateImplicit.symm
           · rcases
                 authorityRecordedAfter evidence supportedPrefix known with
@@ -2035,7 +2037,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                 ⟨candidateCoverage⟩
               have authorityKnown :
                   evidence.authority ∈
-                    allConfigurations authorityActivation.history := by
+                    allConfigurations (inferInstance) authorityActivation.history := by
                 have valid :=
                   activationQuorums.history.valid
                     authorityActivationIndex authorityActivation
@@ -2053,7 +2055,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                 simpa [candidateConfiguration, sameIndex] using authorityAtOrBefore
               have candidateKnown :
                   candidateConfiguration ∈
-                    allConfigurations authorityActivation.history := by
+                    allConfigurations (inferInstance) authorityActivation.history := by
                 rcases lt_or_eq_of_le candidateAtOrBeforeActivation with
                   strict | equal
                 · apply memOfPrefix
@@ -2118,7 +2120,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
               (activationTermBound.trans_lt newer)
           have authorityKnownCandidate :
               evidence.authority ∈
-                allConfigurations ((nodeOf after) candidate).log := by
+                allConfigurations (inferInstance) ((nodeOf after) candidate).log := by
             apply
               memOfPrefix
                 (allConfigurations_mono_prefix
@@ -2140,7 +2142,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                   (List.mem_filter.mp governing).2).2
           exact Or.inr
             (by
-              simpa [activeConfigurations, candidateConfiguration] using
+              simpa [activeConfigurations (inferInstance), candidateConfiguration] using
                 And.intro authorityKnownCandidate
                   candidateBeforeAuthority.le)
   have electionQueuedFactsAfter :
@@ -2152,19 +2154,19 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
         record recorded
   have configurationNodesAfter :
       forall node configuration,
-        configuration ∈ allConfigurations ((nodeOf after) node).log ->
+        configuration ∈ allConfigurations (inferInstance) ((nodeOf after) node).log ->
           configuration.nodes ⊆ joinedNodes := by
     intro node configuration member peer inNodes
     have joinedFromOld
         (oldMember :
-          configuration ∈ allConfigurations ((nodeOf state) node).log) :
+          configuration ∈ allConfigurations (inferInstance) ((nodeOf state) node).log) :
         peer ∈ joinedNodes := by
       simpa [after, present]
         using facts.joinedCarriers.configurationNodes node configuration oldMember inNodes
     by_cases same : node = destination
     · subst node
       have nextMember :
-          configuration ∈ allConfigurations nextNode.log := by
+          configuration ∈ allConfigurations (inferInstance) nextNode.log := by
         simpa [after, present, nodeOf_replaceNode] using member
       rcases post.logShape with unchanged | truncated | extended
       · apply joinedFromOld
@@ -2241,7 +2243,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
             (nodeOf state) leader := by
         simpa [after, present] using unchanged
       right
-      change ∃ configuration ∈ allConfigurations (nodeOf after leader).log,
+      change ∃ configuration ∈ allConfigurations (inferInstance) (nodeOf after leader).log,
         hasConfigurationMajority (nodeOf after leader).votesGranted configuration
       simpa only [unchangedNode] using majority
   · intro leader role peer
@@ -2643,14 +2645,14 @@ lemma receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
     (responseSource : response.1 = request.2.1)
     (responseDestination : response.2.1 = request.1)
     (handled
-      : handleAppendEntriesRequest? request.2.1 ((nodeOf state) destination) request.2.2
+      : handleAppendEntriesRequest? (inferInstance) request.2.1 ((nodeOf state) destination) request.2.2
         = some (nextNode, response.2.2))
     : SystemInductiveInvariant (joined := joinedNodes)
         {
           state with
             nodes :=
               replaceNode state.nodes destination
-                (refreshRetirementState destination nextNode)
+                (refreshRetirementState (inferInstance) destination nextNode)
             network := (reply remaining response)
         } := by
   let beforeRefresh : Model.State Node TxId :=
@@ -2661,7 +2663,7 @@ lemma receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
     { state with
       nodes :=
         replaceNode state.nodes destination
-          (refreshRetirementState destination nextNode)
+          (refreshRetirementState (inferInstance) destination nextNode)
       network := (reply remaining response)
       }
   have beforeInvariant :

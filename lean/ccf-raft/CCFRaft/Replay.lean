@@ -78,14 +78,14 @@ private def nodeList (value : Json) : Except String (List String) := do
   return nodes
 
 structure Header where
-  bootstrap : Bootstrap String
+  bootstrap : InitialConfig String
   declared : List String
 
 /-- Every declared node, in its initial state and able to act. -/
 def Header.initial (header : Header) : Model.State String String :=
-  let _ : Bootstrap String := header.bootstrap
   {
-    nodes := header.declared.map fun node => (node, initialNodeState node)
+    nodes :=
+      header.declared.map fun node => (node, initialNodeState header.bootstrap node)
     active := header.declared
   }
 
@@ -200,8 +200,7 @@ private def parseAction (header : Header) (value : Json) : Except String Step :=
 a drop only records that the replay must never deliver that envelope. -/
 private def runStep (header : Header) (replay : ReplayState) (step : Step) (name : String)
     : Except String ReplayState := do
-  let _ : Bootstrap String := header.bootstrap
-  let system := Model.transitionSystem (TxId := String) header.declared
+  let system := Model.transitionSystem (TxId := String) header.bootstrap header.declared
   match step with
   | .local node input =>
       match system.step replay.state (.local node input) with
@@ -255,14 +254,13 @@ private def observeState (header : Header) (replay : ReplayState) (value : Json)
     : Except String Unit := do
   keys value ["kind", "observation", "origin", "node", "peer", "fields"]
   let node ← nodeField header value "node"
-  let _ : Bootstrap String := header.bootstrap
   let nodeState ← lookup replay node
   let committableIndices :=
     (List.range' 1 nodeState.log.length).filter
       fun index =>
         index > nodeState.commitIndex && isSignatureAt nodeState.log index
   let configurations :=
-    (activeConfigurations nodeState).filterMap
+    (activeConfigurations header.bootstrap nodeState.log nodeState.commitIndex).filterMap
       fun configuration =>
         if configuration.index == 0 then
           none
@@ -289,7 +287,7 @@ private def observeState (header : Header) (replay : ReplayState) (value : Json)
       ("retirementIndex", toJson nodeState.retirementIndex),
       ("retirementCommittableIndex", toJson nodeState.retirementCommittableIndex),
       ("retiredCommittedIndex", toJson nodeState.retiredCommittedIndex),
-      ("preVoteEnabled", toJson (decide (INITIAL_PRE_VOTE_STATUS node = .enabled)))
+      ("preVoteEnabled", toJson (decide (header.bootstrap.preVoteStatus node = .enabled)))
     ]
   if (← optionalField value "peer").isSome then
     let peer ← nodeField header value "peer"

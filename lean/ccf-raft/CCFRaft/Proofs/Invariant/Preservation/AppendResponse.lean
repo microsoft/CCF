@@ -11,13 +11,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes joinedNext : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -111,7 +113,7 @@ lemma effectiveAckersAfterSuccessfulResponse
     (matchDestination
       : forall peer,
           ((nodeOf after) destination).matchIndex peer
-          = updateIndex
+          = Function.update
               ((nodeOf state) destination).matchIndex
               response.1
               (max
@@ -139,12 +141,12 @@ lemma effectiveAckersAfterSuccessfulResponse
       · subst leader
         by_cases sameSource : peer = response.1
         · subst peer
-          rw [matchDestination, updateIndex_same] at matched
+          rw [matchDestination, Function.update_self] at matched
           rcases le_max_iff.mp matched with old | fresh
           · exact Or.inr (Or.inl old)
           · exact Or.inr (Or.inr ⟨response, ⟨taken.2.1, responseDestination⟩,
               success, sameTerm, rfl, responseDestination, fresh, covered⟩)
-        · exact Or.inr (Or.inl (by simpa [matchDestination, updateIndex, sameSource] using matched))
+        · exact Or.inr (Or.inl (by simpa [matchDestination, Function.update, sameSource] using matched))
       · exact Or.inr (Or.inl (by simpa [matchOther leader here] using matched))
     · exact Or.inr (Or.inr ⟨queued,
         ⟨(selectedSound taken).2.2 _ (by simpa [networkEq] using member.1), member.2⟩,
@@ -158,9 +160,9 @@ lemma effectiveAckersAfterSuccessfulResponse
       · subst leader
         by_cases sameSource : peer = response.1
         · subst peer
-          rw [matchDestination, updateIndex_same]
+          rw [matchDestination, Function.update_self]
           exact matched.trans (le_max_left _ _)
-        · simpa [matchDestination, updateIndex, sameSource] using matched
+        · simpa [matchDestination, Function.update, sameSource] using matched
       · simpa [matchOther leader here] using matched
     · rcases memSelectedOrRemaining taken member.1 with same | retained
       · have equal := appendResponseEnvelope.injEq.mp same
@@ -170,7 +172,7 @@ lemma effectiveAckersAfterSuccessfulResponse
         subst peer
         right
         left
-        rw [responseDestination, matchDestination, updateIndex_same]
+        rw [responseDestination, matchDestination, Function.update_self]
         exact coveredIndex.trans (le_max_right _ _)
       · exact Or.inr (Or.inr ⟨queued, ⟨by simpa [networkEq] using retained, member.2⟩,
           ok, by simpa [termEq] using term, source, target, coveredIndex,
@@ -200,7 +202,7 @@ lemma effectiveAckersAfterSuccessfulResponseHandler
     (matchDestination
       : forall peer,
           ((nodeOf after) destination).matchIndex peer
-          = updateIndex
+          = Function.update
               ((nodeOf state) destination).matchIndex
               response.1
               (max
@@ -228,7 +230,7 @@ lemma effectiveAckersAfterSuccessfulResponseHandler
       · subst leader
         by_cases peerEq : peer = response.1
         · subst peer
-          rw [matchDestination, updateIndex_same] at matched
+          rw [matchDestination, Function.update_self] at matched
           by_cases oldCovers :
               index <=
                 ((nodeOf state) destination).matchIndex response.1
@@ -248,7 +250,7 @@ lemma effectiveAckersAfterSuccessfulResponseHandler
         · right
           left
           simpa [
-            matchDestination, updateIndex,
+            matchDestination, Function.update,
             Function.update, peerEq
           ] using matched
       · exact Or.inr
@@ -276,10 +278,10 @@ lemma effectiveAckersAfterSuccessfulResponseHandler
       · subst leader
         by_cases peerEq : peer = response.1
         · subst peer
-          rw [matchDestination, updateIndex_same]
+          rw [matchDestination, Function.update_self]
           omega
         · simpa [
-            matchDestination, updateIndex,
+            matchDestination, Function.update,
             Function.update, peerEq
           ] using matched
       · simpa [matchOther leader leaderEq] using matched
@@ -320,7 +322,7 @@ lemma processedAckHistoryAfterSuccessfulResponse
     (matchDestination
       : forall peer,
           ((nodeOf after) destination).matchIndex peer
-          = updateIndex
+          = Function.update
               ((nodeOf state) destination).matchIndex
               response.1
               (max
@@ -354,11 +356,11 @@ lemma processedAckHistoryAfterSuccessfulResponse
       · subst leader
         by_cases peerEq : peer = response.1
         · subst peer
-          rw [matchDestination, updateIndex_same] at zero
+          rw [matchDestination, Function.update_self] at zero
           omega
         · have oldZero :
               ((nodeOf state) destination).matchIndex peer = 0 := by
-            simpa [matchDestination, updateIndex, Function.update, peerEq] using zero
+            simpa [matchDestination, Function.update, peerEq] using zero
           simpa [nextHistory, Function.update, peerEq]
             using historyFacts.zero destination successful.2 peer oldZero
       · have oldRole : ((nodeOf state) leader).role = .leader := by simpa [roleEq] using role
@@ -378,7 +380,7 @@ lemma processedAckHistoryAfterSuccessfulResponse
             rw [termEq]
             exact successful.1
           · simp [
-              snapshot, matchDestination, updateIndex_same,
+              snapshot, matchDestination, Function.update_self,
               max_eq_right raised.le
             ]
           · simpa [snapshot] using responseBound
@@ -389,7 +391,7 @@ lemma processedAckHistoryAfterSuccessfulResponse
             exact equalTake
         · have oldPositive :
               0 < ((nodeOf state) destination).matchIndex peer := by
-            simpa [matchDestination, updateIndex, Function.update, peerEq] using positive
+            simpa [matchDestination, Function.update, peerEq] using positive
           rcases
               historyFacts.positive
                 destination successful.2 peer oldPositive with
@@ -402,7 +404,7 @@ lemma processedAckHistoryAfterSuccessfulResponse
               ] using stored,
             by simpa [termEq] using snapshotTerm,
             by simpa [
-                matchDestination, updateIndex,
+                matchDestination, Function.update,
                 Function.update, peerEq
               ] using snapshotIndex,
             historyBound,
@@ -436,10 +438,10 @@ lemma processedAckHistoryAfterSuccessfulResponse
       · subst leader
         by_cases peerEq : peer = response.1
         · subst peer
-          rw [matchDestination, updateIndex_same]
+          rw [matchDestination, Function.update_self]
           omega
         · simp [
-            matchDestination, updateIndex,
+            matchDestination, Function.update,
             Function.update, peerEq
           ]
       · exact matchOther leader leaderEq peer
@@ -531,7 +533,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           replaceNode state.nodes destination
             { (nodeOf state) destination with
               matchIndex :=
-                updateIndex
+                Function.update
                   ((nodeOf state) destination).matchIndex
                   response.1
                   (max
@@ -543,7 +545,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           replaceNode state.nodes destination
             { (nodeOf state) destination with
               matchIndex :=
-                updateIndex
+                Function.update
                   ((nodeOf state) destination).matchIndex
                   response.1
                   (max
@@ -599,15 +601,15 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         simp [intermediate, present, nodeOf_replaceNode, present, same]
     have activeConfigurationsEq :
         forall node,
-          activeConfigurations ((nodeOf intermediate) node) =
-            activeConfigurations ((nodeOf state) node) := by
+          activeConfigurations (inferInstance) ((nodeOf intermediate) node) =
+            activeConfigurations (inferInstance) ((nodeOf state) node) := by
       intro node
       unfold activeConfigurations currentConfiguration
       rw [logEq, commitEq]
     have matchDestination :
         forall peer,
           ((nodeOf intermediate) destination).matchIndex peer =
-            updateIndex
+            Function.update
               ((nodeOf state) destination).matchIndex
               response.1
               (max
@@ -651,13 +653,13 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         · simpa [intermediate, present, nodeOf_replaceNode, present] using old.1
         · by_cases peerEq : peer = response.1
           · subst peer
-            rw [matchDestination, updateIndex_same]
+            rw [matchDestination, Function.update_self]
             rw [logEq]
             exact
               max_le old.2
                 (Nat.le_trans responseSnapshot.1 responseCovered.length_le)
           · simpa [
-              matchDestination, updateIndex,
+              matchDestination, Function.update,
               Function.update, peerEq, logEq
             ] using old.2
       · simpa [
@@ -678,8 +680,8 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           (by
             intro node configuration active
             have same :
-                activeConfigurations ((nodeOf intermediate) node) =
-                  activeConfigurations ((nodeOf state) node) := by
+                activeConfigurations (inferInstance) ((nodeOf intermediate) node) =
+                  activeConfigurations (inferInstance) ((nodeOf state) node) := by
               unfold activeConfigurations currentConfiguration
               rw [logEq, commitEq]
             rw [same] at active
@@ -708,7 +710,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
                     destination peer
                       (by
                         simpa [
-                          matchDestination, updateIndex,
+                          matchDestination, Function.update,
                           Function.update, peerEq
                         ] using positive)
             · exact
@@ -911,12 +913,12 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
     have matchCoversResponse :
         response.2.2.lastLogIndex <=
           ((nodeOf intermediate) destination).matchIndex response.1 := by
-      rw [matchDestination, updateIndex_same]
+      rw [matchDestination, Function.update_self]
       omega
     have matchDestinationAfter :
         forall peer,
           ((nodeOf after) destination).matchIndex peer =
-            updateIndex
+            Function.update
               ((nodeOf intermediate) destination).matchIndex
               response.1
               (max
@@ -927,8 +929,8 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
       rw [nodeStateEq]
       by_cases peerEq : peer = response.1
       · subst peer
-        rw [updateIndex_same, max_eq_left matchCoversResponse]
-      · simp [updateIndex, Function.update, peerEq]
+        rw [Function.update_self, max_eq_left matchCoversResponse]
+      · simp [Function.update, peerEq]
     have effectiveElectionVotersAfter :
         forall candidate,
           effectiveElectionVoters (joined := joinedNodes) after candidate =
@@ -994,7 +996,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
             replaceNode state.nodes destination
               { (nodeOf state) destination with
                 sentIndex :=
-                  updateIndex
+                  Function.update
                     ((nodeOf state) destination).sentIndex
                     response.1
                     (max
@@ -1010,7 +1012,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
             replaceNode state.nodes destination
               { (nodeOf state) destination with
                 sentIndex :=
-                  updateIndex
+                  Function.update
                     ((nodeOf state) destination).sentIndex
                     response.1
                     (max
@@ -1077,8 +1079,8 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           simp [intermediate, present, nodeOf_replaceNode, present, same]
       have activeConfigurationsEq :
           forall node,
-            activeConfigurations ((nodeOf intermediate) node) =
-              activeConfigurations ((nodeOf state) node) := by
+            activeConfigurations (inferInstance) ((nodeOf intermediate) node) =
+              activeConfigurations (inferInstance) ((nodeOf state) node) := by
         intro node
         unfold activeConfigurations currentConfiguration
         rw [logEq, commitEq]
@@ -1091,10 +1093,10 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           constructor
           · by_cases peerEq : peer = response.1
             · subst peer
-              simp [intermediate, present, nodeOf_replaceNode, present, updateIndex_same]
+              simp [intermediate, present, nodeOf_replaceNode, present, Function.update_self]
               exact ⟨Or.inr old.1, old.2⟩
             · simpa [
-                intermediate, present, nodeOf_replaceNode, present, updateIndex,
+                intermediate, present, nodeOf_replaceNode, present, Function.update,
                 Function.update, peerEq
               ] using old.1
           · simpa [matchEq, logEq] using old.2
@@ -1121,8 +1123,8 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
             (by
               intro node configuration active
               have same :
-                  activeConfigurations ((nodeOf intermediate) node) =
-                    activeConfigurations ((nodeOf state) node) := by
+                  activeConfigurations (inferInstance) ((nodeOf intermediate) node) =
+                    activeConfigurations (inferInstance) ((nodeOf state) node) := by
                 unfold activeConfigurations currentConfiguration
                 rw [logEq, commitEq]
               rw [same] at active
@@ -1224,7 +1226,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
                 have framed :=
                   (canProduceAppendAckEventuallyAt_sentIndex
                     ((nodeOf state) destination)
-                    (updateIndex
+                    (Function.update
                       ((nodeOf state) destination).sentIndex
                       response.1
                       (max

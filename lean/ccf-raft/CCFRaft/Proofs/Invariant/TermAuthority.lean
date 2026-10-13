@@ -12,9 +12,10 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
+  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState PreVoteStatus Role
     activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
     becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
     currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
@@ -25,12 +26,11 @@ open CCFRaft.Model.Local (
     retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
     retirementCommittableIndexInLog retirementCompletedNodes
     retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
   )
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 variable {joined : Finset Node}
 
 /--
@@ -99,10 +99,10 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
     (candidateRole : ((nodeOf after) candidate).role = .candidate)
     (candidateMajority : hasPotentialElectionMajority (joined := joined) after candidate)
     (sourceConfigurationActive
-      : configuration ∈ activeConfigurations ((nodeOf after) source))
+      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) source))
     (configurationGoverns : configuration.index <= index)
     (candidateConfigurationActive
-      : configuration ∈ activeConfigurations ((nodeOf after) candidate))
+      : configuration ∈ activeConfigurations (inferInstance) ((nodeOf after) candidate))
     (newer : ((nodeOf after) source).currentTerm < ((nodeOf after) candidate).currentTerm)
     (preGhostAuthority
       : CurrentTermsPositive before -> CommittedFrontierIsSignature before

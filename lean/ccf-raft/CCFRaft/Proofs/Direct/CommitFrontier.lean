@@ -18,6 +18,8 @@ message it handles.
 
 namespace CCFRaft.Proofs.Direct
 
+open CCFRaft.Proofs.Config
+
 open Shared
 open Model.Local
 open Ledger (
@@ -27,7 +29,7 @@ open Ledger (
   )
 open Ledger (refreshRetirementState_log refreshRetirementState_commitIndex)
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 /-- The commit index lies within the log and, when positive, is a signature. -/
 def CommitFrontier (state : NodeState Node TxId) : Prop :=
@@ -100,12 +102,12 @@ theorem foldl_select_max (P : Nat -> Prop) [DecidablePred P] (values : List Nat)
       · exact Or.inr holds
 
 theorem highestCommittableIndex_signature (state : NodeState Node TxId) (self : Node)
-    (positive : 0 < highestCommittableIndex state self)
-    : isSignatureAt state.log (highestCommittableIndex state self) = true := by
+    (positive : 0 < highestCommittableIndex (inferInstance) state self)
+    : isSignatureAt state.log (highestCommittableIndex (inferInstance) state self) = true := by
   unfold highestCommittableIndex at positive ⊢
   rcases foldl_select_max (fun index => index > state.commitIndex
       /\ isSignatureAt state.log index = true /\ termAt state.log index = state.currentTerm
-      /\ hasMajorityAt state self index) (List.range (state.log.length + 1)) 0 with zero | holds
+      /\ hasMajorityAt (inferInstance) state self index) (List.range (state.log.length + 1)) 0 with zero | holds
   · rw [zero] at positive
     omega
   · exact holds.2.1
@@ -118,7 +120,7 @@ theorem signature_le_length {log : List (Entry Node TxId)} {index : Nat}
 
 theorem CommitFrontier.appendEntry {state : NodeState Node TxId}
     (frontier : CommitFrontier state) (self : Node) (content : EntryContent Node TxId)
-    : CommitFrontier (appendEntry state self content) :=
+    : CommitFrontier (appendEntry (inferInstance) state self content) :=
   (frontier.extend (List.prefix_append _ _)).of_log (refreshRetirementState_log _ _)
     (refreshRetirementState_commitIndex _ _)
 
@@ -139,7 +141,7 @@ theorem CommitFrontier.alreadyDone (frontier : CommitFrontier state)
 
 theorem CommitFrontier.noConflict (frontier : CommitFrontier state)
     (within : state.commitIndex <= request.prevLogIndex)
-    (appended : noConflictAppendEntriesRequest? self state request = some result)
+    (appended : noConflictAppendEntriesRequest? (inferInstance) self state request = some result)
     : CommitFrontier result.1 := by
   unfold noConflictAppendEntriesRequest? at appended
   split at appended
@@ -152,7 +154,7 @@ theorem CommitFrontier.noConflict (frontier : CommitFrontier state)
   · simp at appended
 
 theorem CommitFrontier.accept (frontier : CommitFrontier state)
-    (accepted : acceptAppendEntriesRequest? self state request = some result)
+    (accepted : acceptAppendEntriesRequest? (inferInstance) self state request = some result)
     : CommitFrontier result.1 := by
   unfold acceptAppendEntriesRequest? at accepted
   split at accepted
@@ -188,7 +190,7 @@ theorem CommitFrontier.accept (frontier : CommitFrontier state)
   · simp at accepted
 
 theorem CommitFrontier.handleAppendEntriesRequest (frontier : CommitFrontier state)
-    (handled : handleAppendEntriesRequest? self state request = some result)
+    (handled : handleAppendEntriesRequest? (inferInstance) self state request = some result)
     : CommitFrontier result.1 := by
   unfold handleAppendEntriesRequest? at handled
   have stepped : CommitFrontier (if request.term = state.currentTerm /\
@@ -226,7 +228,7 @@ theorem run_send (node target : Node) (message : Message Node TxId)
     (value : NodeState Node TxId)
     (outputs : Outputs Node (Message Node TxId) Notification)
     : StateT.run
-        (StateT.bind ((Capabilities.record node : Host Node TxId).send message target)
+        (StateT.bind ((Capabilities.record node : Caps Node TxId).send message target)
             fun _ => pure value
           : NodeEffect Node TxId (NodeState Node TxId)) outputs
       = (
@@ -236,10 +238,10 @@ theorem run_send (node target : Node) (message : Message Node TxId)
   rfl
 
 theorem CommitFrontier.advanced {state : NodeState Node TxId} (self : Node)
-    (advances : state.commitIndex < highestCommittableIndex state self)
-    : CommitFrontier (demoteRetiredCommitted (Model.Local.advanceCommit state self)) := by
+    (advances : state.commitIndex < highestCommittableIndex (inferInstance) state self)
+    : CommitFrontier (demoteRetiredCommitted (Model.Local.advanceCommit (inferInstance) state self)) := by
   have signature := highestCommittableIndex_signature state self (by omega)
-  have advanced : CommitFrontier (Model.Local.advanceCommit state self) := by
+  have advanced : CommitFrontier (Model.Local.advanceCommit (inferInstance) state self) := by
     unfold Model.Local.advanceCommit
     exact ⟨by simpa using signature_le_length signature, fun _ => by simpa using signature⟩
   unfold demoteRetiredCommitted
@@ -262,7 +264,7 @@ theorem CommitFrontier.truncateToSignature {state : NodeState Node TxId}
 theorem CommitFrontier.promoted {state : NodeState Node TxId} (self : Node)
     (frontier : CommitFrontier state) {role : Role} {sentIndex matchIndex : Node -> Nat}
     : CommitFrontier
-        (refreshRetirementState self
+        (refreshRetirementState (inferInstance) self
           {
             state with
               log := state.log.take (maxCommittableIndex state.log)
@@ -343,7 +345,8 @@ theorem commitFrontier_invariant
           exact observed.of_log kept.1 kept.2
 
 theorem committed_frontier_is_signature : Properties.CommittedFrontierIsSignature := by
-  intro Node TxId _ _ _ nodes trace state node nodeState ⟨valid, member, listed, positive⟩
+  intro Node TxId _ _ config nodes trace state node nodeState ⟨valid, member, listed, positive⟩
+  let _ : Model.Local.InitialConfig Node := config
   exact (commitFrontier_invariant.reachable (valid.reachable member) node nodeState listed).2
     positive
 

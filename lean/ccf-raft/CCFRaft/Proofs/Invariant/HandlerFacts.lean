@@ -11,6 +11,8 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open CCFRaft.Proofs.Ledger
 
@@ -193,22 +195,22 @@ lemma configurationsInLogFrom_mono_prefix
   rw [configurationsInLogFrom_append]
   exact List.prefix_append _ _
 
-section Bootstrap
+section InitialConfig
 
-variable [Bootstrap Node]
+variable [InitialConfig Node]
 omit [DecidableEq TxId]
 
 /-- A log prefix retains every known implicit or physical configuration. -/
 lemma allConfigurations_mono_prefix
     {left right : List (Entry Node TxId)}
     (isPrefix : left <+: right)
-    : allConfigurations left <+: allConfigurations right := by
+    : allConfigurations (inferInstance) left <+: allConfigurations (inferInstance) right := by
   unfold allConfigurations configurationsInLog
   rcases configurationsInLogFrom_mono_prefix 1 isPrefix with
     ⟨suffix, agreed⟩
   exact ⟨suffix, by simp [agreed]⟩
 
-omit [DecidableEq Node] [Bootstrap Node] in
+omit [DecidableEq Node] [InitialConfig Node] in
 /-- Every projected physical configuration index lies in its source interval. -/
 lemma configurationsInLogFrom_index_bounds
     (start : Nat)
@@ -253,7 +255,7 @@ lemma configurationsInLogFrom_index_bounds
             simp only [List.length_cons]
             omega
 
-omit [DecidableEq Node] [Bootstrap Node] in
+omit [DecidableEq Node] [InitialConfig Node] in
 /-- Physical configuration indices are strictly increasing in log order. -/
 lemma configurationsInLogFrom_pairwise_index_lt
     (start : Nat)
@@ -291,7 +293,7 @@ lemma configurationsInLogFrom_pairwise_index_lt
             omega
           · exact inductionHypothesis (start := start + 1)
 
-omit [DecidableEq Node] [Bootstrap Node] in
+omit [DecidableEq Node] [InitialConfig Node] in
 /-- Every physical configuration index is positive and within the log. -/
 lemma configurationsInLog_index_bounds
     (log : List (Entry Node TxId))
@@ -309,9 +311,9 @@ lemma allConfigurations_mem_take_of_index_le
     (frontier : Nat)
     {configuration : Configuration Node}
     (frontierBound : frontier <= log.length)
-    (known : configuration ∈ allConfigurations log)
+    (known : configuration ∈ allConfigurations (inferInstance) log)
     (within : configuration.index <= frontier)
-    : configuration ∈ allConfigurations (log.take frontier) := by
+    : configuration ∈ allConfigurations (inferInstance) (log.take frontier) := by
   rw [allConfigurations] at known ⊢
   rcases List.mem_cons.mp known with implicit | physical
   · exact List.mem_cons.mpr (Or.inl implicit)
@@ -340,7 +342,7 @@ lemma allConfigurations_mem_take_of_index_le
       rw [takeLength] at suffixBounds
       omega
 
-omit [DecidableEq Node] [Bootstrap Node] in
+omit [DecidableEq Node] [InitialConfig Node] in
 /-- Physical configuration indices are strictly increasing. -/
 lemma configurationsInLog_pairwise_index_lt (log : List (Entry Node TxId))
     : (configurationsInLog log).Pairwise
@@ -350,17 +352,17 @@ lemma configurationsInLog_pairwise_index_lt (log : List (Entry Node TxId))
 
 /-- The implicit index zero precedes every physical configuration index. -/
 lemma allConfigurations_pairwise_index_lt (log : List (Entry Node TxId))
-    : (allConfigurations log).Pairwise (fun left right => left.index < right.index) := by
+    : (allConfigurations (inferInstance) log).Pairwise (fun left right => left.index < right.index) := by
   rw [allConfigurations, List.pairwise_cons]
   constructor
   · intro configuration member
     have positive :=
       (configurationsInLog_index_bounds
         (TxId := TxId) log member).1
-    simpa [implicitConfiguration] using positive
+    simpa [implicitConfiguration (inferInstance)] using positive
   · exact configurationsInLog_pairwise_index_lt (TxId := TxId) log
 
-omit [Bootstrap Node] in
+omit [InitialConfig Node] in
 /-- A strictly index-ordered configuration list has unique index ownership. -/
 private lemma pairwiseConfigurationIndex_unique
     {configurations : List (Configuration Node)}
@@ -392,15 +394,15 @@ private lemma pairwiseConfigurationIndex_unique
 lemma allConfigurations_index_unique
     (log : List (Entry Node TxId))
     {left right : Configuration Node}
-    (leftMember : left ∈ allConfigurations log)
-    (rightMember : right ∈ allConfigurations log)
+    (leftMember : left ∈ allConfigurations (inferInstance) log)
+    (rightMember : right ∈ allConfigurations (inferInstance) log)
     (sameIndex : left.index = right.index)
     : left = right :=
   pairwiseConfigurationIndex_unique
     (allConfigurations_pairwise_index_lt (TxId := TxId) log)
     leftMember rightMember sameIndex
 
-omit [DecidableEq Node] [Bootstrap Node] in
+omit [DecidableEq Node] [InitialConfig Node] in
 /-- Appending a non-reconfiguration entry does not add a configuration. -/
 lemma configurationsInLogFrom_append_nonreconfiguration
     (start : Nat)
@@ -437,7 +439,7 @@ lemma configurationsInLogFrom_append_nonreconfiguration
             inductionHypothesis (start := start + 1)
           ]
 
-omit [DecidableEq Node] [Bootstrap Node] in
+omit [DecidableEq Node] [InitialConfig Node] in
 /-- Appending a non-reconfiguration entry preserves projected configurations. -/
 lemma configurationsInLog_append_nonreconfiguration
     (log : List (Entry Node TxId))
@@ -454,8 +456,8 @@ lemma currentConfigurationAt_append_nonreconfiguration
     (entry : Entry Node TxId)
     (commitIndex : Nat)
     (notReconfiguration : forall nodes, Not (entry.content = .reconfiguration nodes))
-    : currentConfigurationAt (log ++ [entry]) commitIndex
-      = currentConfigurationAt log commitIndex := by
+    : currentConfigurationAt (inferInstance) (log ++ [entry]) commitIndex
+      = currentConfigurationAt (inferInstance) log commitIndex := by
   simp [
     currentConfigurationAt,
     configurationsInLog_append_nonreconfiguration
@@ -469,7 +471,7 @@ private def selectConfiguration
     : Configuration Node :=
   if configuration.index <= commitIndex then configuration else current
 
-omit [DecidableEq Node] [Bootstrap Node] in
+omit [DecidableEq Node] [InitialConfig Node] in
 /-- Selecting from a list returns the fallback or a member of the list. -/
 private lemma foldlSelectConfiguration_mem
     (commitIndex : Nat)
@@ -493,7 +495,7 @@ private lemma foldlSelectConfiguration_mem
         · exact Or.inl same
         · exact Or.inr (List.mem_cons_of_mem head member)
 
-omit [DecidableEq Node] [Bootstrap Node] in
+omit [DecidableEq Node] [InitialConfig Node] in
 /-- A bounded fallback keeps the selected configuration within the frontier. -/
 private lemma foldlSelectConfiguration_index_le
     (commitIndex : Nat)
@@ -513,7 +515,7 @@ private lemma foldlSelectConfiguration_index_le
       · rw [selectConfiguration, ite_eq_right committed]
         exact inductionHypothesis fallback fallbackBound
 
-omit [DecidableEq Node] [Bootstrap Node] in
+omit [DecidableEq Node] [InitialConfig Node] in
 /-- Selection through an ordered suffix never moves behind its fallback. -/
 private lemma foldlSelectConfiguration_index_ge
     (commitIndex : Nat)
@@ -549,7 +551,7 @@ private lemma foldlSelectConfiguration_index_ge
                   (List.mem_cons_of_mem head member))
             ordered.2
 
-omit [DecidableEq Node] [Bootstrap Node] in
+omit [DecidableEq Node] [InitialConfig Node] in
 /-- Every committed member of an ordered suffix is no later than its selection. -/
 private lemma foldlSelectConfiguration_greatest
     (commitIndex : Nat)
@@ -602,17 +604,17 @@ configurations projected from the log.
 -/
 lemma currentConfiguration_eq_implicit_or_mem_configurationsInLog
     (state : NodeState Node TxId)
-    : currentConfiguration state = implicitConfiguration
-      \/ currentConfiguration state ∈ configurationsInLog state.log := by
+    : currentConfiguration (inferInstance) state = implicitConfiguration (inferInstance)
+      \/ currentConfiguration (inferInstance) state ∈ configurationsInLog state.log := by
   exact
     foldlSelectConfiguration_mem
       state.commitIndex
       (configurationsInLog state.log)
-      implicitConfiguration
+      implicitConfiguration (inferInstance)
 
 /-- The current configuration is always known from the local log. -/
 lemma currentConfiguration_mem_allConfigurations (state : NodeState Node TxId)
-    : currentConfiguration state ∈ allConfigurations state.log := by
+    : currentConfiguration (inferInstance) state ∈ allConfigurations (inferInstance) state.log := by
   rcases
       currentConfiguration_eq_implicit_or_mem_configurationsInLog state with
     implicit | physical
@@ -621,11 +623,11 @@ lemma currentConfiguration_mem_allConfigurations (state : NodeState Node TxId)
 
 /-- The current configuration index never exceeds the local commit frontier. -/
 lemma currentConfiguration_index_le_commitIndex (state : NodeState Node TxId)
-    : (currentConfiguration state).index <= state.commitIndex := by
+    : (currentConfiguration (inferInstance) state).index <= state.commitIndex := by
   exact foldlSelectConfiguration_index_le
     state.commitIndex
     (configurationsInLog state.log)
-    implicitConfiguration
+    implicitConfiguration (inferInstance)
     (by simp [implicitConfiguration])
 
 /--
@@ -635,9 +637,9 @@ before the local commit frontier.
 lemma configuration_index_le_currentConfiguration
     (state : NodeState Node TxId)
     (configuration : Configuration Node)
-    (known : configuration ∈ allConfigurations state.log)
+    (known : configuration ∈ allConfigurations (inferInstance) state.log)
     (committed : configuration.index <= state.commitIndex)
-    : configuration.index <= (currentConfiguration state).index := by
+    : configuration.index <= (currentConfiguration (inferInstance) state).index := by
   rw [allConfigurations] at known
   rcases List.mem_cons.mp known with implicit | physical
   · subst configuration
@@ -645,18 +647,18 @@ lemma configuration_index_le_currentConfiguration
   · have afterImplicit :
         forall candidate,
           candidate ∈ configurationsInLog state.log ->
-            (implicitConfiguration (Node := Node)).index <
+            (implicitConfiguration (inferInstance) (Node := Node)).index <
               candidate.index := by
       intro candidate member
       have positive :=
         (configurationsInLog_index_bounds
           (TxId := TxId) state.log member).1
-      simpa [implicitConfiguration] using positive
+      simpa [implicitConfiguration (inferInstance)] using positive
     exact
       foldlSelectConfiguration_greatest
         state.commitIndex
         (configurationsInLog state.log)
-        implicitConfiguration
+        implicitConfiguration (inferInstance)
         afterImplicit
         (configurationsInLog_pairwise_index_lt
           (TxId := TxId) state.log)
@@ -665,13 +667,13 @@ lemma configuration_index_le_currentConfiguration
 
 /-- The current configuration is one of the active configurations. -/
 lemma currentConfiguration_mem_activeConfigurations (state : NodeState Node TxId)
-    : currentConfiguration state ∈ activeConfigurations state := by
+    : currentConfiguration (inferInstance) state ∈ activeConfigurations (inferInstance) state := by
   simp [
     activeConfigurations,
     currentConfiguration_mem_allConfigurations
   ]
 
-end Bootstrap
+end InitialConfig
 
 omit [DecidableEq Node] [DecidableEq TxId] in
 /-- A bounded AppendEntries batch has exactly `batchEnd - previousIndex` entries. -/
@@ -705,11 +707,11 @@ lemma memOfPrefix
 
 section BootstrapCommit
 
-variable [Bootstrap Node]
+variable [InitialConfig Node]
 
 /-- The computed commit frontier never exceeds the leader log length. -/
 lemma highestCommittableIndexBounded (state : Model.State Node TxId) (leader : Node)
-    : highestCommittableIndex (nodeOf state leader) leader
+    : highestCommittableIndex (inferInstance) (nodeOf state leader) leader
       <= ((nodeOf state) leader).log.length := by
   unfold highestCommittableIndex
   let candidates := List.range (((nodeOf state) leader).log.length + 1)
@@ -719,7 +721,7 @@ lemma highestCommittableIndexBounded (state : Model.State Node TxId) (leader : N
           isSignatureAt ((nodeOf state) leader).log index = true /\
           termAt ((nodeOf state) leader).log index =
             ((nodeOf state) leader).currentTerm /\
-          hasMajorityAt (nodeOf state leader) leader index then
+          hasMajorityAt (inferInstance) (nodeOf state leader) leader index then
         max best index
       else
         best
@@ -759,15 +761,15 @@ lemma highestCommittableIndexFacts
     (leader : Node)
     (advances
       : ((nodeOf state) leader).commitIndex
-        < highestCommittableIndex (nodeOf state leader) leader)
+        < highestCommittableIndex (inferInstance) (nodeOf state leader) leader)
     : isSignatureAt ((nodeOf state) leader).log
-          (highestCommittableIndex (nodeOf state leader) leader)
+          (highestCommittableIndex (inferInstance) (nodeOf state leader) leader)
         = true
       /\ termAt ((nodeOf state) leader).log
-            (highestCommittableIndex (nodeOf state leader) leader)
+            (highestCommittableIndex (inferInstance) (nodeOf state leader) leader)
           = ((nodeOf state) leader).currentTerm
-      /\ hasMajorityAt (nodeOf state leader) leader
-          (highestCommittableIndex (nodeOf state leader) leader) := by
+      /\ hasMajorityAt (inferInstance) (nodeOf state leader) leader
+          (highestCommittableIndex (inferInstance) (nodeOf state leader) leader) := by
   unfold highestCommittableIndex at advances ⊢
   let leaderState := (nodeOf state) leader
   let valid :=
@@ -775,7 +777,7 @@ lemma highestCommittableIndexFacts
       index > leaderState.commitIndex /\
         isSignatureAt leaderState.log index = true /\
         termAt leaderState.log index = leaderState.currentTerm /\
-        hasMajorityAt (nodeOf state leader) leader index
+        hasMajorityAt (inferInstance) (nodeOf state leader) leader index
   let choose :=
     fun best index =>
       if valid index then max best index else best
@@ -818,12 +820,12 @@ lemma highestCommittableIndexValid
     (leader : Node)
     (advances
       : ((nodeOf state) leader).commitIndex
-        < highestCommittableIndex (nodeOf state leader) leader)
+        < highestCommittableIndex (inferInstance) (nodeOf state leader) leader)
     : termAt ((nodeOf state) leader).log
-          (highestCommittableIndex (nodeOf state leader) leader)
+          (highestCommittableIndex (inferInstance) (nodeOf state leader) leader)
         = ((nodeOf state) leader).currentTerm
-      /\ hasMajorityAt (nodeOf state leader) leader
-          (highestCommittableIndex (nodeOf state leader) leader) :=
+      /\ hasMajorityAt (inferInstance) (nodeOf state leader) leader
+          (highestCommittableIndex (inferInstance) (nodeOf state leader) leader) :=
   (highestCommittableIndexFacts state leader advances).2
 
 /-- A newly selected positive commit frontier points to a signature. -/
@@ -832,9 +834,9 @@ lemma highestCommittableIndexIsSignature
     (leader : Node)
     (advances
       : ((nodeOf state) leader).commitIndex
-        < highestCommittableIndex (nodeOf state leader) leader)
+        < highestCommittableIndex (inferInstance) (nodeOf state leader) leader)
     : isSignatureAt ((nodeOf state) leader).log
-        (highestCommittableIndex (nodeOf state leader) leader)
+        (highestCommittableIndex (inferInstance) (nodeOf state leader) leader)
       = true :=
   (highestCommittableIndexFacts state leader advances).1
 
@@ -842,9 +844,9 @@ end BootstrapCommit
 
 /-! ## Generic local-handler facts -/
 
-variable [Bootstrap Node]
+variable [InitialConfig Node]
 
-omit [DecidableEq TxId] [Bootstrap Node] in
+omit [DecidableEq TxId] [InitialConfig Node] in
 lemma handleAppendEntriesResponseNonLeaderUnchanged
     (before : NodeState Node TxId) (source : Node)
     (response : AppendEntriesResponse) (notLeader : before.role ≠ .leader)
@@ -876,7 +878,7 @@ structure VoteResponseHandlerPost
           /\ before.role = .candidate
           /\ after.votesGranted = insert source before.votesGranted)
 
-omit [DecidableEq TxId] [Bootstrap Node] in
+omit [DecidableEq TxId] [InitialConfig Node] in
 lemma handleRequestVoteResponsePreserves
     {before after : NodeState Node TxId} {source : Node}
     {response : RequestVoteResponse}
@@ -916,7 +918,7 @@ structure PreVoteResponseHandlerPost
           /\ before.role = .preVoteCandidate
           /\ after.preVotesGranted = insert source before.preVotesGranted)
 
-omit [DecidableEq TxId] [Bootstrap Node] in
+omit [DecidableEq TxId] [InitialConfig Node] in
 lemma handleRequestPreVoteResponsePreserves
     {before after : NodeState Node TxId} {source : Node}
     {response : RequestVoteResponse}
@@ -931,17 +933,17 @@ lemma handleRequestPreVoteResponsePreserves
 
 lemma handleProposeVoteRequestCases
     (state : NodeState Node TxId) (destination : Node) (term : Nat)
-    : handleProposeVoteRequest state destination term = state
+    : handleProposeVoteRequest (inferInstance) state destination term = state
       ∨ (term = state.currentTerm
-          ∧ candidateTransitionEnabled state destination
-          ∧ handleProposeVoteRequest state destination term
+          ∧ candidateTransitionEnabled (inferInstance) state destination
+          ∧ handleProposeVoteRequest (inferInstance) state destination term
             = becomeCandidateNodeState state destination) := by
   unfold handleProposeVoteRequest
   split_ifs with eligible
   · exact Or.inr ⟨eligible.1, eligible.2, rfl⟩
   · exact Or.inl rfl
 
-omit [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node] in
+omit [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node] in
 lemma failureResponseMetadata (before : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
     : (failureResponse before request).success = false := by
@@ -955,7 +957,7 @@ lemma failureResponseMetadata (before : NodeState Node TxId)
       · rfl
       · split <;> rfl
 
-omit [Bootstrap Node] in
+omit [InitialConfig Node] in
 /-- A follower commit learned from a request stays below the advertised
 leader frontier, apart from an already committed local prefix. -/
 lemma committedFromLeader_le_max_leaderCommit
@@ -975,7 +977,7 @@ lemma committedFromLeader_le_max_leaderCommit
           request.leaderCommit
           (request.prevLogIndex + request.entries.length)))
 
-omit [Bootstrap Node] in
+omit [InitialConfig Node] in
 /-- A follower commit learned from a request stays below the request's
 verified end, apart from an already committed local prefix. -/
 lemma committedFromLeader_le_max_requestEnd
@@ -995,7 +997,7 @@ lemma committedFromLeader_le_max_requestEnd
           request.leaderCommit
           (request.prevLogIndex + request.entries.length)))
 
-omit [Bootstrap Node] in
+omit [InitialConfig Node] in
 /-- A follower commit learned from a request stays below the latest signature,
 apart from an already committed local prefix. -/
 lemma committedFromLeader_le_max_committable
@@ -1012,7 +1014,7 @@ lemma committedFromLeader_le_max_committable
         (min request.leaderCommit
           (request.prevLogIndex + request.entries.length)))
 
-omit [Bootstrap Node] in
+omit [InitialConfig Node] in
 /-- A follower commit learned from a request remains inside the resulting log
 when the previous committed prefix is still present. -/
 lemma committedFromLeader_bounded
@@ -1029,7 +1031,7 @@ lemma committedFromLeader_bounded
       (min request.leaderCommit
         (request.prevLogIndex + request.entries.length))
 
-omit [Bootstrap Node] in
+omit [InitialConfig Node] in
 /-- A signature lookup is retained by any log containing the committed prefix. -/
 lemma committedSignature_retained
     (before : NodeState Node TxId)
@@ -1041,7 +1043,7 @@ lemma committedSignature_retained
   unfold NodeState.committedLog
   exact isSignatureAt_take_of_le le_rfl signature
 
-omit [Bootstrap Node] in
+omit [InitialConfig Node] in
 /-- Learning a follower commit preserves the signature-frontier invariant. -/
 lemma committedFromLeader_isSignature
     (before : NodeState Node TxId)
@@ -1132,7 +1134,7 @@ lemma handleAppendEntriesRequestLocalPost
     (notStepped
       : ¬ (request.term = before.currentTerm
             ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
-    (handled : handleAppendEntriesRequest? self before request = some (after, response))
+    (handled : handleAppendEntriesRequest? (inferInstance) self before request = some (after, response))
     : AppendRequestLocalPost before after request response := by
   simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
   split at handled
@@ -1613,7 +1615,7 @@ lemma handleAppendEntriesRequestLeaderUnchanged
     (notStepped
       : ¬ (request.term = before.currentTerm
             ∧ (before.role = .candidate ∨ before.role = .preVoteCandidate)))
-    (handled : handleAppendEntriesRequest? self before request = some (after, response))
+    (handled : handleAppendEntriesRequest? (inferInstance) self before request = some (after, response))
     : after = before := by
   simp only [handleAppendEntriesRequest?, notStepped, ite_false] at handled
   split at handled
@@ -1635,7 +1637,7 @@ lemma handleAppendEntriesRequestLeaderUnchanged
 lemma acceptAppendEntriesRequest_conditions
     {self : Node} {before after : NodeState Node TxId}
     {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
-    (accepted : acceptAppendEntriesRequest? self before request = some (after, response))
+    (accepted : acceptAppendEntriesRequest? (inferInstance) self before request = some (after, response))
     : request.term = before.currentTerm
       ∧ before.role = .follower
       ∧ logOk before request
@@ -1648,15 +1650,15 @@ lemma acceptAppendEntriesRequest_conditions
 lemma acceptAppendEntriesRequest_handled
     {self : Node} {before after : NodeState Node TxId}
     {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
-    (accepted : acceptAppendEntriesRequest? self before request = some (after, response))
-    : handleAppendEntriesRequest? self before request = some (after, response) := by
+    (accepted : acceptAppendEntriesRequest? (inferInstance) self before request = some (after, response))
+    : handleAppendEntriesRequest? (inferInstance) self before request = some (after, response) := by
   obtain ⟨term, role, matching, _⟩ := acceptAppendEntriesRequest_conditions accepted
-  simpa [handleAppendEntriesRequest?, rejectAppendEntriesRequest?, term, role, matching] using accepted
+  simpa [handleAppendEntriesRequest? (inferInstance), rejectAppendEntriesRequest?, term, role, matching] using accepted
 
 lemma acceptAppendEntriesRequestLocalPost
     {self : Node} {before after : NodeState Node TxId}
     {request : AppendEntriesRequest Node TxId} {response : AppendEntriesResponse}
-    (accepted : acceptAppendEntriesRequest? self before request = some (after, response))
+    (accepted : acceptAppendEntriesRequest? (inferInstance) self before request = some (after, response))
     : AppendRequestLocalPost before after request response := by
   have follower := (acceptAppendEntriesRequest_conditions accepted).2.1
   exact handleAppendEntriesRequestLocalPost (by simp [follower])

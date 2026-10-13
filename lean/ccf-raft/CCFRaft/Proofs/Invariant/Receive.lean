@@ -10,10 +10,12 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open Shared Shared.MultiNodeTransitionSystem Concrete
 open Model.Local
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 theorem observeTerm_preserves {state : Model.State Node TxId} {joined : Finset Node}
     (invariant : StateInvariant state joined) (envelope : Model.Envelope Node TxId)
@@ -59,14 +61,14 @@ theorem appendRequest_safety {state : Model.State Node TxId} {joined : Finset No
     (queued : appendRequestEnvelope (source, destination, request) ∈ state.network)
     {nextNode : NodeState Node TxId} {response : AppendEntriesResponse}
     (handled
-      : handleAppendEntriesRequest? destination (nodeOf state destination) request
+      : handleAppendEntriesRequest? (inferInstance) destination (nodeOf state destination) request
         = some (nextNode, response))
     : SystemInductiveInvariant (joined := joined)
         {
           state with
             nodes :=
               replaceNode state.nodes destination
-                (refreshRetirementState destination nextNode)
+                (refreshRetirementState (inferInstance) destination nextNode)
             network :=
               removeOne (appendRequestEnvelope (source, destination, request))
                 state.network
@@ -87,9 +89,9 @@ theorem appendRequest_safety {state : Model.State Node TxId} {joined : Finset No
         (source, destination, request) _ invariant nodeJoined stepping rfl
     have follower : (nodeOf middle destination).role = .follower := by
       simp [middle, present]
-    have handledMiddle : handleAppendEntriesRequest? destination (nodeOf middle destination) request
+    have handledMiddle : handleAppendEntriesRequest? (inferInstance) destination (nodeOf middle destination) request
         = some (nextNode, response) := by
-      simpa [middle, present, handleAppendEntriesRequest?, stepping] using handled
+      simpa [middle, present, handleAppendEntriesRequest? (inferInstance), stepping] using handled
     have preserved := receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
       middle source destination (present := middlePresent) (source, destination, request) _
       nextNode (destination, source, response) middleInvariant nodeJoined rfl
@@ -107,7 +109,7 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
     {execute : NodeEffect Node TxId (NodeState Node TxId)}
     (queued : envelope ∈ state.network)
     (received
-      : Model.Local.receive (Capabilities.record envelope.target) envelope.target
+      : Model.Local.receive (inferInstance) (Capabilities.record envelope.target) envelope.target
           envelope.source (nodeOf state envelope.target) envelope.payload
         = some execute)
     : StateInvariant
@@ -135,7 +137,7 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
       obtain rfl := Option.some.inj done
       change StateInvariant
         { state with
-          nodes := replaceNode state.nodes destination (refreshRetirementState destination nextNode)
+          nodes := replaceNode state.nodes destination (refreshRetirementState (inferInstance) destination nextNode)
           network := removeOne ⟨source, destination, .appendEntriesRequest request⟩ state.network
             ++ [⟨destination, source, .appendEntriesResponse response⟩] } joined
       apply invariant.update nodeJoined (Finset.Subset.refl _) ?_

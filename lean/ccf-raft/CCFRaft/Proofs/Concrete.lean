@@ -2,6 +2,7 @@
 -- Licensed under the Apache 2.0 License.
 
 import CCFRaft.Model
+import CCFRaft.Proofs.Config
 import Mathlib.Tactic
 
 set_option autoImplicit false
@@ -14,10 +15,12 @@ step, its new state, and its sends.
 
 namespace CCFRaft.Proofs.Concrete
 
-open Shared Shared.MultiNodeTransitionSystem
-open Model.Local (NodeState Bootstrap)
+open CCFRaft.Proofs.Config
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+open Shared Shared.MultiNodeTransitionSystem
+open Model.Local (NodeState InitialConfig)
+
+variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 /-- Replace the state of `node` in a node table. -/
 def replaceNode (nodes : List (Node × NodeState Node TxId)) (node : Node)
@@ -29,10 +32,10 @@ theorem step_local
     {nodes : List Node} {before after : Model.State Node TxId}
     {node : Node} {input : Model.Local.Input Node TxId}
     (stepped
-      : (Model.transitionSystem nodes).step before (.local node input) = some after)
+      : (Model.transitionSystem (inferInstance) nodes).step before (.local node input) = some after)
     : exists state execute,
         nodeState before node = some state
-        /\ Model.Local.act (Capabilities.record node) node state input = some execute
+        /\ Model.Local.act (inferInstance) (Capabilities.record node) node state input = some execute
         /\ after
             = {
               before with
@@ -54,11 +57,11 @@ theorem step_deliver
     {nodes : List Node} {before after : Model.State Node TxId}
     {envelope : Model.Envelope Node TxId}
     (stepped
-      : (Model.transitionSystem nodes).step before (.deliver envelope) = some after)
+      : (Model.transitionSystem (inferInstance) nodes).step before (.deliver envelope) = some after)
     : envelope ∈ before.network
       /\ exists state execute,
           nodeState before envelope.target = some state
-          /\ Model.Local.receive (Capabilities.record envelope.target) envelope.target
+          /\ Model.Local.receive (inferInstance) (Capabilities.record envelope.target) envelope.target
                 envelope.source state envelope.payload
               = some execute
           /\ after
@@ -167,8 +170,8 @@ theorem handleRequestPreVoteResponse_log (state : NodeState Node TxId) (source :
 
 theorem handleProposeVoteRequest_log (state : NodeState Node TxId) (self : Node)
     (term : Nat)
-    : (Model.Local.handleProposeVoteRequest state self term).log = state.log
-      /\ (Model.Local.handleProposeVoteRequest state self term).commitIndex
+    : (Model.Local.handleProposeVoteRequest (inferInstance) state self term).log = state.log
+      /\ (Model.Local.handleProposeVoteRequest (inferInstance) state self term).commitIndex
           = state.commitIndex := by
   unfold Model.Local.handleProposeVoteRequest
   split_ifs <;> exact ⟨rfl, rfl⟩

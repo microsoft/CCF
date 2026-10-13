@@ -12,10 +12,12 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open Shared Concrete
 open Model.Local
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 @[simp]
 theorem replaceNode_twice (nodes : List (Node × NodeState Node TxId)) (node : Node)
@@ -36,15 +38,15 @@ theorem advanced_eq (state : Model.State Node TxId) (node : Node)
           nodes :=
             replaceNode state.nodes node
               (Model.Local.demoteRetiredCommitted
-                (Model.Local.advanceCommit (nodeOf state node) node))
+                (Model.Local.advanceCommit (inferInstance) (nodeOf state node) node))
       } := by
   simp only [demoteRetiredCommitted, advanceCommitState, nodeOf_replaceNode, present, ite_true,
     replaceNode_twice]
 
 theorem refresh_sentIndex (node : Node) (value : NodeState Node TxId)
     (sentIndex : Node -> Nat)
-    : { refreshRetirementState node value with sentIndex }
-      = refreshRetirementState node { value with sentIndex } :=
+    : { refreshRetirementState (inferInstance) node value with sentIndex }
+      = refreshRetirementState (inferInstance) node { value with sentIndex } :=
   rfl
 
 set_option hygiene false in
@@ -66,7 +68,7 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
     (present : node ∈ state.nodes.map Prod.fst) {input : Model.Local.Input Node TxId}
     {execute : Model.Local.NodeEffect Node TxId (NodeState Node TxId)}
     (acted
-      : Model.Local.act (Capabilities.record node) node ((nodeOf state) node) input
+      : Model.Local.act (inferInstance) (Capabilities.record node) node ((nodeOf state) node) input
         = some execute)
     : ∃ joined,
         StateInvariant
@@ -96,18 +98,18 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
       ⟩
       simpa [concrete_effects, leaderAppendJoined,
         replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
-        Model.Local.appendEntry]
+        Model.Local.appendEntry (inferInstance)]
         using clientRequestPreservesSystemInductiveInvariant state node
           (present := present) txId invariant.safety ⟨joined, enabled⟩
   | changeConfiguration configuration =>
       extract_guard
       have joined := invariant.joined_of_role (node := node) (by rw [enabled.1]; decide)
-      let added := configuration \ (latestConfiguration ((nodeOf state) node)).nodes
+      let added := configuration \ (latestConfiguration (inferInstance) ((nodeOf state) node)).nodes
       refine ⟨joinedNodes ∪ added,
         invariant.update joined Finset.subset_union_left ?_ ?_⟩
       · simpa only [concrete_effects, leaderAppendJoined,
           replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
-          Model.Local.appendEntry, added, refresh_sentIndex]
+          Model.Local.appendEntry (inferInstance), added, refresh_sentIndex]
           using changeConfigurationPreservesSystemInductiveInvariant state node
             (present := present) configuration invariant.safety ⟨joined, enabled⟩
       · intro message member
@@ -122,7 +124,7 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
       ⟩
       simpa [concrete_effects, leaderAppendJoined,
         replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
-        Model.Local.appendEntry, allRetiredCommittedNodes]
+        Model.Local.appendEntry (inferInstance), allRetiredCommittedNodes]
         using appendRetiredCommittedPreservesSystemInductiveInvariant state node
           (present := present) invariant.safety ⟨joined, enabled⟩
   | signCommittableMessages =>
@@ -134,7 +136,7 @@ theorem act_preserves {state : Model.State Node TxId} {joinedNodes : Finset Node
       ⟩
       simpa [concrete_effects, leaderAppendJoined,
         replaceNode_nodeOf state node invariant.distinct, becomeCandidateState,
-        Model.Local.appendEntry]
+        Model.Local.appendEntry (inferInstance)]
         using signCommittableMessagesPreservesSystemInductiveInvariant state node
           (present := present) invariant.safety ⟨joined, enabled⟩
   | appendEntries destination batchEnd =>

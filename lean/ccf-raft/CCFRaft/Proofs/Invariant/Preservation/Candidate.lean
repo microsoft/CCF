@@ -11,13 +11,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -200,9 +202,9 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     simp [NodeState.committedLog, commitEq, logEq]
   have activeConfigurationsEq :
       forall candidate,
-        activeConfigurations
+        activeConfigurations (inferInstance)
             ((nodeOf (timeoutEffect state node)) candidate) =
-          activeConfigurations ((nodeOf state) candidate) := by
+          activeConfigurations (inferInstance) ((nodeOf state) candidate) := by
     intro candidate
     unfold activeConfigurations currentConfiguration
     rw [logEq, commitEq]
@@ -959,13 +961,13 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           (timeoutEffect state node) node ->
         hasFutureElectionMajority (joined := joinedNodes)
           state node newTerm
-            (activeConfigurations ((nodeOf state) node)) := by
+            (activeConfigurations (inferInstance) ((nodeOf state) node)) := by
     intro majority
     apply
       potentialElectionMajorityImpliesFuture
         timeoutVoterSubset
         (ballotActive :=
-          activeConfigurations ((nodeOf state) node))
+          activeConfigurations (inferInstance) ((nodeOf state) node))
     · exact (activeConfigurationsEq node).symm
     · exact majority
   have timeoutPotentialVoterTerm :
@@ -1055,7 +1057,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     intro governs
     have afterActive :
         configuration ∈
-          activeConfigurations
+          activeConfigurations (inferInstance)
             ((nodeOf (timeoutEffect state node)) source) := by
       simpa [activeConfigurationsEq] using active
     exact
@@ -1093,14 +1095,14 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
     intro candidateMajority evidence supportedPrefix known newer
     have futureMajority := timeoutFutureMajority candidateMajority
     let candidateConfiguration :=
-      currentConfiguration ((nodeOf state) node)
+      currentConfiguration (inferInstance) ((nodeOf state) node)
     have candidateBefore :
         ((nodeOf state) node).currentTerm < newTerm := by
       simp [newTerm]
     have directOfActive
         (authorityActive :
           evidence.authority ∈
-            activeConfigurations ((nodeOf state) node)) :
+            activeConfigurations (inferInstance) ((nodeOf state) node)) :
         evidence.history.take evidence.commitFrontier <+:
           ((nodeOf (timeoutEffect state node)) node).log := by
       simpa [logEq]
@@ -1128,7 +1130,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
         Or.inl ⟨node, commitPositive, candidateStored, rfl⟩
       have candidateConfigurationKnownCommitted :
           candidateConfiguration ∈
-            allConfigurations ((nodeOf state) node).committedLog := by
+            allConfigurations (inferInstance) ((nodeOf state) node).committedLog := by
         unfold NodeState.committedLog
         apply
           allConfigurations_mem_take_of_index_le
@@ -1145,7 +1147,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
         exact List.take_prefix _ _
       have candidateConfigurationKnownEvidence :
           candidateConfiguration ∈
-            allConfigurations candidateEvidence.history :=
+            allConfigurations (inferInstance) candidateEvidence.history :=
         memOfPrefix
           (allConfigurations_mono_prefix committedInEvidence)
           candidateConfigurationKnownCommitted
@@ -1171,7 +1173,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             evidenceNode candidateConfiguration
             (by simpa [evidenceNode] using candidateConfigurationKnownEvidence)
             frontierBound
-        simpa [evidenceNode, currentConfiguration, candidateValid.2.2.2.2.1] using bound
+        simpa [evidenceNode, currentConfiguration (inferInstance), candidateValid.2.2.2.2.1] using bound
       have evidenceBeforeCandidateEvidence :
           evidence.authority.index <
             candidateEvidence.authority.index :=
@@ -1210,7 +1212,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           frontierWithinCandidateFrontier.trans candidateValid.1
         have candidateKnownAtEvidenceFrontier :
             candidateConfiguration ∈
-              allConfigurations
+              allConfigurations (inferInstance)
                 (candidateEvidence.history.take evidence.commitFrontier) :=
           allConfigurations_mem_take_of_index_le
             candidateEvidence.history evidence.commitFrontier
@@ -1232,7 +1234,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           ] using agreed.symm
         have candidateKnownEvidence :
             candidateConfiguration ∈
-              allConfigurations evidence.history := by
+              allConfigurations (inferInstance) evidence.history := by
           apply
             memOfPrefix
               (allConfigurations_mono_prefix
@@ -1251,7 +1253,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               (by simpa [evidenceNode] using candidateKnownEvidence)
               (by simpa [evidenceNode] using candidateIndexWithinEvidence)
           simpa [
-            evidenceNode, currentConfiguration,
+            evidenceNode, currentConfiguration (inferInstance),
             valid.2.2.2.2.1
           ] using maximal
         omega
@@ -1281,7 +1283,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
         by_cases zero : evidence.authority.index = 0
         · have valid := knownCommitEvidenceValid evidenceFacts known
           have evidenceKnown :
-              evidence.authority ∈ allConfigurations evidence.history := by
+              evidence.authority ∈ allConfigurations (inferInstance) evidence.history := by
             let evidenceNode : NodeState Node TxId :=
               { (nodeOf state) node with
                 log := evidence.history
@@ -1289,28 +1291,28 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             have knownConfiguration :=
               currentConfiguration_mem_allConfigurations evidenceNode
             simpa [
-              evidenceNode, currentConfiguration,
+              evidenceNode, currentConfiguration (inferInstance),
               valid.2.2.2.2.1
             ] using knownConfiguration
           have evidenceImplicit :
-              evidence.authority = implicitConfiguration := by
+              evidence.authority = implicitConfiguration (inferInstance) := by
             apply
               allConfigurations_index_unique
                 (TxId := TxId) evidence.history
             · exact evidenceKnown
             · simp [allConfigurations, implicitConfiguration]
-            · simpa [implicitConfiguration] using zero
+            · simpa [implicitConfiguration (inferInstance)] using zero
           have candidateZero : candidateConfiguration.index = 0 := by
             simpa [sameIndex] using zero
           have candidateImplicit :
-              candidateConfiguration = implicitConfiguration := by
+              candidateConfiguration = implicitConfiguration (inferInstance) := by
             apply
               allConfigurations_index_unique
                 (TxId := TxId) ((nodeOf state) node).log
             · simpa [candidateConfiguration]
                 using currentConfiguration_mem_allConfigurations ((nodeOf state) node)
             · simp [allConfigurations, implicitConfiguration]
-            · simpa [implicitConfiguration] using candidateZero
+            · simpa [implicitConfiguration (inferInstance)] using candidateZero
           exact evidenceImplicit.trans candidateImplicit.symm
         · rcases activationEvidence.authorityRecorded
               evidence supportedPrefix known with
@@ -1326,7 +1328,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               ⟨candidateCoverage⟩
             have authorityKnown :
                 evidence.authority ∈
-                  allConfigurations authorityActivation.history := by
+                  allConfigurations (inferInstance) authorityActivation.history := by
               have valid :=
                 activationQuorums.history.valid
                   authorityActivationIndex authorityActivation authorityStored
@@ -1343,7 +1345,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               simpa [candidateConfiguration, sameIndex] using authorityAtOrBefore
             have candidateKnown :
                 candidateConfiguration ∈
-                  allConfigurations authorityActivation.history := by
+                  allConfigurations (inferInstance) authorityActivation.history := by
               rcases lt_or_eq_of_le candidateAtOrBeforeActivation with
                 strict | equal
               · apply memOfPrefix
@@ -1410,7 +1412,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             authorityStored
             candidateBeforeActivation
         have authorityKnownCandidate
-            : evidence.authority ∈ allConfigurations ((nodeOf state) node).log := by
+            : evidence.authority ∈ allConfigurations (inferInstance) ((nodeOf state) node).log := by
           apply
             memOfPrefix
               (allConfigurations_mono_prefix activationInCandidate)
@@ -1427,7 +1429,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               (of_decide_eq_true
                 (List.mem_filter.mp governing).2).2
         apply directOfActive
-        simpa [activeConfigurations, candidateConfiguration]
+        simpa [activeConfigurations (inferInstance), candidateConfiguration]
           using And.intro authorityKnownCandidate candidateBeforeAuthority.le
   have timeoutCandidateBridge :
       hasPotentialElectionMajority (joined := joinedNodes) (timeoutEffect state node) node ->
@@ -1462,12 +1464,12 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       timeoutPotentialMajorityBack source index role potential
     have futureMajority := timeoutFutureMajority candidateMajority
     let sourceConfiguration :=
-      currentConfiguration ((nodeOf state) source)
+      currentConfiguration (inferInstance) ((nodeOf state) source)
     let candidateConfiguration :=
-      currentConfiguration ((nodeOf state) node)
+      currentConfiguration (inferInstance) ((nodeOf state) node)
     have sourceActive :
         sourceConfiguration ∈
-          activeConfigurations
+          activeConfigurations (inferInstance)
             ((nodeOf (timeoutEffect state node)) source) := by
       simpa [activeConfigurationsEq, sourceConfiguration]
         using currentConfiguration_mem_activeConfigurations ((nodeOf state) source)
@@ -1514,12 +1516,12 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
         (configuration : Configuration Node)
         (sourceConfigurationActive :
           configuration ∈
-            activeConfigurations
+            activeConfigurations (inferInstance)
               ((nodeOf (timeoutEffect state node)) source))
         (configurationGoverns : configuration.index <= index)
         (candidateConfigurationActive :
           configuration ∈
-            activeConfigurations
+            activeConfigurations (inferInstance)
               ((nodeOf (timeoutEffect state node)) node)) :
         ((nodeOf (timeoutEffect state node)) source).log.take index <+:
           ((nodeOf (timeoutEffect state node)) node).log := by
@@ -1650,7 +1652,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           exact (by simpa [logEq] using direct.trans activationInCandidate)
         · have candidateKnownSource :
               candidateConfiguration ∈
-                allConfigurations ((nodeOf state) source).log := by
+                allConfigurations (inferInstance) ((nodeOf state) source).log := by
             have activationPrefixSource :
                 candidateActivation.history.take
                     candidateActivation.activationFrontier <+:
@@ -1670,10 +1672,10 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
                     candidateKnownActivation))
           have candidateActiveSource :
               candidateConfiguration ∈
-                activeConfigurations
+                activeConfigurations (inferInstance)
                   ((nodeOf (timeoutEffect state node)) source) := by
             rw [activeConfigurationsEq source]
-            simpa [activeConfigurations, sourceConfiguration]
+            simpa [activeConfigurations (inferInstance), sourceConfiguration]
               using And.intro candidateKnownSource sourceBeforeCandidate.le
           exact useShared candidateConfiguration candidateActiveSource
             (candidateWithin.trans (Nat.le_of_not_ge indexWithin))
@@ -1744,7 +1746,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             rw [sourceEntryTerm, activationEntryTerm] at monotone
             omega
         have candidateKnownSource
-            : candidateConfiguration ∈ allConfigurations ((nodeOf state) source).log := by
+            : candidateConfiguration ∈ allConfigurations (inferInstance) ((nodeOf state) source).log := by
           have candidateKnownActivation :=
             candidateCoverage.configuration_mem_activationHistoryTake
               activationQuorums.history
@@ -1756,10 +1758,10 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               (by simpa [candidateConfiguration] using candidateKnownActivation))
         have candidateActiveSource :
             candidateConfiguration ∈
-              activeConfigurations
+              activeConfigurations (inferInstance)
                 ((nodeOf (timeoutEffect state node)) source) := by
           rw [activeConfigurationsEq source]
-          simpa [activeConfigurations, sourceConfiguration]
+          simpa [activeConfigurations (inferInstance), sourceConfiguration]
             using And.intro candidateKnownSource sourceBeforeCandidate.le
         exact useShared candidateConfiguration candidateActiveSource
           (candidateWithin.trans frontierBeforeIndex.le)
@@ -1771,25 +1773,25 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
           sourceConfiguration = candidateConfiguration := by
         by_cases zero : sourceConfiguration.index = 0
         · have sourceImplicit :
-              sourceConfiguration = implicitConfiguration := by
+              sourceConfiguration = implicitConfiguration (inferInstance) := by
             apply
               allConfigurations_index_unique
                 (TxId := TxId) ((nodeOf state) source).log
             · simpa [sourceConfiguration]
                 using currentConfiguration_mem_allConfigurations ((nodeOf state) source)
             · simp [allConfigurations, implicitConfiguration]
-            · simpa [implicitConfiguration] using zero
+            · simpa [implicitConfiguration (inferInstance)] using zero
           have candidateZero : candidateConfiguration.index = 0 := by
             simpa [sameIndex] using zero
           have candidateImplicit :
-              candidateConfiguration = implicitConfiguration := by
+              candidateConfiguration = implicitConfiguration (inferInstance) := by
             apply
               allConfigurations_index_unique
                 (TxId := TxId) ((nodeOf state) node).log
             · simpa [candidateConfiguration]
                 using currentConfiguration_mem_allConfigurations ((nodeOf state) node)
             · simp [allConfigurations, implicitConfiguration]
-            · simpa [implicitConfiguration] using candidateZero
+            · simpa [implicitConfiguration (inferInstance)] using candidateZero
           exact sourceImplicit.trans candidateImplicit.symm
         · have sourcePositive : 0 < sourceConfiguration.index :=
             Nat.pos_of_ne_zero zero
@@ -1843,7 +1845,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
                   activationQuorums.history)
             simpa [sourceConfiguration, candidateConfiguration] using sourceBeforeEvent)
       have sourceKnownCandidate
-          : sourceConfiguration ∈ allConfigurations ((nodeOf state) node).log := by
+          : sourceConfiguration ∈ allConfigurations (inferInstance) ((nodeOf state) node).log := by
         have sourceKnownActivation :=
           sourceCoverage.configuration_mem_activationHistoryTake
             activationQuorums.history
@@ -1859,7 +1861,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
             (by
               rw [activeConfigurationsEq node]
               simpa [
-                activeConfigurations,
+                activeConfigurations (inferInstance),
                 candidateConfiguration
               ] using
                 And.intro sourceKnownCandidate candidateBeforeSource.le)
@@ -2616,7 +2618,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       exact
         facts.joinedCarriers.activeNodes candidate
           (by
-            simpa [activeNodeUnion, activeConfigurationsEq] using member)
+            simpa [activeNodeUnion (inferInstance), activeConfigurationsEq] using member)
     · intro candidate configuration member peer inNodes
       exact
         facts.joinedCarriers.configurationNodes candidate configuration
@@ -2695,9 +2697,9 @@ lemma timeoutPreservesSystemInductiveInvariant
           /\ (((nodeOf state) node).role = .follower
               \/ ((nodeOf state) node).role = .preVoteCandidate
               \/ ((nodeOf state) node).role = .candidate)
-          /\ ((node ∈ activeNodeUnion ((nodeOf state) node)
-                /\ campaignEligible node ((nodeOf state) node))
-              \/ node ∈ ((nodeOf state) node).retirementCompleted)
+          /\ ((node ∈ activeNodeUnion (inferInstance) ((nodeOf state) node)
+                /\ campaignEligible (inferInstance) node ((nodeOf state) node))
+              \/ node ∈ ((nodeOf state) node).retirementCompleted (inferInstance))
           /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
           /\ Not (INITIAL_PRE_VOTE_STATUS node = .enabled)))
     : SystemInductiveInvariant (joined := joinedNodes) (timeoutEffect state node) :=
@@ -2714,12 +2716,12 @@ lemma becomeCandidatePreservesSystemInductiveInvariant
     (enabled
       : (node ∈ joinedNodes
           /\ ((nodeOf state) node).role = .preVoteCandidate
-          /\ ((node ∈ activeNodeUnion ((nodeOf state) node)
-                /\ campaignEligible node ((nodeOf state) node))
-              \/ node ∈ ((nodeOf state) node).retirementCompleted)
+          /\ ((node ∈ activeNodeUnion (inferInstance) ((nodeOf state) node)
+                /\ campaignEligible (inferInstance) node ((nodeOf state) node))
+              \/ node ∈ ((nodeOf state) node).retirementCompleted (inferInstance))
           /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
           /\ INITIAL_PRE_VOTE_STATUS node = .enabled
-          /\ hasPreVoteMajority (nodeOf state node)))
+          /\ hasPreVoteMajority (inferInstance) (nodeOf state node)))
     : SystemInductiveInvariant (joined := joinedNodes)
         (becomeCandidateEffect state node) := by
   have preserved :=

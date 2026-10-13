@@ -11,19 +11,21 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /-- Empty initial commits and network queues need no commit evidence. -/
 lemma initialCommitEvidenceFacts
     (state : Model.State Node TxId)
-    (initialNodes : forall node, nodeOf state node = initialNodeState node)
+    (initialNodes : forall node, nodeOf state node = initialNodeState (inferInstance) node)
     (networkEmpty : state.network = [])
     (appendHistory : AppendRequestKey Node TxId -> List (Entry Node TxId))
     : Exists
@@ -47,7 +49,7 @@ lemma initialCommitEvidenceFacts
 /-- The proof-only maps are empty in the deterministic initial state. -/
 lemma initialSystemInductiveInvariant
     (state : Model.State Node TxId)
-    (initialNodes : forall node, nodeOf state node = initialNodeState node)
+    (initialNodes : forall node, nodeOf state node = initialNodeState (inferInstance) node)
     (networkEmpty : state.network = [])
     : SystemInductiveInvariant (joined := INITIAL_CONFIGURATION)
         ((state : Model.State Node TxId) : Model.State Node TxId) := by
@@ -347,22 +349,22 @@ lemma initialSystemInductiveInvariant
       · intro source index role current signature
         have impossible :
             isSignatureAt ([] : List (Entry Node TxId)) index = true := by
-          simpa [initialNodes, networkEmpty, initialNodeState] using signature
+          simpa [initialNodes, networkEmpty, initialNodeState (inferInstance)] using signature
         simp [initialNodes, networkEmpty, isSignatureAt, entryAt?] at impossible
       · intro source index role current signature
         have impossible :
             isSignatureAt ([] : List (Entry Node TxId)) index = true := by
-          simpa [initialNodes, networkEmpty, initialNodeState] using signature
+          simpa [initialNodes, networkEmpty, initialNodeState (inferInstance)] using signature
         simp [initialNodes, networkEmpty, isSignatureAt, entryAt?] at impossible
       · intro source index role current signature
         have impossible :
             isSignatureAt ([] : List (Entry Node TxId)) index = true := by
-          simpa [initialNodes, networkEmpty, initialNodeState] using signature
+          simpa [initialNodes, networkEmpty, initialNodeState (inferInstance)] using signature
         simp [initialNodes, networkEmpty, isSignatureAt, entryAt?] at impossible
       · intro left leftIndex role current signature
         have impossible :
             isSignatureAt ([] : List (Entry Node TxId)) leftIndex = true := by
-          simpa [initialNodes, networkEmpty, initialNodeState] using signature
+          simpa [initialNodes, networkEmpty, initialNodeState (inferInstance)] using signature
         simp [initialNodes, networkEmpty, isSignatureAt, entryAt?] at impossible
       · intro _ _ destination request _ queued _
         simp [initialNodes, networkEmpty] at queued
@@ -392,11 +394,11 @@ lemma initialSystemInductiveInvariant
   · constructor
     · intro node peer member
       simpa [initialNodes, networkEmpty,
-        initialNodeState, activeNodeUnion,
-        activeConfigurations, currentConfiguration,
-        currentConfigurationAt, allConfigurations,
+        initialNodeState (inferInstance), activeNodeUnion (inferInstance),
+        activeConfigurations (inferInstance), currentConfiguration (inferInstance),
+        currentConfigurationAt (inferInstance), allConfigurations (inferInstance),
         configurationsInLog, configurationsInLogFrom,
-        implicitConfiguration
+        implicitConfiguration (inferInstance)
       ] using member
     · intro node configuration member peer inNodes
       simp [initialNodes, networkEmpty,
@@ -404,7 +406,7 @@ lemma initialSystemInductiveInvariant
         configurationsInLog, configurationsInLogFrom
       ] at member
       subst configuration
-      simpa [initialNodes, networkEmpty, implicitConfiguration] using inNodes
+      simpa [initialNodes, networkEmpty, implicitConfiguration (inferInstance)] using inNodes
     · intro node peer member
       simp [initialNodes, networkEmpty, initialNodeState] at member
     · intro destination request member

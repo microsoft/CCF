@@ -21,7 +21,7 @@ namespace CCFRaft.Model
 open Shared
 open Local
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId]
 
 abbrev Envelope (Node TxId : Type) := Shared.Envelope Node (Message Node TxId)
 
@@ -31,19 +31,19 @@ abbrev State (Node TxId : Type) :=
 abbrev Action (Node TxId : Type) :=
   MultiNodeTransitionSystem.Action Node (Message Node TxId) (Input Node TxId)
 
-def protocol
+def protocol (config : InitialConfig Node)
     : MultiNodeTransitionSystem.Protocol
         Node (NodeState Node TxId) (Event Node TxId) (Message Node TxId) Notification
         (Input Node TxId) where
-  init node state := state = initialNodeState node
-  step := Local.step
+  init node state := state = initialNodeState config node
+  step := Local.step config
   receive := .receive
   internal := .internal
 
-/-- The network of `nodes`. Bootstrap membership, the initial leader, and
-pre-vote modes come from the `Bootstrap` instance. -/
-def transitionSystem (nodes : List Node)
+/-- The network of `nodes`. Initial membership, the initial leader, and
+pre-vote modes are supplied explicitly by `config`. -/
+def transitionSystem (config : InitialConfig Node) (nodes : List Node)
     : TransitionSystem (State Node TxId) (Action Node TxId) :=
-  MultiNodeTransitionSystem.lift nodes protocol
+  MultiNodeTransitionSystem.lift nodes (protocol config)
 
 end CCFRaft.Model

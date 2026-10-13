@@ -4,8 +4,7 @@
 import CCFRaft.Proofs.Invariant.Messages
 
 open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM Bootstrap Configuration Entry EntryContent INITIAL_CONFIGURATION
-    INITIAL_LEADER INITIAL_PRE_VOTE_STATUS MembershipState NodeState PreVoteStatus Role
+  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState PreVoteStatus Role
     activeConfigurations activeNodeUnion allConfigurations allRetiredCommittedNodes
     becomeCandidateNodeState campaignEligible configurationsInLog configurationsInLogFrom
     currentConfiguration currentConfigurationAt entryAt? findHighestPossibleMatch
@@ -16,15 +15,16 @@ open CCFRaft.Model.Local (
     retiredCommittedIndexInLog retiredCommittedNodesUpTo retiredCommittedNodesUpToFrom
     retirementCommittableIndexInLog retirementCompletedNodes
     retirementIndexFromConfigurations retirementIndexInLog signatureIndexAfterFrom termAt
-    updateIndex
   )
 
 set_option autoImplicit false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 variable {joined : Finset Node}
 
 /-- Every node's commit index points within its current log. -/
@@ -63,7 +63,7 @@ later `UpdateTerm`.
 namespace CCFRaft.Proofs.Invariant
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 variable {joined : Finset Node}
 
 /-- A proof-only record of the candidate selected by a voter in a term. -/
@@ -127,13 +127,13 @@ def ActivationRecord.Valid (record : ActivationRecord Node TxId) : Prop :=
   record.priorCommitIndex < record.activationFrontier
   /\ record.activationFrontier <= record.history.length
   /\ record.oldConfiguration
-      = currentConfigurationAt record.history record.priorCommitIndex
+      = currentConfigurationAt (inferInstance) record.history record.priorCommitIndex
   /\ record.newConfiguration
-      = currentConfigurationAt record.history record.activationFrontier
+      = currentConfigurationAt (inferInstance) record.history record.activationFrontier
   /\ Not (record.oldConfiguration = record.newConfiguration)
   /\ isSignatureAt record.history record.activationFrontier = true
   /\ record.governingActive
-      = ((allConfigurations record.history).filter
+      = ((allConfigurations (inferInstance) record.history).filter
           fun configuration =>
             record.oldConfiguration.index <= configuration.index
             /\ configuration.index <= record.activationFrontier)
@@ -152,7 +152,7 @@ def ActivationRecord.Permanent (record : ActivationRecord Node TxId) : Prop :=
     record.activationFrontier <= frontier
     -> frontier <= record.history.length
     -> record.newConfiguration.index
-        <= (currentConfigurationAt record.history frontier).index
+        <= (currentConfigurationAt (inferInstance) record.history frontier).index
 
 /--
 Skeleton history facts for the future reconfiguration proof. Records are
@@ -271,10 +271,10 @@ structure ConfigurationCoverageWitness
   activation : ActivationRecord Node TxId
   stored : activations activationIndex = some activation
   configurationCovered
-    : currentConfiguration ((nodeOf state) node) ∈ activation.governingActive
+    : currentConfiguration (inferInstance) ((nodeOf state) node) ∈ activation.governingActive
   activationTermBound : activation.activationTerm <= ((nodeOf state) node).currentTerm
   configurationIndexBound
-    : (currentConfiguration ((nodeOf state) node)).index
+    : (currentConfiguration (inferInstance) ((nodeOf state) node)).index
       <= min ((nodeOf state) node).commitIndex activation.activationFrontier
   historyAgreement
     : activation.history.take
@@ -284,7 +284,7 @@ structure ConfigurationCoverageWitness
   higherAuthority
     : forall higherIndex higher,
         activations higherIndex = some higher
-        -> (currentConfiguration ((nodeOf state) node)).index
+        -> (currentConfiguration (inferInstance) ((nodeOf state) node)).index
             < higher.newConfiguration.index
         -> activation.history.take
               (min ((nodeOf state) node).commitIndex activation.activationFrontier)
@@ -293,7 +293,7 @@ structure ConfigurationCoverageWitness
     : forall lowerIndex lower,
         activations lowerIndex = some lower
         -> lower.newConfiguration.index
-            < (currentConfiguration ((nodeOf state) node)).index
+            < (currentConfiguration (inferInstance) ((nodeOf state) node)).index
         -> lower.history.take lower.activationFrontier
             <+: activation.history.take
                   (min ((nodeOf state) node).commitIndex activation.activationFrontier)
@@ -301,8 +301,8 @@ structure ConfigurationCoverageWitness
     : forall sameIndex same,
         activations sameIndex = some same
         -> same.newConfiguration.index
-            = (currentConfiguration ((nodeOf state) node)).index
-        -> same.newConfiguration = currentConfiguration ((nodeOf state) node)
+            = (currentConfiguration (inferInstance) ((nodeOf state) node)).index
+        -> same.newConfiguration = currentConfiguration (inferInstance) ((nodeOf state) node)
   candidateTermStrict
     : ((nodeOf state) node).role = .candidate
       -> activation.activationTerm < ((nodeOf state) node).currentTerm
@@ -317,7 +317,7 @@ def ConfigurationCoverageFacts
     (activations : ActivationHistory Node TxId)
     : Prop :=
   forall node,
-    0 < (currentConfiguration ((nodeOf state) node)).index
+    0 < (currentConfiguration (inferInstance) ((nodeOf state) node)).index
     -> Nonempty (ConfigurationCoverageWitness state activations node)
 
 structure ConfigurationFrontierCoverageWitness
@@ -328,10 +328,10 @@ structure ConfigurationFrontierCoverageWitness
   activation : ActivationRecord Node TxId
   stored : activations activationIndex = some activation
   configurationCovered
-    : currentConfigurationAt history frontier ∈ activation.governingActive
+    : currentConfigurationAt (inferInstance) history frontier ∈ activation.governingActive
   activationTermBound : activation.activationTerm <= termBound
   configurationIndexBound
-    : (currentConfigurationAt history frontier).index
+    : (currentConfigurationAt (inferInstance) history frontier).index
       <= min frontier activation.activationFrontier
   historyAgreement
     : activation.history.take (min frontier activation.activationFrontier)
@@ -339,20 +339,20 @@ structure ConfigurationFrontierCoverageWitness
   higherAuthority
     : forall higherIndex higher,
         activations higherIndex = some higher
-        -> (currentConfigurationAt history frontier).index < higher.newConfiguration.index
+        -> (currentConfigurationAt (inferInstance) history frontier).index < higher.newConfiguration.index
         -> activation.history.take (min frontier activation.activationFrontier)
             <+: higher.history.take higher.activationFrontier
   lowerAuthority
     : forall lowerIndex lower,
         activations lowerIndex = some lower
-        -> lower.newConfiguration.index < (currentConfigurationAt history frontier).index
+        -> lower.newConfiguration.index < (currentConfigurationAt (inferInstance) history frontier).index
         -> lower.history.take lower.activationFrontier
             <+: activation.history.take (min frontier activation.activationFrontier)
   sameAuthority
     : forall sameIndex same,
         activations sameIndex = some same
-        -> same.newConfiguration.index = (currentConfigurationAt history frontier).index
-        -> same.newConfiguration = currentConfigurationAt history frontier
+        -> same.newConfiguration.index = (currentConfigurationAt (inferInstance) history frontier).index
+        -> same.newConfiguration = currentConfigurationAt (inferInstance) history frontier
 
 def CommittedConfigurationCoverage
     (state : Model.State Node TxId)
@@ -360,7 +360,7 @@ def CommittedConfigurationCoverage
     : Prop :=
   forall node frontier,
     frontier <= ((nodeOf state) node).commitIndex
-    -> 0 < (currentConfigurationAt ((nodeOf state) node).log frontier).index
+    -> 0 < (currentConfigurationAt (inferInstance) ((nodeOf state) node).log frontier).index
     -> isSignatureAt ((nodeOf state) node).log frontier = true
     -> Nonempty
         (ConfigurationFrontierCoverageWitness
@@ -378,7 +378,7 @@ def QueuedConfigurationCoverage
         frontier
           <= min request.2.2.leaderCommit
               (request.2.2.prevLogIndex + request.2.2.entries.length)
-        -> 0 < (currentConfigurationAt (appendHistory request) frontier).index
+        -> 0 < (currentConfigurationAt (inferInstance) (appendHistory request) frontier).index
         -> isSignatureAt (appendHistory request) frontier = true
         -> Nonempty
             (ConfigurationFrontierCoverageWitness
@@ -393,7 +393,7 @@ def BallotConfigurationCoverage
     (term : Nat)
     (record : ElectionRecord Node TxId)
     : Prop :=
-  let authority := currentConfigurationAt record.ballotLog record.ballotCommitIndex
+  let authority := currentConfigurationAt (inferInstance) record.ballotLog record.ballotCommitIndex
   0 < authority.index
   -> Exists
       fun activationIndex =>
@@ -723,7 +723,7 @@ noncomputable def effectiveElectionVoters (state : Model.State Node TxId)
 /-- A strict quorum of processed or queued granted votes. -/
 def hasEffectiveElectionMajority (state : Model.State Node TxId) (candidate : Node)
     : Prop :=
-  (activeConfigurations ((nodeOf state) candidate)).all
+  (activeConfigurations (inferInstance) ((nodeOf state) candidate)).all
     fun configuration =>
       decide
         (hasConfigurationMajority
@@ -763,7 +763,7 @@ noncomputable def potentialElectionVoters (state : Model.State Node TxId)
 /-- A strict quorum of persistent or currently eligible election voters. -/
 def hasPotentialElectionMajority (state : Model.State Node TxId) (candidate : Node)
     : Prop :=
-  (activeConfigurations ((nodeOf state) candidate)).all
+  (activeConfigurations (inferInstance) ((nodeOf state) candidate)).all
     fun configuration =>
       decide
         (hasConfigurationMajority
@@ -796,7 +796,7 @@ configuration; relaxing voter timing does not relax quorum authority.
 -/
 def hasRelaxedElectionMajority (state : Model.State Node TxId) (candidate : Node)
     : Prop :=
-  (activeConfigurations ((nodeOf state) candidate)).all
+  (activeConfigurations (inferInstance) ((nodeOf state) candidate)).all
     fun configuration =>
       decide
         (hasConfigurationMajority
@@ -1048,7 +1048,7 @@ structure ElectionHistoryFacts
     : forall term record,
         elections term = some record
         -> record.ballotActive
-            = activeConfigurations
+            = activeConfigurations (inferInstance)
                 {
                   ((nodeOf state) record.leader) with
                     log := record.ballotLog
@@ -1155,7 +1155,7 @@ structure ElectionConfigurationFacts
   ballotCurrentAuthorityActive
     : forall term record,
         elections term = some record
-        -> currentConfigurationAt record.ballotLog record.ballotCommitIndex
+        -> currentConfigurationAt (inferInstance) record.ballotLog record.ballotCommitIndex
             ∈ record.ballotActive
   supporterCurrentHistory : ActivationSupporterCurrentHistory state elections activations
   potentialShared
@@ -1167,7 +1167,7 @@ structure ElectionConfigurationFacts
         -> Exists
             fun configuration =>
               configuration ∈ record.ballotActive
-              /\ configuration ∈ activeConfigurations ((nodeOf state) candidate)
+              /\ configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate)
   effectiveCandidatesShared
     : forall left right,
         ((nodeOf state) left).role = .candidate
@@ -1177,8 +1177,8 @@ structure ElectionConfigurationFacts
         -> hasEffectiveElectionMajority (joined := joined) state right
         -> Exists
             fun configuration =>
-              configuration ∈ activeConfigurations ((nodeOf state) left)
-              /\ configuration ∈ activeConfigurations ((nodeOf state) right)
+              configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) left)
+              /\ configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) right)
   candidateEntriesBeforeTerm
     : forall candidate,
         ((nodeOf state) candidate).role = .candidate
@@ -1227,7 +1227,7 @@ def hasEffectiveMajorityAt
     (leader : Node)
     (index : Nat)
     : Prop :=
-  (activeConfigurations ((nodeOf state) leader)).all
+  (activeConfigurations (inferInstance) ((nodeOf state) leader)).all
     fun configuration =>
       decide
         (configuration.index <= index
@@ -1255,7 +1255,7 @@ def canProduceAppendAckAt
     fun nextNode =>
       Exists
         fun response =>
-          Model.Local.acceptAppendEntriesRequest? request.2.1 node request.2.2
+          Model.Local.acceptAppendEntriesRequest? (inferInstance) request.2.1 node request.2.2
             = some (nextNode, response)
           /\ response.success = true
           /\ index <= response.lastLogIndex
@@ -1318,7 +1318,7 @@ def hasPotentialMajorityAt
     (leader : Node)
     (index : Nat)
     : Prop :=
-  (activeConfigurations ((nodeOf state) leader)).all
+  (activeConfigurations (inferInstance) ((nodeOf state) leader)).all
     fun configuration =>
       decide
         (configuration.index <= index
@@ -1364,7 +1364,7 @@ structure ActivationQuorumFacts
             -> ((nodeOf state) source).log.take index <+: record.promotionLog
                 \/ Exists
                     fun configuration =>
-                      configuration ∈ activeConfigurations ((nodeOf state) source)
+                      configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) source)
                       /\ configuration.index <= index
                       /\ configuration ∈ record.ballotActive
   candidateBridge
@@ -1382,9 +1382,9 @@ structure ActivationQuorumFacts
             -> ((nodeOf state) source).log.take index <+: ((nodeOf state) candidate).log
                 \/ Exists
                     fun configuration =>
-                      configuration ∈ activeConfigurations ((nodeOf state) source)
+                      configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) source)
                       /\ configuration.index <= index
-                      /\ configuration ∈ activeConfigurations ((nodeOf state) candidate)
+                      /\ configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate)
   committedBridge
     : forall source index,
         ((nodeOf state) source).role = .leader
@@ -1397,9 +1397,9 @@ structure ActivationQuorumFacts
                 <+: ((nodeOf state) source).log.take index
             \/ Exists
                 fun configuration =>
-                  configuration ∈ activeConfigurations ((nodeOf state) source)
+                  configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) source)
                   /\ configuration.index <= index
-                  /\ configuration = currentConfiguration ((nodeOf state) node)
+                  /\ configuration = currentConfiguration (inferInstance) ((nodeOf state) node)
   potentialBridge
     : forall left leftIndex,
         ((nodeOf state) left).role = .leader
@@ -1419,9 +1419,9 @@ structure ActivationQuorumFacts
                     <+: ((nodeOf state) left).log.take leftIndex
                 \/ Exists
                     fun configuration =>
-                      configuration ∈ activeConfigurations ((nodeOf state) left)
+                      configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) left)
                       /\ configuration.index <= leftIndex
-                      /\ configuration ∈ activeConfigurations ((nodeOf state) right)
+                      /\ configuration ∈ activeConfigurations (inferInstance) ((nodeOf state) right)
                       /\ configuration.index <= rightIndex
   queuedComparable
     : forall activationIndex activation destination request,
@@ -1620,7 +1620,7 @@ def CommitEvidence.Valid
   /\ termAt evidence.history evidence.commitFrontier = evidence.commitTerm
   /\ evidence.supportedLength <= evidence.commitFrontier
   /\ evidence.history.take evidence.supportedLength = supportedPrefix
-  /\ evidence.authority = currentConfigurationAt evidence.history evidence.commitFrontier
+  /\ evidence.authority = currentConfigurationAt (inferInstance) evidence.history evidence.commitFrontier
   /\ hasConfigurationMajority evidence.ackQuorum evidence.authority
   /\ isSignatureAt evidence.history evidence.commitFrontier = true
   /\ (0 < evidence.supportedLength
@@ -1767,7 +1767,7 @@ structure ActivationEvidenceFacts
         KnownCommitEvidence
           state appendHistory nodeEvidence requestEvidence
           evidence supportedPrefix
-        -> evidence.authority = implicitConfiguration
+        -> evidence.authority = implicitConfiguration (inferInstance)
             \/ Exists
                 fun activationIndex =>
                   Exists
@@ -1822,7 +1822,7 @@ structure ActivationEvidenceFacts
             -> evidence.commitTerm < ((nodeOf state) candidate).currentTerm
             -> evidence.history.take evidence.commitFrontier
                   <+: ((nodeOf state) candidate).log
-                \/ evidence.authority ∈ activeConfigurations ((nodeOf state) candidate)
+                \/ evidence.authority ∈ activeConfigurations (inferInstance) ((nodeOf state) candidate)
 
 /--
 Every higher-term election winner already contains each lower-term current-term
@@ -1864,7 +1864,7 @@ def LeadersHaveElectionWitness (state : Model.State Node TxId) : Prop :=
     -> ((leader = INITIAL_LEADER /\ ((nodeOf state) leader).currentTerm = BOOTSTRAP_TERM)
         \/ Exists
             fun configuration =>
-              configuration ∈ allConfigurations ((nodeOf state) leader).log
+              configuration ∈ allConfigurations (inferInstance) ((nodeOf state) leader).log
               /\ hasConfigurationMajority ((nodeOf state) leader).votesGranted
                   configuration)
 
@@ -1936,10 +1936,10 @@ structure RuntimeNodeCarrierFacts (state : Model.State Node TxId) : Prop where
 
 /-- Every runtime support carrier contains only nodes which have joined. -/
 structure JoinedCarrierFacts (state : Model.State Node TxId) : Prop where
-  activeNodes : forall node, activeNodeUnion ((nodeOf state) node) ⊆ joined
+  activeNodes : forall node, activeNodeUnion (inferInstance) ((nodeOf state) node) ⊆ joined
   configurationNodes
     : forall node configuration,
-        configuration ∈ allConfigurations ((nodeOf state) node).log
+        configuration ∈ allConfigurations (inferInstance) ((nodeOf state) node).log
         -> configuration.nodes ⊆ joined
   grantedVotes : forall node, ((nodeOf state) node).votesGranted ⊆ joined
   voteRequestDestinations
@@ -1954,7 +1954,7 @@ structure JoinedCarrierFacts (state : Model.State Node TxId) : Prop where
     : forall destination request,
         (appendRequestEnvelope request ∈ state.network /\ request.2.1 = destination)
         -> forall configuration,
-            configuration ∈ allConfigurations request.2.2.entries
+            configuration ∈ allConfigurations (inferInstance) request.2.2.entries
             -> configuration.nodes ⊆ joined
   voteResponseSources
     : forall destination response,
@@ -2033,7 +2033,7 @@ structure StateInvariant (state : Model.State Node TxId) (joined : Finset Node)
   safety : SystemInductiveInvariant (joined := joined) state
   distinct : (state.nodes.map Prod.fst).Nodup
   initialJoined : INITIAL_CONFIGURATION ⊆ joined
-  unjoined : forall node, node ∉ joined -> nodeOf state node = initialNodeState node
+  unjoined : forall node, node ∉ joined -> nodeOf state node = initialNodeState (inferInstance) node
   endpoints
     : forall envelope,
         envelope ∈ state.network -> envelope.source ∈ joined /\ envelope.target ∈ joined

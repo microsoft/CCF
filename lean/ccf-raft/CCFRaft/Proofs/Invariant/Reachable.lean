@@ -16,13 +16,15 @@ changes extend it without changing the concrete state representation.
 
 namespace CCFRaft.Proofs.Invariant
 
-open Shared Shared.MultiNodeTransitionSystem Concrete
-open Model.Local (Bootstrap INITIAL_CONFIGURATION)
+open CCFRaft.Proofs.Config
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+open Shared Shared.MultiNodeTransitionSystem Concrete
+open Model.Local (InitialConfig INITIAL_CONFIGURATION)
+
+variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 theorem initial_inv {nodes : List Node} {state : Model.State Node TxId}
-    (initialized : (Model.transitionSystem nodes).init state)
+    (initialized : (Model.transitionSystem (inferInstance) nodes).init state)
     : Inv state := by
   refine ⟨INITIAL_CONFIGURATION, ?_⟩
   exact {
@@ -37,7 +39,7 @@ theorem initial_inv {nodes : List Node} {state : Model.State Node TxId}
 
 theorem step_inv {nodes : List Node} {before after : Model.State Node TxId}
     {action : Model.Action Node TxId} (invariant : Inv before)
-    (stepped : (Model.transitionSystem nodes).step before action = some after)
+    (stepped : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
     : Inv after := by
   obtain ⟨joined, invariant⟩ := invariant
   cases action with
@@ -56,7 +58,7 @@ theorem step_inv {nodes : List Node} {before after : Model.State Node TxId}
       ⟩
 
 theorem reachable_inv {nodes : List Node} {c : Model.State Node TxId}
-    (reachable : (Model.transitionSystem (TxId := TxId) nodes).Reachable c)
+    (reachable : (Model.transitionSystem (inferInstance) (TxId := TxId) nodes).Reachable c)
     : Inv c := by
   induction reachable with
   | initial initialized => exact initial_inv initialized

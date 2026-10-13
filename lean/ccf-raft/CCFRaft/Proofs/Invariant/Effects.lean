@@ -11,12 +11,14 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 @[concrete_effects]
 def initializeConfigurationEffect (state : Model.State Node TxId) (node : Node)
@@ -46,7 +48,7 @@ def clientRequestEffect (state : Model.State Node TxId) (node : Node) (txId : Tx
       content := .transaction txId
     }
   let refreshed :=
-    refreshRetirementState node { nodeState with log := nodeState.log ++ [entry] }
+    refreshRetirementState (inferInstance) node { nodeState with log := nodeState.log ++ [entry] }
   { state with nodes := replaceNode state.nodes node refreshed }
 
 @[concrete_effects]
@@ -54,7 +56,7 @@ def changeConfigurationEffect (state : Model.State Node TxId) (source : Node)
     (newConfiguration : Finset Node)
     : Model.State Node TxId :=
   let sourceState := (nodeOf state) source
-  let previousConfiguration := (latestConfiguration sourceState).nodes
+  let previousConfiguration := (latestConfiguration (inferInstance) sourceState).nodes
   let addedNodes := newConfiguration \ previousConfiguration
   let entry : Entry Node TxId :=
     {
@@ -63,7 +65,7 @@ def changeConfigurationEffect (state : Model.State Node TxId) (source : Node)
     }
   let appended := { sourceState with log := sourceState.log ++ [entry] }
   let nextSourceState :=
-    refreshRetirementState source
+    refreshRetirementState (inferInstance) source
       {
         appended with
           sentIndex :=
@@ -80,7 +82,7 @@ def appendRetiredCommittedEffect (state : Model.State Node TxId) (node : Node)
     : Model.State Node TxId :=
   let nodeState := (nodeOf state) node
   let pending :=
-    (nodeOf state node).retirementCompleted
+    (nodeOf state node).retirementCompleted (inferInstance)
     \ allRetiredCommittedNodes (nodeOf state node).log
   let entry : Entry Node TxId :=
     {
@@ -88,7 +90,7 @@ def appendRetiredCommittedEffect (state : Model.State Node TxId) (node : Node)
       content := .retiredCommitted pending
     }
   let refreshed :=
-    refreshRetirementState node { nodeState with log := nodeState.log ++ [entry] }
+    refreshRetirementState (inferInstance) node { nodeState with log := nodeState.log ++ [entry] }
   { state with nodes := replaceNode state.nodes node refreshed }
 
 @[concrete_effects]
@@ -101,7 +103,7 @@ def signCommittableMessagesEffect (state : Model.State Node TxId) (node : Node)
       content := .signature
     }
   let refreshed :=
-    refreshRetirementState node { nodeState with log := nodeState.log ++ [entry] }
+    refreshRetirementState (inferInstance) node { nodeState with log := nodeState.log ++ [entry] }
   { state with nodes := replaceNode state.nodes node refreshed }
 
 @[concrete_effects]
@@ -117,7 +119,7 @@ def appendEntriesEffect (state : Model.State Node TxId) (source : Node)
           {
             sourceState with
               sentIndex :=
-                updateIndex sourceState.sentIndex destination batchEnd
+                Function.update sourceState.sentIndex destination batchEnd
           }
       network := state.network ++ [appendRequestEnvelope request]
   }
@@ -176,7 +178,7 @@ def becomeLeaderEffect (state : Model.State Node TxId) (node : Node)
   let log := nodeState.log.take (maxCommittableIndex nodeState.log)
   let truncated := { nodeState with log }
   let nextNode :=
-    refreshRetirementState node
+    refreshRetirementState (inferInstance) node
       {
         truncated with
           role := .leader

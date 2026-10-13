@@ -19,6 +19,7 @@ raft scenario -(raft_driver)-> raw stdout
 | Property statements                | `CCFRaft/Properties.lean`                                |
 | Proof of each property             | `CCFRaft/Proof.lean`, one theorem per property           |
 | Node state and ledger functions    | `CCFRaft/Model/Node.lean`                                |
+| Messages between nodes             | `CCFRaft/Model/Messages.lean`                            |
 | Single-node protocol               | `CCFRaft/Model/Local.lean`                               |
 | Network composition                | `CCFRaft/Model.lean`, `CCFRaft/Shared/`                  |
 | Definitions used by the statements | `CCFRaft/Properties/Utils.lean`                          |
@@ -32,16 +33,37 @@ verify the proof implementations under `Proofs/`, which `.gitattributes`
 marks `linguist-generated`.
 
 `CCFRaft/Shared/` is a copy of `DisasterRecovery/Shared/` from the
-`dr-rework` branch, with the namespace renamed.
+`dr-rework` branch, with the namespace renamed and `Effect` changed to
+`StateT Outputs Option` so that a local step can fail when it is disabled.
 
 ## Model
 
-`Model/Local.lean` defines one node. `Local.step` handles one event: an
+`Model/Node.lean` defines a node's state and the pure queries over its log.
+`configurationHistory config log` includes initial membership at index zero
+and reconfigurations at their one-based log positions.
+`activeConfigurations config log commitIndex` retains the last committed
+configuration and every pending one. `configurationMembers` takes the union
+of any supplied configuration list.
+
+Retirement queries use the same history: `retirementIndexInLog` finds the
+first change from membership to absence. `firstLogIndexAfter` finds a matching
+signature or retirement record strictly after a supplied index.
+`retiredCommittedNodes` unions the nodes named by retirement records in a
+log; passing `log.take commitIndex` restricts it to committed records.
+A node's stored `retiredCommittedIndex` is the first commit frontier that
+covered its retirement record, not the record's own position.
+
+`Model/Messages.lean` defines the AppendEntries and RequestVote packets
+nodes exchange, including the pre-vote and vote-proposal variants, and the
+term each one carries.
+
+`Model/Local.lean` defines how a node behaves. `Local.step` handles one event: an
 `Input`, such as a timeout or a client request, or a message delivered from a
-source node. It returns `none` for a disabled event. For an enabled event it
-returns the next node state and sends messages through the host's `send`
-callback. A node reads only its own state, the static `Bootstrap`
-configuration, and the delivered message.
+source node. It runs in `NodeEffect`, which records sent messages and can
+fail. A disabled event fails, discarding any messages sent before the
+failure. An enabled event returns the next node state and sends messages
+through the `send` callback in `caps`. A node reads only its own state, the explicitly supplied
+`InitialConfig` value, and the delivered message.
 
 A message with a newer term moves the receiver to that term as a follower
 before the receiver handles it, in the same step. Vote proposals never
@@ -65,7 +87,7 @@ configuration, and client transaction identifiers need not be unique.
 ## Properties
 
 Each claim quantifies every node and transaction identifier type, every
-`Bootstrap` instance, every node list, and every valid trace of
+`InitialConfig` value, every node list, and every valid trace of
 `Model.transitionSystem`.
 
 - `ElectionSafety`: no two distinct nodes lead in the same term.
@@ -99,7 +121,7 @@ distinct node-table keys, bootstrap members and envelope endpoints in `J`,
 and nodes outside `J` to remain in `initialNodeState`.
 
 `Proofs/Invariant/State.lean` defines the only total node accessor,
-`nodeOf c n := (nodeState c n).getD (initialNodeState n)`, and proves lookup
+`nodeOf c n := (nodeState c n).getD (initialNodeState config n)`, and proves lookup
 laws for the concrete node list. Messages in flight are the model's own
 envelopes in `c.network`. Message histories use `(source, target, payload)`
 keys whose payloads are the types in `Model.Local`. The joined set stays

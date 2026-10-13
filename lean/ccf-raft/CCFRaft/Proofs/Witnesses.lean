@@ -13,8 +13,10 @@ evaluates every step, so each witness is a real trace of the model.
 
 namespace CCFRaft.Proofs.Witnesses
 
+open CCFRaft.Proofs.Config
+
 open Shared Shared.Execution Shared.MultiNodeTransitionSystem
-open CCFRaft.Model.Local (NodeState Bootstrap initialNodeState)
+open CCFRaft.Model.Local (NodeState InitialConfig initialNodeState)
 
 section Runs
 
@@ -122,17 +124,17 @@ end Runs
 @[reducible]
 def bootstrapOf (configuration : Finset Nat) (leader : Nat)
     (member : leader ∈ configuration)
-    : Bootstrap Nat where
+    : InitialConfig Nat where
   configuration
   leader
   leader_mem := member
 
 /-- Every listed node in its initial state, all active, with an empty network. -/
-def start [Bootstrap Nat] (nodes : List Nat) : CCFRaft.Model.State Nat Nat :=
-  { nodes := nodes.map fun node => (node, initialNodeState node), active := nodes }
+def start [InitialConfig Nat] (nodes : List Nat) : CCFRaft.Model.State Nat Nat :=
+  { nodes := nodes.map fun node => (node, initialNodeState (inferInstance) node), active := nodes }
 
-theorem start_initial [Bootstrap Nat] {nodes : List Nat} (distinct : nodes.Nodup)
-    : (CCFRaft.Model.transitionSystem (TxId := Nat) nodes).init (start nodes) := by
+theorem start_initial [InitialConfig Nat] {nodes : List Nat} (distinct : nodes.Nodup)
+    : (CCFRaft.Model.transitionSystem (inferInstance) (TxId := Nat) nodes).init (start nodes) := by
   refine ⟨
     distinct,
     by simp [start, Function.comp_def],
@@ -173,7 +175,7 @@ theorem member_of_nodeState {state : CCFRaft.Model.State Nat Nat} {node : Nat}
 
 section Election
 
-local instance : Bootstrap Nat := bootstrapOf {0, 1, 2} 0 (by decide)
+local instance : InitialConfig Nat := bootstrapOf {0, 1, 2} 0 (by decide)
 
 /-- Node 1 wins term 3 with node 2's vote while node 0 still leads term 2. -/
 def electionChoices
@@ -186,7 +188,7 @@ def electionChoices
     input 1 .becomeLeader
   ]
 
-def electionSystem := CCFRaft.Model.transitionSystem (TxId := Nat) [0, 1, 2]
+def electionSystem := CCFRaft.Model.transitionSystem (inferInstance) (TxId := Nat) [0, 1, 2]
 
 theorem election_finished
     : (run electionSystem (start [0, 1, 2]) electionChoices).isSome := by
@@ -203,7 +205,7 @@ theorem election_present (node : Nat) (listed : node ∈ [0, 1, 2])
 end Election
 
 theorem election_safety_witness : Properties.ElectionSafetyWitness := by
-  let _ : Bootstrap Nat := bootstrapOf {0, 1, 2} 0 (by decide)
+  let _ : InitialConfig Nat := bootstrapOf {0, 1, 2} 0 (by decide)
   refine ⟨
     Nat,
     Nat,
@@ -228,7 +230,7 @@ theorem election_safety_witness : Properties.ElectionSafetyWitness := by
 
 section Commit
 
-local instance : Bootstrap Nat := bootstrapOf {0, 1} 0 (by decide)
+local instance : InitialConfig Nat := bootstrapOf {0, 1} 0 (by decide)
 
 /-- Node 0 commits the bootstrap signature with node 1, then tells node 1. -/
 def commitChoices : List (CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Nat Nat) :=
@@ -243,7 +245,7 @@ def commitChoices : List (CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Na
     deliverOldest
   ]
 
-def commitSystem := CCFRaft.Model.transitionSystem (TxId := Nat) [0, 1]
+def commitSystem := CCFRaft.Model.transitionSystem (inferInstance) (TxId := Nat) [0, 1]
 
 theorem commit_finished : (run commitSystem (start [0, 1]) commitChoices).isSome := by
   decide
@@ -270,7 +272,7 @@ end Commit
 
 /-- Node 0 has committed in one state, and node 1 in a later one. -/
 theorem committed_logs_prefix_witness : Properties.CommittedLogsPrefixWitness := by
-  let _ : Bootstrap Nat := bootstrapOf {0, 1} 0 (by decide)
+  let _ : InitialConfig Nat := bootstrapOf {0, 1} 0 (by decide)
   refine ⟨
     Nat,
     Nat,
@@ -297,7 +299,7 @@ theorem committed_logs_prefix_witness : Properties.CommittedLogsPrefixWitness :=
 
 section Single
 
-local instance : Bootstrap Nat := bootstrapOf {0} 0 (by decide)
+local instance : InitialConfig Nat := bootstrapOf {0} 0 (by decide)
 
 /-- A single bootstrap leader commits its first signature. -/
 def singleChoices : List (CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Nat Nat) :=
@@ -307,7 +309,7 @@ def singleChoices : List (CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Na
     input 0 .advanceCommitIndex
   ]
 
-def singleSystem := CCFRaft.Model.transitionSystem (TxId := Nat) [0]
+def singleSystem := CCFRaft.Model.transitionSystem (inferInstance) (TxId := Nat) [0]
 
 theorem single_finished : (run singleSystem (start [0]) singleChoices).isSome := by
   decide
@@ -321,7 +323,7 @@ end Single
 
 theorem committed_frontier_is_signature_witness
     : Properties.CommittedFrontierIsSignatureWitness := by
-  let _ : Bootstrap Nat := bootstrapOf {0} 0 (by decide)
+  let _ : InitialConfig Nat := bootstrapOf {0} 0 (by decide)
   exact ⟨
     Nat,
     Nat,

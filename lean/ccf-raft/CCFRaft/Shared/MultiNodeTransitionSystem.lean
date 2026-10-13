@@ -31,7 +31,7 @@ structure Protocol (Node LocalState LocalAction Message Notification Input : Typ
   init : Node -> LocalState -> Prop
   step
     : Capabilities Node Message Notification -> Node -> LocalState -> LocalAction
-      -> Option (Effect Node Message Notification LocalState)
+      -> Effect Node Message Notification LocalState
   receive : Node -> Message -> LocalAction
   internal : Input -> LocalAction
 
@@ -44,15 +44,14 @@ structure LocalStep (Node LocalState LocalAction Message Notification : Type) wh
   effects : Outputs Node Message Notification
 
 /-- `s` is a real step: running the protocol from `s.before` on `s.action` with
-recording capabilities yields exactly `s.after` and `s.effects`. No reachability
-or activity is required. -/
+recording capabilities succeeds with exactly `s.after` and `s.effects`. No
+reachability or activity is required. -/
 def Protocol.ValidStep
     (protocol : Protocol Node LocalState LocalAction Message Notification Input)
     (s : LocalStep Node LocalState LocalAction Message Notification)
     : Prop :=
-  exists execute,
-    protocol.step (Capabilities.record s.node) s.node s.before s.action = some execute
-    /\ execute.run {} = (s.after, s.effects)
+  (protocol.step (Capabilities.record s.node) s.node s.before s.action).run {}
+  = some (s.after, s.effects)
 
 /-- The state of `node`, if it is in the node table. -/
 def nodeState [BEq Node] (state : State Node LocalState Message) (node : Node)
@@ -84,8 +83,8 @@ def next [BEq Node] [BEq Message]
                                       )
   guard (state.active.contains node)
   let before <- nodeState state node
-  let execute <- protocol.step (Capabilities.record node) node before event
-  let (after, effects) := execute.run {}
+  let execute := protocol.step (Capabilities.record node) node before event
+  let (after, effects) <- execute.run {}
   pure
     {
       state with

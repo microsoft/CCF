@@ -11,13 +11,15 @@ set_option linter.unusedSimpArgs false
 
 namespace CCFRaft.Proofs.Invariant
 
+open CCFRaft.Proofs.Config
+
 open CCFRaft.Model.Local
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
-variable [DecidableEq Node] [DecidableEq TxId] [Bootstrap Node]
+variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -206,8 +208,8 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
     simp [NodeState.committedLog, commitEq, logEq]
   have activeConfigurationsEq :
       forall node,
-        activeConfigurations ((nodeOf after) node) =
-          activeConfigurations ((nodeOf state) node) := by
+        activeConfigurations (inferInstance) ((nodeOf after) node) =
+          activeConfigurations (inferInstance) ((nodeOf state) node) := by
     intro node
     unfold activeConfigurations currentConfiguration
     rw [logEq, commitEq]
@@ -1344,7 +1346,7 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
           node
       simpa [
         logEq, committedEq, activeConfigurationsEq,
-        currentConfiguration, commitEq
+        currentConfiguration (inferInstance), commitEq
       ] using old
     · intro left leftIndex leftRole leftCurrent leftSignature leftMajority
         right rightIndex rightRole rightCurrent rightSignature rightMajority
