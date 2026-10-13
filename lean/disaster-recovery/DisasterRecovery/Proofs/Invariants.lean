@@ -835,7 +835,7 @@ lemma reachable_well_formed
   | initial initialized =>
       rcases initialized with ⟨active, valid, nodup, configured, rfl⟩
       exact initial_well_formed config active valid nodup configured
-  | step reachable transition wellFormed =>
+  | step _ transition wellFormed =>
       exact next_preserves_well_formed wellFormed transition
 
 lemma reachable_config_valid
@@ -847,6 +847,6 @@ lemma reachable_config_valid
   | initial initialized =>
       rcases initialized with ⟨_, valid, _⟩
       exact valid
-  | step reachable transition valid => exact valid
+  | step _ _ valid => exact valid
 
 end DisasterRecovery.Proofs.Invariants
