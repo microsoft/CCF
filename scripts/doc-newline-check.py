@@ -67,29 +67,15 @@ ABBREVIATION_END_RE = re.compile(r"(?:e\.g|i\.e)\.\s*$", re.IGNORECASE)
 SENTENCE_END_RE = re.compile(r"""[.!?](?:["')\]}*_`]|\\)*\s*$""")
 
 
-def git_output(arguments: list[str]) -> bytes:
+def tracked_documentation_files() -> list[Path]:
     result = subprocess.run(
-        ["git", *arguments],
+        ["git", "ls-files", "-z", "--", "*.md", "*.rst"],
         check=True,
         capture_output=True,
     )
-    return result.stdout
-
-
-def tracked_documentation_files() -> list[Path]:
     return [
         Path(name)
-        for name in git_output(
-            [
-                "ls-files",
-                "-z",
-                "--",
-                "*.md",
-                "*.rst",
-            ]
-        )
-        .decode()
-        .split("\0")
+        for name in result.stdout.decode().split("\0")
         if name and not name.startswith("3rdparty/")
     ]
 
@@ -180,22 +166,6 @@ def excluded_lines(lines: list[str], markdown: bool) -> set[int]:
     return excluded
 
 
-def prose_context(
-    lines: list[str], index: int, excluded: set[int]
-) -> tuple[str, int] | None:
-    if index in excluded:
-        return None
-
-    list_context = list_prose_context(lines, index)
-    if list_context is not None:
-        return list_context
-
-    if is_structural(lines[index]):
-        return None
-
-    return lines[index], index
-
-
 def ends_sentence(line: str) -> bool:
     return bool(SENTENCE_END_RE.search(line) and not ABBREVIATION_END_RE.search(line))
 
@@ -222,14 +192,12 @@ def suspicious_newlines(lines: list[str], markdown: bool) -> list[int]:
             continue
 
         next_line = lines[index + 1]
-        current_context = prose_context(lines, index, excluded)
-        next_context = prose_context(lines, index + 1, excluded)
         if (
-            current_context is None
-            or next_context is None
+            is_structural(line)
+            or is_structural(next_line)
             or line.endswith(("  ", "\\"))
             or ends_sentence(line)
-            or not PROSE_START_RE.match(next_context[0])
+            or not PROSE_START_RE.match(next_line)
         ):
             continue
 
