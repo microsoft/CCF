@@ -15,7 +15,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Bundled fmt C++ headers have been updated from 12.1.0 to 12.2.0. Applications using fmt directly should include `<fmt/format.h>` for `fmt::format` and `<fmt/std.h>` for `std::byte` formatting; see the [logging documentation](doc/build_apps/logging.rst) (#8555).
 - CCF no longer advances its subsystems in a single atomic tick step. Each subsystem schedules its own periodic work, which can run independently of other subsystems and incoming node messages (#8535).
 - `ccf::endpoints::EndpointRegistry::tick()` overrides now run on task-system worker threads rather than the enclave main thread. Ticks for the same registry do not overlap, but may run concurrently with endpoint execution and ticks for other registries (#8445).
 - Ledger writes and reads of uncommitted ledger entries no longer travel over the host-enclave ringbuffer. The number of ledger entries the host has accepted but not yet written to disk was previously bounded by the ringbuffer filling up and stalling the enclave. It is now bounded by a backpressure threshold instead: a node returns `503` `TooManyPendingTransactions` for application and governance requests while the bytes of pending ledger appends are at or above `memory.circuit_size` (16MB by default), and drops incoming `AppendEntries` replication messages, including heartbeats, until the backlog clears. `/node` endpoints are exempt. Threshold crossings are logged. See the Backpressure section of the Resource Usage operations documentation (#8405).
@@ -35,6 +34,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Snapshot and ledger chunk discovery now reject malformed `since` selectors with HTTP `400` `InvalidQueryParameterValue`. Previously, snapshot discovery silently ignored them and ledger chunk discovery misreported them as missing parameters. See the [Ledger and Snapshots](doc/operations/ledger_snapshot.rst) operations documentation (#8532).
 - When the host reports that a ledger entry is missing or too large, the historical query cache now drops only the requests which were waiting for that entry. Previously, unrelated requests could also be dropped, including every in-flight request when the entry was being fetched to recover an older ledger secret (#8527).
 - Historical query cache ticks no longer scan every retained request and store, so retaining many historical queries is much cheaper. Unrepresentable cache times or expiry deadlines now throw instead of overflowing (#8525).
+
+### Dependencies
+
+- Updated `fmt` from `12.1.0` to `12.2.0` (#8555).
 
 ## [7.0.18]
 
