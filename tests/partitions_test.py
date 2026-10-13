@@ -1653,6 +1653,6 @@ if __name__ == "__main__":
     # These groups deliberately isolate nodes and wait for elections, so they
     # are the most sensitive in the suite both to not getting CPU promptly and
     # to contention on the shared iptables table: a starved or still-partitioned
-    # node looks like a failed election. Run at most three at once, with the
+    # node looks like a failed election. Run at most four at once, with the
     # runner's instrumentation limits reducing this further when needed.
-    cr.run(max_concurrent=3)
+    cr.run(max_concurrent=4)

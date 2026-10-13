@@ -3551,4 +3551,4 @@ checked. Note that the key for each logging message is unique (per table).
         snapshot_tx_interval=30,
     )
 
-    cr.run()
+    cr.run(max_concurrent=min(12, cr.default_max_concurrent()))
