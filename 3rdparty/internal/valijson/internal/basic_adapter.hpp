@@ -1,10 +1,13 @@
 #pragma once
 
+#include <cmath>
 #include <cstdint>
+#include <limits>
+#include <optional>
 #include <sstream>
 
 #include <valijson/internal/adapter.hpp>
-#include <valijson/internal/optional.hpp>
+#include <valijson/internal/double_parser.hpp>
 #include <valijson/exceptions.hpp>
 
 namespace valijson {
@@ -83,6 +86,24 @@ template<
 class BasicAdapter: public Adapter
 {
 protected:
+
+    /// Returns true if @p d is a finite double whose value is exactly an
+    /// integer representable as int64_t. JSON Schema treats numbers with a
+    /// zero fractional part as integers, even if encoded as floats.
+    static bool doubleIsIntegral(double d)
+    {
+        if (!std::isfinite(d)) {
+            return false;
+        }
+        if (d < static_cast<double>(std::numeric_limits<int64_t>::min())) {
+            return false;
+        }
+        if (d > static_cast<double>(std::numeric_limits<int64_t>::max())) {
+            return false;
+        }
+        double intPart = 0.0;
+        return std::modf(d, &intPart) == 0.0;
+    }
 
     /**
      * @brief   Functor for comparing two arrays.
@@ -238,7 +259,7 @@ public:
         // effort of constructing an ArrayType instance if the value is
         // definitely an array.
         if (m_value.isArray()) {
-            const opt::optional<Array> array = m_value.getArrayOptional();
+            const std::optional<Array> array = m_value.getArrayOptional();
             for (const AdapterType element : *array) {
                 if (!fn(element)) {
                     return false;
@@ -256,7 +277,7 @@ public:
         }
 
         if (m_value.isObject()) {
-            const opt::optional<Object> object = m_value.getObjectOptional();
+            const std::optional<Object> object = m_value.getObjectOptional();
             for (const ObjectMemberType member : *object) {
                 if (!fn(member.first, AdapterType(member.second))) {
                     return false;
@@ -354,10 +375,8 @@ public:
         } else if (m_value.isString()) {
             std::string s;
             if (m_value.getString(s)) {
-                const char *b = s.c_str();
-                char *e = nullptr;
-                double x = strtod(b, &e);
-                if (e == b || e != b + s.length()) {
+                double x;
+                if (!internal::parseDouble(s, x)) {
                     return false;
                 }
                 result = x;
@@ -382,6 +401,12 @@ public:
     {
         if (m_value.isInteger()) {
             return m_value.getInteger(result);
+        } else if (m_value.isDouble()) {
+            double d;
+            if (m_value.getDouble(d) && doubleIsIntegral(d)) {
+                result = static_cast<int64_t>(d);
+                return true;
+            }
         } else if (m_value.isString()) {
             std::string s;
             if (m_value.getString(s)) {
@@ -498,7 +523,7 @@ public:
                 other.asString() == asString();
         } else if (isArray()) {
             if (other.isArray() && getArraySize() == other.getArraySize()) {
-                const opt::optional<ArrayType> array = m_value.getArrayOptional();
+                const std::optional<ArrayType> array = m_value.getArrayOptional();
                 if (array) {
                     ArrayComparisonFunctor fn(*array, strict);
                     return other.applyToArray(fn);
@@ -508,7 +533,7 @@ public:
             }
         } else if (isObject()) {
             if (other.isObject() && other.getObjectSize() == getObjectSize()) {
-                const opt::optional<ObjectType> object = m_value.getObjectOptional();
+                const std::optional<ObjectType> object = m_value.getObjectOptional();
                 if (object) {
                     ObjectComparisonFunctor fn(*object, strict);
                     return other.applyToObject(fn);
@@ -537,7 +562,7 @@ public:
      */
     ArrayType getArray() const
     {
-        opt::optional<ArrayType> arrayValue = m_value.getArrayOptional();
+        std::optional<ArrayType> arrayValue = m_value.getArrayOptional();
         if (arrayValue) {
             return *arrayValue;
         }
@@ -646,7 +671,7 @@ public:
      */
     ObjectType getObject() const
     {
-        opt::optional<ObjectType> objectValue = m_value.getObjectOptional();
+        std::optional<ObjectType> objectValue = m_value.getObjectOptional();
         if (objectValue) {
             return *objectValue;
         }
@@ -771,10 +796,8 @@ public:
         } else if (maybeString()) {
             std::string s;
             if (m_value.getString(s)) {
-                const char *b = s.c_str();
-                char *e = nullptr;
-                strtod(b, &e);
-                return e != b && e == b + s.length();
+                double x;
+                return internal::parseDouble(s, x);
             }
         }
 
@@ -785,6 +808,11 @@ public:
     {
         if (m_value.isInteger()) {
             return true;
+        } else if (m_value.isDouble()) {
+            double d;
+            if (m_value.getDouble(d) && doubleIsIntegral(d)) {
+                return true;
+            }
         } else if (maybeString()) {
             std::string s;
             if (m_value.getString(s)) {
