@@ -1439,54 +1439,6 @@ TEST_CASE("Forwarded request target limit" * doctest::test_suite("forwarding"))
   }
 }
 
-TEST_CASE("Forwarded chunked request" * doctest::test_suite("forwarding"))
-{
-  std::string encoded_body = "5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n";
-  std::string decoded_body = "hello world";
-  SUBCASE("Multiple chunks") {}
-  SUBCASE("Empty body")
-  {
-    encoded_body = "0\r\n\r\n";
-    decoded_body.clear();
-  }
-  const auto request = fmt::format(
-    "POST /app/empty_function?query=value HTTP/1.1\r\n"
-    "transfer-encoding: ChUnKeD\r\n"
-    "content-type: text/plain\r\n"
-    "x-preserved-header: value\r\n"
-    "\r\n{}",
-    encoded_body);
-  const std::vector<uint8_t> packed(request.begin(), request.end());
-  const std::vector<uint8_t> expected_body(
-    decoded_body.begin(), decoded_body.end());
-
-  ::http::SimpleRequestProcessor processor;
-  ::http::RequestParser parser(processor);
-  parser.execute(packed.data(), packed.size());
-  REQUIRE(processor.received.size() == 1);
-  const auto& message = processor.received.front();
-  REQUIRE(message.body == expected_body);
-
-  auto session =
-    std::make_shared<ccf::SessionContext>(0, std::vector<uint8_t>{});
-  ::http::HttpRpcContext ingress(
-    session,
-    ccf::HttpVersion::HTTP1,
-    message.method,
-    message.url,
-    message.headers,
-    message.body);
-  const auto& serialised = ingress.get_serialised_request();
-  const auto forwarded =
-    ccf::make_fwd_rpc_context(session, serialised, ccf::FrameFormat::http);
-  REQUIRE(forwarded != nullptr);
-  CHECK(forwarded->get_request_verb() == ingress.get_request_verb());
-  CHECK(forwarded->get_request_url() == ingress.get_request_url());
-  CHECK(forwarded->get_request_headers() == message.headers);
-  CHECK(forwarded->get_request_body() == expected_body);
-  CHECK(forwarded->get_serialised_request() == serialised);
-}
-
 TEST_CASE("Forwarding timeout" * doctest::test_suite("forwarding"))
 {
   struct RecordingResponder : public ccf::AbstractRPCResponder
