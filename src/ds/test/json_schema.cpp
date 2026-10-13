@@ -1,12 +1,89 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "host/json_schema.h"
+
 #include "ccf/ds/json.h"
+#include "host/config_schema.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <algorithm>
 #include <doctest/doctest.h>
 #include <nlohmann/json.hpp>
 #include <vector>
+
+TEST_CASE("host configuration integer validation")
+{
+  const auto config_schema = nlohmann::json::parse(host::host_config_schema);
+  const auto& schema = config_schema.at("properties").at("worker_threads");
+
+  for (const auto& value :
+       std::vector<nlohmann::json>{0, 1, 65533, 0.0, 1.0, 65533.0})
+  {
+    INFO(value);
+    CHECK_FALSE(json::validate_json(value, schema).has_value());
+  }
+
+  for (const auto& value : std::vector<nlohmann::json>{
+         -1, -1.0, 1.5, 65534, 65534.0, 1e20, "1", true, nullptr})
+  {
+    INFO(value);
+    CHECK(json::validate_json(value, schema).has_value());
+  }
+}
+
+TEST_CASE("host configuration references and error paths")
+{
+  const auto schema = nlohmann::json::parse(host::host_config_schema);
+  auto config = nlohmann::json::parse(R"({
+    "network": {
+      "node_to_node_interface": {"bind_address": "127.0.0.1:8081"},
+      "rpc_interfaces": {
+        "primary": {
+          "bind_address": "127.0.0.1:8080",
+          "redirections": {
+            "to_primary": {
+              "kind": "NodeByRole",
+              "target": {"role": "primary"}
+            },
+            "to_backup": {
+              "kind": "StaticAddress",
+              "target": {"address": "127.0.0.1:8082"}
+            }
+          }
+        }
+      }
+    },
+    "command": {
+      "type": "Start",
+      "start": {"constitution_files": [], "members": []}
+    }
+  })");
+  REQUIRE_FALSE(json::validate_json(config, schema).has_value());
+
+  auto& rpc = config["network"]["rpc_interfaces"]["primary"];
+  std::string expected_path =
+    R"(<root>["network"]["rpc_interfaces"]["primary"])";
+  SUBCASE("first reference")
+  {
+    rpc["redirections"]["to_primary"]["target"]["role"] = "not-a-role";
+    expected_path += R"(["redirections"]["to_primary"]["target"]["role"])";
+  }
+  SUBCASE("second reference")
+  {
+    rpc["redirections"]["to_backup"]["target"]["address"] = 42;
+    expected_path += R"(["redirections"]["to_backup"]["target"]["address"])";
+  }
+  SUBCASE("array item")
+  {
+    rpc["accepted_endpoints"] = nlohmann::json::array({"^/app/", 42});
+    expected_path += R"(["accepted_endpoints"][1])";
+  }
+
+  const auto error = json::validate_json(config, schema);
+  REQUIRE(error.has_value());
+  INFO(*error);
+  CHECK(error->find("context: " + expected_path) != std::string::npos);
+}
 
 struct Bar
 {

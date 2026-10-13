@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <json11.hpp>
 
@@ -62,7 +63,7 @@ public:
 
     /// Construct a Json11Array referencing an empty array.
     Json11Array()
-      : m_value(emptyArray()) { }
+      : m_value(emptyArray) { }
 
     /**
      * @brief   Construct a Json11Array referencing a specific Json11
@@ -105,16 +106,8 @@ public:
 
 private:
 
-    /**
-     * @brief   Return a reference to a Json11 value that is an empty array.
-     *
-     * Note that the value returned by this function is a singleton.
-     */
-    static const json11::Json & emptyArray()
-    {
-        static const json11::Json array((json11::Json::array()));
-        return array;
-    }
+    /// Shared Json11::Json instance used to represent empty array.
+    static inline const json11::Json emptyArray = json11::Json::array();
 
     /// Reference to the contained value
     const json11::Json &m_value;
@@ -140,7 +133,7 @@ public:
 
     /// Construct a Json11Object referencing an empty object singleton.
     Json11Object()
-      : m_value(emptyObject()) { }
+      : m_value(emptyObject) { }
 
     /**
      * @brief   Construct a Json11Object referencing a specific Json11
@@ -195,16 +188,8 @@ public:
 
 private:
 
-    /**
-     * @brief   Return a reference to a Json11 value that is empty object.
-     *
-     * Note that the value returned by this function is a singleton.
-     */
-    static const json11::Json & emptyObject()
-    {
-        static const json11::Json object((json11::Json::object()));
-        return object;
-    }
+    /// Shared Json11::Json instance used to represent empty object.
+    static inline const json11::Json emptyObject = json11::Json::object();
 
     /// Reference to the contained object
     const json11::Json &m_value;
@@ -264,7 +249,7 @@ public:
 
     /// Construct a wrapper for the empty object singleton
     Json11Value()
-      : m_value(emptyObject()) { }
+      : m_value(emptyObject) { }
 
     /// Construct a wrapper for a specific Json11 value
     Json11Value(const json11::Json &value)
@@ -291,10 +276,10 @@ public:
      *
      * Otherwise it will return an empty optional.
      */
-    opt::optional<Json11Array> getArrayOptional() const
+    std::optional<Json11Array> getArrayOptional() const
     {
         if (m_value.is_array()) {
-            return opt::make_optional(Json11Array(m_value));
+            return std::make_optional(Json11Array(m_value));
         }
 
         return {};
@@ -359,10 +344,10 @@ public:
      *
      * Otherwise it will return an empty optional.
      */
-    opt::optional<Json11Object> getObjectOptional() const
+    std::optional<Json11Object> getObjectOptional() const
     {
         if (m_value.is_object()) {
-            return opt::make_optional(Json11Object(m_value));
+            return std::make_optional(Json11Object(m_value));
         }
 
         return {};
@@ -446,12 +431,8 @@ public:
 
 private:
 
-    /// Return a reference to an empty object singleton
-    static const json11::Json & emptyObject()
-    {
-        static const json11::Json object((json11::Json::object()));
-        return object;
-    }
+    /// Shared Json11::Json instance used to represent empty object.
+    static inline const json11::Json emptyObject = json11::Json::object();
 
     /// Reference to the contained Json11 value.
     const json11::Json &m_value;
