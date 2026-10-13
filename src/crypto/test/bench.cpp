@@ -144,6 +144,39 @@ static void benchmark_aes_gcm_encrypt(picobench::state& s)
 }
 
 template <size_t NContents, bool ReuseContext>
+static void benchmark_aes_gcm_encrypt_span(picobench::state& s)
+{
+  const std::vector<uint8_t> key(GCM_DEFAULT_KEY_SIZE, 0x42);
+  const auto contents = make_contents<NContents>();
+  auto aes_gcm_key = make_key_aes_gcm(key);
+  auto context = aes_gcm_key->make_context();
+  StandardGcmHeader header;
+  std::vector<uint8_t> cipher(contents.size());
+  uint64_t iv = 0;
+
+  s.start_timer();
+  for (auto _ : s)
+  {
+    (void)_;
+    memcpy(header.iv.data(), &iv, sizeof(iv));
+    ++iv;
+    if constexpr (ReuseContext)
+    {
+      context->encrypt(
+        header.get_iv(), contents, {}, std::span<uint8_t>(cipher), header.tag);
+    }
+    else
+    {
+      aes_gcm_key->encrypt(
+        header.get_iv(), contents, {}, std::span<uint8_t>(cipher), header.tag);
+    }
+    do_not_optimize(cipher);
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
+template <size_t NContents, bool ReuseContext>
 static void benchmark_aes_gcm_decrypt(picobench::state& s)
 {
   const std::vector<uint8_t> key(GCM_DEFAULT_KEY_SIZE, 0x42);
@@ -537,6 +570,14 @@ namespace AES_GCM_ENCRYPT_64
 
   auto aes_gcm_encrypt_reused_context = benchmark_aes_gcm_encrypt<64, true>;
   PICOBENCH(aes_gcm_encrypt_reused_context).iterations({100000});
+
+  auto aes_gcm_encrypt_new_context_span =
+    benchmark_aes_gcm_encrypt_span<64, false>;
+  PICOBENCH(aes_gcm_encrypt_new_context_span).iterations({100000});
+
+  auto aes_gcm_encrypt_reused_context_span =
+    benchmark_aes_gcm_encrypt_span<64, true>;
+  PICOBENCH(aes_gcm_encrypt_reused_context_span).iterations({100000});
 }
 
 PICOBENCH_SUITE("aes gcm encrypt 1024 bytes");

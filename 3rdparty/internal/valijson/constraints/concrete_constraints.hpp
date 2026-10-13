@@ -26,6 +26,7 @@
 #include <valijson/internal/frozen_value.hpp>
 #include <valijson/schema.hpp>
 #include <valijson/exceptions.hpp>
+#include <valijson/validation_results.hpp>
 
 #ifdef _MSC_VER
 #pragma warning( push )
@@ -958,7 +959,7 @@ public:
     }
 
     virtual bool validate(const adapters::Adapter &target,
-            const std::vector<std::string>& context,
+            const valijson::ValidationResults::Path &path,
             valijson::ValidationResults *results) const = 0;
 
 private:
