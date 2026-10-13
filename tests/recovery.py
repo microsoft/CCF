@@ -3349,6 +3349,16 @@ checked. Note that the key for each logging message is unique (per table).
 
     cr = ConcurrentRunner(add)
 
+    # Start the consistent CI critical tail before shorter work fills the pool.
+    cr.add(
+        "recovery_cose_only",
+        run_recovery_cose_only,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
+    )
+
     cr.add(
         "recovery",
         run,
@@ -3520,15 +3530,6 @@ checked. Note that the key for each logging message is unique (per table).
         package="samples/apps/logging/logging",
         nodes=infra.e2e_args.nodes(cr.args, 2),
         ledger_chunk_bytes="1B",
-        snapshot_tx_interval=30,
-    )
-
-    cr.add(
-        "recovery_cose_only",
-        run_recovery_cose_only,
-        package="samples/apps/logging/logging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        ledger_chunk_bytes="50KB",
         snapshot_tx_interval=30,
     )
 
