@@ -61,6 +61,22 @@ Tests can be started through the ``tests.sh`` wrapper for ``ctest``.
 
 Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. :ccf_repo:`tests.sh </tests/tests.sh>` will set up a virtual environment with these dependencies and activate it before running ``ctest``. Add ``-VV`` for verbose test output. Further runs will re-use that virtual environment.
 
+C++ Case Scopes
+---------------
+
+Variable declarations in ``case`` and ``default`` bodies must be inside a nested scope, normally a ``{ ... }`` block after the label. Variables scoped inside an ``if``, loop, or lambda are also allowed. This includes otherwise legal unbraced declarations in the final case; cases without variable declarations do not require braces.
+
+After building, run the check from the repository root:
+
+.. code-block:: bash
+
+    $ python3 scripts/check-case-scopes.py -p build
+    $ python3 -m unittest discover -s scripts/tests -p case_scopes_test.py
+
+The check uses ``clang-query-18`` or ``clang-query`` from Clang's extra tools, installed by ``scripts/setup-dev.sh``. Set ``CLANG_QUERY`` or pass ``--clang-query`` to select another executable. It checks the first-party C++ translation units in ``compile_commands.json``, including their headers and compile variants, one source file at a time. Vendored ``3rdparty`` files, system headers, and translation units generated in the build directory are excluded. Only code active in that build configuration is checked. Optional source-file arguments restrict local checks to those compilation database entries.
+
+CI runs this check and its regression tests after the Debug build, separately from ``scripts/ci-checks.sh``. Violations, missing tools or files, parse errors, and empty selections fail the check; it does not automatically insert braces.
+
 Update the Documentation
 ------------------------
 

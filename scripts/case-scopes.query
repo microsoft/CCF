@@ -1,0 +1,30 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
+set traversal IgnoreUnlessSpelledInSource
+set bind-root false
+
+# Bind the nearest structural ancestor before testing it. Labels and attributes
+# do not introduce scopes; expressions stop the walk through lambda bodies.
+let boundary stmt(anyOf(
+  compoundStmt(), caseStmt(), defaultStmt(), ifStmt(), forStmt(),
+  whileStmt(), doStmt(), cxxForRangeStmt(), switchStmt(), expr()
+))
+
+match declStmt(
+  unless(isExpansionInSystemHeader()),
+  unless(isExpansionInFileMatching("(^|[/\\\\])3rdparty([/\\\\]|$)")),
+  has(varDecl()),
+  hasAncestor(stmt(boundary).bind("declaration_parent")),
+  hasAncestor(stmt(
+    equalsBoundNode("declaration_parent"),
+    anyOf(
+      caseStmt(),
+      defaultStmt(),
+      compoundStmt(
+        hasAncestor(stmt(boundary).bind("body_parent")),
+        hasAncestor(switchStmt(equalsBoundNode("body_parent")))
+      )
+    )
+  ))
+).bind("case_variable")

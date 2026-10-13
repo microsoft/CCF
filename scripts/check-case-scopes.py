@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
+"""Require a nested scope for variable declarations in switch case bodies."""
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+QUERY_FILE = Path(__file__).with_name("case-scopes.query")
+CPP_EXTENSIONS = {".cpp", ".cc", ".cxx", ".c++", ".C"}
+
+
+class CheckError(RuntimeError):
+    pass
+
+
+def find_clang_query(executable: str | None = None) -> str:
+    for candidate in [executable] if executable else ["clang-query-18", "clang-query"]:
+        if path := shutil.which(candidate):
+            return path
+    raise CheckError(
+        f"Cannot find {executable or 'clang-query-18 or clang-query'}; "
+        "install Clang's extra tools (18 or newer), or set --clang-query."
+    )
+
+
+def compilation_sources(build_dir: Path, root: Path) -> list[Path]:
+    database = build_dir / "compile_commands.json"
+    try:
+        entries = json.loads(database.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise CheckError(f"Invalid compilation database {database}: {error}") from error
+    if not isinstance(entries, list):
+        raise CheckError(f"Expected a list of compile commands in {database}")
+
+    sources = set()
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict) or any(
+            not isinstance(entry.get(key), str) or not entry[key]
+            for key in ("directory", "file")
+        ):
+            raise CheckError(f"Invalid compile command {index} in {database}")
+        directory = (build_dir / entry["directory"]).resolve()
+        source = (directory / entry["file"]).resolve()
+        if (
+            source.suffix not in CPP_EXTENSIONS
+            or not source.is_relative_to(root)
+            or "3rdparty" in source.relative_to(root).parts
+            or (build_dir != root and source.is_relative_to(build_dir))
+        ):
+            continue
+        if not source.is_file():
+            raise CheckError(f"Compilation database source is missing: {source}")
+        sources.add(source)
+
+    if not sources:
+        raise CheckError(f"No first-party C++ translation units found in {database}")
+    # clang-query visits every compile command for a file, including variants.
+    return sorted(sources)
+
+
+def check_source(executable: str, build_dir: Path, source: Path) -> int:
+    result = subprocess.run(
+        [
+            executable,
+            "--use-color=false",
+            "--extra-arg=-fdiagnostics-format=clang",
+            "--extra-arg=-fshow-column",
+            "-p",
+            str(build_dir),
+            "-f",
+            str(QUERY_FILE),
+            str(source),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+    print(result.stdout, end="")
+    if result.returncode != 0:
+        raise CheckError(f"clang-query failed for {source} (exit {result.returncode})")
+    # clang-query 18 can return success after recovering from compilation errors.
+    if re.search(r"(?m)^(?:.*:\d+:\d+: )?(?:fatal )?error:", result.stdout):
+        raise CheckError(f"clang-query reported compilation errors for {source}")
+    counts = re.findall(r"(?m)^(\d+) match(?:es)?\.$", result.stdout)
+    if len(counts) != 1:
+        raise CheckError(f"Expected exactly one clang-query match summary for {source}")
+    return int(counts[0])
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("-p", "--build-dir", type=Path, default=Path("build"))
+    parser.add_argument(
+        "--clang-query",
+        default=os.environ.get("CLANG_QUERY"),
+        help="clang-query executable (default: CLANG_QUERY, clang-query-18, clang-query)",
+    )
+    parser.add_argument(
+        "sources",
+        nargs="*",
+        type=Path,
+        help="optional translation units; default: all first-party C++ compile commands",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        build_dir = args.build_dir.resolve()
+        sources = compilation_sources(build_dir, ROOT_DIR)
+        if args.sources:
+            requested = {source.resolve() for source in args.sources}
+            unknown = requested.difference(sources)
+            if unknown:
+                raise CheckError(
+                    "Not first-party C++ compilation database sources: "
+                    + ", ".join(str(source) for source in sorted(unknown))
+                )
+            sources = sorted(requested)
+        executable = find_clang_query(args.clang_query)
+        matches = 0
+        # Bound memory use by loading one translation unit at a time.
+        for index, source in enumerate(sources, 1):
+            print(
+                f"[{index}/{len(sources)}] {source.relative_to(ROOT_DIR)}", flush=True
+            )
+            matches += check_source(executable, build_dir, source)
+        if matches:
+            raise CheckError(
+                f"{matches} variable declaration match(es) need a case block. "
+                "Declarations in shared headers may be reported by multiple files."
+            )
+    except (CheckError, OSError) as error:
+        print(f"Case scope check failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"Case scopes checked in {len(sources)} C++ translation unit(s).")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
