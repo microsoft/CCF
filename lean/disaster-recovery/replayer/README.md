@@ -31,8 +31,9 @@ passes it on to the nodes. After the quorum, failover and multiple-timeout
 scenarios in `tests/e2e_operations.py`, `tests/infra/recovery_trace.py` runs
 the replayer on the nodes' logs.
 `.github/workflows/lean.yml` checks the records of committed fixtures of those
-three scenarios against the schema, then builds the replayer and runs
-`check-fixtures.sh` on them.
+three scenarios against the schema, then builds and lints the replayer and
+runs `check-fixtures.sh` on them. The package enables the same
+[built-in linter checks](../README.md#validation) as the model.
 
 ## Records
 
@@ -124,6 +125,7 @@ covered by named invalid traces rather than by ones that differ only in
 ```bash
 cd lean/disaster-recovery/replayer
 lake build
+lake lint
 ./check-fixtures.sh
 ```
 

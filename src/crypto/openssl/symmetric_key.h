@@ -32,6 +32,13 @@ namespace ccf::crypto
       std::vector<uint8_t>& cipher,
       uint8_t tag[GCM_SIZE_TAG]) const override;
 
+    void encrypt(
+      std::span<const uint8_t> iv,
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> aad,
+      std::span<uint8_t> cipher,
+      uint8_t tag[GCM_SIZE_TAG]) const override;
+
     bool decrypt(
       std::span<const uint8_t> iv,
       const uint8_t tag[GCM_SIZE_TAG],
