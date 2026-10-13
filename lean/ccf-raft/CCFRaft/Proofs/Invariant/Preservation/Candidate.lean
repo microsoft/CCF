@@ -2696,16 +2696,11 @@ lemma timeoutPreservesSystemInductiveInvariant
       : (node ∈ joinedNodes
           /\ (((nodeOf state) node).role = .follower
               \/ ((nodeOf state) node).role = .preVoteCandidate
-              \/ ((nodeOf state) node).role = .candidate)
-          /\ ((node ∈ activeNodeUnion (inferInstance) ((nodeOf state) node)
-                /\ campaignEligible (inferInstance) node ((nodeOf state) node))
-              \/ node ∈ ((nodeOf state) node).retirementCompleted (inferInstance))
-          /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
-          /\ Not (INITIAL_PRE_VOTE_STATUS node = .enabled)))
+              \/ ((nodeOf state) node).role = .candidate)))
     : SystemInductiveInvariant (joined := joinedNodes) (timeoutEffect state node) :=
   candidateTransitionPreservesSystemInductiveInvariant (present := present)
     state node invariant
-    ⟨enabled.1, enabled.2.1⟩
+    ⟨enabled.1, enabled.2⟩
 
 /-- A successful pre-vote starts the concrete_effects regular election term. -/
 lemma becomeCandidatePreservesSystemInductiveInvariant
@@ -2713,21 +2708,13 @@ lemma becomeCandidatePreservesSystemInductiveInvariant
     (node : Node)
     {present : node ∈ state.nodes.map Prod.fst}
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
-    (enabled
-      : (node ∈ joinedNodes
-          /\ ((nodeOf state) node).role = .preVoteCandidate
-          /\ ((node ∈ activeNodeUnion (inferInstance) ((nodeOf state) node)
-                /\ campaignEligible (inferInstance) node ((nodeOf state) node))
-              \/ node ∈ ((nodeOf state) node).retirementCompleted (inferInstance))
-          /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
-          /\ INITIAL_PRE_VOTE_STATUS node = .enabled
-          /\ hasPreVoteMajority (inferInstance) (nodeOf state node)))
+    (enabled : (node ∈ joinedNodes /\ ((nodeOf state) node).role = .preVoteCandidate))
     : SystemInductiveInvariant (joined := joinedNodes)
         (becomeCandidateEffect state node) := by
   have preserved :=
     candidateTransitionPreservesSystemInductiveInvariant (present := present)
       state node invariant
-        ⟨enabled.1, Or.inr (Or.inl enabled.2.1)⟩
+        ⟨enabled.1, Or.inr (Or.inl enabled.2)⟩
   simpa [concrete_effects, becomeCandidateState, present] using preserved
 
 end CCFRaft.Proofs.Invariant

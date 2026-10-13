@@ -30,32 +30,13 @@ lemma changeConfigurationPreservesSystemInductiveInvariant
     {present : source ∈ state.nodes.map Prod.fst}
     (newConfiguration : Finset Node)
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
-    (enabled
-      : (source ∈ joinedNodes
-          /\ ((nodeOf state) source).role = .leader
-          /\ Not (((nodeOf state) source).membershipState = .retiredCommitted)
-          /\ newConfiguration.Nonempty
-          /\ Not
-              (newConfiguration
-                = ((latestConfiguration (inferInstance) ((nodeOf state) source)).nodes))
-          /\ Not
-              ((refreshRetirementState (inferInstance) source
-                  ({
-                    ((nodeOf state) source) with
-                      log :=
-                        ((nodeOf state) source).log
-                        ++ [({
-                              term := ((nodeOf state) source).currentTerm,
-                              content := .reconfiguration newConfiguration
-                            })]
-                  })).membershipState
-                = .retiredCommitted)))
+    (enabled : (source ∈ joinedNodes /\ ((nodeOf state) source).role = .leader))
     : SystemInductiveInvariant
         (joined :=
           leaderAppendJoined joinedNodes state source (.reconfiguration newConfiguration))
         (changeConfigurationEffect state source newConfiguration) := by
   exact leaderAppendPreservesSystemInductiveInvariant (present := present)
-    state source (.reconfiguration newConfiguration) invariant enabled.1 enabled.2.1
+    state source (.reconfiguration newConfiguration) invariant enabled.1 enabled.2
 
 /-- Demotion to a passive role preserves a leader's history and term ownership. -/
 lemma leaderDemotionPreservesSystemInductiveInvariant
@@ -593,12 +574,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
       : (node ∈ joinedNodes
           /\ (((nodeOf state) node).role = .follower
               \/ ((nodeOf state) node).role = .preVoteCandidate
-              \/ ((nodeOf state) node).role = .candidate)
-          /\ ((node ∈ activeNodeUnion (inferInstance) ((nodeOf state) node)
-                /\ campaignEligible (inferInstance) node ((nodeOf state) node))
-              \/ node ∈ ((nodeOf state) node).retirementCompleted (inferInstance))
-          /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
-          /\ INITIAL_PRE_VOTE_STATUS node = .enabled))
+              \/ ((nodeOf state) node).role = .candidate)))
     : SystemInductiveInvariant (joined := joinedNodes)
         (becomePreVoteCandidateEffect state node) := by
   rcases invariant with
@@ -610,13 +586,13 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
       voteRequestHistory, voteCandidateHistory, voteVoterHistory, facts⟩
   have oldParticipating :
       Not (((nodeOf state) node).role = .none) := by
-    rcases enabled.2.1 with follower | preVoteCandidate | candidate
+    rcases enabled.2 with follower | preVoteCandidate | candidate
     · simp [follower]
     · simp [preVoteCandidate]
     · simp [candidate]
   have oldNotLeader :
       Not (((nodeOf state) node).role = .leader) := by
-    rcases enabled.2.1 with follower | preVoteCandidate | candidate
+    rcases enabled.2 with follower | preVoteCandidate | candidate
     · exact fun leader => Role.noConfusion (follower.symm.trans leader)
     · exact
         fun leader =>

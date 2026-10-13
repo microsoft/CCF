@@ -85,7 +85,7 @@ def appendRetiredCommittedEffect (state : Model.State Node TxId) (node : Node)
   let nodeState := (nodeOf state) node
   let pending :=
     (nodeOf state node).retirementCompleted (inferInstance)
-    \ allRetiredCommittedNodes (nodeOf state node).log
+    \ retiredCommittedNodes (nodeOf state node).log
   let entry : Entry Node TxId :=
     {
       term := nodeState.currentTerm

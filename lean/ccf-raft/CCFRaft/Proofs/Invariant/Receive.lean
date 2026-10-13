@@ -54,15 +54,48 @@ theorem StateInvariant.receivedEndpoints {state : Model.State Node TxId}
     obtain ⟨senderJoined, receiverJoined⟩ := invariant.endpoints envelope queued
     exact ⟨source ▸ receiverJoined, target ▸ senderJoined⟩
 
-theorem appendRequest_safety {state : Model.State Node TxId} {joined : Finset Node}
+theorem run_ite {σ α : Type} {c : Prop} [Decidable c] {a b : StateT σ Option α} {s : σ}
+    {r : α × σ} (run : (if c then a else b).run s = some r)
+    : (c ∧ a.run s = some r) ∨ (¬c ∧ b.run s = some r) := by
+  by_cases h : c <;> simp_all
+
+theorem observeTerm_appendRequest_term (state : NodeState Node TxId)
+    (request : AppendEntriesRequest Node TxId)
+    : request.term ≤ (observeTerm state (.appendEntriesRequest request)).currentTerm := by
+  simp only [observeTerm, updateTerm]
+  split_ifs with newer
+  · simp [Message.term]
+  · simp [Message.term] at newer ⊢
+    omega
+
+theorem handleAppendEntriesRequest_stepped {self : Node} {state : NodeState Node TxId}
+    {request : AppendEntriesRequest Node TxId}
+    (stepping
+      : request.term = state.currentTerm
+        ∧ (state.role = .candidate ∨ state.role = .preVoteCandidate))
+    : handleAppendEntriesRequest (inferInstance) self state request
+      = handleAppendEntriesRequest (inferInstance) self
+          { state with role := .follower, isNewFollower := true } request := by
+  conv_lhs => unfold handleAppendEntriesRequest
+  conv_rhs => unfold handleAppendEntriesRequest
+  simp only [stepping, reduceCtorEq, or_self, and_false, and_true, ↓reduceIte]
+
+/-- A non-stepping AE request either replies through the checked handler or is dropped. -/
+theorem appendRequest_unstepped {state : Model.State Node TxId} {joined : Finset Node}
     (invariant : SystemInductiveInvariant (joined := joined) state)
     {source destination : Node} (present : destination ∈ state.nodes.map Prod.fst)
     (nodeJoined : destination ∈ joined) {request : AppendEntriesRequest Node TxId}
     (queued : appendRequestEnvelope (source, destination, request) ∈ state.network)
-    {nextNode : NodeState Node TxId} {response : AppendEntriesResponse}
+    (notNewer : request.term ≤ (nodeOf state destination).currentTerm)
+    (notStepped
+      : ¬ (request.term = (nodeOf state destination).currentTerm
+            ∧ ((nodeOf state destination).role = .candidate
+                ∨ (nodeOf state destination).role = .preVoteCandidate)))
+    {nextNode : NodeState Node TxId} {response : Option AppendEntriesResponse}
     (handled
-      : handleAppendEntriesRequest? (inferInstance) destination (nodeOf state destination) request
-        = some (nextNode, response))
+      : handleAppendEntriesRequest (inferInstance) destination (nodeOf state destination)
+          request
+        = (nextNode, response))
     : SystemInductiveInvariant (joined := joined)
         {
           state with
@@ -72,7 +105,53 @@ theorem appendRequest_safety {state : Model.State Node TxId} {joined : Finset No
             network :=
               removeOne (appendRequestEnvelope (source, destination, request))
                 state.network
-              ++ [appendResponseEnvelope (destination, source, response)]
+              ++ (response.map
+                    fun answer =>
+                      appendResponseEnvelope (destination, source, answer)).toList
+        } := by
+  rcases handleAppendEntriesRequest_option notNewer notStepped handled with
+    ⟨answer, rfl, accepted⟩ | ⟨rfl, -, rfl⟩
+  · simpa [reply] using receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
+      state source destination (present := present) (source, destination, request) _
+      nextNode (destination, source, answer) invariant nodeJoined rfl
+      ⟨rfl, queued, rfl⟩ notStepped rfl rfl accepted
+  · have dequeued := pureNetworkDequeuePreservesSystemInductiveInvariant state
+      (removeOne (appendRequestEnvelope (source, destination, request)) state.network) invariant
+      (fun _ envelope member =>
+        ⟨(selectedSound (⟨rfl, queued, rfl⟩ : Selected source state.network
+            (appendRequestEnvelope (source, destination, request))
+            (removeOne (appendRequestEnvelope (source, destination, request))
+              state.network))).2.2 envelope member.1, member.2⟩)
+    simp only [Option.map_none, Option.toList_none, List.append_nil]
+    apply retirementMetadataFramePreservesSystemInductiveInvariant _ _ dequeued rfl
+    · rfl
+    all_goals
+      intro node
+      by_cases here : node = destination <;> simp [nodeOf_replaceNode _ _ _ _ present, here]
+
+theorem appendRequest_safety {state : Model.State Node TxId} {joined : Finset Node}
+    (invariant : SystemInductiveInvariant (joined := joined) state)
+    {source destination : Node} (present : destination ∈ state.nodes.map Prod.fst)
+    (nodeJoined : destination ∈ joined) {request : AppendEntriesRequest Node TxId}
+    (queued : appendRequestEnvelope (source, destination, request) ∈ state.network)
+    (notNewer : request.term ≤ (nodeOf state destination).currentTerm)
+    {nextNode : NodeState Node TxId} {response : Option AppendEntriesResponse}
+    (handled
+      : handleAppendEntriesRequest (inferInstance) destination (nodeOf state destination)
+          request
+        = (nextNode, response))
+    : SystemInductiveInvariant (joined := joined)
+        {
+          state with
+            nodes :=
+              replaceNode state.nodes destination
+                (refreshRetirementState (inferInstance) destination nextNode)
+            network :=
+              removeOne (appendRequestEnvelope (source, destination, request))
+                state.network
+              ++ (response.map
+                    fun answer =>
+                      appendResponseEnvelope (destination, source, answer)).toList
         } := by
   by_cases stepping :
     request.term = (nodeOf state destination).currentTerm
@@ -89,34 +168,35 @@ theorem appendRequest_safety {state : Model.State Node TxId} {joined : Finset No
         (source, destination, request) _ invariant nodeJoined stepping rfl
     have follower : (nodeOf middle destination).role = .follower := by
       simp [middle, present]
-    have handledMiddle : handleAppendEntriesRequest? (inferInstance) destination (nodeOf middle destination) request
-        = some (nextNode, response) := by
-      simpa [middle, present, handleAppendEntriesRequest?, stepping] using handled
-    have preserved := receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
-      middle source destination (present := middlePresent) (source, destination, request) _
-      nextNode (destination, source, response) middleInvariant nodeJoined rfl
-      ⟨rfl, queued, rfl⟩ (by simp [follower]) rfl rfl handledMiddle
-    simpa only [middle, replaceNode_twice, reply] using preserved
-  · exact receiveAppendEntriesRequestWithRetirementPreservesSystemInductiveInvariant
-      state source destination (present := present) (source, destination, request) _
-      nextNode (destination, source, response) invariant nodeJoined rfl
-      ⟨rfl, queued, rfl⟩ stepping rfl rfl handled
+    have handledMiddle
+        : handleAppendEntriesRequest (inferInstance) destination (nodeOf middle destination)
+            request
+          = (nextNode, response) := by
+      rw [← handled, handleAppendEntriesRequest_stepped stepping]
+      simp [middle, present]
+    have preserved := appendRequest_unstepped middleInvariant middlePresent nodeJoined queued
+      (by simpa [middle, present] using notNewer) (by simp [follower]) handledMiddle
+    simpa only [middle, replaceNode_twice] using preserved
+  · exact appendRequest_unstepped invariant present nodeJoined queued notNewer stepping handled
 
 /-- Delivery observes the term, handles the payload, removes one envelope, and appends replies. -/
 theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
     (invariant : StateInvariant state joined) {envelope : Model.Envelope Node TxId}
     (present : envelope.target ∈ state.nodes.map Prod.fst)
-    {execute : NodeEffect Node TxId (NodeState Node TxId)}
+    {next : NodeState Node TxId}
+    {outputs : Outputs Node (Message Node TxId) Notification}
     (queued : envelope ∈ state.network)
     (received
-      : Model.Local.receive (inferInstance) (Capabilities.record envelope.target) envelope.target
-          envelope.source (nodeOf state envelope.target) envelope.payload
-        = some execute)
+      : (Model.Local.receive (inferInstance) (Capabilities.record envelope.target)
+          envelope.target envelope.source (nodeOf state envelope.target)
+          envelope.payload).run
+          {}
+        = some (next, outputs))
     : StateInvariant
         {
           state with
-            nodes := replaceNode state.nodes envelope.target (execute.run {}).1
-            network := removeOne envelope state.network ++ (execute.run {}).2.outgoing
+            nodes := replaceNode state.nodes envelope.target next
+            network := removeOne envelope state.network ++ outputs.outgoing
         } joined := by
   have nodeJoined := (invariant.endpoints envelope queued).2
   let middle : Model.State Node TxId :=
@@ -132,23 +212,23 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
   rcases envelope with ⟨source, destination, payload⟩
   cases payload with
   | appendEntriesRequest request =>
-      simp only [Model.Local.receive] at received
-      obtain ⟨⟨nextNode, response⟩, handled, done⟩ := Option.bind_eq_some_iff.mp received
-      obtain rfl := Option.some.inj done
-      change StateInvariant
-        { state with
-          nodes := replaceNode state.nodes destination (refreshRetirementState (inferInstance) destination nextNode)
-          network := removeOne ⟨source, destination, .appendEntriesRequest request⟩ state.network
-            ++ [⟨destination, source, .appendEntriesResponse response⟩] } joined
-      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
-        (invariant.receivedEndpoints queued (by simp))
+      rcases handled : handleAppendEntriesRequest (inferInstance) destination
+          (observeTerm (nodeOf state destination) (.appendEntriesRequest request)) request with
+        ⟨nextNode, response⟩
       have preserved := appendRequest_safety prepared.safety middlePresent nodeJoined queued
-        (by rw [receiver]; exact handled)
-      simpa only [middle, replaceNode_twice] using preserved
+        (by rw [receiver]; exact observeTerm_appendRequest_term _ _)
+        (nextNode := nextNode) (response := response) (by rw [receiver]; exact handled)
+      simp only [middle, replaceNode_twice] at preserved
+      simp only [Model.Local.receive, handled] at received
+      cases response <;> simp [Capabilities.record] at received <;>
+        obtain ⟨rfl, rfl⟩ := received <;>
+        apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
+          (invariant.receivedEndpoints queued (by simp)) <;>
+        simpa using preserved
   | appendEntriesResponse response =>
-      simp only [Model.Local.receive] at received
-      obtain rfl := Option.some.inj received
-      simp only [Direct.run_pure, List.append_nil]
+      simp [Model.Local.receive] at received
+      obtain ⟨rfl, rfl⟩ := received
+      simp only [List.append_nil]
       apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
         (invariant.erasedEndpoints _)
       have preserved := receiveAppendEntriesResponsePreservesSystemInductiveInvariant
@@ -157,27 +237,20 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
         ⟨rfl, queued, rfl⟩ rfl (by rw [receiver])
       simpa only [middle, replaceNode_twice] using preserved
   | requestVoteRequest request =>
-      simp only [Model.Local.receive] at received
-      obtain rfl := Option.some.inj received
+      simp [Model.Local.receive, Capabilities.record] at received
+      obtain ⟨rfl, rfl⟩ := received
       let answer := handleRequestVoteRequest (nodeOf middle destination) source request
-      change StateInvariant
-        { state with
-          nodes := replaceNode state.nodes destination
-            (handleRequestVoteRequest (observeTerm (nodeOf state destination) (.requestVoteRequest request)) source request).1
-          network := removeOne ⟨source, destination, .requestVoteRequest request⟩ state.network
-            ++ [⟨destination, source, .requestVoteResponse
-              (handleRequestVoteRequest (observeTerm (nodeOf state destination) (.requestVoteRequest request)) source request).2⟩] } joined
       apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
         (invariant.receivedEndpoints queued (by simp))
       have preserved := receiveRequestVoteRequestPreservesSystemInductiveInvariant
         middle source destination (present := middlePresent) prepared.distinct
         (source, destination, request) _ answer.1 (destination, source, answer.2)
         prepared.safety nodeJoined rfl ⟨rfl, queued, rfl⟩ rfl rfl rfl
-      simpa only [answer, receiver, middle, replaceNode_twice, enqueue] using preserved
+      simpa [answer, receiver, middle, replaceNode_twice, enqueue] using preserved
   | requestVoteResponse response =>
-      simp only [Model.Local.receive] at received
-      obtain rfl := Option.some.inj received
-      simp only [Direct.run_pure, List.append_nil]
+      simp [Model.Local.receive] at received
+      obtain ⟨rfl, rfl⟩ := received
+      simp only [List.append_nil]
       apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
         (invariant.erasedEndpoints _)
       have preserved := receiveRequestVoteResponsePreservesSystemInductiveInvariant
@@ -185,24 +258,22 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
         _ prepared.safety nodeJoined ⟨rfl, queued, rfl⟩ rfl (by rw [receiver])
       simpa only [middle, replaceNode_twice] using preserved
   | requestPreVote request =>
-      simp only [Model.Local.receive] at received
-      obtain rfl := Option.some.inj received
-      change StateInvariant
-        { state with
-          nodes := replaceNode state.nodes destination
-            (observeTerm (nodeOf state destination) (.requestPreVote request))
-          network := removeOne ⟨source, destination, .requestPreVote request⟩ state.network
-            ++ [⟨destination, source, .requestPreVoteResponse
-              (handleRequestPreVote (observeTerm (nodeOf state destination) (.requestPreVote request)) request)⟩] } joined
+      simp [Model.Local.receive, Capabilities.record] at received
+      obtain ⟨rfl, rfl⟩ := received
       apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
         (invariant.receivedEndpoints queued (by simp))
       have preserved := receiveRequestPreVotePreservesSystemInductiveInvariant
-        middle source destination request _ prepared.safety ⟨rfl, queued, rfl⟩
-      simpa only [receiver, middle] using preserved
+        middle source destination request
+        { term := (nodeOf middle destination).currentTerm
+          voteGranted :=
+            decide (request.term = (nodeOf middle destination).currentTerm
+              ∧ voteLogUpToDate (nodeOf middle destination) request) }
+        _ prepared.safety ⟨rfl, queued, rfl⟩ rfl
+      simpa [receiver, middle] using preserved
   | requestPreVoteResponse response =>
-      simp only [Model.Local.receive] at received
-      obtain rfl := Option.some.inj received
-      simp only [Direct.run_pure, List.append_nil]
+      simp [Model.Local.receive] at received
+      obtain ⟨rfl, rfl⟩ := received
+      simp only [List.append_nil]
       apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
         (invariant.erasedEndpoints _)
       have preserved := receiveRequestPreVoteResponsePreservesSystemInductiveInvariant
@@ -210,13 +281,22 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
         ⟨rfl, queued, rfl⟩ (by rw [receiver])
       simpa only [middle, replaceNode_twice] using preserved
   | proposeVoteRequest term =>
-      simp only [Model.Local.receive] at received
-      obtain rfl := Option.some.inj received
-      simp only [Direct.run_pure, List.append_nil]
-      apply invariant.update nodeJoined (Finset.Subset.refl _) ?_ (invariant.erasedEndpoints _)
       have preserved := receiveProposeVoteRequestPreservesSystemInductiveInvariant
         middle source destination (present := middlePresent) prepared.distinct term _
         prepared.safety nodeJoined ⟨rfl, queued, rfl⟩
-      simpa only [receiver, middle, replaceNode_twice] using preserved
+      rw [receiver] at preserved
+      simp only [middle, replaceNode_twice, observeTerm] at preserved
+      simp only [Model.Local.receive, observeTerm] at received
+      have eligibleCases := run_ite received
+      rcases eligibleCases with ⟨eligible, received⟩ | ⟨eligible, received⟩ <;>
+        simp only [StateT.run_pure, Option.some.injEq, Prod.mk.injEq] at received <;>
+        obtain ⟨rfl, rfl⟩ := received <;>
+        rw [show (({} : Outputs Node (Message Node TxId) Notification).outgoing) = [] from rfl,
+          List.append_nil] <;>
+        apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
+          (invariant.erasedEndpoints _) <;>
+        convert preserved using 4 <;> first
+          | simp only [eligible, ite_false]; done
+          | exact (ite_eq_left eligible).symm
 
 end CCFRaft.Proofs.Invariant

@@ -19,7 +19,7 @@ namespace CCFRaft.Proofs.Invariant
 open CCFRaft.Proofs.Config
 
 open Shared Shared.MultiNodeTransitionSystem Concrete
-open Model.Local (InitialConfig INITIAL_CONFIGURATION)
+open Model.Local (InitialConfig)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
 
@@ -39,17 +39,18 @@ theorem initial_inv {nodes : List Node} {state : Model.State Node TxId}
 
 theorem step_inv {nodes : List Node} {before after : Model.State Node TxId}
     {action : Model.Action Node TxId} (invariant : Inv before)
-    (stepped : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
+    (stepped
+      : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
     : Inv after := by
   obtain ⟨joined, invariant⟩ := invariant
   cases action with
   | «local» node input =>
-      obtain ⟨local_, execute, found, acted, rfl⟩ := step_local stepped
+      obtain ⟨local_, next, outputs, found, acted, rfl⟩ := step_local stepped
       have present : node ∈ before.nodes.map Prod.fst :=
         List.mem_map.mpr ⟨(node, local_), mem_of_nodeState found, rfl⟩
       exact act_preserves invariant present (by rwa [nodeOf_of_lookup found])
   | deliver envelope =>
-      obtain ⟨queued, local_, execute, found, received, rfl⟩ := step_deliver stepped
+      obtain ⟨queued, local_, next, outputs, found, received, rfl⟩ := step_deliver stepped
       have present : envelope.target ∈ before.nodes.map Prod.fst :=
         List.mem_map.mpr ⟨(envelope.target, local_), mem_of_nodeState found, rfl⟩
       exact ⟨
@@ -58,7 +59,8 @@ theorem step_inv {nodes : List Node} {before after : Model.State Node TxId}
       ⟩
 
 theorem reachable_inv {nodes : List Node} {c : Model.State Node TxId}
-    (reachable : (Model.transitionSystem (inferInstance) (TxId := TxId) nodes).Reachable c)
+    (reachable
+      : (Model.transitionSystem (inferInstance) (TxId := TxId) nodes).Reachable c)
     : Inv c := by
   induction reachable with
   | initial initialized => exact initial_inv initialized

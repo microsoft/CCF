@@ -46,7 +46,8 @@ def leaderAppendState
   let addedNodes :=
     match content with
     | .reconfiguration newConfiguration =>
-        newConfiguration \ (latestConfiguration (inferInstance) ((nodeOf state) node)).nodes
+        newConfiguration
+        \ (latestConfiguration (inferInstance) ((nodeOf state) node)).nodes
     | _ => ∅
   let nextNode :=
     refreshRetirementState (inferInstance) node
@@ -3393,27 +3394,7 @@ lemma appendRetiredCommittedPreservesSystemInductiveInvariant
     (node : Node)
     {present : node ∈ state.nodes.map Prod.fst}
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
-    (enabled
-      : (node ∈ joinedNodes
-          /\ ((nodeOf state) node).role = .leader
-          /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
-          /\ (((nodeOf state node).retirementCompleted (inferInstance)
-                \ allRetiredCommittedNodes (nodeOf state node).log)).Nonempty
-          /\ Not
-              ((refreshRetirementState (inferInstance) node
-                  {
-                    ((nodeOf state) node) with
-                      log :=
-                        ((nodeOf state) node).log
-                        ++ [({
-                              term := ((nodeOf state) node).currentTerm,
-                              content :=
-                                .retiredCommitted
-                                  (((nodeOf state node).retirementCompleted (inferInstance)
-                                    \ allRetiredCommittedNodes (nodeOf state node).log))
-                            })]
-                  }).membershipState
-                = .retiredCommitted)))
+    (enabled : (node ∈ joinedNodes /\ ((nodeOf state) node).role = .leader))
     : SystemInductiveInvariant (joined := joinedNodes)
         (appendRetiredCommittedEffect state node) := by
   simpa [leaderAppendState, leaderAppendJoined, leaderAppendJoined, present,
@@ -3422,8 +3403,8 @@ lemma appendRetiredCommittedPreservesSystemInductiveInvariant
       state node
       (.retiredCommitted
         (((nodeOf state node).retirementCompleted (inferInstance)
-          \ allRetiredCommittedNodes (nodeOf state node).log)))
-      invariant enabled.1 enabled.2.1
+          \ retiredCommittedNodes (nodeOf state node).log)))
+      invariant enabled.1 enabled.2
 
 /-- A client transaction append preserves the arbitrary-term invariant. -/
 lemma clientRequestPreservesSystemInductiveInvariant
@@ -3432,29 +3413,14 @@ lemma clientRequestPreservesSystemInductiveInvariant
     {present : node ∈ state.nodes.map Prod.fst}
     (txId : TxId)
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
-    (enabled
-      : (node ∈ joinedNodes
-          /\ ((nodeOf state) node).role = .leader
-          /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
-          /\ Not
-              ((refreshRetirementState (inferInstance) node
-                  {
-                    ((nodeOf state) node) with
-                      log :=
-                        ((nodeOf state) node).log
-                        ++ [({
-                              term := ((nodeOf state) node).currentTerm,
-                              content := .transaction txId
-                            })]
-                  }).membershipState
-                = .retiredCommitted)))
+    (enabled : (node ∈ joinedNodes /\ ((nodeOf state) node).role = .leader))
     : SystemInductiveInvariant (joined := joinedNodes)
         (clientRequestEffect state node txId) := by
   simpa [leaderAppendState, leaderAppendJoined, leaderAppendJoined, present,
     concrete_effects, concrete_effects]
     using leaderAppendPreservesSystemInductiveInvariant (present := present)
       state node (.transaction txId)
-      invariant enabled.1 enabled.2.1
+      invariant enabled.1 enabled.2
 
 /-- Appending a current-term signature preserves the arbitrary-term invariant. -/
 lemma signCommittableMessagesPreservesSystemInductiveInvariant
@@ -3462,28 +3428,12 @@ lemma signCommittableMessagesPreservesSystemInductiveInvariant
     (node : Node)
     {present : node ∈ state.nodes.map Prod.fst}
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
-    (enabled
-      : (node ∈ joinedNodes
-          /\ ((nodeOf state) node).role = .leader
-          /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
-          /\ Not (((nodeOf state) node).log = [])
-          /\ Not
-              ((refreshRetirementState (inferInstance) node
-                  {
-                    ((nodeOf state) node) with
-                      log :=
-                        ((nodeOf state) node).log
-                        ++ [({
-                              term := ((nodeOf state) node).currentTerm,
-                              content := .signature
-                            })]
-                  }).membershipState
-                = .retiredCommitted)))
+    (enabled : (node ∈ joinedNodes /\ ((nodeOf state) node).role = .leader))
     : SystemInductiveInvariant (joined := joinedNodes)
         (signCommittableMessagesEffect state node) := by
   simpa [leaderAppendState, leaderAppendJoined, leaderAppendJoined, present,
     concrete_effects, concrete_effects]
     using leaderAppendPreservesSystemInductiveInvariant (present := present)
-      state node .signature invariant enabled.1 enabled.2.1
+      state node .signature invariant enabled.1 enabled.2
 
 end CCFRaft.Proofs.Invariant
