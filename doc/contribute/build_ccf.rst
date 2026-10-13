@@ -78,9 +78,9 @@ In a Git worktree, the default local scan selects C++ sources with staged, unsta
 
 Use ``--all`` for a full scan, including already committed changes, and after changing the build configuration. Explicit source-file arguments check those compilation database entries regardless of Git changes.
 
-By default, up to four ``clang-query`` processes run concurrently, limited by the detected CPU count. Each process checks one source file, including all its compile variants, to bound memory use. Use ``-j 1`` for a serial scan or ``--jobs N`` to choose another concurrency limit based on available memory. Files may finish out of order, but their diagnostics are printed together. Tool or parse failures stop new files from being scheduled; already running invocations finish before the check exits.
+By default, up to four ``clang-query`` processes run concurrently, limited by the detected CPU count. Each process checks one source file, including all its compile variants, to bound memory use. Use ``--jobs auto`` to use the detected logical CPU count, falling back to one worker if it is unavailable. The worker count never exceeds the number of selected sources. Use ``-j 1`` for a serial scan or ``--jobs N`` to choose another concurrency limit based on available memory. Files may finish out of order, but their diagnostics are printed together. Tool or parse failures stop new files from being scheduled; already running invocations finish before the check exits.
 
-CI explicitly uses ``--all -j 8`` after the Debug build, separately from ``scripts/ci-checks.sh``, so clean CI checkouts still receive full coverage. Violations, missing required tools or files, parse errors, invalid source selections, and empty compilation databases fail the check; it does not automatically insert braces.
+CI explicitly uses ``--all -j auto`` after the Debug build, separately from ``scripts/ci-checks.sh``, so clean CI checkouts still receive full coverage and parallelism scales with the runner's detected CPU count. Violations, missing required tools or files, parse errors, invalid source selections, and empty compilation databases fail the check; it does not automatically insert braces.
 
 Update the Documentation
 ------------------------

@@ -110,6 +110,41 @@ class ClangTidierRunnerTest(unittest.TestCase):
                 self.assertEqual(status, 0, stderr)
                 executor.assert_called_once_with(max_workers=expected)
 
+    def test_auto_jobs_uses_detected_cpus_and_limits_workers_to_sources(self) -> None:
+        self.sources = [self.root / f"source_{index}.cpp" for index in range(20)]
+        for cpus, expected in ((None, 1), (2, 2), (16, 16), (32, 20)):
+            with (
+                self.subTest(cpus=cpus),
+                mock.patch.object(TIDIER.os, "cpu_count", return_value=cpus),
+                mock.patch.object(
+                    TIDIER, "ThreadPoolExecutor", wraps=ThreadPoolExecutor
+                ) as executor,
+            ):
+                status, _, stderr = self.invoke(
+                    ["--jobs", "auto"],
+                    lambda executable, build_dir, source: subprocess.CompletedProcess(
+                        [executable], 0, "0 matches.\n"
+                    ),
+                )
+                self.assertEqual(status, 0, stderr)
+                executor.assert_called_once_with(max_workers=expected)
+
+    def test_explicit_jobs_overrides_detected_cpus(self) -> None:
+        with (
+            mock.patch.object(TIDIER.os, "cpu_count", return_value=16),
+            mock.patch.object(
+                TIDIER, "ThreadPoolExecutor", wraps=ThreadPoolExecutor
+            ) as executor,
+        ):
+            status, _, stderr = self.invoke(
+                ["-j", "3"],
+                lambda executable, build_dir, source: subprocess.CompletedProcess(
+                    [executable], 0, "0 matches.\n"
+                ),
+            )
+        self.assertEqual(status, 0, stderr)
+        executor.assert_called_once_with(max_workers=3)
+
     def test_stops_scheduling_after_a_failed_invocation(self) -> None:
         started = []
         barrier = threading.Barrier(2)

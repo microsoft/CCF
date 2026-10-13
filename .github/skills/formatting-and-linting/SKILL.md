@@ -53,9 +53,12 @@ and Clang's extra tools (18 or newer). Run it with
 Local scans select staged, unstaged, and untracked C++ sources using Git, with
 full scans for shared C++ inputs, build/check configuration changes, or absent
 Git metadata. Use `--all` to check every source, including committed changes.
-CI explicitly uses `--all -j 8` so clean checkouts still receive full coverage.
+CI explicitly uses `--all -j auto` so clean checkouts still receive full coverage
+and parallelism scales with the runner's detected logical CPU count.
 It runs up to four single-file invocations concurrently by default. Use `-j 1`
 for a serial check or `--jobs N` to choose a limit that fits available memory.
+Use `--jobs auto` to use all detected logical CPUs (one if unavailable), limited
+by the number of selected sources.
 See [C++ case scopes](../../../doc/contribute/build_ccf.rst#c-case-scopes) for scope,
 exclusions, and targeted invocations.
 

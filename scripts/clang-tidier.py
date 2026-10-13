@@ -37,6 +37,10 @@ class CheckError(RuntimeError):
     pass
 
 
+def parse_jobs(value: str) -> int:
+    return (os.cpu_count() or 1) if value == "auto" else int(value)
+
+
 def find_clang_query(executable: str | None = None) -> str:
     for candidate in [executable] if executable else ["clang-query-18", "clang-query"]:
         if path := shutil.which(candidate):
@@ -182,9 +186,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "-j",
         "--jobs",
-        type=int,
+        type=parse_jobs,
         default=min(4, os.cpu_count() or 1),
-        help="maximum concurrent clang-query processes (default: up to 4 available CPUs)",
+        help=(
+            "maximum concurrent clang-query processes; 'auto' uses the detected "
+            "CPU count (default: up to 4 available CPUs)"
+        ),
     )
     parser.add_argument(
         "--all",
