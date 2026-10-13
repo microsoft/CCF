@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Node configuration validation now accepts exact integer-valued JSON numbers such as `1.0` for integer settings, while still rejecting fractional values and enforcing limits. Schema error paths now quote object property names (#8558).
 - Python packages are now built and published separately through the [OneBranch pipeline](.pipelines/README.md), rather than attached to GitHub releases and automatically published by GitHub Actions. Release-build tests use the latest released Python package from PyPI, while development and normal CI tests continue using the local package. Python wheel attestations are disabled (#8546).
 - CCF no longer advances its subsystems in a single atomic tick step. Each subsystem schedules its own periodic work, which can run independently of other subsystems and incoming node messages (#8535).
 - `ccf::endpoints::EndpointRegistry::tick()` overrides now run on task-system worker threads rather than the enclave main thread. Ticks for the same registry do not overlap, but may run concurrently with endpoint execution and ticks for other registries (#8445).

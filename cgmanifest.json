@@ -26,8 +26,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/iboB/picobench.git",
-          "commitHash": "77b575e0a239de72b581ee8396166519db0d7c87",
-          "tag": "v2.08"
+          "commitHash": "1fdd89f5f88885eb3c2a55f955f7ec46a4e841de",
+          "tag": "v2.10.0"
         }
       }
     },
@@ -105,8 +105,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "4edda758546436462da479bb8c8514f8a95c35ad",
-          "tag": "v1.0.6"
+          "commitHash": "5eac4b66f20b2c189ae40281c29e71cf39a958ec",
+          "tag": "v1.1.3"
         }
       }
     },
