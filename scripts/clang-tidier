@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Require a nested scope for variable declarations in switch case bodies."""
+"""clang-tidier: require nested scopes for switch case variable declarations."""
 
 import argparse
 import json

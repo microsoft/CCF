@@ -69,8 +69,7 @@ jobs:
         shell: bash
         run: |
           set -ex
-          python3 -m unittest discover -s scripts/tests -p case_scopes_test.py
-          python3 scripts/check-case-scopes.py -p build
+          ./scripts/clang-tidier -p build
 
       - name: "Run tests for Python package"
         run: |
