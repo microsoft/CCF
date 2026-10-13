@@ -1,7 +1,7 @@
 bucket_a:
   docs
-  tls_groups_test
   lts_compatibility
+  tls_groups_test
 
 bucket_b:
   recovery_test
@@ -46,4 +46,3 @@ no_bucket:
   recovery_test_suite
   reconfiguration_test_suite
   full_test_suite
-
