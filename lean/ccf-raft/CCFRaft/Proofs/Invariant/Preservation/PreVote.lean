@@ -99,22 +99,18 @@ lemma pureNetworkDequeuePreservesSystemInductiveInvariant
 
 lemma receiveRequestPreVotePreservesSystemInductiveInvariant
     (state : Model.State Node TxId) (source destination : Node)
-    (request : RequestVoteRequest) (remaining : List (Model.Envelope Node TxId))
+    (request : RequestVoteRequest) (response : RequestVoteResponse)
+    (remaining : List (Model.Envelope Node TxId))
     (invariant : SystemInductiveInvariant (joined := joinedNodes) state)
     (taken
       : Selected source state.network
           (preVoteRequestEnvelope (source, destination, request)) remaining)
+    (responseTerm : response.term = (nodeOf state destination).currentTerm)
     : SystemInductiveInvariant (joined := joinedNodes)
         {
           state with
             network :=
-              remaining
-              ++ [preVoteResponseEnvelope
-                    (
-                      destination,
-                      source,
-                      handleRequestPreVote (nodeOf state destination) request
-                    )]
+              remaining ++ [preVoteResponseEnvelope (destination, source, response)]
         } := by
   apply safetyInertNetworkChangePreservesSystemInductiveInvariant state
     {
@@ -125,7 +121,7 @@ lemma receiveRequestPreVotePreservesSystemInductiveInvariant
                 (
                   destination,
                   source,
-                  handleRequestPreVote (nodeOf state destination) request
+                  response
                 )]
     }
     invariant rfl (fun _ => rfl)
@@ -134,7 +130,7 @@ lemma receiveRequestPreVotePreservesSystemInductiveInvariant
   · exact Or.inl ⟨(selectedSound taken).2.2 _ old, member.2⟩
   · obtain rfl := List.mem_singleton.mp reply_
     exact Or.inr ⟨by simp [IsSafetyInert], member.2,
-      invariantCurrentTermsValid invariant destination⟩
+      by simpa [Message.term, responseTerm] using invariantCurrentTermsValid invariant destination⟩
 
 lemma receiveRequestPreVoteResponsePreservesSystemInductiveInvariant
     (state : Model.State Node TxId) (source destination : Node)
@@ -187,18 +183,22 @@ lemma receiveProposeVoteRequestPreservesSystemInductiveInvariant
           state with
             nodes :=
               replaceNode state.nodes destination
-                (handleProposeVoteRequest (inferInstance) (nodeOf state destination) destination term)
+                (if term = (nodeOf state destination).currentTerm
+                    ∧ candidateTransitionEnabled (inferInstance)
+                        (nodeOf state destination) destination then
+                    becomeCandidateNodeState (nodeOf state destination) destination
+                  else
+                    nodeOf state destination)
             network := remaining
         } := by
-  rcases handleProposeVoteRequestCases (nodeOf state destination) destination term with same | changed
-  · rw [same, replaceNode_nodeOf state destination distinct]
-    exact pureNetworkDequeuePreservesSystemInductiveInvariant state remaining invariant
-      (fun _ envelope member => ⟨(selectedSound taken).2.2 envelope member.1, member.2⟩)
-  · rw [changed.2.2]
-    have preserved := candidateTransitionPreservesSystemInductiveInvariant
-      state destination (present := present) invariant ⟨joined, changed.2.1.1⟩
+  split_ifs with eligible
+  · have preserved := candidateTransitionPreservesSystemInductiveInvariant
+      state destination (present := present) invariant ⟨joined, eligible.2.1⟩
     exact pureNetworkDequeuePreservesSystemInductiveInvariant
       (becomeCandidateState state destination) remaining preserved
+      (fun _ envelope member => ⟨(selectedSound taken).2.2 envelope member.1, member.2⟩)
+  · rw [replaceNode_nodeOf state destination distinct]
+    exact pureNetworkDequeuePreservesSystemInductiveInvariant state remaining invariant
       (fun _ envelope member => ⟨(selectedSound taken).2.2 envelope member.1, member.2⟩)
 
 end CCFRaft.Proofs.Invariant
