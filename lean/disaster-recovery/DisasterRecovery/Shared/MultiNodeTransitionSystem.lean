@@ -1,5 +1,9 @@
-import DisasterRecovery.Shared.TransitionSystem
-import DisasterRecovery.Shared.Capabilities
+module
+
+public import DisasterRecovery.Shared.TransitionSystem
+public import DisasterRecovery.Shared.Capabilities
+
+@[expose] public section
 
 namespace DisasterRecovery.Shared.MultiNodeTransitionSystem
 

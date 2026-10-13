@@ -1,5 +1,9 @@
-import DisasterRecovery.Shared.Execution
-import Mathlib.Tactic
+module
+
+public import DisasterRecovery.Shared.Execution
+public import Mathlib.Tactic
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Trace
 

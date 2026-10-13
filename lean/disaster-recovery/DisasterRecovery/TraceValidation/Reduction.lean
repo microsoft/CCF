@@ -1,4 +1,8 @@
-import DisasterRecovery.TraceValidation.Records
+module
+
+public import DisasterRecovery.TraceValidation.Records
+
+public section
 
 set_option autoImplicit false
 

@@ -1,4 +1,8 @@
-import DisasterRecovery.Shared.MultiNodeTransitionSystem
+module
+
+public import DisasterRecovery.Shared.MultiNodeTransitionSystem
+
+public section
 
 namespace DisasterRecovery.Tests.Network
 

@@ -1,4 +1,8 @@
-import DisasterRecovery.Shared.TransitionSystem
+module
+
+public import DisasterRecovery.Shared.TransitionSystem
+
+@[expose] public section
 
 namespace DisasterRecovery.Shared.Execution
 

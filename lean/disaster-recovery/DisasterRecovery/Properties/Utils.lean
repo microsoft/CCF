@@ -1,5 +1,9 @@
-import DisasterRecovery.Model
-import DisasterRecovery.Shared.Execution
+module
+
+public import DisasterRecovery.Model
+public import DisasterRecovery.Shared.Execution
+
+@[expose] public section
 
 namespace DisasterRecovery.Properties
 

@@ -34,6 +34,8 @@ the replayer on the nodes' logs.
 three scenarios against the schema, then builds and lints the replayer and
 runs `check-fixtures.sh` on them. The package enables the same
 [built-in linter checks](../README.md#validation) as the model.
+The kernel-check job also verifies this package with all bundled checkers.
+Run `./check-kernels.sh` with the [kernel-check prerequisites](../README.md#validation).
 
 ## Records
 
@@ -124,7 +126,7 @@ covered by named invalid traces rather than by ones that differ only in
 
 ```bash
 cd lean/disaster-recovery/replayer
-lake build
+lake build --fail-fast
 lake lint
 ./check-fixtures.sh
 ```

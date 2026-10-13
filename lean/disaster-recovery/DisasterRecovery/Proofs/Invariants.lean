@@ -1,5 +1,9 @@
-import DisasterRecovery.Proofs.Predicates
-import Mathlib.Tactic
+module
+
+public import DisasterRecovery.Proofs.Predicates
+public import Mathlib.Tactic
+
+@[expose] public section
 
 /-!
 Machine-checked proof implementations. Review the system-level statements in

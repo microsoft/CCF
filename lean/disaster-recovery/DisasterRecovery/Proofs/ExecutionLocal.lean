@@ -1,4 +1,8 @@
-import DisasterRecovery.Model
+module
+
+public import DisasterRecovery.Model
+
+@[expose] public section
 
 /-!
 Proof-only local instrumentation. `Lifting.step_erases` relates these

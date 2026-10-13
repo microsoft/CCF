@@ -1,4 +1,8 @@
-import DisasterRecovery.Proofs.ExecutionLocal
+module
+
+public import DisasterRecovery.Proofs.ExecutionLocal
+
+@[expose] public section
 
 /-! Proof-only execution with send snapshots and terminal-effect histories. -/
 

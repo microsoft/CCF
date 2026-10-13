@@ -1,5 +1,9 @@
-import DisasterRecovery.TraceValidation
-import Lean.Data.Json
+module
+
+public import DisasterRecovery.TraceValidation
+public import Lean.Data.Json
+
+public section
 
 set_option autoImplicit false
 

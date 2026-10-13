@@ -98,14 +98,19 @@ Run the following commands from this directory:
 
 ```console
 lake exe cache get
-lake exe mk_all --check --lib DisasterRecovery
-lake build --wfail
+lake exe mk_all --check --module --lib DisasterRecovery
+lake build --wfail --fail-fast DisasterRecovery canonical-checks disaster-recovery-replay
 lake lint
 lake exe canonical-checks
 lake exe runLinter --no-build DisasterRecovery replayer.Main
+lake check --paranoid
+cd replayer
+./check-kernels.sh
 ```
 
-`--wfail` treats `sorry` as an error. `lake lint` runs Lean's built-in linters
+`--wfail` treats all build warnings, including `sorry`, as errors.
+`--fail-fast` stops scheduling new build jobs after the first failure.
+`lake lint` runs Lean's built-in linters
 and [axiom-audit](https://github.com/leanprover-community/axiom-audit); only
 `propext`, `Classical.choice`, and `Quot.sound` are permitted.
 Both Lake packages enable the complete `linter.extra` set (duplicated
@@ -120,11 +125,45 @@ optional linter registered by dependencies. Lean's internal-module and collectio
 naming conventions, and its debugging-only `linter.tacticCheckInstances`,
 are not enabled.
 
+The model, proofs, tests, and replayer use Lean's module system, as required
+by the Mathlib dependency. Public imports preserve existing names and exports.
+`@[expose] public section` keeps definitions used by cross-module proofs
+transparent; runtime-only helpers remain private. `mk_all --module` generates
+the corresponding package-level import root.
+
+Proofs that evaluate upstream implementations use narrowly scoped `import all`
+directives to retain access to those definitions. The proof-coverage check also
+loads implementation metadata to distinguish checked theorems from axioms after
+module interface erasure.
+
 `runLinter` uses Mathlib's declaration-lint driver, including the slow checks,
 over every module imported by `DisasterRecovery.lean` and `replayer.Main`.
 It lints our declarations rather than dependencies, and findings fail the command.
-The main package also builds the replayer so its declarations are available
-to the linter; its separate package remains dependency-free.
+The explicit build includes the replayer so its declarations are available
+to the linter; its separate package remains dependency-free. The main package's
+default targets are the library and canonical checks. The two executables both
+define `main`, so `lake check` must verify them in separate packages rather than
+importing both entrypoints into one environment.
+
+`lake check --paranoid`, introduced in
+[Lean 4.35](https://lean-lang.org/doc/reference/latest/releases/v4.35.0/),
+builds and exports all default targets in a sandbox, then rechecks the export
+with Lean's kernel and every bundled checker: `leanchecker-paranoid`,
+`lean4lean`, `nanoda`, `con-leche`, and `con-ron`. Every checker must accept
+the declarations, using only the same three standard axioms as the audit.
+The main package includes the complete library import root and canonical tests,
+not just the exported property theorems; the standalone package checks the
+replayer. These supplement the axiom audit, import and
+proof coverage checks, and executable model and trace tests.
+The sandbox requires Linux and `bubblewrap` (`sudo apt-get install bubblewrap`),
+with unprivileged user namespaces enabled or a setuid installation.
+CI checks both packages in a job matrix without disabling the sandbox.
+Kernel checks use the existing 64 GiB VMSS pool and disk-backed temporary
+storage; Nanoda exceeds the local 11 GiB memory limit even for the standalone
+replayer.
+The replayer's `check-kernels.sh` stages identical shared sources inside its
+package, changing only their relative source directory, because the sandbox
+cannot read its usual parent source directory.
 
 `Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof
 module or if a removed name is reintroduced. See [Formatting](#formatting) for

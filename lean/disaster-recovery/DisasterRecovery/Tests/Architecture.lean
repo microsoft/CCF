@@ -1,5 +1,12 @@
-import DisasterRecovery.Properties
-import Lean
+module
+
+import all Init.Prelude
+import all Lean.Data.Name
+
+public import DisasterRecovery.Properties
+public import Lean
+
+@[expose] public section
 
 namespace DisasterRecovery.Tests.Architecture
 

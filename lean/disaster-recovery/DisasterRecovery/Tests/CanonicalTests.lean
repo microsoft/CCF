@@ -1,5 +1,9 @@
-import DisasterRecovery.Tests.Initial
-import DisasterRecovery.Tests.Network
+module
+
+public import DisasterRecovery.Tests.Initial
+public import DisasterRecovery.Tests.Network
+
+public section
 
 open DisasterRecovery
 open Shared

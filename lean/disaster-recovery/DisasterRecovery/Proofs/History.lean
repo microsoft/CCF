@@ -1,5 +1,9 @@
-import DisasterRecovery.Proofs.Lifting
-import DisasterRecovery.Proofs.Trace
+module
+
+public import DisasterRecovery.Proofs.Lifting
+public import DisasterRecovery.Proofs.Trace
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.History
 
