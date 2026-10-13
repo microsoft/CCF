@@ -98,7 +98,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
+          advanceCommitState, advanceCommitNodeState, present, nodeOf_replaceNode, same
         ]
   have termEq :
         forall candidate,
@@ -107,7 +107,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
+          advanceCommitState, advanceCommitNodeState, present, nodeOf_replaceNode, same
         ]
   have logEq :
         forall candidate,
@@ -116,7 +116,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
+          advanceCommitState, advanceCommitNodeState, present, nodeOf_replaceNode, same
         ]
   have sentEq :
         forall candidate,
@@ -125,7 +125,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
+          advanceCommitState, advanceCommitNodeState, present, nodeOf_replaceNode, same
         ]
   have matchEq :
         forall candidate,
@@ -134,7 +134,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
+          advanceCommitState, advanceCommitNodeState, present, nodeOf_replaceNode, same
         ]
   have votedEq :
         forall candidate,
@@ -143,7 +143,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
+          advanceCommitState, advanceCommitNodeState, present, nodeOf_replaceNode, same
         ]
   have votesEq :
         forall candidate,
@@ -152,12 +152,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       intro candidate
       by_cases same : candidate = node <;>
         simp [
-          advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, same
+          advanceCommitState, advanceCommitNodeState, present, nodeOf_replaceNode, same
         ]
   have commitNode :
         ((nodeOf (advanceCommitState state node)) node).commitIndex =
           frontier := by
-      simp [advanceCommitState, Model.Local.advanceCommit, present, frontier]
+      simp [advanceCommitState, advanceCommitNodeState, present, frontier]
   have commitOther :
         forall candidate,
           Not (candidate = node) ->
@@ -165,7 +165,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             ((nodeOf state) candidate).commitIndex := by
       intro candidate different
       simp [
-        advanceCommitState, Model.Local.advanceCommit, present, nodeOf_replaceNode, different
+        advanceCommitState, advanceCommitNodeState, present, nodeOf_replaceNode, different
       ]
   have roleNode :
       ((nodeOf (advanceCommitState state node)) node).role =
@@ -264,7 +264,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       · rw [committedOther candidate same]
   have networkEq :
         (advanceCommitState state node).network = state.network := by
-      simp [advanceCommitState, Model.Local.advanceCommit, present]
+      simp [advanceCommitState, advanceCommitNodeState, present]
   have effectiveAckersEq :
       forall leader index,
         effectiveAckers (joined := joinedNodes)
@@ -277,12 +277,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       effectiveAckers, Finset.mem_filter]
     constructor
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inl self⟩
+      · exact ⟨by simpa [advanceCommitState, advanceCommitNodeState, present] using joined, Or.inl self⟩
       · exact ⟨
-          by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined,
+          by simpa [advanceCommitState, advanceCommitNodeState, present] using joined,
           Or.inr (Or.inl (by simpa [matchEq] using matched))
         ⟩
-      · refine ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inr (Or.inr ?_)⟩
+      · refine ⟨by simpa [advanceCommitState, advanceCommitNodeState, present] using joined, Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, responseTerm, sourceEq,
             destinationEq, lastIndex, covered⟩
@@ -297,12 +297,12 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
           by simpa [logEq] using covered
         ⟩
     · rintro ⟨joined, self | matched | queued⟩
-      · exact ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inl self⟩
+      · exact ⟨by simpa [advanceCommitState, advanceCommitNodeState, present] using joined, Or.inl self⟩
       · exact ⟨
-          by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined,
+          by simpa [advanceCommitState, advanceCommitNodeState, present] using joined,
           Or.inr (Or.inl (by simpa [matchEq] using matched))
         ⟩
-      · refine ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inr (Or.inr ?_)⟩
+      · refine ⟨by simpa [advanceCommitState, advanceCommitNodeState, present] using joined, Or.inr (Or.inr ?_)⟩
         rcases queued with
           ⟨response, member, success, responseTerm, sourceEq,
             destinationEq, lastIndex, covered⟩
@@ -341,10 +341,10 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
       effectiveElectionVoters, Finset.mem_filter]
     constructor <;> rintro ⟨joined, processed | queued⟩
     · exact ⟨
-        by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined,
+        by simpa [advanceCommitState, advanceCommitNodeState, present] using joined,
         Or.inl (by simpa [votesEq] using processed)
       ⟩
-    · refine ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inr ?_⟩
+    · refine ⟨by simpa [advanceCommitState, advanceCommitNodeState, present] using joined, Or.inr ?_⟩
       rcases queued with
         ⟨response, member, granted, responseTerm,
           responseSource, responseDestination⟩
@@ -357,10 +357,10 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         responseDestination
       ⟩
     · exact ⟨
-        by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined,
+        by simpa [advanceCommitState, advanceCommitNodeState, present] using joined,
         Or.inl (by simpa [votesEq] using processed)
       ⟩
-    · refine ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inr ?_⟩
+    · refine ⟨by simpa [advanceCommitState, advanceCommitNodeState, present] using joined, Or.inr ?_⟩
       rcases queued with
         ⟨response, member, granted, responseTerm,
           responseSource, responseDestination⟩
@@ -394,20 +394,20 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     simp only [
       potentialElectionVoters, Finset.mem_filter]
     constructor <;> rintro ⟨joined, effective | eligible⟩
-    · exact ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inl (by
+    · exact ⟨by simpa [advanceCommitState, advanceCommitNodeState, present] using joined, Or.inl (by
         rw [effectiveElectionVotersEq] at effective
         exact effective)⟩
-    · exact ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inr (by
+    · exact ⟨by simpa [advanceCommitState, advanceCommitNodeState, present] using joined, Or.inr (by
         simpa [
           currentlyEligibleElectionVoter,
           voteRequestKey, Model.Local.makeRequestVoteRequest,
           termEq, logEq, lastIndexEq, lastTermEq,
           votedEq, voteLogUpToDate
         ] using eligible)⟩
-    · exact ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inl (by
+    · exact ⟨by simpa [advanceCommitState, advanceCommitNodeState, present] using joined, Or.inl (by
         rw [effectiveElectionVotersEq]
         exact effective)⟩
-    · exact ⟨by simpa [advanceCommitState, Model.Local.advanceCommit, present] using joined, Or.inr (by
+    · exact ⟨by simpa [advanceCommitState, advanceCommitNodeState, present] using joined, Or.inr (by
         simpa [
           currentlyEligibleElectionVoter,
           voteRequestKey, Model.Local.makeRequestVoteRequest,
@@ -431,7 +431,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         leaderState.role = .leader ->
           Not (canProduceAppendAckAt leaderState request index) := by
     intro leaderState request index role direct
-    exact Role.noConfusion ((canProduceAppendAckAt_role direct).symm.trans role)
+    rcases canProduceAppendAckAt_role direct with passive | passive <;> simp [passive] at role
   have queuedAppendReserveEq :
       forall leader peer index,
         queuedAppendReserve
@@ -462,7 +462,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             · exact Or.inr (by simpa [termEq] using future)
           · simpa [
               canProduceAppendAckEventuallyAt,
-              canProduceAppendAckAt, advanceCommitState, Model.Local.advanceCommit, present,
+              canProduceAppendAckAt, advanceCommitState, advanceCommitNodeState, present,
               nodeOf_replaceNode, Function.update, peerEq
             ] using producible,
         by simpa [logEq] using covered
@@ -486,7 +486,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
             · exact Or.inr (by simpa [termEq] using future)
           · simpa [
               canProduceAppendAckEventuallyAt,
-              canProduceAppendAckAt, advanceCommitState, Model.Local.advanceCommit, present,
+              canProduceAppendAckAt, advanceCommitState, advanceCommitNodeState, present,
               nodeOf_replaceNode, Function.update, peerEq
             ] using producible,
         by simpa [logEq] using covered
@@ -3118,7 +3118,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · intro destination request member positive
       exact
         evidenceFacts.requestPositive destination request
-          (by simpa [advanceCommitState, Model.Local.advanceCommit, present] using member) positive
+          (by simpa [advanceCommitState, advanceCommitNodeState, present] using member) positive
   have evidenceMemberEffective :
       forall member,
         member ∈ evidence.ackQuorum ->
@@ -4542,7 +4542,8 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         simpa [newConfiguration, currentConfiguration]
           using configuration_index_le_currentConfiguration
             { (nodeOf state) node with commitIndex := frontier }
-            (currentConfigurationAt (inferInstance) ((nodeOf state) node).log coveredFrontier)
+            (currentConfigurationAt (inferInstance) ((nodeOf state) node).log
+              coveredFrontier)
             (by
               simpa [currentConfiguration]
                 using currentConfiguration_mem_allConfigurations
@@ -4630,7 +4631,8 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
                 log := lower.history
                 commitIndex := lower.activationFrontier
             }
-            (currentConfigurationAt (inferInstance) ((nodeOf state) node).log coveredFrontier)
+            (currentConfigurationAt (inferInstance) ((nodeOf state) node).log
+              coveredFrontier)
             (by simpa using coveredKnownLower)
             (by
               have coveredIndexBound :
@@ -4692,7 +4694,8 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
               log := lower.history
               commitIndex := lower.activationFrontier
           }
-          (currentConfigurationAt (inferInstance) ((nodeOf state) node).log coveredFrontier)
+          (currentConfigurationAt (inferInstance) ((nodeOf state) node).log
+            coveredFrontier)
           (by simpa using coveredKnownLower)
           (by
             have frontierLength :
@@ -5675,7 +5678,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
         positive signature
       have oldQueued :
           (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
-        simpa [advanceCommitState, Model.Local.advanceCommit, present] using queued
+        simpa [advanceCommitState, advanceCommitNodeState, present] using queued
       rcases
           activationQuorums.queuedCoverage
             queuedDestination queuedRequest oldQueued coveredFrontier within
@@ -6514,7 +6517,7 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
   · apply joinedCarrierFactsFrame
       state (advanceCommitState state node)
       facts.joinedCarriers
-      (by simp [advanceCommitState, Model.Local.advanceCommit, present])
+      (by simp [advanceCommitState, advanceCommitNodeState, present])
     · intro candidate configuration active
       by_cases candidateEq : candidate = node
       · subst candidate
@@ -6526,19 +6529,19 @@ lemma advanceCommitStatePreservesSystemInductiveInvariant
     · intro candidate peer member
       simpa [votesEq] using member
     · intro candidate active
-      simpa [advanceCommitState, Model.Local.advanceCommit, present]
+      simpa [advanceCommitState, advanceCommitNodeState, present]
         using facts.joinedCarriers.runtimeNodes.activeRoles candidate
           (by simpa [roleEq] using active)
     · intro leader peer positive
-      simpa [advanceCommitState, Model.Local.advanceCommit, present]
+      simpa [advanceCommitState, advanceCommitNodeState, present]
         using facts.joinedCarriers.runtimeNodes.positiveMatches leader peer
           (by simpa [matchEq] using positive)
     · intro candidate nonempty
-      simpa [advanceCommitState, Model.Local.advanceCommit, present]
+      simpa [advanceCommitState, advanceCommitNodeState, present]
         using facts.joinedCarriers.runtimeNodes.nonemptyLogs candidate
           (by simpa [logEq] using nonempty)
     · intro destination message member
-      simpa [advanceCommitState, Model.Local.advanceCommit, present] using member
+      simpa [advanceCommitState, advanceCommitNodeState, present] using member
   · intro candidate
     simpa only [termEq] using facts.currentTermsValid candidate
   · simpa only [NetworkTermsValid, networkEq] using facts.networkTermsValid

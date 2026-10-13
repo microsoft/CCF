@@ -37,11 +37,10 @@ theorem advanced_eq (state : Model.State Node TxId) (node : Node)
         state with
           nodes :=
             replaceNode state.nodes node
-              (Model.Local.demoteRetiredCommitted
-                (Model.Local.advanceCommit (inferInstance) (nodeOf state node) node))
+              (Model.Local.advanceCommit (inferInstance) (nodeOf state node) node)
       } := by
   simp only [demoteRetiredCommitted, advanceCommitState, nodeOf_replaceNode, present, ite_true,
-    replaceNode_twice]
+    replaceNode_twice, advanceCommit_eq]
 
 theorem refresh_sentIndex (node : Node) (value : NodeState Node TxId)
     (sentIndex : Node -> Nat)

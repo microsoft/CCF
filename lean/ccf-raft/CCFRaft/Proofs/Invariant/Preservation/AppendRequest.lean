@@ -90,7 +90,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
   rcases facts.processedAckHistory with ⟨ackHistory, ackFacts⟩
   have responseKey : (request.2.1, request.1, response.2.2) = response :=
     Prod.ext responseSource.symm (Prod.ext responseDestination.symm rfl)
-  let post := handleAppendEntriesRequestLocalPost notStepped handled
+  let post := handleAppendEntriesRequestLocalPost handled
   let after : Model.State Node TxId :=
     { state with
       nodes := replaceNode state.nodes destination nextNode

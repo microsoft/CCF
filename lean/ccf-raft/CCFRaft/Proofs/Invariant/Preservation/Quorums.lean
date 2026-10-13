@@ -233,11 +233,10 @@ lemma majorityImpliesEffectiveMajority
   rw [hasEffectiveMajorityAt, List.all_eq_true]
   intro configuration active
   apply decide_eq_true
-  intro governs
+  intro _governs
   exact
     hasConfigurationMajority_mono subset
-      ((of_decide_eq_true
-        (majority configuration active)) governs)
+      (of_decide_eq_true (majority configuration active))
 
 /-- Every processed election quorum is also an effective election quorum. -/
 lemma electionMajorityImpliesEffective
@@ -350,8 +349,7 @@ lemma effectiveMajorityImpliesPotential
   intro governs
   exact
     hasConfigurationMajority_mono subset
-      ((of_decide_eq_true
-        (majority configuration active)) governs)
+      ((of_decide_eq_true (majority configuration active)) governs)
 
 /-- Effective election evidence places every voter at or above the term voted. -/
 lemma effectiveElectionVoterTermBound
@@ -440,7 +438,8 @@ lemma potentialElectionMajorityIntersectionEffective
     (potential
       : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
           leader index)
-    (leaderActive : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) leader))
+    (leaderActive
+      : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) leader))
     (configurationGoverns : configuration.index <= index)
     (candidateActive
       : ((nodeOf state) candidate).role = .candidate
@@ -492,7 +491,8 @@ lemma potentialElectionRecordIntersectionEffective
     (potential
       : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
           leader index)
-    (leaderActive : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) leader))
+    (leaderActive
+      : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) leader))
     (configurationGoverns : configuration.index <= index)
     (recorded : elections term = some record)
     (ballotActive : configuration ∈ record.ballotActive)
@@ -674,7 +674,8 @@ lemma potentialPrefixInActivation
     (potential
       : hasPotentialMajorityAt (joined := joined) state appendHistory responseHistory
           source index)
-    (sourceActive : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) source))
+    (sourceActive
+      : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) source))
     (configurationGoverns : configuration.index <= index)
     (activationStored : activations activationIndex = some activation)
     (activationGoverning : configuration ∈ activation.governingActive)
@@ -841,7 +842,8 @@ lemma activationNewConfigurationKnown
     {activation : ActivationRecord Node TxId}
     (activationStored : activations activationIndex = some activation)
     : activation.newConfiguration
-      ∈ allConfigurations (inferInstance) (activation.history.take activation.activationFrontier) := by
+      ∈ allConfigurations (inferInstance)
+          (activation.history.take activation.activationFrontier) := by
   have valid :=
     historyFacts.valid activationIndex activation activationStored
   have governingMember : activation.newConfiguration ∈
@@ -876,7 +878,8 @@ lemma electionConfigurationActiveOfKnown
     (recorded : elections term = some record)
     (known : configuration ∈ allConfigurations (inferInstance) record.ballotLog)
     (notRetired
-      : (currentConfigurationAt (inferInstance) record.ballotLog record.ballotCommitIndex).index
+      : (currentConfigurationAt (inferInstance) record.ballotLog
+          record.ballotCommitIndex).index
         <= configuration.index)
     : configuration ∈ record.ballotActive := by
   rw [
@@ -3046,7 +3049,8 @@ lemma prospectiveKnownEffectiveWinnerCompletenessOfSharedAuthority
     (candidateRole : ((nodeOf state) candidate).role = .candidate)
     (candidateMajority : hasPotentialElectionMajority (joined := joined) state candidate)
     (authorityActive
-      : evidence.authority ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate))
+      : evidence.authority
+        ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate))
     (newer : evidence.commitTerm < ((nodeOf state) candidate).currentTerm)
     : supportedPrefix <+: ((nodeOf state) candidate).log := by
   have candidateEntriesBefore :

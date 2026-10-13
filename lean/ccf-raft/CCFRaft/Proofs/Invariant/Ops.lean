@@ -41,13 +41,38 @@ def becomeCandidateState (state : Model.State Node TxId) (node : Node)
         replaceNode state.nodes node (becomeCandidateNodeState (nodeOf state node) node)
   }
 
+/-- Commit advancement before CCF's terminal retired-committed demotion. -/
+def advanceCommitNodeState (state : NodeState Node TxId) (self : Node)
+    : NodeState Node TxId :=
+  refreshRetirementState (inferInstance) self
+    { state with commitIndex := highestCommittableIndex (inferInstance) state self }
+
+/-- Clear the role of a node whose retirement is committed. -/
+def demoteRetiredCommittedNode (state : NodeState Node TxId) : NodeState Node TxId :=
+  if state.membershipState = .retiredCommitted then
+    { state with role := .none, leaderKnown := false }
+  else
+    state
+
+theorem advanceCommit_eq (state : NodeState Node TxId) (self : Node)
+    : Model.Local.advanceCommit (inferInstance) state self
+      = demoteRetiredCommittedNode (advanceCommitNodeState state self) :=
+  rfl
+
 def advanceCommitState (state : Model.State Node TxId) (node : Node)
     : Model.State Node TxId :=
   {
     state with
       nodes :=
-        replaceNode state.nodes node
-          (Model.Local.advanceCommit (inferInstance) (nodeOf state node) node)
+        replaceNode state.nodes node (advanceCommitNodeState (nodeOf state node) node)
+  }
+
+def demoteRetiredCommitted (state : Model.State Node TxId) (node : Node)
+    : Model.State Node TxId :=
+  {
+    state with
+      nodes :=
+        replaceNode state.nodes node (demoteRetiredCommittedNode (nodeOf state node))
   }
 
 def stepDownState (state : Model.State Node TxId) (node : Node) : Model.State Node TxId :=

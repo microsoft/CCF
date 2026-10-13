@@ -521,7 +521,7 @@ lemma advanceCommitTransitionPreservesSystemInductiveInvariant
         node ∈ joinedNodes := enabled.1
     have leader :
         ((nodeOf (advanceCommitState state node)) node).role = .leader := by
-      simp [advanceCommitState, Model.Local.advanceCommit, present, enabled.2.1]
+      simp [advanceCommitState, advanceCommitNodeState, present, enabled.2.1]
     simpa [demoteRetiredCommitted, Model.Local.demoteRetiredCommitted, terminal]
       using leaderDemotionPreservesSystemInductiveInvariant
         (advanceCommitState state node) node

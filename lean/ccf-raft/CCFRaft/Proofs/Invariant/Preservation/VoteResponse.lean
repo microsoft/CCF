@@ -411,6 +411,11 @@ lemma receiveRequestVoteResponsePreservesSystemInductiveInvariant
     rw [← handled]
     unfold handleRequestVoteResponse
     split_ifs <;> rfl
+  have nextLeaderKnown :
+      nextNode.leaderKnown = ((nodeOf state) destination).leaderKnown := by
+    rw [← handled]
+    unfold handleRequestVoteResponse
+    split_ifs <;> rfl
   have newFollowerEq :
       forall node,
         ((nodeOf intermediate) node).isNewFollower =
@@ -686,6 +691,10 @@ lemma receiveRequestVoteResponsePreservesSystemInductiveInvariant
                 have sentField := sentEq destination
                 have matchField := matchEq destination
                 have newFollowerField := newFollowerEq destination
+                have knownField :
+                    ((nodeOf intermediate) destination).leaderKnown =
+                      ((nodeOf state) destination).leaderKnown := by
+                  simpa [intermediate, present, nodeOf_replaceNode] using nextLeaderKnown
                 have votedField := votedEq destination
                 have preVotesField := preVotesEq destination
                 have membershipField := membershipEq destination
@@ -705,8 +714,7 @@ lemma receiveRequestVoteResponsePreservesSystemInductiveInvariant
                     ((nodeOf intermediate) destination).role = .candidate := by
                   rw [roleEq]
                   exact inserted.2.2.1
-                exact False.elim
-                  (Role.noConfusion (follower.symm.trans candidate))
+                rcases follower with passive | passive <;> simp [passive] at candidate
               · have result :
                     canProduceAppendAckEventuallyAt
                       ((nodeOf state) destination) request index :=

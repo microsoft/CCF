@@ -556,7 +556,8 @@ lemma activationPrefixInPotentialCandidatePromotionOfGoverningConfiguration
       : activation.activationTerm < ((nodeOf state) candidate).currentTerm)
     {configuration : Configuration Node}
     (governing : configuration ∈ activation.governingActive)
-    (candidateActive : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate))
+    (candidateActive
+      : configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate))
     : activation.history.take activation.activationFrontier
       <+: ((nodeOf state) candidate).log.take
             (maxCommittableIndex ((nodeOf state) candidate).log) := by
@@ -1172,7 +1173,8 @@ lemma activationPrefixInTargetByAuthorityChainCore
           -> Eligible activation
           -> forall configuration,
               configuration ∈ activation.governingActive
-              -> configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate)
+              -> configuration
+                  ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate)
               -> activation.history.take activation.activationFrontier <+: targetHistory)
     (candidateKnownInActivation
       : forall activationIndex activation,
@@ -1384,7 +1386,8 @@ lemma activationPrefixInTargetByCoverageAuthorityChain
           -> Eligible activation
           -> forall configuration,
               configuration ∈ activation.governingActive
-              -> configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate)
+              -> configuration
+                  ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate)
               -> activation.history.take activation.activationFrontier <+: targetHistory)
     : forall configurationIndex activationIndex activation,
         activation.newConfiguration.index = configurationIndex
@@ -1448,7 +1451,8 @@ lemma activationPrefixInFutureCandidateByCoverageAuthorityChain
     (futureMajority
       : hasFutureElectionMajority (joined := joined) state candidate targetTerm
           ballotActive)
-    (ballotActiveEq : ballotActive = activeConfigurationsOf (inferInstance) ((nodeOf state) candidate))
+    (ballotActiveEq
+      : ballotActive = activeConfigurationsOf (inferInstance) ((nodeOf state) candidate))
     : forall configurationIndex activationIndex activation,
         activation.newConfiguration.index = configurationIndex
         -> activations activationIndex = some activation
@@ -1645,7 +1649,8 @@ lemma potentialCandidatesSharedConfigurationCoverage
     : Exists
         fun configuration =>
           configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) left)
-          /\ configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) right) := by
+          /\ configuration
+              ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) right) := by
   let leftConfiguration := currentConfiguration (inferInstance) ((nodeOf state) left)
   let rightConfiguration := currentConfiguration (inferInstance) ((nodeOf state) right)
   have leftActive :
@@ -1823,7 +1828,8 @@ lemma potentialCandidateElectionRecordSharedConfigurationCoverage
     : Exists
         fun configuration =>
           configuration ∈ record.ballotActive
-          /\ configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
+          /\ configuration
+              ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
   let candidateConfiguration := currentConfiguration (inferInstance) ((nodeOf state) candidate)
   let ballotConfiguration :=
     currentConfigurationAt (inferInstance) record.ballotLog record.ballotCommitIndex
@@ -2132,7 +2138,8 @@ lemma activationPrefixInEffectiveCandidateByAuthorityChain
       : forall configuration,
           configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) source)
           -> configuration.index <= index
-          -> configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) candidate)
+          -> configuration
+              ∈ activeConfigurationsOf (inferInstance) ((nodeOf after) candidate)
           -> ((nodeOf after) source).log.take index <+: ((nodeOf after) candidate).log)
     : ((nodeOf after) source).log.take index <+: ((nodeOf after) candidate).log := by
   let sourceConfiguration :=
@@ -2679,7 +2686,8 @@ lemma futureElectionRecordSharedConfigurationCoverage
     : Exists
         fun configuration =>
           configuration ∈ record.ballotActive
-          /\ configuration ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
+          /\ configuration
+              ∈ activeConfigurationsOf (inferInstance) ((nodeOf state) candidate) := by
   let ballotConfiguration :=
     currentConfigurationAt (inferInstance) record.ballotLog record.ballotCommitIndex
   let candidateConfiguration := currentConfiguration (inferInstance) ((nodeOf state) candidate)
@@ -3934,13 +3942,13 @@ lemma canProduceAppendAckAt_index_le_requestEnd
       success
   omega
 
-/-- Only a follower can directly produce a successful ACK. -/
+/-- Only a passive node can directly produce a successful ACK. -/
 lemma canProduceAppendAckAt_role
     {node : NodeState Node TxId} {request : AppendRequestKey Node TxId} {index : Nat}
     (producible : canProduceAppendAckAt node request index)
-    : node.role = .follower := by
-  obtain ⟨nextNode, response, handled, _⟩ := producible
-  exact (acceptAppendEntriesRequest_conditions handled).2.1
+    : node.role = .follower \/ node.role = .none := by
+  obtain ⟨_, _, _, _, _, passive⟩ := producible
+  exact passive
 
 /-- Appending an envelope retains every earlier envelope. -/
 lemma memEnqueueNoDupOfMem

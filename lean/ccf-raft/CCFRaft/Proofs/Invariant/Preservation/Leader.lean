@@ -33,16 +33,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       : (node ∈ joinedNodes
           /\ ((nodeOf state) node).role = .candidate
           /\ Not (((nodeOf state) node).membershipState = .retiredCommitted)
-          /\ hasElectionMajority (inferInstance) (nodeOf state node)
-          /\ Not
-              ((refreshRetirementState (inferInstance) node
-                  ({
-                    ((nodeOf state) node) with
-                      log :=
-                        (((nodeOf state) node).log.take
-                          (maxCommittableIndex ((nodeOf state) node).log))
-                  })).membershipState
-                = .retiredCommitted)))
+          /\ hasElectionMajority (inferInstance) (nodeOf state node)))
     : SystemInductiveInvariant (joined := joinedNodes)
         (becomeLeaderEffect state node) := by
   rcases invariant with
@@ -63,7 +54,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
   have candidatesAboveBootstrap :=
     invariantFactsCandidatesAboveBootstrap facts
   have oldRole : ((nodeOf state) node).role = .candidate := enabled.2.1
-  have oldMajority : hasElectionMajority (inferInstance) (nodeOf state node) := enabled.2.2.2.1
+  have oldMajority : hasElectionMajority (inferInstance) (nodeOf state node) := enabled.2.2.2
   have oldEffectiveMajority :
       hasEffectiveElectionMajority (joined := joinedNodes) state node :=
     electionMajorityImpliesEffective
@@ -102,11 +93,44 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     change maxCommittableIndex promotionLog = promotionLog.length
     rw [promotionLength]
     exact maxCommittableIndexTakeMax ((nodeOf state) node).log
+  have committedSignature :=
+    invariantFactsCommittedFrontierIsSignatureFromCommitEvidence facts node
+  let leaderLog :=
+    if ((nodeOf state) node).commitIndex > 0 then promotionLog
+    else ((nodeOf state) node).log
+  have leaderPrefix : leaderLog <+: ((nodeOf state) node).log := by
+    by_cases positive : ((nodeOf state) node).commitIndex > 0 <;>
+      simp [leaderLog, positive, promotionPrefix]
+  have promotionLeaderPrefix : promotionLog <+: leaderLog := by
+    by_cases positive : ((nodeOf state) node).commitIndex > 0 <;>
+      simp [leaderLog, positive, promotionPrefix]
+  have leaderMax :
+      maxCommittableIndex leaderLog = maxCommittableIndex ((nodeOf state) node).log := by
+    by_cases positive : ((nodeOf state) node).commitIndex > 0 <;>
+      simp only [leaderLog, positive, ite_true, ite_false]
+    rw [promotionCommittable, promotionLength]
+  have leaderTake :
+      forall count, count <= maxCommittableIndex ((nodeOf state) node).log ->
+        leaderLog.take count = ((nodeOf state) node).log.take count := by
+    intro count within
+    by_cases positive : ((nodeOf state) node).commitIndex > 0 <;>
+      simp [leaderLog, positive, promotionLog, List.take_take, Nat.min_eq_left within]
+  have leaderTermAt :
+      forall index, index <= maxCommittableIndex ((nodeOf state) node).log ->
+        termAt leaderLog index = termAt ((nodeOf state) node).log index := by
+    intro index within
+    rw [← termAtTakeOfLe (log := leaderLog) le_rfl, leaderTake index within,
+      termAtTakeOfLe le_rfl]
+  have commitBound :
+      ((nodeOf state) node).commitIndex <= maxCommittableIndex ((nodeOf state) node).log :=
+    commitIndex_le_maxCommittableIndex _ committedSignature
+  have commitLeaderBound : ((nodeOf state) node).commitIndex <= leaderLog.length :=
+    commitBound.trans (leaderMax ▸ maxCommittableIndexBounded leaderLog)
   let newOwners : TermOwners (Node : Type) :=
     Function.update owners ((nodeOf state) node).currentTerm (some node)
   let newCanonicalHistory : Nat -> List (Entry Node TxId) :=
     Function.update canonicalHistory
-      ((nodeOf state) node).currentTerm promotionLog
+      ((nodeOf state) node).currentTerm leaderLog
   let electionRecord : ElectionRecord Node TxId :=
     { leader := node
       supporters := ((nodeOf state) node).votesGranted
@@ -182,8 +206,10 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     ]
   have logNode :
       ((nodeOf (becomeLeaderEffect state node)) node).log =
-        promotionLog := by
-    simp [concrete_effects, present, promotionLog]
+        leaderLog := by
+    by_cases positive : ((nodeOf state) node).commitIndex > 0 <;>
+      simp [concrete_effects, present, leaderLog, promotionLog, positive,
+        lastCommittableIndex_eq_maxCommittableIndex _ committedSignature]
   have logOther :
       forall candidate,
         Not (candidate = node) ->
@@ -218,16 +244,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node
     · subst candidate
-      have commitBound :=
-        commitIndex_le_maxCommittableIndex
-          ((nodeOf state) node)
-          (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
-            facts node)
-      simp [
-        NodeState.committedLog, commitEq, logNode,
-        promotionLog, List.take_take,
-        Nat.min_eq_left commitBound
-      ]
+      simp [NodeState.committedLog, commitEq, logNode, leaderTake _ commitBound]
     · simp [
         NodeState.committedLog, commitEq,
         logOther candidate same
@@ -240,7 +257,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     intro candidate
     by_cases same : candidate = node
     · subst candidate
-      rw [logNode, promotionCommittable, promotionLength]
+      rw [logNode, leaderMax]
     · rw [logOther candidate same]
   have maxCommittableTermEq :
       forall candidate,
@@ -252,7 +269,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     · subst candidate
       unfold maxCommittableTerm
       rw [maxCommittableIndexEq, logNode]
-      exact termAtTakeOfLe le_rfl
+      exact leaderTermAt _ le_rfl
     · rw [logOther candidate same]
   have lastIndexEq :
       forall candidate,
@@ -275,11 +292,8 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     by_cases same : candidate = node
     · subst candidate
       rw [logNode]
-      rw [lastCommittableIndex_eq_maxCommittableIndex
-        ((nodeOf state) node)
-        (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
-          facts node)]
-      exact termAtTakeOfLe le_rfl
+      rw [lastCommittableIndex_eq_maxCommittableIndex _ committedSignature]
+      exact leaderTermAt _ le_rfl
     · rw [logOther candidate same]
   have votedEq :
       forall candidate,
@@ -301,8 +315,10 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       ]
   have sentNode :
       ((nodeOf (becomeLeaderEffect state node)) node).sentIndex =
-        fun _ => promotionLog.length := by
-    simp [concrete_effects, present, promotionLog]
+        fun _ => leaderLog.length := by
+    by_cases positive : ((nodeOf state) node).commitIndex > 0 <;>
+      simp [concrete_effects, present, leaderLog, promotionLog, positive,
+        lastCommittableIndex_eq_maxCommittableIndex _ committedSignature]
   have matchNode :
       ((nodeOf (becomeLeaderEffect state node)) node).matchIndex =
         fun _ => 0 := by
@@ -336,24 +352,25 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     have oldKnownAfter :
         currentConfiguration (inferInstance) ((nodeOf state) node) ∈
           allConfigurations (inferInstance) afterNode.log := by
-      rw [show afterNode.log = promotionLog by
-        simpa [afterNode] using logNode]
-      simpa [promotionLog]
-        using allConfigurations_mem_take_of_index_le
-          ((nodeOf state) node).log
-          (maxCommittableIndex ((nodeOf state) node).log)
-          (maxCommittableIndexBounded ((nodeOf state) node).log)
-          (currentConfiguration_mem_allConfigurations ((nodeOf state) node))
-          ((currentConfiguration_index_le_commitIndex ((nodeOf state) node)).trans
-            (commitIndex_le_maxCommittableIndex
-              ((nodeOf state) node)
-              (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence facts node)))
+      have known :
+          currentConfiguration (inferInstance) ((nodeOf state) node) ∈
+            allConfigurations (inferInstance) promotionLog := by
+        simpa [promotionLog]
+          using allConfigurations_mem_take_of_index_le
+            ((nodeOf state) node).log
+            (maxCommittableIndex ((nodeOf state) node).log)
+            (maxCommittableIndexBounded ((nodeOf state) node).log)
+            (currentConfiguration_mem_allConfigurations ((nodeOf state) node))
+            ((currentConfiguration_index_le_commitIndex ((nodeOf state) node)).trans
+              commitBound)
+      rw [show afterNode.log = leaderLog by simpa [afterNode] using logNode]
+      exact memOfPrefix (allConfigurations_mono_prefix promotionLeaderPrefix) known
     have afterKnownOld :
         currentConfiguration (inferInstance) afterNode ∈
           allConfigurations (inferInstance) ((nodeOf state) node).log := by
       apply
         memOfPrefix
-          (allConfigurations_mono_prefix promotionPrefix)
+          (allConfigurations_mono_prefix leaderPrefix)
       simpa [afterNode, logNode]
         using currentConfiguration_mem_allConfigurations afterNode
     have oldIndexLeAfter :
@@ -410,7 +427,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
         configuration ∈ allConfigurations (inferInstance) ((nodeOf state) node).log := by
       apply
         memOfPrefix
-          (allConfigurations_mono_prefix promotionPrefix)
+          (allConfigurations_mono_prefix leaderPrefix)
       simpa [logNode] using parts.1
     simpa [activeConfigurationsOf, currentConfigurationNodeEq]
       using And.intro knownOld parts.2
@@ -686,7 +703,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     have oldFound :
         entryAt? ((nodeOf state) node).log index = some foundEntry := by
       rw [logNode] at found
-      exact entryAt_of_prefix promotionPrefix found
+      exact entryAt_of_prefix leaderPrefix found
     exact
       oldCandidateTermNot
         node oldRole oldEffectiveMajority node index foundEntry
@@ -727,12 +744,8 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
   · intro candidate
     by_cases same : candidate = node
     · subst candidate
-      rw [commitEq, logNode, promotionLength]
-      exact
-        commitIndex_le_maxCommittableIndex
-          ((nodeOf state) node)
-          (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
-            facts node)
+      rw [commitEq, logNode]
+      exact commitLeaderBound
     · rw [commitEq, logOther candidate same]
       exact facts.commitIndicesBounded candidate
   · intro candidate participating
@@ -752,7 +765,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       rw [logNode] at member
       exact
         facts.entriesDoNotExceedCurrentTerm node entry
-          (memOfPrefix promotionPrefix member)
+          (memOfPrefix leaderPrefix member)
     · rw [logOther candidate same] at member
       exact facts.entriesDoNotExceedCurrentTerm candidate entry member
   · intro candidate role
@@ -903,8 +916,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       by_cases sourceEq : request.1 = node
       · rw [sourceEq] at oldPrefix ⊢
         rw [logNode]
-        exact
-          committablePrefixOfMaxTake oldPrefix maxIndex
+        exact (committablePrefixOfMaxTake oldPrefix maxIndex).trans promotionLeaderPrefix
       · simpa [logOther request.1 sourceEq] using oldPrefix
     · intro destination response member granted
       rw [networkEq] at member
@@ -1093,7 +1105,9 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
             evidence.commitTerm < ((nodeOf state) node).currentTerm := by
           rw [← frontierTerm]
           omega
-        simpa [logNode] using newPromotionCovered evidence supportedPrefix known strict
+        rw [logNode]
+        exact (newPromotionCovered evidence supportedPrefix known strict).trans
+          promotionLeaderPrefix
       · simpa [logOther member memberEq]
           using prospectiveFacts.currentMember
             evidence supportedPrefix
@@ -1204,17 +1218,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     · intro candidate frontier within
       by_cases candidateEq : candidate = node
       · subst candidate
-        have frontierBound :
-            frontier <= maxCommittableIndex ((nodeOf state) node).log :=
-          within.trans
-            (commitIndex_le_maxCommittableIndex
-              ((nodeOf state) node)
-              (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
-                facts node))
-        simp [
-          logNode, promotionLog, List.take_take,
-          Nat.min_eq_left frontierBound
-        ]
+        rw [logNode, leaderTake _ (within.trans commitBound)]
       · rw [logOther candidate candidateEq]
     · intro candidate witness role
       have candidateNe : Not (candidate = node) := by
@@ -1343,7 +1347,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
         by_cases ownerEq : owner = node
         · subst owner
           rw [logNode] at found
-          exact entryAt_of_prefix promotionPrefix found
+          exact entryAt_of_prefix leaderPrefix found
         · simpa [logOther owner ownerEq] using found
       have termNe :
           Not (entry.term = ((nodeOf state) node).currentTerm) :=
@@ -1359,14 +1363,14 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
         by
           by_cases ownerEq : owner = node
           · subst owner
-            have promotionFound :
-                entryAt? promotionLog index = some entry := by
+            have leaderFound :
+                entryAt? leaderLog index = some entry := by
               simpa [logNode] using found
             rw [logNode]
             calc
-              promotionLog.take index = ((nodeOf state) node).log.take index :=
-                takeEqOfPrefix promotionPrefix
-                  (entryAtSomeIndexBound promotionFound)
+              leaderLog.take index = ((nodeOf state) node).log.take index :=
+                takeEqOfPrefix leaderPrefix
+                  (entryAtSomeIndexBound leaderFound)
               _ = (newCanonicalHistory entry.term).take index := by
                 simpa [newCanonicalHistory, Function.update, termNe] using agreed
           · simpa [
@@ -1429,11 +1433,10 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       · subst term
         have candidateFound :
             entryAt? ((nodeOf state) node).log index = some entry := by
-          have promotionFound :
-              entryAt? promotionLog index = some entry := by
+          have leaderFound :
+              entryAt? leaderLog index = some entry := by
             simpa [newCanonicalHistory, Function.update] using found
-          exact entryAt_of_prefix promotionPrefix
-            promotionFound
+          exact entryAt_of_prefix leaderPrefix leaderFound
         have entryTermNe :
             Not (entry.term = ((nodeOf state) node).currentTerm) :=
           oldCandidateTermNot
@@ -1462,7 +1465,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
         simpa [newCanonicalHistory, Function.update]
           using monoHistoryOfPrefix
             ((canonicalHistoriesMonoLog ownership) node)
-            promotionPrefix
+            leaderPrefix
       · simpa [
           newCanonicalHistory, Function.update, termEqNode
         ] using ownership.canonicalMonoLog term
@@ -1639,9 +1642,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           have recordEq : electionRecord = record :=
             Option.some.inj (by simpa [newElections] using recorded)
           subst record
-          simp [
-            electionRecord, newCanonicalHistory
-          ]
+          simpa [electionRecord, newCanonicalHistory] using promotionLeaderPrefix
         · have oldRecorded :
               elections term = some record := by
             simpa [newElections, Function.update, termEqNode] using recorded
@@ -1974,6 +1975,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           · subst supporter
             exact Or.inl (by
               rw [logNode]
+              refine List.IsPrefix.trans ?_ promotionLeaderPrefix
               apply signatureEndedPrefixOfMaxTake retained
               exact
                 signatureAtTakeLength
@@ -2156,7 +2158,8 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
         · subst voter
           simpa [logOther source sourceNe, logNode]
             using (signatureEndedPrefixOfMaxTake
-                    retained (signatureAtTakeLength oldSignature))
+                    retained (signatureAtTakeLength oldSignature)).trans
+              promotionLeaderPrefix
         · simpa [
             logOther source sourceNe,
             logOther voter voterEq
@@ -2565,12 +2568,8 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
             (fun candidate => by
               by_cases candidateEq : candidate = node
               · subst candidate
-                rw [commitEq, logNode, promotionLength]
-                exact
-                  commitIndex_le_maxCommittableIndex
-                    ((nodeOf state) node)
-                    (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
-                      facts node)
+                rw [commitEq, logNode]
+                exact commitLeaderBound
               · simpa [
                   commitEq, logOther candidate candidateEq
                 ] using facts.commitIndicesBounded candidate)
@@ -2580,18 +2579,8 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
         by_cases candidateEq : candidate = node
         · subst candidate
           rw [logNode]
-          have frontierMax :
-              frontier <= maxCommittableIndex ((nodeOf state) node).log := by
-            have oldWithin :
-                frontier <= ((nodeOf state) node).commitIndex := by
-              simpa [commitEq] using within
-            exact oldWithin.trans
-              (commitIndex_le_maxCommittableIndex
-                ((nodeOf state) node)
-                (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
-                  facts node))
-          simp [promotionLog, List.take_take,
-            Nat.min_eq_left frontierMax]
+          exact leaderTake _ ((show frontier <= _ by simpa [commitEq] using within).trans
+            commitBound)
         · rw [logOther candidate candidateEq]
       · apply
           queuedConfigurationCoverageFrame
@@ -2625,8 +2614,8 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       · by_cases candidateEq : candidate = node
         · subst candidate
           rw [logNode]
-          exact
-            committablePrefixOfMaxTake snapshot.1 snapshot.2.1
+          exact (committablePrefixOfMaxTake snapshot.1 snapshot.2.1).trans
+            promotionLeaderPrefix
         · simpa [logOther candidate candidateEq] using snapshot.1
       · simpa [termEq] using snapshot.2.2.2.1
       · simpa [voteLogUpToDate, maxCommittableIndexEq,
@@ -2683,7 +2672,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       · subst candidate
         apply
           memOfPrefix
-            (allConfigurations_mono_prefix promotionPrefix)
+            (allConfigurations_mono_prefix leaderPrefix)
         simpa [logNode] using member
       · simpa [logOther candidate candidateEq] using member
     · intro candidate peer member

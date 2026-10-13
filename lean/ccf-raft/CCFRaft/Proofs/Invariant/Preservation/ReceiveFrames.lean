@@ -306,7 +306,7 @@ lemma appendRequestAckerTemporalFacts
           voteVoterHistory elections
       /\ AckerElectionHistory (joined := joinedNodes) after newResponseHistory
           elections := by
-  let post := handleAppendEntriesRequestLocalPost notStepped handled
+  let post := handleAppendEntriesRequestLocalPost handled
   let after : Model.State Node TxId :=
     { state with
       nodes := replaceNode state.nodes destination nextNode

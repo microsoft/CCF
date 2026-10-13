@@ -25,17 +25,18 @@ theorem canProduceAppendAckAt_iff (node : NodeState Node TxId)
         ∧ logOk node request.2.2
         ∧ node.commitIndex ≤ request.2.2.prevLogIndex
         ∧ ¬(hasTermConflict node request.2.2 ∧ node.isNewFollower = false)
-        ∧ index ≤ request.2.2.prevLogIndex + request.2.2.entries.length := by
+        ∧ index ≤ request.2.2.prevLogIndex + request.2.2.entries.length
+        ∧ (node.role = .follower ∨ node.role = .none) := by
   constructor
-  · rintro ⟨next, response, accepted, -, covered⟩
+  · rintro ⟨next, response, accepted, -, covered, passive⟩
     obtain ⟨term, matching, committed, shape, -, -, -, -, -, -, -, -, -, rfl⟩ :=
       acceptAppendEntriesRequest_eq accepted
-    refine ⟨term, matching, committed, ?_, covered⟩
+    refine ⟨term, matching, committed, ?_, covered, passive⟩
     rintro ⟨conflict, fresh⟩
     rcases shape with ⟨noConflict, -⟩ | ⟨-, fresh', -⟩
     · exact noConflict conflict
     · simp [fresh] at fresh'
-  · rintro ⟨term, matching, committed, notBlocked, covered⟩
+  · rintro ⟨term, matching, committed, notBlocked, covered, passive⟩
     have enabled :
         request.2.2.term = node.currentTerm
           ∧ logOk node request.2.2
@@ -49,16 +50,18 @@ theorem canProduceAppendAckAt_iff (node : NodeState Node TxId)
       rfl
     obtain ⟨⟨next, response⟩, accepted⟩ := Option.isSome_iff_exists.mp isSome
     obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, rfl⟩ := acceptAppendEntriesRequest_eq accepted
-    exact ⟨next, _, accepted, rfl, covered⟩
+    exact ⟨next, _, accepted, rfl, covered, passive⟩
 
 theorem canProduceAppendAckAt_frame
     {before after : NodeState Node TxId}
+    (role : after.role = before.role)
     (term : after.currentTerm = before.currentTerm)
     (log : after.log = before.log) (commit : after.commitIndex = before.commitIndex)
     (follower : after.isNewFollower = before.isNewFollower)
     (request : AppendRequestKey Node TxId) (index : Nat)
     : canProduceAppendAckAt after request index
       ↔ canProduceAppendAckAt before request index := by
-  simp only [canProduceAppendAckAt_iff, logOk, hasTermConflict, term, log, commit, follower]
+  simp only [canProduceAppendAckAt_iff, logOk, hasTermConflict, role, term, log, commit,
+    follower]
 
 end CCFRaft.Proofs.Invariant

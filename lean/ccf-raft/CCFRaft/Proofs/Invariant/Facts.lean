@@ -1256,7 +1256,10 @@ noncomputable instance
           index) := by
   exact Classical.propDecidable _
 
-/-- A follower can accept a request without first changing its term or role. -/
+/--
+A passive node (a follower, or a node without a role) can accept a request
+without first changing its term or role.
+-/
 def canProduceAppendAckAt
     (node : NodeState Node TxId)
     (request : AppendRequestKey Node TxId)
@@ -1270,6 +1273,7 @@ def canProduceAppendAckAt
             = some (nextNode, response)
           /\ response.success = true
           /\ index <= response.lastLogIndex
+          /\ (node.role = .follower \/ node.role = .none)
 
 /--
 A request is ACKable now, or becomes directly ACKable after the exact local

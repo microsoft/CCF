@@ -848,8 +848,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
                     ((nodeOf intermediate) destination).role = .leader := by
                   rw [roleEq]
                   exact successful.2.2
-                exact False.elim
-                  (Role.noConfusion (follower.symm.trans leader))
+                rcases follower with passive | passive <;> simp [passive] at leader
               · have result :
                     canProduceAppendAckEventuallyAt
                       ((nodeOf state) destination) request index :=

@@ -131,7 +131,7 @@ def appendEntriesEffect (state : Model.State Node TxId) (source : Node)
 @[concrete_effects]
 def advanceCommitIndexEffect (state : Model.State Node TxId) (node : Node)
     : Model.State Node TxId :=
-  advanceCommitState state node
+  demoteRetiredCommitted (advanceCommitState state node) node
 
 @[concrete_effects]
 def timeoutEffect (state : Model.State Node TxId) (node : Node) : Model.State Node TxId :=
@@ -207,7 +207,7 @@ def proposeVoteEffect (state : Model.State Node TxId) (source : Node) (destinati
 def advanceCommitIndexAndProposeVoteEffect (state : Model.State Node TxId) (source : Node)
     (destination : Node)
     : Model.State Node TxId :=
-  let advanced := advanceCommitState state source
+  let advanced := demoteRetiredCommitted (advanceCommitState state source) source
   let request := (source, destination, (nodeOf state source).currentTerm)
   { advanced with network := advanced.network ++ [proposeVoteEnvelope request] }
 
