@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <yaml-cpp/yaml.h>
 
@@ -61,7 +62,7 @@ class YamlCppArray
     typedef YamlCppArrayValueIterator iterator;
 
     /// Construct a YamlCppArray referencing an empty array.
-    YamlCppArray() : m_value(emptyArray()) {}
+    YamlCppArray() : m_value(emptyArray) {}
 
     /**
      * @brief   Construct a YamlCppArray referencing a specific
@@ -108,11 +109,8 @@ class YamlCppArray
      *
      * Note that the value returned by this function is a singleton.
      */
-    static const YAML::Node &emptyArray()
-    {
-        static const YAML::Node array = YAML::Node(YAML::NodeType::Sequence);
-        return array;
-    }
+    static inline const YAML::Node emptyArray =
+        YAML::Node(YAML::NodeType::Sequence);
 
     /// Reference to the contained value
     const YAML::Node m_value;
@@ -136,7 +134,7 @@ class YamlCppObject
     typedef YamlCppObjectMemberIterator iterator;
 
     /// Construct a YamlCppObject referencing an empty object singleton.
-    YamlCppObject() : m_value(emptyObject()) {}
+    YamlCppObject() : m_value(emptyObject) {}
 
     /**
      * @brief   Construct a YamlCppObject referencing a specific
@@ -196,11 +194,8 @@ class YamlCppObject
      *
      * Note that the value returned by this function is a singleton.
      */
-    static const YAML::Node &emptyObject()
-    {
-        static const YAML::Node object = YAML::Node(YAML::NodeType::Map);
-        return object;
-    }
+    static inline const YAML::Node emptyObject =
+        YAML::Node(YAML::NodeType::Map);
 
     /// Reference to the contained object
     const YAML::Node m_value;
@@ -257,7 +252,7 @@ class YamlCppValue
 {
   public:
     /// Construct a wrapper for the empty object singleton
-    YamlCppValue() : m_value(emptyObject()) {}
+    YamlCppValue() : m_value(emptyObject) {}
 
     /// Construct a wrapper for a specific YamlCpp value
     YamlCppValue(const YAML::Node &value) : m_value(value) {}
@@ -283,10 +278,10 @@ class YamlCppValue
      *
      * Otherwise it will return an empty optional.
      */
-    opt::optional<YamlCppArray> getArrayOptional() const
+    std::optional<YamlCppArray> getArrayOptional() const
     {
         if (m_value.IsSequence()) {
-            return opt::make_optional(YamlCppArray(m_value));
+            return std::make_optional(YamlCppArray(m_value));
         }
 
         return {};
@@ -351,10 +346,10 @@ class YamlCppValue
      *
      * Otherwise it will return an empty optional.
      */
-    opt::optional<YamlCppObject> getObjectOptional() const
+    std::optional<YamlCppObject> getObjectOptional() const
     {
         if (m_value.IsMap()) {
-            return opt::make_optional(YamlCppObject(m_value));
+            return std::make_optional(YamlCppObject(m_value));
         }
 
         return {};
@@ -437,12 +432,9 @@ class YamlCppValue
     }
 
   private:
-    /// Return a reference to an empty object singleton
-    static const YAML::Node &emptyObject()
-    {
-        static const YAML::Node object = YAML::Node(YAML::NodeType::Map);
-        return object;
-    }
+    /// Shared YAML map node used to represent an empty object
+    static inline const YAML::Node emptyObject =
+        YAML::Node(YAML::NodeType::Map);
 
     /// Reference to the contained YamlCpp value.
     const YAML::Node m_value;
