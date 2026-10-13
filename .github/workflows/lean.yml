@@ -84,8 +84,6 @@ jobs:
     # Nanoda exhausts 11 GiB locally; use the existing 64 GiB VMSS pool.
     runs-on: [gha-vmss-d16av7-ci]
     timeout-minutes: 60
-    env:
-      TMPDIR: ${{ runner.temp }}
     strategy:
       fail-fast: false
       matrix:
@@ -123,6 +121,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export TMPDIR="$RUNNER_TEMP"
           if [[ "${{ matrix.package }}" == "disaster-recovery/replayer" ]]; then
             ./check-kernels.sh
           else
