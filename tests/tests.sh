@@ -15,7 +15,11 @@ source env/bin/activate
 if [ -n "${PIP_INDEX_URL:-}" ] && [ -z "${UV_INDEX_URL:-}" ]; then
     export UV_INDEX_URL="$PIP_INDEX_URL"
 fi
-uv pip install -q -e ../python/
+if [[ "${CCF_USE_RELEASED_PYTHON_PACKAGE:-0}" == "1" ]]; then
+    uv pip install -q --upgrade --reinstall-package ccf ccf
+else
+    uv pip install -q -e ../python/
+fi
 uv pip install -q -r ../tests/requirements.txt
 echo "Python environment successfully setup"
 

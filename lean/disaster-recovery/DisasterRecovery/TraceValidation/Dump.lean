@@ -104,9 +104,13 @@ sent it, its position among that action's sends, and the send record that the
 outputs observation after that action matched it with.
 -/
 structure Copy where
+  /-- The message and routing information stored in the model network. -/
   envelope : Model.Envelope
+  /-- The zero-based instruction index of the action that emitted this copy. -/
   sentBy : Nat
+  /-- The zero-based position of this copy among that action's outgoing messages. -/
   position : Nat
+  /-- The send record matched by the subsequent outputs observation, if any. -/
   record : Option Origin := none
 
 /-- The network tells copies apart only by their envelopes. -/
