@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""clang-tidier: require braces around non-empty switch case bodies."""
+"""clang-tidier.py: require braces around non-empty switch case bodies."""
 
 import argparse
 import json

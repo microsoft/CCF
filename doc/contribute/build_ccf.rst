@@ -70,9 +70,9 @@ After building, run the check from the repository root:
 
 .. code-block:: bash
 
-    $ ./scripts/clang-tidier -p build
+    $ ./scripts/clang-tidier.py -p build
 
-``clang-tidier`` uses ``clang-query-18`` or ``clang-query`` from Clang's extra tools, installed by ``scripts/setup-dev.sh``. Set ``CLANG_QUERY`` or pass ``--clang-query`` to select another executable. It checks the first-party C++ translation units in ``compile_commands.json``, including their headers and compile variants, one source file at a time. Vendored ``3rdparty`` files, system headers, and translation units generated in the build directory are excluded. Only code active in that build configuration is checked. Optional source-file arguments restrict local checks to those compilation database entries.
+``clang-tidier.py`` uses ``clang-query-18`` or ``clang-query`` from Clang's extra tools, installed by ``scripts/setup-dev.sh``. Set ``CLANG_QUERY`` or pass ``--clang-query`` to select another executable. It checks the first-party C++ translation units in ``compile_commands.json``, including their headers and compile variants, one source file at a time. Vendored ``3rdparty`` files, system headers, and translation units generated in the build directory are excluded. Only code active in that build configuration is checked. Optional source-file arguments restrict local checks to those compilation database entries.
 
 CI runs this check after the Debug build, separately from ``scripts/ci-checks.sh``. Violations, missing tools or files, parse errors, and empty selections fail the check; it does not automatically insert braces.
 

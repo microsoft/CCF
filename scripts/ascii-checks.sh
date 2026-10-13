@@ -63,7 +63,6 @@ declare -A LEGACY_NON_ASCII_LINES=(
 
 globs=(
   "CMakeLists.txt" "*/CMakeLists.txt"
-  "scripts/clang-tidier"
   ".github/copilot-instructions.md"
   ".github/instructions/*.md"
   ".github/skills/*.md"

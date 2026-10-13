@@ -74,10 +74,7 @@ def check_ccf():
     missing = []
     count = 0
     for file_suffix, notice_lines in PREFIX_BY_FILETYPE.items():
-        paths = list_files(file_suffix)
-        if file_suffix == ".py":
-            paths.append("scripts/clang-tidier")
-        for path in paths:
+        for path in list_files(file_suffix):
             # git ls-files returns moved/deleted files - ignore those
             if os.path.isfile(path):
                 count += 1

@@ -69,7 +69,7 @@ jobs:
         shell: bash
         run: |
           set -ex
-          ./scripts/clang-tidier -p build
+          ./scripts/clang-tidier.py -p build
 
       - name: "Run tests for Python package"
         run: |
