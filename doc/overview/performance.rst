@@ -19,6 +19,8 @@ The micro-benchmark tests can be run from the CCF build directory:
 
 These test performance-critical features of CCF such as certificate verification and KV alterations.
 
+The picobench runner does not change CPU affinity. For reproducible comparisons, use the same CPU affinity and machine configuration for both runs. On Linux, use ``taskset`` when an explicit CPU selection is needed, allowing enough CPUs for multi-threaded benchmarks such as ``task_bench``.
+
 
 End-to-end performance tests
 ----------------------------

@@ -227,38 +227,30 @@ namespace ccf::kv
         return entry;
       }
 
-      std::vector<uint8_t> serialised_hdr;
-      std::vector<uint8_t> encrypted_private_domain(
-        serialised_private_domain.size());
+      const auto header_size = crypto_util->get_header_length();
+      std::span<uint8_t> serialised_hdr(data_, header_size);
+      data_ += header_size;
+      size_ -= header_size;
+      serialized::write(data_, size_, serialised_public_domain.size());
+      auto* public_data = data_;
+      serialized::write(
+        data_,
+        size_,
+        serialised_public_domain.data(),
+        serialised_public_domain.size());
 
       if (!crypto_util->encrypt(
             serialised_private_domain,
-            serialised_public_domain,
+            std::span<const uint8_t>(
+              public_data, serialised_public_domain.size()),
             serialised_hdr,
-            encrypted_private_domain,
+            std::span<uint8_t>(data_, serialised_private_domain.size()),
             tx_id,
             entry_type,
             historical_hint))
       {
         throw KvSerialiserException(fmt::format(
           "Could not serialise transaction at seqno {}", tx_id.seqno));
-      }
-
-      serialized::write(
-        data_, size_, serialised_hdr.data(), serialised_hdr.size());
-      serialized::write(data_, size_, serialised_public_domain.size());
-      serialized::write(
-        data_,
-        size_,
-        serialised_public_domain.data(),
-        serialised_public_domain.size());
-      if (!encrypted_private_domain.empty())
-      {
-        serialized::write(
-          data_,
-          size_,
-          encrypted_private_domain.data(),
-          encrypted_private_domain.size());
       }
 
       return entry;

@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 
 #include <boost/property_tree/ptree.hpp>
@@ -329,10 +330,10 @@ public:
      *
      * Otherwise it will return an empty optional.
      */
-    opt::optional<PropertyTreeArray> getArrayOptional() const
+    std::optional<PropertyTreeArray> getArrayOptional() const
     {
         if (m_array) {
-            return opt::make_optional(PropertyTreeArray(*m_array));
+            return std::make_optional(PropertyTreeArray(*m_array));
         }
 
         return {};
@@ -383,10 +384,10 @@ public:
      *
      * Otherwise it will return an empty optional.
      */
-    opt::optional<PropertyTreeObject> getObjectOptional() const
+    std::optional<PropertyTreeObject> getObjectOptional() const
     {
         if (m_object) {
-            return opt::make_optional(PropertyTreeObject(*m_object));
+            return std::make_optional(PropertyTreeObject(*m_object));
         }
 
         return {};
@@ -477,15 +478,15 @@ private:
     }
 
     /// Reference used if the value is known to be an array
-    // opt::optional<const boost::property_tree::ptree &> m_array;
+    // std::optional<const boost::property_tree::ptree &> m_array;
     const boost::property_tree::ptree *m_array;
 
     /// Reference used if the value is known to be an object
-    // opt::optional<const boost::property_tree::ptree &> m_object;
+    // std::optional<const boost::property_tree::ptree &> m_object;
     const boost::property_tree::ptree *m_object;
 
     /// Reference used if the value is known to be a POD type
-    opt::optional<std::string> m_value;
+    std::optional<std::string> m_value;
 };
 
 /**

@@ -1,6 +1,9 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <limits>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -22,6 +25,30 @@ namespace valijson {
 
 class ValidationResults;
 
+namespace detail {
+
+template<typename AdapterType>
+inline bool isDoubleAnInteger(const AdapterType &target)
+{
+    if (!target.isDouble()) {
+        return false;
+    }
+    const double value = target.asDouble();
+    if (!std::isfinite(value)) {
+        return false;
+    }
+    if (value < static_cast<double>(std::numeric_limits<int64_t>::min())) {
+        return false;
+    }
+    if (value > static_cast<double>(std::numeric_limits<int64_t>::max())) {
+        return false;
+    }
+    double intPart = 0.0;
+    return std::modf(value, &intPart) == 0.0;
+}
+
+}  // namespace detail
+
 /**
  * @brief   Implementation of the ConstraintVisitor interface that validates a
  *          target document
@@ -34,10 +61,10 @@ class ValidationVisitor: public constraints::ConstraintVisitor
 public:
 
     /**
-     * @brief  Construct a new validator for a given target value and context.
+     * @brief  Construct a new validator for a given target value and path.
      *
      * @param  target       Target value to be validated
-     * @param  context      Current context for validation error descriptions,
+     * @param  path.        Current path for validation errors,
      *                      only used if results is set.
      * @param  strictTypes  Use strict type comparison
      * @param  results      Optional pointer to ValidationResults object, for
@@ -48,13 +75,13 @@ public:
      *                      constraints.
      */
     ValidationVisitor(const AdapterType &target,
-                      std::vector<std::string> context,
+                      ValidationResults::Path path,
                       const bool strictTypes,
                       const bool strictDateTime,
                       ValidationResults *results,
                       std::unordered_map<std::string, RegexEngine>& regexesCache)
       : m_target(target),
-        m_context(std::move(context)),
+        m_path(std::move(path)),
         m_results(results),
         m_strictTypes(strictTypes),
         m_strictDateTime(strictDateTime),
@@ -128,7 +155,7 @@ public:
     {
         bool validated = true;
         constraint.applyToSubschemas(
-                ValidateSubschemas(m_target, m_context, true, false, *this, m_results, nullptr, &validated));
+                ValidateSubschemas(m_target, m_path, true, false, *this, m_results, nullptr, &validated));
 
         return validated;
     }
@@ -158,17 +185,17 @@ public:
         ValidationResults *childResults = (m_results) ? &newResults : nullptr;
 
         ValidationVisitor<AdapterType, RegexEngine> v(
-            m_target, m_context, m_strictTypes, m_strictDateTime, childResults, m_regexesCache);
+            m_target, m_path, m_strictTypes, m_strictDateTime, childResults, m_regexesCache);
 
         constraint.applyToSubschemas(
-                ValidateSubschemas(m_target, m_context, false, true, v, childResults, &numValidated, nullptr));
+                ValidateSubschemas(m_target, m_path, false, true, v, childResults, &numValidated, nullptr));
 
         if (numValidated == 0 && m_results) {
             ValidationResults::Error childError;
             while (childResults->popError(childError)) {
-                m_results->pushError( childError.context, childError.description);
+                m_results->pushError(childError);
             }
-            m_results->pushError(m_context, "Failed to validate against any schemas allowed by anyOf constraint.");
+            m_results->pushError(m_path, "Failed to validate against any schemas allowed by anyOf constraint.");
         }
 
         return numValidated > 0;
@@ -191,8 +218,8 @@ public:
         ValidationResults* conditionalResults = (m_results) ? &newResults : nullptr;
 
         // Create a validator to evaluate the conditional
-        ValidationVisitor ifValidator(m_target, m_context, m_strictTypes, m_strictDateTime, nullptr, m_regexesCache);
-        ValidationVisitor thenElseValidator(m_target, m_context, m_strictTypes, m_strictDateTime, conditionalResults, m_regexesCache);
+        ValidationVisitor ifValidator(m_target, m_path, m_strictTypes, m_strictDateTime, nullptr, m_regexesCache);
+        ValidationVisitor thenElseValidator(m_target, m_path, m_strictTypes, m_strictDateTime, conditionalResults, m_regexesCache);
 
         bool validated = false;
         if (ifValidator.validateSchema(*constraint.getIfSubschema())) {
@@ -206,9 +233,9 @@ public:
         if (!validated && m_results) {
             ValidationResults::Error conditionalError;
             while (conditionalResults->popError(conditionalError)) {
-                m_results->pushError(conditionalError.context, conditionalError.description);
+                m_results->pushError(conditionalError);
             }
-            m_results->pushError(m_context, "Failed to validate against a conditional schema set by if-then-else constraints.");
+            m_results->pushError(m_path, "Failed to validate against a conditional schema set by if-then-else constraints.");
         }
 
         return validated;
@@ -227,7 +254,7 @@ public:
     {
         if (!constraint.getValue()->equalTo(m_target, m_strictTypes)) {
             if (m_results) {
-                m_results->pushError(m_context, "Failed to match expected value set by 'const' constraint.");
+                m_results->pushError(m_path, "Failed to match expected value set by 'const' constraint.");
             }
             return false;
         }
@@ -256,7 +283,7 @@ public:
 
         bool validated = false;
         for (const auto &el : arr) {
-            ValidationVisitor containsValidator(el, m_context, m_strictTypes, m_strictDateTime, nullptr, m_regexesCache);
+            ValidationVisitor containsValidator(el, m_path, m_strictTypes, m_strictDateTime, nullptr, m_regexesCache);
             if (containsValidator.validateSchema(*subschema)) {
                 validated = true;
                 break;
@@ -265,7 +292,7 @@ public:
 
         if (!validated) {
             if (m_results) {
-                m_results->pushError(m_context, "Failed to any values against subschema in 'contains' constraint.");
+                m_results->pushError(m_path, "Failed to any values against subschema in 'contains' constraint.");
             }
 
             return false;
@@ -307,7 +334,7 @@ public:
         // Iterate over all dependent properties defined by this constraint,
         // invoking the DependentPropertyValidator functor once for each
         // set of dependent properties
-        constraint.applyToPropertyDependencies(ValidatePropertyDependencies(object, m_context, m_results, &validated));
+        constraint.applyToPropertyDependencies(ValidatePropertyDependencies(object, m_path, m_results, &validated));
         if (!m_results && !validated) {
             return false;
         }
@@ -316,7 +343,7 @@ public:
         // invoking the DependentSchemaValidator function once for each schema
         // that must be validated if a given property is present
         constraint.applyToSchemaDependencies(ValidateSchemaDependencies(
-                object, m_context, *this, m_results, &validated));
+                object, m_path, *this, m_results, &validated));
         if (!m_results && !validated) {
             return false;
         }
@@ -338,11 +365,11 @@ public:
     {
         unsigned int numValidated = 0;
         constraint.applyToValues(
-                ValidateEquality(m_target, m_context, false, true, m_strictTypes, nullptr, &numValidated));
+                ValidateEquality(m_target, m_path, false, true, m_strictTypes, nullptr, &numValidated));
 
         if (numValidated == 0) {
             if (m_results) {
-                m_results->pushError(m_context, "Failed to match against any enum values.");
+                m_results->pushError(m_path, "Failed to match against any enum values.");
             }
 
             return false;
@@ -375,7 +402,9 @@ public:
         // Reference:
         // https://json-schema.org/understanding-json-schema/reference/string.html#format
         //
-        if (!m_target.maybeString()) {
+        // Per the JSON Schema specification, the 'format' keyword applies
+        // only to values that are strings. Other types are ignored.
+        if (!m_target.isString()) {
             return true;
         }
 
@@ -386,47 +415,98 @@ public:
             static const internal::regex date_regex("^([0-9]+)-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$");
             internal::smatch matches;
             if (internal::regex_match(s, matches, date_regex)) {
+                const auto year = std::stoi(matches[1].str());
                 const auto month = std::stoi(matches[2].str());
                 const auto day = std::stoi(matches[3].str());
-                return validate_date_range(month, day);
+                return validate_date_range(year, month, day);
             } else {
                 if (m_results) {
-                    m_results->pushError(m_context,
-                                         "String should be a valid date");
+                    m_results->pushError(m_path, "String should be a valid date");
                 }
                 return false;
             }
         } else if (format == "time") {
             // Strict mode matches times like: 16:52:45Z, 16:52:45+02:00
-            // Permissive mode also matches date/times like 16:52:45
-            static const internal::regex strictRegex("^([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])|([\\+|\\-]([01][0-9]|2[0-3]):[0-5][0-9]))$");
-            static const internal::regex permissiveRegex("^([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])?|([\\+|\\-]([01][0-9]|2[0-3]):[0-5][0-9]))$");
-            if (internal::regex_match(s, m_strictDateTime ? strictRegex : permissiveRegex)) {
+            // Permissive mode also matches times like 16:52:45
+            static const internal::regex strictRegex("^([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])|([\\+\\-])([01][0-9]|2[0-3]):([0-5][0-9]))$");
+            static const internal::regex permissiveRegex("^([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])?|([\\+\\-])([01][0-9]|2[0-3]):([0-5][0-9]))$");
+            internal::smatch matches;
+            if (internal::regex_match(s, matches, m_strictDateTime ? strictRegex : permissiveRegex)) {
+                const auto hour = std::stoi(matches[1].str());
+                const auto minute = std::stoi(matches[2].str());
+                const auto second = std::stoi(matches[3].str());
+                if (second == 60) {
+                    int offsetMinutes = 0;
+                    if (matches[7].matched && matches[8].matched && matches[9].matched) {
+                        const int sign = (matches[7].str() == "-") ? -1 : 1;
+                        offsetMinutes = sign * (std::stoi(matches[8].str()) * 60
+                                + std::stoi(matches[9].str()));
+                    }
+                    if (!validate_leap_second(hour, minute, offsetMinutes)) {
+                        if (m_results) {
+                            m_results->pushError(m_path, "String should be a valid time");
+                        }
+                        return false;
+                    }
+                }
                 return true;
             } else {
                 if (m_results) {
-                    m_results->pushError(m_context,
-                                         "String should be a valid time");
+                    m_results->pushError(m_path, "String should be a valid time");
                 }
                 return false;
             }
         } else if (format == "date-time") {
             // Strict mode matches date/times like: 2022-07-18T16:52:45Z, 2022-07-18T16:52:45+02:00
             // Permissive mode also matches date/times like: 2022-07-18T16:52:45
-            static const internal::regex strictRegex("^([0-9]+)-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])|([\\+|\\-]([01][0-9]|2[0-3]):[0-5][0-9]))$");
-            static const internal::regex permissiveRegex("^([0-9]+)-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])?|([\\+|\\-]([01][0-9]|2[0-3]):[0-5][0-9]))$");
+            static const internal::regex strictRegex("^([0-9]+)-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])|([\\+\\-])([01][0-9]|2[0-3]):([0-5][0-9]))$");
+            static const internal::regex permissiveRegex("^([0-9]+)-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])?|([\\+\\-])([01][0-9]|2[0-3]):([0-5][0-9]))$");
             internal::smatch matches;
             if (internal::regex_match(s, matches, m_strictDateTime ? strictRegex : permissiveRegex)) {
+                const auto year = std::stoi(matches[1].str());
                 const auto month = std::stoi(matches[2].str());
                 const auto day = std::stoi(matches[3].str());
-                return validate_date_range(month, day);
+                if (!validate_date_range(year, month, day)) {
+                    return false;
+                }
+                const auto hour = std::stoi(matches[4].str());
+                const auto minute = std::stoi(matches[5].str());
+                const auto second = std::stoi(matches[6].str());
+                if (second == 60) {
+                    int offsetMinutes = 0;
+                    if (matches[10].matched && matches[11].matched && matches[12].matched) {
+                        const int sign = (matches[10].str() == "-") ? -1 : 1;
+                        offsetMinutes = sign * (std::stoi(matches[11].str()) * 60
+                                + std::stoi(matches[12].str()));
+                    }
+                    if (!validate_leap_second(hour, minute, offsetMinutes)) {
+                        if (m_results) {
+                            m_results->pushError(m_path, "String should be a valid date-time");
+                        }
+                        return false;
+                    }
+                }
+                return true;
             } else {
                 if (m_results) {
-                    m_results->pushError(m_context,
-                                         "String should be a valid date-time");
+                    m_results->pushError(m_path, "String should be a valid date-time");
                 }
                 return false;
             }
+        } else if (format == "ipv4") {
+            // Matches IPv4 addresses between 0.0.0.0 and 255.255.255.255.
+            static const internal::regex ipv4Regex(
+                    "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}"
+                    "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$");
+            if (internal::regex_match(s, ipv4Regex)) {
+                return true;
+            }
+
+            if (m_results) {
+                m_results->pushError(m_path,
+                        "String should be a valid IPv4 address");
+            }
+            return false;
         }
 
         return true;
@@ -477,13 +557,13 @@ public:
                     if (!m_results) {
                         return false;
                     }
-                    m_results->pushError(m_context, "Array contains more items than allowed by items constraint.");
+                    m_results->pushError(m_path, "Array contains more items than allowed by items constraint.");
                     validated = false;
                 }
             }
 
             constraint.applyToItemSubschemas(
-                    ValidateItems(arr, m_context, true, m_results != nullptr,
+                    ValidateItems(arr, m_path, true, m_results != nullptr,
                             m_strictTypes, m_strictDateTime, m_results, &numValidated,
                             &validated, m_regexesCache));
 
@@ -503,16 +583,20 @@ public:
                 for (typename AdapterType::Array::const_iterator itr = begin;
                         itr != arr.end(); ++itr) {
 
-                    // Update context for current array item
-                    std::vector<std::string> newContext = m_context;
-                    newContext.push_back("[" + std::to_string(index) + "]");
+                    // Update path for current array item
+                    // TODO: avoid copy
+                    ValidationResults::Path newPath = m_path;
+                    newPath.push_back({
+                        ValidationResults::kArray,
+                        std::to_string(index)
+                    });
 
                     ValidationVisitor<AdapterType, RegexEngine> validator(
-                        *itr, newContext, m_strictTypes, m_strictDateTime, m_results, m_regexesCache);
+                        *itr, newPath, m_strictTypes, m_strictDateTime, m_results, m_regexesCache);
 
                     if (!validator.validateSchema(*additionalItemsSubschema)) {
                         if (m_results) {
-                            m_results->pushError(m_context, "Failed to validate item #" + std::to_string(index) +
+                            m_results->pushError(m_path, "Failed to validate item #" + std::to_string(index) +
                                     " against additional items schema.");
                             validated = false;
                         } else {
@@ -524,7 +608,7 @@ public:
                 }
 
             } else if (m_results) {
-                m_results->pushError(m_context, "Cannot validate item #" + std::to_string(numValidated) +
+                m_results->pushError(m_path, "Cannot validate item #" + std::to_string(numValidated) +
                         " or greater using 'items' constraint or 'additionalItems' constraint.");
                 validated = false;
 
@@ -555,7 +639,7 @@ public:
         if (constraint.getExclusiveMaximum()) {
             if (m_target.asDouble() >= maximum) {
                 if (m_results) {
-                    m_results->pushError(m_context, "Expected number less than " + std::to_string(maximum));
+                    m_results->pushError(m_path, "Expected number less than " + std::to_string(maximum));
                 }
 
                 return false;
@@ -563,7 +647,7 @@ public:
 
         } else if (m_target.asDouble() > maximum) {
             if (m_results) {
-                m_results->pushError(m_context, "Expected number less than or equal to " + std::to_string(maximum));
+                m_results->pushError(m_path, "Expected number less than or equal to " + std::to_string(maximum));
             }
 
             return false;
@@ -591,7 +675,7 @@ public:
         }
 
         if (m_results) {
-            m_results->pushError(m_context, "Array should contain no more than " + std::to_string(maxItems) +
+            m_results->pushError(m_path, "Array should contain no more than " + std::to_string(maxItems) +
                     " elements.");
         }
 
@@ -612,14 +696,14 @@ public:
         }
 
         const std::string s = m_target.asString();
-        const uint64_t len = utils::u8_strlen(s.c_str());
+        const uint64_t len = utils::u8_strlen(s.c_str(), s.size());
         const uint64_t maxLength = constraint.getMaxLength();
         if (len <= maxLength) {
             return true;
         }
 
         if (m_results) {
-            m_results->pushError(m_context, "String should be no more than " + std::to_string(maxLength) +
+            m_results->pushError(m_path, "String should be no more than " + std::to_string(maxLength) +
                     " characters in length.");
         }
 
@@ -646,7 +730,7 @@ public:
         }
 
         if (m_results) {
-            m_results->pushError(m_context, "Object should have no more than " + std::to_string(maxProperties) +
+            m_results->pushError(m_path, "Object should have no more than " + std::to_string(maxProperties) +
                     " properties.");
         }
 
@@ -672,14 +756,14 @@ public:
         if (constraint.getExclusiveMinimum()) {
             if (m_target.asDouble() <= minimum) {
                 if (m_results) {
-                    m_results->pushError(m_context, "Expected number greater than " + std::to_string(minimum));
+                    m_results->pushError(m_path, "Expected number greater than " + std::to_string(minimum));
                 }
 
                 return false;
             }
         } else if (m_target.asDouble() < minimum) {
             if (m_results) {
-                m_results->pushError(m_context, "Expected number greater than or equal to " + std::to_string(minimum));
+                m_results->pushError(m_path, "Expected number greater than or equal to " + std::to_string(minimum));
             }
 
             return false;
@@ -707,7 +791,7 @@ public:
         }
 
         if (m_results) {
-            m_results->pushError(m_context, "Array should contain no fewer than " + std::to_string(minItems) +
+            m_results->pushError(m_path, "Array should contain no fewer than " + std::to_string(minItems) +
                     " elements.");
         }
 
@@ -728,14 +812,14 @@ public:
         }
 
         const std::string s = m_target.asString();
-        const uint64_t len = utils::u8_strlen(s.c_str());
+        const uint64_t len = utils::u8_strlen(s.c_str(), s.size());
         const uint64_t minLength = constraint.getMinLength();
         if (len >= minLength) {
             return true;
         }
 
         if (m_results) {
-            m_results->pushError(m_context, "String should be no fewer than " + std::to_string(minLength) +
+            m_results->pushError(m_path, "String should be no fewer than " + std::to_string(minLength) +
                     " characters in length.");
         }
 
@@ -762,7 +846,7 @@ public:
         }
 
         if (m_results) {
-            m_results->pushError(m_context, "Object should have no fewer than " + std::to_string(minProperties) +
+            m_results->pushError(m_path, "Object should have no fewer than " + std::to_string(minProperties) +
                     " properties.");
         }
 
@@ -784,7 +868,7 @@ public:
         if (m_target.maybeDouble()) {
             if (!m_target.asDouble(d)) {
                 if (m_results) {
-                    m_results->pushError(m_context, "Value could not be converted "
+                    m_results->pushError(m_path, "Value could not be converted "
                             "to a number to check if it is a multiple of " + std::to_string(divisor));
                 }
                 return false;
@@ -793,7 +877,7 @@ public:
             int64_t i = 0;
             if (!m_target.asInteger(i)) {
                 if (m_results) {
-                    m_results->pushError(m_context, "Value could not be converted "
+                    m_results->pushError(m_path, "Value could not be converted "
                             "to a number to check if it is a multiple of " + std::to_string(divisor));
                 }
                 return false;
@@ -807,11 +891,32 @@ public:
             return true;
         }
 
-        const double r = remainder(d, divisor);
+        if (divisor == 0) {
+            return false;
+        }
 
-        if (fabs(r) > std::numeric_limits<double>::epsilon()) {
+        // Determine whether 'd' is an exact multiple of 'divisor' using
+        // d / divisor, with a relative tolerance to absorb floating-point
+        // error. This handles edge cases such as a large integer being a
+        // multiple of a very small fraction (e.g. 12391239123 and 1e-8),
+        // while still rejecting values where the precision is exhausted
+        // (e.g. 1e308 divided by 0.123456789 overflows to infinity).
+        const double quotient = d / divisor;
+        if (!std::isfinite(quotient)) {
             if (m_results) {
-                m_results->pushError(m_context, "Value should be a multiple of " + std::to_string(divisor));
+                m_results->pushError(m_path, "Value should be a multiple of " + std::to_string(divisor));
+            }
+            return false;
+        }
+
+        const double rounded = std::round(quotient);
+        const double diff = std::fabs(quotient - rounded);
+        const double tolerance = std::max(std::fabs(quotient), 1.0)
+                * std::numeric_limits<double>::epsilon();
+
+        if (diff > tolerance) {
+            if (m_results) {
+                m_results->pushError(m_path, "Value should be a multiple of " + std::to_string(divisor));
             }
             return false;
         }
@@ -834,7 +939,7 @@ public:
         if (m_target.maybeInteger()) {
             if (!m_target.asInteger(i)) {
                 if (m_results) {
-                    m_results->pushError(m_context, "Value could not be converted to an integer for multipleOf check");
+                    m_results->pushError(m_path, "Value could not be converted to an integer for multipleOf check");
                 }
                 return false;
             }
@@ -842,9 +947,22 @@ public:
             double d;
             if (!m_target.asDouble(d)) {
                 if (m_results) {
-                    m_results->pushError(m_context, "Value could not be converted to a double for multipleOf check");
+                    m_results->pushError(m_path, "Value could not be converted to a double for multipleOf check");
                 }
                 return false;
+            }
+            // Casting a double outside the range of int64_t is undefined
+            // behaviour, so check those values in floating point instead.
+            if (d < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
+                    d > static_cast<double>(std::numeric_limits<int64_t>::max())) {
+                if (fabs(remainder(d, static_cast<double>(divisor))) >
+                        std::numeric_limits<double>::epsilon()) {
+                    if (m_results) {
+                        m_results->pushError(m_path, "Value should be a multiple of " + std::to_string(divisor));
+                    }
+                    return false;
+                }
+                return true;
             }
             i = static_cast<int64_t>(d);
         } else {
@@ -857,7 +975,7 @@ public:
 
         if (i % divisor != 0) {
             if (m_results) {
-                m_results->pushError(m_context, "Value should be a multiple of " + std::to_string(divisor));
+                m_results->pushError(m_path, "Value should be a multiple of " + std::to_string(divisor));
             }
             return false;
         }
@@ -884,10 +1002,10 @@ public:
             return false;
         }
 
-        ValidationVisitor<AdapterType, RegexEngine> v(m_target, m_context, m_strictTypes, m_strictDateTime, nullptr, m_regexesCache);
+        ValidationVisitor<AdapterType, RegexEngine> v(m_target, m_path, m_strictTypes, m_strictDateTime, nullptr, m_regexesCache);
         if (v.validateSchema(*subschema)) {
             if (m_results) {
-                m_results->pushError(m_context,
+                m_results->pushError(m_path,
                         "Target should not validate against schema specified in 'not' constraint.");
             }
 
@@ -911,26 +1029,24 @@ public:
         ValidationResults newResults;
         ValidationResults *childResults = (m_results) ? &newResults : nullptr;
         ValidationVisitor<AdapterType, RegexEngine> v(
-            m_target, m_context, m_strictTypes, m_strictDateTime, childResults, m_regexesCache);
+            m_target, m_path, m_strictTypes, m_strictDateTime, childResults, m_regexesCache);
 
         constraint.applyToSubschemas(
-                ValidateSubschemas(m_target, m_context, true, true, v, childResults, &numValidated, nullptr));
+                ValidateSubschemas(m_target, m_path, true, true, v, childResults, &numValidated, nullptr));
 
         if (numValidated == 0) {
             if (m_results) {
                 ValidationResults::Error childError;
                 while (childResults->popError(childError)) {
-                    m_results->pushError(
-                            childError.context,
-                            childError.description);
+                    m_results->pushError(childError);
                 }
-                m_results->pushError(m_context, "Failed to validate against any "
+                m_results->pushError(m_path, "Failed to validate against any "
                         "child schemas allowed by oneOf constraint.");
             }
             return false;
         } else if (numValidated != 1) {
             if (m_results) {
-                m_results->pushError(m_context, "Failed to validate against exactly one child schema.");
+                m_results->pushError(m_path, "Failed to validate against exactly one child schema.");
             }
             return false;
         }
@@ -959,7 +1075,7 @@ public:
 
         if (!RegexEngine::search(m_target.asString(), it->second)) {
             if (m_results) {
-                m_results->pushError(m_context, "Failed to match regex specified by 'pattern' constraint.");
+                m_results->pushError(m_path, "Failed to match regex specified by 'pattern' constraint.");
             }
 
             return false;
@@ -977,7 +1093,7 @@ public:
      */
     bool visit(const constraints::PolyConstraint &constraint) override
     {
-        return constraint.validate(m_target, m_context, m_results);
+        return constraint.validate(m_target, m_path, m_results);
     }
 
     /**
@@ -1020,7 +1136,7 @@ public:
         const typename AdapterType::Object object = m_target.asObject();
         constraint.applyToProperties(
                 ValidatePropertySubschemas(
-                        object, m_context, true, m_results != nullptr, true, m_strictTypes,
+                        object, m_path, true, m_results != nullptr, true, m_strictTypes,
                         m_strictDateTime, m_results,
                         &propertiesMatched, &validated, m_regexesCache));
 
@@ -1034,7 +1150,7 @@ public:
         // constraints
         constraint.applyToPatternProperties(
                 ValidatePatternPropertySubschemas(
-                        object, m_context, true, false, true, m_strictTypes, m_strictDateTime,
+                        object, m_path, true, false, true, m_strictTypes, m_strictDateTime,
                         m_results, &propertiesMatched,
                         &validated, m_regexesCache));
 
@@ -1052,7 +1168,7 @@ public:
                             break;
                         }
                     }
-                    m_results->pushError(m_context, "Object contains a property "
+                    m_results->pushError(m_path, "Object contains a property "
                             "that could not be validated using 'properties' "
                             "or 'additionalProperties' constraints: '" + unwanted + "'.");
                 }
@@ -1065,15 +1181,18 @@ public:
 
         for (const typename AdapterType::ObjectMember m : object) {
             if (propertiesMatched.find(m.first) == propertiesMatched.end()) {
-                // Update context
-                std::vector<std::string> newContext = m_context;
-                newContext.push_back("[" + m.first + "]");
+                // Update path
+                ValidationResults::Path newPath = m_path;
+                newPath.push_back({
+                    ValidationResults::kObject,
+                    m.first
+                });
 
                 // Create a validator to validate the property's value
-                ValidationVisitor validator(m.second, newContext, m_strictTypes, m_strictDateTime, m_results, m_regexesCache);
+                ValidationVisitor validator(m.second, newPath, m_strictTypes, m_strictDateTime, m_results, m_regexesCache);
                 if (!validator.validateSchema(*additionalPropertiesSubschema)) {
                     if (m_results) {
-                        m_results->pushError(m_context, "Failed to validate against additional properties schema");
+                        m_results->pushError(m_path, "Failed to validate against additional properties schema.");
                     }
 
                     validated = false;
@@ -1100,7 +1219,7 @@ public:
         for (const typename AdapterType::ObjectMember m : m_target.asObject()) {
             adapters::StdStringAdapter stringAdapter(m.first);
             ValidationVisitor<adapters::StdStringAdapter, RegexEngine> validator(
-                stringAdapter, m_context, m_strictTypes, m_strictDateTime, nullptr, m_regexesCache);
+                stringAdapter, m_path, m_strictTypes, m_strictDateTime, nullptr, m_regexesCache);
 
             if (!validator.validateSchema(*constraint.getSubschema())) {
                 return false;
@@ -1129,7 +1248,7 @@ public:
         bool validated = true;
         const typename AdapterType::Object object = m_target.asObject();
         constraint.applyToRequiredProperties(
-                ValidateProperties(object, m_context, true, m_results != nullptr, m_results, &validated));
+                ValidateProperties(object, m_path, true, m_results != nullptr, m_results, &validated));
 
         return validated;
     }
@@ -1165,18 +1284,21 @@ public:
 
         unsigned int index = 0;
         for (const AdapterType &item : m_target.getArray()) {
-            // Update context for current array item
-            std::vector<std::string> newContext = m_context;
-            newContext.push_back("[" + std::to_string(index) + "]");
+            // Update path for current array item
+            ValidationResults::Path newPath = m_path;
+            newPath.push_back({
+                ValidationResults::kArray,
+                std::to_string(index)
+            });
 
             // Create a validator for the current array item
             ValidationVisitor<AdapterType, RegexEngine> validationVisitor(
-                item, newContext, m_strictTypes, m_strictDateTime, m_results, m_regexesCache);
+                item, newPath, m_strictTypes, m_strictDateTime, m_results, m_regexesCache);
 
             // Perform validation
             if (!validationVisitor.validateSchema(*itemsSubschema)) {
                 if (m_results) {
-                    m_results->pushError(m_context, "Failed to validate item #" + std::to_string(index) + " in array.");
+                    m_results->pushError(m_path, "Failed to validate item #" + std::to_string(index) + " in array.");
                     validated = false;
                 } else {
                     return false;
@@ -1215,11 +1337,11 @@ public:
         {
             unsigned int numValidated = 0;
             constraint.applyToSchemaTypes(
-                    ValidateSubschemas(m_target, m_context, false, true, *this, nullptr, &numValidated, nullptr));
+                    ValidateSubschemas(m_target, m_path, false, true, *this, nullptr, &numValidated, nullptr));
             if (numValidated > 0) {
                 return true;
             } else if (m_results) {
-                m_results->pushError(m_context, "Value type not permitted by 'type' constraint.");
+                m_results->pushError(m_path, "Value type not permitted by 'type' constraint.");
             }
         }
 
@@ -1264,7 +1386,7 @@ public:
                     if (!m_results) {
                         return false;
                     }
-                    m_results->pushError(m_context, "Elements at indexes #" + std::to_string(outerIndex)
+                    m_results->pushError(m_path, "Elements at indexes #" + std::to_string(outerIndex)
                         + " and #" + std::to_string(innerIndex) + " violate uniqueness constraint.");
                     validated = false;
                 }
@@ -1285,14 +1407,14 @@ private:
     {
         ValidateEquality(
                 const AdapterType &target,
-                const std::vector<std::string> &context,
+                const ValidationResults::Path &path,
                 bool continueOnSuccess,
                 bool continueOnFailure,
                 bool strictTypes,
                 ValidationResults *results,
                 unsigned int *numValidated)
           : m_target(target),
-            m_context(context),
+            m_path(path),
             m_continueOnSuccess(continueOnSuccess),
             m_continueOnFailure(continueOnFailure),
             m_strictTypes(strictTypes),
@@ -1311,7 +1433,7 @@ private:
             }
 
             if (m_results) {
-                m_results->pushError(m_context, "Target value and comparison value are not equal");
+                m_results->pushError(m_path, "Target value and comparison value are not equal");
             }
 
             return m_continueOnFailure;
@@ -1319,7 +1441,7 @@ private:
 
     private:
         const AdapterType &m_target;
-        const std::vector<std::string> &m_context;
+        const ValidationResults::Path &m_path;
         bool m_continueOnSuccess;
         bool m_continueOnFailure;
         bool m_strictTypes;
@@ -1334,13 +1456,13 @@ private:
     {
         ValidateProperties(
                 const typename AdapterType::Object &object,
-                const std::vector<std::string> &context,
+                const ValidationResults::Path &path,
                 bool continueOnSuccess,
                 bool continueOnFailure,
                 ValidationResults *results,
                 bool *validated)
           : m_object(object),
-            m_context(context),
+            m_path(path),
             m_continueOnSuccess(continueOnSuccess),
             m_continueOnFailure(continueOnFailure),
             m_results(results),
@@ -1355,7 +1477,7 @@ private:
                 }
 
                 if (m_results) {
-                    m_results->pushError(m_context, "Missing required property '" +
+                    m_results->pushError(m_path, "Missing required property '" +
                             std::string(property.c_str()) + "'.");
                 }
 
@@ -1367,7 +1489,7 @@ private:
 
     private:
         const typename AdapterType::Object &m_object;
-        const std::vector<std::string> &m_context;
+        const ValidationResults::Path &m_path;
         bool m_continueOnSuccess;
         bool m_continueOnFailure;
         ValidationResults * const m_results;
@@ -1381,11 +1503,11 @@ private:
     {
         ValidatePropertyDependencies(
                 const typename AdapterType::Object &object,
-                const std::vector<std::string> &context,
+                const ValidationResults::Path &path,
                 ValidationResults *results,
                 bool *validated)
           : m_object(object),
-            m_context(context),
+            m_path(path),
             m_results(results),
             m_validated(validated) { }
 
@@ -1405,7 +1527,7 @@ private:
                         *m_validated = false;
                     }
                     if (m_results) {
-                        m_results->pushError(m_context, "Missing dependency '" + dependencyNameKey + "'.");
+                        m_results->pushError(m_path, "Missing dependency '" + dependencyNameKey + "'.");
                     } else {
                         return false;
                     }
@@ -1417,7 +1539,7 @@ private:
 
     private:
         const typename AdapterType::Object &m_object;
-        const std::vector<std::string> &m_context;
+        const ValidationResults::Path &m_path;
         ValidationResults * const m_results;
         bool * const m_validated;
     };
@@ -1429,7 +1551,7 @@ private:
     {
         ValidateItems(
                 const typename AdapterType::Array &arr,
-                const std::vector<std::string> &context,
+                const ValidationResults::Path &path,
                 bool continueOnSuccess,
                 bool continueOnFailure,
                 bool strictTypes,
@@ -1439,7 +1561,7 @@ private:
                 bool *validated,
                 std::unordered_map<std::string, RegexEngine>& regexesCache)
           : m_arr(arr),
-            m_context(context),
+            m_path(path),
             m_continueOnSuccess(continueOnSuccess),
             m_continueOnFailure(continueOnFailure),
             m_strictTypes(strictTypes),
@@ -1456,16 +1578,19 @@ private:
                 return false;
             }
 
-            // Update context
-            std::vector<std::string> newContext = m_context;
-            newContext.push_back("[" + std::to_string(index) + "]");
+            // Update path
+            ValidationResults::Path newPath = m_path;
+            newPath.push_back({
+                ValidationResults::kArray,
+                std::to_string(index)
+            });
 
             // Find array item
             typename AdapterType::Array::const_iterator itr = m_arr.begin();
             itr.advance(index);
 
             // Validate current array item
-            ValidationVisitor validator(*itr, newContext, m_strictTypes, m_strictDateTime, m_results, m_regexesCache);
+            ValidationVisitor validator(*itr, newPath, m_strictTypes, m_strictDateTime, m_results, m_regexesCache);
             if (validator.validateSchema(*subschema)) {
                 if (m_numValidated) {
                     (*m_numValidated)++;
@@ -1479,7 +1604,7 @@ private:
             }
 
             if (m_results) {
-                m_results->pushError(newContext, "Failed to validate item #" + std::to_string(index) +
+                m_results->pushError(newPath, "Failed to validate item #" + std::to_string(index) +
                     " against corresponding item schema.");
             }
 
@@ -1488,7 +1613,7 @@ private:
 
     private:
         const typename AdapterType::Array &m_arr;
-        const std::vector<std::string> &m_context;
+        const ValidationResults::Path &m_path;
         bool m_continueOnSuccess;
         bool m_continueOnFailure;
         bool m_strictTypes;
@@ -1533,7 +1658,12 @@ private:
                 valid = m_target.isBool() || (!m_strictTypes && m_target.maybeBool());
                 break;
             case TypeConstraint::kInteger:
-                valid = m_target.isInteger() || (!m_strictTypes && m_target.maybeInteger());
+                // JSON Schema considers a JSON number with a zero fractional
+                // part to be an integer regardless of representation, so an
+                // exact-integer double satisfies the integer type even in
+                // strict mode.
+                valid = m_target.isInteger() || detail::isDoubleAnInteger(m_target)
+                        || (!m_strictTypes && m_target.maybeInteger());
                 break;
             case TypeConstraint::kNull:
                 valid = m_target.isNull() || (!m_strictTypes && m_target.maybeNull());
@@ -1574,7 +1704,7 @@ private:
     {
         ValidatePatternPropertySubschemas(
                 const typename AdapterType::Object &object,
-                const std::vector<std::string> &context,
+                const ValidationResults::Path &path,
                 bool continueOnSuccess,
                 bool continueOnFailure,
                 bool continueIfUnmatched,
@@ -1585,7 +1715,7 @@ private:
                 bool *validated,
                 std::unordered_map<std::string, RegexEngine>& regexesCache)
           : m_object(object),
-            m_context(context),
+            m_path(path),
             m_continueOnSuccess(continueOnSuccess),
             m_continueOnFailure(continueOnFailure),
             m_continueIfUnmatched(continueIfUnmatched),
@@ -1621,18 +1751,21 @@ private:
                         m_propertiesMatched->insert(m.first);
                     }
 
-                    // Update context
-                    std::vector<std::string> newContext = m_context;
-                    newContext.push_back("[" + m.first + "]");
+                    // Update path
+                    ValidationResults::Path newPath = m_path;
+                    newPath.push_back({
+                        ValidationResults::kObject,
+                        m.first
+                    });
 
                     // Recursively validate property's value
-                    ValidationVisitor validator(m.second, newContext, m_strictTypes, m_strictDateTime, m_results, m_regexesCache);
+                    ValidationVisitor validator(m.second, newPath, m_strictTypes, m_strictDateTime, m_results, m_regexesCache);
                     if (validator.validateSchema(*subschema)) {
                         continue;
                     }
 
                     if (m_results) {
-                        m_results->pushError(m_context, "Failed to validate against schema associated with pattern '" +
+                        m_results->pushError(m_path, "Failed to validate against schema associated with pattern '" +
                                 patternPropertyStr + "'.");
                     }
 
@@ -1656,7 +1789,7 @@ private:
 
     private:
         const typename AdapterType::Object &m_object;
-        const std::vector<std::string> &m_context;
+        const ValidationResults::Path &m_path;
         const bool m_continueOnSuccess;
         const bool m_continueOnFailure;
         const bool m_continueIfUnmatched;
@@ -1676,7 +1809,7 @@ private:
     {
         ValidatePropertySubschemas(
                 const typename AdapterType::Object &object,
-                const std::vector<std::string> &context,
+                const ValidationResults::Path &path,
                 bool continueOnSuccess,
                 bool continueOnFailure,
                 bool continueIfUnmatched,
@@ -1687,7 +1820,7 @@ private:
                 bool *validated,
                 std::unordered_map<std::string, RegexEngine>& regexesCache)
           : m_object(object),
-            m_context(context),
+            m_path(path),
             m_continueOnSuccess(continueOnSuccess),
             m_continueOnFailure(continueOnFailure),
             m_continueIfUnmatched(continueIfUnmatched),
@@ -1711,18 +1844,21 @@ private:
                 m_propertiesMatched->insert(propertyNameKey);
             }
 
-            // Update context
-            std::vector<std::string> newContext = m_context;
-            newContext.push_back("[" + propertyNameKey + "]");
+            // Update path
+            ValidationResults::Path newPath = m_path;
+            newPath.push_back({
+                ValidationResults::kObject,
+                propertyNameKey
+            });
 
             // Recursively validate property's value
-            ValidationVisitor validator(itr->second, newContext, m_strictTypes, m_strictDateTime, m_results, m_regexesCache);
+            ValidationVisitor validator(itr->second, newPath, m_strictTypes, m_strictDateTime, m_results, m_regexesCache);
             if (validator.validateSchema(*subschema)) {
                 return m_continueOnSuccess;
             }
 
             if (m_results) {
-                m_results->pushError(m_context, "Failed to validate against schema associated with property name '" +
+                m_results->pushError(m_path, "Failed to validate against schema associated with property name '" +
                         propertyNameKey + "'.");
             }
 
@@ -1735,7 +1871,7 @@ private:
 
     private:
         const typename AdapterType::Object &m_object;
-        const std::vector<std::string> &m_context;
+        const ValidationResults::Path &m_path;
         const bool m_continueOnSuccess;
         const bool m_continueOnFailure;
         const bool m_continueIfUnmatched;
@@ -1754,12 +1890,12 @@ private:
     {
         ValidateSchemaDependencies(
                 const typename AdapterType::Object &object,
-                const std::vector<std::string> &context,
+                const ValidationResults::Path &path,
                 ValidationVisitor &validationVisitor,
                 ValidationResults *results,
                 bool *validated)
           : m_object(object),
-            m_context(context),
+            m_path(path),
             m_validationVisitor(validationVisitor),
             m_results(results),
             m_validated(validated) { }
@@ -1777,7 +1913,7 @@ private:
                     *m_validated = false;
                 }
                 if (m_results) {
-                    m_results->pushError(m_context, "Failed to validate against dependent schema.");
+                    m_results->pushError(m_path, "Failed to validate against dependent schema.");
                 } else {
                     return false;
                 }
@@ -1788,7 +1924,7 @@ private:
 
     private:
         const typename AdapterType::Object &m_object;
-        const std::vector<std::string> &m_context;
+        const ValidationResults::Path &m_path;
         ValidationVisitor &m_validationVisitor;
         ValidationResults * const m_results;
         bool * const m_validated;
@@ -1813,7 +1949,7 @@ private:
     {
         ValidateSubschemas(
                 const AdapterType &adapter,
-                const std::vector<std::string> &context,
+                const ValidationResults::Path &path,
                 bool continueOnSuccess,
                 bool continueOnFailure,
                 ValidationVisitor &validationVisitor,
@@ -1821,7 +1957,7 @@ private:
                 unsigned int *numValidated,
                 bool *validated)
           : m_adapter(adapter),
-            m_context(context),
+            m_path(path),
             m_continueOnSuccess(continueOnSuccess),
             m_continueOnFailure(continueOnFailure),
             m_validationVisitor(validationVisitor),
@@ -1844,7 +1980,7 @@ private:
             }
 
             if (m_results) {
-                m_results->pushError(m_context,
+                m_results->pushError(m_path,
                         "Failed to validate against child schema #" + std::to_string(index) + ".");
             }
 
@@ -1853,7 +1989,7 @@ private:
 
     private:
         const AdapterType &m_adapter;
-        const std::vector<std::string> &m_context;
+        const ValidationResults::Path &m_path;
         bool m_continueOnSuccess;
         bool m_continueOnFailure;
         ValidationVisitor &m_validationVisitor;
@@ -1876,51 +2012,78 @@ private:
     }
 
     /**
-     * @brief    Helper function to validate if day is valid for given month
+     * @brief    Helper function to validate if day is valid for the given
+     *           year and month, applying the Gregorian leap-year rules.
      *
+     * @param    year    Year (any non-negative value)
      * @param    month   Month, 1-12
      * @param    day     Day, 1-31
      *
-     * @return   \c true if day is valid for given month, \c false otherwise.
+     * @return   \c true if day is valid for given year/month, \c false otherwise.
      */
-    bool validate_date_range(int month, int day)
+    bool validate_date_range(int year, int month, int day)
     {
-        if (month == 2) {
-            if (day < 0 || day > 29) {
-                if (m_results) {
-                    m_results->pushError(m_context,
-                                         "String should be a valid date-time");
-                }
-                return false;
+        if (day < 1) {
+            if (m_results) {
+                m_results->pushError(m_path, "String should be a valid date-time");
             }
-        } else {
-            int limit = 31;
-            if (month <= 7) {
-                if (month % 2 == 0) {
-                    limit = 30;
-                }
-            } else {
-                if (month % 2 != 0) {
-                    limit = 30;
-                }
-            }
-            if (day < 0 || day > limit) {
-                if (m_results) {
-                    m_results->pushError(m_context,
-                                         "String should be a valid date-time");
-                }
-                return false;
-            }
-
+            return false;
         }
+
+        int limit;
+        if (month == 2) {
+            const bool leap = (year % 4 == 0)
+                    && ((year % 100 != 0) || (year % 400 == 0));
+            limit = leap ? 29 : 28;
+        } else if (month <= 7) {
+            limit = (month % 2 == 0) ? 30 : 31;
+        } else {
+            limit = (month % 2 != 0) ? 30 : 31;
+        }
+
+        if (day > limit) {
+            if (m_results) {
+                m_results->pushError(m_path, "String should be a valid date-time");
+            }
+            return false;
+        }
+
         return true;
+    }
+
+    /**
+     * @brief    Helper function to validate a leap second value (seconds == 60)
+     *           in a time string.
+     *
+     * Per RFC 3339, a leap second is only valid when the UTC time would be
+     * 23:59:60. For a value '23:59:60Z' that is satisfied directly; for
+     * values with a numeric offset, the local hour and minute must combine
+     * with the offset to equal 23:59 UTC.
+     *
+     * @param    hour          Local hour from the time string
+     * @param    minute        Local minute from the time string
+     * @param    offsetMinutes Offset from UTC in minutes; positive values
+     *                         indicate the local time is ahead of UTC. For
+     *                         Z/z the offset is 0.
+     *
+     * @return   \c true if the leap second is permitted given the offset.
+     */
+    bool validate_leap_second(int hour, int minute, int offsetMinutes)
+    {
+        // Total local time in minutes since 00:00.
+        const int localMinutes = hour * 60 + minute;
+        // Convert to UTC minutes, wrapping into the range [0, 1440).
+        int utcMinutes = localMinutes - offsetMinutes;
+        utcMinutes = ((utcMinutes % 1440) + 1440) % 1440;
+        // 23:59 UTC == 23 * 60 + 59 == 1439 minutes.
+        return utcMinutes == 1439;
     }
 
     /// The JSON value being validated
     AdapterType m_target;
 
-    /// Vector of strings describing the current object context
-    std::vector<std::string> m_context;
+    /// Vector of strings describing the current object path
+    ValidationResults::Path m_path;
 
     /// Optional pointer to a ValidationResults object to be populated
     ValidationResults *m_results;
