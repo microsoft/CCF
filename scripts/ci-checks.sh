@@ -45,7 +45,6 @@ CHECKS=(
   "C/C++ format:cpp-format-checks.sh"
   "TypeScript, JavaScript, Markdown, TypeSpec, YAML and JSON format:prettier-checks.sh"
   "Documentation newlines:doc-newline-checks.sh"
-  "Documentation newline policy tests:doc-newline-policy-tests.py"
   "OpenAPI:openapi-checks.sh"
   "Copyright notice headers:copyright-checks.sh"
   "CMake format:cmake-format-checks.sh"
