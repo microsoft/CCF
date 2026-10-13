@@ -64,7 +64,7 @@ Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end 
 C++ Case Scopes
 ---------------
 
-Variable declarations in ``case`` and ``default`` bodies must be inside a nested scope, normally a ``{ ... }`` block after the label. Variables scoped inside an ``if``, loop, or lambda are also allowed. This includes otherwise legal unbraced declarations in the final case; cases without variable declarations do not require braces.
+Every non-empty ``case`` and ``default`` body must be enclosed in a ``{ ... }`` block, including bodies containing only a single ``return`` or ``break`` statement. Empty stacked labels may share the following block. A nested ``if``, loop, or lambda does not replace the required case block.
 
 After building, run the check from the repository root:
 

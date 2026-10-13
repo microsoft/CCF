@@ -4,27 +4,23 @@
 set traversal IgnoreUnlessSpelledInSource
 set bind-root false
 
-# Bind the nearest structural ancestor before testing it. Labels and attributes
-# do not introduce scopes; expressions stop the walk through lambda bodies.
+# Only a block or another case at the start of the body makes a case braced or
+# empty. Labels and attributes are transparent; nested statements are not.
 let boundary stmt(anyOf(
-  compoundStmt(), caseStmt(), defaultStmt(), ifStmt(), forStmt(),
-  whileStmt(), doStmt(), cxxForRangeStmt(), switchStmt(), expr()
+  compoundStmt(), switchCase(), ifStmt(), forStmt(), whileStmt(), doStmt(),
+  cxxForRangeStmt(), switchStmt(), cxxTryStmt(), cxxCatchStmt(), declStmt(), expr()
 ))
 
-match declStmt(
+match switchCase(
+  switchCase().bind("unbraced_case"),
   unless(isExpansionInSystemHeader()),
   unless(isExpansionInFileMatching("(^|[/\\\\])3rdparty([/\\\\]|$)")),
-  has(varDecl()),
-  hasAncestor(stmt(boundary).bind("declaration_parent")),
-  hasAncestor(stmt(
-    equalsBoundNode("declaration_parent"),
-    anyOf(
-      caseStmt(),
-      defaultStmt(),
-      compoundStmt(
-        hasAncestor(stmt(boundary).bind("body_parent")),
-        hasAncestor(switchStmt(equalsBoundNode("body_parent")))
-      )
-    )
-  ))
-).bind("case_variable")
+  unless(hasDescendant(stmt(
+    anyOf(compoundStmt(), switchCase()),
+    hasAncestor(stmt(boundary).bind("body_parent")),
+    hasAncestor(switchCase(
+      equalsBoundNode("body_parent"),
+      equalsBoundNode("unbraced_case")
+    ))
+  )))
+)

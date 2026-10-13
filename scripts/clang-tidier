@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""clang-tidier: require nested scopes for switch case variable declarations."""
+"""clang-tidier: require braces around non-empty switch case bodies."""
 
 import argparse
 import json
@@ -135,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
             matches += check_source(executable, build_dir, source)
         if matches:
             raise CheckError(
-                f"{matches} variable declaration match(es) need a case block. "
+                f"{matches} non-empty case/default body match(es) need braces. "
                 "Declarations in shared headers may be reported by multiple files."
             )
     except (CheckError, OSError) as error:

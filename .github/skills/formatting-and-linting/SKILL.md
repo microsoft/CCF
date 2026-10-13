@@ -27,7 +27,7 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | Script                    | Relevant changes                                             | Tool/check                                         | Supports auto-fix |
 | ------------------------- | ------------------------------------------------------------ | -------------------------------------------------- | ----------------- |
 | `cpp-format-checks.sh`    | C/C++ in `include/`, `src/`, `samples/`                      | clang-format                                       | `-f`              |
-| `clang-tidier -p build`   | First-party C++ compile commands and their headers           | clang-query: variables need a nested case scope    | No                |
+| `clang-tidier -p build`   | First-party C++ compile commands and their headers           | clang-query: braces for non-empty case bodies      | No                |
 | `lean-format-checks.sh`   | All tracked Lean files                                       | leanfmt                                            | `-f`              |
 | `python-format-checks.sh` | Python in `tests/`, `python/`, `scripts/`, `tla/`            | black                                              | `-f`              |
 | `python-lint-checks.sh`   | Python in `python/`, `tests/`                                | ruff                                               | `-f`              |

@@ -27,17 +27,25 @@ struct fmt::formatter<Example> : fmt::formatter<std::string_view>
     switch (e)
     {
       case Example::A:
+      {
         name = "A";
         break;
+      }
       case Example::B:
+      {
         name = "B";
         break;
+      }
       case Example::C:
+      {
         name = "C";
         break;
+      }
       case Example::D:
+      {
         name = "D";
         break;
+      }
     }
     return fmt::formatter<std::string_view>::format(name, ctx);
   }
