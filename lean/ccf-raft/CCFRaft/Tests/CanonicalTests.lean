@@ -241,8 +241,8 @@ private def bootstrapAndNoMatchingPrefixTerms : IO Unit := do
   check
     (findHighestPossibleMatch follower.log request.prevLogIndex request.prevLogTerm == 0)
     "conflicting prefix must have no possible matching index"
-  let some (after, response) :=
-    handleAppendEntriesRequest? initialConfig destination follower request
+  let (after, some response) :=
+    handleAppendEntriesRequest initialConfig destination follower request
   | throw (IO.userError "conflicting prefix did not produce a response")
   check (!response.success && response.lastLogIndex == 0 && response.term == 0)
     "no matching prefix must produce a NACK with index 0 and term 0"
@@ -841,8 +841,10 @@ private def retirementCommitFrontiers : IO Unit := do
         entries := (log.take 8).drop oldLength
         leaderCommit := 8
       }
-    let some (received, _) := handleAppendEntriesRequest? initialConfig node state request
-    | throw (IO.userError "retirement batch was rejected")
+    let (received, some response) :=
+      handleAppendEntriesRequest initialConfig node state request
+    | throw (IO.userError "retirement batch was not answered")
+    check response.success "retirement batch was rejected"
     let received := refreshRetirementState initialConfig node received
     check (received.commitIndex == 8 && received.retiredCommittedIndex == some expected)
       s!"batch from {oldLength}: wrong first covering retirement commit"

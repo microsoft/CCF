@@ -124,6 +124,11 @@ structure NodeState (Node TxId : Type) where
   isNewFollower : Bool
   /-- Candidate this node voted for in its term, or `none` if it has not voted. -/
   votedFor : Option Node
+  /--
+  Whether the node has seen a leader in its current term, either by accepting
+  its AppendEntries or by becoming leader. Such a node refuses regular votes.
+  -/
+  leaderKnown : Bool := false
   /-- Nodes supporting this node's regular election, including its own vote. -/
   votesGranted : Finset Node
   /-- Nodes supporting its preliminary election round, including its own vote. -/
@@ -168,8 +173,9 @@ def initialNodeState (config : InitialConfig Node) (node : Node)
   commitIndex := 0
   sentIndex := fun _ => 0
   matchIndex := fun _ => 0
-  isNewFollower := true
+  isNewFollower := false
   votedFor := none
+  leaderKnown := node = config.leader
   votesGranted := ∅
 
 /-- Membership and its log index; index zero denotes the initial configuration. -/
@@ -353,6 +359,7 @@ def becomeCandidateNodeState (state : NodeState Node TxId) (node : Node)
       role := .candidate
       currentTerm := state.currentTerm + 1
       votedFor := some node
+      leaderKnown := false
       votesGranted := {node}
       preVotesGranted := ∅
   }

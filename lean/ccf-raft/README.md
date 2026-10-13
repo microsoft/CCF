@@ -70,9 +70,9 @@ before the receiver handles it, in the same step. Vote proposals never
 advance a term, and only a leader reads the term of an AppendEntries
 response, as in `raft.h`. A same-term AppendEntries request makes a candidate
 or pre-vote candidate step down, then the node handles the request.
-An AppendEntries request that the node can neither reject nor apply, such as
-one whose previous index is below the commit index, is disabled and stays in
-the network.
+Every AppendEntries request is consumed. As in `raft.h`, a request whose
+previous index is below the commit index, or one that conflicts with the log
+of a node that may no longer roll back, is dropped without a response.
 
 `Model.lean` runs one copy of `Local.step` per node with
 `Shared/MultiNodeTransitionSystem.lean`. Every listed node starts in

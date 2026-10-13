@@ -127,8 +127,7 @@ abbrev candidateTransitionEnabled (config : InitialConfig Node)
 
 /--
 The highest current-term signature above the leader's commit index which a
-majority has reached, or zero when there is none. A configuration counts only
-when it starts at or before the signature.
+majority of every active configuration has reached, or zero when there is none.
 -/
 def highestCommittableIndex (config : InitialConfig Node)
     (state : NodeState Node TxId) (self : Node)
@@ -141,10 +140,7 @@ def highestCommittableIndex (config : InitialConfig Node)
       if index > state.commitIndex
           /\ isSignatureAt state.log index = true
           /\ termAt state.log index = state.currentTerm
-          /\ hasQuorum
-              ((state.activeConfigurations config).filter
-                fun configuration => configuration.index <= index)
-              (reached index) then
+          /\ hasQuorum (state.activeConfigurations config) (reached index) then
         max best index
       else
         best)
@@ -152,7 +148,7 @@ def highestCommittableIndex (config : InitialConfig Node)
 
 /--
 Advance a leader's commit index and refresh its retirement metadata. A node
-whose retirement is now committed clears its role, as CCF's
+whose retirement is now committed clears its role and known leader, as CCF's
 `become_retired(RetiredCommitted)` does.
 -/
 def advanceCommit (config : InitialConfig Node)
@@ -161,12 +157,14 @@ def advanceCommit (config : InitialConfig Node)
   let next :=
     refreshRetirementState config self
       { state with commitIndex := highestCommittableIndex config state self }
-  if next.membershipState = .retiredCommitted then { next with role := .none } else next
+  if next.membershipState = .retiredCommitted then
+    { next with role := .none, leaderKnown := false }
+  else
+    next
 
 /--
 Append one current-term entry to a leader's log and refresh its retirement
-metadata. Disabled for a retired-committed node, or when the entry would
-complete the leader's own retirement.
+metadata. Disabled for a retired-committed node.
 -/
 def leaderAppend (config : InitialConfig Node) (state : NodeState Node TxId)
     (self : Node) (content : EntryContent Node TxId)
@@ -174,10 +172,7 @@ def leaderAppend (config : InitialConfig Node) (state : NodeState Node TxId)
   let next :=
     refreshRetirementState config self
       { state with log := state.log ++ [{ term := state.currentTerm, content }] }
-  guard
-    (state.role = .leader
-      /\ Not (state.membershipState = .retiredCommitted)
-      /\ Not (next.membershipState = .retiredCommitted))
+  guard (state.role = .leader /\ Not (state.membershipState = .retiredCommitted))
   pure next
 
 /-! ## Outgoing messages -/
@@ -211,36 +206,14 @@ abbrev logOk (state : NodeState Node TxId) (request : AppendEntriesRequest Node 
       /\ termAt state.log request.prevLogIndex = request.prevLogTerm)
 
 /--
-Pairs of an existing follower entry and the request entry for the same log
-position, for every position both cover.
+Detect a log position covered by both the follower's log and the request where
+the two disagree. As in CCF, only terms are compared, not entry contents.
 -/
-def overlap (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
-    : List (Entry Node TxId × Entry Node TxId) :=
-  (state.log.drop request.prevLogIndex).zip request.entries
-
-/-- Check whether a heartbeat or all requested entry terms are already present. -/
-abbrev alreadyDone (state : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
-    : Prop :=
-  request.entries = []
-  \/ (request.prevLogIndex + request.entries.length <= state.log.length
-      /\ (overlap state request).all
-          fun (existing, incoming) =>
-            existing.term == incoming.term)
-
-/-- Detect a differing term in the overlapping part of a request. -/
 abbrev hasTermConflict (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
     : Prop :=
-  (overlap state request).any fun (existing, incoming) => existing.term != incoming.term
-
-/-- Check that a request safely extends a matching follower prefix. -/
-abbrev noConflictExtension (state : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
-    : Prop :=
-  request.prevLogIndex <= state.log.length
-  /\ state.log.length < request.prevLogIndex + request.entries.length
-  /\ (overlap state request).all fun (existing, incoming) => existing == incoming
+  ((state.log.drop request.prevLogIndex).zip request.entries).any
+    fun (existing, incoming) => existing.term != incoming.term
 
 /-- Advance the commit index to the latest signature the request covers. -/
 def committedFromLeader
@@ -253,66 +226,35 @@ def committedFromLeader
       (min request.leaderCommit (request.prevLogIndex + request.entries.length)))
 
 /--
-Reject stale-term requests or requests whose previous entry does not match.
-The NACK reports the follower's log length, or for a mismatch with a nonempty
-log, the highest index that could still match the leader.
+The NACK for a stale-term request or a mismatched previous entry. It reports
+the follower's term and log length, unless the follower holds the previous
+index with a different term; then it reports the highest index that could
+still match the leader's log, and that index's term.
 -/
-def rejectAppendEntriesRequest?
+def appendEntriesNack
     (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
-    : Option (NodeState Node TxId × AppendEntriesResponse) := do
-  guard
-    (request.term < state.currentTerm
-      \/ (request.term = state.currentTerm
-          /\ state.role = .follower
-          /\ Not (logOk state request)))
-  let response : AppendEntriesResponse :=
-    if request.term < state.currentTerm
-        \/ request.prevLogIndex = 0
-        \/ request.prevLogIndex > state.log.length
-        \/ termAt state.log state.log.length = 0 then
-      { term := state.currentTerm, success := false, lastLogIndex := state.log.length }
-    else
-      let lastLogIndex :=
-        findHighestPossibleMatch state.log request.prevLogIndex request.prevLogTerm
-      { term := termAt state.log lastLogIndex, success := false, lastLogIndex }
-  pure (state, response)
+    : AppendEntriesResponse :=
+  if request.term < state.currentTerm \/ termAt state.log request.prevLogIndex = 0 then
+    { term := state.currentTerm, success := false, lastLogIndex := state.log.length }
+  else
+    let lastLogIndex :=
+      findHighestPossibleMatch state.log request.prevLogIndex request.prevLogTerm
+    { term := termAt state.log lastLogIndex, success := false, lastLogIndex }
 
-/-- ACK a request whose entries are already present, and adopt its commit index. -/
-def appendEntriesAlreadyDone?
-    (state : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
-    : Option (NodeState Node TxId × AppendEntriesResponse) := do
-  guard (alreadyDone state request)
-  let nextState :=
-    { state with commitIndex := committedFromLeader state request state.log }
-  pure
-    (
-      nextState,
-      {
-        term := nextState.currentTerm
-        success := true
-        lastLogIndex := request.prevLogIndex + request.entries.length
-      }
-    )
-
-/-- Truncate a conflicting uncommitted suffix before retrying the request. -/
-def conflictAppendEntriesRequest?
-    (state : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
-    : Option (NodeState Node TxId) := do
-  guard (hasTermConflict state request /\ state.isNewFollower)
-  pure { state with log := state.log.take request.prevLogIndex, isNewFollower := false }
-
-/-- Append a matching extension and return an ACK. -/
-def noConflictAppendEntriesRequest?
+/--
+Apply a request that agrees with the follower's log on every position both
+cover: append the entries past the end of the log, adopt the leader's commit
+index, and ACK up to the end of the request.
+-/
+def appendEntriesFromLeader
     (config : InitialConfig Node)
     (self : Node)
     (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
-    : Option (NodeState Node TxId × AppendEntriesResponse) := do
-  guard (noConflictExtension state request)
-  let newLog := state.log.take request.prevLogIndex ++ request.entries
+    : NodeState Node TxId × AppendEntriesResponse :=
+  let newLog :=
+    state.log ++ request.entries.drop (state.log.length - request.prevLogIndex)
   let commitIndex := committedFromLeader state request newLog
   -- Native receive runs commit callbacks at each newly applied signature.
   let firstRetirementCommit :=
@@ -332,49 +274,54 @@ def noConflictAppendEntriesRequest?
   let nextState :=
     refreshRetirementState config self
       { state with log := newLog, commitIndex := firstRetirementCommit }
-  let nextState := { nextState with commitIndex }
-  pure
-    (
-      nextState,
-      { term := nextState.currentTerm, success := true, lastLogIndex := newLog.length }
-    )
-
-/-- Apply an accepted request: already done, clean extension, or truncate and retry. -/
-def acceptAppendEntriesRequest?
-    (config : InitialConfig Node)
-    (self : Node)
-    (state : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
-    : Option (NodeState Node TxId × AppendEntriesResponse) := do
-  guard
-    (request.term = state.currentTerm
-      /\ state.role = .follower
-      /\ logOk state request
-      /\ request.prevLogIndex >= state.commitIndex)
-  let apply state :=
-    appendEntriesAlreadyDone? state request
-    <|> noConflictAppendEntriesRequest? config self state request
-  apply state <|> (conflictAppendEntriesRequest? state request >>= apply)
+  (
+    { nextState with commitIndex },
+    {
+      term := nextState.currentTerm
+      success := true
+      lastLogIndex := request.prevLogIndex + request.entries.length
+    }
+  )
 
 /--
-Reject a request when required, otherwise apply it. A same-term candidate or
-pre-vote candidate first steps down to follower. `none` means the request
-cannot be handled: it stays in the network.
+Handle an AppendEntries request, returning the new state and the response to
+send, if any. A same-term candidate or pre-vote candidate first steps down to
+follower. Stale-term requests and requests whose previous entry does not match
+are NACKed. Otherwise the sender becomes the known leader, and the request is
+dropped without a response if it starts before the commit index, or if it
+conflicts with the log of a node that may no longer roll back. A new follower
+instead truncates a conflicting suffix, then the entries are applied.
 -/
-def handleAppendEntriesRequest?
+def handleAppendEntriesRequest
     (config : InitialConfig Node)
     (self : Node)
     (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
-    : Option (NodeState Node TxId × AppendEntriesResponse) :=
+    : NodeState Node TxId × Option AppendEntriesResponse :=
   let state :=
     if request.term = state.currentTerm
         /\ (state.role = .candidate \/ state.role = .preVoteCandidate) then
       { state with role := .follower, isNewFollower := true }
     else
       state
-  rejectAppendEntriesRequest? state request
-  <|> acceptAppendEntriesRequest? config self state request
+  if request.term < state.currentTerm \/ Not (logOk state request) then
+    (state, some (appendEntriesNack state request))
+  else
+    let state := { state with leaderKnown := true }
+    if request.prevLogIndex < state.commitIndex
+        \/ (hasTermConflict state request /\ !state.isNewFollower) then
+      (state, none)
+    else
+      let state :=
+        if hasTermConflict state request then
+          {
+            state with
+              log := state.log.take request.prevLogIndex, isNewFollower := false
+          }
+        else
+          state
+      let (next, response) := appendEntriesFromLeader config self state request
+      (next, some response)
 
 /-- Ignore replies after stepping down; otherwise update leader peer indices. -/
 def handleAppendEntriesResponse
@@ -412,7 +359,10 @@ abbrev voteLogUpToDate (state : NodeState Node TxId) (request : RequestVoteReque
   \/ (request.lastCommittableTerm = maxCommittableTerm state.log
       /\ request.lastCommittableIndex >= maxCommittableIndex state.log)
 
-/-- Grant a current-term vote to an up-to-date candidate, at most once per term. -/
+/--
+Grant a current-term vote to an up-to-date candidate, at most once per term
+and only while no leader is known in that term.
+-/
 def handleRequestVoteRequest
     (state : NodeState Node TxId)
     (source : Node)
@@ -422,6 +372,7 @@ def handleRequestVoteRequest
     decide
       (request.term = state.currentTerm
         /\ voteLogUpToDate state request
+        /\ !state.leaderKnown
         /\ (state.votedFor = none \/ state.votedFor = some source))
   (
     if grant then { state with votedFor := some source } else state,
@@ -454,7 +405,7 @@ def handleRequestPreVoteResponse
   else
     state
 
-/-- Move to a newer term as a follower that has not voted in it. -/
+/-- Move to a newer term as a follower that has not voted or seen a leader in it. -/
 def updateTerm (state : NodeState Node TxId) (term : Nat) : NodeState Node TxId :=
   if state.currentTerm < term then
     {
@@ -462,6 +413,7 @@ def updateTerm (state : NodeState Node TxId) (term : Nat) : NodeState Node TxId 
         role := .follower
         currentTerm := term
         votedFor := none
+        leaderKnown := false
         isNewFollower := true
         preVotesGranted := ∅
     }
@@ -492,8 +444,9 @@ def receive
   let state := observeTerm state message
   match message with
   | .appendEntriesRequest request => do
-      let (next, response) <- handleAppendEntriesRequest? config self state request
-      caps.send (.appendEntriesResponse response) source
+      let (next, response) := handleAppendEntriesRequest config self state request
+      if let some response := response then
+        caps.send (.appendEntriesResponse response) source
       return refreshRetirementState config self next
   | .appendEntriesResponse response =>
       return handleAppendEntriesResponse state source response
@@ -597,12 +550,13 @@ def act (config : InitialConfig Node) (caps : Caps Node TxId) (self : Node)
       guard
         (candidateTransitionEnabled config state self
           /\ config.preVoteStatus self = .enabled)
-      return { state with role := .preVoteCandidate, preVotesGranted := {self} }
+      return {
+        state with
+          role := .preVoteCandidate, leaderKnown := false, preVotesGranted := {self}
+      }
   | .becomeCandidate => do
       guard
         (state.role = .preVoteCandidate
-          /\ candidateTransitionEnabled config state self
-          /\ config.preVoteStatus self = .enabled
           /\ hasQuorum (state.activeConfigurations config) state.preVotesGranted)
       return becomeCandidateNodeState state self
   | .requestVote destination => do
@@ -621,21 +575,24 @@ def act (config : InitialConfig Node) (caps : Caps Node TxId) (self : Node)
       return state
   | .checkQuorum => do
       guard (state.role = .leader /\ ((state.activeMembers config).erase self).Nonempty)
-      return { state with role := .follower, isNewFollower := true }
+      return { state with role := .follower, leaderKnown := false, isNewFollower := true }
   | .becomeLeader => do
-      let log := state.log.take (maxCommittableIndex state.log)
-      let truncated := { state with log }
       guard
         (state.role = .candidate
           /\ Not (state.membershipState = .retiredCommitted)
-          /\ hasQuorum (state.activeConfigurations config) state.votesGranted
-          /\ Not
-              ((refreshRetirementState config self truncated).membershipState
-                = .retiredCommitted))
+          /\ hasQuorum (state.activeConfigurations config) state.votesGranted)
+      -- Drop the unsigned suffix, except at startup, as CCF does.
+      let log :=
+        if state.commitIndex > 0 then
+          state.log.take (lastCommittableIndex state)
+        else
+          state.log
       return refreshRetirementState config self
         {
-          truncated with
+          state with
             role := .leader
+            log
+            leaderKnown := true
             sentIndex := fun _ => log.length
             matchIndex := fun _ => 0
         }
