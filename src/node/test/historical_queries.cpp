@@ -22,8 +22,10 @@
 #include "node/signature_cache_subsystem.h"
 
 #include <algorithm>
+#include <fstream>
 #include <random>
 #include <tav/cbor.hpp>
+#include <unistd.h>
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
@@ -304,6 +306,1449 @@ MerkleProofData decode_merkle_proof(const std::vector<uint8_t>& encoded)
   return data;
 }
 
+struct MaintenanceCache : public ccf::historical::StateCache
+{
+  using StateCache::StateCache;
+  using ReplyRole = ReplyConsumerIndex::Role;
+  using ConsumerRoles = std::map<ccf::historical::CompoundHandle, uint8_t>;
+
+  size_t request_count()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return requests.size();
+  }
+
+  size_t store_slot_count()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return all_stores.size();
+  }
+
+  size_t pending_fetch_count()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return maintenance.pending_fetches.size();
+  }
+
+  size_t released_candidate_count()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return maintenance.released_seqnos.size();
+  }
+
+  // True when the next tick has nothing to visit: no pending fetch, no
+  // released store to check, and no request due to expire
+  bool is_quiescent()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return maintenance.pending_fetches.empty() &&
+      maintenance.released_seqnos.empty() &&
+      (expiry_order.empty() || expiry_order.begin()->first > cache_time);
+  }
+
+  std::optional<std::chrono::milliseconds> earliest_deadline()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    if (expiry_order.empty())
+    {
+      return std::nullopt;
+    }
+    return expiry_order.begin()->first;
+  }
+
+  TickWork tick_work()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return last_tick_work;
+  }
+
+  ReplyWork reply_work()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return last_reply_work;
+  }
+
+  ConsumerRoles consumers_for(ccf::SeqNo seqno)
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    const auto& index = get_reply_consumer_index();
+    const auto it = index.entries.find(seqno);
+    return it == index.entries.end() ? ConsumerRoles{} : it->second.roles;
+  }
+
+  size_t secret_waiter_count(ccf::SeqNo seqno)
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    const auto& index = get_reply_consumer_index();
+    const auto it = index.entries.find(seqno);
+    return it == index.entries.end() ? 0 : it->second.secret_waiters;
+  }
+
+  size_t expected_reply_visits(ccf::SeqNo seqno)
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    size_t count = 0;
+    for (const auto& [_, request] : requests)
+    {
+      if (
+        request.my_stores.contains(seqno) ||
+        request.supporting_signatures.contains(seqno) ||
+        request.awaiting_ledger_secrets == seqno)
+      {
+        ++count;
+      }
+    }
+    return count;
+  }
+
+  void check_reply_invariants()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    check_reply_invariants_locked();
+  }
+
+  size_t tick_work_total()
+  {
+    const auto work = tick_work();
+    return work.requests_expired + work.requests_evicted +
+      work.released_seqnos_checked + work.pending_fetches_visited;
+  }
+
+  // Checks the bookkeeping which lets tick skip untouched entries, at any
+  // point between operations: every live store still being fetched has a
+  // pending entry for the same wrapper, every live pending entry is such a
+  // store, a stale pending entry only remains where the slot it tracked has
+  // gone too, and the deadline index mirrors the requests.
+  void check_invariants()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    size_t fetching = 0;
+    for (const auto& [seqno, weak_details] : all_stores)
+    {
+      auto details = weak_details.lock();
+      if (details != nullptr && details->current_stage == StoreStage::Fetching)
+      {
+        ++fetching;
+        auto pending_it = maintenance.pending_fetches.find(seqno);
+        REQUIRE(pending_it != maintenance.pending_fetches.end());
+        REQUIRE(pending_it->second.lock() == details);
+      }
+    }
+    size_t live_pending = 0;
+    for (const auto& [seqno, weak_details] : maintenance.pending_fetches)
+    {
+      auto details = weak_details.lock();
+      auto slot_it = all_stores.find(seqno);
+      if (details == nullptr)
+      {
+        REQUIRE((slot_it == all_stores.end() || slot_it->second.expired()));
+        continue;
+      }
+      ++live_pending;
+      REQUIRE(details->current_stage == StoreStage::Fetching);
+      REQUIRE(slot_it != all_stores.end());
+      REQUIRE(slot_it->second.lock() == details);
+    }
+    REQUIRE(live_pending == fetching);
+
+    REQUIRE(expiry_order.size() == requests.size());
+    for (const auto& [handle, request] : requests)
+    {
+      REQUIRE(expiry_order.contains({request.expiry_at, handle}));
+    }
+    check_reply_invariants_locked();
+  }
+
+  // Checks that a tick has reaped every store nobody owns any more, and has
+  // nothing left over to check
+  void check_no_expired_slots()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    for (const auto& [seqno, weak_details] : all_stores)
+    {
+      REQUIRE_FALSE(weak_details.expired());
+    }
+    for (const auto& [seqno, weak_details] : maintenance.pending_fetches)
+    {
+      REQUIRE_FALSE(weak_details.expired());
+    }
+    REQUIRE(maintenance.released_seqnos.empty());
+  }
+
+  bool is_accounted(ccf::SeqNo seqno)
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return store_to_requests.contains(seqno);
+  }
+
+  auto weak_store_details(ccf::SeqNo seqno)
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    return all_stores.at(seqno);
+  }
+
+private:
+  void check_reply_invariants_locked()
+  {
+    std::map<ccf::SeqNo, ConsumerRoles> expected;
+    std::map<ccf::SeqNo, size_t> secret_waiters;
+    // Derive routing only from each request's own fields, not the shared
+    // all_stores lookup or byte-accounting references.
+    for (const auto& [handle, request] : requests)
+    {
+      for (const auto& [seqno, _] : request.my_stores)
+      {
+        expected[seqno][handle] |= static_cast<uint8_t>(ReplyRole::Direct);
+      }
+      for (const auto& [seqno, _] : request.supporting_signatures)
+      {
+        expected[seqno][handle] |=
+          static_cast<uint8_t>(ReplyRole::SupportingSignature);
+      }
+      if (request.awaiting_ledger_secrets.has_value())
+      {
+        const auto seqno = *request.awaiting_ledger_secrets;
+        expected[seqno][handle] |=
+          static_cast<uint8_t>(ReplyRole::LedgerSecret);
+        ++secret_waiters[seqno];
+      }
+    }
+    const auto& actual = get_reply_consumer_index().entries;
+    REQUIRE(actual.size() == expected.size());
+    for (const auto& [seqno, consumers] : actual)
+    {
+      REQUIRE_FALSE(consumers.roles.empty());
+      REQUIRE(expected.contains(seqno));
+      REQUIRE(consumers.roles == expected.at(seqno));
+      REQUIRE(consumers.secret_waiters == secret_waiters[seqno]);
+      // Routing membership must agree with the predicate which selects the
+      // requests dropped when this entry turns out to be missing
+      for (const auto& [handle, _] : consumers.roles)
+      {
+        REQUIRE(requests.at(handle).is_interested_in(seqno));
+      }
+    }
+  }
+};
+
+struct BenchmarkCache : public MaintenanceCache
+{
+  using MaintenanceCache::MaintenanceCache;
+
+  void trust_all_stores()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    for (const auto& [_, weak_details] : all_stores)
+    {
+      auto details = weak_details.lock();
+      REQUIRE(details != nullptr);
+      details->current_stage = StoreStage::Trusted;
+    }
+  }
+
+  struct RoutingSize
+  {
+    size_t buckets = 0;
+    size_t handles = 0;
+    // Value storage only: excludes tree links, allocator overhead, the
+    // Request's index reference/handle and the transient reply snapshot.
+    size_t value_bytes = 0;
+  };
+
+  RoutingSize routing_size()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(requests_lock);
+    const auto& index = get_reply_consumer_index();
+    RoutingSize size;
+    size.buckets = index.entries.size();
+    size.value_bytes = sizeof(index) +
+      size.buckets * sizeof(decltype(index.entries)::value_type);
+    for (const auto& [_, consumers] : index.entries)
+    {
+      size.handles += consumers.roles.size();
+    }
+    size.value_bytes += size.handles * sizeof(ConsumerRoles::value_type);
+    return size;
+  }
+};
+
+TEST_CASE("StateCache idle expiry deadlines")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  const auto seqno = write_transactions_and_signature(*state.kv_store, 1);
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+
+  REQUIRE(cache.get_store_at(0, seqno, 1s) == nullptr);
+  REQUIRE(cache.earliest_deadline() == std::optional(1000ms));
+  REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  REQUIRE(cache.get_store_at(1, seqno, 10s) != nullptr);
+  cache.tick(0ms);
+  REQUIRE(cache.is_quiescent());
+
+  cache.tick(999ms);
+  REQUIRE(cache.request_count() == 2);
+  cache.tick(1ms);
+  REQUIRE(cache.request_count() == 1);
+  REQUIRE(cache.store_slot_count() == 1);
+
+  REQUIRE(cache.get_store_at(1, seqno, 2s) != nullptr);
+  cache.tick(0ms);
+  cache.tick(500ms);
+  REQUIRE(cache.get_store_at(1, seqno, 10s) != nullptr);
+  cache.tick(0ms);
+  cache.tick(1500ms);
+  REQUIRE(cache.request_count() == 1);
+  REQUIRE(cache.is_quiescent());
+
+  REQUIRE(cache.get_store_at(2, seqno, 1s) != nullptr);
+  REQUIRE(cache.earliest_deadline() == std::optional(4000ms));
+  cache.tick(999ms);
+  REQUIRE(cache.request_count() == 2);
+  cache.tick(1ms);
+  REQUIRE(cache.request_count() == 1);
+  cache.tick(7499ms);
+  REQUIRE(cache.request_count() == 1);
+  cache.tick(1ms);
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE(cache.store_slot_count() == 0);
+  REQUIRE(cache.is_quiescent());
+  REQUIRE_FALSE(cache.earliest_deadline().has_value());
+  REQUIRE(reader->writes.empty());
+}
+
+TEST_CASE("StateCache default and immediate expiry while idle")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  const auto seqno = write_transactions_and_signature(*state.kv_store, 1);
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+
+  cache.set_default_expiry_duration(2s);
+  REQUIRE(cache.get_store_at(0, seqno) == nullptr);
+  REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  cache.tick(0ms);
+  cache.set_default_expiry_duration(1s);
+  cache.tick(1500ms);
+  REQUIRE(cache.request_count() == 1);
+  cache.tick(500ms);
+  REQUIRE(cache.request_count() == 0);
+
+  REQUIRE(cache.get_store_at(0, seqno) == nullptr);
+  REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  cache.tick(0ms);
+  cache.tick(999ms);
+  REQUIRE(cache.request_count() == 1);
+  cache.tick(1ms);
+  REQUIRE(cache.request_count() == 0);
+
+  for (const auto expiry : {0s, -1s})
+  {
+    REQUIRE(cache.get_store_at(0, seqno, expiry) == nullptr);
+    cache.tick(0ms);
+    REQUIRE(cache.request_count() == 0);
+    REQUIRE(cache.store_slot_count() == 0);
+    REQUIRE(cache.is_quiescent());
+  }
+  REQUIRE(reader->writes.empty());
+}
+
+TEST_CASE("StateCache partially constructed requests expire like any other")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+  cache.tick(2500ms);
+
+  REQUIRE_THROWS_AS(cache.get_store_at(0, 0, 1s), std::logic_error);
+  REQUIRE(cache.request_count() == 1);
+  REQUIRE(cache.earliest_deadline() == std::optional(3500ms));
+  cache.check_invariants();
+  cache.tick(0ms);
+  REQUIRE(cache.request_count() == 1);
+  cache.tick(1000ms);
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE_FALSE(cache.earliest_deadline().has_value());
+  REQUIRE(cache.is_quiescent());
+  cache.check_invariants();
+}
+
+TEST_CASE("StateCache idle mutations preserve payload lifetime")
+{
+  auto state = create_and_init_state();
+  const auto signature = write_transactions_and_signature(*state.kv_store, 3);
+  const auto target = signature - 3;
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+
+  REQUIRE(cache.get_store_range(1, target, signature, 5s).empty());
+  REQUIRE(cache.get_state_at(0, target, 5s) == nullptr);
+  for (auto seqno = target; seqno <= signature; ++seqno)
+  {
+    REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  }
+  auto returned_state = cache.get_state_at(0, target, 5s);
+  REQUIRE(returned_state != nullptr);
+  cache.tick(0ms);
+  REQUIRE(cache.is_quiescent());
+
+  auto weak_signature = cache.weak_store_details(signature);
+  REQUIRE(cache.drop_cached_states(1));
+  cache.tick(0ms);
+  REQUIRE(cache.store_slot_count() == 2);
+  REQUIRE_FALSE(cache.is_accounted(signature));
+  REQUIRE_FALSE(weak_signature.expired());
+  REQUIRE(cache.is_quiescent());
+
+  REQUIRE(cache.get_store_at(0, target, 5s) != nullptr);
+  REQUIRE(weak_signature.expired());
+  cache.tick(0ms);
+  REQUIRE(cache.store_slot_count() == 1);
+  REQUIRE(cache.is_quiescent());
+
+  auto weak_details = cache.weak_store_details(target);
+  auto weak_payload = std::weak_ptr(returned_state->store);
+  SUBCASE("Dropping the final handle")
+  {
+    REQUIRE(cache.drop_cached_states(0));
+    REQUIRE(cache.released_candidate_count() == 1);
+  }
+  SUBCASE("Expiring the final handle")
+  {
+    cache.tick(5s);
+  }
+  SUBCASE("Evicting the final handle")
+  {
+    cache.set_soft_cache_limit(0);
+    cache.tick(0ms);
+  }
+
+  REQUIRE(weak_details.expired());
+  REQUIRE_FALSE(weak_payload.expired());
+  validate_business_transaction(returned_state, target);
+  REQUIRE(ccf::describe_merkle_proof_v1(*returned_state->receipt).has_value());
+  cache.tick(0ms);
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE(cache.store_slot_count() == 0);
+  REQUIRE(cache.is_quiescent());
+
+  std::thread release_payload(
+    [returned_state = std::move(returned_state)]() mutable {
+      returned_state.reset();
+    });
+  release_payload.join();
+  REQUIRE(weak_payload.expired());
+  cache.tick(1000ms);
+  REQUIRE(cache.store_slot_count() == 0);
+  REQUIRE(cache.is_quiescent());
+  REQUIRE(reader->writes.empty());
+}
+
+TEST_CASE("StateCache resumes fetches and reaps a late failed range")
+{
+  auto state = create_and_init_state();
+  const auto signature = write_transactions_and_signature(*state.kv_store, 3);
+  const auto target = signature - 3;
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+  cache.tick(0ms);
+  REQUIRE(cache.is_quiescent());
+
+  REQUIRE(cache.get_store_range(0, target, signature - 1, 10s).empty());
+  cache.tick(0ms);
+  REQUIRE(reader->writes.size() == 1);
+  REQUIRE(reader->writes.front().from == target);
+  REQUIRE(reader->writes.front().to == signature - 1);
+  reader->writes.clear();
+  cache.tick(999ms);
+  REQUIRE(reader->writes.empty());
+  cache.tick(1ms);
+  REQUIRE(reader->writes.size() == 1);
+  REQUIRE(reader->writes.front().from == target);
+  REQUIRE(reader->writes.front().to == signature - 1);
+  reader->writes.clear();
+
+  for (auto seqno = target; seqno < signature; ++seqno)
+  {
+    REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  }
+  cache.tick(0ms);
+  REQUIRE(cache.is_quiescent());
+
+  REQUIRE(cache.get_store_range(0, target, signature, 10s).empty());
+  cache.tick(0ms);
+  REQUIRE(reader->writes.size() == 1);
+  REQUIRE(reader->writes.front().from == signature);
+  REQUIRE(reader->writes.front().to == signature);
+  reader->writes.clear();
+  REQUIRE(cache.handle_ledger_entry(signature, ledger.at(signature)));
+  cache.tick(0ms);
+  REQUIRE(cache.is_quiescent());
+
+  cache.handle_no_entry_range(target, signature - 1);
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE(cache.store_slot_count() == 1);
+  cache.tick(0ms);
+  REQUIRE(cache.store_slot_count() == 0);
+  REQUIRE(cache.is_quiescent());
+  REQUIRE_FALSE(cache.handle_ledger_entry(signature, ledger.at(signature)));
+  cache.tick(0ms);
+  REQUIRE(cache.is_quiescent());
+  REQUIRE(reader->writes.empty());
+}
+
+TEST_CASE("StateCache secret-fetch ownership and cleanup")
+{
+  auto state = create_and_init_state();
+  write_transactions(*state.kv_store, 3);
+  const auto first_rekey = rekey(*state.kv_store, state.ledger_secrets);
+  write_transactions(*state.kv_store, 3);
+  const auto second_rekey = rekey(*state.kv_store, state.ledger_secrets);
+  write_transactions_and_signature(*state.kv_store, 1);
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+
+  auto recovered_state = create_and_init_state(false);
+  auto tx = recovered_state.kv_store->create_read_only_tx();
+  ccf::LedgerSecretsMap recovered_secrets;
+  recovered_secrets.emplace(state.ledger_secrets->get_latest(tx));
+  recovered_state.ledger_secrets->restore_historical(
+    std::move(recovered_secrets));
+
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(
+    *recovered_state.kv_store, recovered_state.ledger_secrets, reader);
+  const auto target = first_rekey - 1;
+  REQUIRE(cache.get_store_at(0, target, 60s) == nullptr);
+  auto weak_secret = cache.weak_store_details(second_rekey);
+  REQUIRE_FALSE(cache.is_accounted(second_rekey));
+  cache.tick(0ms);
+
+  REQUIRE(cache.drop_cached_states(0));
+  cache.tick(0ms);
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE_FALSE(weak_secret.expired());
+  REQUIRE(cache.pending_fetch_count() == 1);
+  reader->writes.clear();
+  cache.tick(999ms);
+  REQUIRE(reader->writes.empty());
+  cache.tick(1ms);
+  REQUIRE(reader->writes.size() == 1);
+  REQUIRE(reader->writes.front().from == second_rekey);
+  REQUIRE(reader->writes.front().to == second_rekey);
+  reader->writes.clear();
+
+  REQUIRE(cache.get_store_at(1, target, 60s) == nullptr);
+  REQUIRE(cache.handle_ledger_entry(second_rekey, ledger.at(second_rekey)));
+  REQUIRE(weak_secret.expired());
+  cache.tick(0ms);
+  REQUIRE(cache.store_slot_count() == 1);
+  weak_secret = cache.weak_store_details(first_rekey);
+  REQUIRE_FALSE(cache.is_accounted(first_rekey));
+  REQUIRE(cache.handle_ledger_entry(first_rekey, ledger.at(first_rekey)));
+  REQUIRE(weak_secret.expired());
+  cache.tick(0ms);
+  REQUIRE(cache.store_slot_count() == 1);
+  REQUIRE(cache.handle_ledger_entry(target, ledger.at(target)));
+  auto historical_store = cache.get_store_at(1, target, 60s);
+  validate_business_transaction(historical_store, target);
+  cache.tick(0ms);
+  REQUIRE(cache.is_quiescent());
+
+  REQUIRE(cache.drop_cached_states(1));
+  cache.tick(0ms);
+  REQUIRE(cache.store_slot_count() == 0);
+  REQUIRE(cache.is_quiescent());
+  validate_business_transaction(historical_store, target);
+}
+
+TEST_CASE("StateCache deadline arithmetic is checked")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+  REQUIRE_THROWS_AS(
+    cache.get_store_at(0, 1, ccf::historical::ExpiryDuration::max()),
+    std::overflow_error);
+  REQUIRE_THROWS_AS(
+    cache.get_store_at(0, 1, ccf::historical::ExpiryDuration::min()),
+    std::overflow_error);
+  REQUIRE(cache.request_count() == 0);
+
+  cache.tick(std::chrono::milliseconds::max());
+  REQUIRE_THROWS_AS(cache.tick(1ms), std::overflow_error);
+  REQUIRE_THROWS_AS(cache.get_store_at(0, 1, 1s), std::overflow_error);
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE(cache.get_store_at(0, 1, -1s) == nullptr);
+  cache.tick(0ms);
+  REQUIRE(cache.request_count() == 0);
+}
+
+TEST_CASE("StateCache shared stores outlive their first owner")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  const auto seqno = write_transactions_and_signature(*state.kv_store, 1);
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+
+  REQUIRE(cache.get_store_at(0, seqno, 60s) == nullptr);
+  REQUIRE(cache.get_store_at(1, seqno, 60s) == nullptr);
+  REQUIRE(cache.store_slot_count() == 1);
+  REQUIRE(cache.pending_fetch_count() == 1);
+  cache.check_invariants();
+  cache.tick(0ms);
+  REQUIRE(cache.tick_work().pending_fetches_visited == 1);
+  REQUIRE(reader->writes.size() == 1);
+  REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  REQUIRE(cache.pending_fetch_count() == 0);
+  cache.check_invariants();
+
+  auto weak_details = cache.weak_store_details(seqno);
+  REQUIRE(cache.drop_cached_states(0));
+  REQUIRE(cache.released_candidate_count() == 1);
+  cache.tick(0ms);
+  REQUIRE(cache.tick_work().released_seqnos_checked == 1);
+  REQUIRE(cache.store_slot_count() == 1);
+  REQUIRE_FALSE(weak_details.expired());
+  REQUIRE(cache.get_store_at(1, seqno, 60s) != nullptr);
+  cache.tick(0ms);
+  REQUIRE(cache.tick_work_total() == 0);
+  REQUIRE(cache.is_quiescent());
+  cache.check_invariants();
+
+  REQUIRE(cache.drop_cached_states(1));
+  REQUIRE(weak_details.expired());
+  cache.tick(0ms);
+  REQUIRE(cache.tick_work().released_seqnos_checked == 1);
+  REQUIRE(cache.store_slot_count() == 0);
+  cache.check_no_expired_slots();
+  cache.check_invariants();
+}
+
+TEST_CASE("StateCache retargeting releases only the abandoned stores")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  const auto signature = write_transactions_and_signature(*state.kv_store, 4);
+  const auto first = signature - 4;
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+
+  REQUIRE(cache.get_store_range(0, first, first + 2, 60s).empty());
+  cache.tick(0ms);
+  REQUIRE(cache.tick_work().pending_fetches_visited == 3);
+  REQUIRE(reader->writes.size() == 1);
+  reader->writes.clear();
+  for (auto seqno = first; seqno <= first + 2; ++seqno)
+  {
+    REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  }
+  REQUIRE(cache.get_store_range(0, first, first + 2, 60s).size() == 3);
+  cache.tick(0ms);
+  REQUIRE(cache.is_quiescent());
+
+  auto weak_first = cache.weak_store_details(first);
+  REQUIRE(cache.get_store_range(0, first + 1, first + 3, 60s).empty());
+  REQUIRE(weak_first.expired());
+  REQUIRE(cache.released_candidate_count() == 1);
+  REQUIRE(cache.pending_fetch_count() == 1);
+  cache.check_invariants();
+
+  cache.tick(0ms);
+  const auto work = cache.tick_work();
+  REQUIRE(work.released_seqnos_checked == 1);
+  REQUIRE(work.pending_fetches_visited == 1);
+  REQUIRE(work.requests_expired == 0);
+  REQUIRE(work.requests_evicted == 0);
+  REQUIRE(cache.store_slot_count() == 3);
+  REQUIRE(reader->writes.size() == 1);
+  REQUIRE(reader->writes.front().from == first + 3);
+  REQUIRE(reader->writes.front().to == first + 3);
+  cache.check_no_expired_slots();
+
+  REQUIRE(cache.handle_ledger_entry(first + 3, ledger.at(first + 3)));
+  REQUIRE(cache.get_store_range(0, first + 1, first + 3, 60s).size() == 3);
+  cache.tick(0ms);
+  REQUIRE(cache.is_quiescent());
+  cache.check_invariants();
+}
+
+TEST_CASE("StateCache seqno re-requested before cleanup keeps the new store")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  const auto seqno = write_transactions_and_signature(*state.kv_store, 1);
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+
+  REQUIRE(cache.get_store_at(0, seqno, 60s) == nullptr);
+  REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  REQUIRE(cache.get_store_at(0, seqno, 60s) != nullptr);
+  cache.tick(0ms);
+  REQUIRE(cache.is_quiescent());
+
+  SUBCASE("Dropped")
+  {
+    REQUIRE(cache.drop_cached_states(0));
+  }
+  SUBCASE("Expired")
+  {
+    REQUIRE(cache.get_store_at(0, seqno, 0s) != nullptr);
+    cache.tick(0ms);
+    REQUIRE(cache.request_count() == 0);
+    // The expiring tick already reaped the slot, so re-create it to exercise
+    // the same path with a stale candidate
+    REQUIRE(cache.store_slot_count() == 0);
+    REQUIRE(cache.get_store_at(0, seqno, 60s) == nullptr);
+    REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+    REQUIRE(cache.drop_cached_states(0));
+  }
+  REQUIRE(cache.released_candidate_count() == 1);
+  REQUIRE(cache.weak_store_details(seqno).expired());
+
+  // Re-requested before the tick which would have forgotten it
+  REQUIRE(cache.get_store_at(1, seqno, 60s) == nullptr);
+  auto new_details = cache.weak_store_details(seqno).lock();
+  REQUIRE(new_details != nullptr);
+  REQUIRE(cache.pending_fetch_count() == 1);
+  cache.check_invariants();
+
+  cache.tick(0ms);
+  REQUIRE(cache.tick_work().released_seqnos_checked == 1);
+  REQUIRE(cache.tick_work().pending_fetches_visited == 1);
+  REQUIRE(cache.store_slot_count() == 1);
+  REQUIRE(cache.weak_store_details(seqno).lock() == new_details);
+  REQUIRE(reader->writes.size() == 1);
+  REQUIRE(reader->writes.front().from == seqno);
+  cache.check_no_expired_slots();
+  cache.check_invariants();
+
+  new_details.reset();
+  REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  REQUIRE(cache.get_store_at(1, seqno, 60s) != nullptr);
+  cache.tick(0ms);
+  REQUIRE(cache.is_quiescent());
+}
+
+TEST_CASE("StateCache tick work is bounded by pending work, not retention")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  constexpr size_t retained = 20;
+  const auto signature =
+    write_transactions_and_signature(*state.kv_store, retained + 1);
+  const auto first = signature - retained - 1;
+  const auto held_back = signature - 1;
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+
+  for (size_t i = 0; i < retained; ++i)
+  {
+    REQUIRE(cache.get_store_at(i, first + i, 60s) == nullptr);
+  }
+  cache.tick(0ms);
+  REQUIRE(cache.tick_work().pending_fetches_visited == retained);
+  REQUIRE(reader->writes.size() == 1);
+  REQUIRE(reader->writes.front().from == first);
+  REQUIRE(reader->writes.front().to == first + retained - 1);
+  reader->writes.clear();
+  for (size_t i = 0; i < retained; ++i)
+  {
+    REQUIRE(cache.handle_ledger_entry(first + i, ledger.at(first + i)));
+  }
+  cache.tick(0ms);
+  REQUIRE(cache.tick_work_total() == 0);
+  REQUIRE(cache.is_quiescent());
+  cache.check_invariants();
+
+  INFO("Renewals cost nothing at the next tick");
+  for (size_t i = 0; i < retained; i += 3)
+  {
+    REQUIRE(cache.get_store_at(i, first + i, 60s) != nullptr);
+  }
+  cache.tick(10ms);
+  REQUIRE(cache.tick_work_total() == 0);
+  REQUIRE(cache.is_quiescent());
+
+  INFO("A single new fetch is the only store visited");
+  REQUIRE(cache.get_store_at(retained, held_back, 60s) == nullptr);
+  cache.tick(10ms);
+  auto work = cache.tick_work();
+  REQUIRE(work.pending_fetches_visited == 1);
+  REQUIRE(work.released_seqnos_checked == 0);
+  REQUIRE(work.requests_expired == 0);
+  REQUIRE(work.requests_evicted == 0);
+  REQUIRE(reader->writes.size() == 1);
+  reader->writes.clear();
+
+  INFO("The pending fetch is retried on schedule, without visiting the rest");
+  cache.tick(999ms);
+  REQUIRE(cache.tick_work().pending_fetches_visited == 1);
+  REQUIRE(reader->writes.empty());
+  cache.tick(1ms);
+  REQUIRE(cache.tick_work().pending_fetches_visited == 1);
+  REQUIRE(reader->writes.size() == 1);
+  reader->writes.clear();
+
+  INFO("Dropping one handle checks only its store");
+  REQUIRE(cache.drop_cached_states(3));
+  cache.tick(10ms);
+  work = cache.tick_work();
+  REQUIRE(work.released_seqnos_checked == 1);
+  REQUIRE(work.pending_fetches_visited == 1);
+  REQUIRE(cache.store_slot_count() == retained);
+  cache.check_no_expired_slots();
+
+  INFO("Expiry visits only the due requests");
+  REQUIRE(cache.get_store_at(5, first + 5, 1s) != nullptr);
+  REQUIRE(cache.get_store_at(7, first + 7, 1s) != nullptr);
+  cache.tick(999ms);
+  REQUIRE(cache.tick_work().requests_expired == 0);
+  // The outstanding fetch is retried again, a second after its last attempt
+  REQUIRE(reader->writes.size() == 1);
+  reader->writes.clear();
+  cache.tick(1ms);
+  work = cache.tick_work();
+  REQUIRE(work.requests_expired == 2);
+  REQUIRE(work.released_seqnos_checked == 2);
+  REQUIRE(work.pending_fetches_visited == 1);
+  REQUIRE(cache.request_count() == retained - 2);
+  REQUIRE(cache.store_slot_count() == retained - 2);
+  cache.check_no_expired_slots();
+
+  INFO("Completing the fetch leaves nothing to visit");
+  REQUIRE(cache.handle_ledger_entry(held_back, ledger.at(held_back)));
+  REQUIRE(cache.get_store_at(retained, held_back, 60s) != nullptr);
+  cache.tick(10ms);
+  REQUIRE(cache.tick_work_total() == 0);
+  REQUIRE(cache.is_quiescent());
+  cache.check_invariants();
+  REQUIRE(reader->writes.empty());
+}
+
+TEST_CASE("StateCache maintenance bookkeeping under random operations")
+{
+  auto state = create_and_init_state();
+  const auto first_seqno = state.kv_store->current_version() + 1;
+  ccf::SeqNo last_seqno = 0;
+  for (size_t batch = 0; batch < 4; ++batch)
+  {
+    last_seqno = write_transactions_and_signature(*state.kv_store, 3);
+    if (batch != 3)
+    {
+      rekey(*state.kv_store, state.ledger_secrets);
+    }
+  }
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto recovered = create_and_init_state(false);
+  auto tx = recovered.kv_store->create_read_only_tx();
+  ccf::LedgerSecretsMap secrets;
+  secrets.emplace(state.ledger_secrets->get_latest(tx));
+  recovered.ledger_secrets->restore_historical(std::move(secrets));
+
+  for (auto* active_state : {&state, &recovered})
+  {
+    for (uint32_t seed = 1; seed <= 4; ++seed)
+    {
+      auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+      MaintenanceCache cache(
+        *active_state->kv_store, active_state->ledger_secrets, reader);
+      auto& compound_cache =
+        static_cast<ccf::historical::StateCacheImpl&>(cache);
+      std::mt19937 rng(seed);
+      auto roll = [&](size_t n) {
+        return std::uniform_int_distribution<size_t>(0, n - 1)(rng);
+      };
+      auto random_seqno = [&]() {
+        return first_seqno + (ccf::SeqNo)roll(last_seqno - first_seqno + 1);
+      };
+      constexpr size_t handle_count = 6;
+
+      for (size_t step = 0; step < 400; ++step)
+      {
+        INFO("Seed: ", seed, ", step: ", step);
+        const ccf::historical::CompoundHandle handle{
+          roll(2) == 0 ? ccf::historical::RequestNamespace::Application :
+                         ccf::historical::RequestNamespace::System,
+          roll(handle_count)};
+        const auto expiry = std::chrono::seconds(1 + roll(5));
+        switch (roll(14))
+        {
+          case 0:
+          case 1:
+          {
+            compound_cache.get_store_at(handle, random_seqno(), expiry);
+            break;
+          }
+          case 2:
+          case 3:
+          {
+            const auto from = random_seqno();
+            const auto to = std::min(last_seqno, from + (ccf::SeqNo)roll(4));
+            compound_cache.get_store_range(handle, from, to, expiry);
+            break;
+          }
+          case 4:
+          {
+            compound_cache.get_state_at(handle, random_seqno(), expiry);
+            break;
+          }
+          case 5:
+          {
+            compound_cache.drop_cached_states(handle);
+            break;
+          }
+          case 6:
+          case 7:
+          {
+            // Deliver one requested range, possibly after it was abandoned
+            if (!reader->writes.empty())
+            {
+              const auto write = reader->writes.at(roll(reader->writes.size()));
+              for (auto seqno = write.from; seqno <= write.to; ++seqno)
+              {
+                const auto expected = cache.expected_reply_visits(seqno);
+                const auto accepted =
+                  cache.handle_ledger_entry(seqno, ledger.at(seqno));
+                REQUIRE(
+                  cache.reply_work().requests_visited ==
+                  (accepted ? expected : 0));
+                cache.check_invariants();
+              }
+              reader->writes.clear();
+            }
+            break;
+          }
+          case 8:
+          {
+            if (roll(4) == 0)
+            {
+              const auto seqno = random_seqno();
+              cache.handle_no_entry_range(seqno, seqno);
+            }
+            else
+            {
+              cache.set_soft_cache_limit(roll(2) == 0 ? 0 : 1024 * 1024);
+            }
+            break;
+          }
+          case 9:
+          case 10:
+          {
+            const auto from = random_seqno();
+            const auto to = std::min(last_seqno, from + (ccf::SeqNo)roll(4));
+            compound_cache.get_state_range(handle, from, to, expiry);
+            break;
+          }
+          case 11:
+          case 12:
+          {
+            ccf::SeqNoCollection seqnos;
+            for (size_t i = 0; i < 4; ++i)
+            {
+              seqnos.insert(random_seqno());
+            }
+            if (roll(2) == 0)
+            {
+              compound_cache.get_stores_for(handle, seqnos, expiry);
+            }
+            else
+            {
+              compound_cache.get_states_for(handle, seqnos, expiry);
+            }
+            break;
+          }
+          default:
+          {
+            const auto requests_before = cache.request_count();
+            const auto pending_before = cache.pending_fetch_count();
+            const auto released_before = cache.released_candidate_count();
+            cache.tick(std::chrono::milliseconds(roll(1500)));
+            cache.check_no_expired_slots();
+            const auto work = cache.tick_work();
+            REQUIRE(
+              work.requests_expired + work.requests_evicted ==
+              requests_before - cache.request_count());
+            // Requests expired or evicted by this tick add their own stores
+            REQUIRE(work.released_seqnos_checked >= released_before);
+            REQUIRE(work.pending_fetches_visited <= pending_before);
+            break;
+          }
+        }
+        cache.check_invariants();
+      }
+
+      for (size_t handle = 0; handle < handle_count; ++handle)
+      {
+        compound_cache.drop_cached_states(
+          {ccf::historical::RequestNamespace::Application, handle});
+        compound_cache.drop_cached_states(
+          {ccf::historical::RequestNamespace::System, handle});
+      }
+      cache.tick(0ms);
+      cache.check_invariants();
+      REQUIRE(cache.request_count() == 0);
+      if (active_state == &state)
+      {
+        REQUIRE(cache.store_slot_count() == 0);
+        REQUIRE(cache.pending_fetch_count() == 0);
+        REQUIRE(cache.is_quiescent());
+      }
+      else
+      {
+        // The shared next-secret handle can outlive every external request.
+        REQUIRE(cache.store_slot_count() <= 1);
+        REQUIRE(cache.pending_fetch_count() <= 1);
+        cache.check_no_expired_slots();
+      }
+    }
+  }
+}
+
+TEST_CASE("StateCache replies visit direct and supporting consumers once")
+{
+  using namespace ccf::historical;
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  const auto signature = write_transactions_and_signature(*state.kv_store, 12);
+  const auto first = signature - 12;
+  const auto target = signature - 2;
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+  auto& compound_cache = static_cast<StateCacheImpl&>(cache);
+  constexpr size_t retained = 8;
+  for (size_t handle = 0; handle < retained; ++handle)
+  {
+    REQUIRE(cache.get_store_at(handle, first + handle, 60s) == nullptr);
+  }
+  const CompoundHandle app{RequestNamespace::Application, retained};
+  const CompoundHandle system{RequestNamespace::System, retained};
+  REQUIRE(compound_cache.get_state_at(app, target, 60s) == nullptr);
+  REQUIRE(compound_cache.get_state_at(system, target, 60s) == nullptr);
+  REQUIRE(cache.get_store_at(retained + 1, target, 60s) == nullptr);
+  cache.check_invariants();
+
+  REQUIRE(cache.handle_ledger_entry(first, ledger.at(first)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  REQUIRE(cache.handle_ledger_entry(target, ledger.at(target)));
+  REQUIRE(cache.reply_work().requests_visited == 3);
+  cache.check_invariants();
+
+  const auto direct = static_cast<uint8_t>(MaintenanceCache::ReplyRole::Direct);
+  const auto supporting =
+    static_cast<uint8_t>(MaintenanceCache::ReplyRole::SupportingSignature);
+  const auto consumers = cache.consumers_for(target + 1);
+  REQUIRE(consumers.size() == 2);
+  REQUIRE(consumers.at(app) == (direct | supporting));
+  REQUIRE(consumers.at(system) == supporting);
+  REQUIRE(cache.handle_ledger_entry(target + 1, ledger.at(target + 1)));
+  REQUIRE(cache.reply_work().requests_visited == 2);
+  cache.check_invariants();
+  REQUIRE(cache.handle_ledger_entry(signature, ledger.at(signature)));
+  REQUIRE(cache.reply_work().requests_visited == 2);
+  cache.check_invariants();
+
+  validate_business_transaction(
+    compound_cache.get_state_at(app, target, 60s), target);
+  validate_business_transaction(
+    compound_cache.get_state_at(system, target, 60s), target);
+  REQUIRE(cache.get_store_at(retained + 1, target, 60s) != nullptr);
+  REQUIRE(cache.request_count() == retained + 3);
+  REQUIRE_FALSE(cache.handle_ledger_entry(target, ledger.at(target)));
+  REQUIRE(cache.reply_work().requests_visited == 0);
+}
+
+TEST_CASE(
+  "StateCache routes supporting-only replies independently of accounting")
+{
+  using namespace ccf::historical;
+  auto state = create_and_init_state();
+  const auto signature = write_transactions_and_signature(*state.kv_store, 3);
+  const auto target = signature - 3;
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+  const CompoundHandle handle{RequestNamespace::Application, 0};
+
+  REQUIRE(cache.get_store_range(1, target + 1, signature, 60s).empty());
+  REQUIRE(cache.get_state_at(0, target, 60s) == nullptr);
+  REQUIRE(cache.handle_ledger_entry(target, ledger.at(target)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  const auto supporting =
+    static_cast<uint8_t>(MaintenanceCache::ReplyRole::SupportingSignature);
+  REQUIRE(cache.consumers_for(target + 1).at(handle) == supporting);
+  cache.check_invariants();
+
+  size_t consumers = 2;
+  SUBCASE("Keep the shared wrapper's direct owner") {}
+  SUBCASE("Drop the direct owner before its supporting-only consumer replies")
+  {
+    REQUIRE(cache.drop_cached_states(1));
+    REQUIRE_FALSE(cache.is_accounted(target + 1));
+    REQUIRE(cache.consumers_for(target + 1).size() == 1);
+    consumers = 1;
+    cache.check_invariants();
+  }
+  for (auto seqno = target + 1; seqno <= signature; ++seqno)
+  {
+    REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+    REQUIRE(cache.reply_work().requests_visited == consumers);
+    cache.check_invariants();
+  }
+  auto returned = cache.get_state_at(0, target, 60s);
+  validate_business_transaction(returned, target);
+  REQUIRE(ccf::describe_merkle_proof_v1(*returned->receipt).has_value());
+  REQUIRE(cache.drop_cached_states(0));
+  cache.drop_cached_states(1);
+  cache.tick(0ms);
+  cache.check_invariants();
+  cache.check_no_expired_slots();
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE(cache.store_slot_count() == 0);
+  validate_business_transaction(returned, target);
+}
+
+TEST_CASE(
+  "StateCache retargeting removes roles without losing overlapping ones")
+{
+  using namespace ccf::historical;
+  auto state = create_and_init_state();
+  const auto signature = write_transactions_and_signature(*state.kv_store, 3);
+  const auto target = signature - 3;
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+  const CompoundHandle handle{RequestNamespace::Application, 0};
+  const auto direct = static_cast<uint8_t>(MaintenanceCache::ReplyRole::Direct);
+  const auto supporting =
+    static_cast<uint8_t>(MaintenanceCache::ReplyRole::SupportingSignature);
+
+  REQUIRE(cache.get_state_at(0, target, 60s) == nullptr);
+  REQUIRE(cache.handle_ledger_entry(target, ledger.at(target)));
+  REQUIRE(cache.consumers_for(target + 1).at(handle) == (direct | supporting));
+  cache.check_invariants();
+  auto weak_supporting = cache.weak_store_details(target + 1);
+  REQUIRE(cache.get_store_at(0, target, 60s) != nullptr);
+  REQUIRE(cache.consumers_for(target + 1).at(handle) == direct);
+  REQUIRE_FALSE(weak_supporting.expired());
+  cache.check_invariants();
+
+  REQUIRE(cache.handle_ledger_entry(target + 1, ledger.at(target + 1)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  REQUIRE(cache.consumers_for(target + 2).empty());
+  cache.check_invariants();
+  // Existing range adjustment retains an overlapping supporting store until
+  // the next adjustment after receipts are disabled.
+  REQUIRE(cache.get_store_at(0, target, 60s) != nullptr);
+  REQUIRE(cache.consumers_for(target + 1).empty());
+  REQUIRE(weak_supporting.expired());
+  cache.check_invariants();
+
+  ccf::SeqNoCollection sparse;
+  sparse.insert(target);
+  sparse.insert(signature);
+  REQUIRE(cache.get_states_for(0, sparse, 60s).empty());
+  cache.check_invariants();
+  REQUIRE(cache.handle_ledger_entry(signature, ledger.at(signature)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  REQUIRE(cache.handle_ledger_entry(target + 1, ledger.at(target + 1)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  REQUIRE(cache.handle_ledger_entry(target + 2, ledger.at(target + 2)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  cache.check_invariants();
+  auto states = cache.get_states_for(0, sparse, 60s);
+  REQUIRE(states.size() == 2);
+  validate_business_transaction(states.front(), target);
+  REQUIRE(states.back()->transaction_id.seqno == signature);
+  cache.check_invariants();
+}
+
+TEST_CASE("StateCache reply routing tracks successive secret dependencies")
+{
+  using namespace ccf::historical;
+  auto state = create_and_init_state();
+  write_transactions(*state.kv_store, 3);
+  const auto first_rekey = rekey(*state.kv_store, state.ledger_secrets);
+  write_transactions(*state.kv_store, 3);
+  const auto second_rekey = rekey(*state.kv_store, state.ledger_secrets);
+  write_transactions(*state.kv_store, 3);
+  const auto third_rekey = rekey(*state.kv_store, state.ledger_secrets);
+  const auto signature = write_transactions_and_signature(*state.kv_store, 2);
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto recovered = create_and_init_state(false);
+  auto tx = recovered.kv_store->create_read_only_tx();
+  ccf::LedgerSecretsMap secrets;
+  secrets.emplace(state.ledger_secrets->get_latest(tx));
+  recovered.ledger_secrets->restore_historical(std::move(secrets));
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*recovered.kv_store, recovered.ledger_secrets, reader);
+  auto& compound_cache = static_cast<StateCacheImpl&>(cache);
+  const CompoundHandle app{RequestNamespace::Application, 0};
+  const CompoundHandle system{RequestNamespace::System, 0};
+  const CompoundHandle overlapping{RequestNamespace::Application, 2};
+  const auto oldest = first_rekey - 1;
+  const auto middle = second_rekey + 1;
+  const auto latest = signature - 1;
+  REQUIRE(compound_cache.get_store_at(app, oldest, 60s) == nullptr);
+  REQUIRE(compound_cache.get_store_at(system, oldest, 60s) == nullptr);
+  REQUIRE(cache.get_store_at(1, middle, 60s) == nullptr);
+  REQUIRE(cache.get_state_at(2, third_rekey, 60s) == nullptr);
+  REQUIRE(cache.get_store_at(3, latest, 60s) == nullptr);
+  REQUIRE(cache.get_store_at(4, oldest, 60s) == nullptr);
+  REQUIRE(cache.secret_waiter_count(third_rekey) == 5);
+  REQUIRE(cache.get_store_at(4, latest, 60s) == nullptr);
+  REQUIRE(cache.secret_waiter_count(third_rekey) == 4);
+  REQUIRE(cache.drop_cached_states(4));
+  cache.check_invariants();
+
+  const auto direct = static_cast<uint8_t>(MaintenanceCache::ReplyRole::Direct);
+  const auto secret =
+    static_cast<uint8_t>(MaintenanceCache::ReplyRole::LedgerSecret);
+  REQUIRE(
+    cache.consumers_for(third_rekey).at(overlapping) == (direct | secret));
+  REQUIRE(reader->writes.size() == 1);
+  cache.tick(0ms);
+  REQUIRE(reader->writes.size() == 3);
+  cache.check_invariants();
+  REQUIRE(cache.handle_ledger_entry(third_rekey, ledger.at(third_rekey)));
+  REQUIRE(cache.reply_work().requests_visited == 4);
+  REQUIRE(cache.secret_waiter_count(third_rekey) == 0);
+  REQUIRE(cache.secret_waiter_count(second_rekey) == 2);
+  REQUIRE(cache.consumers_for(third_rekey).at(overlapping) == direct);
+  // The secret-waiter branch continues without populating receipts, even for
+  // a request which also directly requested this entry with receipts.
+  REQUIRE(cache.consumers_for(third_rekey + 1).empty());
+  REQUIRE(cache.get_state_at(2, third_rekey, 60s) == nullptr);
+  cache.check_invariants();
+
+  REQUIRE(cache.handle_ledger_entry(middle, ledger.at(middle)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  validate_business_transaction(cache.get_store_at(1, middle, 60s), middle);
+  REQUIRE(cache.handle_ledger_entry(second_rekey, ledger.at(second_rekey)));
+  REQUIRE(cache.reply_work().requests_visited == 2);
+  REQUIRE(cache.secret_waiter_count(second_rekey) == 0);
+  REQUIRE(cache.secret_waiter_count(first_rekey) == 2);
+  cache.check_invariants();
+  REQUIRE(cache.handle_ledger_entry(first_rekey, ledger.at(first_rekey)));
+  REQUIRE(cache.reply_work().requests_visited == 2);
+  REQUIRE(cache.secret_waiter_count(first_rekey) == 0);
+  cache.check_invariants();
+  REQUIRE(cache.handle_ledger_entry(oldest, ledger.at(oldest)));
+  REQUIRE(cache.reply_work().requests_visited == 2);
+  validate_business_transaction(
+    compound_cache.get_store_at(app, oldest, 60s), oldest);
+  validate_business_transaction(
+    compound_cache.get_store_at(system, oldest, 60s), oldest);
+  REQUIRE(cache.handle_ledger_entry(latest, ledger.at(latest)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  validate_business_transaction(cache.get_store_at(3, latest, 60s), latest);
+  cache.check_invariants();
+
+  REQUIRE(cache.get_store_at(2, third_rekey, 60s) != nullptr);
+  REQUIRE(cache.get_state_at(2, third_rekey, 60s) == nullptr);
+  REQUIRE(
+    cache.handle_ledger_entry(third_rekey + 1, ledger.at(third_rekey + 1)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  REQUIRE(cache.handle_ledger_entry(signature, ledger.at(signature)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  REQUIRE(cache.get_state_at(2, third_rekey, 60s) != nullptr);
+  cache.check_invariants();
+  REQUIRE(compound_cache.drop_cached_states(app));
+  REQUIRE(compound_cache.drop_cached_states(system));
+  for (size_t handle = 1; handle <= 3; ++handle)
+  {
+    REQUIRE(cache.drop_cached_states(handle));
+  }
+  cache.tick(0ms);
+  cache.check_invariants();
+  REQUIRE(cache.request_count() == 0);
+  REQUIRE(cache.store_slot_count() == 0);
+}
+
+TEST_CASE(
+  "StateCache fresh replies without consumers still trust shared stores")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  const auto signature = write_transactions_and_signature(*state.kv_store, 1);
+  const auto target = signature - 1;
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+  REQUIRE(cache.get_store_at(0, target, 60s) == nullptr);
+  auto held_details = cache.weak_store_details(target).lock();
+  REQUIRE(cache.drop_cached_states(0));
+  REQUIRE(cache.consumers_for(target).empty());
+  cache.check_invariants();
+  REQUIRE(cache.handle_ledger_entry(target, ledger.at(target)));
+  REQUIRE(cache.reply_work().requests_visited == 0);
+  auto returned = cache.get_store_at(1, target, 60s);
+  validate_business_transaction(returned, target);
+  held_details.reset();
+  REQUIRE(cache.drop_cached_states(1));
+  cache.tick(0ms);
+  cache.check_invariants();
+  REQUIRE(cache.store_slot_count() == 0);
+  validate_business_transaction(returned, target);
+}
+
+TEST_CASE("StateCache routing preserves rejection and partial failure behavior")
+{
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+  const auto signature = write_transactions_and_signature(*state.kv_store, 5);
+  const auto first = signature - 5;
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  MaintenanceCache cache(*state.kv_store, state.ledger_secrets, reader);
+  REQUIRE(cache.get_store_at(0, first + 4, 60s) == nullptr);
+  REQUIRE(cache.get_store_range(1, first, first + 2, 60s).empty());
+  REQUIRE(cache.get_store_at(2, first + 1, 60s) == nullptr);
+  REQUIRE_FALSE(cache.handle_ledger_entry(signature, ledger.at(signature)));
+  REQUIRE(cache.reply_work().requests_visited == 0);
+  REQUIRE_FALSE(cache.handle_ledger_entry(first, {}));
+  REQUIRE(cache.reply_work().requests_visited == 0);
+  REQUIRE_FALSE(cache.handle_ledger_entry(first, ledger.at(first + 1)));
+  REQUIRE(cache.reply_work().requests_visited == 0);
+  auto corrupted = ledger.at(first);
+  corrupted.back() ^= 1;
+  REQUIRE_FALSE(cache.handle_ledger_entry(first, corrupted));
+  REQUIRE(cache.reply_work().requests_visited == 0);
+  cache.check_invariants();
+
+  const auto consensus = state.kv_store->get_consensus();
+  auto fork = std::make_shared<ccf::kv::test::StubConsensus>();
+  fork->view_history.update(1, 3);
+  state.kv_store->set_consensus(fork);
+  REQUIRE_FALSE(cache.handle_ledger_entry(first, ledger.at(first)));
+  REQUIRE(cache.reply_work().requests_visited == 0);
+  state.kv_store->set_consensus(consensus);
+  cache.check_invariants();
+
+  auto partial = ledger.at(first);
+  const auto& next = ledger.at(first + 1);
+  partial.insert(
+    partial.end(),
+    next.begin(),
+    next.begin() + ccf::kv::serialised_entry_header_size);
+  REQUIRE_FALSE(cache.handle_ledger_entries(first, first + 1, partial));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  cache.check_invariants();
+  REQUIRE_FALSE(cache.handle_ledger_entry(first, ledger.at(first)));
+  REQUIRE(cache.reply_work().requests_visited == 0);
+  // A missing entry drops only the requests interested in it, including the
+  // one sharing the wrapper as a supporting dependency, so the unrelated
+  // request for first + 4 survives
+  cache.handle_no_entry(first + 1);
+  REQUIRE(cache.request_count() == 1);
+  cache.check_invariants();
+  REQUIRE_FALSE(cache.handle_ledger_entry(first + 1, ledger.at(first + 1)));
+  REQUIRE(cache.reply_work().requests_visited == 0);
+  REQUIRE(cache.handle_ledger_entry(first + 4, ledger.at(first + 4)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  validate_business_transaction(
+    cache.get_store_at(0, first + 4, 60s), first + 4);
+  cache.check_invariants();
+  REQUIRE(cache.drop_cached_states(0));
+  cache.tick(0ms);
+  cache.check_invariants();
+  REQUIRE(cache.store_slot_count() == 0);
+}
+
+TEST_CASE(
+  "StateCache committed dependencies stay routed after partial exceptions")
+{
+  struct ThrowingLedgerReader : public consensus::test::StubLedgerReader
+  {
+    bool fail = false;
+
+    bool get_range(
+      consensus::Index from,
+      consensus::Index to,
+      consensus::LedgerRangeCallback&& callback) override
+    {
+      if (fail)
+      {
+        throw std::bad_alloc();
+      }
+      return StubLedgerReader::get_range(from, to, std::move(callback));
+    }
+  };
+
+  auto state = create_and_init_state();
+  write_transactions(*state.kv_store, 3);
+  const auto first_rekey = rekey(*state.kv_store, state.ledger_secrets);
+  write_transactions(*state.kv_store, 3);
+  const auto second_rekey = rekey(*state.kv_store, state.ledger_secrets);
+  write_transactions_and_signature(*state.kv_store, 1);
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  auto recovered = create_and_init_state(false);
+  auto tx = recovered.kv_store->create_read_only_tx();
+  ccf::LedgerSecretsMap secrets;
+  secrets.emplace(state.ledger_secrets->get_latest(tx));
+  recovered.ledger_secrets->restore_historical(std::move(secrets));
+  auto reader = std::make_shared<ThrowingLedgerReader>();
+  MaintenanceCache cache(*recovered.kv_store, recovered.ledger_secrets, reader);
+  const auto target = first_rekey - 1;
+
+  reader->fail = true;
+  REQUIRE_THROWS_AS(cache.get_store_at(0, target, 60s), std::bad_alloc);
+  REQUIRE(cache.consumers_for(target).size() == 1);
+  REQUIRE(cache.consumers_for(second_rekey).empty());
+  cache.check_invariants();
+  reader->fail = false;
+  REQUIRE(cache.get_store_at(0, target, 60s) == nullptr);
+  REQUIRE(cache.secret_waiter_count(second_rekey) == 1);
+  cache.check_invariants();
+
+  // Recovering this secret commits trust before the next secret fetch throws.
+  // The old forward waiter and its role must both survive the exception.
+  reader->fail = true;
+  REQUIRE_THROWS_AS(
+    cache.handle_ledger_entry(second_rekey, ledger.at(second_rekey)),
+    std::bad_alloc);
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  REQUIRE(cache.secret_waiter_count(second_rekey) == 1);
+  REQUIRE(cache.consumers_for(first_rekey).empty());
+  cache.check_invariants();
+  reader->fail = false;
+  REQUIRE(cache.get_store_at(0, target, 60s) == nullptr);
+  REQUIRE(cache.secret_waiter_count(second_rekey) == 0);
+  REQUIRE(cache.secret_waiter_count(first_rekey) == 1);
+  cache.check_invariants();
+  REQUIRE(cache.handle_ledger_entry(first_rekey, ledger.at(first_rekey)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  cache.check_invariants();
+  REQUIRE(cache.handle_ledger_entry(target, ledger.at(target)));
+  REQUIRE(cache.reply_work().requests_visited == 1);
+  validate_business_transaction(cache.get_store_at(0, target, 60s), target);
+  REQUIRE(cache.drop_cached_states(0));
+  cache.tick(0ms);
+  cache.check_invariants();
+  REQUIRE(cache.store_slot_count() == 0);
+
+  // The no-earlier-secret error happens after committing the direct field.
+  REQUIRE_THROWS_AS(cache.get_store_at(1, 0, 60s), std::logic_error);
+  REQUIRE(cache.consumers_for(0).size() == 1);
+  cache.check_invariants();
+  REQUIRE(cache.drop_cached_states(1));
+  cache.tick(0ms);
+  cache.check_invariants();
+}
+
 TEST_CASE("StateCache periodic tick")
 {
   using namespace std::chrono_literals;
@@ -327,6 +1772,238 @@ TEST_CASE("StateCache periodic tick")
   cache.reset();
   job_board.tick(10ms);
   REQUIRE(job_board.get_task() == nullptr);
+}
+
+TEST_CASE("Historical receipts preserve the transaction view across signatures")
+{
+  auto signing_mode = ccf::LedgerSignMode::Dual;
+  SUBCASE("Raw and COSE signatures") {}
+  SUBCASE("COSE-only signatures")
+  {
+    signing_mode = ccf::LedgerSignMode::CoseOnly;
+  }
+
+  auto state = create_and_init_state();
+  auto& store = *state.kv_store;
+  const auto emit_signature = [&]() {
+    const auto txid = store.next_txid();
+    auto history = store.get_history();
+    auto cert = std::make_shared<const ccf::crypto::Pem>(
+      state.node_kp->self_sign("CN=Test node", valid_from, valid_to));
+    REQUIRE(
+      store.commit(
+        txid,
+        std::make_unique<
+          ccf::MerkleTreeHistoryPendingTx<ccf::MerkleTreeHistory>>(
+          txid,
+          store,
+          *history,
+          ccf::NodeId{"node_id"},
+          *state.node_kp,
+          *state.service_kp,
+          cert,
+          history->get_cose_signatures_config(),
+          signing_mode),
+        true) == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(store.get_consensus()->get_committed_seqno() == txid.seqno);
+    store.compact(txid.seqno);
+    return txid;
+  };
+
+  const auto seqno = write_transactions(store, 1);
+  const auto transaction_id = store.current_txid();
+  const auto closing_signature_id = emit_signature();
+  REQUIRE(closing_signature_id.view == transaction_id.view);
+  store.rollback(closing_signature_id, closing_signature_id.view + 1);
+  const auto later_signature_id = emit_signature();
+  REQUIRE(later_signature_id.view == transaction_id.view + 1);
+  REQUIRE(later_signature_id.seqno == closing_signature_id.seqno + 1);
+
+  auto ledger = construct_host_ledger(store.get_consensus());
+  const auto node_cert =
+    state.node_kp->self_sign("CN=Test node", valid_from, valid_to);
+
+  // Checks that a receipt for the transaction verifies, and that it was
+  // produced by the given signature
+  const auto check_transaction_receipt =
+    [&](const ccf::TxReceiptImpl& receipt, const ccf::TxID& signature_id) {
+      REQUIRE(receipt.commit_evidence.has_value());
+      REQUIRE(receipt.write_set_digest.has_value());
+      REQUIRE(receipt.path != nullptr);
+      const auto cose_receipt = ccf::describe_cose_receipt_v1(receipt);
+      REQUIRE(cose_receipt.has_value());
+      const auto decoded_receipt =
+        ccf::cose::decode_ccf_receipt(cose_receipt.value(), false);
+      CHECK(decoded_receipt.phdr.ccf.txid == signature_id.to_str());
+
+      auto root = receipt.claims_digest.empty() ?
+        ccf::crypto::Sha256Hash(
+          receipt.write_set_digest.value(),
+          ccf::crypto::Sha256Hash(receipt.commit_evidence.value())) :
+        ccf::crypto::Sha256Hash(
+          receipt.write_set_digest.value(),
+          ccf::crypto::Sha256Hash(receipt.commit_evidence.value()),
+          receipt.claims_digest.value());
+      for (const auto& step : *receipt.path)
+      {
+        ccf::crypto::Sha256Hash sibling;
+        std::copy(
+          std::begin(step.hash.bytes),
+          std::end(step.hash.bytes),
+          sibling.h.begin());
+        root = step.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
+          ccf::crypto::Sha256Hash(sibling, root) :
+          ccf::crypto::Sha256Hash(root, sibling);
+      }
+      const auto cose_verifier = ccf::crypto::make_cose_verifier_from_key(
+        state.service_kp->public_key_pem());
+      CHECK(cose_verifier->verify_detached(cose_receipt.value(), root.h));
+
+      if (signing_mode == ccf::LedgerSignMode::Dual)
+      {
+        REQUIRE(receipt.signature.has_value());
+        const auto verifier = ccf::crypto::make_verifier(node_cert);
+        // The root is a SHA-256 digest, so the digest type must be given
+        // explicitly (as verify_node_signature does): the default for a P-384
+        // key is SHA-384, and stock OpenSSL rejects a 32-byte input for it.
+        CHECK(verifier->verify_hash(
+          root.h, receipt.signature.value(), ccf::crypto::MDType::SHA256));
+      }
+      else
+      {
+        REQUIRE_FALSE(receipt.signature.has_value());
+      }
+    };
+
+  // Checks that a signature transaction reports its own TxID, and keeps the
+  // receipt formed from its own signature rather than a proof from a later
+  // signature
+  const auto check_signature_state =
+    [&](
+      const ccf::historical::StatePtr& historical_state,
+      const ccf::TxID& signature_id) {
+      REQUIRE(historical_state != nullptr);
+      CHECK(historical_state->transaction_id == signature_id);
+      REQUIRE(historical_state->receipt != nullptr);
+      CHECK(historical_state->receipt->path == nullptr);
+      const auto cose_signature =
+        ccf::describe_cose_signature_v1(*historical_state->receipt);
+      REQUIRE(cose_signature.has_value());
+      CHECK(
+        ccf::cose::decode_ccf_receipt(cose_signature.value(), false)
+          .phdr.ccf.txid == signature_id.to_str());
+    };
+
+  // The transaction is covered both by the closing signature of its own view
+  // and by the first signature of the next view. Whichever arrives first
+  // produces its receipt, which must be formed with the transaction's own
+  // view, and the other must not replace it.
+  for (const bool later_signature_first : {false, true})
+  {
+    CAPTURE(later_signature_first);
+    const auto first_signature_id =
+      later_signature_first ? later_signature_id : closing_signature_id;
+    const auto second_signature_id =
+      later_signature_first ? closing_signature_id : later_signature_id;
+
+    auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+    ccf::historical::StateCache cache(store, state.ledger_secrets, reader);
+    REQUIRE(cache.get_state_range(0, seqno, later_signature_id.seqno).empty());
+    cache.tick(std::chrono::milliseconds(0));
+    REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+    REQUIRE(cache.handle_ledger_entry(
+      first_signature_id.seqno, ledger.at(first_signature_id.seqno)));
+
+    {
+      const auto historical_state = cache.get_state_at(1, seqno);
+      REQUIRE(historical_state != nullptr);
+      CHECK(historical_state->transaction_id == transaction_id);
+      REQUIRE(historical_state->receipt != nullptr);
+      check_transaction_receipt(*historical_state->receipt, first_signature_id);
+    }
+
+    REQUIRE(cache.handle_ledger_entry(
+      second_signature_id.seqno, ledger.at(second_signature_id.seqno)));
+    const auto historical_states =
+      cache.get_state_range(0, seqno, later_signature_id.seqno);
+    REQUIRE(historical_states.size() == 3);
+
+    const auto& historical_state = historical_states[0];
+    REQUIRE(historical_state != nullptr);
+    CHECK(historical_state->transaction_id == transaction_id);
+    REQUIRE(historical_state->receipt != nullptr);
+    check_transaction_receipt(*historical_state->receipt, first_signature_id);
+
+    check_signature_state(historical_states[1], closing_signature_id);
+    check_signature_state(historical_states[2], later_signature_id);
+  }
+}
+
+TEST_CASE("Historical cache rejects signatures which misreport their TxID")
+{
+  auto signing_mode = ccf::LedgerSignMode::Dual;
+  SUBCASE("Raw and COSE signatures") {}
+  SUBCASE("COSE-only signatures")
+  {
+    signing_mode = ccf::LedgerSignMode::CoseOnly;
+  }
+
+  auto state = create_and_init_state();
+  auto& store = *state.kv_store;
+  auto history = store.get_history();
+  const auto node_cert =
+    state.node_kp->self_sign("CN=Test node", valid_from, valid_to);
+
+  write_transactions(store, 1);
+
+  // Write a signature transaction by hand, which declares a TxID in a later
+  // view than the one it is actually committed in
+  const auto signature_seqno = store.current_version() + 1;
+  const ccf::TxID declared_id{store.current_txid().view + 1, signature_seqno};
+  {
+    auto tx = store.create_tx();
+    const auto root = history->get_replicated_state_root();
+    const std::vector<uint8_t> root_hash(root.h.begin(), root.h.end());
+    if (signing_mode == ccf::LedgerSignMode::Dual)
+    {
+      tx.wo<ccf::Signatures>(ccf::Tables::SIGNATURES)
+        ->put(ccf::PrimarySignature(
+          ccf::NodeId{"node_id"},
+          declared_id.seqno,
+          declared_id.view,
+          root,
+          {},
+          state.node_kp->sign_hash(root_hash.data(), root_hash.size()),
+          node_cert));
+    }
+    const auto& cose_config = history->get_cose_signatures_config();
+    tx.wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES)
+      ->put(
+        ccf::IdentityType::CLASSICAL,
+        ccf::cose::sign_ledger(
+          *state.service_kp,
+          ccf::crypto::kid_from_key(state.service_kp->public_key_der()),
+          0,
+          cose_config.issuer,
+          cose_config.subject,
+          declared_id.to_str(),
+          root_hash));
+    tx.wo<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE)
+      ->put(history->serialise_tree(signature_seqno - 1));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto signature_id = store.current_txid();
+  REQUIRE(signature_id.seqno == signature_seqno);
+  REQUIRE(signature_id != declared_id);
+
+  auto ledger = construct_host_ledger(store.get_consensus());
+  auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+  ccf::historical::StateCache cache(store, state.ledger_secrets, reader);
+  REQUIRE(cache.get_state_at(0, signature_id.seqno) == nullptr);
+  cache.tick(std::chrono::milliseconds(0));
+  CHECK_FALSE(cache.handle_ledger_entry(
+    signature_id.seqno, ledger.at(signature_id.seqno)));
+  CHECK(cache.get_state_at(0, signature_id.seqno) == nullptr);
 }
 
 TEST_CASE("StateCache point queries")
@@ -2269,6 +3946,7 @@ TEST_CASE("adjust_ranges")
 
   struct AdjustRangesAccessor : public ccf::historical::StateCacheImpl
   {
+    ReplyConsumerIndex reply_index;
     Request request;
 
     AdjustRangesAccessor(
@@ -2276,7 +3954,11 @@ TEST_CASE("adjust_ranges")
       const std::shared_ptr<ccf::LedgerSecrets>& secrets,
       const std::shared_ptr<::consensus::AbstractLedgerReader>& ledger_reader) :
       StateCacheImpl(store, secrets, ledger_reader),
-      request(all_stores)
+      request(
+        all_stores,
+        maintenance,
+        reply_index,
+        {ccf::historical::RequestNamespace::Application, 0})
     {}
 
     std::pair<SeqNoSet, SeqNoSet> adjust_ranges(const SeqNoSet& seqnos)
@@ -2450,6 +4132,407 @@ TEST_CASE("Legacy COSE receipt descriptions select CLASSICAL, not PQ")
   REQUIRE_FALSE(
     ccf::historical::select_described_cose_signature(receipt.cose_signatures)
       .has_value());
+}
+
+// Opt-in: run with --test-case="StateCache tick scaling benchmark" --no-skip
+TEST_CASE("StateCache tick scaling benchmark" * doctest::skip())
+{
+  // Retained requests use seqnos well beyond the real ledger, and only their
+  // wrapper metadata is populated, since tick never inspects payloads
+  constexpr ccf::SeqNo retained_base = 1000;
+  auto retained_range = [](size_t handle) {
+    const ccf::SeqNo first = retained_base + 3 * handle;
+    return std::make_pair(first, first + 2);
+  };
+  auto add_retained = [&](BenchmarkCache& cache, size_t count) {
+    for (size_t handle = 0; handle < count; ++handle)
+    {
+      const auto [from, to] = retained_range(handle);
+      cache.get_state_range(handle, from, to, 1800s);
+    }
+  };
+
+  auto median_ns = [](std::vector<double> samples) {
+    std::sort(samples.begin(), samples.end());
+    return samples[samples.size() / 2];
+  };
+  using Clock = std::chrono::steady_clock;
+  auto ns_since = [](Clock::time_point start) {
+    return std::chrono::duration<double, std::nano>(Clock::now() - start)
+      .count();
+  };
+
+  auto state = create_and_init_state(false);
+  state.ledger_secrets->init();
+
+  SUBCASE("Constant active work against growing retained state")
+  {
+    constexpr size_t pending = 8;
+    constexpr size_t ticks_per_sample = 200;
+    constexpr size_t sample_count = 7;
+    fmt::print(
+      "retained_requests,retained_stores,pending_fetches,tick_ns,"
+      "tick_and_mutations_ns,pending_visited,released_checked\n");
+    for (size_t retained : {0, 7300, 14600, 29200})
+    {
+      auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+      BenchmarkCache cache(*state.kv_store, state.ledger_secrets, reader);
+      add_retained(cache, retained);
+
+      const ccf::SeqNo active_base = retained_base + 3 * retained;
+      const size_t renewal_handle = retained + pending;
+      const size_t retarget_handle = renewal_handle + 1;
+      cache.get_state_range(
+        renewal_handle, active_base, active_base + 2, 1800s);
+      const ccf::SeqNo toggled = active_base + 3;
+      cache.get_store_range(retarget_handle, toggled, toggled + 2, 1800s);
+      cache.trust_all_stores();
+      for (size_t i = 0; i < pending; ++i)
+      {
+        cache.get_store_at(retained + i, active_base + 10 + i, 1800s);
+      }
+      cache.tick(0ms);
+      reader->writes.clear();
+
+      std::vector<double> tick_samples;
+      std::vector<double> total_samples;
+      bool toggle = false;
+      for (size_t sample = 0; sample < sample_count; ++sample)
+      {
+        double tick_ns = 0;
+        const auto total_start = Clock::now();
+        for (size_t tick = 0; tick < ticks_per_sample; ++tick)
+        {
+          cache.get_state_range(
+            renewal_handle, active_base, active_base + 2, 1800s);
+          toggle = !toggle;
+          const ccf::SeqNo from = toggle ? toggled + 1 : toggled;
+          cache.get_store_range(retarget_handle, from, from + 2, 1800s);
+
+          const auto tick_start = Clock::now();
+          cache.tick(10ms);
+          tick_ns += ns_since(tick_start);
+          reader->writes.clear();
+        }
+        total_samples.push_back(ns_since(total_start) / ticks_per_sample);
+        tick_samples.push_back(tick_ns / ticks_per_sample);
+
+        // Retargeting abandons one store and starts one fetch per tick
+        const auto work = cache.tick_work();
+        REQUIRE(work.pending_fetches_visited == pending + 1);
+        REQUIRE(work.released_seqnos_checked == 1);
+        REQUIRE(work.requests_expired == 0);
+        REQUIRE(work.requests_evicted == 0);
+      }
+      cache.check_invariants();
+      cache.check_no_expired_slots();
+      REQUIRE(cache.request_count() == retained + pending + 2);
+      REQUIRE(cache.store_slot_count() == 3 * retained + pending + 6);
+
+      const auto work = cache.tick_work();
+      fmt::print(
+        "{},{},{},{:.0f},{:.0f},{},{}\n",
+        retained,
+        3 * retained,
+        pending,
+        median_ns(tick_samples),
+        median_ns(total_samples),
+        work.pending_fetches_visited,
+        work.released_seqnos_checked);
+    }
+  }
+
+  SUBCASE("Growing pending fetches against fixed retained state")
+  {
+    constexpr size_t retained = 7300;
+    constexpr size_t ticks_per_sample = 200;
+    constexpr size_t sample_count = 7;
+    fmt::print("retained_requests,pending_fetches,tick_ns,pending_visited\n");
+    for (size_t pending : {1, 10, 100, 1000})
+    {
+      auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+      BenchmarkCache cache(*state.kv_store, state.ledger_secrets, reader);
+      add_retained(cache, retained);
+      cache.trust_all_stores();
+      const ccf::SeqNo active_base = retained_base + 3 * retained;
+      for (size_t i = 0; i < pending; ++i)
+      {
+        cache.get_store_at(retained + i, active_base + i, 1800s);
+      }
+
+      std::vector<double> tick_samples;
+      for (size_t sample = 0; sample < sample_count; ++sample)
+      {
+        const auto start = Clock::now();
+        for (size_t tick = 0; tick < ticks_per_sample; ++tick)
+        {
+          cache.tick(10ms);
+        }
+        tick_samples.push_back(ns_since(start) / ticks_per_sample);
+        reader->writes.clear();
+        REQUIRE(cache.tick_work().pending_fetches_visited == pending);
+      }
+      fmt::print(
+        "{},{},{:.0f},{}\n",
+        retained,
+        pending,
+        median_ns(tick_samples),
+        cache.tick_work().pending_fetches_visited);
+    }
+  }
+
+  SUBCASE("Expiring many requests at once")
+  {
+    constexpr size_t retained = 7300;
+    fmt::print("retained_requests,due_requests,tick_ns,expired,released\n");
+    for (size_t due : {1, 100, 1000})
+    {
+      auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+      BenchmarkCache cache(*state.kv_store, state.ledger_secrets, reader);
+      add_retained(cache, retained);
+      const ccf::SeqNo active_base = retained_base + 3 * retained;
+      for (size_t i = 0; i < due; ++i)
+      {
+        const ccf::SeqNo first = active_base + 3 * i;
+        cache.get_state_range(retained + i, first, first + 2, 1s);
+      }
+      cache.trust_all_stores();
+      cache.tick(0ms);
+
+      const auto start = Clock::now();
+      cache.tick(1000ms);
+      const auto tick_ns = ns_since(start);
+      const auto work = cache.tick_work();
+      REQUIRE(work.requests_expired == due);
+      REQUIRE(work.released_seqnos_checked == 3 * due);
+      REQUIRE(cache.request_count() == retained);
+      REQUIRE(cache.store_slot_count() == 3 * retained);
+      cache.check_no_expired_slots();
+      fmt::print(
+        "{},{},{:.0f},{},{}\n",
+        retained,
+        due,
+        tick_ns,
+        work.requests_expired,
+        work.released_seqnos_checked);
+    }
+  }
+}
+
+// Opt-in: run with --test-case="StateCache reply routing scaling benchmark"
+// --no-skip. Timings are descriptive; exact visited-handle counts are asserted.
+TEST_CASE("StateCache reply routing scaling benchmark" * doctest::skip())
+{
+  using Clock = std::chrono::steady_clock;
+  auto ns_since = [](Clock::time_point start) {
+    return std::chrono::duration<double, std::nano>(Clock::now() - start)
+      .count();
+  };
+  auto median_ns = [](std::vector<double> samples) {
+    std::sort(samples.begin(), samples.end());
+    return samples.at(samples.size() / 2);
+  };
+  auto rss_kb = []() {
+    std::ifstream statm("/proc/self/statm");
+    size_t virtual_pages = 0;
+    size_t resident_pages = 0;
+    const auto page_size = sysconf(_SC_PAGESIZE);
+    if (!(statm >> virtual_pages >> resident_pages) || page_size <= 0)
+    {
+      throw std::logic_error("Cannot read current RSS");
+    }
+    return resident_pages * static_cast<size_t>(page_size) / 1024;
+  };
+  constexpr ccf::SeqNo retained_base = 1000;
+  auto add_retained = [](BenchmarkCache& cache, size_t count) {
+    for (size_t handle = 0; handle < count; ++handle)
+    {
+      const ccf::SeqNo from = retained_base + 3 * handle;
+      REQUIRE(cache.get_state_range(handle, from, from + 2, 1800s).empty());
+    }
+    cache.trust_all_stores();
+    cache.tick(0ms);
+  };
+  auto state = create_and_init_state();
+  const auto signature = write_transactions_and_signature(*state.kv_store, 3);
+  const auto target = signature - 1;
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  constexpr size_t repetitions = 11;
+
+  auto measure_replies =
+    [&](BenchmarkCache& cache, size_t retained, size_t consumers) {
+      std::vector<double> reply_samples;
+      std::vector<double> signature_samples;
+      std::vector<double> get_samples;
+      for (size_t rep = 0; rep < repetitions; ++rep)
+      {
+        auto start = Clock::now();
+        for (size_t i = 0; i < consumers; ++i)
+        {
+          REQUIRE(cache.get_state_at(retained + i, target, 1800s) == nullptr);
+        }
+        get_samples.push_back(ns_since(start) / consumers);
+        start = Clock::now();
+        REQUIRE(cache.handle_ledger_entry(target, ledger.at(target)));
+        reply_samples.push_back(ns_since(start));
+        REQUIRE(cache.reply_work().requests_visited == consumers);
+        start = Clock::now();
+        REQUIRE(cache.handle_ledger_entry(signature, ledger.at(signature)));
+        signature_samples.push_back(ns_since(start));
+        REQUIRE(cache.reply_work().requests_visited == consumers);
+        validate_business_transaction(
+          cache.get_state_at(retained, target, 1800s), target);
+        for (size_t i = 0; i < consumers; ++i)
+        {
+          REQUIRE(cache.drop_cached_states(retained + i));
+        }
+        cache.tick(0ms);
+      }
+      cache.check_invariants();
+      cache.check_no_expired_slots();
+      return std::make_tuple(
+        median_ns(reply_samples),
+        median_ns(signature_samples),
+        median_ns(get_samples));
+    };
+
+  SUBCASE("Fixed receipt consumers against growing retention")
+  {
+    constexpr size_t consumers = 4;
+    fmt::print(
+      "retained,consumers,reply_ns,signature_reply_ns,new_get_ns,"
+      "renew_get_ns,range_mutation_ns,index_buckets,index_handles,"
+      "index_value_bytes,rss_kb,cache_rss_delta_kb,visited\n");
+    for (size_t retained : {0, 7300, 14600, 29200})
+    {
+      auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+      BenchmarkCache cache(*state.kv_store, state.ledger_secrets, reader);
+      const auto rss_before = rss_kb();
+      add_retained(cache, retained);
+      const auto metadata = cache.routing_size();
+      const auto rss = rss_kb();
+      REQUIRE(metadata.buckets == 3 * retained);
+      REQUIRE(metadata.handles == 3 * retained);
+      const auto [reply_ns, signature_ns, get_ns] =
+        measure_replies(cache, retained, consumers);
+      std::vector<double> renew_samples;
+      std::vector<double> mutation_samples;
+      const size_t mutation_handle = retained + consumers;
+      const ccf::SeqNo from = retained_base + 3 * retained + 10;
+      REQUIRE(
+        cache.get_store_range(mutation_handle, from, from + 2, 1800s).empty());
+      for (size_t rep = 0; rep < repetitions; ++rep)
+      {
+        if (retained != 0)
+        {
+          const size_t handle = rep % retained;
+          const ccf::SeqNo retained_from = retained_base + 3 * handle;
+          const auto start = Clock::now();
+          cache.get_state_range(
+            handle, retained_from, retained_from + 2, 1800s);
+          renew_samples.push_back(ns_since(start));
+        }
+        const auto start = Clock::now();
+        cache.get_store_range(mutation_handle, from + 1, from + 3, 1800s);
+        cache.get_store_range(mutation_handle, from, from + 2, 1800s);
+        mutation_samples.push_back(ns_since(start) / 2);
+        cache.tick(0ms);
+        reader->writes.clear();
+      }
+      REQUIRE(cache.drop_cached_states(mutation_handle));
+      cache.tick(0ms);
+      cache.check_invariants();
+      fmt::print(
+        "{},{},{:.0f},{:.0f},{:.0f},{:.0f},{:.0f},{},{},{},{},{},{}\n",
+        retained,
+        consumers,
+        reply_ns,
+        signature_ns,
+        get_ns,
+        retained == 0 ? 0 : median_ns(renew_samples),
+        median_ns(mutation_samples),
+        metadata.buckets,
+        metadata.handles,
+        metadata.value_bytes,
+        rss,
+        static_cast<int64_t>(rss) - static_cast<int64_t>(rss_before),
+        cache.reply_work().requests_visited);
+    }
+  }
+
+  SUBCASE("Growing real receipt fan-out")
+  {
+    constexpr size_t retained = 7300;
+    fmt::print(
+      "retained,consumers,reply_ns,signature_reply_ns,new_get_ns,visited\n");
+    for (size_t consumers : {1, 10, 100, 1000})
+    {
+      auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+      BenchmarkCache cache(*state.kv_store, state.ledger_secrets, reader);
+      add_retained(cache, retained);
+      const auto [reply_ns, signature_ns, get_ns] =
+        measure_replies(cache, retained, consumers);
+      fmt::print(
+        "{},{},{:.0f},{:.0f},{:.0f},{}\n",
+        retained,
+        consumers,
+        reply_ns,
+        signature_ns,
+        get_ns,
+        cache.reply_work().requests_visited);
+    }
+  }
+
+  SUBCASE("Secret consumers, fixed and growing fan-out")
+  {
+    write_transactions(*state.kv_store, 3);
+    const auto first_rekey = rekey(*state.kv_store, state.ledger_secrets);
+    write_transactions(*state.kv_store, 3);
+    const auto second_rekey = rekey(*state.kv_store, state.ledger_secrets);
+    write_transactions_and_signature(*state.kv_store, 1);
+    const auto secret_ledger =
+      construct_host_ledger(state.kv_store->get_consensus());
+    auto recovered = create_and_init_state(false);
+    auto tx = recovered.kv_store->create_read_only_tx();
+    ccf::LedgerSecretsMap secrets;
+    secrets.emplace(state.ledger_secrets->get_latest(tx));
+    recovered.ledger_secrets->restore_historical(std::move(secrets));
+    fmt::print("retained,secret_consumers,secret_reply_ns,visited\n");
+    auto measure_secret = [&](size_t retained, size_t consumers) {
+      auto reader = std::make_shared<consensus::test::StubLedgerReader>();
+      BenchmarkCache cache(
+        *recovered.kv_store, recovered.ledger_secrets, reader);
+      add_retained(cache, retained);
+      for (size_t i = 0; i < consumers; ++i)
+      {
+        REQUIRE(
+          cache.get_store_at(retained + i, first_rekey - 1, 1800s) == nullptr);
+      }
+      REQUIRE(cache.secret_waiter_count(second_rekey) == consumers);
+      const auto start = Clock::now();
+      REQUIRE(cache.handle_ledger_entry(
+        second_rekey, secret_ledger.at(second_rekey)));
+      const auto reply_ns = ns_since(start);
+      REQUIRE(cache.reply_work().requests_visited == consumers);
+      REQUIRE(cache.secret_waiter_count(second_rekey) == 0);
+      REQUIRE(cache.secret_waiter_count(first_rekey) == consumers);
+      cache.check_invariants();
+      fmt::print(
+        "{},{},{:.0f},{}\n",
+        retained,
+        consumers,
+        reply_ns,
+        cache.reply_work().requests_visited);
+    };
+    for (size_t retained : {0, 7300, 14600, 29200})
+    {
+      measure_secret(retained, 4);
+    }
+    for (size_t consumers : {1, 10, 100, 1000})
+    {
+      measure_secret(7300, consumers);
+    }
+  }
 }
 
 int main(int argc, char** argv)
