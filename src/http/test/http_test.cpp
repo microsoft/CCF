@@ -14,16 +14,16 @@
 #include <doctest/doctest.h>
 #include <queue>
 #include <string>
+#include <string_view>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
 constexpr auto request_0 = "{\"a_json_key\": \"a_json_value\"}";
 constexpr auto request_1 = "{\"another_json_key\": \"another_json_value\"}";
 
-std::vector<uint8_t> s_to_v(char const* s)
+std::vector<uint8_t> s_to_v(std::string_view s)
 {
-  const auto d = (const uint8_t*)s;
-  return std::vector<uint8_t>(d, d + strlen(s));
+  return {s.begin(), s.end()};
 }
 
 std::string to_lowercase(std::string s)
@@ -297,6 +297,108 @@ DOCTEST_TEST_CASE("Partial body")
   const auto& m = sp.received.front();
   DOCTEST_CHECK(m.method == HTTP_POST);
   DOCTEST_CHECK(m.body == r0);
+}
+
+DOCTEST_TEST_CASE("Chunked request body")
+{
+  using namespace std::literals;
+  const auto req = s_to_v(
+    "POST /chunked HTTP/1.1\r\n"
+    "transfer-encoding: chunked\r\n"
+    "\r\n"
+    "10\r\n0123456789abcdef\r\n"
+    "4\r\n\0\r\n\xff\r\n"
+    "5\r\nlast!\r\n"
+    "0\r\n\r\n"sv);
+  const auto body = s_to_v("0123456789abcdef\0\r\n\xfflast!"sv);
+
+  for (const auto max_body_size :
+       {body.size() - 1, body.size(), body.size() + 1})
+  {
+    for (const auto fragment_size : {req.size(), size_t(1), size_t(7)})
+    {
+      DOCTEST_CAPTURE(max_body_size);
+      DOCTEST_CAPTURE(fragment_size);
+      ccf::http::ParserConfiguration config;
+      config.max_body_size =
+        ccf::ds::SizeString(fmt::format("{}B", max_body_size));
+      http::SimpleRequestProcessor sp;
+      http::RequestParser p(sp, config);
+
+      const auto parse = [&]() {
+        for (size_t offset = 0; offset < req.size(); offset += fragment_size)
+        {
+          const auto size = std::min(fragment_size, req.size() - offset);
+          p.execute(req.data() + offset, size);
+          if (offset + size < req.size())
+          {
+            DOCTEST_CHECK(sp.received.empty());
+          }
+        }
+      };
+
+      if (max_body_size < body.size())
+      {
+        DOCTEST_CHECK_THROWS_AS(parse(), http::RequestPayloadTooLargeException);
+        DOCTEST_CHECK(sp.received.empty());
+      }
+      else
+      {
+        DOCTEST_REQUIRE_NOTHROW(parse());
+        DOCTEST_REQUIRE(sp.received.size() == 1);
+        const auto& message = sp.received.front();
+        DOCTEST_CHECK(message.method == HTTP_POST);
+        DOCTEST_CHECK(message.url == "/chunked");
+        DOCTEST_CHECK(message.body == body);
+      }
+    }
+  }
+}
+
+DOCTEST_TEST_CASE("Malformed and incomplete chunked requests")
+{
+  std::vector<std::string_view> bodies;
+  bool malformed = false;
+  DOCTEST_SUBCASE("Malformed framing")
+  {
+    malformed = true;
+    bodies = {"g\r\nabc\r\n0\r\n\r\n", "3\r\nabc!\r\n0\r\n\r\n"};
+  }
+  DOCTEST_SUBCASE("Incomplete framing")
+  {
+    bodies = {"4\r\nab", "4\r\nabcd\r\n", "4\r\nabcd\r\n0\r\n"};
+  }
+
+  for (const auto body : bodies)
+  {
+    const auto req = s_to_v(fmt::format(
+      "POST /chunked HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n{}", body));
+    for (const auto fragment_size : {req.size(), size_t(1)})
+    {
+      DOCTEST_CAPTURE(body);
+      DOCTEST_CAPTURE(fragment_size);
+      http::SimpleRequestProcessor sp;
+      http::RequestParser p(sp);
+      const auto parse = [&]() {
+        for (size_t offset = 0; offset < req.size(); offset += fragment_size)
+        {
+          const auto size = std::min(fragment_size, req.size() - offset);
+          p.execute(req.data() + offset, size);
+          DOCTEST_CHECK(sp.received.empty());
+        }
+      };
+
+      if (malformed)
+      {
+        DOCTEST_CHECK_THROWS_AS(parse(), std::runtime_error);
+      }
+      else
+      {
+        DOCTEST_CHECK_NOTHROW(parse());
+      }
+      DOCTEST_CHECK(sp.received.empty());
+    }
+  }
 }
 
 DOCTEST_TEST_CASE("Body too large")
