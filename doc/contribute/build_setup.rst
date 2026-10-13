@@ -38,8 +38,9 @@ CCF devcontainer setup works just fine with codespaces. It's recommended to pre-
 
 To use Copilot through ``copilotd`` in an Azure Linux 4 Codespace, select the
 :ccf_repo:`Copilot relay configuration <.devcontainer/azurelinux4-copilotd/devcontainer.json>`
-when creating the Codespace. The relay starts automatically on each Codespace start,
-restarts if it exits, and requires ``GITHUB_TOKEN`` (supplied by Codespaces) or
+when creating the Codespace. Installation and relay startup run in the background
+on each Codespace start. The relay restarts if it exits and requires
+``GITHUB_TOKEN`` (supplied by Codespaces) or
 ``COPILOTD_MISSION_CONTROL_TOKEN``. Logs are in ``~/.local/state/ccf-copilotd/copilotd.log``.
 
 Tweaks for codespaces:
