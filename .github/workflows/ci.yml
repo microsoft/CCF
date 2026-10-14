@@ -65,6 +65,12 @@ jobs:
           ninja
         shell: bash
 
+      - name: "Check C++ case scopes"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/clang-tidier.py -p build -j auto
+
       - name: "Run tests for Python package"
         run: |
           set -ex

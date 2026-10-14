@@ -29,17 +29,25 @@ namespace
     switch (curve)
     {
       case CurveID::SECP256R1:
+      {
         return 64;
+      }
       case CurveID::SECP384R1:
+      {
         return 96;
+      }
       case CurveID::SECP521R1:
+      {
         return 132;
+      }
       case CurveID::NONE:
       case CurveID::CURVE25519:
       case CurveID::X25519:
       default:
+      {
         throw std::logic_error(
           fmt::format("Unsupported COSE ECDSA curve {}", curve));
+      }
     }
   }
 
@@ -59,43 +67,59 @@ namespace
     {
       case ccf::cose::alg::ES256:
       case ccf::cose::alg::ESP256:
+      {
         return {
           .kty = COSEKeyType::EC2,
           .digest = MDType::SHA256,
           .curve = CurveID::SECP256R1};
+      }
       case ccf::cose::alg::ES384:
       case ccf::cose::alg::ESP384:
+      {
         return {
           .kty = COSEKeyType::EC2,
           .digest = MDType::SHA384,
           .curve = CurveID::SECP384R1};
+      }
       case ccf::cose::alg::ES512:
       case ccf::cose::alg::ESP512:
+      {
         return {
           .kty = COSEKeyType::EC2,
           .digest = MDType::SHA512,
           .curve = CurveID::SECP521R1};
+      }
       case ccf::cose::alg::PS256:
+      {
         return {
           .kty = COSEKeyType::RSA,
           .digest = MDType::SHA256,
           .salt_length = SHA256_DIGEST_LENGTH};
+      }
       case ccf::cose::alg::PS384:
+      {
         return {
           .kty = COSEKeyType::RSA,
           .digest = MDType::SHA384,
           .salt_length = SHA384_DIGEST_LENGTH};
+      }
       case ccf::cose::alg::PS512:
+      {
         return {
           .kty = COSEKeyType::RSA,
           .digest = MDType::SHA512,
           .salt_length = SHA512_DIGEST_LENGTH};
+      }
       case ccf::cose::alg::EDDSA:
       case ccf::cose::alg::ED25519:
+      {
         return {.kty = COSEKeyType::OKP};
+      }
       default:
+      {
         throw std::runtime_error(
           fmt::format("Unsupported COSE signature algorithm {}", alg));
+      }
     }
   }
 
@@ -157,14 +181,22 @@ namespace
     switch (EVP_PKEY_get_base_id(key))
     {
       case EVP_PKEY_EC:
+      {
         return COSEKey(std::make_shared<ECPublicKey_OpenSSL>(std::move(key)));
+      }
       case EVP_PKEY_RSA:
+      {
         return COSEKey(std::make_shared<RSAPublicKey_OpenSSL>(std::move(key)));
+      }
       case EVP_PKEY_ED25519:
+      {
         return COSEKey(
           std::make_shared<EdDSAPublicKey_OpenSSL>(std::move(key)));
+      }
       default:
+      {
         throw std::runtime_error("Unsupported COSE public key type");
+      }
     }
   }
 

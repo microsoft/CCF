@@ -406,7 +406,9 @@ namespace ccf
         return make_rpc_context(s, packed);
       }
       default:
+      {
         throw std::logic_error("Unknown Frame Format");
+      }
     }
   }
 }
