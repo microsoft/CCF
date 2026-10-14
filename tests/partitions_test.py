@@ -1655,4 +1655,4 @@ if __name__ == "__main__":
     # to contention on the shared iptables table: a starved or still-partitioned
     # node looks like a failed election. Run at most four at once, with the
     # runner's instrumentation limits reducing this further when needed.
-    cr.run(max_concurrent=4)
+    cr.run(max_concurrent=min(4, cr.default_max_concurrent()))

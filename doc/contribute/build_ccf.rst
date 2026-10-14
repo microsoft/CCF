@@ -61,7 +61,7 @@ Tests can be started through the ``tests.sh`` wrapper for ``ctest``.
 
 Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. :ccf_repo:`tests.sh </tests/tests.sh>` will set up a virtual environment with these dependencies and activate it before running ``ctest``. Add ``-VV`` for verbose test output. Further runs will re-use that virtual environment.
 
-Some end-to-end tests use :ccf_repo:`ConcurrentRunner </tests/infra/runner.py>` to run independent test networks concurrently. Its default worker limit is the number of CPUs in the process's affinity mask, with a minimum of two workers. Individual runners can use lower limits; the partition tests use at most four workers. Instrumented builds may reduce these limits further. These inner worker limits are separate from ``ctest -j`` parallelism.
+Some end-to-end tests use :ccf_repo:`ConcurrentRunner </tests/infra/runner.py>` to run independent test networks concurrently. Its default worker limit is the number of CPUs in the process's affinity mask, with a minimum of two workers. Individual runners can use lower limits; the partition tests use at most four workers without exceeding this default. Instrumented builds may reduce these limits further. These inner worker limits are separate from ``ctest -j`` parallelism.
 
 Update the Documentation
 ------------------------
