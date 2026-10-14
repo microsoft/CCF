@@ -29,12 +29,9 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y elan
-          for toolchain in lean/*/lean-toolchain; do
-            elan toolchain install "$(cat "$toolchain")"
+          sort -u lean/*/lean-toolchain | while IFS= read -r toolchain; do
+            elan toolchain install "$toolchain"
           done
-
-      - name: Check Lean formatting
-        run: ./scripts/lean-format-checks.sh
 
       - name: Restore Mathlib caches
         shell: bash
@@ -96,6 +93,9 @@ jobs:
       - name: Dump replays for the trace viewer
         shell: bash
         run: python3 lean/disaster-recovery/replayer/viewer/build.py
+
+      - name: Check Lean formatting
+        run: ./scripts/lean-format-checks.sh
 
   kernel-checks:
     name: Kernel checks (disaster-recovery)
