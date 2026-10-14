@@ -23,13 +23,21 @@ namespace ccf::crypto::mldsa
     switch (parameter_set)
     {
       case MLDSAParameterSet::ML_DSA_44:
+      {
         return LN_ML_DSA_44;
+      }
       case MLDSAParameterSet::ML_DSA_65:
+      {
         return LN_ML_DSA_65;
+      }
       case MLDSAParameterSet::ML_DSA_87:
+      {
         return LN_ML_DSA_87;
+      }
       default:
+      {
         throw std::invalid_argument("Unknown ML-DSA parameter set");
+      }
     }
   }
 
