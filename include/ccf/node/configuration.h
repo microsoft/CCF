@@ -22,6 +22,17 @@
 
 namespace ccf
 {
+  enum class NodeToNodeTransport : uint8_t
+  {
+    Legacy,
+    TLS
+  };
+
+  DECLARE_JSON_ENUM(
+    NodeToNodeTransport,
+    {{NodeToNodeTransport::Legacy, "legacy"},
+     {NodeToNodeTransport::TLS, "tls"}});
+
   enum class LogFormat : uint8_t
   {
     TEXT,
@@ -63,6 +74,10 @@ namespace ccf
 
     // 2**24.5 as per RFC8446 Section 5.5
     size_t node_to_node_message_limit = 23'726'566;
+    NodeToNodeTransport node_to_node_transport = NodeToNodeTransport::Legacy;
+    // TLS counts encrypted records per traffic key, not legacy channel
+    // messages.
+    size_t node_to_node_tls_record_limit = 1 << 24;
 
     ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
 
@@ -434,6 +449,8 @@ namespace ccf
     files_cleanup,
     pending_node_timeout,
     node_to_node_message_limit,
+    node_to_node_transport,
+    node_to_node_tls_record_limit,
     historical_cache_soft_limit,
     identity_history_fetch,
     tick_interval,

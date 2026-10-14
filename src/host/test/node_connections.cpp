@@ -4,6 +4,7 @@
 #include "host/node_connections.h"
 
 #include "consensus/consensus_types.h"
+#include "crypto/certs.h"
 #include "kv/serialised_entry_format.h"
 #include "tasks/job_board.h"
 
@@ -222,6 +223,13 @@ namespace
       peer->rx.insert(peer->rx.end(), data, data + len);
       return true;
     }
+
+    bool write_bounded(size_t len, const uint8_t* data, size_t limit)
+    {
+      const auto queued =
+        connected && peer != nullptr ? peer->rx.size() : pending_tx.size();
+      return len <= limit && queued <= limit - len && write(len, data);
+    }
   };
 
   MockSocket::MockSocket() : impl(std::make_shared<MockSocketImpl>()) {}
@@ -336,6 +344,7 @@ namespace
       ccf::NodeMsgType type;
       ccf::NodeId from;
       std::vector<uint8_t> payload;
+      bool tls_authenticated = false;
     };
 
     std::vector<Frame> frames;
@@ -343,9 +352,10 @@ namespace
     void recv_node_inbound(
       ccf::NodeMsgType type,
       const ccf::NodeId& from,
-      std::vector<uint8_t>&& payload) override
+      std::vector<uint8_t>&& payload,
+      bool tls_authenticated = false) override
     {
-      frames.push_back({type, from, std::move(payload)});
+      frames.push_back({type, from, std::move(payload), tls_authenticated});
     }
   };
 
@@ -366,7 +376,8 @@ namespace
     TestNode(
       const std::string& name,
       std::string host_,
-      size_t max_frame_size = default_max_frame_size) :
+      size_t max_frame_size = default_max_frame_size,
+      bool tls = false) :
       ledger_dir(
         std::filesystem::temp_directory_path() / ("nc_test_ledger_" + name)),
       host(std::move(host_)),
@@ -384,7 +395,8 @@ namespace
           port,
           max_frame_size,
           std::nullopt,
-          2s);
+          2s,
+          tls);
       connections->set_inbound_handler(inbound);
     }
 
@@ -474,6 +486,79 @@ namespace
     std::memcpy(m.data() + sizeof(type), &ae, sizeof(ae));
     return m;
   }
+}
+
+TEST_CASE("TLS transport binds sender identity and protects appended ledger")
+{
+  MockNet mock_net;
+  net = &mock_net;
+  {
+    TestNode a("tls_a", "10.0.0.1", default_max_frame_size, true);
+    TestNode b("tls_b", "10.0.0.2", default_max_frame_size, true);
+    auto service_key = ccf::crypto::make_ec_key_pair();
+    const auto service_cert = ccf::crypto::create_self_signed_cert(
+      service_key, "CN=Test service", {}, "20000101000000Z", 1);
+    const auto configure = [&](TestNode& node) {
+      auto key = ccf::crypto::make_ec_key_pair();
+      const auto cert = ccf::crypto::create_endorsed_cert(
+        key,
+        "CN=Test node",
+        {},
+        "20000101000000Z",
+        1,
+        service_key->private_key_pem(),
+        service_cert);
+      node.self_id = ccf::crypto::Sha256Hash(key->public_key_der()).hex_str();
+      node.connections->set_tls_credentials(
+        service_cert, cert, key->private_key_pem());
+      node.drain_to_host();
+    };
+    configure(a);
+    configure(b);
+    a.learn_address(b.self_id, b.host, b.port);
+    a.drain_to_host();
+
+    SUBCASE("Ledger entries are encrypted and authenticated with the frame")
+    {
+      auto entry = make_ledger_entry(42, 8192);
+      const auto expected_entry = entry;
+      REQUIRE(a.ledger_subsystem->append(std::move(entry), true));
+      const auto ae = make_append_entries(0, 1);
+      a.send_to(b.self_id, ae);
+      a.drain_to_host();
+      complete_connects();
+      pump();
+      REQUIRE(b.inbound->frames.size() == 1);
+      const auto& frame = b.inbound->frames.front();
+      CHECK(frame.tls_authenticated);
+      CHECK(frame.from == ccf::NodeId(a.self_id));
+      auto expected = ae;
+      expected.insert(
+        expected.end(), expected_entry.begin(), expected_entry.end());
+      CHECK(frame.payload == expected);
+    }
+
+    SUBCASE("A valid service peer cannot claim a different sender")
+    {
+      a.self_id = b.self_id;
+      a.send_to(b.self_id, make_pre_vote());
+      a.drain_to_host();
+      complete_connects();
+      pump();
+      CHECK(b.inbound->frames.empty());
+    }
+
+    SUBCASE("A legacy plaintext frame cannot enter TLS consensus")
+    {
+      auto raw = connect_raw(b);
+      const std::vector<uint8_t> plaintext(64, 0);
+      raw->write(plaintext.size(), plaintext.data());
+      pump();
+      CHECK(b.inbound->frames.empty());
+      CHECK(raw->peer == nullptr);
+    }
+  }
+  net = nullptr;
 }
 
 // Regression test for the node-to-node channel stall investigated in #8232.

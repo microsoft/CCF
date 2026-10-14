@@ -99,16 +99,30 @@ namespace ccf
   public:
     using Receiver =
       std::function<void(NodeMsgType, const NodeId&, const uint8_t*, size_t)>;
+    using AuthenticatedReceiver = std::function<void(
+      NodeMsgType, const NodeId&, const uint8_t*, size_t, bool)>;
 
   private:
     std::shared_ptr<ccf::tasks::OrderedTasks> lane;
-    Receiver receiver;
+    AuthenticatedReceiver receiver;
     std::atomic<bool> stopped = false;
 
   public:
-    NodeIngress(ccf::tasks::JobBoard& job_board, Receiver receiver_) :
+    NodeIngress(
+      ccf::tasks::JobBoard& job_board, AuthenticatedReceiver receiver_) :
       lane(ccf::tasks::OrderedTasks::create(job_board, "Node ingress")),
       receiver(std::move(receiver_))
+    {}
+
+    NodeIngress(ccf::tasks::JobBoard& job_board, Receiver receiver_) :
+      NodeIngress(
+        job_board,
+        [receiver_ = std::move(receiver_)](
+          NodeMsgType type,
+          const NodeId& from,
+          const uint8_t* data,
+          size_t size,
+          bool) { receiver_(type, from, data, size); })
     {}
 
     // Thread-safe. The payload is owned by the queued action. Peer input is
@@ -116,7 +130,8 @@ namespace ccf
     void recv_node_inbound(
       NodeMsgType type,
       const NodeId& from,
-      std::vector<uint8_t>&& payload) override
+      std::vector<uint8_t>&& payload,
+      bool tls_authenticated = false) override
     {
       if (stopped.load())
       {
@@ -126,10 +141,11 @@ namespace ccf
       }
 
       lane->add_action(ccf::tasks::make_basic_action(
-        [this, type, from, payload = std::move(payload)]() {
+        [this, type, from, payload = std::move(payload), tls_authenticated]() {
           try
           {
-            receiver(type, from, payload.data(), payload.size());
+            receiver(
+              type, from, payload.data(), payload.size(), tls_authenticated);
           }
           catch (const std::exception& e)
           {

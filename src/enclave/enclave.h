@@ -204,7 +204,10 @@ namespace ccf
           NodeMsgType type,
           const NodeId& from,
           const uint8_t* data,
-          size_t size) { node->recv_node_inbound(type, from, data, size); });
+          size_t size,
+          bool tls_authenticated) {
+          node->recv_node_inbound(type, from, data, size, tls_authenticated);
+        });
       this->node_transport->set_inbound_handler(node_ingress);
     }
 

@@ -177,6 +177,26 @@ TEST_CASE("Node ingress lane" * doctest::test_suite("node_inbound_message"))
 {
   const ccf::NodeId peer("0123456789abcdef");
 
+  SUBCASE("Transport authentication metadata survives the ingress queue")
+  {
+    ccf::tasks::JobBoard job_board;
+    std::vector<bool> authenticated;
+    ccf::NodeIngress ingress(
+      job_board,
+      [&](
+        ccf::NodeMsgType,
+        const ccf::NodeId&,
+        const uint8_t*,
+        size_t,
+        bool tls_authenticated) {
+        authenticated.push_back(tls_authenticated);
+      });
+    ingress.recv_node_inbound(ccf::consensus_msg, peer, {}, true);
+    ingress.recv_node_inbound(ccf::consensus_msg, peer, {});
+    run_all(job_board);
+    REQUIRE(authenticated == std::vector<bool>{true, false});
+  }
+
   SUBCASE("Inbound messages and node work run in submission order")
   {
     ccf::tasks::JobBoard job_board;

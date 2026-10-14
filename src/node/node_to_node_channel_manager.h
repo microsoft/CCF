@@ -128,6 +128,11 @@ namespace ccf
 
       this_node =
         std::make_unique<ThisNode>(self_id, service_cert, node_kp, node_cert);
+      if (transport->uses_tls() && node_cert.has_value())
+      {
+        transport->set_tls_credentials(
+          service_cert, node_cert.value(), node_kp->private_key_pem());
+      }
     }
 
     void set_endorsed_node_cert(
@@ -135,6 +140,13 @@ namespace ccf
     {
       std::lock_guard<ccf::ds::Mutex> guard(lock);
       this_node->endorsed_node_cert = endorsed_node_cert;
+      if (transport->uses_tls())
+      {
+        transport->set_tls_credentials(
+          this_node->service_cert,
+          endorsed_node_cert,
+          this_node->node_kp->private_key_pem());
+      }
     }
 
     void set_message_limit(size_t message_limit_) override
@@ -201,6 +213,19 @@ namespace ccf
         this_node != nullptr,
         "Calling send_authenticated before channel manager is initialized");
 
+      if (transport->uses_tls())
+      {
+        if (type != NodeMsgType::consensus_msg)
+        {
+          return false;
+        }
+        transport->send(
+          to,
+          type,
+          this_node->node_id,
+          std::vector<uint8_t>(data, data + size));
+        return true;
+      }
       return get_channel(to)->send(type, std::span<const uint8_t>(data, size));
     }
 
@@ -210,6 +235,13 @@ namespace ccf
       std::span<const uint8_t> header,
       const std::vector<uint8_t>& data) override
     {
+      if (transport->uses_tls())
+      {
+        LOG_FAIL_FMT(
+          "Request forwarding is unsupported with TLS node transport; "
+          "configure RPC redirections");
+        return false;
+      }
       CCF_ASSERT_FMT(
         this_node != nullptr,
         "Calling send_encrypted (to {}) before channel manager is initialized",
@@ -230,6 +262,13 @@ namespace ccf
         "initialized",
         from);
 
+      // Node ingress accepts only TLS-authenticated consensus in this mode.
+      // The fully assembled message (including ledger entries) was protected
+      // by TLS, so there is no legacy authentication tag to strip.
+      if (transport->uses_tls())
+      {
+        return true;
+      }
       return get_channel(from)->recv_authenticated(header, data, size);
     }
 
@@ -269,6 +308,10 @@ namespace ccf
     bool recv_channel_message(
       const NodeId& from, const uint8_t* data, size_t size) override
     {
+      if (transport->uses_tls())
+      {
+        return false;
+      }
       CCF_ASSERT_FMT(
         this_node != nullptr,
         "Calling recv_message (from {}) before channel manager is "

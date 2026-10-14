@@ -115,6 +115,12 @@
   "client_connection_timeout": "2s"{% if idle_connection_timeout_s %},
   "idle_connection_timeout": "{{ idle_connection_timeout_s }}s"{% endif %},
   "node_client_interface": {{ node_client_interface|tojson }},
+  {% if node_to_node_transport %}
+  "node_to_node_transport": {{ node_to_node_transport|tojson }},
+  {% endif %}
+  {% if node_to_node_tls_record_limit %}
+  "node_to_node_tls_record_limit": {{ node_to_node_tls_record_limit|tojson }},
+  {% endif %}
   "worker_threads": {{ worker_threads }},
   "memory": {
     "circuit_size": "16MB",

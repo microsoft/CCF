@@ -467,7 +467,9 @@ namespace ccf
       node_port,
       config.memory.max_msg_size.count_bytes(),
       config.node_client_interface,
-      config.client_connection_timeout);
+      config.client_connection_timeout,
+      config.node_to_node_transport == ccf::NodeToNodeTransport::TLS,
+      config.node_to_node_tls_record_limit);
     const asynchost::FlushNodeOutbound flush_node_outbound(1ms, *node);
     config.network.node_to_node_interface.bind_address =
       ccf::make_net_address(node_host, node_port);

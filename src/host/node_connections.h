@@ -8,6 +8,7 @@
 #include "ledger_subsystem.h"
 #include "node/node_transport.h"
 #include "node/node_types.h"
+#include "node_tls.h"
 #include "tcp.h"
 #include "timer.h"
 
@@ -43,6 +44,7 @@ namespace asynchost
   class NodeConnectionsImpl : public ccf::AbstractNodeTransport
   {
   private:
+    class NodeConnectionBehaviour;
     // Identifies the current connection with a peer, whether we opened it, and
     // when it was created. Knowing this is what allows two nodes which dialled
     // each other at the same moment to agree on which connection to keep.
@@ -52,6 +54,7 @@ namespace asynchost
       bool outgoing = false;
       std::chrono::steady_clock::time_point created =
         std::chrono::steady_clock::now();
+      NodeConnectionBehaviour* behaviour = nullptr;
     };
 
     class NodeConnectionBehaviour : public SocketBehaviour<ConnType>
@@ -62,6 +65,9 @@ namespace asynchost
       std::optional<ccf::NodeId> node;
       std::optional<size_t> msg_size = std::nullopt;
       std::vector<uint8_t> pending;
+      std::unique_ptr<NodeTLSSession> tls;
+      NodeTLSSession::Write write;
+      bool announced_tls = false;
 
       NodeConnectionBehaviour(
         const char* name,
@@ -70,9 +76,68 @@ namespace asynchost
         SocketBehaviour<ConnType>(name, "TCP"),
         parent(parent),
         node(std::move(node))
-      {}
+      {
+        if (parent.tls_enabled && parent.tls_context != nullptr)
+        {
+          tls = std::make_unique<NodeTLSSession>(
+            parent.tls_context,
+            this->node,
+            parent.max_inbound_frame_size + 4,
+            parent.tls_record_limit);
+        }
+      }
+
+      bool send(const std::vector<uint8_t>& frame)
+      {
+        if (!parent.tls_enabled)
+        {
+          return write(frame.size(), frame.data());
+        }
+        if (tls == nullptr)
+        {
+          return false;
+        }
+        try
+        {
+          tls->enqueue(frame);
+          return receive_tls({});
+        }
+        catch (const std::exception& e)
+        {
+          LOG_DEBUG_FMT("Dropping node TLS send: {}", e.what());
+          return false;
+        }
+      }
+
+      bool receive_tls(std::span<const uint8_t> input)
+      {
+        if (tls == nullptr)
+        {
+          return false;
+        }
+        const auto result =
+          tls->pump(input, write, [this](size_t len, const uint8_t* data) {
+            return read_frames(len, data);
+          });
+        if (result && tls->peer().has_value() && !announced_tls)
+        {
+          LOG_INFO_FMT(
+            "Node TLS 1.3 mutually authenticated with {}", tls->peer().value());
+          announced_tls = true;
+        }
+        return result;
+      }
 
       bool on_read(size_t len, uint8_t*& incoming, sockaddr /*unused*/) override
+      {
+        if (parent.tls_enabled)
+        {
+          return receive_tls({incoming, len});
+        }
+        return read_frames(len, incoming);
+      }
+
+      bool read_frames(size_t len, const uint8_t* incoming)
       {
         LOG_DEBUG_FMT(
           "from node {} received {} bytes",
@@ -163,6 +228,17 @@ namespace asynchost
           }
           const size_t payload_size = msg_size.value() - header_size;
 
+          if (
+            parent.tls_enabled &&
+            (msg_type != ccf::NodeMsgType::consensus_msg ||
+             !tls->peer().has_value() || tls->peer().value() != from))
+          {
+            LOG_FAIL_FMT(
+              "Rejecting node TLS frame: non-consensus type or sender "
+              "different from authenticated peer");
+            return false;
+          }
+
           if (!node.has_value())
           {
             if (!associate_incoming(from))
@@ -222,11 +298,22 @@ namespace asynchost
       void on_disconnect() override
       {
         LOG_INFO_FMT("Disconnecting incoming connection {}", id);
-        parent.unassociated_incoming.erase(id);
-
+        parent.incoming_created.erase(id);
         if (node_id.has_value())
         {
-          parent.remove_connection(node_id.value());
+          const auto current = parent.connections.find(node_id.value());
+          if (
+            current != parent.connections.end() &&
+            current->second.behaviour == this)
+          {
+            parent.remove_connection(node_id.value());
+          }
+        }
+        else
+        {
+          // Erasing the last socket owner can destroy this behaviour. Do not
+          // access any members after removing the unassociated connection.
+          parent.unassociated_incoming.erase(id);
         }
       }
 
@@ -272,8 +359,10 @@ namespace asynchost
         }
 
         node_id = n;
-        parent.connections[n] = {unassociated->second, false};
+        parent.connections[n] = {
+          unassociated->second, false, std::chrono::steady_clock::now(), this};
         parent.unassociated_incoming.erase(unassociated);
+        parent.incoming_created.erase(id);
 
         LOG_INFO_FMT("Node incoming connection ({}) associated with {}", id, n);
         return true;
@@ -340,10 +429,25 @@ namespace asynchost
 
       void on_accept(ConnType& peer) override
       {
+        if (parent.tls_enabled && parent.unassociated_incoming.size() >= 128)
+        {
+          LOG_DEBUG_FMT("Rejecting node TLS connection: pending accept limit");
+          return;
+        }
         auto id = parent.get_next_id();
-        peer->set_behaviour(
-          std::make_unique<NodeIncomingBehaviour>(parent, id));
+        auto behaviour = std::make_unique<NodeIncomingBehaviour>(parent, id);
+        behaviour->write =
+          [this, socket = peer.operator->()](size_t n, const uint8_t* p) {
+            return parent.tls_enabled ?
+              socket->write_bounded(n, p, 2 * parent.max_inbound_frame_size) :
+              socket->write(n, p);
+          };
+        peer->set_behaviour(std::move(behaviour));
         parent.unassociated_incoming.emplace(id, peer);
+        if (parent.tls_enabled)
+        {
+          parent.incoming_created.emplace(id, std::chrono::steady_clock::now());
+        }
         LOG_INFO_FMT("Accepted new incoming node connection ({})", id);
       }
     };
@@ -371,6 +475,8 @@ namespace asynchost
     std::optional<ccf::NodeId> self_node_id = std::nullopt;
 
     std::unordered_map<size_t, ConnType> unassociated_incoming;
+    std::unordered_map<size_t, std::chrono::steady_clock::time_point>
+      incoming_created;
     size_t next_id = 1;
 
     // Declared frame sizes above this are rejected and the connection closed.
@@ -384,6 +490,9 @@ namespace asynchost
       std::nullopt;
 
     LedgerSubsystem& ledger_subsystem;
+    const bool tls_enabled = false;
+    const size_t tls_record_limit;
+    std::shared_ptr<NodeTLSContext> tls_context;
 
     // Work handed from the ledger lane back to the loop thread, in order.
     struct AssociateAddress
@@ -402,8 +511,8 @@ namespace asynchost
       ccf::NodeId from;
       std::vector<uint8_t> frame;
     };
-    using OutboundItem =
-      std::variant<AssociateAddress, CloseOutbound, SendFrame>;
+    using OutboundItem = std::
+      variant<AssociateAddress, CloseOutbound, SendFrame, NodeTLSCredentials>;
 
     std::mutex outbound_mutex;
     std::deque<OutboundItem> outbound_ready;
@@ -443,10 +552,33 @@ namespace asynchost
         return;
       }
 
-      handler->recv_node_inbound(msg_type, from, std::move(payload));
+      handler->recv_node_inbound(
+        msg_type, from, std::move(payload), tls_enabled);
     }
 
   public:
+    bool uses_tls() const override
+    {
+      return tls_enabled;
+    }
+
+    void set_tls_credentials(
+      const ccf::crypto::Pem& service,
+      const ccf::crypto::Pem& certificate,
+      const ccf::crypto::Pem& private_key) override
+    {
+      if (tls_enabled)
+      {
+        ordered(
+          "Node TLS credentials",
+          [this,
+           credentials =
+             NodeTLSCredentials{service, certificate, private_key}]() mutable {
+            enqueue_ready(std::move(credentials));
+          });
+      }
+    }
+
     NodeConnectionsImpl(
       Ledger& ledger,
       LedgerSubsystem& ledger_subsystem_,
@@ -455,13 +587,24 @@ namespace asynchost
       size_t max_inbound_frame_size_,
       const std::optional<std::string>& client_interface = std::nullopt,
       std::optional<std::chrono::milliseconds> client_connection_timeout_ =
-        std::nullopt) :
+        std::nullopt,
+      bool tls_enabled_ = false,
+      size_t tls_record_limit_ = max_node_tls_records_per_key) :
       ledger(ledger),
       max_inbound_frame_size(max_inbound_frame_size_),
       client_interface(client_interface),
       client_connection_timeout(client_connection_timeout_),
-      ledger_subsystem(ledger_subsystem_)
+      ledger_subsystem(ledger_subsystem_),
+      tls_enabled(tls_enabled_),
+      tls_record_limit(tls_record_limit_)
     {
+      if (
+        tls_enabled &&
+        (tls_record_limit < 4 ||
+         tls_record_limit > max_node_tls_records_per_key))
+      {
+        throw std::logic_error("Node TLS record limit must be in [4, 2^24]");
+      }
       listener->set_behaviour(std::make_unique<NodeServerBehaviour>(*this));
       listener->listen(host, port);
       host = listener->get_host();
@@ -505,6 +648,11 @@ namespace asynchost
       const ccf::NodeId& from,
       std::vector<uint8_t>&& payload) override
     {
+      if (tls_enabled && msg_type != ccf::NodeMsgType::consensus_msg)
+      {
+        LOG_FAIL_FMT("TLS node transport only supports consensus messages");
+        return;
+      }
       ordered(
         "Node send",
         [this, to, msg_type, from, payload = std::move(payload)]() {
@@ -529,6 +677,7 @@ namespace asynchost
       }
       connections.clear();
       unassociated_incoming.clear();
+      incoming_created.clear();
       node_addresses.clear();
       listener = nullptr;
     }
@@ -536,6 +685,39 @@ namespace asynchost
     // Loop thread: apply everything the ledger lane has finished, in order.
     void flush_outbound()
     {
+      if (tls_enabled)
+      {
+        const auto now = std::chrono::steady_clock::now();
+        const auto timeout =
+          client_connection_timeout.value_or(std::chrono::milliseconds(2000));
+        for (auto it = incoming_created.begin(); it != incoming_created.end();)
+        {
+          if (now - it->second >= timeout)
+          {
+            unassociated_incoming.erase(it->first);
+            it = incoming_created.erase(it);
+          }
+          else
+          {
+            ++it;
+          }
+        }
+        for (auto it = connections.begin(); it != connections.end();)
+        {
+          const auto& info = it->second;
+          if (
+            info.outgoing && now - info.created >= timeout &&
+            (info.behaviour->tls == nullptr ||
+             !info.behaviour->tls->peer().has_value()))
+          {
+            it = connections.erase(it);
+          }
+          else
+          {
+            ++it;
+          }
+        }
+      }
       std::deque<OutboundItem> ready;
       {
         std::lock_guard guard(outbound_mutex);
@@ -554,6 +736,16 @@ namespace asynchost
             else if constexpr (std::is_same_v<T, CloseOutbound>)
             {
               remove_connection(it.node_id);
+            }
+            else if constexpr (std::is_same_v<T, NodeTLSCredentials>)
+            {
+              auto updated_context = std::make_shared<NodeTLSContext>(it);
+              // Renewal changes the identity presented on subsequent
+              // connections; reconnect existing peers to apply it immediately.
+              connections.clear();
+              unassociated_incoming.clear();
+              incoming_created.clear();
+              tls_context = std::move(updated_context);
             }
             else
             {
@@ -639,6 +831,14 @@ namespace asynchost
         }
       }
 
+      if (
+        tls_enabled &&
+        header.size() + payload.size() + entries.size() >
+          max_inbound_frame_size)
+      {
+        LOG_FAIL_FMT("Dropping oversized outbound node TLS frame");
+        return std::nullopt;
+      }
       const auto frame_size =
         static_cast<uint32_t>(header.size() + payload.size() + entries.size());
       std::vector<uint8_t> frame;
@@ -696,7 +896,11 @@ namespace asynchost
         outbound_connection = connection_it->second.socket;
       }
 
-      outbound_connection->write(frame.size(), frame.data());
+      auto* behaviour = connections.at(to).behaviour;
+      if (!behaviour->send(frame))
+      {
+        remove_connection(to);
+      }
     }
 
     // Decide which of two simultaneously-created connections with a peer to
@@ -726,7 +930,15 @@ namespace asynchost
       const std::string& port)
     {
       auto s = ConnType(true, client_connection_timeout);
-      s->set_behaviour(std::make_unique<NodeOutgoingBehaviour>(*this, node_id));
+      auto behaviour = std::make_unique<NodeOutgoingBehaviour>(*this, node_id);
+      auto* behaviour_ptr = behaviour.get();
+      behaviour->write = [this,
+                          socket = s.operator->()](size_t n, const uint8_t* p) {
+        return tls_enabled ?
+          socket->write_bounded(n, p, 2 * max_inbound_frame_size) :
+          socket->write(n, p);
+      };
+      s->set_behaviour(std::move(behaviour));
 
       if (!s->connect(host, port, client_interface))
       {
@@ -734,7 +946,8 @@ namespace asynchost
         return nullptr;
       }
 
-      connections[node_id] = {s, true};
+      connections[node_id] = {
+        s, true, std::chrono::steady_clock::now(), behaviour_ptr};
       LOG_INFO_FMT(
         "Added node connection with {} ({}:{})", node_id, host, port);
 

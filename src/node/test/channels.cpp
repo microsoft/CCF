@@ -37,6 +37,22 @@ using namespace ccf;
 class RecordingTransport : public AbstractNodeTransport
 {
 public:
+  bool tls = false;
+  size_t tls_credential_updates = 0;
+
+  bool uses_tls() const override
+  {
+    return tls;
+  }
+
+  void set_tls_credentials(
+    const ccf::crypto::Pem&,
+    const ccf::crypto::Pem&,
+    const ccf::crypto::Pem&) override
+  {
+    ++tls_credential_updates;
+  }
+
   struct Send
   {
     NodeId to;
@@ -166,6 +182,38 @@ static ccf::crypto::Pem generate_endorsed_cert(
     validity_days,
     issuer_kp->private_key_pem(),
     issuer_cert);
+}
+
+TEST_CASE("TLS consensus bypasses legacy handshakes and forwarding is rejected")
+{
+  auto transport = std::make_shared<RecordingTransport>();
+  transport->tls = true;
+  auto service_key = ccf::crypto::make_ec_key_pair();
+  auto node_key = ccf::crypto::make_ec_key_pair();
+  const auto service_cert =
+    generate_self_signed_cert(service_key, "CN=Test service");
+  const auto node_cert =
+    generate_endorsed_cert(node_key, "CN=Test node", service_key, service_cert);
+  NodeToNodeChannelManager manager(transport);
+  manager.initialize(nid1, service_cert, node_key, node_cert);
+  CHECK(transport->tls_credential_updates == 1);
+
+  const std::vector<uint8_t> body{1, 2, 3};
+  CHECK(manager.send_authenticated(
+    nid2, NodeMsgType::consensus_msg, body.data(), body.size()));
+  const auto operations = transport->take();
+  REQUIRE(operations.size() == 1);
+  const auto& send = std::get<RecordingTransport::Send>(operations.front());
+  CHECK(send.payload == body);
+  CHECK(send.type == NodeMsgType::consensus_msg);
+  CHECK_FALSE(manager.have_channel(nid2));
+  CHECK_FALSE(
+    manager.send_encrypted(nid2, NodeMsgType::forwarded_msg, {}, body));
+  CHECK_FALSE(manager.recv_channel_message(nid2, body.data(), body.size()));
+  CHECK(transport->take().empty());
+
+  manager.set_endorsed_node_cert(node_cert);
+  CHECK(transport->tls_credential_updates == 2);
 }
 
 template <typename T>

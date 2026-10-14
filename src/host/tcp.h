@@ -267,6 +267,25 @@ namespace asynchost
       return ret;
     }
 
+    bool write_bounded(size_t len, const uint8_t* data, size_t limit)
+    {
+      auto queued = uv_stream_get_write_queue_size(
+        reinterpret_cast<uv_stream_t*>(&uv_handle));
+      for (const auto& pending : pending_writes)
+      {
+        if (pending.len > limit || queued > limit - pending.len)
+        {
+          return false;
+        }
+        queued += pending.len;
+      }
+      if (len > limit || queued > limit - len)
+      {
+        return false;
+      }
+      return write(len, data);
+    }
+
     bool write(size_t len, const uint8_t* data, sockaddr /*addr*/ = {})
     {
       auto* req = new uv_write_t; // NOLINT(cppcoreguidelines-owning-memory)

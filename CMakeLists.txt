@@ -806,6 +806,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/node_connections.cpp
     )
     target_link_libraries(node_connections_test PRIVATE ccf_tasks uv)
+    target_sources(node_connections_test PRIVATE src/host/test/node_tls.cpp)
 
     add_unit_test(
       tcp_test
@@ -1435,6 +1436,13 @@ if(BUILD_TESTS)
     DETECT_DEADLOCKS
     TSAN_SUPPRESSIONS ${CCF_DIR}/tsan_e2e_logging_suppressions
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+  )
+
+  add_e2e_test(
+    NAME e2e_node_tls
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/node_tls.py
+    BUCKET bucket_c
+    BUILD_DEPENDS logging
   )
 
   add_e2e_test(

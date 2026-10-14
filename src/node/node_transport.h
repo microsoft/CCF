@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/entity_id.h"
 #include "node/node_types.h"
 
@@ -21,7 +22,10 @@ namespace ccf
     virtual ~NodeInboundHandler() = default;
 
     virtual void recv_node_inbound(
-      NodeMsgType type, const NodeId& from, std::vector<uint8_t>&& payload) = 0;
+      NodeMsgType type,
+      const NodeId& from,
+      std::vector<uint8_t>&& payload,
+      bool tls_authenticated = false) = 0;
   };
 
   // Node-to-node transport, implemented by the host. All methods are
@@ -36,6 +40,15 @@ namespace ccf
   {
   public:
     virtual ~AbstractNodeTransport() = default;
+
+    virtual bool uses_tls() const
+    {
+      return false;
+    }
+
+    virtual void set_tls_credentials(
+      const ccf::crypto::Pem&, const ccf::crypto::Pem&, const ccf::crypto::Pem&)
+    {}
 
     virtual void associate_node_address(
       const NodeId& peer_id,

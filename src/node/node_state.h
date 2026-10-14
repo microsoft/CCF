@@ -2855,8 +2855,18 @@ namespace ccf
       NodeMsgType msg_type,
       const NodeId& from,
       const uint8_t* data,
-      size_t size)
+      size_t size,
+      bool tls_authenticated = false)
     {
+      // Only transport-authenticated consensus can reach the tag-free Raft
+      // path in TLS mode. A marker is never taken from peer-controlled bytes.
+      if (
+        tls_authenticated != node_transport->uses_tls() ||
+        (tls_authenticated && msg_type != NodeMsgType::consensus_msg))
+      {
+        LOG_FAIL_FMT("Rejecting node message with incompatible transport");
+        return;
+      }
       if (!can_process_node_inbound_message(sm))
       {
         LOG_DEBUG_FMT(

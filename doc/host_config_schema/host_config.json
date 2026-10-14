@@ -761,6 +761,19 @@
       "default": false,
       "description": "Ignore the first SIGTERM received by the process, but set \"stop_notice\" in /node/state"
     },
+    "node_to_node_transport": {
+      "type": "string",
+      "enum": ["legacy", "tls"],
+      "default": "legacy",
+      "description": "Node transport. Experimental TLS 1.3 supports consensus only and requires RPC redirects. All nodes must use the same transport."
+    },
+    "node_to_node_tls_record_limit": {
+      "type": "integer",
+      "minimum": 4,
+      "maximum": 16777216,
+      "default": 16777216,
+      "description": "TLS-only encrypted record budget per directional traffic key. Sending keys are updated before exhaustion; receiving peers exceeding this budget are disconnected. Counts record fragmentation, unlike the legacy node_to_node_message_limit."
+    },
     "node_to_node_message_limit": {
       "type": "integer",
       "default": 23726566,
