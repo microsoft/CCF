@@ -26,8 +26,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/iboB/picobench.git",
-          "commitHash": "77b575e0a239de72b581ee8396166519db0d7c87",
-          "tag": "v2.08"
+          "commitHash": "1fdd89f5f88885eb3c2a55f955f7ec46a4e841de",
+          "tag": "v2.10.0"
         }
       }
     },
@@ -66,8 +66,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/snmalloc",
-          "commitHash": "92ca9184886f983bb1cf9f4614c9569db442d097",
-          "tag": "0.7.3"
+          "commitHash": "f126f1c94d624976d57568d2c6c8a80bc66549bc",
+          "tag": "0.7.6"
         }
       }
     },
@@ -85,8 +85,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
-          "commitHash": "86b83a59786caebd581f38d613c64c9e8c52c79e",
-          "tag": "release/v9.3.0"
+          "commitHash": "0e815792b167a9bd8ace259b95b7da953776c288",
+          "tag": "release/v9.4.3"
         }
       }
     },

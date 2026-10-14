@@ -105,10 +105,8 @@ Each endpoint object contains the following information:
 
 .. note:: "sometimes" is a good default value for most endpoints. The node that receives the request will forward only to preserve session consistency (a previous transaction was already forwarded), or because the transaction cannot be executed locally (it involves a write, and the node is a backup). "always" is a good setting for endpoints that always write to the KV, because it saves attempting the transaction on a backup before forwarding.
    
-- ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_
-  without `references <https://swagger.io/specification/#reference-object>`_. This is descriptive but not
-  enforced - it will be inserted into the generated OpenAPI document for this service, but will not restrict the
-  types of the endpoint's requests or responses.
+- ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_ without `references <https://swagger.io/specification/#reference-object>`_.
+  This is descriptive but not enforced - it will be inserted into the generated OpenAPI document for this service, but will not restrict the types of the endpoint's requests or responses.
 
 You can find an example metadata file at :ccf_repo:`tests/js-app-bundle/app.json` in the CCF git repository.
 
@@ -118,8 +116,7 @@ JavaScript API
 Globals
 ~~~~~~~
 
-JavaScript provides a set of built-in
-`global functions, objects, and values <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects>`_.
+JavaScript provides a set of built-in `global functions, objects, and values <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects>`_.
 
 CCF provides the additional global variable ``ccf`` to access native CCF functionality.
 It is an object implementing the :typedoc-interface:`CCF <ccf-app/global/CCF>` interface.
