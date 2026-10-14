@@ -121,10 +121,9 @@ These supplement the import and proof coverage checks and executable model and t
 The sandbox requires Linux and `bubblewrap` (`sudo apt-get install bubblewrap`), with unprivileged user namespaces enabled or a setuid installation.
 CI checks the package in an Ubuntu 26.04 job without disabling the sandbox, using disk-backed temporary storage.
 Additional bundled checkers are not enabled.
-The protocol-independent `CCF` modules are supplied by the local `ccf_common` dependency at `../common`.
-Retain that sibling directory when building or checking this package.
-Lake copies it into `.lake/packages/ccf_common` so sandboxed checks can build the dependency without writing outside the package.
-After editing common sources, run `lake update --keep-toolchain ccf_common` before consumer checks to refresh the copy.
+This package uses the shared modules in `../common`.
+Lake copies them into `.lake/packages/ccf_common` so `lake check` can build them inside its sandbox.
+After editing `../common`, run `lake update --keep-toolchain ccf_common` from this directory before validating disaster recovery.
 
 `Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof module or if a removed name is reintroduced.
 See [Formatting](#formatting) for the [leanfmt](https://github.com/duckki/leanfmt) check.
