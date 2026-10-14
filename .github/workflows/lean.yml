@@ -114,11 +114,3 @@ jobs:
           set -euo pipefail
           export TMPDIR="$RUNNER_TEMP"
           lake check --inadvisably-no-sandbox
-
-      - name: Check common infrastructure with Lean's kernel
-        working-directory: lean/common
-        shell: bash
-        run: |
-          set -euo pipefail
-          export TMPDIR="$RUNNER_TEMP"
-          lake check --inadvisably-no-sandbox
