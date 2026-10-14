@@ -110,17 +110,25 @@ namespace
     switch (curve)
     {
       case CurveID::SECP256R1:
+      {
         return CRV_P256;
+      }
       case CurveID::SECP384R1:
+      {
         return CRV_P384;
+      }
       case CurveID::SECP521R1:
+      {
         return CRV_P521;
+      }
       case CurveID::NONE:
       case CurveID::CURVE25519:
       case CurveID::X25519:
       default:
+      {
         throw std::runtime_error(
           fmt::format("Curve {} has no COSE EC2 identifier", curve));
+      }
     }
   }
 
@@ -145,13 +153,21 @@ namespace
     switch (crv)
     {
       case CRV_P256:
+      {
         return {.id = CurveID::SECP256R1, .coordinate_size = 32};
+      }
       case CRV_P384:
+      {
         return {.id = CurveID::SECP384R1, .coordinate_size = 48};
+      }
       case CRV_P521:
+      {
         return {.id = CurveID::SECP521R1, .coordinate_size = 66};
+      }
       default:
+      {
         invalid(fmt::format("unsupported crv {}", crv));
+      }
     }
   }
 
@@ -551,16 +567,24 @@ namespace ccf::crypto
       switch (kty_value)
       {
         case static_cast<int64_t>(COSEKeyType::EC2):
+        {
           parsed = parse_ec2(map);
           break;
+        }
         case static_cast<int64_t>(COSEKeyType::RSA):
+        {
           parsed = parse_rsa(map);
           break;
+        }
         case static_cast<int64_t>(COSEKeyType::OKP):
+        {
           parsed = parse_okp(map);
           break;
+        }
         default:
+        {
           invalid(fmt::format("unsupported kty {}", kty_value));
+        }
       }
       COSEKey key(std::move(parsed), alg_value);
       // Throws for algorithms that CCF cannot verify

@@ -96,23 +96,35 @@ TEST_CASE("ByteVector allocation failures preserve contents and ownership")
         switch (operation)
         {
           case 0:
+          {
             bytes.reserve(capacity + 1);
             break;
+          }
           case 1:
+          {
             bytes.resize(capacity + 1);
             break;
+          }
           case 2:
+          {
             bytes.append(source.begin(), source.end());
             break;
+          }
           case 3:
+          {
             bytes.push_back(bytes[0]);
             break;
+          }
           case 4:
+          {
             bytes.assign(capacity + 1, bytes[0]);
             break;
+          }
           case 5:
+          {
             bytes = source;
             break;
+          }
           case 6:
           {
             const ccf::ByteVector copy(source);
@@ -120,8 +132,10 @@ TEST_CASE("ByteVector allocation failures preserve contents and ownership")
             break;
           }
           case 7:
+          {
             bytes.insert(bytes.begin(), size_t{2}, bytes[0]);
             break;
+          }
         }
       });
       CHECK(bytes == expected);

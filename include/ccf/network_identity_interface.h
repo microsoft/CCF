@@ -39,13 +39,21 @@ namespace ccf
     switch (status)
     {
       case FetchStatus::Retry:
+      {
         return "Retry";
+      }
       case FetchStatus::Done:
+      {
         return "Done";
+      }
       case FetchStatus::Failed:
+      {
         return "Failed";
+      }
       case FetchStatus::Partial:
+      {
         return "Partial";
+      }
     }
     return "Unknown";
   }
