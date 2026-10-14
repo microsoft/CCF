@@ -61,6 +61,7 @@ structure LocalStep (Node LocalState LocalAction Message Notification : Type) wh
 recording capabilities yields exactly `s.after` and `s.effects`. No reachability
 or activity is required. -/
 def Protocol.ValidStep
+    {Node LocalState LocalAction Message Notification Input : Type}
     (protocol : Protocol Node LocalState LocalAction Message Notification Input)
     (s : LocalStep Node LocalState LocalAction Message Notification)
     : Prop :=
@@ -69,19 +70,21 @@ def Protocol.ValidStep
     /\ execute.run {} = (s.after, s.effects)
 
 /-- The state of `node`, if it is in the node table. -/
-def nodeState [BEq Node] (state : State Node LocalState Message) (node : Node)
+def nodeState {Node LocalState Message : Type} [BEq Node]
+    (state : State Node LocalState Message) (node : Node)
     : Option LocalState :=
   (state.nodes.find? fun entry => entry.1 == node).map Prod.snd
 
 /-- Removes the first occurrence only; duplicate envelopes are distinct deliveries. -/
-def removeOne [BEq α] (value : α) : List α -> List α
+def removeOne {α : Type _} [BEq α] (value : α) : List α -> List α
   | [] => []
   | head :: tail =>
       if head == value then tail else head :: removeOne value tail
 
 /-- One global step. `none` if the envelope is not queued, the node is not
 active, the node is unknown, or the local step is disabled. -/
-def next [BEq Node] [BEq Message]
+def next {Node Message LocalState LocalAction Notification Input : Type}
+    [BEq Node] [BEq Message]
     (protocol : Protocol Node LocalState LocalAction Message Notification Input)
     (state : State Node LocalState Message) (action : Action Node Message Input)
     : Option (State Node LocalState Message) := do
@@ -111,7 +114,8 @@ def next [BEq Node] [BEq Message]
 /-- The network as a `TransitionSystem`. Initially every configured node has
 an initial local state, the active nodes are a subset of them, and the
 network is empty. -/
-def lift [BEq Node] [BEq Message]
+def lift {Node Message LocalState LocalAction Notification Input : Type}
+    [BEq Node] [BEq Message]
     (configured : List Node)
     (protocol : Protocol Node LocalState LocalAction Message Notification Input)
     : TransitionSystem (State Node LocalState Message) (Action Node Message Input) where

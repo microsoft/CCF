@@ -12,6 +12,7 @@ defaultTargets = [
 ]
 
 [leanOptions]
+autoImplicit = false
 linter.extra = true
 linter.loopingSimpArgs = true
 linter.missingDocs = true
