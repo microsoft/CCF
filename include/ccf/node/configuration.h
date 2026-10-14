@@ -234,18 +234,18 @@ namespace ccf
 
     // Keep explicit new values distinct from defaults so legacy aliases only
     // supply limits which have not been configured under their new names.
-    size_t get_max_ledger_read_size() const
+    [[nodiscard]] size_t get_max_ledger_read_size() const
     {
       return ledger.max_read_size.value_or(memory.max_msg_size).count_bytes();
     }
 
-    size_t get_max_pending_append_bytes() const
+    [[nodiscard]] size_t get_max_pending_append_bytes() const
     {
       return ledger.max_pending_append_bytes.value_or(memory.circuit_size)
         .count_bytes();
     }
 
-    size_t get_node_to_node_max_message_size() const
+    [[nodiscard]] size_t get_node_to_node_max_message_size() const
     {
       return node_to_node.max_message_size.value_or(memory.max_msg_size)
         .count_bytes();
