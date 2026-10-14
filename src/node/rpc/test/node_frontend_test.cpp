@@ -201,6 +201,70 @@ TEST_CASE("Node configuration retains operator file paths")
     defaults.command.recover.initial_service_certificate_validity_days == 1);
 }
 
+TEST_CASE("Node configuration resolves ringbuffer-era limit aliases")
+{
+  const json base = {
+    {"network", CCFConfig{}.network}, {"command", {{"type", "Join"}}}};
+  const auto check_limits = [&](
+                              const json& settings,
+                              size_t read_size,
+                              size_t pending_bytes,
+                              size_t frame_size) {
+    auto input = base;
+    input.update(settings);
+    const auto config = input.get<CCFConfig>();
+    const auto check = [&](const CCFConfig& parsed) {
+      CHECK(parsed.get_max_ledger_read_size() == read_size);
+      CHECK(parsed.get_max_pending_append_bytes() == pending_bytes);
+      CHECK(parsed.get_node_to_node_max_message_size() == frame_size);
+    };
+    check(config);
+    const auto encoded = json(config);
+    const auto decoded = encoded.get<CCFConfig>();
+    check(decoded);
+    CHECK(json(decoded) == encoded);
+    CHECK(decoded.ledger == config.ledger);
+    CHECK(decoded.node_to_node == config.node_to_node);
+  };
+
+  constexpr size_t mb = 1024 * 1024;
+  check_limits(json::object(), 64 * mb, 16 * mb, 64 * mb);
+  check_limits(
+    {{"memory",
+      {{"circuit_size", "3MB"},
+       {"max_msg_size", "128MB"},
+       {"max_fragment_size", "256KB"}}}},
+    128 * mb,
+    3 * mb,
+    128 * mb);
+  check_limits(
+    {{"ledger", {{"max_read_size", "96MB"}, {"max_pending_append_bytes", "0"}}},
+     {"node_to_node", {{"max_message_size", "48MB"}}}},
+    96 * mb,
+    0,
+    48 * mb);
+  check_limits(
+    {{"memory", {{"circuit_size", "3MB"}, {"max_msg_size", "128MB"}}},
+     {"ledger",
+      {{"max_read_size", "64MB"}, {"max_pending_append_bytes", "16MB"}}},
+     {"node_to_node", {{"max_message_size", "64MB"}}}},
+    64 * mb,
+    16 * mb,
+    64 * mb);
+  check_limits(
+    {{"memory", {{"max_msg_size", "128MB"}}},
+     {"ledger", {{"max_read_size", "32MB"}}}},
+    32 * mb,
+    16 * mb,
+    128 * mb);
+  check_limits(
+    {{"memory", {{"max_msg_size", "128MB"}}},
+     {"node_to_node", {{"max_message_size", "32MB"}}}},
+    128 * mb,
+    16 * mb,
+    32 * mb);
+}
+
 TEST_CASE("Genesis request retains resolved data on the wire")
 {
   CreateNetworkNodeToNode::GenesisInfo genesis;

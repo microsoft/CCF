@@ -56,7 +56,9 @@
   "ledger": {
     "directory": "ledger",
     "read_only_directories": [],
-    "chunk_size": "5MB"
+    "chunk_size": "5MB",
+    "max_read_size": "64MB",
+    "max_pending_append_bytes": "16MB"
   },
   "snapshots": {
     "directory": "snapshots",
@@ -87,9 +89,7 @@
   "slow_io_logging_threshold": "10000us",
   "client_connection_timeout": "2000ms",
   "worker_threads": 1,
-  "memory": {
-    "circuit_size": "16MB",
-    "max_msg_size": "64MB",
-    "max_fragment_size": "256KB"
+  "node_to_node": {
+    "max_message_size": "64MB"
   }
 }
