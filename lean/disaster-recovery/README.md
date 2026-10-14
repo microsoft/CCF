@@ -98,6 +98,9 @@ The options are set in each `lakefile.toml` so ordinary builds use them too; `la
 The opt-ins are explicit rather than `linter.all`, which would enable every optional linter registered by dependencies.
 Lean's internal-module and collection-variable naming conventions, and its debugging-only `linter.tacticCheckInstances`, are not enabled.
 
+Both packages also set `autoImplicit = false`, requiring declaration headers to bind their parameters explicitly rather than silently introducing undeclared names.
+This applies to ordinary Lake builds as well as CI.
+
 The model, proofs, tests, and replayer use Lean's module system, as required by the Mathlib dependency.
 Public imports preserve existing names and exports.
 `@[expose] public section` keeps definitions used by cross-module proofs transparent; runtime-only helpers remain private.

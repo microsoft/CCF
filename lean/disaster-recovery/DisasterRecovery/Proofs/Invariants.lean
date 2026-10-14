@@ -273,7 +273,7 @@ lemma recordEffects_preserves_histories_active
       · exact recordEffect_preserves_histories_active wellFormed nodeActive
       · cases effect <;> simpa [recordEffect] using nodeActive
 
-lemma mem_of_mem_removeOne [BEq α] (value member : α) (values : List α)
+lemma mem_of_mem_removeOne {α : Type _} [BEq α] (value member : α) (values : List α)
     : member ∈ removeOne value values -> member ∈ values := by
   induction values with
   | nil => simp [removeOne]

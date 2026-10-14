@@ -59,7 +59,7 @@ example (config : Model.Config) (active : List Location)
 private def expect (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError message)
 
-private def requireSome (value : Option α) (message : String) : IO α :=
+private def requireSome {α : Type} (value : Option α) (message : String) : IO α :=
   match value with
   | some result => pure result
   | none => throw (IO.userError message)

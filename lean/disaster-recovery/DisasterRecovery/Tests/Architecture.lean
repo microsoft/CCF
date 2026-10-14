@@ -12,6 +12,14 @@ namespace DisasterRecovery.Tests.Architecture
 
 open Lean
 
+/--
+error: Unknown identifier `undeclaredType`
+
+Note: It is not possible to treat `undeclaredType` as an implicitly bound variable here because the `autoImplicit` option is set to `false`.
+-/
+#guard_msgs in
+example (value : undeclaredType) := value
+
 private def allowedImport (owner dependency : Name) : Bool :=
   if !(`DisasterRecovery).isPrefixOf dependency then
     true

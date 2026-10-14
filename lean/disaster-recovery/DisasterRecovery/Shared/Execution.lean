@@ -31,7 +31,9 @@ structure Trace (State : Type) where
 
 /-- The trace is nonempty, its first state is initial, and each later state
 follows its predecessor by some enabled action. -/
-def Trace.Valid (trace : Trace State) (system : TransitionSystem State Action) : Prop :=
+def Trace.Valid {State Action : Type} (trace : Trace State)
+    (system : TransitionSystem State Action)
+    : Prop :=
   (exists initial, trace.states[0]? = some initial /\ system.init initial)
   /\ forall i before after,
       trace.states[i]? = some before
@@ -39,7 +41,8 @@ def Trace.Valid (trace : Trace State) (system : TransitionSystem State Action) :
       -> exists action, system.step before action = some after
 
 /-- Every state in a valid trace is reachable. -/
-theorem Trace.Valid.reachable {system : TransitionSystem State Action}
+theorem Trace.Valid.reachable {State Action : Type}
+    {system : TransitionSystem State Action}
     {trace : Trace State} (valid : trace.Valid system) {state : State}
     (member : state ∈ trace.states)
     : system.Reachable state := by
@@ -63,7 +66,8 @@ theorem Trace.Valid.reachable {system : TransitionSystem State Action}
   exact reaches i state found
 
 /-- Valid traces cover exactly the reachable states. -/
-theorem reachable_iff_trace {system : TransitionSystem State Action} {state : State}
+theorem reachable_iff_trace {State Action : Type}
+    {system : TransitionSystem State Action} {state : State}
     : system.Reachable state
       <-> exists trace : Trace State, trace.Valid system /\ state ∈ trace.states := by
   constructor
