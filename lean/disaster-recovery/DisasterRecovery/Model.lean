@@ -1,5 +1,9 @@
-import DisasterRecovery.Shared.MultiNodeTransitionSystem
-import DisasterRecovery.Model.Local
+module
+
+public import DisasterRecovery.Shared.MultiNodeTransitionSystem
+public import DisasterRecovery.Model.Local
+
+@[expose] public section
 
 namespace DisasterRecovery.Model
 
