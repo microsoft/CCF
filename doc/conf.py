@@ -480,7 +480,14 @@ def setup(app):
     # builds older refs, whose sources need not be in this checkout
     replayer_dir = root_dir / "lean/disaster-recovery/replayer"
     if not os.environ.get("SKIP_TRACE_VIEWER") and (replayer_dir / "viewer").is_dir():
-        subprocess.run(["lake", "build"], cwd=replayer_dir, check=True)
+        package_dir = (
+            replayer_dir
+            if (replayer_dir / "lakefile.toml").is_file()
+            else replayer_dir.parent
+        )
+        subprocess.run(
+            ["lake", "build", "disaster-recovery-replay"], cwd=package_dir, check=True
+        )
         subprocess.run(
             [sys.executable, "viewer/build.py"], cwd=replayer_dir, check=True
         )

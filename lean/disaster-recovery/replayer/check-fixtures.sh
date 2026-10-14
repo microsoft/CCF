@@ -10,7 +10,7 @@ set -euo pipefail
 shopt -s nullglob
 
 REPLAY_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-REPLAYER=${1:-$REPLAY_DIR/.lake/build/bin/disaster-recovery-replay}
+REPLAYER=${1:-$REPLAY_DIR/../.lake/build/bin/disaster-recovery-replay}
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 

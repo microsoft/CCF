@@ -1,6 +1,10 @@
-import DisasterRecovery.Properties
-import DisasterRecovery.Proofs.History
-import DisasterRecovery.Proofs.Gossip
+module
+
+public import DisasterRecovery.Properties
+public import DisasterRecovery.Proofs.History
+public import DisasterRecovery.Proofs.Gossip
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Model
 

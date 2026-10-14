@@ -1,6 +1,12 @@
-import DisasterRecovery.Properties
-import DisasterRecovery.Tests.Initial
-import Mathlib.Tactic
+module
+
+import all Init.Data.List.Sort.Basic
+
+public import DisasterRecovery.Properties
+public import DisasterRecovery.Tests.Initial
+public import Mathlib.Tactic
+
+@[expose] public section
 
 namespace DisasterRecovery.Tests.QuorumCommit
 
