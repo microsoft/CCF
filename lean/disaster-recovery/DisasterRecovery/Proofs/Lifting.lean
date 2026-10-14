@@ -1,7 +1,11 @@
-import DisasterRecovery.Proofs.Quorum
-import DisasterRecovery.Proofs.Local
-import DisasterRecovery.Properties.Utils
-import DisasterRecovery.Shared.Execution
+module
+
+public import DisasterRecovery.Proofs.Quorum
+public import DisasterRecovery.Proofs.Local
+public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Shared.Execution
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Lifting
 
@@ -160,7 +164,6 @@ lemma step_erases (config : Config) (recovered : TxID) (state : NodeState) (even
       | (simp_all [eraseOutput, Execution.Local.Effect.diagnostic, capture, Capabilities.record])
       | split at h
       | split
-      | (simp [advance, Execution.Local.advance] at h ⊢)
   -- Run arithmetic tactics directly so the unreachable-tactic linter can see them.
   all_goals first | omega | aesop (config := { warnOnNonterminal := false })
   all_goals omega

@@ -1,4 +1,8 @@
-import DisasterRecovery.Properties
+module
+
+public import DisasterRecovery.Properties
+
+@[expose] public section
 
 namespace DisasterRecovery.Tests.RaftFreshness
 

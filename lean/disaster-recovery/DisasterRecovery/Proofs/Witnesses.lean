@@ -1,5 +1,11 @@
-import DisasterRecovery.Properties
-import Mathlib.Tactic
+module
+
+import all Init.Data.List.Sort.Basic
+
+public import DisasterRecovery.Properties
+public import Mathlib.Tactic
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Witnesses
 

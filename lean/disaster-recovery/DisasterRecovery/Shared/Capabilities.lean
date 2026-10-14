@@ -1,4 +1,8 @@
-import Std
+module
+
+public import Std
+
+@[expose] public section
 
 namespace DisasterRecovery.Shared
 
@@ -41,7 +45,8 @@ structure Capabilities (Node Message Notification : Type) where
   notify : Notification -> Effect Node Message Notification Unit
 
 /-- The recording host: sends become envelopes from `source`, notifications are kept. -/
-def Capabilities.record (source : Node) : Capabilities Node Message Notification where
+def Capabilities.record {Node Message Notification : Type} (source : Node)
+    : Capabilities Node Message Notification where
   send message target :=
     modify
       fun outputs =>

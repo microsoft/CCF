@@ -1,4 +1,8 @@
-import DisasterRecovery.Model
+module
+
+public import DisasterRecovery.Model
+
+@[expose] public section
 
 namespace DisasterRecovery.Tests
 

@@ -1,4 +1,8 @@
-import DisasterRecovery.Model
+module
+
+public import DisasterRecovery.Model
+
+public section
 
 set_option autoImplicit false
 
