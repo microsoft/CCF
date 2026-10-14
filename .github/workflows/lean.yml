@@ -15,6 +15,50 @@ concurrency:
 permissions: read-all
 
 jobs:
+  ccf-raft:
+    name: CCF Raft model and properties
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Lean
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y elan
+          elan toolchain install "$(cat lean/ccf-raft/lean-toolchain)"
+
+      - name: Restore Mathlib cache
+        working-directory: lean/ccf-raft
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake exe cache get
+
+      - name: Build model and check properties layer
+        working-directory: lean/ccf-raft
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake exe mk_all --check --module --lib CCFRaft
+          lake build --wfail --fail-fast
+          lake lint
+          lake exe canonical-checks
+
+      - name: Check Lean formatting
+        run: ./scripts/lean-format-checks.sh ccf-raft
+
+      - name: Check with Lean's kernel
+        working-directory: lean/ccf-raft
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TMPDIR="$RUNNER_TEMP"
+          lake check --inadvisably-no-sandbox
+
   disaster-recovery:
     name: Disaster recovery model and proofs
     runs-on: ubuntu-26.04
@@ -74,7 +118,7 @@ jobs:
         run: python3 lean/disaster-recovery/replayer/viewer/build.py
 
       - name: Check Lean formatting
-        run: ./scripts/lean-format-checks.sh
+        run: ./scripts/lean-format-checks.sh disaster-recovery
 
   kernel-checks:
     name: Kernel checks (disaster-recovery)
