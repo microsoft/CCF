@@ -18,7 +18,9 @@ raft scenario -(raft_driver)-> raw stdout
 | ---------------------------------- | -------------------------------------------------------- |
 | Property statements                | `CCFRaft/Properties.lean`                                |
 | Proof of each property             | `CCFRaft/Proof.lean`, one theorem per property           |
-| Node state and ledger functions    | `CCFRaft/Model/Node.lean`                                |
+| Log entries and log queries        | `CCFRaft/Model/Log.lean`                                 |
+| Membership configurations          | `CCFRaft/Model/Configuration.lean`                       |
+| Node state                         | `CCFRaft/Model/NodeState.lean`                           |
 | Messages between nodes             | `CCFRaft/Model/Messages.lean`                            |
 | Single-node protocol               | `CCFRaft/Model/Local.lean`                               |
 | Network composition                | `CCFRaft/Model.lean`, `CCFRaft/Shared/`                  |
@@ -38,7 +40,11 @@ marks `linguist-generated`.
 
 ## Model
 
-`Model/Node.lean` defines a node's state and the pure queries over its log.
+`Model/Log.lean` defines log entries and pure queries over a log, such as
+`termAt` and `maxCommittableIndex`. `Model/Configuration.lean` defines the
+`InitialConfig` and the membership configurations recorded in a log.
+`Model/NodeState.lean` defines a node's state and the queries over it.
+
 `configurationHistory config log` includes initial membership at index zero
 and reconfigurations at their one-based log positions.
 `activeConfigurations config log commitIndex` retains the last committed

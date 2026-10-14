@@ -2,6 +2,11 @@
 -- Licensed under the Apache 2.0 License.
 
 import CCFRaft.Model
+import CCFRaft.Model.Configuration
+import CCFRaft.Model.Local
+import CCFRaft.Model.Log
+import CCFRaft.Model.Messages
+import CCFRaft.Model.NodeState
 import Lean.Data.Json
 
 /-!

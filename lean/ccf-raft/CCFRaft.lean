@@ -1,7 +1,9 @@
 import CCFRaft.Model
+import CCFRaft.Model.Configuration
 import CCFRaft.Model.Local
+import CCFRaft.Model.Log
 import CCFRaft.Model.Messages
-import CCFRaft.Model.Node
+import CCFRaft.Model.NodeState
 import CCFRaft.Proof
 import CCFRaft.Proofs.CommittedLogs
 import CCFRaft.Proofs.Concrete

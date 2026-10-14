@@ -1,7 +1,10 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
+import CCFRaft.Model.Configuration
 import CCFRaft.Model.Local
+import CCFRaft.Model.Messages
+import CCFRaft.Model.NodeState
 import CCFRaft.Shared.MultiNodeTransitionSystem
 
 /-!

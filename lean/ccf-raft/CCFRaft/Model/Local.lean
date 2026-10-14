@@ -1,14 +1,17 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
+import CCFRaft.Model.Configuration
+import CCFRaft.Model.Log
 import CCFRaft.Model.Messages
+import CCFRaft.Model.NodeState
 
 /-!
 # Local node steps
 
-How one node reacts to an event, over the state in `Node.lean`. `step` is the
-entry point: `act` handles an `Input`, and `receive` handles a `Message` after
-`observeTerm` adopts any newer term it carries.
+How one node reacts to an event, over the state in `NodeState.lean`. `step` is
+the entry point: `act` handles an `Input`, and `receive` handles a `Message`
+after `observeTerm` adopts any newer term it carries.
 
 A step may send messages through `caps`. A failed `guard` means the event is
 disabled: the step has no effect and a received message stays in flight.
