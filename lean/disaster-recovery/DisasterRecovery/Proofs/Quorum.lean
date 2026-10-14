@@ -1,6 +1,10 @@
-import DisasterRecovery.Proofs.Predicates
-import DisasterRecovery.Proofs.Invariants
-import Mathlib.Tactic
+module
+
+public import DisasterRecovery.Proofs.Predicates
+public import DisasterRecovery.Proofs.Invariants
+public import Mathlib.Tactic
+
+@[expose] public section
 
 /-!
 Machine-checked proof implementations. Review the system-level statements in
@@ -121,7 +125,7 @@ lemma step_preserves_voting_selection
     simp [NodeVotingSelection, step, rejected, advance,
       advanceTimeoutLane, validTimeout] at before voting ⊢
   all_goals
-    repeat first | split at voting | split | simp_all | aesop
+    repeat first | split at voting | split | simp_all
 
 lemma retry_vote_state
     {config : Config}
@@ -176,7 +180,7 @@ lemma opening_effect_state
     simp [step, rejected, advance, advanceTimeoutLane, validTimeout]
       at opening ⊢
   all_goals
-    repeat first | split at opening | split | simp_all | aesop
+    repeat first | split at opening | split | simp_all
 
 lemma quorum_effect_has_threshold
     (config : Execution.Local.Config)

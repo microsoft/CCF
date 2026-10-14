@@ -1,5 +1,11 @@
-import DisasterRecovery.Proofs.Local
-import DisasterRecovery.Tests.Initial
+module
+
+import all Init.Data.List.Sort.Basic
+
+public import DisasterRecovery.Proofs.Local
+public import DisasterRecovery.Tests.Initial
+
+@[expose] public section
 
 namespace DisasterRecovery.Tests.Trace
 
