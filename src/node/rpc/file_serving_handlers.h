@@ -1293,7 +1293,7 @@ namespace ccf::node
         HTTP_HEAD,
         get_prefix_chunk,
         no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response(
         HTTP_STATUS_OK, "Metadata for the requested committed ledger prefix.")
       .add_openapi_response(
@@ -1317,7 +1317,7 @@ namespace ccf::node
         HTTP_GET,
         get_prefix_chunk,
         no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response<ds::openapi::Binary>(
         HTTP_STATUS_OK, "The requested committed ledger prefix.")
       .add_openapi_response<ds::openapi::Binary>(
