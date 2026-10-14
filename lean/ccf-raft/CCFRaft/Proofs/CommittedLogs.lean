@@ -4,8 +4,6 @@
 import CCFRaft.Proofs.Direct.AppendOnly
 import CCFRaft.Proofs.Invariant.Reachable
 
-set_option autoImplicit false
-
 /-!
 Committed logs anywhere in a trace are prefix-comparable. Carry the earlier
 state's node forward to the later state, where its committed log has only

@@ -4,8 +4,6 @@
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Finset.Lattice.Fold
 
-set_option autoImplicit false
-
 /-!
 # Consensus state and replicated log
 

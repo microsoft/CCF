@@ -4,8 +4,6 @@
 import CCFRaft.Model.Node
 import CCFRaft.Shared.Capabilities
 
-set_option autoImplicit false
-
 /-!
 # Messages between nodes
 

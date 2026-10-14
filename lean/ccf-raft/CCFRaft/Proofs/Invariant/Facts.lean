@@ -13,8 +13,6 @@ open CCFRaft.Model.Local (
     retirementIndexInLog termAt
   )
 
-set_option autoImplicit false
-
 open CCFRaft.Proofs.Config
 
 namespace CCFRaft.Proofs.Invariant

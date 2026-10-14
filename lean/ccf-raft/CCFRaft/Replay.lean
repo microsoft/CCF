@@ -4,8 +4,6 @@
 import CCFRaft.Model
 import Lean.Data.Json
 
-set_option autoImplicit false
-
 /-!
 Replays reduced `raft_driver` executions through `Model.transitionSystem`.
 Every declared node is in the network from the start. A `receive` delivers the

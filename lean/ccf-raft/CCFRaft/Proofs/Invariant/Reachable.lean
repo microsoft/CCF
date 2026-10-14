@@ -4,8 +4,6 @@
 import CCFRaft.Proofs.Invariant.Receive
 import CCFRaft.Proofs.Invariant.Preservation.Initial
 
-set_option autoImplicit false
-
 /-!
 # The invariant on reachable concrete states
 

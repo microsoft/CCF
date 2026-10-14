@@ -3,8 +3,6 @@
 
 import CCFRaft.Properties.Utils
 
-set_option autoImplicit false
-
 /-!
 Each claim quantifies every node and transaction identifier type, every
 explicit `InitialConfig` value, every node list, and every valid trace of

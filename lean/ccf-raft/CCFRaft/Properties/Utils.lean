@@ -4,8 +4,6 @@
 import CCFRaft.Model
 import CCFRaft.Shared.Execution
 
-set_option autoImplicit false
-
 namespace CCFRaft.Properties
 
 /-- The states of one execution of the network, initial state first. -/

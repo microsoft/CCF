@@ -4,8 +4,6 @@
 import CCFRaft.Properties
 import CCFRaft.Proofs.Concrete
 
-set_option autoImplicit false
-
 /-!
 Concrete executions satisfying the premises of each property. The kernel
 evaluates every step, so each witness is a real trace of the model.

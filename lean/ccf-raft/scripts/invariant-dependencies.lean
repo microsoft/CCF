@@ -3,8 +3,6 @@
 
 import CCFRaft.Proof
 
-set_option autoImplicit false
-
 /-!
 Print the kernel dependency closure of the public safety proofs, restricted to
 the invariant namespace. Run from the package directory:

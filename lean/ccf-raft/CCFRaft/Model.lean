@@ -4,8 +4,6 @@
 import CCFRaft.Model.Local
 import CCFRaft.Shared.MultiNodeTransitionSystem
 
-set_option autoImplicit false
-
 /-!
 # CCF Raft network
 

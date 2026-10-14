@@ -4,7 +4,6 @@
 import CCFRaft.Proofs.Invariant.Facts
 import CCFRaft.Proofs.Invariant.HandlerFacts
 
-set_option autoImplicit false
 set_option linter.unusedSectionVars false
 set_option linter.unusedSimpArgs false
 set_option maxHeartbeats 700000

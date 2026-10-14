@@ -3,7 +3,6 @@
 
 import CCFRaft.Proofs.Invariant.Internal
 
-set_option autoImplicit false
 set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
 set_option linter.unusedSimpArgs false

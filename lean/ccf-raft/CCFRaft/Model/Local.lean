@@ -3,8 +3,6 @@
 
 import CCFRaft.Model.Messages
 
-set_option autoImplicit false
-
 /-!
 # Local node steps
 

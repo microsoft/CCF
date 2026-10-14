@@ -5,7 +5,6 @@ import CCFRaft.Proofs.Invariant.Facts
 import CCFRaft.Proofs.Invariant.NodeFacts
 import CCFRaft.Proofs.Ledger
 
-set_option autoImplicit false
 set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
 set_option linter.unusedSimpArgs false

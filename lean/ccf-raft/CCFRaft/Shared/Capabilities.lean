@@ -2,6 +2,8 @@ import Std
 
 namespace CCFRaft.Shared
 
+variable {Node Message Notification : Type}
+
 /-!
 A protocol node cannot see the network. It gets a `Capabilities` record with
 two output-only callbacks, `send` and `notify`, and runs in the `Effect` monad,

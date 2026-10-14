@@ -3,7 +3,6 @@
 
 import CCFRaft.Proofs.Direct.Framework
 
-set_option autoImplicit false
 set_option linter.unusedSectionVars false
 
 namespace CCFRaft.Proofs.Invariant

@@ -4,7 +4,6 @@
 import CCFRaft.Proofs.Direct.CommitFrontier
 import CCFRaft.Properties
 
-set_option autoImplicit false
 set_option linter.unusedSectionVars false
 
 /-!

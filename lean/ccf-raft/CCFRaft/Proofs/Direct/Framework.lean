@@ -3,7 +3,6 @@
 
 import CCFRaft.Proofs.Concrete
 
-set_option autoImplicit false
 set_option linter.unusedSectionVars false
 
 /-!

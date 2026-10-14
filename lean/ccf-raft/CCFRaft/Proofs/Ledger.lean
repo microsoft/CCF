@@ -4,7 +4,6 @@
 import CCFRaft.Proofs.Config
 import Mathlib.Tactic
 
-set_option autoImplicit false
 set_option linter.unusedSectionVars false
 
 /-! Lemmas about node-level log functions, shared by every proof. -/

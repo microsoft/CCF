@@ -5,7 +5,6 @@ import CCFRaft.Proofs.Invariant.Preservation.Local
 import CCFRaft.Proofs.Invariant.StateFacts
 import CCFRaft.Proofs.Direct.CommitFrontier
 
-set_option autoImplicit false
 set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
 set_option linter.unusedSimpArgs false

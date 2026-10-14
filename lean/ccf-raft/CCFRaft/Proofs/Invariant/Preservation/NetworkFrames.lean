@@ -5,7 +5,6 @@ import CCFRaft.Proofs.Invariant.Preservation.StepDown
 import CCFRaft.Proofs.Ledger
 import CCFRaft.Proofs.Invariant.AckFacts
 
-set_option autoImplicit false
 set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
 set_option linter.unusedSimpArgs false

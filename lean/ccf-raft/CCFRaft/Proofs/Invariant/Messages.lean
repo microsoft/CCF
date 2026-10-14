@@ -3,8 +3,6 @@
 
 import CCFRaft.Proofs.Invariant.State
 
-set_option autoImplicit false
-
 namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config

@@ -14,7 +14,6 @@ open CCFRaft.Model.Local (
     retirementIndexInLog termAt
   )
 
-set_option autoImplicit false
 set_option linter.unusedSectionVars false
 
 /-!

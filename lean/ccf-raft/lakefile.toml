@@ -1,6 +1,7 @@
 name = "ccf_raft"
 version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true"]
+leanOptions = { autoImplicit = false }
 # Quote the hyphenated executable name for Lean's name parser.
 lintDriver = "axiomAudit/\u00abaxiom-audit\u00bb"
 lintDriverArgs = ["--root", "CCFRaft"]

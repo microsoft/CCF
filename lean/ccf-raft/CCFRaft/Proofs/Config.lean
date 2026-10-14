@@ -3,8 +3,6 @@
 
 import CCFRaft.Model.Local
 
-set_option autoImplicit false
-
 /-!
 Proof-only configuration shorthand. The model takes an explicit `InitialConfig`
 value; proofs use instance inference to avoid repeating that value in every

@@ -3,6 +3,8 @@ import CCFRaft.Shared.Capabilities
 
 namespace CCFRaft.Shared.MultiNodeTransitionSystem
 
+variable {Node LocalState LocalAction Message Notification Input α : Type}
+
 /-!
 Composes copies of one local protocol into a message-passing network. The
 network is a multiset of envelopes; delivery picks any queued envelope, not

@@ -5,7 +5,6 @@ import CCFRaft.Proofs.Direct.Framework
 import CCFRaft.Properties
 import CCFRaft.Proofs.Ledger
 
-set_option autoImplicit false
 set_option linter.unusedSectionVars false
 
 /-!

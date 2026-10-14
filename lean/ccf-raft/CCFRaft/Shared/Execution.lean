@@ -2,6 +2,8 @@ import CCFRaft.Shared.TransitionSystem
 
 namespace CCFRaft.Shared.Execution
 
+variable {State Action : Type}
+
 /-!
 Finite executions of a `TransitionSystem`. `Run` relates a start state, an
 action list, and an end state. `Trace` is the state list an execution passes
