@@ -128,15 +128,15 @@ File: `tla-shallow.yml`
 
 Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
 
-The disaster recovery job explicitly builds the library, canonical checks, and replayer with `lake build --wfail --fail-fast DisasterRecovery canonical-checks disaster-recovery-replay`, audits its transitive axiom dependencies with `lake lint`, and runs its executable canonical behavior checks on Ubuntu 26.04 on relevant pull requests.
-The build and audit include both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
-The standard `mk_all --check --module` command ensures that the modular audit root imports every library module, so newly added proofs cannot silently escape the checks.
+The disaster recovery job explicitly builds the library, canonical checks, and replayer with `lake build --wfail --fail-fast DisasterRecovery canonical-checks disaster-recovery-replay`, runs Lean's built-in linters with `lake lint`, and runs its executable canonical behavior checks on Ubuntu 26.04 on relevant pull requests.
+The build includes both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
+The standard `mk_all --check --module` command ensures that the modular library root imports every library module, so newly added proofs cannot silently escape the checks.
 
 The kernel-check matrix runs `lake check` in a `bubblewrap` sandbox on Ubuntu 26.04 for the model and standalone replayer packages.
 The packages are checked separately because their executable entrypoints both define `main`.
 The replayer uses [`check-kernel.sh`](../../lean/disaster-recovery/replayer/check-kernel.sh) to stage its shared sources inside the sandboxed package.
 The matrix builds and exports every default target, including the complete library import root and replayer, and requires Lean's kernel to accept the declarations with only the standard axioms.
-This supplements rather than replaces the build, axiom audit, linters, and executable tests.
+This provides the axiom-dependency check and supplements the build, linters, and executable tests.
 Temporary exports use disk-backed runner storage rather than `/tmp`.
 Additional bundled checkers are not enabled.
 
@@ -152,7 +152,7 @@ The workflow runs on pull requests that change `lean/`, any `.lean` file, the fo
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
-3rd party dependencies: Mathlib, axiom-audit, leanfmt (pinned in the Lake package), elan, and bubblewrap.
+3rd party dependencies: Mathlib and leanfmt (pinned in the Lake package), elan, and bubblewrap.
 
 # Vendored Dependency Verification
 

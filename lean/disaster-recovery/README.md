@@ -19,7 +19,7 @@ This package contains a Lean model of CCF's recovery decision protocol (`src/nod
 | Replayer executable and test traces   | `replayer/`                                             |
 
 Human review covers the model, the property statements, the definitions they use, and the theorem links in `Proof.lean`.
-The proof implementations under `Proofs/` are verified by the build and the axiom audit and are marked `linguist-generated` in `.gitattributes`.
+The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
 
 ## Model
 
@@ -91,7 +91,7 @@ cd replayer
 
 `--wfail` treats all build warnings, including `sorry`, as errors.
 `--fail-fast` stops scheduling new build jobs after the first failure.
-`lake lint` runs Lean's built-in linters and [axiom-audit](https://github.com/leanprover-community/axiom-audit); only `propext`, `Classical.choice`, and `Quot.sound` are permitted.
+`lake lint` runs Lean's built-in linters.
 Both Lake packages enable the complete `linter.extra` set (duplicated namespaces, unnecessary `<;>`, unreachable tactics, and unused decidability instances), plus `linter.missingDocs`, `linter.omit`, `linter.loopingSimpArgs`, `linter.redundantVisibility`, and `linter.unusedVariables.analyzeTactics`.
 These supplement Lean's default checks, and linter findings fail validation.
 The options are set in each `lakefile.toml` so ordinary builds use them too; `lake lint` also runs the environment checks on the built declarations.
@@ -115,10 +115,10 @@ The explicit build includes the replayer so its declarations are available to th
 The main package's default targets are the library and canonical checks.
 The two executables both define `main`, so `lake check` must verify them in separate packages rather than importing both entrypoints into one environment.
 
-`lake check`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/latest/releases/v4.35.0/), builds and exports all default targets in a sandbox, then rechecks the export with Lean's kernel.
-The kernel must accept the declarations, using only the same three standard axioms as the audit.
+`lake check`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/4.35.0/releases/v4.35.0/), builds and exports all default targets in a sandbox, then rechecks the export with Lean's kernel.
+It also checks axiom dependencies, rejecting any use of axioms other than `propext`, `Classical.choice`, and `Quot.sound`, so a separate axiom-audit dependency is unnecessary.
 The main package includes the complete library import root and canonical tests, not just the exported property theorems; the standalone package checks the replayer.
-These supplement the axiom audit, import and proof coverage checks, and executable model and trace tests.
+These supplement the import and proof coverage checks and executable model and trace tests.
 The sandbox requires Linux and `bubblewrap` (`sudo apt-get install bubblewrap`), with unprivileged user namespaces enabled or a setuid installation.
 CI checks both packages in an Ubuntu 26.04 job matrix without disabling the sandbox, using disk-backed temporary storage.
 Additional bundled checkers are not enabled.
