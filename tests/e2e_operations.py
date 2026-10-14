@@ -2167,6 +2167,27 @@ def run_sighup_check(const_args):
 
 
 def run_runtime_lifecycle_checks(args):
+    def assert_log_order(output, *messages):
+        offset = 0
+        for message in messages:
+            index = output.find(message, offset)
+            assert (
+                index >= 0
+            ), f"Expected {message!r} after offset {offset} in:\n{output}"
+            offset = index + len(message)
+
+    shutdown_sequence = (
+        "Created new node",
+        "Output self-signed node certificate",
+        "Entering event loop",
+        "SIGTERM: Shutting down enclave gracefully...",
+        "Stopping RPC transports",
+        "Enclave stopped successfully. Stopping host...",
+        "Exited event loop",
+        "Shutting down enclave",
+        "cleanup iteration(s)",
+    )
+
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
@@ -2176,8 +2197,7 @@ def run_runtime_lifecycle_checks(args):
         out, _ = node.remote.get_logs()
         with open(out, encoding="utf-8") as f:
             output = f.read()
-        assert "Shutting down enclave" in output, output
-        assert "cleanup iteration(s)" in output, output
+        assert_log_order(output, *shutdown_sequence)
         assert "Failed to close uv loop" not in output, output
 
         root = pathlib.Path(node.remote.remote.root).resolve()
@@ -2273,8 +2293,7 @@ def run_runtime_lifecycle_checks(args):
                                     proc.wait()
                             out.seek(0)
                             output = out.read()
-                        assert "Shutting down enclave" in output, output
-                        assert "cleanup iteration(s)" in output, output
+                        assert_log_order(output, *shutdown_sequence)
                         assert "Failed to close uv loop" not in output, output
                         continue
                     result = subprocess.run(
@@ -2287,13 +2306,22 @@ def run_runtime_lifecycle_checks(args):
                         check=False,
                     )
                 assert result.returncode == 1, result
-                assert "Error starting node:" in result.stdout, result
-                assert "Shutting down enclave" in result.stdout, result
-                assert "cleanup iteration(s)" in result.stdout, result
-                assert "Failed to close uv loop" not in result.stdout, result
                 if failure == "output":
-                    assert "Created new node" in result.stdout, result
-                    assert "Failed to open file" in result.stdout, result
+                    startup_sequence = (
+                        "Created new node",
+                        "Error starting node: Failed to open file",
+                    )
+                else:
+                    startup_sequence = ("Error starting node:",)
+                    assert "Created new node" not in result.stdout, result
+                assert_log_order(
+                    result.stdout,
+                    *startup_sequence,
+                    "Shutting down enclave",
+                    "cleanup iteration(s)",
+                )
+                assert "Entering event loop" not in result.stdout, result
+                assert "Failed to close uv loop" not in result.stdout, result
 
 
 def run_configuration_file_checks(args):
