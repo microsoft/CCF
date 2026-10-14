@@ -626,6 +626,7 @@ class Node:
         timeout=5,
         local_only=False,
         start_seqno=None,
+        include_committed_prefix=False,
     ):
         ledger_paths = []
 
@@ -641,6 +642,14 @@ class Node:
             chunk_path = os.path.join(ledger_dir, chunk_name)
             with open(chunk_path, "wb") as chunk_file:
                 chunk_file.write(response.body.data())
+            # A canonical chunk may replace prefixes downloaded before its
+            # promotion. Keep only the new, complete representation.
+            while (
+                ledger_paths
+                and ledger_paths[-1].endswith(ccf.ledger.COMMITTED_PREFIX_FILE_SUFFIX)
+                and ccf.ledger.range_from_filename(ledger_paths[-1])[0] >= start_seqno
+            ):
+                ledger_paths.pop()
             ledger_paths.append(chunk_path)
             return end_seqno
 
@@ -657,9 +666,12 @@ class Node:
         ) as c:
 
             def get_chunk(seqno, allow_redirects):
+                locator = f"/node/ledger_chunk?since={seqno}"
+                if include_committed_prefix:
+                    locator += "&include_committed_prefix=true"
                 try:
                     return c.get(
-                        f"/node/ledger_chunk?since={seqno}",
+                        locator,
                         allow_redirects=allow_redirects,
                     )
                 except (
@@ -676,7 +688,11 @@ class Node:
                 if (
                     local_only
                     and r is not None
-                    and r.status_code == http.HTTPStatus.PERMANENT_REDIRECT
+                    and r.status_code
+                    in (
+                        http.HTTPStatus.PERMANENT_REDIRECT,
+                        http.HTTPStatus.TEMPORARY_REDIRECT,
+                    )
                 ):
                     chunk_url = urllib.parse.urlparse(r.headers["Location"])
                     if chunk_url.query:
@@ -730,6 +746,7 @@ class Node:
         timeout=5,
         local_only=False,
         start_seqno=None,
+        include_committed_prefix=False,
     ):
         with tempfile.TemporaryDirectory(
             prefix=f"{self.local_node_id}.ledger.downloaded.",
@@ -741,6 +758,7 @@ class Node:
                 timeout=timeout,
                 local_only=local_only,
                 start_seqno=start_seqno,
+                include_committed_prefix=include_committed_prefix,
             )
 
     @contextmanager

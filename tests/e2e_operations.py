@@ -1608,6 +1608,25 @@ def test_committed_ledger_prefix_access(network, args):
         ).decode()
         assert r.headers["repr-digest"] == f"sha-256=:{expected_digest}:"
 
+        for local_only in (False, True):
+            with primary.download_ledger(
+                first_end,
+                start_seqno=first_start,
+                local_only=local_only,
+                include_committed_prefix=True,
+            ) as ledger_paths:
+                assert len(ledger_paths) == 1, ledger_paths
+                downloaded_chunk = ccf.ledger.LedgerChunk(ledger_paths[0])
+                downloaded_start, downloaded_end = downloaded_chunk.get_seqnos()
+                assert downloaded_start == first_start
+                assert downloaded_end >= first_end
+                assert ledger_paths[0].endswith(
+                    ccf.ledger.COMMITTED_PREFIX_FILE_SUFFIX
+                ), ledger_paths
+                assert any(
+                    tx.get_txid() == first_txid for tx in downloaded_chunk
+                ), first_txid
+
         range_end = min(31, prefix_size - 1)
         r = c.get(
             prefix_url,
@@ -1708,6 +1727,22 @@ def test_committed_ledger_prefix_access(network, args):
             allow_redirects=False,
         )
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+
+        network.create_and_wait_for_ledger_chunk(primary)
+        canonical_response = c.get(locator, allow_redirects=True)
+        assert canonical_response.status_code == http.HTTPStatus.OK, canonical_response
+        canonical_name = canonical_response.headers["x-ms-ccf-ledger-chunk-name"]
+        assert canonical_name.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX), canonical_name
+
+        with primary.download_ledger(
+            second_txid.seqno,
+            start_seqno=first_start,
+            include_committed_prefix=True,
+        ) as ledger_paths:
+            assert [os.path.basename(p) for p in ledger_paths] == [canonical_name]
+            txids = [tx.get_txid() for tx in ccf.ledger.LedgerChunk(ledger_paths[0])]
+            assert txids.count(first_txid) == 1, txids
+            assert txids.count(second_txid) == 1, txids
 
 
 def test_ledger_chunk_redirect_recent(network, args):
