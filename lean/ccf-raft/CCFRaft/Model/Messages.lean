@@ -7,30 +7,12 @@ import CCFRaft.Shared.Capabilities
 /-!
 # Messages between nodes
 
-CCF nodes coordinate only by sending messages to each other. This file defines
-the contents of those messages; `Local.lean` defines how nodes create and
-handle them, and `Model.lean` defines the network that carries them. Every
-message carries the sender's current term, read by `Message.term`, so that a
-receiver can notice a newer term or discard a stale message.
+AppendEntries replicates log entries (an empty batch is a heartbeat);
+RequestVote runs elections, with pre-vote variants that do not advance the
+term. `proposeVoteRequest` asks a node to start an election. Every message
+carries the sender's term, read by `Message.term`.
 
-Replication uses AppendEntries. A leader sends an `AppendEntriesRequest`
-carrying a batch of log entries, the position of the entry just before that
-batch, and the leader's commit index. An empty batch serves as a heartbeat.
-The follower answers with an `AppendEntriesResponse`: an acknowledgement
-reporting how far its log matches the leader's, or a rejection.
-
-Elections use RequestVote. A candidate sends a `RequestVoteRequest` describing
-its last committable log position, and each voter answers with a
-`RequestVoteResponse` saying whether it grants its vote. Pre-vote rounds reuse
-the same request and response contents under separate message constructors,
-so that support can be gathered without advancing the term. A leader can also
-send `proposeVoteRequest` to ask a chosen node to start an election, for
-example when the leader is retiring.
-
-`Caps` and `NodeEffect` describe what one node step may do with the outside
-world: it can only send these messages, or fail when the step is disabled.
-Nodes emit no notifications. This file shares the `CCFRaft.Model.Local`
-namespace with `Node.lean` and `Local.lean`.
+`NodeEffect` is what a step may do: send messages through `Caps`, or fail.
 -/
 
 namespace CCFRaft.Model.Local

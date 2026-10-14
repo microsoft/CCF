@@ -5,30 +5,14 @@ import Mathlib.Data.Finset.Card
 import Mathlib.Data.Finset.Lattice.Fold
 
 /-!
-# Consensus state and replicated log
+# Node state and log queries
 
-CCF nodes agree on an ordered log of transactions. A leader accepts new
-transactions and sends log entries to followers, which keep their own copies.
-Nodes elect a replacement leader when needed. Elections are numbered by
-`term`; each log entry records the term in which it was written.
+One node's consensus state and pure queries over its log, given the
+`InitialConfig`. Log positions are one-based; index zero is the empty prefix.
+`commitIndex` ends the committed prefix. Configurations are log entries, and
+several can be active while a change is uncommitted.
 
-A log entry is not necessarily committed. Leaders append signature entries
-to make log prefixes eligible for commitment, and replication quorums determine
-when a leader can commit them. `commitIndex` marks the end of a node's committed
-prefix. Log positions are one-based; index zero denotes an empty prefix.
-
-Membership changes are also log entries. A configuration names the nodes
-whose votes and replication acknowledgements count toward a quorum. Several
-configurations can remain active while a change is uncommitted. Removing a
-node progresses through retirement phases rather than immediately discarding
-its protocol state.
-
-The types and helpers below describe these concepts using only one node's
-state and the initial configuration supplied by `InitialConfig`. They do not
-perform protocol steps. `Messages.lean` defines the packets nodes exchange,
-`Local.lean` defines the elections, replication, and other events that change
-this state, and `Model.lean` connects the nodes through a network. The
-node-level files share the `CCFRaft.Model.Local` namespace.
+No protocol steps here: `Local.lean` defines those.
 -/
 
 namespace CCFRaft.Model.Local

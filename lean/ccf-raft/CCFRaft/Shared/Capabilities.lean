@@ -5,14 +5,10 @@ namespace CCFRaft.Shared
 variable {Node Message Notification : Type}
 
 /-!
-A protocol node cannot see the network. It gets a `Capabilities` record with
-two output-only callbacks, `send` and `notify`, and runs in the `Effect` monad,
-which accumulates those outputs and can fail. Failure means the step is
-disabled; it discards both the new state and any outputs emitted before the
-failure. The host that runs the node decides what
-the callbacks do. `Capabilities.record` is the canonical host: it appends each
-send and notification to an `Outputs` record, which the network and the
-property statements then read.
+A node runs in `Effect`, which can only emit outputs through the `send` and
+`notify` callbacks in `Capabilities`, or fail. Failure means the step is
+disabled and discards any outputs. `Capabilities.record` collects outputs in
+an `Outputs` record for the network to read.
 -/
 
 /-- A message in flight from `source` to `target`. -/
