@@ -15,10 +15,10 @@ concurrency:
 permissions: read-all
 
 jobs:
-  ccf-raft:
-    name: CCF Raft model and properties
+  models:
+    name: Lean models and proofs
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -29,16 +29,22 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y elan
-          elan toolchain install "$(cat lean/ccf-raft/lean-toolchain)"
+          for toolchain in lean/*/lean-toolchain; do
+            elan toolchain install "$(cat "$toolchain")"
+          done
 
-      - name: Restore Mathlib cache
-        working-directory: lean/ccf-raft
+      - name: Check Lean formatting
+        run: ./scripts/lean-format-checks.sh
+
+      - name: Restore Mathlib caches
         shell: bash
         run: |
           set -euo pipefail
-          lake exe cache get
+          for package in ccf-raft disaster-recovery; do
+            (cd "lean/$package" && lake exe cache get)
+          done
 
-      - name: Build model and check properties layer
+      - name: Build CCF Raft model and properties
         working-directory: lean/ccf-raft
         shell: bash
         run: |
@@ -48,10 +54,7 @@ jobs:
           lake lint
           lake exe canonical-checks
 
-      - name: Check Lean formatting
-        run: ./scripts/lean-format-checks.sh ccf-raft
-
-      - name: Check with Lean's kernel
+      - name: Check CCF Raft with Lean's kernel
         working-directory: lean/ccf-raft
         shell: bash
         run: |
@@ -59,30 +62,7 @@ jobs:
           export TMPDIR="$RUNNER_TEMP"
           lake check --inadvisably-no-sandbox
 
-  disaster-recovery:
-    name: Disaster recovery model and proofs
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Lean
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y elan
-          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
-
-      - name: Restore Mathlib cache
-        working-directory: lean/disaster-recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          lake exe cache get
-
-      - name: Build and check canonical model
+      - name: Build and check disaster recovery model
         working-directory: lean/disaster-recovery
         shell: bash
         run: |
@@ -91,7 +71,7 @@ jobs:
           lake build --wfail --fail-fast
           lake lint
 
-      - name: Check Mathlib linters
+      - name: Check disaster recovery Mathlib linters
         working-directory: lean/disaster-recovery
         shell: bash
         run: |
@@ -116,9 +96,6 @@ jobs:
       - name: Dump replays for the trace viewer
         shell: bash
         run: python3 lean/disaster-recovery/replayer/viewer/build.py
-
-      - name: Check Lean formatting
-        run: ./scripts/lean-format-checks.sh disaster-recovery
 
   kernel-checks:
     name: Kernel checks (disaster-recovery)
