@@ -1,7 +1,6 @@
 # CCF Raft model
 
-This Lake package is an executable Lean model of CCF's Raft implementation (`src/consensus/aft/raft.h`), together with the safety properties it is intended to satisfy.
-The properties are stated but not yet proved.
+This Lake package is an executable Lean model of CCF's Raft implementation (`src/consensus/aft/raft.h`), together with the safety properties it is intended to satisfy and Lean proofs of those properties.
 
 ## Layout
 
@@ -14,6 +13,8 @@ The properties are stated but not yet proved.
 | `CCFRaft/Model.lean`               | Composition of nodes into a network                            |
 | `CCFRaft/Properties.lean`          | Safety property statements and their witnesses                 |
 | `CCFRaft/Properties/Utils.lean`    | Definitions used by the statements                             |
+| `CCFRaft/Proof.lean`               | Exported theorem for each property and witness                 |
+| `CCFRaft/Proofs/`                  | Proof implementations                                          |
 | `CCFRaft/Tests/`                   | Regression theorems, behavior checks and import-boundary rules |
 | `CCFRaft.lean`                     | Generated root importing every module                          |
 
@@ -40,6 +41,7 @@ The Lean CI workflow runs the same commands.
 - `mk_all --check` fails if `CCFRaft.lean` does not import every module.
 - `lake build --wfail` builds the library and the `canonical-checks` executable, treating warnings, including `sorry`, as errors.
 - `lake exe canonical-checks` runs executable behavior checks of the model.
+- `Tests/ProofCoverage.lean` fails the build unless every property has an exported theorem in `Proof.lean` and a `Witness` statement.
 - `lake check` re-checks all default targets with Lean's kernel and fails on any axiom other than `propext`, `Classical.choice` and `Quot.sound`.
   It runs without sandbox isolation, so build-time code must be trusted; Lake prints a warning saying so.
 - The formatting script runs the pinned [leanfmt](https://github.com/duckki/leanfmt).
@@ -51,11 +53,29 @@ The Lean CI workflow runs the same commands.
 - `CommittedLogsPrefix`: any two committed logs in a trace are prefix-comparable.
 - `CommittedFrontierIsSignature`: every positive commit index points to a signature.
 
-Each has a `Witness` statement asserting that some valid trace reaches the situation the property constrains, such as two distinct leaders, so that a later proof is not vacuous.
+Each has a `Witness` statement asserting that some valid trace reaches the situation the property constrains, such as two distinct leaders, so that the proofs are not vacuous.
+The election witness has two distinct leaders without requiring equal terms; it does not witness the safety property's entire antecedent.
 Liveness is not stated.
 
-Modules are layered in order: `ccf_common`, then the model, then the properties.
+Modules are layered in order: `ccf_common`, then the model, then the properties, then the proofs.
 A module may import only from its own layer or an earlier one, and nothing may import a proof module or a package-local `CCFRaft.Shared` copy of `ccf_common`.
 `Tests/Architecture.lean` enforces this ordering when the package builds.
 
 After adding or removing a module, regenerate `CCFRaft.lean` with `lake exe mk_all --module --lib CCFRaft`.
+
+## Proofs
+
+`Proof.lean` proves each property and witness in `Properties.lean`.
+The proofs target the current `Model.transitionSystem` directly, with no refinement to another model.
+They say nothing about liveness, fairness, or the C++ implementation.
+
+- `Proofs/Direct/` proves node-local facts: commit bounds, signature commit frontiers, and committed-log growth.
+  `NodeInvariant` lifts a predicate preserved by every local step to every node of every reachable state.
+- `Proofs/Safety/` proves a cross-node invariant over the execution history: terms led, entries accepted and acknowledged, and messages sent.
+  `Summary.lean` and `Step.lean` summarize each node step once; the invariant clauses are proved from those summaries.
+  Reconfiguration and retirement facts come from each transaction's ordered effects, so several configurations may share one log index.
+- `Proofs/Election.lean` and `Proofs/CommittedLogs.lean` derive `ElectionSafety` and `CommittedLogsPrefix` from that invariant.
+- `Proofs/Witnesses.lean` proves the witnesses with concrete executions evaluated by the kernel.
+
+[`scripts/invariant-dependencies.lean`](scripts/invariant-dependencies.lean) lists the `Proofs.Safety` declarations in the kernel dependency closure of the exported theorems, to help remove unused lemmas.
+Run it with `lake env lean scripts/invariant-dependencies.lean`.
