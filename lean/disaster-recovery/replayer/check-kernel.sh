@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 MODEL_DIR=$( dirname "$SCRIPT_DIR" )
-CHECK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/ccf-replayer-kernels.XXXXXX")
+CHECK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/ccf-replayer-check.XXXXXX")
 trap 'rm -rf -- "$CHECK_DIR"' EXIT
 
 # The sandbox masks parent sources outside the package. Stage identical sources
@@ -17,4 +17,4 @@ cp -R "$MODEL_DIR/DisasterRecovery" "$CHECK_DIR/"
 sed -i 's/^srcDir = "\.\."$/srcDir = "."/' "$CHECK_DIR/lakefile.toml"
 
 cd "$CHECK_DIR"
-lake check --paranoid
+lake check

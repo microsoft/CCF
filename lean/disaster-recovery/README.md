@@ -84,9 +84,9 @@ lake build --wfail --fail-fast DisasterRecovery canonical-checks disaster-recove
 lake lint
 lake exe canonical-checks
 lake exe runLinter --no-build DisasterRecovery replayer.Main
-lake check --paranoid
+lake check
 cd replayer
-./check-kernels.sh
+./check-kernel.sh
 ```
 
 `--wfail` treats all build warnings, including `sorry`, as errors.
@@ -112,14 +112,14 @@ The explicit build includes the replayer so its declarations are available to th
 The main package's default targets are the library and canonical checks.
 The two executables both define `main`, so `lake check` must verify them in separate packages rather than importing both entrypoints into one environment.
 
-`lake check --paranoid`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/latest/releases/v4.35.0/), builds and exports all default targets in a sandbox, then rechecks the export with Lean's kernel and every bundled checker: `leanchecker-paranoid`, `lean4lean`, `nanoda`, `con-leche`, and `con-ron`.
-Every checker must accept the declarations, using only the same three standard axioms as the audit.
+`lake check`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/latest/releases/v4.35.0/), builds and exports all default targets in a sandbox, then rechecks the export with Lean's kernel.
+The kernel must accept the declarations, using only the same three standard axioms as the audit.
 The main package includes the complete library import root and canonical tests, not just the exported property theorems; the standalone package checks the replayer.
 These supplement the axiom audit, import and proof coverage checks, and executable model and trace tests.
 The sandbox requires Linux and `bubblewrap` (`sudo apt-get install bubblewrap`), with unprivileged user namespaces enabled or a setuid installation.
-CI checks both packages in a job matrix without disabling the sandbox.
-Kernel checks use the existing 64 GiB VMSS pool and disk-backed temporary storage; Nanoda exceeds the local 11 GiB memory limit even for the standalone replayer.
-The replayer's `check-kernels.sh` stages identical shared sources inside its package, changing only their relative source directory, because the sandbox cannot read its usual parent source directory.
+CI checks both packages in an Ubuntu 26.04 job matrix without disabling the sandbox, using disk-backed temporary storage.
+Additional bundled checkers are not enabled.
+The replayer's `check-kernel.sh` stages identical shared sources inside its package, changing only their relative source directory, because the sandbox cannot read its usual parent source directory.
 
 `Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof module or if a removed name is reintroduced.
 See [Formatting](#formatting) for the [leanfmt](https://github.com/duckki/leanfmt) check.

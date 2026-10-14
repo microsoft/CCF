@@ -132,13 +132,13 @@ The disaster recovery job explicitly builds the library, canonical checks, and r
 The build and audit include both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check --module` command ensures that the modular audit root imports every library module, so newly added proofs cannot silently escape the checks.
 
-The independent kernel-check matrix runs `lake check --paranoid` in a `bubblewrap` sandbox on the 64 GiB `gha-vmss-d16av7-ci` pool for the model and standalone replayer packages.
+The kernel-check matrix runs `lake check` in a `bubblewrap` sandbox on Ubuntu 26.04 for the model and standalone replayer packages.
 The packages are checked separately because their executable entrypoints both define `main`.
-The replayer uses [`check-kernels.sh`](../../lean/disaster-recovery/replayer/check-kernels.sh) to stage its shared sources inside the sandboxed package.
-The matrix builds and exports every default target, including the complete library import root and replayer, and requires Lean's kernel and all bundled external checkers to accept the declarations with only the standard axioms.
+The replayer uses [`check-kernel.sh`](../../lean/disaster-recovery/replayer/check-kernel.sh) to stage its shared sources inside the sandboxed package.
+The matrix builds and exports every default target, including the complete library import root and replayer, and requires Lean's kernel to accept the declarations with only the standard axioms.
 This supplements rather than replaces the build, axiom audit, linters, and executable tests.
-The larger pool accommodates the independent kernels' memory use, and temporary exports use disk-backed runner storage rather than `/tmp`.
-Native Azure Linux jobs install `bubblewrap` with `tdnf` and bootstrap checksum-pinned elan 4.2.4 in a per-job temporary directory.
+Temporary exports use disk-backed runner storage rather than `/tmp`.
+Additional bundled checkers are not enabled.
 
 The disaster recovery job also checks the records of the recovery trace fixtures in `lean/disaster-recovery/replayer/fixtures` against `trace.schema.json`, with `check-schema.py`.
 It then builds `disaster-recovery-replay`, from its own Lake package in `lean/disaster-recovery/replayer`, which has no dependencies, and runs its `check-fixtures.sh`.
@@ -152,7 +152,7 @@ The workflow runs on pull requests that change `lean/`, any `.lean` file, the fo
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
-3rd party dependencies: Mathlib, axiom-audit, leanfmt (pinned in the Lake package), elan (checksum-pinned in the kernel job), bubblewrap, and the kernel checkers bundled with Lean.
+3rd party dependencies: Mathlib, axiom-audit, leanfmt (pinned in the Lake package), elan, and bubblewrap.
 
 # Vendored Dependency Verification
 

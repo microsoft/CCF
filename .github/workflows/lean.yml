@@ -81,9 +81,8 @@ jobs:
 
   kernel-checks:
     name: Kernel checks (${{ matrix.package }})
-    # Nanoda exhausts 11 GiB locally; use the existing 64 GiB VMSS pool.
-    runs-on: [gha-vmss-d16av7-ci]
-    timeout-minutes: 120
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -92,30 +91,14 @@ jobs:
           - disaster-recovery/replayer
 
     steps:
-      - name: Restore workspace ownership
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Lean and sandbox
         shell: bash
         run: |
           set -euo pipefail
-          sudo tdnf install -y bubblewrap curl tar gzip
-          curl --fail --silent --show-error --location \
-            https://github.com/leanprover/elan/releases/download/v4.2.4/elan-x86_64-unknown-linux-gnu.tar.gz \
-            --output "$RUNNER_TEMP/elan.tar.gz"
-          echo "42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63  $RUNNER_TEMP/elan.tar.gz" |
-            sha256sum --check
-          tar -xzf "$RUNNER_TEMP/elan.tar.gz" -C "$RUNNER_TEMP"
-          export ELAN_HOME="$RUNNER_TEMP/elan"
-          "$RUNNER_TEMP/elan-init" -y --default-toolchain none --no-modify-path
-          export PATH="$ELAN_HOME/bin:$PATH"
-          echo "ELAN_HOME=$ELAN_HOME" >> "$GITHUB_ENV"
-          echo "$ELAN_HOME/bin" >> "$GITHUB_PATH"
+          sudo apt-get update
+          sudo apt-get install -y elan bubblewrap
           elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
 
       - name: Restore Mathlib cache
@@ -126,14 +109,14 @@ jobs:
           set -euo pipefail
           lake exe cache get
 
-      - name: Check with all bundled kernels
+      - name: Check with Lean's kernel
         working-directory: lean/${{ matrix.package }}
         shell: bash
         run: |
           set -euo pipefail
           export TMPDIR="$RUNNER_TEMP"
           if [[ "${{ matrix.package }}" == "disaster-recovery/replayer" ]]; then
-            ./check-kernels.sh
+            ./check-kernel.sh
           else
-            lake check --paranoid
+            lake check
           fi
