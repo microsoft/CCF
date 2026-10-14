@@ -58,6 +58,7 @@ Python e2e annotations identify the CTest test, concurrent scenario, logical cas
 Failures are captured by `ConcurrentRunner`, the e2e suite runner, and the shared CLI's uncaught-exception handler.
 Description decorators provide case names and descriptions.
 Child threads should use `infra.concurrency.Thread` (or `StoppableThread`) to retain their owning scenario.
+Subclasses implement `_run()` rather than overriding `run()`, so their work executes inside the context-propagation and exception-reporting wrapper.
 Uninstrumented threads can only be identified by the outer test and thread name.
 
 CTest and pytest XML results supply diagnostics for failures outside the Python e2e handlers, including native test failures, crashes, timeouts, and missing executables.

@@ -8,19 +8,22 @@ from infra.test_reporting import CURRENT_TEST, record_failure
 
 
 class Thread(threading.Thread):
-    """Carry the owning test identity into child threads, including failures."""
+    """Carry test identity into child threads; subclasses override _run, not run."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.test_context = CURRENT_TEST.get()
-        self._context = copy_context()
+        self._ccf_context = copy_context()
 
     def run(self):
         try:
-            self._context.run(super().run)
+            self._ccf_context.run(self._run)
         except Exception as exc:
             record_failure(exc, context=self.test_context, thread=self.name)
             raise
+
+    def _run(self):
+        super().run()
 
 
 class StoppableThread(Thread):
