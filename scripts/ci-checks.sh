@@ -42,6 +42,7 @@ CHECKS=(
   "Release notes:release-notes-checks.sh"
   "Non-ASCII characters:ascii-checks.sh"
   "ASCII policy regression tests:ascii-policy-tests.sh"
+  "Devcontainer startup regression test:devcontainer_startup_test.py"
   "C/C++ format:cpp-format-checks.sh"
   "TypeScript, JavaScript, Markdown, TypeSpec, YAML and JSON format:prettier-checks.sh"
   "Documentation newlines:doc-newline-checks.sh"

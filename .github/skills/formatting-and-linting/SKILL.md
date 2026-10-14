@@ -12,6 +12,8 @@ Run commands from the repository root. `scripts/ci-checks.sh` runs the individua
 
 The Copilot setup workflow runs `scripts/setup-ubuntu-ci-checks.sh` for Ubuntu formatting/lint prerequisites. Some checks use `uvx` or npm to obtain tools at runtime and need network access. The test-bucket check additionally requires the full CMake configure prerequisites; the setup workflow does not install those.
 
+The full check runner also executes `scripts/devcontainer_startup_test.py`, which verifies that the Copilot relay startup hook survives a PTY hangup, detaches into its own session, returns without blocking, and creates a private log.
+
 ## Check first, fix only task-owned changes
 
 - Run scripts without `-f` initially. Success is exit status 0; inspect failure output to distinguish changed-file issues, unrelated failures, and environment blockers.
