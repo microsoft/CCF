@@ -4,9 +4,18 @@ Resource Usage
 CPU
 ---
 
-A single CCF node process runs a host event-loop thread, an enclave dispatch thread, and worker threads, along with auxiliary threads. The host manages sockets and files, and handles communication with the enclave via ring-buffers.
-The enclave dispatch thread handles incoming messages, while worker threads execute tasks including TLS termination, cryptography, and application and key value code.
-The ``worker_threads`` configuration entry (see :ref:`operations/configuration:``worker_threads```) defaults to ``1``. CCF starts one more worker than configured, in addition to the dispatch thread, to preserve task execution capacity. For example, ``1`` starts two workers and ``2`` starts three. A configured value of ``0`` starts one worker and logs a warning; positive values are incremented silently.
+A single CCF node process runs a host event-loop thread, an enclave coordination thread, and worker threads, along with auxiliary threads. The host manages sockets and files.
+The enclave coordination thread handles lifecycle events, while worker threads execute tasks including TLS termination, cryptography, and application and key value code.
+The ``worker_threads`` configuration entry (see :ref:`operations/configuration:``worker_threads```) defaults to ``1``. CCF starts one more worker than configured, in addition to the coordination thread, to preserve task execution capacity. For example, ``1`` starts two workers and ``2`` starts three. A configured value of ``0`` starts one worker and logs a warning; positive values are incremented silently.
+
+Consensus timers, idle node-channel cleanup and indexing updates run as independent owner-managed periodic tasks.
+These tasks may execute concurrently with each other and inbound node processing, using the relevant subsystem locks rather than an aggregate ordered lane.
+Each periodic task accounts for its own elapsed time, including scheduling delays, and prevents overlapping executions of itself.
+The tasks use the shared worker pool, so blocking all workers can delay consensus.
+Task lifetime is managed by weak ownership and job-board shutdown after workers have joined, without a separate per-component shutdown cascade.
+Consensus, channel-manager and indexer construction is followed by periodic-task registration once shared ownership is established.
+Recovery-service-opening retries use a local delayed task after private recovery completes, rescheduling only while opening remains uncommitted and recovery still applies.
+Indexing reads its committed transaction ID through a read-only commit-point subsystem, which exposes no usable commit point until the node is part of the network and private recovery is complete.
 
 Memory
 ------
@@ -19,7 +28,7 @@ On SEV-SNP, the node process runs inside a confidential VM; the VM size chosen a
 Backpressure
 ------------
 
-A node returns ``503 TooManyPendingTransactions`` for application and governance requests when either its local uncommitted transaction count reaches ``consensus.max_uncommitted_tx_count``, or its pending ledger append bytes reach ``memory.circuit_size`` (16MB by default). This applies to reads and writes on both primaries and backups. ``/node`` endpoints remain exempt so operators can diagnose a node that is not making progress. Setting ``consensus.max_uncommitted_tx_count`` to ``0`` disables only the transaction-count threshold, not ledger backpressure.
+A node returns ``503 TooManyPendingTransactions`` for application and governance requests when either its local uncommitted transaction count reaches ``consensus.max_uncommitted_tx_count``, or its pending ledger append bytes reach ``ledger.max_pending_append_bytes`` (16MB by default). This applies to reads and writes on both primaries and backups. ``/node`` endpoints remain exempt so operators can diagnose a node that is not making progress. Setting ``consensus.max_uncommitted_tx_count`` to ``0`` disables only the transaction-count threshold; setting ``ledger.max_pending_append_bytes`` to ``0`` disables only ledger backlog backpressure.
 
 While its ledger is backlogged, a node also drops incoming AppendEntries replication messages, including heartbeats, without applying them or replying. Normal periodic probes and retransmissions allow it to catch up once ledger IO clears the backlog, at the cost of resending discarded batches. Long IO stalls may cause elections or interrupt service if too few nodes can keep up. Ledger backlog threshold crossings are logged; persistent overload warrants investigating storage latency and node resource contention.
 

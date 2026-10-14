@@ -112,6 +112,13 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     ---
 
+    :fa:`exchange-alt` :doc:`migration_7_x_to_8_x`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Prepare applications and deployments for CCF 8.x.
+
+    ---
+
     :fa:`mail-forward ` :doc:`fwd_to_redirect`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -136,4 +143,5 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     api
     crypto
     release_policy
+    migration_7_x_to_8_x
     fwd_to_redirect

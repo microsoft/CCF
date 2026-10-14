@@ -56,6 +56,7 @@ The `LedgerChunkRead` feature must be added to `enabled_operator_features` on th
 
 These endpoints can be used by a client to download the next ledger chunk including a given sequence number `<seqno>`.
 They redirect to the appropriate chunk if it exists, using the endpoints described below, or return a `404 Not Found` response if no such chunk is available.
+The required ``since`` value must be an unsigned 64-bit decimal sequence number. Missing or malformed values return ``400 Bad Request`` with the ``InvalidQueryParameterValue`` error code.
 
 In the typical case, a requesting client will first hit a Backup, and will eventually work its way to chunks recent enough that only the primary can provide them:
 
@@ -114,10 +115,54 @@ These endpoints allow downloading a specific ledger chunk by name, where `<chunk
 They support the HTTP `Range` header for partial downloads, and the `HEAD` method for clients to query metadata such as the total size without downloading the full chunk.
 They also populate the `x-ms-ccf-ledger-chunk-name` response header with the name of the chunk being served.
 
+Committed Prefixes
+^^^^^^^^^^^^^^^^^^
+
+By default, the ledger chunk locator endpoints expose only canonical ``.committed`` files.
+A client that also needs recent committed entries from an in-progress file can opt in with ``include_committed_prefix=true``:
+
+.. code-block:: http
+
+    GET /node/ledger_chunk?since=101&include_committed_prefix=true HTTP/1.1
+
+The node still prefers a canonical ``.committed`` file when one covers the requested sequence number.
+Otherwise, if the sequence number is locally available and committed, it returns a ``307 Temporary Redirect`` to a resource such as:
+
+.. code-block:: text
+
+    /node/ledger_chunk/committed_prefix/ledger_101-140.committed_prefix
+
+This resource covers the committed entries from the requested sequence number up to the commit watermark, or to the end of the physical file containing that sequence number if it comes first.
+A committed prefix therefore starts at ``since`` rather than at the start of its physical file: for the same file, ``since=120`` would select ``ledger_120-140.committed_prefix``.
+
+The ``.committed_prefix`` suffix distinguishes this synthetic resource from a canonical physical ledger file.
+The response contains a normal completed ledger representation - header, unchanged transaction bytes, and positions table - but only for the selected committed range.
+It can be read directly with :py:class:`ccf.ledger.LedgerChunk`.
+
+The response includes ``x-ms-ccf-ledger-chunk-kind: committed-prefix``.
+Clients must not archive, install, or use this resource for recovery as though it were a canonical ``.committed`` file.
+In particular, committed-prefix files are ignored by ledger directory discovery, both by nodes and by :py:class:`ccf.ledger.Ledger`, and can only be read individually with :py:class:`ccf.ledger.LedgerChunk`.
+
+Committed prefixes give clients such as auditors timely access to recent committed entries, but do not replace canonical files in backups.
+A client which tracks its progress with ``since`` must not advance it past a committed prefix: having received ``ledger_101-140.committed_prefix`` for ``since=101``, it should keep requesting ``since=101`` until it receives a canonical file, such as ``ledger_101-150.committed``.
+Committed prefixes are best stored apart from canonical files, for example in a separate directory, and discarded once a canonical file covering their range has been obtained.
+
+The ``307`` redirect intentionally differs from the ``308 Permanent Redirect`` used for canonical ``.committed`` files.
+A physical chunk's name and range are final, while the committed-prefix range selected for the same ``since`` value may grow as the commit watermark advances.
+The exact ``.committed_prefix`` URL is immutable once returned, so it remains suitable for retrying or resuming that specific download.
+
+Committed-prefix URLs are not immutable across a recovery from a ledger which is missing some of their transactions, for example from canonical backups alone: these transactions are not part of the recovered service's history, and the same URL may then serve different content.
+Operators should avoid this by recovering from the most recent ledger files available.
+Should it happen, receipts for the missing transactions can be used to :ref:`denounce the recovery <audit/receipts:Denounce an invalid recovery>`.
+
+More than one contiguous committed prefix can be available.
+For example, physical chunking may have produced unsuffixed files ``ledger_101-150`` and ``ledger_151-200`` before the commit watermark catches up to 200.
+The API preserves these physical boundaries and can expose ``ledger_101-150.committed_prefix`` followed by ``ledger_151-200.committed_prefix``.
+
 Want-Repr-Digest and Repr-Digest
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-These endpoints also support the ``Want-Repr-Digest`` request header (`RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_).
+The canonical and committed-prefix chunk endpoints also support the ``Want-Repr-Digest`` request header (`RFC 9530 <https://www.rfc-editor.org/rfc/rfc9530>`_).
 When set, the response will include a ``Repr-Digest`` header containing the digest of the full representation of the file.
 Supported algorithms are ``sha-256``, ``sha-384``, and ``sha-512``. If the header contains only unsupported or invalid algorithms, the server defaults to ``sha-256`` (as permitted by `RFC 9530 Appendix C.2 <https://www.rfc-editor.org/rfc/rfc9530#appendix-C.2>`_).
 For example, a client sending ``Want-Repr-Digest: sha-256=1`` will receive a header such as ``Repr-Digest: sha-256=:AEGPTgUMw5e96wxZuDtpfm23RBU3nFwtgY5fw4NYORo=:`` in the response.
@@ -186,6 +231,8 @@ Join or Recover From Snapshot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Joining nodes will request a snapshot from the target service to accelerate their join. This behaviour is controlled by the ``command.join.fetch_recent_snapshot`` configuration option, and enabled by default. This removes the need for a shared read-only snapshot mount, and corresponding operator actions to keep it up-to-date. Instead, if the joiner is told by the network that the snapshot they have locally is too old, the joiner will send a sequence of HTTP requests, potentially following redirect responses to find the current primary and request a specific snapshot, to download a recent snapshot which should allow them to join rapidly. Any suffix after a snapshot (including the entire ledger, in the rare cases where no snapshot can be found) will be replicated to that node via the consensus protocol.
+
+Snapshot discovery via :http:GET:`/node/snapshot` or :http:HEAD:`/node/snapshot` accepts an optional ``since`` selector with the same numeric requirements as ledger chunk discovery. Malformed values return ``400 Bad Request`` with ``InvalidQueryParameterValue``; omitting the selector allows the latest committed snapshot to be selected.
 
 The legacy behaviour without ``fetch_recent_snapshot`` relies on a shared read-only directory. On start-up, the new node will search both ``snapshots.directory`` and ``snapshots.read_only_directory`` to find the latest committed snapshot file. Operators are responsible for populating these with recent snapshots emitted by the service, and making this available (such as via a shared read-only mount) on joining nodes.
 

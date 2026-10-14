@@ -4,11 +4,124 @@
 #include "node/commit_callback_subsystem.h"
 #include "test_common.h"
 
+#include <barrier>
+#include <thread>
+
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
 using ms = std::chrono::milliseconds;
+
+DOCTEST_TEST_CASE(
+  "Consensus owns its periodic timer" * doctest::test_suite("single"))
+{
+  const auto self = ccf::kv::test::PrimaryNodeId;
+  auto kv_store = std::make_shared<Store>(self);
+  ccf::tasks::JobBoard job_board;
+  auto raft = std::make_shared<TRaft>(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(self),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(self),
+    nullptr);
+  raft->register_periodic_tasks(job_board, ms(10));
+  aft::Configuration::Nodes config;
+  config[self] = {};
+  raft->add_configuration(0, config);
+  const auto run_all = [&]() {
+    while (auto task = job_board.get_task())
+    {
+      task->do_task();
+    }
+  };
+
+  job_board.tick(election_timeout * 5);
+  run_all();
+  DOCTEST_REQUIRE_FALSE(raft->is_primary());
+  raft->start_ticking();
+  for (size_t i = 0; i < 9; ++i)
+  {
+    job_board.tick(ms(10));
+    run_all();
+    DOCTEST_REQUIRE_FALSE(raft->is_primary());
+  }
+  job_board.tick(ms(10));
+  run_all();
+  DOCTEST_REQUIRE(raft->is_primary());
+
+  job_board.tick(ms(10));
+  std::weak_ptr<TRaft> weak_raft = raft;
+  raft.reset();
+  DOCTEST_REQUIRE(weak_raft.expired());
+  run_all();
+  job_board.tick(election_timeout * 5);
+  run_all();
+  DOCTEST_REQUIRE(job_board.get_summary().pending_tasks == 0);
+}
+
+DOCTEST_TEST_CASE(
+  "Consensus maintenance, inbound processing and notices concurrency smoke" *
+  doctest::test_suite("concurrent"))
+{
+  const auto self = ccf::kv::test::PrimaryNodeId;
+  const auto peer = ccf::kv::test::FirstBackupNodeId;
+  auto kv_store = std::make_shared<Store>(self);
+  auto settings = raft_settings;
+  settings.election_timeout = ccf::ds::TimeString{"1s"};
+  TRaft raft(
+    settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(self),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(self),
+    nullptr);
+  aft::Configuration::Nodes config;
+  config[self] = {};
+  config[peer] = {};
+  raft.add_configuration(0, config);
+  raft.start_ticking();
+  raft.force_become_primary();
+  aft::RequestVote vote{};
+  vote.term = raft.get_view();
+  std::barrier start{4};
+  constexpr size_t iterations = 200;
+  // The barrier creates competing calls, not a guaranteed lock interleaving.
+  // Keep leadership for the whole workload so responses/notices are observable.
+  std::thread maintenance([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      raft.periodic(ms(1));
+    }
+  });
+  std::thread inbound([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      raft.recv_message(
+        peer, reinterpret_cast<const uint8_t*>(&vote), sizeof(vote));
+    }
+  });
+  std::thread notices([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      raft.nominate_successor();
+    }
+  });
+  start.arrive_and_wait();
+  maintenance.join();
+  inbound.join();
+  notices.join();
+  DOCTEST_REQUIRE(
+    channel_stub_proxy(raft)->count_messages_with_type(
+      aft::raft_request_vote_response) == iterations);
+  DOCTEST_REQUIRE(
+    channel_stub_proxy(raft)->count_messages_with_type(
+      aft::raft_propose_request_vote) == iterations);
+}
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
@@ -1681,6 +1794,194 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(read_msg<aft::AppendEntries>(retry).prev_idx == 1);
   require_ack(n.backup_receives(n.with_payload(retry)), 2);
   DOCTEST_REQUIRE(n.r1.ledger->ledger == n.r0.ledger->ledger);
+}
+
+DOCTEST_TEST_CASE(
+  "Joining backup rolls back its final configuration after a failed batch" *
+  doctest::test_suite("multiple"))
+{
+  struct RecordingConfigurationStore : public aft::LoggingStubStoreConfig
+  {
+    using LoggingStubStoreConfig::LoggingStubStoreConfig;
+
+    std::vector<ccf::TxID> rollbacks;
+    std::function<void()> before_deserialize;
+
+    void rollback(const ccf::TxID& txid, aft::Term term) override
+    {
+      rollbacks.push_back(txid);
+      LoggingStubStoreConfig::rollback(txid, term);
+    }
+
+    std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
+      const std::vector<uint8_t>& data,
+      bool public_only,
+      const std::optional<ccf::TxID>& expected_txid) override
+    {
+      if (before_deserialize)
+      {
+        before_deserialize();
+      }
+      return LoggingStubStoreConfig::deserialize(
+        data, public_only, expected_txid);
+    }
+  };
+
+  const auto id0 = ccf::kv::test::PrimaryNodeId;
+  const auto id1 = ccf::kv::test::FirstBackupNodeId;
+  auto kv0 = std::make_shared<aft::LoggingStubStoreConfig>(id0);
+  auto kv1 = std::make_shared<RecordingConfigurationStore>(id1);
+  TestNode node0(id0, {.kv = kv0});
+  TestNode node1(id1, {.kv = kv1});
+  auto& r0 = node0.raft;
+  auto& r1 = node1.raft;
+  auto c0 = channel_stub_proxy(r0);
+  auto c1 = channel_stub_proxy(r1);
+
+  const auto replicate_configuration =
+    [&](const ccf::kv::Configuration::Nodes& configuration) {
+      const auto index = r0.get_last_idx() + 1;
+      const auto configuration_json = nlohmann::json(configuration).dump();
+      const auto entry_json =
+        nlohmann::json(
+          aft::ReplicatedData{
+            aft::ReplicatedDataType::reconfiguration,
+            {configuration_json.begin(), configuration_json.end()}})
+          .dump();
+      auto entry = std::make_shared<std::vector<uint8_t>>(
+        entry_json.begin(), entry_json.end());
+      auto configuration_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
+      configuration_hooks->push_back(
+        std::make_unique<aft::ConfigurationChangeHook>(configuration, index));
+      DOCTEST_REQUIRE(r0.replicate(
+        ccf::kv::BatchVector{{index, entry, false, configuration_hooks}},
+        r0.get_view()));
+    };
+  const auto replicate_signature = [&]() {
+    const auto entry_json =
+      nlohmann::json(aft::ReplicatedData{aft::ReplicatedDataType::raw, {}})
+        .dump();
+    auto entry = std::make_shared<std::vector<uint8_t>>(
+      entry_json.begin(), entry_json.end());
+    auto signature_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
+    DOCTEST_REQUIRE(r0.replicate(
+      ccf::kv::BatchVector{
+        {r0.get_last_idx() + 1, entry, true, signature_hooks}},
+      r0.get_view()));
+  };
+
+  DOCTEST_INFO(
+    "Bootstrap the primary and add a joiner with no configuration 0");
+  r0.force_become_primary();
+  ccf::kv::Configuration::Nodes genesis_configuration;
+  genesis_configuration.try_emplace(id0);
+  replicate_configuration(genesis_configuration);
+  replicate_signature();
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 2);
+
+  auto joined_configuration = genesis_configuration;
+  joined_configuration.try_emplace(id1);
+  replicate_configuration(joined_configuration);
+  replicate_signature();
+  DOCTEST_REQUIRE(r0.get_last_idx() == 4);
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 2);
+
+  DOCTEST_INFO("Hold two genuine NACKs reporting the joiner's empty log");
+  const auto first_probe = c0->pop_first(aft::raft_append_entries, id1);
+  DOCTEST_REQUIRE(first_probe.has_value());
+  receive_message(r0, r1, first_probe.value());
+  const auto first_nack = c1->pop_first(aft::raft_append_entries_response, id0);
+  DOCTEST_REQUIRE(first_nack.has_value());
+  require_nack(read_msg<aft::AppendEntriesResponse>(first_nack.value()), 0);
+
+  r0.periodic(request_timeout);
+  const auto second_probe = c0->pop_first(aft::raft_append_entries, id1);
+  DOCTEST_REQUIRE(second_probe.has_value());
+  receive_message(r0, r1, second_probe.value());
+  const auto delayed_nack =
+    c1->pop_first(aft::raft_append_entries_response, id0);
+  DOCTEST_REQUIRE(delayed_nack.has_value());
+  require_nack(read_msg<aft::AppendEntriesResponse>(delayed_nack.value()), 0);
+  DOCTEST_REQUIRE(r1.get_last_idx() == 0);
+  DOCTEST_REQUIRE(r1.get_committed_seqno() == 0);
+  DOCTEST_REQUIRE(r1.get_details().configs.empty());
+  DOCTEST_REQUIRE(c0->messages.empty());
+
+  receive_message(r1, r0, first_nack.value());
+  r0.periodic(request_timeout);
+  const auto first_batch = c0->pop_first(aft::raft_append_entries, id1);
+  DOCTEST_REQUIRE(first_batch.has_value());
+  const auto ae = read_msg<aft::AppendEntries>(first_batch.value());
+  DOCTEST_REQUIRE(ae.prev_idx == 0);
+  DOCTEST_REQUIRE(ae.idx == 4);
+
+  DOCTEST_INFO("Apply configuration 1, then fail to apply the signature at 2");
+  // Only the host-provided payload is corrupted; the authenticated header
+  // remains unchanged.
+  const auto original_entry_2 = r0.ledger->ledger.at(1);
+  {
+    auto* data = r0.ledger->ledger.at(1).data() + sizeof(size_t) + sizeof(bool);
+    auto size = sizeof(aft::Term);
+    serialized::write<aft::Term>(data, size, ae.term_of_idx + 1);
+  }
+  receive_message(r0, r1, first_batch.value());
+  r0.ledger->ledger.at(1) = original_entry_2;
+
+  DOCTEST_REQUIRE(r1.get_last_idx() == 1);
+  DOCTEST_REQUIRE(r1.get_committed_seqno() == 0);
+  DOCTEST_REQUIRE(r1.ledger->ledger.size() == 1);
+  DOCTEST_REQUIRE(r1.ledger->ledger.front() == r0.ledger->ledger.front());
+  DOCTEST_REQUIRE(r1.get_details().configs.size() == 1);
+  DOCTEST_REQUIRE(r1.get_details().configs.front().idx == 1);
+  DOCTEST_REQUIRE(r1.get_latest_configuration() == genesis_configuration);
+  DOCTEST_REQUIRE(r1.get_view(1) == ccf::VIEW_UNKNOWN);
+  DOCTEST_REQUIRE(kv1->rollbacks.empty());
+  const auto failure_nack =
+    c1->pop_first(aft::raft_append_entries_response, id0);
+  DOCTEST_REQUIRE(failure_nack.has_value());
+  require_nack(read_msg<aft::AppendEntriesResponse>(failure_nack.value()), 1);
+
+  DOCTEST_INFO("The older NACK makes the primary retry from 0 rather than 1");
+  receive_message(r1, r0, delayed_nack.value());
+  r0.periodic(request_timeout);
+  const auto retry = c0->pop_first(aft::raft_append_entries, id1);
+  DOCTEST_REQUIRE(retry.has_value());
+  DOCTEST_REQUIRE(read_msg<aft::AppendEntries>(retry.value()).prev_idx == 0);
+  DOCTEST_REQUIRE(read_msg<aft::AppendEntries>(retry.value()).idx == 4);
+
+  // Deserialisation follows rollback, before configuration hooks run. The
+  // unsafe accessor is needed because recv_message already holds the lock.
+  bool observed_empty_configuration = false;
+  kv1->before_deserialize = [&]() {
+    DOCTEST_REQUIRE(kv1->rollbacks.size() == 1);
+    DOCTEST_REQUIRE(kv1->rollbacks.front() == ccf::TxID(0, 0));
+    DOCTEST_REQUIRE(r1.get_latest_configuration_unsafe().empty());
+    observed_empty_configuration = true;
+  };
+  receive_message(r0, r1, retry.value());
+  kv1->before_deserialize = {};
+  DOCTEST_REQUIRE(observed_empty_configuration);
+  DOCTEST_REQUIRE(r1.get_last_idx() == 4);
+  DOCTEST_REQUIRE(r1.get_committed_seqno() == 2);
+  DOCTEST_REQUIRE(r1.get_view(1) == r0.get_view());
+
+  DOCTEST_INFO("Valid replay and its acknowledgement restore normal progress");
+  const auto acknowledgement =
+    c1->pop_first(aft::raft_append_entries_response, id0);
+  DOCTEST_REQUIRE(acknowledgement.has_value());
+  require_ack(read_msg<aft::AppendEntriesResponse>(acknowledgement.value()), 4);
+  receive_message(r1, r0, acknowledgement.value());
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 4);
+
+  r0.periodic(request_timeout);
+  const auto commit = c0->pop_first(aft::raft_append_entries, id1);
+  DOCTEST_REQUIRE(commit.has_value());
+  receive_message(r0, r1, commit.value());
+  DOCTEST_REQUIRE(r1.get_committed_seqno() == 4);
+  DOCTEST_REQUIRE(r1.ledger->ledger == r0.ledger->ledger);
+  DOCTEST_REQUIRE(r1.get_details().configs.size() == 1);
+  DOCTEST_REQUIRE(r1.get_details().configs.front().idx == 3);
+  DOCTEST_REQUIRE(r1.get_latest_configuration() == joined_configuration);
 }
 
 DOCTEST_TEST_CASE(

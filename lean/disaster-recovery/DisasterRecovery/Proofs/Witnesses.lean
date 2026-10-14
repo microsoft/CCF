@@ -1,5 +1,11 @@
-import DisasterRecovery.Properties
-import Mathlib.Tactic
+module
+
+import all Init.Data.List.Sort.Basic
+
+public import DisasterRecovery.Properties
+public import Mathlib.Tactic
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Witnesses
 
@@ -18,7 +24,7 @@ private theorem valid_of_adjacent {config : Model.Config} {trace : Properties.Gl
     : trace.Valid (Model.transitionSystem config) := by
   refine ⟨initialized, ?_⟩
   intro i before after atBefore atAfter
-  obtain ⟨beforeBound, beforeEq⟩ := List.getElem?_eq_some_iff.mp atBefore
+  obtain ⟨_, beforeEq⟩ := List.getElem?_eq_some_iff.mp atBefore
   obtain ⟨afterBound, afterEq⟩ := List.getElem?_eq_some_iff.mp atAfter
   obtain ⟨action, stepped⟩ := adjacent ⟨i, by omega⟩
   exact ⟨action, by simpa only [beforeEq, afterEq] using stepped⟩

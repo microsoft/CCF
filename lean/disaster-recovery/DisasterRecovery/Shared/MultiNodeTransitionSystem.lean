@@ -1,5 +1,9 @@
-import DisasterRecovery.Shared.TransitionSystem
-import DisasterRecovery.Shared.Capabilities
+module
+
+public import DisasterRecovery.Shared.TransitionSystem
+public import DisasterRecovery.Shared.Capabilities
+
+@[expose] public section
 
 namespace DisasterRecovery.Shared.MultiNodeTransitionSystem
 
@@ -14,39 +18,54 @@ about them by re-running the local step.
 
 /-- Node states, the nodes allowed to act, and the messages in flight. -/
 structure State (Node LocalState Message : Type) where
+  /-- The local state associated with each configured node. -/
   nodes : List (Node × LocalState)
+  /-- Nodes allowed to take local steps and receive messages. -/
   active : List Node
+  /-- Queued envelopes, including distinct copies of identical messages. -/
   network : List (Envelope Node Message) := []
 deriving Repr, BEq
 
 /-- A node acts on its own (`local`) or receives one queued envelope (`deliver`). -/
 inductive Action (Node Message Input : Type) where
+  /-- Run a node with an input not supplied by the network. -/
   | local (node : Node) (input : Input)
+  /-- Deliver one occurrence of a queued message to its target. -/
   | deliver (envelope : Envelope Node Message)
 deriving Repr, BEq
 
 /-- What a local protocol must provide to be run by the network: initial
 states, a step, and translations of deliveries and inputs into local actions. -/
 structure Protocol (Node LocalState LocalAction Message Notification Input : Type) where
+  /-- The initial-state predicate for a node. -/
   init : Node -> LocalState -> Prop
+  /-- Runs a local action with the host's output callbacks, if enabled. -/
   step
     : Capabilities Node Message Notification -> Node -> LocalState -> LocalAction
       -> Option (Effect Node Message Notification LocalState)
+  /-- Converts a delivered message and its sender into a local action. -/
   receive : Node -> Message -> LocalAction
+  /-- Converts a node's internal input into a local action. -/
   internal : Input -> LocalAction
 
 /-- A record of one node's step: what it saw, what it became, what it emitted. -/
 structure LocalStep (Node LocalState LocalAction Message Notification : Type) where
+  /-- The node taking this step. -/
   node : Node
+  /-- Local state before executing the action. -/
   before : LocalState
+  /-- The local action executed by the node. -/
   action : LocalAction
+  /-- Local state produced by the action. -/
   after : LocalState
+  /-- Messages and notifications emitted by the action. -/
   effects : Outputs Node Message Notification
 
 /-- `s` is a real step: running the protocol from `s.before` on `s.action` with
 recording capabilities yields exactly `s.after` and `s.effects`. No reachability
 or activity is required. -/
 def Protocol.ValidStep
+    {Node LocalState LocalAction Message Notification Input : Type}
     (protocol : Protocol Node LocalState LocalAction Message Notification Input)
     (s : LocalStep Node LocalState LocalAction Message Notification)
     : Prop :=
@@ -55,19 +74,21 @@ def Protocol.ValidStep
     /\ execute.run {} = (s.after, s.effects)
 
 /-- The state of `node`, if it is in the node table. -/
-def nodeState [BEq Node] (state : State Node LocalState Message) (node : Node)
+def nodeState {Node LocalState Message : Type} [BEq Node]
+    (state : State Node LocalState Message) (node : Node)
     : Option LocalState :=
   (state.nodes.find? fun entry => entry.1 == node).map Prod.snd
 
 /-- Removes the first occurrence only; duplicate envelopes are distinct deliveries. -/
-def removeOne [BEq α] (value : α) : List α -> List α
+def removeOne {α : Type _} [BEq α] (value : α) : List α -> List α
   | [] => []
   | head :: tail =>
       if head == value then tail else head :: removeOne value tail
 
 /-- One global step. `none` if the envelope is not queued, the node is not
 active, the node is unknown, or the local step is disabled. -/
-def next [BEq Node] [BEq Message]
+def next {Node Message LocalState LocalAction Notification Input : Type}
+    [BEq Node] [BEq Message]
     (protocol : Protocol Node LocalState LocalAction Message Notification Input)
     (state : State Node LocalState Message) (action : Action Node Message Input)
     : Option (State Node LocalState Message) := do
@@ -97,7 +118,8 @@ def next [BEq Node] [BEq Message]
 /-- The network as a `TransitionSystem`. Initially every configured node has
 an initial local state, the active nodes are a subset of them, and the
 network is empty. -/
-def lift [BEq Node] [BEq Message]
+def lift {Node Message LocalState LocalAction Notification Input : Type}
+    [BEq Node] [BEq Message]
     (configured : List Node)
     (protocol : Protocol Node LocalState LocalAction Message Notification Input)
     : TransitionSystem (State Node LocalState Message) (Action Node Message Input) where

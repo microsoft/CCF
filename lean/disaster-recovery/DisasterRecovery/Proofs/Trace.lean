@@ -1,13 +1,22 @@
-import DisasterRecovery.Shared.Execution
-import Mathlib.Tactic
+module
+
+public import DisasterRecovery.Shared.Execution
+public import Mathlib.Tactic
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Trace
 
 open Shared
 
+variable {State Action : Type}
+
+/-- Enabled steps through the listed successor states, from a start state to a final state. -/
 inductive Path (system : TransitionSystem State Action)
     : State -> List State -> State -> Prop where
+  /-- An empty path starts and ends at the same state. -/
   | nil (state) : Path system state [] state
+  /-- Prepend one enabled step and its successor to the remaining path. -/
   | cons {before middle after tail} {action}
     (step : system.step before action = some middle)
     (rest : Path system middle tail after)
@@ -38,7 +47,7 @@ lemma Path.valid {system : TransitionSystem State Action} {before tail after}
   | nil =>
       intro i left right first second
       cases i <;> simp at second
-  | cons step rest ih =>
+  | cons step _ ih =>
       intro i left right first second
       cases i with
       | zero =>

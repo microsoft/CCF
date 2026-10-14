@@ -16,6 +16,7 @@
 #include "kv/kv_types.h"
 #include "raft_types.h"
 #include "service/tables/signatures.h"
+#include "tasks/periodic_task_owner.h"
 
 #include <algorithm>
 #include <functional>
@@ -88,7 +89,7 @@ namespace aft
   using Configuration = ccf::kv::Configuration;
 
   template <class LedgerProxy>
-  class Aft : public ccf::kv::Consensus
+  class Aft : public ccf::kv::Consensus, public ccf::tasks::PeriodicTaskOwner
   {
   private:
     struct NodeState
@@ -233,6 +234,16 @@ namespace aft
     {}
 
     ~Aft() override = default;
+
+    void register_periodic_tasks(
+      ccf::tasks::JobBoard& job_board, std::chrono::milliseconds period)
+    {
+      schedule_periodic_task(
+        job_board,
+        period,
+        [this](std::chrono::milliseconds elapsed) { periodic(elapsed); },
+        "Consensus maintenance");
+    }
 
     std::optional<ccf::NodeId> primary() override
     {
@@ -2434,17 +2445,23 @@ namespace aft
         switch (state->leadership_state.load())
         {
           case ccf::kv::LeadershipState::PreVoteCandidate:
+          {
             become_candidate();
             break;
+          }
           case ccf::kv::LeadershipState::Candidate:
+          {
             become_leader();
             break;
+          }
           case ccf::kv::LeadershipState::None:
           case ccf::kv::LeadershipState::Leader:
           case ccf::kv::LeadershipState::Follower:
+          {
             throw std::logic_error(
               "add_vote_for_me() called while not a pre-vote candidate or "
               "candidate");
+          }
         }
       }
     }

@@ -1,7 +1,11 @@
-import DisasterRecovery.Proofs.Quorum
-import DisasterRecovery.Proofs.Local
-import DisasterRecovery.Properties.Utils
-import DisasterRecovery.Shared.Execution
+module
+
+public import DisasterRecovery.Proofs.Quorum
+public import DisasterRecovery.Proofs.Local
+public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Shared.Execution
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Lifting
 
@@ -9,10 +13,14 @@ open Shared
 open DisasterRecovery.Model.Local
 open Execution.Local (messages)
 
+/-- Local state and notifications retained when comparing decorated and model steps. -/
 structure Result where
+  /-- The local state produced by the step. -/
   state : NodeState
+  /-- Host-visible notifications produced by the step. -/
   effects : List Notification := []
 
+/-- Retains the local state and notifications of an executable model step. -/
 def capture (run : NodeState × Outputs Location Message Notification) : Result :=
   { state := run.1, effects := run.2.notifications }
 
@@ -76,9 +84,11 @@ lemma step_recording_appends (config : Config) (source : Location) (recovered : 
   all_goals try dsimp [pure, Functor.map]
   all_goals simp
 
+/-- Removes a decorated envelope's proof-only sender snapshot. -/
 def eraseEnvelope (envelope : Execution.Global.Envelope) : Model.Envelope :=
   { source := envelope.source, target := envelope.target, payload := envelope.payload }
 
+/-- Removes send snapshots and histories to recover the executable network state. -/
 def erase (state : Execution.Global.State) : Model.State :=
   {
     nodes := state.system.nodes,
@@ -86,11 +96,13 @@ def erase (state : Execution.Global.State) : Model.State :=
     network := state.network.map eraseEnvelope
   }
 
+/-- Translates a decorated action into its executable model counterpart. -/
 def eraseAction : Execution.Global.Action -> Model.Action
   | .retry source => .local source .retry
   | .timeout target => .local target .timeout
   | .deliver envelope => .deliver (eraseEnvelope envelope)
 
+/-- Retains a decorated local step's state and notifications, ignoring send effects. -/
 def eraseOutput (output : Execution.Local.StepOutput) : Result :=
   {
     state := output.state,
@@ -116,6 +128,8 @@ lemma advance_accepted (config : Config) (state : NodeState) (timeout : Bool)
   simp [Execution.Local.advance] at h
   repeat first | split at h | simp_all | subst output
 
+-- Optional linter analysis of the exhaustive cases exceeds the default budget.
+set_option maxHeartbeats 400000 in
 lemma step_erases (config : Config) (recovered : TxID) (state : NodeState) (event : Event)
     {source : Location}
     (output : Result)
@@ -140,7 +154,8 @@ lemma step_erases (config : Config) (recovered : TxID) (state : NodeState) (even
         Execution.Local.Effect.diagnostic] using h
   all_goals cases phase : state.phase
   all_goals
-    simp [step, Execution.Local.step, Execution.Local.transitionSystem,
+    dsimp only [Execution.Local.step]
+    simp [step, Execution.Local.transitionSystem,
       Execution.Local.rejectionReason, Execution.Local.rejected, rejected,
       advance, Execution.Local.advance, phase, validTimeout, guard, failure] at h ⊢
   all_goals
@@ -149,8 +164,9 @@ lemma step_erases (config : Config) (recovered : TxID) (state : NodeState) (even
       | (simp_all [eraseOutput, Execution.Local.Effect.diagnostic, capture, Capabilities.record])
       | split at h
       | split
-      | (simp [advance, Execution.Local.advance] at h ⊢)
-  all_goals first | omega | aesop (add safe (by omega))
+  -- Run arithmetic tactics directly so the unreachable-tactic linter can see them.
+  all_goals first | omega | aesop (config := { warnOnNonterminal := false })
+  all_goals omega
 
 lemma timeout_accepted (config : Config) (recovered : TxID) (state : NodeState)
     (output : Result) {source : Location}
@@ -593,7 +609,7 @@ theorem model_reachable_lifts {config : Model.Config} {state : Model.State}
   | initial initialized =>
       obtain ⟨decorated, init, projected⟩ := model_initial_lifts config _ initialized
       exact ⟨decorated, .initial init, projected⟩
-  | @step before after action reachable transition ih =>
+  | @step before after action _ transition ih =>
       obtain ⟨decorated, ghostReachable, projected⟩ := ih
       obtain ⟨ghostAction, ghostAfter, _, ghostStep, erased⟩ :=
         step_lifts config decorated action after
@@ -634,7 +650,7 @@ lemma execution_lifts {config : Model.Config}
         /\ erase ghostAfter = after := by
   induction run generalizing decorated with
   | nil state => exact ⟨[], decorated, .nil decorated, rfl, linked⟩
-  | @cons before middle after action actions step rest ih =>
+  | @cons before middle after action actions step _ ih =>
       obtain ⟨ghostAction, ghostMiddle, erasedAction, ghostStep, erasedMiddle⟩ :=
         step_lifts config decorated action middle
           (Invariants.reachable_well_formed reachable).nodeKeysNodup

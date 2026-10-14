@@ -1,6 +1,12 @@
-import DisasterRecovery.Properties
-import DisasterRecovery.Tests.Initial
-import Mathlib.Tactic
+module
+
+import all Init.Data.List.Sort.Basic
+
+public import DisasterRecovery.Properties
+public import DisasterRecovery.Tests.Initial
+public import Mathlib.Tactic
+
+@[expose] public section
 
 namespace DisasterRecovery.Tests.QuorumCommit
 
@@ -104,10 +110,11 @@ private theorem valid : trace.Valid (Model.transitionSystem config) := by
     List.getElem?_cons_succ, Nat.reduceAdd, Option.some.injEq] at first second <;>
     subst before <;> subst after
   all_goals
-    simp [actions, Model.transitionSystem, MultiNodeTransitionSystem.lift, MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne,
-      Model.protocol, Model.recoveredTxID, Model.receive, step,
-      guard, config, snapshot, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11,
-      aGossips, bGossips, gossip, vote, high, low]
+    dsimp only [Model.transitionSystem, MultiNodeTransitionSystem.lift]
+    simp [actions, MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState,
+      MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
+      Model.receive, step, guard, config, snapshot, s1, s2, s3, s4, s5, s6, s7, s8, s9,
+      s10, s11, aGossips, bGossips, gossip, vote, high, low]
   all_goals cbv
 
 private theorem opened : ("C", openedC) ∈ s11.nodes := by

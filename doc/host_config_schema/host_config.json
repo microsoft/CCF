@@ -50,11 +50,13 @@
               "max_open_sessions_soft": {
                 "type": "integer",
                 "default": 1000,
+                "minimum": 0,
                 "description": "The maximum number of active client sessions on that interface after which clients will receive an HTTP 503 error"
               },
               "max_open_sessions_hard": {
                 "type": "integer",
                 "default": 1010,
+                "minimum": 0,
                 "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``"
               },
               "http_configuration": {
@@ -78,6 +80,8 @@
                   "max_headers_count": {
                     "type": "integer",
                     "default": 256,
+                    "minimum": 0,
+                    "maximum": 4294967295,
                     "description": "Maximum number of headers in a single HTTP request. Submitting a request with more headers than this value will result in the session being automatically closed"
                   },
                   "max_concurrent_streams_count": {
@@ -122,6 +126,7 @@
               "forwarding_timeout_ms": {
                 "type": "integer",
                 "default": 3000,
+                "minimum": 0,
                 "description": "Timeout for forwarded RPC calls (in milliseconds)"
               },
               "redirections": {
@@ -447,6 +452,7 @@
               "max_retries_count": {
                 "type": "integer",
                 "default": 10,
+                "minimum": 0,
                 "description": "Maximum number of retries to fetch endorsements from the server"
               }
             },
@@ -486,7 +492,17 @@
         "max_transaction_size": {
           "type": "string",
           "default": "32MB",
-          "description": "Maximum total serialised size (size string) of a transaction written to the ledger. Reserved internal signature transactions are exempt. This covers the whole ledger entry: the fixed 8-byte ledger entry header, the ledger encryption header, public domain size field, public domain and encrypted private domain. Must be smaller than 'memory.max_msg_size', by at least the ring-buffer range response overhead, so that a single ledger entry can be read back from the host"
+          "description": "Maximum total serialised size (size string) of a transaction written to the ledger. Reserved internal signature transactions are exempt. This covers the whole ledger entry: the fixed 8-byte ledger entry header, the ledger encryption header, public domain size field, public domain and encrypted private domain. Must not exceed the effective 'ledger.max_read_size' so that a single ledger entry can be read back from the host"
+        },
+        "max_read_size": {
+          "type": "string",
+          "default": "64MB",
+          "description": "Maximum total size (size string) of ledger entry data returned by a range read, including entry framing. Must be nonzero and at least 'ledger.max_transaction_size'. When omitted, uses legacy 'memory.max_msg_size' if supplied, otherwise 64MB"
+        },
+        "max_pending_append_bytes": {
+          "type": "string",
+          "default": "16MB",
+          "description": "Pending ledger append byte threshold (size string) for backpressure; see Resource Usage. This is a soft threshold, not a memory allocation or hard cap: already-admitted work may exceed it. A value of 0 disables ledger backlog backpressure. When omitted, uses legacy 'memory.circuit_size' if supplied, otherwise 16MB"
         }
       },
       "description": "This section includes configuration for the ledger directories and files",
@@ -509,6 +525,7 @@
         "min_tx_count": {
           "type": "integer",
           "default": 2,
+          "minimum": 0,
           "description": "Minimum number of transactions that must have elapsed since the last snapshot before a time-based snapshot can be triggered. Has no effect if time_interval is not set. If lower than 2 while time_interval is enabled, snapshots will be triggered indefinitely."
         },
         "time_interval": {
@@ -569,6 +586,7 @@
         "max_committed_ledger_chunks": {
           "type": ["integer", "null"],
           "default": null,
+          "minimum": 0,
           "description": "Maximum number of committed ledger chunk files to retain in the main ledger directory. When the number of committed chunks exceeds this value, the oldest chunks are deleted, but only after verifying that an identical copy (by SHA-256 digest) exists in at least one read-only ledger directory. Chunks whose entries extend to or beyond the sequence number of the newest committed snapshot are never deleted, ensuring a complete ledger history from that snapshot for disaster recovery. Requires at least one ledger.read_only_directories entry; the node will refuse to start otherwise. If null or unset, no automated ledger chunk garbage collection is performed."
         },
         "interval": {
@@ -637,6 +655,7 @@
         "max_uncommitted_tx_count": {
           "type": "integer",
           "default": 10000,
+          "minimum": 0,
           "description": "Local uncommitted transaction count at which a node rejects application and governance requests, including reads, with 503 TooManyPendingTransactions. Node endpoints remain exempt. A value of 0 disables this count threshold, but not ledger backlog backpressure."
         }
       },
@@ -706,7 +725,7 @@
     "tick_interval": {
       "type": "string",
       "default": "10ms",
-      "description": "Interval at which the enclave time will be updated by the host (modify with care!)"
+      "description": "Host task-clock resolution and interval for consensus, node-channel, RPC frontend, historical-cache and indexing maintenance, and recovered-service-opening retries (modify with care!)"
     },
     "slow_io_logging_threshold": {
       "type": "string",
@@ -730,7 +749,7 @@
     "worker_threads": {
       "type": "integer",
       "default": 1,
-      "description": "Number of additional worker threads processing incoming client requests. CCF starts one more worker than configured, in addition to the dispatch thread, to preserve task execution capacity. A value of 0 starts one worker and logs a warning; positive values are incremented silently. The maximum leaves room for the extra worker and dispatch thread in the 16-bit enclave thread count",
+      "description": "Number of additional worker threads processing incoming client requests. CCF starts one more worker than configured, in addition to the coordination thread, to preserve task execution capacity. A value of 0 starts one worker and logs a warning; positive values are incremented silently. The maximum leaves room for the extra worker and coordination thread in the 16-bit enclave thread count",
       "minimum": 0,
       "maximum": 65533
     },
@@ -740,20 +759,24 @@
         "circuit_size": {
           "type": "string",
           "default": "16MB",
-          "description": "Size (size string) of the internal host-enclave ringbuffers (must be a power of 2). Also sets the pending ledger append byte threshold for backpressure; see Resource Usage. Already-admitted work may exceed this threshold."
+          "description": "Deprecated: pending ledger append byte threshold (size string), used only when 'ledger.max_pending_append_bytes' is omitted. No power-of-two requirement applies. Use 'ledger.max_pending_append_bytes' instead. Removal planned for 8.0",
+          "deprecated": true
         },
         "max_msg_size": {
           "type": "string",
           "default": "64MB",
-          "description": "Maximum size (size string) for a message sent over the ringbuffer. Messages may be split into multiple fragments, but this limits the total size of the sum of those fragments"
+          "description": "Deprecated: ledger range-read and inbound node-to-node frame size limit (size string). Supplies each limit only when its replacement, 'ledger.max_read_size' or 'node_to_node.max_message_size', is omitted. No metadata allowance is subtracted. Removal planned for 8.0",
+          "deprecated": true
         },
         "max_fragment_size": {
           "type": "string",
           "default": "256KB",
-          "description": "Maximum size (size string) of individual ringbuffer message fragments. Messages larger than this will be split into multiple fragments"
+          "description": "Deprecated: accepted for compatibility but ignored. Remove this setting. Removal planned for 8.0",
+          "deprecated": true
         }
       },
-      "description": "This section includes configuration for the host-enclave ring-buffer memory (modify with care!)",
+      "description": "Deprecated compatibility aliases for ledger and node-to-node limits. Explicit replacement settings take precedence. Explicit legacy fields produce INFO deprecation notices. Removal planned for 8.0",
+      "deprecated": true,
       "additionalProperties": false
     },
     "ignore_first_sigterm": {
@@ -773,6 +796,18 @@
       "maximum": 16777216,
       "default": 16777216,
       "description": "TLS-only encrypted record budget per directional traffic key. Sending keys are updated before exhaustion; receiving peers exceeding this budget are disconnected. Counts record fragmentation, unlike the legacy node_to_node_message_limit."
+    },
+    "node_to_node": {
+      "type": "object",
+      "properties": {
+        "max_message_size": {
+          "type": "string",
+          "default": "64MB",
+          "description": "Maximum accepted inbound node-to-node frame size (size string), including message headers but excluding the 4-byte length prefix. Oversized frames close the connection. Independent of the ledger range-read budget and the per-key 'node_to_node_message_limit'. When omitted, uses legacy 'memory.max_msg_size' if supplied, otherwise 64MB"
+        }
+      },
+      "description": "Configuration for node-to-node communication",
+      "additionalProperties": false
     },
     "node_to_node_message_limit": {
       "type": "integer",

@@ -1,5 +1,9 @@
-import DisasterRecovery.Proofs.Predicates
-import Mathlib.Tactic
+module
+
+public import DisasterRecovery.Proofs.Predicates
+public import Mathlib.Tactic
+
+@[expose] public section
 
 /-!
 Machine-checked proof implementations. Review the system-level statements in
@@ -269,7 +273,7 @@ lemma recordEffects_preserves_histories_active
       · exact recordEffect_preserves_histories_active wellFormed nodeActive
       · cases effect <;> simpa [recordEffect] using nodeActive
 
-lemma mem_of_mem_removeOne [BEq α] (value member : α) (values : List α)
+lemma mem_of_mem_removeOne {α : Type _} [BEq α] (value member : α) (values : List α)
     : member ∈ removeOne value values -> member ∈ values := by
   induction values with
   | nil => simp [removeOne]
@@ -835,7 +839,7 @@ lemma reachable_well_formed
   | initial initialized =>
       rcases initialized with ⟨active, valid, nodup, configured, rfl⟩
       exact initial_well_formed config active valid nodup configured
-  | step reachable transition wellFormed =>
+  | step _ transition wellFormed =>
       exact next_preserves_well_formed wellFormed transition
 
 lemma reachable_config_valid
@@ -847,6 +851,6 @@ lemma reachable_config_valid
   | initial initialized =>
       rcases initialized with ⟨_, valid, _⟩
       exact valid
-  | step reachable transition valid => exact valid
+  | step _ _ valid => exact valid
 
 end DisasterRecovery.Proofs.Invariants

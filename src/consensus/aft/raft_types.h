@@ -5,7 +5,6 @@
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/entity_id.h"
 #include "consensus/consensus_types.h"
-#include "ds/ring_buffer_types.h"
 #include "kv/kv_types.h"
 
 #include <array>
@@ -301,8 +300,10 @@ struct formatter<aft::RaftMsgType>
         return fmt::format_to(ctx.out(), "request_pre_vote_response");
       }
       default:
+      {
         throw std::runtime_error(
           fmt::format("Unhandled RaftMsgType: {}", uint64_t(msg_type)));
+      }
     }
   }
 };

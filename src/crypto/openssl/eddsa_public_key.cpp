@@ -53,6 +53,10 @@ namespace ccf::crypto
     }
   }
 
+  EdDSAPublicKey_OpenSSL::EdDSAPublicKey_OpenSSL(Unique_PKEY&& pkey) :
+    key(pkey.release())
+  {}
+
   EdDSAPublicKey_OpenSSL::~EdDSAPublicKey_OpenSSL()
   {
     if (key != nullptr)
@@ -99,15 +103,21 @@ namespace ccf::crypto
     switch (gid)
     {
       case CurveID::CURVE25519:
+      {
         return EVP_PKEY_ED25519;
+      }
       case CurveID::X25519:
+      {
         return EVP_PKEY_X25519;
+      }
       case CurveID::NONE:
       case CurveID::SECP384R1:
       case CurveID::SECP256R1:
       case CurveID::SECP521R1:
+      {
         throw std::logic_error(
           fmt::format("unsupported OpenSSL CurveID {}", gid));
+      }
     }
     return NID_undef;
   }
@@ -118,11 +128,17 @@ namespace ccf::crypto
     switch (nid)
     {
       case NID_ED25519:
+      {
         return CurveID::CURVE25519;
+      }
       case NID_X25519:
+      {
         return CurveID::X25519;
+      }
       default:
+      {
         throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
+      }
     }
     return CurveID::NONE;
   }

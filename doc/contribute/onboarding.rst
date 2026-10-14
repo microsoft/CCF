@@ -46,7 +46,7 @@ The main CI job for CCF is defined in :ccf_repo:`a YAML file in the repo </.gith
 
 That job gates pull requests, and is also used with a different trigger (on tags like ``ccf-*``) to produce releases.
 
-:ccf_repo:`Several other jobs </.github/workflows/README.md>` are defined as GitHub Actions worflows and run more in-depth tests, publish documentation etc.
+:ccf_repo:`Several other jobs </.github/workflows/README.md>` are defined as GitHub Actions workflows and run more in-depth tests, publish documentation etc.
 
 Review the release and compatibility policy
 -------------------------------------------

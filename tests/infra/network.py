@@ -13,7 +13,7 @@ import time
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum, IntEnum, auto
 from typing import ClassVar
 
@@ -223,6 +223,9 @@ class Network:
         "historical_cache_soft_limit",
         "tick_ms",
         "max_msg_size_bytes",
+        "ledger_max_read_bytes",
+        "ledger_max_pending_append_bytes",
+        "node_to_node_max_message_bytes",
         "snp_security_policy_file",
         "snp_uvm_endorsements_file",
         "snp_endorsements_file",
@@ -1492,7 +1495,7 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                valid_from = valid_from or datetime.now(timezone.utc)
+                valid_from = valid_from or datetime.now(UTC)
                 # Note: Timeout is function of the ledger size here since
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
@@ -1678,13 +1681,13 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                valid_from = valid_from or datetime.now(timezone.utc)
+                valid_from = valid_from or datetime.now(UTC)
                 # Note: Timeout is function of the ledger size here since
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
                 if statistics is not None:
                     statistics["node_replacement_governance_start"] = datetime.now(
-                        timezone.utc
+                        UTC
                     ).isoformat()
                 self.consortium.replace_node(
                     primary,
@@ -1696,7 +1699,7 @@ class Network:
                 )
                 if statistics is not None:
                     statistics["node_replacement_governance_committed"] = datetime.now(
-                        timezone.utc
+                        UTC
                     ).isoformat()
         except (ValueError, TimeoutError):
             LOG.error(
@@ -1740,9 +1743,7 @@ class Network:
         else:
             raise TimeoutError(f"Timed out waiting for node to become removed: {r}")
         if statistics is not None:
-            statistics["old_node_removal_committed"] = datetime.now(
-                timezone.utc
-            ).isoformat()
+            statistics["old_node_removal_committed"] = datetime.now(UTC).isoformat()
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):
@@ -2478,7 +2479,7 @@ class Network:
         if self.service_certificate_valid_from is None:
             # If the service certificate has not been renewed, assume that certificate has
             # been issued within this test run
-            expected_valid_from = datetime.now(timezone.utc) - timedelta(hours=1)
+            expected_valid_from = datetime.now(UTC) - timedelta(hours=1)
             if valid_from < expected_valid_from:
                 raise ValueError(
                     f'Service certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'

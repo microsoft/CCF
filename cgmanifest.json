@@ -26,8 +26,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/iboB/picobench.git",
-          "commitHash": "77b575e0a239de72b581ee8396166519db0d7c87",
-          "tag": "v2.08"
+          "commitHash": "1fdd89f5f88885eb3c2a55f955f7ec46a4e841de",
+          "tag": "v2.10.0"
         }
       }
     },
@@ -36,8 +36,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
-          "commitHash": "bfffd37e1f804ca4fae1caae106935791696b6a9",
-          "tag": "v2.6.1"
+          "commitHash": "cbd58a3696887b34c70949aef21a71735a0c2ad5",
+          "tag": "v2.7.2"
         }
       }
     },
@@ -46,8 +46,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "407c905e45ad75fc29bf0f9bb7c5c2fd3475976f",
-          "tag": "12.1.0"
+          "commitHash": "1be298e1bd68957e4cd352e1f676f00e07dcfb57",
+          "tag": "12.2.0"
         }
       }
     },
@@ -66,17 +66,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/snmalloc",
-          "commitHash": "92ca9184886f983bb1cf9f4614c9569db442d097",
-          "tag": "0.7.3"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/thelink2012/SmallVector",
-          "commitHash": "febc8cb7b1a83d902b86dd1612feb7c86c690186"
+          "commitHash": "f126f1c94d624976d57568d2c6c8a80bc66549bc",
+          "tag": "0.7.6"
         }
       }
     },
@@ -85,8 +76,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
-          "commitHash": "86b83a59786caebd581f38d613c64c9e8c52c79e",
-          "tag": "release/v9.3.0"
+          "commitHash": "0e815792b167a9bd8ace259b95b7da953776c288",
+          "tag": "release/v9.4.3"
         }
       }
     },
@@ -105,8 +96,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "4edda758546436462da479bb8c8514f8a95c35ad",
-          "tag": "v1.0.6"
+          "commitHash": "5eac4b66f20b2c189ae40281c29e71cf39a958ec",
+          "tag": "v1.1.3"
         }
       }
     },

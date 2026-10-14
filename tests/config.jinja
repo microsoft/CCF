@@ -58,7 +58,9 @@
     "directory": "{{ ledger_dir }}",
     "read_only_directories": {{ read_only_ledger_dirs|tojson }},
     "chunk_size": "{{ ledger_chunk_bytes }}",
-    "max_transaction_size": "{{ ledger_max_transaction_bytes }}"
+    "max_transaction_size": "{{ ledger_max_transaction_bytes }}",
+    "max_read_size": "{{ ledger_max_read_bytes or max_msg_size_bytes or "64MB" }}",
+    "max_pending_append_bytes": "{{ ledger_max_pending_append_bytes or "16MB" }}"
   },
   "snapshots":
   {
@@ -122,10 +124,8 @@
   "node_to_node_tls_record_limit": {{ node_to_node_tls_record_limit|tojson }},
   {% endif %}
   "worker_threads": {{ worker_threads }},
-  "memory": {
-    "circuit_size": "16MB",
-    "max_msg_size": "{{ max_msg_size_bytes }}",
-    "max_fragment_size": "256KB"
+  "node_to_node": {
+    "max_message_size": "{{ node_to_node_max_message_bytes or max_msg_size_bytes or "64MB" }}"
   },
   "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if identity_history_fetch_max_attempts or identity_history_fetch_retry_interval %},
   "identity_history_fetch": {

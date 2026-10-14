@@ -1,4 +1,8 @@
-import DisasterRecovery.Shared.Execution
+module
+
+public import DisasterRecovery.Shared.Execution
+
+@[expose] public section
 
 namespace DisasterRecovery.Tests.Execution
 
