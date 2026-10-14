@@ -1,9 +1,14 @@
 module
 
+meta import DisasterRecovery.Tests.Initial
+meta import DisasterRecovery.Tests.Network
+
 public import DisasterRecovery.Tests.Initial
 public import DisasterRecovery.Tests.Network
 
 public section
+
+namespace DisasterRecovery.Tests.CanonicalTests
 
 open DisasterRecovery
 open Shared
@@ -177,7 +182,7 @@ private def enumerate (config : Config) (location : Location) : IO (Nat × Nat) 
   pure (states.size, edges)
 
 /-- Runs the canonical local-state enumeration and recovery scenario checks. -/
-def main : IO UInt32 := do
+def run : IO Unit := do
   Tests.Network.run
   let config : Config :=
     {
@@ -454,4 +459,7 @@ def main : IO UInt32 := do
   IO.println s!"canonical n=1: {oneStates} states, {oneEdges} event edges"
   IO.println s!"canonical n=2: {twoStates} states, {twoEdges} event edges"
   IO.println "all canonical semantic checks passed"
-  pure 0
+
+#eval run
+
+end DisasterRecovery.Tests.CanonicalTests

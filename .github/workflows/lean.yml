@@ -44,9 +44,8 @@ jobs:
         run: |
           set -euo pipefail
           lake exe mk_all --check --module --lib DisasterRecovery
-          lake build --wfail --fail-fast DisasterRecovery canonical-checks disaster-recovery-replay
+          lake build --wfail --fail-fast
           lake lint
-          lake exe canonical-checks
 
       - name: Check Mathlib linters
         working-directory: lean/disaster-recovery
@@ -63,14 +62,12 @@ jobs:
           python3 lean/disaster-recovery/replayer/check-schema.py \
             lean/disaster-recovery/replayer/fixtures/*/*.out
 
-      - name: Build and check disaster recovery replay
+      - name: Check disaster recovery replay
+        working-directory: lean/disaster-recovery
         shell: bash
         run: |
           set -euo pipefail
-          cd lean/disaster-recovery/replayer
-          lake build --fail-fast
-          lake lint
-          ./check-fixtures.sh
+          ./replayer/check-fixtures.sh
 
       - name: Dump replays for the trace viewer
         shell: bash
@@ -80,16 +77,9 @@ jobs:
         run: ./scripts/lean-format-checks.sh
 
   kernel-checks:
-    name: Kernel checks (${{ matrix.package }})
+    name: Kernel checks (disaster-recovery)
     runs-on: ubuntu-26.04
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        package:
-          - disaster-recovery
-          - disaster-recovery/replayer
-
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -102,7 +92,6 @@ jobs:
           elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
 
       - name: Restore Mathlib cache
-        if: matrix.package == 'disaster-recovery'
         working-directory: lean/disaster-recovery
         shell: bash
         run: |
@@ -110,13 +99,9 @@ jobs:
           lake exe cache get
 
       - name: Check with Lean's kernel
-        working-directory: lean/${{ matrix.package }}
+        working-directory: lean/disaster-recovery
         shell: bash
         run: |
           set -euo pipefail
           export TMPDIR="$RUNNER_TEMP"
-          if [[ "${{ matrix.package }}" == "disaster-recovery/replayer" ]]; then
-            ./check-kernel.sh
-          else
-            lake check
-          fi
+          lake check

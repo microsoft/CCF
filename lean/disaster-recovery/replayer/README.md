@@ -8,9 +8,8 @@ node logs -(DisasterRecovery/TraceValidation/Records.lean)-> records
           -(DisasterRecovery/TraceValidation.lean)-> success or discrepancy
 ```
 
-It has its own Lake package in `lean/disaster-recovery/replayer`, which builds only the replayer and the modules it imports.
-They import no Mathlib module, so the package has no dependencies.
-Run it from there:
+It is an executable target of the shared Lake package in `lean/disaster-recovery`.
+Run it from that package directory:
 
 ```bash
 lake exe disaster-recovery-replay --participants N [--wait-ms N] [--dump FILE] LOG...
@@ -24,9 +23,9 @@ Each instruction names the log line and the rule it comes from, so a failure poi
 The recovery decision protocol scenarios only run in the SNP Genoa CI job, which sets `CCF_RECOVERY_TRACE=1` for its tests, and `tests/infra/remote.py` passes it on to the nodes.
 After the quorum, failover and multiple-timeout scenarios in `tests/e2e_operations.py`, `tests/infra/recovery_trace.py` runs the replayer on the nodes' logs.
 `.github/workflows/lean.yml` checks the records of committed fixtures of those three scenarios against the schema, then builds and lints the replayer and runs `check-fixtures.sh` on them.
-The package enables the same [built-in linter checks](../README.md#validation) as the model.
-The kernel-check job also verifies this package with Lean's kernel in a sandbox.
-Run `./check-kernel.sh` with the [kernel-check prerequisites](../README.md#validation).
+The replayer and model share the same [built-in linter checks](../README.md#validation).
+The kernel-check job verifies both together with Lean's kernel in a sandbox.
+Run `lake check` from the package directory with the [kernel-check prerequisites](../README.md#validation).
 
 ## Records
 
@@ -95,10 +94,9 @@ Commit order is covered by named invalid traces rather than by ones that differ 
 `check-fixtures.sh` replays the recorded, valid and invalid traces:
 
 ```bash
-cd lean/disaster-recovery/replayer
-lake build --fail-fast
-lake lint
-./check-fixtures.sh
+cd lean/disaster-recovery
+lake build --wfail --fail-fast disaster-recovery-replay
+./replayer/check-fixtures.sh
 ```
 
 To refresh the fixtures from a traced SNP run, download its `logs-caci-snp-genoa` artifact and keep the `RDP_TRACE` part of each line of the three scenarios' node logs.

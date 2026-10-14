@@ -80,25 +80,23 @@ Run the following commands from this directory:
 ```console
 lake exe cache get
 lake exe mk_all --check --module --lib DisasterRecovery
-lake build --wfail --fail-fast DisasterRecovery canonical-checks disaster-recovery-replay
+lake build --wfail --fail-fast
 lake lint
-lake exe canonical-checks
 lake exe runLinter --no-build DisasterRecovery replayer.Main
+./replayer/check-fixtures.sh
 lake check
-cd replayer
-./check-kernel.sh
 ```
 
 `--wfail` treats all build warnings, including `sorry`, as errors.
 `--fail-fast` stops scheduling new build jobs after the first failure.
 `lake lint` runs Lean's built-in linters.
-Both Lake packages enable the complete `linter.extra` set (duplicated namespaces, unnecessary `<;>`, unreachable tactics, and unused decidability instances), plus `linter.missingDocs`, `linter.omit`, `linter.loopingSimpArgs`, `linter.redundantVisibility`, and `linter.unusedVariables.analyzeTactics`.
+The Lake package enables the complete `linter.extra` set (duplicated namespaces, unnecessary `<;>`, unreachable tactics, and unused decidability instances), plus `linter.missingDocs`, `linter.omit`, `linter.loopingSimpArgs`, `linter.redundantVisibility`, and `linter.unusedVariables.analyzeTactics`.
 These supplement Lean's default checks, and linter findings fail validation.
-The options are set in each `lakefile.toml` so ordinary builds use them too; `lake lint` also runs the environment checks on the built declarations.
+The options are set in `lakefile.toml` so ordinary builds use them too; `lake lint` also runs the environment checks on the built declarations.
 The opt-ins are explicit rather than `linter.all`, which would enable every optional linter registered by dependencies.
 Lean's internal-module and collection-variable naming conventions, and its debugging-only `linter.tacticCheckInstances`, are not enabled.
 
-Both packages also set `autoImplicit = false`, requiring declaration headers to bind their parameters explicitly rather than silently introducing undeclared names.
+The package also sets `autoImplicit = false`, requiring declaration headers to bind their parameters explicitly rather than silently introducing undeclared names.
 This applies to ordinary Lake builds as well as CI.
 
 The model, proofs, tests, and replayer use Lean's module system, as required by the Mathlib dependency.
@@ -111,18 +109,18 @@ The proof-coverage check also loads implementation metadata to distinguish check
 
 `runLinter` uses Mathlib's declaration-lint driver, including the slow checks, over every module imported by `DisasterRecovery.lean` and `replayer.Main`.
 It lints our declarations rather than dependencies, and findings fail the command.
-The explicit build includes the replayer so its declarations are available to the linter; its separate package remains dependency-free.
-The main package's default targets are the library and canonical checks.
-The two executables both define `main`, so `lake check` must verify them in separate packages rather than importing both entrypoints into one environment.
+The package's default targets are the complete library and the replayer executable.
+Canonical scenario and state-enumeration checks run with `#eval` when `Tests/CanonicalTests.lean` is built, and assertion failures fail the build.
+Their runner is namespaced, leaving the replayer as the only `main` entrypoint so both targets can be checked together.
 
 `lake check`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/4.35.0/releases/v4.35.0/), builds and exports all default targets in a sandbox, then rechecks the export with Lean's kernel.
 It also checks axiom dependencies, rejecting any use of axioms other than `propext`, `Classical.choice`, and `Quot.sound`, so a separate axiom-audit dependency is unnecessary.
-The main package includes the complete library import root and canonical tests, not just the exported property theorems; the standalone package checks the replayer.
+The checked targets include the complete library import root, canonical tests, and replayer, not just the exported property theorems.
 These supplement the import and proof coverage checks and executable model and trace tests.
 The sandbox requires Linux and `bubblewrap` (`sudo apt-get install bubblewrap`), with unprivileged user namespaces enabled or a setuid installation.
-CI checks both packages in an Ubuntu 26.04 job matrix without disabling the sandbox, using disk-backed temporary storage.
+CI checks the package in an Ubuntu 26.04 job without disabling the sandbox, using disk-backed temporary storage.
 Additional bundled checkers are not enabled.
-The replayer's `check-kernel.sh` stages identical shared sources inside its package, changing only their relative source directory, because the sandbox cannot read its usual parent source directory.
+All sources belong to this package, so `lake check` needs no source staging or path rewriting.
 
 `Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof module or if a removed name is reintroduced.
 See [Formatting](#formatting) for the [leanfmt](https://github.com/duckki/leanfmt) check.

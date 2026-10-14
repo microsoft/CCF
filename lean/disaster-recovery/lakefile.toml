@@ -4,7 +4,7 @@ moreLeanArgs = ["-DwarningAsError=true"]
 builtinLint = true
 defaultTargets = [
   "DisasterRecovery",
-  "canonical-checks",
+  "disaster-recovery-replay",
 ]
 
 [leanOptions]
@@ -29,11 +29,6 @@ rev = "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef" # v0.4.5
 [[lean_lib]]
 name = "DisasterRecovery"
 
-[[lean_exe]]
-name = "canonical-checks"
-root = "DisasterRecovery.Tests.CanonicalTests"
-
-# Expose the replayer to the linter without colliding with dependencies' Main modules.
 [[lean_exe]]
 name = "disaster-recovery-replay"
 root = "replayer.Main"
