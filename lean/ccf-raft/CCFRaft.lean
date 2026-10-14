@@ -31,6 +31,10 @@ public import CCFRaft.Proofs.Safety.Summary
 public import CCFRaft.Proofs.Witnesses
 public import CCFRaft.Properties
 public import CCFRaft.Properties.Utils
+public import CCFRaft.Replay
+public import CCFRaft.Replay.Records
+public import CCFRaft.Replay.Reduction
+public import CCFRaft.Replay.Suite
 public import CCFRaft.Tests.AppendTransactions
 public import CCFRaft.Tests.Architecture
 public import CCFRaft.Tests.CanonicalTests

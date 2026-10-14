@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y elan
+          sudo apt-get install -y elan bubblewrap
           sort -u lean/*/lean-toolchain | while IFS= read -r toolchain; do
             elan toolchain install "$toolchain"
           done
@@ -41,7 +41,7 @@ jobs:
             (cd "lean/$package" && lake exe cache get)
           done
 
-      - name: Build CCF Raft model and properties
+      - name: Build CCF Raft model, proofs and replay
         working-directory: lean/ccf-raft
         shell: bash
         run: |
@@ -50,6 +50,7 @@ jobs:
           lake build --wfail --fail-fast
           lake lint
           lake exe canonical-checks
+          lake exe replay-checks
 
       - name: Check CCF Raft with Lean's kernel
         working-directory: lean/ccf-raft
@@ -57,7 +58,17 @@ jobs:
         run: |
           set -euo pipefail
           export TMPDIR="$RUNNER_TEMP"
-          lake check --inadvisably-no-sandbox
+          # Partition colliding main declarations without bypassing Lake's
+          # sandboxed configuration/build/export/check pipeline.
+          # CCFRaft also imports the canonical-checks root.
+          config="$RUNNER_TEMP/ccf-raft-lakefile.toml"
+          cp lakefile.toml "$config"
+          trap 'cp "$config" lakefile.toml; rm "$config"' EXIT
+          test "$(grep -c '^defaultTargets = ' "$config")" -eq 1
+          for target in CCFRaft ccfraft-replay replay-checks; do
+            sed "s/^defaultTargets = .*/defaultTargets = [\"$target\"]/" "$config" > lakefile.toml
+            lake check
+          done
 
       - name: Build and check disaster recovery model
         working-directory: lean/disaster-recovery

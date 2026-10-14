@@ -1,0 +1,353 @@
+module
+
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+
+public import CCFRaft.Model
+public import Lean.Data.Json
+public import Mathlib.Data.String.Basic
+
+public section
+
+namespace CCFRaft.Replay
+
+open Lean Model.Node
+open CCF.MultiNodeTransitionSystem (nodeState removeOne)
+
+abbrev Envelope := Model.Envelope String String
+
+/-- Source evidence and the named rule which uses it. -/
+structure Origin where
+  file : String
+  line : Nat
+  function : String
+  command : String
+  commandLine : Nat
+  implementation : Option (String × Nat) := none
+  rule : String
+  /-- Pre-mutation fields intentionally not compared to the final atomic state. -/
+  omitted : List (String × Json × String) := []
+deriving Inhabited
+
+def Origin.label (origin : Origin) : String :=
+  let implementation :=
+    origin.implementation.map (fun (file, line) => s!" ({file}:{line})") |>.getD ""
+  s!"{origin.file}:{origin.line} [{origin.rule}] {origin.function}{implementation}, command {origin.commandLine}: {origin.command}"
+
+/-- Bootstrap and every driver-created node, including nodes with no events yet. -/
+structure Header where
+  bootstrap : InitialConfig String
+  declared : List String
+
+def Header.initial (header : Header) : Model.State String String :=
+  {
+    nodes :=
+      header.declared.map fun node => (node, initialNodeState header.bootstrap node)
+    active := header.declared
+  }
+
+inductive Step where
+  | local (node : String) (input : Input String String)
+  | receive (source destination : String)
+  | drop (source destination : String)
+
+def Step.name : Step → String
+  | .local _ (.append _) => "append"
+  | .local _ (.sendEntries ..) => "sendEntries"
+  | .local _ (.timeout _) => "timeout"
+  | .local _ .nominateSuccessor => "nominateSuccessor"
+  | .receive .. => "receive"
+  | .drop .. => "drop"
+
+/-- Direct model actions and sparse observations; there is no replay wire schema. -/
+inductive Instruction where
+  | action (step : Step) (origins : List Origin)
+  | state (node : String) (peer : Option String) (fields : Json) (origin : Origin)
+  | entry (node : String) (index : Nat) (fields : Json) (origin : Origin)
+  /-- Sends observe the latest queued packet; receives and drops observe the head. -/
+  | message (source destination : String) (packet : Json) (latest : Bool)
+    (origin : Origin)
+
+def Instruction.origins : Instruction → List Origin
+  | .action _ origins => origins
+  | .state _ _ _ origin | .entry _ _ _ origin | .message _ _ _ _ origin => [origin]
+
+structure ReplayState where
+  state : Model.State String String
+  dropped : List Envelope := []
+
+/--
+FIFO belongs to the driver, not the model's multiset network.
+Dropped copies remain undelivered model envelopes, excluded with multiplicity.
+-/
+def ReplayState.live (replay : ReplayState) : List Envelope :=
+  replay.dropped.foldl (fun network envelope => removeOne envelope network)
+    replay.state.network
+
+def ReplayState.pending (replay : ReplayState) (source destination : String)
+    : List Envelope :=
+  replay.live.filter
+    fun envelope => envelope.source == source && envelope.target == destination
+
+private def declared (header : Header) (node : String) : Except String Unit :=
+  unless node ∈ header.declared do throw s!"undeclared node '{node}'"
+
+private def runStep (header : Header) (replay : ReplayState) (step : Step)
+    : Except String ReplayState := do
+  let system := Model.transitionSystem (TxId := String) header.bootstrap header.declared
+  match step with
+  | .local node input =>
+      declared header node
+      match input with
+      | .sendEntries destination _ => declared header destination
+      | .append entries =>
+          for entry in entries do
+            if let .transaction _ effects := entry then
+              for effect in effects do
+                let nodes :=
+                  match effect with
+                  | .reconfiguration nodes | .retiredCommitted nodes => nodes
+                for member in nodes.sort do
+                  declared header member
+      | _ => pure ()
+      let some state := system.step replay.state (.local node input)
+      | throw s!"disabled model action '{step.name}'"
+      return { replay with state }
+  | .receive source destination =>
+      declared header source
+      declared header destination
+      let some envelope := (replay.pending source destination).head?
+      | throw
+          s!"disabled model action 'receive': no pending packet from '{source}' to '{destination}'"
+      let some state := system.step replay.state (.deliver envelope)
+      | throw "disabled model action 'receive'"
+      return { replay with state }
+  | .drop source destination =>
+      declared header source
+      declared header destination
+      let some envelope := (replay.pending source destination).head?
+      | throw s!"no pending packet from '{source}' to '{destination}'"
+      return { replay with dropped := replay.dropped ++ [envelope] }
+
+private def roleName : Role → String
+  | .none => "none"
+  | .follower => "follower"
+  | .preVoteCandidate => "preVoteCandidate"
+  | .candidate => "candidate"
+  | .leader => "leader"
+
+private def membershipName : MembershipState → String
+  | .active => "active"
+  | .retirementOrdered => "retirementOrdered"
+  | .retirementSigned => "retirementSigned"
+  | .retirementCompleted => "retirementCompleted"
+  | .retiredCommitted => "retiredCommitted"
+
+private def checkFields (expected actual : Json) : Except String Unit := do
+  let observed := (← expected.getObj?).toList
+  if observed.isEmpty then throw "observation must contain at least one field"
+  for (key, expectedValue) in observed do
+    let actualValue ←
+      (actual.getObjVal? key).mapError fun _ => s!"unsupported observation field '{key}'"
+    unless expectedValue == actualValue do
+      throw s!"{key}: observed {expectedValue.compress}, model {actualValue.compress}"
+
+private def lookup (header : Header) (replay : ReplayState) (node : String)
+    : Except String (NodeState String String) := do
+  declared header node
+  let some state := nodeState replay.state node
+  | throw s!"node '{node}' is not in the network"
+  return state
+
+private def members (header : Header) (nodes : Finset String) : Json :=
+  toJson (header.declared.filter fun member => member ∈ nodes)
+
+private def observeState (header : Header) (replay : ReplayState) (node : String)
+    (peer : Option String) (expected : Json)
+    : Except String Unit := do
+  let state ← lookup header replay node
+  let retirement := state.retirement header.bootstrap node
+  let markers :=
+    (List.range' 1 state.log.length).filter
+      fun index => index > state.commitIndex && isSignatureAt state.log index
+  let configurations :=
+    (activeConfigurations header.bootstrap state.log state.commitIndex).filterMap
+      fun configuration =>
+        if configuration.index == 0 then
+          none
+        else
+          some
+            (Json.mkObj
+              [
+                ("index", toJson configuration.index),
+                ("nodes", members header configuration.nodes)
+              ])
+  let mut fields :=
+    [
+      ("role", toJson (roleName state.role)),
+      ("currentTerm", toJson state.currentTerm),
+      ("logLength", toJson state.log.length),
+      ("commitIndex", toJson state.commitIndex),
+      ("committableIndices", toJson markers),
+      ("configurations", toJson configurations),
+      ("membershipState", toJson (membershipName retirement.phase)),
+      ("retirementIndex", toJson retirement.index),
+      ("retirementCommittableIndex", toJson retirement.committableIndex),
+      ("retiredCommittedIndex", toJson state.retiredCommittedIndex),
+      ("preVoteEnabled", toJson (decide (header.bootstrap.preVoteStatus node = .enabled)))
+    ]
+  if let some peer := peer then
+    declared header peer
+    fields :=
+      fields
+      ++ [
+        ("sentIndex", toJson (state.sentIndex peer)),
+        ("matchIndex", toJson (state.matchIndex peer))
+      ]
+  checkFields expected (Json.mkObj fields)
+
+private def observeEntry (header : Header) (replay : ReplayState) (node : String)
+    (index : Nat) (expected : Json)
+    : Except String Unit := do
+  if index == 0 then throw "log entry index must be positive"
+  let state ← lookup header replay node
+  let some entry := entryAt? state.log index
+  | throw s!"node '{node}' has no log entry at index {index}"
+  let content :=
+    match entry.content with
+    | .transaction transaction effects =>
+        [
+          ("kind", toJson "transaction"),
+          ("transaction", toJson transaction),
+          (
+            "effects",
+            toJson
+              (effects.map
+                fun effect =>
+                  match effect with
+                  | .reconfiguration nodes =>
+                      Json.mkObj
+                        [
+                          ("kind", toJson "configuration"),
+                          ("configuration", members header nodes)
+                        ]
+                  | .retiredCommitted nodes =>
+                      Json.mkObj
+                        [
+                          ("kind", toJson "retiredCommitted"),
+                          ("nodes", members header nodes)
+                        ])
+          ),
+          (
+            "configurations",
+            toJson ((entryConfigurations entry.content).map (members header))
+          )
+        ]
+    | .signature => [("kind", toJson "signature")]
+  checkFields expected
+    (Json.mkObj
+      ([
+          ("term", toJson entry.term),
+          ("committed", toJson (decide (index <= state.commitIndex)))
+        ]
+        ++ content))
+
+/-- Physical packet coordinates; lower-term NACK hints are not election terms. -/
+def messageJson (message : Message String String) : Json :=
+  let fields :=
+    match message with
+    | .appendEntriesRequest request =>
+        [
+          ("msg", toJson "raft_append_entries"),
+          ("prev_idx", toJson request.prevLogIndex),
+          ("prev_term", toJson request.prevLogTerm),
+          ("idx", toJson (request.prevLogIndex + request.entries.length)),
+          ("leader_commit_idx", toJson request.leaderCommit),
+          (
+            "term_of_idx",
+            toJson (request.entries.getLast?.map Entry.term |>.getD request.prevLogTerm)
+          ),
+          ("contains_new_view", toJson false)
+        ]
+    | .appendEntriesResponse response =>
+        [
+          ("msg", toJson "raft_append_entries_response"),
+          ("success", toJson (if response.success then "OK" else "FAIL")),
+          ("last_log_idx", toJson response.lastLogIndex)
+        ]
+    | .requestVoteRequest request =>
+        [
+          ("msg", toJson "raft_request_vote"),
+          ("last_committable_idx", toJson request.lastCommittableIndex),
+          ("term_of_last_committable_idx", toJson request.lastCommittableTerm)
+        ]
+    | .requestPreVote request =>
+        [
+          ("msg", toJson "raft_request_pre_vote"),
+          ("last_committable_idx", toJson request.lastCommittableIndex),
+          ("term_of_last_committable_idx", toJson request.lastCommittableTerm)
+        ]
+    | .requestVoteResponse response =>
+        [
+          ("msg", toJson "raft_request_vote_response"),
+          ("vote_granted", toJson response.voteGranted)
+        ]
+    | .requestPreVoteResponse response =>
+        [
+          ("msg", toJson "raft_request_pre_vote_response"),
+          ("vote_granted", toJson response.voteGranted)
+        ]
+    | .proposeVoteRequest _ => [("msg", toJson "raft_propose_request_vote")]
+  Json.mkObj (("term", toJson message.term) :: fields)
+
+/-- Observations never change model state or repair a disabled action. -/
+def runInstruction (header : Header) (state : ReplayState) (instruction : Instruction)
+    : Except String ReplayState := do
+  match instruction with
+  | .action step _ => runStep header state step
+  | .state node peer fields _ =>
+      observeState header state node peer fields
+      return state
+  | .entry node index fields _ =>
+      observeEntry header state node index fields
+      return state
+  | .message source destination packet latest _ =>
+      declared header source
+      declared header destination
+      let pending := state.pending source destination
+      let some envelope := if latest then pending.getLast? else pending.head?
+      | throw s!"no pending packet from '{source}' to '{destination}'"
+      checkFields packet (messageJson envelope.payload)
+      return state
+
+structure Result where
+  instructions : Nat
+  actions : Nat
+  observations : Nat
+deriving Repr, BEq
+
+def replay (header : Header) (instructions : Array Instruction)
+    : Except String Result := do
+  unless !header.declared.isEmpty
+          && header.declared.all (!·.isEmpty)
+          && header.declared.eraseDups == header.declared do
+    throw "declared nodes must be nonempty and distinct"
+  for node in header.bootstrap.configuration.sort do
+    declared header node
+  if instructions.isEmpty then throw "replay instructions must not be empty"
+  let mut state : ReplayState := { state := header.initial }
+  let mut actions := 0
+  for instruction in instructions, index in [:instructions.size] do
+    if instruction.origins.isEmpty then throw s!"instruction {index + 1}: missing origin"
+    state ←
+      (runInstruction header state instruction).mapError
+        fun error =>
+          s!"instruction {index + 1} at {String.intercalate ", " (instruction.origins.map Origin.label)}: {error}"
+    if let .action .. := instruction then actions := actions + 1
+  return {
+    instructions := instructions.size,
+    actions,
+    observations := instructions.size - actions
+  }
+
+end CCFRaft.Replay
