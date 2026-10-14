@@ -15,10 +15,10 @@ concurrency:
 permissions: read-all
 
 jobs:
-  disaster-recovery:
-    name: Disaster recovery model and proofs
+  models:
+    name: Lean models and proofs
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -29,16 +29,37 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y elan
-          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+          sort -u lean/*/lean-toolchain | while IFS= read -r toolchain; do
+            elan toolchain install "$toolchain"
+          done
 
-      - name: Restore Mathlib cache
-        working-directory: lean/disaster-recovery
+      - name: Restore Mathlib caches
         shell: bash
         run: |
           set -euo pipefail
-          lake exe cache get
+          for package in ccf-raft disaster-recovery; do
+            (cd "lean/$package" && lake exe cache get)
+          done
 
-      - name: Build and check canonical model
+      - name: Build CCF Raft model and properties
+        working-directory: lean/ccf-raft
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake exe mk_all --check --module --lib CCFRaft
+          lake build --wfail --fail-fast
+          lake lint
+          lake exe canonical-checks
+
+      - name: Check CCF Raft with Lean's kernel
+        working-directory: lean/ccf-raft
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TMPDIR="$RUNNER_TEMP"
+          lake check --inadvisably-no-sandbox
+
+      - name: Build and check disaster recovery model
         working-directory: lean/disaster-recovery
         shell: bash
         run: |
@@ -48,7 +69,7 @@ jobs:
           lake build CCF
           lake lint
 
-      - name: Check Mathlib linters
+      - name: Check disaster recovery Mathlib linters
         working-directory: lean/disaster-recovery
         shell: bash
         run: |
