@@ -86,4 +86,5 @@ emit_signature,4
 periodic_all,10
 dispatch_all
 dispatch_all
-assert_commit_idx,1,13
+# The retirement nomination's full tie selected the highest ID, node 2.
+assert_commit_idx,2,13

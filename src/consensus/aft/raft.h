@@ -1901,6 +1901,16 @@ namespace aft
         RequestVoteResponse response{
           .term = state->current_view, .vote_granted = answer};
 
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "send_request_vote_response";
+        j["packet"] = response;
+        j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
+        j["to_node_id"] = to;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
+
         RAFT_INFO_FMT(
           "Send {} from {} to {}: {}",
           response.msg,
@@ -1914,6 +1924,16 @@ namespace aft
       {
         RequestPreVoteResponse response{
           .term = state->current_view, .vote_granted = answer};
+
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "send_request_vote_response";
+        j["packet"] = response;
+        j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
+        j["to_node_id"] = to;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
 
         RAFT_INFO_FMT(
           "Send {} from {} to {}: {}",
@@ -2311,14 +2331,13 @@ namespace aft
 
       // Pick the node that has the highest match_idx, and break
       // ties by looking at the highest reconfiguration id they are
-      // part of. This can lead to nudging a node that is
-      // about to retire too, but that node will then nudge
-      // a successor, and that seems preferable to nudging a node that
-      // risks not being eligible if reconfiguration id is prioritised.
-      // Alternatively, we could pick the node with the highest match idx
-      // in the latest config, provided that match idx at least as high as a
-      // majority. That would make them both eligible and unlikely to retire
-      // soon.
+      // part of, then by highest node ID. This can lead to nudging a node that
+      // is about to retire too, but that node will then nudge a successor, and
+      // that seems preferable to nudging a node that risks not being eligible
+      // if reconfiguration id is prioritised. Alternatively, we could pick the
+      // node with the highest match idx in the latest config, provided that
+      // match idx at least as high as a majority. That would make them both
+      // eligible and unlikely to retire soon.
       for (auto& [node, node_state] : all_other_nodes)
       {
         if (node_state.match_idx >= max_match_idx)
@@ -2334,8 +2353,11 @@ namespace aft
             }
             conf++;
           }
-          if (!(node_state.match_idx == max_match_idx &&
-                latest_reconf_id < reconf_id_of_max_match))
+          if (
+            !successor.has_value() || node_state.match_idx > max_match_idx ||
+            latest_reconf_id > reconf_id_of_max_match ||
+            (latest_reconf_id == reconf_id_of_max_match &&
+             successor.value() < node))
           {
             reconf_id_of_max_match = latest_reconf_id;
             successor = node;
@@ -2800,6 +2822,7 @@ namespace aft
 #ifdef CCF_RAFT_TRACING
         nlohmann::json j = {};
         j["function"] = "step_down_and_nominate_successor";
+        j["to_node_id"] = successor.value();
         j["state"] = *state;
         COMMITTABLE_INDICES(j["state"], state);
         j["configurations"] = configurations;

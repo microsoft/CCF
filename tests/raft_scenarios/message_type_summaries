@@ -34,7 +34,7 @@ summarise_messages,2,1
 dispatch_single,2,1
 assert_detail,1,leadership_state,Leader
 
-# Leadership nomination proposal.
+# Leadership nomination proposal: equal progress and membership select node 2.
 drop_pending,1
 nominate_successor,1
 summarise_messages,1,0
