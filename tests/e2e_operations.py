@@ -5429,22 +5429,21 @@ def run_ledger_cleanup_no_read_only_dir_check(const_args):
 
         node = network.nodes[0]
         expected_msg = (
-            "files_cleanup.max_committed_ledger_chunks requires at least one "
+            "Exception in ccf::run: files_cleanup.max_committed_ledger_chunks "
+            "requires at least one "
             "ledger.read_only_directories entry"
         )
-        _, err_path = node.get_logs()
-        found = False
-        if err_path is not None:
-            with open(err_path, "r") as f:
-                for line in f:
-                    if expected_msg in line:
-                        found = True
-                        break
-        if not found:
-            raise AssertionError(
-                "Expected node error message about missing read-only ledger "
-                "directory when max_committed_ledger_chunks is configured"
-            )
+        out_path, _ = node.get_logs()
+        with open(out_path, encoding="utf-8") as f:
+            output = f.read()
+        error_index = output.find(expected_msg)
+        cleanup_index = output.find("cleanup iteration(s)")
+        assert 0 <= error_index < cleanup_index, (
+            "Expected missing read-only ledger directory error before final "
+            f"cleanup:\n{output}"
+        )
+        assert "Created new node" not in output, output
+        assert "Entering event loop" not in output, output
 
         LOG.success(
             "Node correctly refused to start without read-only ledger directory"
