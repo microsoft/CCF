@@ -602,20 +602,28 @@ TEST_CASE("CPUID product mapping roundtrip")
     switch (product)
     {
       case ccf::pal::snp::ProductName::Milan:
+      {
         CHECK_EQ(cpuid.get_family_id(), 0x19);
         CHECK_EQ(cpuid.get_model_id(), 0x01);
         break;
+      }
       case ccf::pal::snp::ProductName::Genoa:
+      {
         CHECK_EQ(cpuid.get_family_id(), 0x19);
         CHECK_EQ(cpuid.get_model_id(), 0x11);
         break;
+      }
       case ccf::pal::snp::ProductName::Turin:
+      {
         CHECK_EQ(cpuid.get_family_id(), 0x1A);
         CHECK_EQ(cpuid.get_model_id(), 0x02);
         break;
+      }
       default:
+      {
         FAIL("Unexpected SNP product");
         break;
+      }
     }
   }
 }

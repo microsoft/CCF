@@ -62,13 +62,21 @@ namespace ccf::msgpack
     switch (e)
     {
       case Error::STRING_TOO_LARGE:
+      {
         return "STRING_TOO_LARGE";
+      }
       case Error::BIN_TOO_LARGE:
+      {
         return "BIN_TOO_LARGE";
+      }
       case Error::INVALID_EVENT_TIME:
+      {
         return "INVALID_EVENT_TIME";
+      }
       default:
+      {
         return "UNKNOWN_MSGPACK_ERROR";
+      }
     }
   }
 

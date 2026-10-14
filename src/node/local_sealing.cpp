@@ -186,10 +186,14 @@ namespace ccf::sealing
     switch (sealed_recovery_key.version)
     {
       case DerivedSealingKeyAlgorithm::SNP_v1:
+      {
         derived_key = derive_snp_sealing_key(sealed_recovery_key.tcb_version);
         break;
+      }
       default:
+      {
         throw std::logic_error("Unknown derived sealing key algorithm");
+      }
     }
 
     auto recovery_key_pair =

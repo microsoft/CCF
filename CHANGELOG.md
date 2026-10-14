@@ -47,6 +47,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Dependencies
 
 - Updated `llhttp` from `9.3.0` to `9.4.3` (#8552).
+- Updated `fmt` from `12.1.0` to `12.2.0` (#8555).
 
 ## [7.0.18]
 
