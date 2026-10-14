@@ -14,16 +14,16 @@
 #include <doctest/doctest.h>
 #include <queue>
 #include <string>
+#include <string_view>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
 constexpr auto request_0 = "{\"a_json_key\": \"a_json_value\"}";
 constexpr auto request_1 = "{\"another_json_key\": \"another_json_value\"}";
 
-std::vector<uint8_t> s_to_v(char const* s)
+std::vector<uint8_t> s_to_v(std::string_view s)
 {
-  const auto d = (const uint8_t*)s;
-  return std::vector<uint8_t>(d, d + strlen(s));
+  return {s.begin(), s.end()};
 }
 
 std::string to_lowercase(std::string s)
@@ -127,6 +127,113 @@ DOCTEST_TEST_CASE("Parsing error")
   DOCTEST_CHECK(sp.received.empty());
 }
 
+DOCTEST_TEST_CASE("Empty Transfer-Encoding")
+{
+  for (const auto whitespace : {"", " ", "\t", " \t"})
+  {
+    const auto headers = fmt::format(
+      "Transfer-Encoding:{}\r\nContent-Length: 4\r\n\r\nbody", whitespace);
+
+    {
+      http::SimpleRequestProcessor sp;
+      http::RequestParser p(sp);
+      const auto req = s_to_v(("POST / HTTP/1.1\r\n" + headers).c_str());
+      DOCTEST_CHECK_THROWS_WITH(
+        p.execute(req.data(), req.size()),
+        doctest::Contains("HPE_INVALID_TRANSFER_ENCODING"));
+      DOCTEST_CHECK(sp.received.empty());
+    }
+
+    {
+      http::SimpleResponseProcessor sp;
+      http::ResponseParser p(sp);
+      const auto res = s_to_v(("HTTP/1.1 200 OK\r\n" + headers).c_str());
+      DOCTEST_CHECK_THROWS_WITH(
+        p.execute(res.data(), res.size()),
+        doctest::Contains("HPE_INVALID_TRANSFER_ENCODING"));
+      DOCTEST_CHECK(sp.received.empty());
+    }
+  }
+}
+
+DOCTEST_TEST_CASE("Content-Length with optional whitespace")
+{
+  for (const auto value : {"4", " 4 ", "\t4\t", " \t4 \t"})
+  {
+    const auto headers = fmt::format("Content-Length:{}\r\n\r\nbody", value);
+    const auto body = s_to_v("body");
+
+    {
+      http::SimpleRequestProcessor sp;
+      http::RequestParser p(sp);
+      const auto req = s_to_v(("POST / HTTP/1.1\r\n" + headers).c_str());
+      DOCTEST_CHECK_NOTHROW(p.execute(req.data(), req.size()));
+      DOCTEST_REQUIRE(sp.received.size() == 1);
+      DOCTEST_CHECK(sp.received.front().body == body);
+    }
+
+    {
+      http::SimpleResponseProcessor sp;
+      http::ResponseParser p(sp);
+      const auto res = s_to_v(("HTTP/1.1 200 OK\r\n" + headers).c_str());
+      DOCTEST_CHECK_NOTHROW(p.execute(res.data(), res.size()));
+      DOCTEST_REQUIRE(sp.received.size() == 1);
+      DOCTEST_CHECK(sp.received.front().body == body);
+    }
+  }
+}
+
+DOCTEST_TEST_CASE("Connection close with optional whitespace")
+{
+  for (const auto whitespace : {"", " ", "\t", " \t"})
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp);
+    const auto message = fmt::format(
+      "GET /first HTTP/1.1\r\nConnection: close{}\r\n\r\n"
+      "GET /second HTTP/1.1\r\n\r\n",
+      whitespace);
+    const auto req = s_to_v(message.c_str());
+    DOCTEST_CHECK_THROWS_WITH(
+      p.execute(req.data(), req.size()),
+      doctest::Contains("HPE_CLOSED_CONNECTION"));
+    DOCTEST_REQUIRE(sp.received.size() == 1);
+    DOCTEST_CHECK(sp.received.front().url == "/first");
+  }
+}
+
+DOCTEST_TEST_CASE("Response line terminator")
+{
+  for (const auto terminator : {"\r", "\r\r", "\r\r\n"})
+  {
+    http::SimpleResponseProcessor sp;
+    http::ResponseParser p(sp);
+    const auto message =
+      fmt::format("HTTP/1.1 200 OK{}Content-Length: 4\r\n\r\nbody", terminator);
+    const auto res = s_to_v(message.c_str());
+    DOCTEST_CHECK_THROWS_WITH(
+      p.execute(res.data(), res.size()), doctest::Contains("HPE_STRICT"));
+    DOCTEST_CHECK(sp.received.empty());
+  }
+}
+
+DOCTEST_TEST_CASE("Invalid quoted chunk extensions")
+{
+  for (const auto control : {'\x01', '\x0b', '\x0c', '\x1f', '\x7f'})
+  {
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp);
+    const auto message = fmt::format(
+      "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"
+      "4;ext=\"val{}ue\"\r\nbody\r\n0\r\n\r\n",
+      control);
+    const auto req = s_to_v(message.c_str());
+    DOCTEST_CHECK_THROWS_WITH(
+      p.execute(req.data(), req.size()), doctest::Contains("HPE_STRICT"));
+    DOCTEST_CHECK(sp.received.empty());
+  }
+}
+
 DOCTEST_TEST_CASE("Parsing fuzzing")
 {
   std::vector<uint8_t> r;
@@ -190,6 +297,108 @@ DOCTEST_TEST_CASE("Partial body")
   const auto& m = sp.received.front();
   DOCTEST_CHECK(m.method == HTTP_POST);
   DOCTEST_CHECK(m.body == r0);
+}
+
+DOCTEST_TEST_CASE("Chunked request body")
+{
+  using namespace std::literals;
+  const auto req = s_to_v(
+    "POST /chunked HTTP/1.1\r\n"
+    "transfer-encoding: chunked\r\n"
+    "\r\n"
+    "10\r\n0123456789abcdef\r\n"
+    "4\r\n\0\r\n\xff\r\n"
+    "5\r\nlast!\r\n"
+    "0\r\n\r\n"sv);
+  const auto body = s_to_v("0123456789abcdef\0\r\n\xfflast!"sv);
+
+  for (const auto max_body_size :
+       {body.size() - 1, body.size(), body.size() + 1})
+  {
+    for (const auto fragment_size : {req.size(), size_t(1), size_t(7)})
+    {
+      DOCTEST_CAPTURE(max_body_size);
+      DOCTEST_CAPTURE(fragment_size);
+      ccf::http::ParserConfiguration config;
+      config.max_body_size =
+        ccf::ds::SizeString(fmt::format("{}B", max_body_size));
+      http::SimpleRequestProcessor sp;
+      http::RequestParser p(sp, config);
+
+      const auto parse = [&]() {
+        for (size_t offset = 0; offset < req.size(); offset += fragment_size)
+        {
+          const auto size = std::min(fragment_size, req.size() - offset);
+          p.execute(req.data() + offset, size);
+          if (offset + size < req.size())
+          {
+            DOCTEST_CHECK(sp.received.empty());
+          }
+        }
+      };
+
+      if (max_body_size < body.size())
+      {
+        DOCTEST_CHECK_THROWS_AS(parse(), http::RequestPayloadTooLargeException);
+        DOCTEST_CHECK(sp.received.empty());
+      }
+      else
+      {
+        DOCTEST_REQUIRE_NOTHROW(parse());
+        DOCTEST_REQUIRE(sp.received.size() == 1);
+        const auto& message = sp.received.front();
+        DOCTEST_CHECK(message.method == HTTP_POST);
+        DOCTEST_CHECK(message.url == "/chunked");
+        DOCTEST_CHECK(message.body == body);
+      }
+    }
+  }
+}
+
+DOCTEST_TEST_CASE("Malformed and incomplete chunked requests")
+{
+  std::vector<std::string_view> bodies;
+  bool malformed = false;
+  DOCTEST_SUBCASE("Malformed framing")
+  {
+    malformed = true;
+    bodies = {"g\r\nabc\r\n0\r\n\r\n", "3\r\nabc!\r\n0\r\n\r\n"};
+  }
+  DOCTEST_SUBCASE("Incomplete framing")
+  {
+    bodies = {"4\r\nab", "4\r\nabcd\r\n", "4\r\nabcd\r\n0\r\n"};
+  }
+
+  for (const auto body : bodies)
+  {
+    const auto req = s_to_v(fmt::format(
+      "POST /chunked HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n{}", body));
+    for (const auto fragment_size : {req.size(), size_t(1)})
+    {
+      DOCTEST_CAPTURE(body);
+      DOCTEST_CAPTURE(fragment_size);
+      http::SimpleRequestProcessor sp;
+      http::RequestParser p(sp);
+      const auto parse = [&]() {
+        for (size_t offset = 0; offset < req.size(); offset += fragment_size)
+        {
+          const auto size = std::min(fragment_size, req.size() - offset);
+          p.execute(req.data() + offset, size);
+          DOCTEST_CHECK(sp.received.empty());
+        }
+      };
+
+      if (malformed)
+      {
+        DOCTEST_CHECK_THROWS_AS(parse(), std::runtime_error);
+      }
+      else
+      {
+        DOCTEST_CHECK_NOTHROW(parse());
+      }
+      DOCTEST_CHECK(sp.received.empty());
+    }
+  }
 }
 
 DOCTEST_TEST_CASE("Body too large")
