@@ -6,8 +6,11 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <chrono>
+#include <cstdint>
+#include <ctime>
 #include <doctest/doctest.h>
 #include <memory>
+#include <optional>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -73,6 +76,60 @@ public:
     ccf::ds::TimeBoundLogger::default_max_time = previous_default_max_time;
   }
 };
+
+#ifndef CCF_RAFT_TRACING
+TEST_CASE("Logger timestamp retains microsecond precision")
+{
+  std::tm tm{};
+  tm.tm_year = 126;
+  tm.tm_mon = 5;
+  tm.tm_mday = 16;
+  tm.tm_hour = 5;
+  tm.tm_min = 30;
+  tm.tm_sec = 6;
+  ::timespec ts{};
+
+  CHECK(ccf::logger::get_timestamp(tm, ts) == "2026-06-16T05:30:06.000000Z");
+  ts.tv_nsec = 123456789;
+  CHECK(ccf::logger::get_timestamp(tm, ts) == "2026-06-16T05:30:06.123456Z");
+  ts.tv_nsec = 999999999;
+  CHECK(ccf::logger::get_timestamp(tm, ts) == "2026-06-16T05:30:06.999999Z");
+}
+#endif
+
+TEST_CASE("Application log formatting preserves text and JSON messages")
+{
+  using namespace std::string_literals;
+
+  std::vector<std::string> text_logs;
+  std::vector<std::string> json_logs;
+  const ScopedLoggerConfig restore_config;
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
+  ccf::logger::config::loggers().emplace_back(
+    std::make_unique<TestTextLogger>(text_logs));
+  ccf::logger::config::loggers().emplace_back(
+    std::make_unique<TestJsonLogger>(json_logs));
+
+  const std::vector<uint8_t> bytes = {0, 1, 127, 255};
+  CCF_APP_INFO(
+    "value={:.2f} hex={:02x} enum={} optional={}",
+    1.25,
+    fmt::join(bytes, ""),
+    ccf::LoggerLevel::INFO,
+    std::optional{7});
+  CCF_APP_INFO("escaped={{}}\n{}\0{}", "before", "after");
+
+  const std::vector<std::string> expected = {
+    "value=1.25 hex=00017fff enum=2 optional=optional(7)",
+    "escaped={}\nbefore\0after"s};
+  REQUIRE(text_logs.size() == expected.size());
+  REQUIRE(json_logs.size() == expected.size());
+  for (size_t i = 0; i < expected.size(); ++i)
+  {
+    CHECK(text_logs[i].ends_with(expected[i] + "\n"));
+    CHECK(nlohmann::json::parse(json_logs[i]).at("msg") == expected[i]);
+  }
+}
 
 TEST_CASE("Time-bound logger duration formatting")
 {
